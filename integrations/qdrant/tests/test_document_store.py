@@ -62,9 +62,8 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             use_sparse_embeddings=True,
             sparse_idf=True,
         )
-
-        client = document_store.client
-        sparse_config = client.get_collection("Document").config.params.sparse_vectors
+        document_store._ensure_initialized()
+        sparse_config = document_store._client.get_collection("Document").config.params.sparse_vectors
 
         assert SPARSE_VECTORS_NAME in sparse_config
 
@@ -143,11 +142,39 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
 
     def test_query_hybrid_search_batch_failure(self):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
-
+        document_store._ensure_initialized()
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
         embedding = [0.1] * 768
 
-        with patch.object(document_store.client, "query_points", side_effect=Exception("query_points")):
+        with patch.object(document_store._client, "query_points", side_effect=Exception("query_points")):
 
             with pytest.raises(QdrantStoreError):
                 document_store._query_hybrid(query_sparse_embedding=sparse_embedding, query_embedding=embedding)
+
+    @pytest.mark.asyncio
+    async def test_write_documents_async(self, document_store: QdrantDocumentStore):
+        docs = [Document(id="1")]
+        result = await document_store.write_documents_async(docs)
+        assert result == 1
+        with pytest.raises(DuplicateDocumentError):
+            await document_store.write_documents_async(docs, DuplicatePolicy.FAIL)
+
+    @pytest.mark.asyncio
+    async def test_sparse_configuration_async(self):
+        document_store = QdrantDocumentStore(
+            ":memory:",
+            recreate_index=True,
+            use_sparse_embeddings=True,
+            sparse_idf=True,
+        )
+        document_store._ensure_initialized()
+
+        async_client = await document_store.get_async_client()
+        collection = await async_client.get_collection("Document")
+        sparse_config = collection.config.params.sparse_vectors
+
+        assert SPARSE_VECTORS_NAME in sparse_config
+
+        # check that the `sparse_idf` parameter takes effect
+        assert hasattr(sparse_config[SPARSE_VECTORS_NAME], "modifier")
+        assert sparse_config[SPARSE_VECTORS_NAME].modifier == rest.Modifier.IDF

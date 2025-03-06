@@ -260,9 +260,12 @@ class QdrantDocumentStore:
         self.write_batch_size = write_batch_size
         self.scroll_size = scroll_size
 
-    def _ensure_initialized(self):
-        if not self._initialized:
-            self._client = qdrant_client.QdrantClient(
+    async def get_async_client(self):
+        """
+        Returns the asynchronous Qdrant client, initializing it if necessary.
+        """
+        if self._async_client is None:
+            self._async_client = qdrant_client.AsyncQdrantClient(
                 location=self.location,
                 url=self.url,
                 port=self.port,
@@ -277,8 +280,21 @@ class QdrantDocumentStore:
                 metadata=self.metadata,
                 force_disable_check_same_thread=self.force_disable_check_same_thread,
             )
+            await self._set_up_collection_async(
+                self.index,
+                self.embedding_dim,
+                self.recreate_index,
+                self.similarity,
+                self.use_sparse_embeddings,
+                self.sparse_idf,
+                self.on_disk,
+                self.payload_fields_to_index,
+            )
+        return self._async_client
 
-            self._async_client = qdrant_client.AsyncQdrantClient(
+    def _ensure_initialized(self):
+        if not self._initialized:
+            self._client = qdrant_client.QdrantClient(
                 location=self.location,
                 url=self.url,
                 port=self.port,
@@ -315,7 +331,7 @@ class QdrantDocumentStore:
         self._ensure_initialized()
         assert self._client is not None
         try:
-            response = self.client.count(
+            response = self._client.count(
                 collection_name=self.index,
             )
             return response.count
@@ -324,7 +340,7 @@ class QdrantDocumentStore:
             # with the remote server UnexpectedResponse is raised. Until that's unified,
             # we need to catch both.
             return 0
-        
+
     async def count_documents_async(self) -> int:
         """
         Asynchronously returns the number of documents present in the document dtore.
@@ -371,7 +387,7 @@ class QdrantDocumentStore:
                 filters,
             )
         )
-    
+
     async def filter_documents_async(
         self,
         filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
@@ -413,6 +429,10 @@ class QdrantDocumentStore:
 
         :returns: The number of documents written to the document store.
         """
+
+        self._ensure_initialized()
+        assert self._client is not None
+
         for doc in documents:
             if not isinstance(doc, Document):
                 msg = f"DocumentStore.write_documents() expects a list of Documents but got an element of {type(doc)}."
@@ -438,7 +458,7 @@ class QdrantDocumentStore:
                     use_sparse_embeddings=self.use_sparse_embeddings,
                 )
 
-                self.client.upsert(
+                self._client.upsert(
                     collection_name=self.index,
                     points=batch,
                     wait=self.wait_result_from_api,
@@ -446,14 +466,14 @@ class QdrantDocumentStore:
 
                 progress_bar.update(self.write_batch_size)
         return len(document_objects)
-    
+
     async def write_documents_async(
         self,
         documents: List[Document],
         policy: DuplicatePolicy = DuplicatePolicy.FAIL,
     ) -> int:
         """
-        Writes documents to Qdrant using the specified policy.
+        Asynchronously writes documents to Qdrant using the specified policy.
         The QdrantDocumentStore can handle duplicate documents based on the given policy.
         The available policies are:
         - `FAIL`: The operation will raise an error if any document already exists.
@@ -465,19 +485,20 @@ class QdrantDocumentStore:
 
         :returns: The number of documents written to the document store.
         """
+
         for doc in documents:
             if not isinstance(doc, Document):
-                msg = f"DocumentStore.write_documents() expects a list of Documents but got an element of {type(doc)}."
+                msg = f"DocumentStore.write_documents_async() expects a list of Documents but got an element of {type(doc)}."
                 raise ValueError(msg)
-        self._set_up_collection(
+        await self._set_up_collection_async(
             self.index, self.embedding_dim, False, self.similarity, self.use_sparse_embeddings, self.sparse_idf
         )
 
         if len(documents) == 0:
-            logger.warning("Calling QdrantDocumentStore.write_documents() with empty list")
+            logger.warning("Calling QdrantDocumentStore.write_documents_async() with empty list")
             return 0
 
-        document_objects = self._handle_duplicate_documents(
+        document_objects = await self._handle_duplicate_documents_async(
             documents=documents,
             policy=policy,
         )
@@ -505,9 +526,13 @@ class QdrantDocumentStore:
 
         :param document_ids: the document ids to delete
         """
+
+        self._ensure_initialized()
+        assert self._client is not None
+
         ids = [convert_id(_id) for _id in document_ids]
         try:
-            self.client.delete(
+            self._client.delete(
                 collection_name=self.index,
                 points_selector=ids,
                 wait=self.wait_result_from_api,
@@ -515,6 +540,28 @@ class QdrantDocumentStore:
         except KeyError:
             logger.warning(
                 "Called QdrantDocumentStore.delete_documents() on a non-existing ID",
+            )
+
+    async def delete_documents_async(self, document_ids: List[str]) -> None:
+        """
+        Asynchronously deletes documents that match the provided `document_ids` from the document store.
+
+        :param document_ids: the document ids to delete
+        """
+
+        self._ensure_initialized()
+        assert self._async_client is not None
+
+        ids = [convert_id(_id) for _id in document_ids]
+        try:
+            await self._async_client.delete(
+                collection_name=self.index,
+                points_selector=ids,
+                wait=self.wait_result_from_api,
+            )
+        except KeyError:
+            logger.warning(
+                "Called QdrantDocumentStore.delete_documents_async() on a non-existing ID",
             )
 
     @classmethod
@@ -635,7 +682,7 @@ class QdrantDocumentStore:
         assert self._client is not None
 
         ids = [convert_id(_id) for _id in ids]
-        records = self.client.retrieve(
+        records = self._client.retrieve(
             collection_name=self.index,
             ids=ids,
             with_payload=True,
@@ -647,7 +694,7 @@ class QdrantDocumentStore:
                 convert_qdrant_point_to_haystack_document(record, use_sparse_embeddings=self.use_sparse_embeddings)
             )
         return documents
-    
+
     async def get_documents_by_id_async(
         self,
         ids: List[str],
@@ -726,7 +773,7 @@ class QdrantDocumentStore:
         query_indices = query_sparse_embedding.indices
         query_values = query_sparse_embedding.values
         if group_by:
-            groups = self.client.query_points_groups(
+            groups = self._client.query_points_groups(
                 collection_name=self.index,
                 query=rest.SparseVector(
                     indices=query_indices,
@@ -750,7 +797,7 @@ class QdrantDocumentStore:
                 else []
             )
         else:
-            points = self.client.query_points(
+            points = self._client.query_points(
                 collection_name=self.index,
                 query=rest.SparseVector(
                     indices=query_indices,
@@ -805,7 +852,7 @@ class QdrantDocumentStore:
         """
         qdrant_filters = convert_filters_to_qdrant(filters)
         if group_by:
-            groups = self.client.query_points_groups(
+            groups = self._client.query_points_groups(
                 collection_name=self.index,
                 query=query_embedding,
                 using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
@@ -826,7 +873,7 @@ class QdrantDocumentStore:
                 else []
             )
         else:
-            points = self.client.query_points(
+            points = self._client.query_points(
                 collection_name=self.index,
                 query=query_embedding,
                 using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
@@ -900,7 +947,7 @@ class QdrantDocumentStore:
 
         try:
             if group_by:
-                groups = self.client.query_points_groups(
+                groups = self._client.query_points_groups(
                     collection_name=self.index,
                     prefetch=[
                         rest.Prefetch(
@@ -926,7 +973,7 @@ class QdrantDocumentStore:
                     with_vectors=return_embedding,
                 ).groups
             else:
-                points = self.client.query_points(
+                points = self._client.query_points(
                     collection_name=self.index,
                     prefetch=[
                         rest.Prefetch(
@@ -997,7 +1044,22 @@ class QdrantDocumentStore:
         """
         if payload_fields_to_index is not None:
             for payload_index in payload_fields_to_index:
-                self.client.create_payload_index(
+                self._client.create_payload_index(
+                    collection_name=collection_name,
+                    field_name=payload_index["field_name"],
+                    field_schema=payload_index["field_schema"],
+                )
+
+    async def _create_payload_index_async(
+        self, collection_name: str, payload_fields_to_index: Optional[List[dict]] = None
+    ):
+        """
+        Asynchronously create payload index for the collection if payload_fields_to_index is provided
+        See: https://qdrant.tech/documentation/concepts/indexing/#payload-index
+        """
+        if payload_fields_to_index is not None:
+            for payload_index in payload_fields_to_index:
+                await self._async_client.create_payload_index(
                     collection_name=collection_name,
                     field_name=payload_index["field_name"],
                     field_schema=payload_index["field_schema"],
@@ -1041,7 +1103,7 @@ class QdrantDocumentStore:
         """
         distance = self.get_distance(similarity)
 
-        if recreate_collection or not self.client.collection_exists(collection_name):
+        if recreate_collection or not self._client.collection_exists(collection_name):
             # There is no need to verify the current configuration of that
             # collection. It might be just recreated again or does not exist yet.
             self.recreate_collection(
@@ -1051,7 +1113,107 @@ class QdrantDocumentStore:
             self._create_payload_index(collection_name, payload_fields_to_index)
             return
 
-        collection_info = self.client.get_collection(collection_name)
+        collection_info = self._client.get_collection(collection_name)
+
+        has_named_vectors = (
+            isinstance(collection_info.config.params.vectors, dict)
+            and DENSE_VECTORS_NAME in collection_info.config.params.vectors
+        )
+
+        if self.use_sparse_embeddings and not has_named_vectors:
+            msg = (
+                f"Collection '{collection_name}' already exists in Qdrant, "
+                f"but it has been originally created without sparse embedding vectors. "
+                f"If you want to use that collection, you can set `use_sparse_embeddings=False`. "
+                f"To use sparse embeddings, you need to recreate the collection or migrate the existing one. "
+                f"See `migrate_to_sparse_embeddings_support` function in "
+                f"`haystack_integrations.document_stores.qdrant`."
+            )
+            raise QdrantStoreError(msg)
+
+        elif not self.use_sparse_embeddings and has_named_vectors:
+            msg = (
+                f"Collection '{collection_name}' already exists in Qdrant, "
+                f"but it has been originally created with sparse embedding vectors."
+                f"If you want to use that collection, please set `use_sparse_embeddings=True`."
+            )
+            raise QdrantStoreError(msg)
+
+        if self.use_sparse_embeddings:
+            current_distance = collection_info.config.params.vectors[DENSE_VECTORS_NAME].distance
+            current_vector_size = collection_info.config.params.vectors[DENSE_VECTORS_NAME].size
+        else:
+            current_distance = collection_info.config.params.vectors.distance
+            current_vector_size = collection_info.config.params.vectors.size
+
+        if current_distance != distance:
+            msg = (
+                f"Collection '{collection_name}' already exists in Qdrant, "
+                f"but it is configured with a similarity '{current_distance.name}'. "
+                f"If you want to use that collection, but with a different "
+                f"similarity, please set `recreate_collection=True` argument."
+            )
+            raise ValueError(msg)
+
+        if current_vector_size != embedding_dim:
+            msg = (
+                f"Collection '{collection_name}' already exists in Qdrant, "
+                f"but it is configured with a vector size '{current_vector_size}'. "
+                f"If you want to use that collection, but with a different "
+                f"vector size, please set `recreate_collection=True` argument."
+            )
+            raise ValueError(msg)
+
+    async def _set_up_collection_async(
+        self,
+        collection_name: str,
+        embedding_dim: int,
+        recreate_collection: bool,
+        similarity: str,
+        use_sparse_embeddings: bool,
+        sparse_idf: bool,
+        on_disk: bool = False,
+        payload_fields_to_index: Optional[List[dict]] = None,
+    ):
+        """
+        Asynchronously sets up the Qdrant collection with the specified parameters.
+        :param collection_name:
+            The name of the collection to set up.
+        :param embedding_dim:
+            The dimension of the embeddings.
+        :param recreate_collection:
+            Whether to recreate the collection if it already exists.
+        :param similarity:
+            The similarity measure to use.
+        :param use_sparse_embeddings:
+            Whether to use sparse embeddings.
+        :param sparse_idf:
+            Whether to compute the Inverse Document Frequency (IDF) when using sparse embeddings. Required for BM42.
+        :param on_disk:
+            Whether to store the collection on disk.
+        :param payload_fields_to_index:
+            List of payload fields to index.
+
+        :raises QdrantStoreError:
+            If the collection exists with incompatible settings.
+        :raises ValueError:
+            If the collection exists with a different similarity measure or embedding dimension.
+
+        """
+        distance = self.get_distance(similarity)
+        async_client = await self.get_async_client()
+
+        if recreate_collection or not await async_client.collection_exists(collection_name):
+            # There is no need to verify the current configuration of that
+            # collection. It might be just recreated again or does not exist yet.
+            await self.recreate_collection_async(
+                collection_name, distance, embedding_dim, on_disk, use_sparse_embeddings, sparse_idf
+            )
+            # Create Payload index if payload_fields_to_index is provided
+            await self._create_payload_index_async(collection_name, payload_fields_to_index)
+            return
+
+        collection_info = await self._async_client.get_collection(collection_name)
 
         has_named_vectors = (
             isinstance(collection_info.config.params.vectors, dict)
@@ -1149,10 +1311,75 @@ class QdrantDocumentStore:
                 ),
             }
 
-        if self.client.collection_exists(collection_name):
-            self.client.delete_collection(collection_name)
+        if self._client.collection_exists(collection_name):
+            self._client.delete_collection(collection_name)
 
-        self.client.create_collection(
+        self._client.create_collection(
+            collection_name=collection_name,
+            vectors_config=vectors_config,
+            sparse_vectors_config=sparse_vectors_config if use_sparse_embeddings else None,
+            shard_number=self.shard_number,
+            replication_factor=self.replication_factor,
+            write_consistency_factor=self.write_consistency_factor,
+            on_disk_payload=self.on_disk_payload,
+            hnsw_config=self.hnsw_config,
+            optimizers_config=self.optimizers_config,
+            wal_config=self.wal_config,
+            quantization_config=self.quantization_config,
+            init_from=self.init_from,
+        )
+
+    async def recreate_collection_async(
+        self,
+        collection_name: str,
+        distance,
+        embedding_dim: int,
+        on_disk: Optional[bool] = None,
+        use_sparse_embeddings: Optional[bool] = None,
+        sparse_idf: bool = False,
+    ):
+        """
+        Asynchronously recreates the Qdrant collection with the specified parameters.
+
+        :param collection_name:
+            The name of the collection to recreate.
+        :param distance:
+            The distance metric to use for the collection.
+        :param embedding_dim:
+            The dimension of the embeddings.
+        :param on_disk:
+            Whether to store the collection on disk.
+        :param use_sparse_embeddings:
+            Whether to use sparse embeddings.
+        :param sparse_idf:
+            Whether to compute the Inverse Document Frequency (IDF) when using sparse embeddings. Required for BM42.
+        """
+        if on_disk is None:
+            on_disk = self.on_disk
+
+        if use_sparse_embeddings is None:
+            use_sparse_embeddings = self.use_sparse_embeddings
+
+        # dense vectors configuration
+        vectors_config = rest.VectorParams(size=embedding_dim, on_disk=on_disk, distance=distance)
+
+        if use_sparse_embeddings:
+            # in this case, we need to define named vectors
+            vectors_config = {DENSE_VECTORS_NAME: vectors_config}
+
+            sparse_vectors_config = {
+                SPARSE_VECTORS_NAME: rest.SparseVectorParams(
+                    index=rest.SparseIndexParams(
+                        on_disk=on_disk,
+                    ),
+                    modifier=rest.Modifier.IDF if sparse_idf else None,
+                ),
+            }
+
+        if await self._async_client.collection_exists(collection_name):
+            await self._async_client.delete_collection(collection_name)
+
+        await self._async_client.create_collection(
             collection_name=collection_name,
             vectors_config=vectors_config,
             sparse_vectors_config=sparse_vectors_config if use_sparse_embeddings else None,
@@ -1184,6 +1411,33 @@ class QdrantDocumentStore:
         if policy in (DuplicatePolicy.SKIP, DuplicatePolicy.FAIL):
             documents = self._drop_duplicate_documents(documents)
             documents_found = self.get_documents_by_id(ids=[doc.id for doc in documents])
+            ids_exist_in_db: List[str] = [doc.id for doc in documents_found]
+
+            if len(ids_exist_in_db) > 0 and policy == DuplicatePolicy.FAIL:
+                msg = f"Document with ids '{', '.join(ids_exist_in_db)} already exists in index = '{self.index}'."
+                raise DuplicateDocumentError(msg)
+
+            documents = list(filter(lambda doc: doc.id not in ids_exist_in_db, documents))
+
+        return documents
+
+    async def _handle_duplicate_documents_async(
+        self,
+        documents: List[Document],
+        policy: DuplicatePolicy = None,
+    ):
+        """
+        Checks whether any of the passed documents is already existing in the chosen index and returns a list of
+        documents that are not in the index yet.
+
+        :param documents: A list of Haystack Document objects.
+        :param policy: The duplicate policy to use when writing documents.
+        :returns: A list of Haystack Document objects.
+        """
+
+        if policy in (DuplicatePolicy.SKIP, DuplicatePolicy.FAIL):
+            documents = self._drop_duplicate_documents(documents)
+            documents_found = await self.get_documents_by_id_async(ids=[doc.id for doc in documents])
             ids_exist_in_db: List[str] = [doc.id for doc in documents_found]
 
             if len(ids_exist_in_db) > 0 and policy == DuplicatePolicy.FAIL:
