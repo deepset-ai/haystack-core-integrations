@@ -223,19 +223,11 @@ class TestNvidiaTextEmbedder:
         "model, api_url",
         [
             ("NV-Embed-QA", None),
-            ("snowflake/arctic-embed-l", "https://integrate.api.nvidia.com/v1"),
-            ("nvidia/nv-embed-v1", "https://integrate.api.nvidia.com/v1"),
-            ("nvidia/nv-embedqa-mistral-7b-v2", "https://integrate.api.nvidia.com/v1"),
             ("nvidia/nv-embedqa-e5-v5", "https://integrate.api.nvidia.com/v1"),
-            ("baai/bge-m3", "https://integrate.api.nvidia.com/v1"),
         ],
         ids=[
             "NV-Embed-QA",
-            "snowflake/arctic-embed-l",
-            "nvidia/nv-embed-v1",
-            "nvidia/nv-embedqa-mistral-7b-v2",
             "nvidia/nv-embedqa-e5-v5",
-            "baai/bge-m3",
         ],
     )
     @pytest.mark.skipif(

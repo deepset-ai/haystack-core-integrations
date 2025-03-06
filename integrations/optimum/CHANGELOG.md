@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/optimum-v1.0.0] - 2025-03-05
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+
+### 🌀 Miscellaneous
+
+- Build: Optimum - remove `transformers` pin (#1467)
+
 ## [integrations/optimum-v0.1.3] - 2025-02-03
 
 ### 🌀 Miscellaneous

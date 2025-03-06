@@ -428,9 +428,11 @@ class TestCohereChatGenerator:
 
         # Get pipeline dictionary and verify its structure
         pipeline_dict = pipeline.to_dict()
-        assert pipeline_dict == {
+
+        expected_dict = {
             "metadata": {},
             "max_runs_per_component": 100,
+            "connection_type_validation": True,
             "components": {
                 "generator": {
                     "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",  # noqa: E501
@@ -456,6 +458,11 @@ class TestCohereChatGenerator:
             },
             "connections": [],
         }
+
+        if not hasattr(pipeline, "_connection_type_validation"):
+            expected_dict.pop("connection_type_validation")
+
+        assert pipeline_dict == expected_dict
 
         # Test YAML serialization/deserialization
         pipeline_yaml = pipeline.dumps()

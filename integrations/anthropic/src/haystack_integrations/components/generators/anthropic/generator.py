@@ -138,6 +138,7 @@ class AnthropicGenerator:
 
         :param prompt: The input prompt for generation.
         :param generation_kwargs: Additional keyword arguments for generation.
+        :param streaming_callback: An optional callback function to handle streaming chunks.
         :returns: A dictionary containing:
          - `replies`: A list of generated replies.
          - `meta`: A list of metadata dictionaries for each reply.
@@ -148,8 +149,10 @@ class AnthropicGenerator:
         disallowed_params = set(generation_kwargs) - set(self.ALLOWED_PARAMS)
         if disallowed_params:
             logger.warning(
-                f"Model parameters {disallowed_params} are not allowed and will be ignored. "
-                f"Allowed parameters are {self.ALLOWED_PARAMS}."
+                "Model parameters {disallowed_params} are not allowed and will be ignored. "
+                "Allowed parameters are {allowed_params}.",
+                disallowed_params=disallowed_params,
+                allowed_params=self.ALLOWED_PARAMS,
             )
 
         streaming_callback = streaming_callback or self.streaming_callback
