@@ -1,6 +1,6 @@
 import json
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List
 
 from haystack.dataclasses import StreamingChunk
 
@@ -13,9 +13,8 @@ class BedrockModelAdapter(ABC):
     focusing on preparing the requests and extracting the responses from the Amazon Bedrock hosted LLMs.
     """
 
-    def __init__(self, model_kwargs: Dict[str, Any], max_length: Optional[int]) -> None:
+    def __init__(self, model_kwargs: Dict[str, Any]) -> None:
         self.model_kwargs = model_kwargs
-        self.max_length = max_length
 
     @abstractmethod
     def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
@@ -106,13 +105,13 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
     :param max_length: Maximum length of generated text
     """
 
-    def __init__(self, model_kwargs: Dict[str, Any], max_length: Optional[int]) -> None:
+    def __init__(self, model_kwargs: Dict[str, Any]) -> None:
         self.use_messages_api = model_kwargs.get("use_messages_api", True)
         self.include_thinking = model_kwargs.get("include_thinking", True)
         self.thinking_tag = model_kwargs.get("thinking_tag", "thinking")
         self.thinking_tag_start = f"<{self.thinking_tag}>" if self.thinking_tag else ""
         self.thinking_tag_end = f"</{self.thinking_tag}>\n\n" if self.thinking_tag else "\n\n"
-        super().__init__(model_kwargs, max_length)
+        super().__init__(model_kwargs)
 
     def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
         """
@@ -139,7 +138,6 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
             body = {"messages": [{"role": "user", "content": prompt}], **params}
         else:
             default_params = {
-                "max_tokens_to_sample": self.max_length,
                 "stop_sequences": ["\n\nHuman:"],
                 "temperature": None,
                 "top_p": None,

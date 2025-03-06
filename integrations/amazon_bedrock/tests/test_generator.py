@@ -236,17 +236,17 @@ def test_get_model_adapter_model_family_over_auto_detection():
 
 class TestAnthropicClaudeAdapter:
     def test_default_init(self) -> None:
-        adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=100)
+        adapter = AnthropicClaudeAdapter(model_kwargs={})
         assert adapter.use_messages_api is True
 
     def test_use_messages_api_false(self) -> None:
-        adapter = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False}, max_length=100)
+        adapter = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False})
         assert adapter.use_messages_api is False
 
 
 class TestAnthropicClaudeAdapterMessagesAPI:
     def test_prepare_body_with_default_params(self) -> None:
-        layer = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
+        layer = AnthropicClaudeAdapter(model_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {
             "messages": [{"role": "user", "content": "Hello, how are you?"}],
@@ -258,7 +258,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         assert body == expected_body
 
     def test_prepare_body_with_custom_inference_params(self) -> None:
-        layer = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
+        layer = AnthropicClaudeAdapter(model_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {
             "messages": [{"role": "user", "content": "Hello, how are you?"}],
@@ -296,8 +296,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 "anthropic_version": "custom_version",
                 "unknown_arg": "unknown_value",
                 "thinking": {"type": "enabled", "budget_tokens": 1024},
-            },
-            max_length=99,
+            }
         )
         prompt = "Hello, how are you?"
         expected_body = {
@@ -325,8 +324,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 "system": "system prompt",
                 "anthropic_version": "custom_version",
                 "thinking": {"type": "enabled", "budget_tokens": 1024},
-            },
-            max_length=99,
+            }
         )
         prompt = "Hello, how are you?"
         expected_body = {
@@ -353,19 +351,19 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         assert body == expected_body
 
     def test_get_responses(self) -> None:
-        adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={})
         response_body = {"content": [{"text": "This is a single response."}]}
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_leading_whitespace(self) -> None:
-        adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={})
         response_body = {"content": [{"text": "\n\t This is a single response."}]}
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_with_thinking(self) -> None:
-        adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={})
         response_body = {
             "content": [
                 {"thinking": "This is a thinking part.", "type": "thinking"},
@@ -376,7 +374,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_with_thinking_include_thinking_false(self) -> None:
-        adapter = AnthropicClaudeAdapter(model_kwargs={"include_thinking": False}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={"include_thinking": False})
         response_body = {
             "content": [
                 {"thinking": "This is a thinking part.", "type": "thinking"},
@@ -387,7 +385,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_with_thinking_custom_thinking_tag(self) -> None:
-        adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": "custom"}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": "custom"})
         response_body = {
             "content": [
                 {"thinking": "This is a thinking part.", "type": "thinking"},
@@ -398,7 +396,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_with_thinking_no_thinking_tag(self) -> None:
-        adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": None}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": None})
         response_body = {
             "content": [
                 {"thinking": "This is a thinking part.", "type": "thinking"},
@@ -409,7 +407,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_with_thinking_redacted_thinking_is_ignored(self) -> None:
-        adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={})
         response_body = {
             "content": [
                 {"thinking": "This is a thinking part.", "type": "thinking"},
@@ -433,7 +431,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             {"chunk": {"bytes": b'{"delta": {"text": " response."}}'}},
         ]
 
-        adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={})
         expected_responses = ["This is a single response."]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
@@ -453,7 +451,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
 
         stream_mock.__iter__.return_value = []
 
-        adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={})
         expected_responses = [""]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
@@ -478,7 +476,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             {"chunk": {"bytes": b'{"delta": {"text": " response."}}'}},
         ]
 
-        adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={})
         expected_responses = ["<thinking>This is a thinking part.</thinking>\n\nThis is a single response."]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
@@ -528,7 +526,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             {"chunk": {"bytes": b'{"delta": {"text": " response."}}'}},
         ]
 
-        adapter = AnthropicClaudeAdapter(model_kwargs={"include_thinking": False}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={"include_thinking": False})
         expected_responses = ["This is a single response."]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
@@ -561,7 +559,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             {"chunk": {"bytes": b'{"delta": {"text": " response."}}'}},
         ]
 
-        adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": "custom"}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": "custom"})
         expected_responses = ["<custom>This is a thinking part.</custom>\n\nThis is a single response."]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
@@ -611,7 +609,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             {"chunk": {"bytes": b'{"delta": {"text": " response."}}'}},
         ]
 
-        adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": None}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": None})
         expected_responses = ["This is a thinking part.\n\nThis is a single response."]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
@@ -668,7 +666,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             {"chunk": {"bytes": b'{"delta": {"text": " response."}}'}},
         ]
 
-        adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={})
         expected_responses = ["<thinking>This is a thinking part.</thinking>\n\nThis is a single response."]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
@@ -702,11 +700,10 @@ class TestAnthropicClaudeAdapterMessagesAPI:
 
 class TestAnthropicClaudeAdapterNoMessagesAPI:
     def test_prepare_body_with_default_params(self) -> None:
-        layer = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False}, max_length=99)
+        layer = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False})
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "\n\nHuman: Hello, how are you?\n\nAssistant:",
-            "max_tokens_to_sample": 99,
             "stop_sequences": ["\n\nHuman:"],
         }
 
@@ -715,11 +712,10 @@ class TestAnthropicClaudeAdapterNoMessagesAPI:
         assert body == expected_body
 
     def test_prepare_body_with_custom_inference_params(self) -> None:
-        layer = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False}, max_length=99)
+        layer = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False})
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "\n\nHuman: Hello, how are you?\n\nAssistant:",
-            "max_tokens_to_sample": 50,
             "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "top_p": 0.8,
@@ -745,16 +741,13 @@ class TestAnthropicClaudeAdapterNoMessagesAPI:
                 "temperature": 0.7,
                 "top_p": 0.8,
                 "top_k": 5,
-                "max_tokens_to_sample": 50,
                 "stop_sequences": ["CUSTOM_STOP"],
                 "unknown_arg": "unknown_value",
-            },
-            max_length=99,
+            }
         )
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "\n\nHuman: Hello, how are you?\n\nAssistant:",
-            "max_tokens_to_sample": 50,
             "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "top_p": 0.8,
@@ -772,33 +765,30 @@ class TestAnthropicClaudeAdapterNoMessagesAPI:
                 "temperature": 0.6,
                 "top_p": 0.7,
                 "top_k": 4,
-                "max_tokens_to_sample": 49,
                 "stop_sequences": ["CUSTOM_STOP_MODEL_KWARGS"],
-            },
-            max_length=99,
+            }
         )
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "\n\nHuman: Hello, how are you?\n\nAssistant:",
-            "max_tokens_to_sample": 50,
             "stop_sequences": ["CUSTOM_STOP_MODEL_KWARGS"],
             "temperature": 0.7,
             "top_p": 0.8,
             "top_k": 5,
         }
 
-        body = layer.prepare_body(prompt, temperature=0.7, top_p=0.8, top_k=5, max_tokens_to_sample=50)
+        body = layer.prepare_body(prompt, temperature=0.7, top_p=0.8, top_k=5)
 
         assert body == expected_body
 
     def test_get_responses(self) -> None:
-        adapter = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False})
         response_body = {"completion": "This is a single response."}
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_leading_whitespace(self) -> None:
-        adapter = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False})
         response_body = {"completion": "\n\t This is a single response."}
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
@@ -815,7 +805,7 @@ class TestAnthropicClaudeAdapterNoMessagesAPI:
             {"chunk": {"bytes": b'{"completion": " response."}'}},
         ]
 
-        adapter = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False})
         expected_responses = ["This is a single response."]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
@@ -835,7 +825,7 @@ class TestAnthropicClaudeAdapterNoMessagesAPI:
 
         stream_mock.__iter__.return_value = []
 
-        adapter = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False}, max_length=99)
+        adapter = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False})
         expected_responses = [""]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
@@ -844,7 +834,7 @@ class TestAnthropicClaudeAdapterNoMessagesAPI:
 
 class TestMistralAdapter:
     def test_prepare_body_with_default_params(self) -> None:
-        layer = MistralAdapter(model_kwargs={}, max_length=99)
+        layer = MistralAdapter(model_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {"prompt": "<s>[INST] Hello, how are you? [/INST]", "stop": []}
 
@@ -852,7 +842,7 @@ class TestMistralAdapter:
         assert body == expected_body
 
     def test_prepare_body_with_custom_inference_params(self) -> None:
-        layer = MistralAdapter(model_kwargs={}, max_length=99)
+        layer = MistralAdapter(model_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "<s>[INST] Hello, how are you? [/INST]",
@@ -881,8 +871,7 @@ class TestMistralAdapter:
                 "top_k": 5,
                 "stop": ["CUSTOM_STOP"],
                 "unknown_arg": "unknown_value",
-            },
-            max_length=99,
+            }
         )
         prompt = "Hello, how are you?"
         expected_body = {
@@ -904,8 +893,7 @@ class TestMistralAdapter:
                 "top_p": 0.7,
                 "top_k": 4,
                 "stop": ["CUSTOM_STOP_MODEL_KWARGS"],
-            },
-            max_length=99,
+            }
         )
         prompt = "Hello, how are you?"
         expected_body = {
@@ -921,7 +909,7 @@ class TestMistralAdapter:
         assert body == expected_body
 
     def test_get_responses(self) -> None:
-        adapter = MistralAdapter(model_kwargs={}, max_length=99)
+        adapter = MistralAdapter(model_kwargs={})
         response_body = {"outputs": [{"text": "This is a single response."}]}
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
@@ -938,7 +926,7 @@ class TestMistralAdapter:
             {"chunk": {"bytes": b'{"outputs": [{"text": " response."}]}'}},
         ]
 
-        adapter = MistralAdapter(model_kwargs={}, max_length=99)
+        adapter = MistralAdapter(model_kwargs={})
         expected_responses = ["This is a single response."]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
@@ -958,7 +946,7 @@ class TestMistralAdapter:
 
         stream_mock.__iter__.return_value = []
 
-        adapter = MistralAdapter(model_kwargs={}, max_length=99)
+        adapter = MistralAdapter(model_kwargs={})
         expected_responses = [""]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
@@ -967,7 +955,7 @@ class TestMistralAdapter:
 
 class TestCohereCommandAdapter:
     def test_prepare_body_with_default_params(self) -> None:
-        layer = CohereCommandAdapter(model_kwargs={}, max_length=99)
+        layer = CohereCommandAdapter(model_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {"prompt": "Hello, how are you?"}
 
@@ -976,7 +964,7 @@ class TestCohereCommandAdapter:
         assert body == expected_body
 
     def test_prepare_body_with_custom_inference_params(self) -> None:
-        layer = CohereCommandAdapter(model_kwargs={}, max_length=99)
+        layer = CohereCommandAdapter(model_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "Hello, how are you?",
@@ -1020,8 +1008,7 @@ class TestCohereCommandAdapter:
                 "num_generations": 1,
                 "truncate": "START",
                 "unknown_arg": "unknown_value",
-            },
-            max_length=99,
+            }
         )
         prompt = "Hello, how are you?"
         expected_body = {
@@ -1053,8 +1040,7 @@ class TestCohereCommandAdapter:
                 "logit_bias": {"token_id": 9.0},
                 "num_generations": 2,
                 "truncate": "NONE",
-            },
-            max_length=99,
+            }
         )
         prompt = "Hello, how are you?"
         expected_body = {
@@ -1085,19 +1071,19 @@ class TestCohereCommandAdapter:
         assert body == expected_body
 
     def test_get_responses(self) -> None:
-        adapter = CohereCommandAdapter(model_kwargs={}, max_length=99)
+        adapter = CohereCommandAdapter(model_kwargs={})
         response_body = {"generations": [{"text": "This is a single response."}]}
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_leading_whitespace(self) -> None:
-        adapter = CohereCommandAdapter(model_kwargs={}, max_length=99)
+        adapter = CohereCommandAdapter(model_kwargs={})
         response_body = {"generations": [{"text": "\n\t This is a single response."}]}
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_multiple_responses(self) -> None:
-        adapter = CohereCommandAdapter(model_kwargs={}, max_length=99)
+        adapter = CohereCommandAdapter(model_kwargs={})
         response_body = {
             "generations": [
                 {"text": "This is a single response."},
@@ -1123,7 +1109,7 @@ class TestCohereCommandAdapter:
             {"chunk": {"bytes": b'{"finish_reason": "MAX_TOKENS", "is_finished": true}'}},
         ]
 
-        adapter = CohereCommandAdapter(model_kwargs={}, max_length=99)
+        adapter = CohereCommandAdapter(model_kwargs={})
         expected_responses = ["This is a single response."]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
@@ -1144,7 +1130,7 @@ class TestCohereCommandAdapter:
 
         stream_mock.__iter__.return_value = []
 
-        adapter = CohereCommandAdapter(model_kwargs={}, max_length=99)
+        adapter = CohereCommandAdapter(model_kwargs={})
         expected_responses = [""]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
@@ -1198,8 +1184,7 @@ class TestCohereCommandRAdapter:
                 "raw_prompting": True,
                 "stream": True,
                 "unknown_arg": "unknown_arg",
-            },
-            max_length=100,
+            }
         )
         body = adapter.prepare_body(prompt="test")
         assert body == {
@@ -1246,13 +1231,13 @@ class TestCohereCommandRAdapter:
         }
 
     def test_extract_completions_from_response(self) -> None:
-        adapter = CohereCommandRAdapter(model_kwargs={}, max_length=100)
+        adapter = CohereCommandRAdapter(model_kwargs={})
         response_body = {"text": "response"}
         completions = adapter._extract_completions_from_response(response_body=response_body)
         assert completions == ["response"]
 
     def test_build_chunk(self) -> None:
-        adapter = CohereCommandRAdapter(model_kwargs={}, max_length=100)
+        adapter = CohereCommandRAdapter(model_kwargs={})
         chunk = {"text": "response_token"}
         streaming_chunk = adapter._build_streaming_chunk(chunk=chunk)
         assert streaming_chunk == StreamingChunk(content="response_token", meta=chunk)
@@ -1260,7 +1245,7 @@ class TestCohereCommandRAdapter:
 
 class TestAI21LabsJurassic2Adapter:
     def test_prepare_body_with_default_params(self) -> None:
-        layer = AI21LabsJurassic2Adapter(model_kwargs={}, max_length=99)
+        layer = AI21LabsJurassic2Adapter(model_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {"prompt": "Hello, how are you?"}
 
@@ -1269,7 +1254,7 @@ class TestAI21LabsJurassic2Adapter:
         assert body == expected_body
 
     def test_prepare_body_with_custom_inference_params(self) -> None:
-        layer = AI21LabsJurassic2Adapter(model_kwargs={}, max_length=99)
+        layer = AI21LabsJurassic2Adapter(model_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "Hello, how are you?",
@@ -1307,8 +1292,7 @@ class TestAI21LabsJurassic2Adapter:
                 "frequencyPenalty": {"scale": 500.0},
                 "numResults": 1,
                 "unknown_arg": "unknown_value",
-            },
-            max_length=99,
+            }
         )
         prompt = "Hello, how are you?"
         expected_body = {
@@ -1337,8 +1321,7 @@ class TestAI21LabsJurassic2Adapter:
                 "frequencyPenalty": {"scale": 499.0},
                 "numResults": 2,
                 "unknown_arg": "unknown_value",
-            },
-            max_length=99,
+            }
         )
         prompt = "Hello, how are you?"
         expected_body = {
@@ -1365,19 +1348,19 @@ class TestAI21LabsJurassic2Adapter:
         assert body == expected_body
 
     def test_get_responses(self) -> None:
-        adapter = AI21LabsJurassic2Adapter(model_kwargs={}, max_length=99)
+        adapter = AI21LabsJurassic2Adapter(model_kwargs={})
         response_body = {"completions": [{"data": {"text": "This is a single response."}}]}
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_leading_whitespace(self) -> None:
-        adapter = AI21LabsJurassic2Adapter(model_kwargs={}, max_length=99)
+        adapter = AI21LabsJurassic2Adapter(model_kwargs={})
         response_body = {"completions": [{"data": {"text": "\n\t This is a single response."}}]}
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_multiple_responses(self) -> None:
-        adapter = AI21LabsJurassic2Adapter(model_kwargs={}, max_length=99)
+        adapter = AI21LabsJurassic2Adapter(model_kwargs={})
         response_body = {
             "completions": [
                 {"data": {"text": "This is a single response."}},
@@ -1393,7 +1376,7 @@ class TestAI21LabsJurassic2Adapter:
 
 class TestAmazonTitanAdapter:
     def test_prepare_body_with_default_params(self) -> None:
-        layer = AmazonTitanAdapter(model_kwargs={}, max_length=99)
+        layer = AmazonTitanAdapter(model_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {
             "inputText": "Hello, how are you?",
@@ -1405,7 +1388,7 @@ class TestAmazonTitanAdapter:
         assert body == expected_body
 
     def test_prepare_body_with_custom_inference_params(self) -> None:
-        layer = AmazonTitanAdapter(model_kwargs={}, max_length=99)
+        layer = AmazonTitanAdapter(model_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {
             "inputText": "Hello, how are you?",
@@ -1434,7 +1417,6 @@ class TestAmazonTitanAdapter:
                 "topP": 0.8,
                 "unknown_arg": "unknown_value",
             },
-            max_length=99,
         )
         prompt = "Hello, how are you?"
         expected_body = {
@@ -1457,7 +1439,6 @@ class TestAmazonTitanAdapter:
                 "temperature": 0.6,
                 "topP": 0.7,
             },
-            max_length=99,
         )
         prompt = "Hello, how are you?"
         expected_body = {
@@ -1474,19 +1455,19 @@ class TestAmazonTitanAdapter:
         assert body == expected_body
 
     def test_get_responses(self) -> None:
-        adapter = AmazonTitanAdapter(model_kwargs={}, max_length=99)
+        adapter = AmazonTitanAdapter(model_kwargs={})
         response_body = {"results": [{"outputText": "This is a single response."}]}
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_leading_whitespace(self) -> None:
-        adapter = AmazonTitanAdapter(model_kwargs={}, max_length=99)
+        adapter = AmazonTitanAdapter(model_kwargs={})
         response_body = {"results": [{"outputText": "\n\t This is a single response."}]}
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_multiple_responses(self) -> None:
-        adapter = AmazonTitanAdapter(model_kwargs={}, max_length=99)
+        adapter = AmazonTitanAdapter(model_kwargs={})
         response_body = {
             "results": [
                 {"outputText": "This is a single response."},
@@ -1511,7 +1492,7 @@ class TestAmazonTitanAdapter:
             {"chunk": {"bytes": b'{"outputText": " response."}'}},
         ]
 
-        adapter = AmazonTitanAdapter(model_kwargs={}, max_length=99)
+        adapter = AmazonTitanAdapter(model_kwargs={})
         expected_responses = ["This is a single response."]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
@@ -1531,7 +1512,7 @@ class TestAmazonTitanAdapter:
 
         stream_mock.__iter__.return_value = []
 
-        adapter = AmazonTitanAdapter(model_kwargs={}, max_length=99)
+        adapter = AmazonTitanAdapter(model_kwargs={})
         expected_responses = [""]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
@@ -1540,7 +1521,7 @@ class TestAmazonTitanAdapter:
 
 class TestMetaLlamaAdapter:
     def test_prepare_body_with_default_params(self) -> None:
-        layer = MetaLlamaAdapter(model_kwargs={}, max_length=99)
+        layer = MetaLlamaAdapter(model_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {"prompt": "Hello, how are you?"}
 
@@ -1549,7 +1530,7 @@ class TestMetaLlamaAdapter:
         assert body == expected_body
 
     def test_prepare_body_with_custom_inference_params(self) -> None:
-        layer = MetaLlamaAdapter(model_kwargs={}, max_length=99)
+        layer = MetaLlamaAdapter(model_kwargs={})
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "Hello, how are you?",
@@ -1573,7 +1554,6 @@ class TestMetaLlamaAdapter:
                 "top_p": 0.8,
                 "unknown_arg": "unknown_value",
             },
-            max_length=99,
         )
         prompt = "Hello, how are you?"
         expected_body = {
@@ -1593,7 +1573,6 @@ class TestMetaLlamaAdapter:
                 "top_p": 0.7,
                 "top_k": 4,
             },
-            max_length=99,
         )
         prompt = "Hello, how are you?"
         expected_body = {
@@ -1607,13 +1586,13 @@ class TestMetaLlamaAdapter:
         assert body == expected_body
 
     def test_get_responses(self) -> None:
-        adapter = MetaLlamaAdapter(model_kwargs={}, max_length=99)
+        adapter = MetaLlamaAdapter(model_kwargs={})
         response_body = {"generation": "This is a single response."}
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_leading_whitespace(self) -> None:
-        adapter = MetaLlamaAdapter(model_kwargs={}, max_length=99)
+        adapter = MetaLlamaAdapter(model_kwargs={})
         response_body = {"generation": "\n\t This is a single response."}
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
@@ -1630,7 +1609,7 @@ class TestMetaLlamaAdapter:
             {"chunk": {"bytes": b'{"generation": " response."}'}},
         ]
 
-        adapter = MetaLlamaAdapter(model_kwargs={}, max_length=99)
+        adapter = MetaLlamaAdapter(model_kwargs={})
         expected_responses = ["This is a single response."]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
@@ -1650,7 +1629,7 @@ class TestMetaLlamaAdapter:
 
         stream_mock.__iter__.return_value = []
 
-        adapter = MetaLlamaAdapter(model_kwargs={}, max_length=99)
+        adapter = MetaLlamaAdapter(model_kwargs={})
         expected_responses = [""]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 

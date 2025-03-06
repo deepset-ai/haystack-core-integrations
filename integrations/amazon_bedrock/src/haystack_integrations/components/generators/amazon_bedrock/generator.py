@@ -182,7 +182,7 @@ class AmazonBedrockGenerator:
         model_input_kwargs = kwargs
 
         model_adapter_cls = self.get_model_adapter(model=model, model_family=model_family)
-        self.model_adapter = model_adapter_cls(model_kwargs=model_input_kwargs, max_length=self.max_length)
+        self.model_adapter = model_adapter_cls(model_kwargs=model_input_kwargs)
 
     @component.output_types(replies=List[str])
     def run(
