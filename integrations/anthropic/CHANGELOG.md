@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/anthropic-v2.4.0] - 2025-03-06
+
+### 🚀 Features
+
+- Support extended thinking mode with AnthropicGenerator (#1455)
+
+### 📚 Documentation
+
+- Update changelog for integrations/anthropic (#1474)
+
 ## [integrations/anthropic-v2.3.0] - 2025-03-05
 
 ### 🚀 Features
