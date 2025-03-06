@@ -250,7 +250,6 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         prompt = "Hello, how are you?"
         expected_body = {
             "messages": [{"role": "user", "content": "Hello, how are you?"}],
-            "max_tokens": 99,
             "anthropic_version": "bedrock-2023-05-31",
         }
 
@@ -263,7 +262,6 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         prompt = "Hello, how are you?"
         expected_body = {
             "messages": [{"role": "user", "content": "Hello, how are you?"}],
-            "max_tokens": 50,
             "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "top_p": 0.8,
@@ -278,7 +276,6 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             temperature=0.7,
             top_p=0.8,
             top_k=5,
-            max_tokens=50,
             stop_sequences=["CUSTOM_STOP"],
             system="system prompt",
             anthropic_version="custom_version",
@@ -294,7 +291,6 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 "temperature": 0.7,
                 "top_p": 0.8,
                 "top_k": 5,
-                "max_tokens": 50,
                 "stop_sequences": ["CUSTOM_STOP"],
                 "system": "system prompt",
                 "anthropic_version": "custom_version",
@@ -306,7 +302,6 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         prompt = "Hello, how are you?"
         expected_body = {
             "messages": [{"role": "user", "content": "Hello, how are you?"}],
-            "max_tokens": 50,
             "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "top_p": 0.8,
@@ -326,7 +321,6 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 "temperature": 0.6,
                 "top_p": 0.7,
                 "top_k": 4,
-                "max_tokens": 49,
                 "stop_sequences": ["CUSTOM_STOP_MODEL_KWARGS"],
                 "system": "system prompt",
                 "anthropic_version": "custom_version",
@@ -337,7 +331,6 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         prompt = "Hello, how are you?"
         expected_body = {
             "messages": [{"role": "user", "content": "Hello, how are you?"}],
-            "max_tokens": 50,
             "stop_sequences": ["CUSTOM_STOP_MODEL_KWARGS"],
             "temperature": 0.7,
             "top_p": 0.8,
@@ -352,7 +345,6 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             temperature=0.7,
             top_p=0.8,
             top_k=5,
-            max_tokens=50,
             system="new system prompt",
             anthropic_version="new_custom_version",
             thinking={"type": "enabled", "budget_tokens": 2048},
@@ -854,7 +846,7 @@ class TestMistralAdapter:
     def test_prepare_body_with_default_params(self) -> None:
         layer = MistralAdapter(model_kwargs={}, max_length=99)
         prompt = "Hello, how are you?"
-        expected_body = {"prompt": "<s>[INST] Hello, how are you? [/INST]", "max_tokens": 99, "stop": []}
+        expected_body = {"prompt": "<s>[INST] Hello, how are you? [/INST]", "stop": []}
 
         body = layer.prepare_body(prompt)
         assert body == expected_body
@@ -864,7 +856,6 @@ class TestMistralAdapter:
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "<s>[INST] Hello, how are you? [/INST]",
-            "max_tokens": 50,
             "stop": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "top_p": 0.8,
@@ -876,7 +867,6 @@ class TestMistralAdapter:
             temperature=0.7,
             top_p=0.8,
             top_k=5,
-            max_tokens=50,
             stop=["CUSTOM_STOP"],
             unknown_arg="unknown_value",
         )
@@ -889,7 +879,6 @@ class TestMistralAdapter:
                 "temperature": 0.7,
                 "top_p": 0.8,
                 "top_k": 5,
-                "max_tokens": 50,
                 "stop": ["CUSTOM_STOP"],
                 "unknown_arg": "unknown_value",
             },
@@ -898,7 +887,6 @@ class TestMistralAdapter:
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "<s>[INST] Hello, how are you? [/INST]",
-            "max_tokens": 50,
             "stop": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "top_p": 0.8,
@@ -915,7 +903,6 @@ class TestMistralAdapter:
                 "temperature": 0.6,
                 "top_p": 0.7,
                 "top_k": 4,
-                "max_tokens": 49,
                 "stop": ["CUSTOM_STOP_MODEL_KWARGS"],
             },
             max_length=99,
@@ -923,14 +910,13 @@ class TestMistralAdapter:
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "<s>[INST] Hello, how are you? [/INST]",
-            "max_tokens": 50,
             "stop": ["CUSTOM_STOP_MODEL_KWARGS"],
             "temperature": 0.7,
             "top_p": 0.8,
             "top_k": 5,
         }
 
-        body = layer.prepare_body(prompt, temperature=0.7, top_p=0.8, top_k=5, max_tokens=50)
+        body = layer.prepare_body(prompt, temperature=0.7, top_p=0.8, top_k=5)
 
         assert body == expected_body
 
@@ -972,8 +958,6 @@ class TestMistralAdapter:
 
         stream_mock.__iter__.return_value = []
 
-        streaming_callback_mock.side_effect = lambda token_received, **kwargs: token_received
-
         adapter = MistralAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
@@ -985,7 +969,7 @@ class TestCohereCommandAdapter:
     def test_prepare_body_with_default_params(self) -> None:
         layer = CohereCommandAdapter(model_kwargs={}, max_length=99)
         prompt = "Hello, how are you?"
-        expected_body = {"prompt": "Hello, how are you?", "max_tokens": 99}
+        expected_body = {"prompt": "Hello, how are you?"}
 
         body = layer.prepare_body(prompt)
 
@@ -996,7 +980,6 @@ class TestCohereCommandAdapter:
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "Hello, how are you?",
-            "max_tokens": 50,
             "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "p": 0.8,
@@ -1013,7 +996,6 @@ class TestCohereCommandAdapter:
             temperature=0.7,
             p=0.8,
             k=5,
-            max_tokens=50,
             stop_sequences=["CUSTOM_STOP"],
             return_likelihoods="GENERATION",
             stream=True,
@@ -1031,7 +1013,6 @@ class TestCohereCommandAdapter:
                 "temperature": 0.7,
                 "p": 0.8,
                 "k": 5,
-                "max_tokens": 50,
                 "stop_sequences": ["CUSTOM_STOP"],
                 "return_likelihoods": "GENERATION",
                 "stream": True,
@@ -1045,7 +1026,6 @@ class TestCohereCommandAdapter:
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "Hello, how are you?",
-            "max_tokens": 50,
             "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "p": 0.8,
@@ -1067,7 +1047,6 @@ class TestCohereCommandAdapter:
                 "temperature": 0.6,
                 "p": 0.7,
                 "k": 4,
-                "max_tokens": 49,
                 "stop_sequences": ["CUSTOM_STOP_MODEL_KWARGS"],
                 "return_likelihoods": "ALL",
                 "stream": False,
@@ -1080,7 +1059,6 @@ class TestCohereCommandAdapter:
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "Hello, how are you?",
-            "max_tokens": 50,
             "stop_sequences": ["CUSTOM_STOP_MODEL_KWARGS"],
             "temperature": 0.7,
             "p": 0.8,
@@ -1097,7 +1075,6 @@ class TestCohereCommandAdapter:
             temperature=0.7,
             p=0.8,
             k=5,
-            max_tokens=50,
             return_likelihoods="GENERATION",
             stream=True,
             logit_bias={"token_id": 10.0},
@@ -1236,7 +1213,6 @@ class TestCohereCommandRAdapter:
             ],
             "search_query_only": False,
             "preamble": "preamble",
-            "max_tokens": 100,
             "temperature": 0,
             "p": 0.9,
             "k": 50,
@@ -1286,7 +1262,7 @@ class TestAI21LabsJurassic2Adapter:
     def test_prepare_body_with_default_params(self) -> None:
         layer = AI21LabsJurassic2Adapter(model_kwargs={}, max_length=99)
         prompt = "Hello, how are you?"
-        expected_body = {"prompt": "Hello, how are you?", "maxTokens": 99}
+        expected_body = {"prompt": "Hello, how are you?"}
 
         body = layer.prepare_body(prompt)
 
@@ -1297,7 +1273,6 @@ class TestAI21LabsJurassic2Adapter:
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "Hello, how are you?",
-            "maxTokens": 50,
             "stopSequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "topP": 0.8,
@@ -1309,7 +1284,6 @@ class TestAI21LabsJurassic2Adapter:
 
         body = layer.prepare_body(
             prompt,
-            maxTokens=50,
             stopSequences=["CUSTOM_STOP"],
             temperature=0.7,
             topP=0.8,
@@ -1325,7 +1299,6 @@ class TestAI21LabsJurassic2Adapter:
     def test_prepare_body_with_model_kwargs(self) -> None:
         layer = AI21LabsJurassic2Adapter(
             model_kwargs={
-                "maxTokens": 50,
                 "stopSequences": ["CUSTOM_STOP"],
                 "temperature": 0.7,
                 "topP": 0.8,
@@ -1340,7 +1313,6 @@ class TestAI21LabsJurassic2Adapter:
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "Hello, how are you?",
-            "maxTokens": 50,
             "stopSequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "topP": 0.8,
@@ -1357,7 +1329,6 @@ class TestAI21LabsJurassic2Adapter:
     def test_prepare_body_with_model_kwargs_and_custom_inference_params(self) -> None:
         layer = AI21LabsJurassic2Adapter(
             model_kwargs={
-                "maxTokens": 49,
                 "stopSequences": ["CUSTOM_STOP_MODEL_KWARGS"],
                 "temperature": 0.6,
                 "topP": 0.7,
@@ -1372,7 +1343,6 @@ class TestAI21LabsJurassic2Adapter:
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "Hello, how are you?",
-            "maxTokens": 50,
             "stopSequences": ["CUSTOM_STOP_MODEL_KWARGS"],
             "temperature": 0.7,
             "topP": 0.8,
@@ -1386,7 +1356,6 @@ class TestAI21LabsJurassic2Adapter:
             prompt,
             temperature=0.7,
             topP=0.8,
-            maxTokens=50,
             countPenalty={"scale": 1.0},
             presencePenalty={"scale": 5.0},
             frequencyPenalty={"scale": 500.0},
@@ -1428,7 +1397,7 @@ class TestAmazonTitanAdapter:
         prompt = "Hello, how are you?"
         expected_body = {
             "inputText": "Hello, how are you?",
-            "textGenerationConfig": {"maxTokenCount": 99},
+            "textGenerationConfig": {},
         }
 
         body = layer.prepare_body(prompt)
@@ -1441,7 +1410,6 @@ class TestAmazonTitanAdapter:
         expected_body = {
             "inputText": "Hello, how are you?",
             "textGenerationConfig": {
-                "maxTokenCount": 50,
                 "stopSequences": ["CUSTOM_STOP"],
                 "temperature": 0.7,
                 "topP": 0.8,
@@ -1450,7 +1418,6 @@ class TestAmazonTitanAdapter:
 
         body = layer.prepare_body(
             prompt,
-            maxTokenCount=50,
             stopSequences=["CUSTOM_STOP"],
             temperature=0.7,
             topP=0.8,
@@ -1462,7 +1429,6 @@ class TestAmazonTitanAdapter:
     def test_prepare_body_with_model_kwargs(self) -> None:
         layer = AmazonTitanAdapter(
             model_kwargs={
-                "maxTokenCount": 50,
                 "stopSequences": ["CUSTOM_STOP"],
                 "temperature": 0.7,
                 "topP": 0.8,
@@ -1474,7 +1440,6 @@ class TestAmazonTitanAdapter:
         expected_body = {
             "inputText": "Hello, how are you?",
             "textGenerationConfig": {
-                "maxTokenCount": 50,
                 "stopSequences": ["CUSTOM_STOP"],
                 "temperature": 0.7,
                 "topP": 0.8,
@@ -1488,7 +1453,6 @@ class TestAmazonTitanAdapter:
     def test_prepare_body_with_model_kwargs_and_custom_inference_params(self) -> None:
         layer = AmazonTitanAdapter(
             model_kwargs={
-                "maxTokenCount": 49,
                 "stopSequences": ["CUSTOM_STOP_MODEL_KWARGS"],
                 "temperature": 0.6,
                 "topP": 0.7,
@@ -1499,14 +1463,13 @@ class TestAmazonTitanAdapter:
         expected_body = {
             "inputText": "Hello, how are you?",
             "textGenerationConfig": {
-                "maxTokenCount": 50,
                 "stopSequences": ["CUSTOM_STOP_MODEL_KWARGS"],
                 "temperature": 0.7,
                 "topP": 0.8,
             },
         }
 
-        body = layer.prepare_body(prompt, temperature=0.7, topP=0.8, maxTokenCount=50)
+        body = layer.prepare_body(prompt, temperature=0.7, topP=0.8)
 
         assert body == expected_body
 
@@ -1579,7 +1542,7 @@ class TestMetaLlamaAdapter:
     def test_prepare_body_with_default_params(self) -> None:
         layer = MetaLlamaAdapter(model_kwargs={}, max_length=99)
         prompt = "Hello, how are you?"
-        expected_body = {"prompt": "Hello, how are you?", "max_gen_len": 99}
+        expected_body = {"prompt": "Hello, how are you?"}
 
         body = layer.prepare_body(prompt)
 
@@ -1590,7 +1553,6 @@ class TestMetaLlamaAdapter:
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "Hello, how are you?",
-            "max_gen_len": 50,
             "temperature": 0.7,
             "top_p": 0.8,
         }
@@ -1599,7 +1561,6 @@ class TestMetaLlamaAdapter:
             prompt,
             temperature=0.7,
             top_p=0.8,
-            max_gen_len=50,
             unknown_arg="unknown_value",
         )
 
@@ -1610,7 +1571,6 @@ class TestMetaLlamaAdapter:
             model_kwargs={
                 "temperature": 0.7,
                 "top_p": 0.8,
-                "max_gen_len": 50,
                 "unknown_arg": "unknown_value",
             },
             max_length=99,
@@ -1618,7 +1578,6 @@ class TestMetaLlamaAdapter:
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "Hello, how are you?",
-            "max_gen_len": 50,
             "temperature": 0.7,
             "top_p": 0.8,
         }
@@ -1633,19 +1592,17 @@ class TestMetaLlamaAdapter:
                 "temperature": 0.6,
                 "top_p": 0.7,
                 "top_k": 4,
-                "max_gen_len": 49,
             },
             max_length=99,
         )
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "Hello, how are you?",
-            "max_gen_len": 50,
             "temperature": 0.7,
             "top_p": 0.7,
         }
 
-        body = layer.prepare_body(prompt, temperature=0.7, max_gen_len=50)
+        body = layer.prepare_body(prompt, temperature=0.7)
 
         assert body == expected_body
 

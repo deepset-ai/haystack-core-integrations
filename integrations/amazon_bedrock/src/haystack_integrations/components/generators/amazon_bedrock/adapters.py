@@ -127,7 +127,6 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
         if self.use_messages_api:
             default_params: Dict[str, Any] = {
                 "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": self.max_length,
                 "system": None,
                 "stop_sequences": None,
                 "temperature": None,
@@ -213,7 +212,6 @@ class MistralAdapter(BedrockModelAdapter):
             - specified inference parameters.
         """
         default_params: Dict[str, Any] = {
-            "max_tokens": self.max_length,
             "stop": [],
             "temperature": None,
             "top_p": None,
@@ -263,7 +261,6 @@ class CohereCommandAdapter(BedrockModelAdapter):
             - specified inference parameters.
         """
         default_params = {
-            "max_tokens": self.max_length,
             "stop_sequences": None,
             "temperature": None,
             "p": None,
@@ -319,7 +316,6 @@ class CohereCommandRAdapter(BedrockModelAdapter):
             "documents": None,
             "search_query_only": None,
             "preamble": None,
-            "max_tokens": self.max_length,
             "temperature": None,
             "p": None,
             "k": None,
@@ -374,7 +370,6 @@ class AI21LabsJurassic2Adapter(BedrockModelAdapter):
             - specified inference parameters.
         """
         default_params = {
-            "maxTokens": self.max_length,
             "stopSequences": None,
             "temperature": None,
             "topP": None,
@@ -413,7 +408,6 @@ class AmazonTitanAdapter(BedrockModelAdapter):
             - specified inference parameters.
         """
         default_params = {
-            "maxTokenCount": self.max_length,
             "stopSequences": None,
             "temperature": None,
             "topP": None,
@@ -459,7 +453,6 @@ class MetaLlamaAdapter(BedrockModelAdapter):
             - specified inference parameters.
         """
         default_params = {
-            "max_gen_len": self.max_length,
             "temperature": None,
             "top_p": None,
         }
