@@ -487,6 +487,7 @@ class QdrantDocumentStore:
 
         if len(documents) == 0:
             logger.warning("Calling QdrantDocumentStore.write_documents_async() with empty list")
+            logger.warning("Calling QdrantDocumentStore.write_documents_async() with empty list")
             return 0
 
         document_objects = await self._handle_duplicate_documents_async(
