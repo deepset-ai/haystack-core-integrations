@@ -2,20 +2,23 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any
-
 import pytest
 
 from haystack_integrations.utils.nvidia import is_hosted
-from haystack_integrations.utils.nvidia.models import EMBEDDING_MODEL_TABLE, CHAT_MODEL_TABLE, RANKING_MODEL_TABLE
-from haystack_integrations.utils.nvidia.utils import lookup_model, determine_model, validate_hosted_model, \
-    url_validation
+from haystack_integrations.utils.nvidia.models import CHAT_MODEL_TABLE, EMBEDDING_MODEL_TABLE, RANKING_MODEL_TABLE
+from haystack_integrations.utils.nvidia.utils import (
+    determine_model,
+    lookup_model,
+    url_validation,
+    validate_hosted_model,
+)
 
 
 # url_validation
 def test_url_validation() -> None:
     api_url = "https://integrate.api.nvidia.com/v1"
     assert api_url == url_validation(api_url)
+
 
 def test_url_validation_not_ending_with_v1() -> None:
     with pytest.warns(UserWarning, match="you may have inference and listing issues"):
@@ -28,8 +31,10 @@ def test_url_validation_invalid_format() -> None:
         url_validation("not-a-domain")
 
 
-#is_hosted
-@pytest.mark.parametrize("api_url", ["https://integrate.api.nvidia.com/v1", "https://ai.api.nvidia.com/v1/retrieval/nvidia"])
+# is_hosted
+@pytest.mark.parametrize(
+    "api_url", ["https://integrate.api.nvidia.com/v1", "https://ai.api.nvidia.com/v1/retrieval/nvidia"]
+)
 def test_is_hosted(api_url) -> None:
     assert is_hosted(api_url)
 
@@ -94,6 +99,7 @@ def test_validate_hosted_model_is_unknown() -> None:
         assert validate_hosted_model("not-a-model", "NvidiaGenerator")
     with pytest.raises(ValueError, match="is unknown"):
         assert validate_hosted_model("not-a-model")
+
 
 def test_validate_hosted_model() -> None:
     assert validate_hosted_model("snowflake/arctic-embed-l", "NvidiaTextEmbedder")
