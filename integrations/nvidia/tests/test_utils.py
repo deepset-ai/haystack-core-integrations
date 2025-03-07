@@ -101,5 +101,12 @@ def test_validate_hosted_model_is_unknown() -> None:
         assert validate_hosted_model("not-a-model")
 
 
-def test_validate_hosted_model() -> None:
+def test_validate_hosted_model_without_client() -> None:
     assert validate_hosted_model("snowflake/arctic-embed-l", "NvidiaTextEmbedder")
+
+
+def test_validate_hosted_model_with_client() -> None:
+    """Test when model's client matches the provided client."""
+    model = validate_hosted_model("meta/codellama-70b", "NvidiaGenerator")
+    assert model is not None
+    assert model.client == "NvidiaGenerator"
