@@ -199,19 +199,19 @@ class MongoDBAtlasDocumentStore:
                 sparse_embedding = doc_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
                     logger.warning(
-                        "Document %s has the `sparse_embedding` field set,"
+                        "Document {id} has the `sparse_embedding` field set,"
                         "but storing sparse embeddings in MongoDB Atlas is not currently supported."
                         "The `sparse_embedding` field will be ignored.",
-                        doc.id,
+                        id=doc.id,
                     )
             if "dataframe" in doc_dict:
                 dataframe = doc_dict.pop("dataframe", None)
                 if dataframe:
                     logger.warning(
-                        "Document %s has the `dataframe` field set,"
+                        "Document {id} has the `dataframe` field set,"
                         "MongoDBAtlasDocumentStore no longer supports dataframes and this field will be ignored. "
                         "The `dataframe` field will soon be removed from Haystack Document.",
-                        doc.id,
+                        id=doc.id,
                     )
             mongo_documents.append(doc_dict)
         operations: List[Union[UpdateOne, InsertOne, ReplaceOne]]
@@ -413,9 +413,9 @@ class MongoDBAtlasDocumentStore:
             dataframe = mongo_doc.pop("dataframe", None)
             if dataframe:
                 logger.warning(
-                    "Document %s has the `dataframe` field set,"
+                    "Document {id} has the `dataframe` field set,"
                     "MongoDBAtlasDocumentStore no longer supports dataframes and this field will be ignored. "
                     "The `dataframe` field will soon be removed from Haystack Document.",
-                    mongo_doc["id"],
+                    id=mongo_doc["id"],
                 )
         return Document.from_dict(mongo_doc)
