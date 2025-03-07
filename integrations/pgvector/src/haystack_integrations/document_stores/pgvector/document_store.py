@@ -294,11 +294,7 @@ class PgvectorDocumentStore:
         cursor = cursor or self.cursor
 
         sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
-        logger.debug(
-            "SQL query: {query}\nParameters: {parameters}",
-            query=sql_query_str,
-            parameters=params
-        )
+        logger.debug("SQL query: {query}\nParameters: {parameters}", query=sql_query_str, parameters=params)
 
         try:
             result = cursor.execute(sql_query, params)
@@ -515,11 +511,7 @@ class PgvectorDocumentStore:
         sql_insert += SQL(" RETURNING id")
 
         sql_query_str = sql_insert.as_string(self.cursor) if not isinstance(sql_insert, str) else sql_insert
-        logger.debug(
-            "SQL query: {query}\nParameters: {parameters}",
-            query=sql_query_str,
-            parameters=db_documents
-        )
+        logger.debug("SQL query: {query}\nParameters: {parameters}", query=sql_query_str, parameters=db_documents)
 
         try:
             self.cursor.executemany(sql_insert, db_documents, returning=True)
