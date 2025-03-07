@@ -152,6 +152,7 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             with pytest.raises(QdrantStoreError):
                 document_store._query_hybrid(query_sparse_embedding=sparse_embedding, query_embedding=embedding)
 
+
     @pytest.mark.asyncio
     async def test_write_documents_async(self, document_store: QdrantDocumentStore):
         docs = [Document(id="1")]

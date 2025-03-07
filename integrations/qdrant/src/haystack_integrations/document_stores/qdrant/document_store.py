@@ -1453,6 +1453,7 @@ class QdrantDocumentStore:
             raise QdrantStoreError(msg)
 
         if not self.use_sparse_embeddings and has_named_vectors:
+
             msg = (
                 f"Collection '{collection_name}' already exists in Qdrant, "
                 f"but it has been originally created with sparse embedding vectors."
@@ -1564,6 +1565,7 @@ class QdrantDocumentStore:
             raise QdrantStoreError(msg)
 
         if not self.use_sparse_embeddings and has_named_vectors:
+          
             msg = (
                 f"Collection '{collection_name}' already exists in Qdrant, "
                 f"but it has been originally created with sparse embedding vectors."
