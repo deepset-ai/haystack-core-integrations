@@ -341,3 +341,89 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
 
             with pytest.raises(ValueError, match="different vector size"):
                 document_store._set_up_collection("test_collection", 768, False, "cosine", False, False)
+
+    @pytest.mark.asyncio
+    async def test_query_hybrid_async(self, generate_sparse_embedding):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+
+        docs = []
+        for i in range(20):
+            docs.append(
+                Document(
+                    content=f"doc {i}", sparse_embedding=generate_sparse_embedding(), embedding=_random_embeddings(768)
+                )
+            )
+
+        await document_store.write_documents_async(docs)
+
+        sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
+        embedding = [0.1] * 768
+
+        results: List[Document] = await document_store._query_hybrid_async(
+            query_sparse_embedding=sparse_embedding, query_embedding=embedding, top_k=10, return_embedding=True
+        )
+        assert len(results) == 10
+
+        for document in results:
+            assert document.sparse_embedding
+            assert document.embedding
+
+    @pytest.mark.asyncio
+    async def test_query_hybrid_with_group_by_async(self, generate_sparse_embedding):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+
+        docs = []
+        for i in range(20):
+            docs.append(
+                Document(
+                    content=f"doc {i}",
+                    sparse_embedding=generate_sparse_embedding(),
+                    embedding=_random_embeddings(768),
+                    meta={"group_field": i // 2},
+                )
+            )
+
+        await document_store.write_documents_async(docs)
+
+        sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
+        embedding = [0.1] * 768
+
+        results: List[Document] = await document_store._query_hybrid_async(
+            query_sparse_embedding=sparse_embedding,
+            query_embedding=embedding,
+            top_k=3,
+            return_embedding=True,
+            group_by="meta.group_field",
+            group_size=2,
+        )
+        assert len(results) == 6
+
+        for document in results:
+            assert document.sparse_embedding
+            assert document.embedding
+
+    @pytest.mark.asyncio
+    async def test_query_hybrid_fail_without_sparse_embedding_async(self, document_store):
+        sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
+        embedding = [0.1] * 768
+
+        with pytest.raises(QdrantStoreError):
+
+            await document_store._query_hybrid_async(
+                query_sparse_embedding=sparse_embedding,
+                query_embedding=embedding,
+            )
+
+    @pytest.mark.asyncio
+    async def test_query_hybrid_search_batch_failure_async(self):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+        await document_store._initialize_async_client()
+        sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
+        embedding = [0.1] * 768
+
+        with patch.object(document_store._async_client, "query_points", side_effect=Exception("query_points")):
+
+            with pytest.raises(QdrantStoreError):
+                await document_store._query_hybrid_async(
+                    query_sparse_embedding=sparse_embedding, query_embedding=embedding
+                )
