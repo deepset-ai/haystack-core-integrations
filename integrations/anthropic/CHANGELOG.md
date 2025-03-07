@@ -1,5 +1,49 @@
 # Changelog
 
+## [integrations/anthropic-v2.4.0] - 2025-03-06
+
+### 🚀 Features
+
+- Support extended thinking mode with AnthropicGenerator (#1455)
+
+### 📚 Documentation
+
+- Update changelog for integrations/anthropic (#1474)
+
+## [integrations/anthropic-v2.3.0] - 2025-03-05
+
+### 🚀 Features
+
+- Support thinking parameter in Anthropic generators (#1473)
+
+### 🌀 Miscellaneous
+
+- Docs: update changelog for integrations/anthropic (#1471)
+
+## [integrations/anthropic-v2.2.1] - 2025-03-05
+
+### 🐛 Bug Fixes
+
+- Apply ddtrace workaround to chat generator (#1470)
+
+### 🌀 Miscellaneous
+
+- Docs: update changelog for integrations/anthropic (#1465)
+
+## [integrations/anthropic-v2.2.0] - 2025-03-05
+
+### 🚀 Features
+
+- Adding async run to `AnthropicChatGenerator` (#1461)
+
+### 🐛 Bug Fixes
+
+- Update serialization/deserialization tests to add new parameter `connection_type_validation` (#1464)
+
+### 🌀 Miscellaneous
+
+- Docs: update changelog for integrations/anthropic (#1459)
+
 ## [integrations/anthropic-v2.1.0] - 2025-03-03
 
 ### 🐛 Bug Fixes
