@@ -343,3 +343,79 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
                 await document_store._query_hybrid_async(
                     query_sparse_embedding=sparse_embedding, query_embedding=embedding
                 )
+
+    def test_set_up_collection_with_existing_incompatible_collection(self):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+
+        # Mock collection info with named vectors but missing DENSE_VECTORS_NAME
+        mock_collection_info = MagicMock()
+        mock_collection_info.config.params.vectors = {"some_other_vector": MagicMock()}
+
+        with patch.object(document_store.client, "collection_exists", return_value=True), patch.object(
+            document_store.client, "get_collection", return_value=mock_collection_info
+        ):
+
+            with pytest.raises(QdrantStoreError, match="created outside of Haystack"):
+                document_store._set_up_collection("test_collection", 768, False, "cosine", True, False)
+
+    def test_set_up_collection_use_sparse_embeddings_true_without_named_vectors(self):
+        """Test that an error is raised when use_sparse_embeddings is True but collection doesn't have named vectors"""
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+
+        # Mock collection info without named vectors
+        mock_collection_info = MagicMock()
+        mock_collection_info.config.params.vectors = MagicMock(spec=rest.VectorsConfig)
+
+        with patch.object(document_store.client, "collection_exists", return_value=True), patch.object(
+            document_store.client, "get_collection", return_value=mock_collection_info
+        ):
+
+            with pytest.raises(QdrantStoreError, match="without sparse embedding vectors"):
+                document_store._set_up_collection("test_collection", 768, False, "cosine", True, False)
+
+    def test_set_up_collection_use_sparse_embeddings_false_with_named_vectors(self):
+        """Test that an error is raised when use_sparse_embeddings is False but collection has named vectors"""
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False)
+
+        # Mock collection info with named vectors
+        mock_collection_info = MagicMock()
+        mock_collection_info.config.params.vectors = {DENSE_VECTORS_NAME: MagicMock()}
+
+        with patch.object(document_store.client, "collection_exists", return_value=True), patch.object(
+            document_store.client, "get_collection", return_value=mock_collection_info
+        ):
+
+            with pytest.raises(QdrantStoreError, match="with sparse embedding vectors"):
+                document_store._set_up_collection("test_collection", 768, False, "cosine", False, False)
+
+    def test_set_up_collection_with_distance_mismatch(self):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False, similarity="cosine")
+
+        # Mock collection info with different distance
+        mock_collection_info = MagicMock()
+        mock_collection_info.config.params.vectors = MagicMock()
+        mock_collection_info.config.params.vectors.distance = rest.Distance.DOT
+        mock_collection_info.config.params.vectors.size = 768
+
+        with patch.object(document_store.client, "collection_exists", return_value=True), patch.object(
+            document_store.client, "get_collection", return_value=mock_collection_info
+        ):
+
+            with pytest.raises(ValueError, match="different similarity"):
+                document_store._set_up_collection("test_collection", 768, False, "cosine", False, False)
+
+    def test_set_up_collection_with_dimension_mismatch(self):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False, similarity="cosine")
+
+        # Mock collection info with different vector size
+        mock_collection_info = MagicMock()
+        mock_collection_info.config.params.vectors = MagicMock()
+        mock_collection_info.config.params.vectors.distance = rest.Distance.COSINE
+        mock_collection_info.config.params.vectors.size = 512
+
+        with patch.object(document_store.client, "collection_exists", return_value=True), patch.object(
+            document_store.client, "get_collection", return_value=mock_collection_info
+        ):
+
+            with pytest.raises(ValueError, match="different vector size"):
+                document_store._set_up_collection("test_collection", 768, False, "cosine", False, False)
