@@ -140,6 +140,22 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         for document in results:
             assert document.embedding is None
 
+    @pytest.mark.asyncio
+    async def test_run_async(self, filterable_docs: List[Document]):
+        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
+
+        await document_store.write_documents_async(filterable_docs)
+
+        retriever = QdrantEmbeddingRetriever(document_store=document_store)
+        result = await retriever.run_async(query_embedding=_random_embeddings(768))
+        assert len(result["documents"]) == 10
+
+        result = await retriever.run_async(query_embedding=_random_embeddings(768), top_k=5, return_embedding=False)
+        assert len(result["documents"]) == 5
+
+        for document in result["documents"]:
+            assert document.embedding is None
+
     def test_run_filters(self, filterable_docs: List[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
 

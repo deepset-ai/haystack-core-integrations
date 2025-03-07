@@ -218,7 +218,6 @@ class QdrantDocumentStore:
 
         self._client = None
         self._async_client = None
-        self._initialized = False
 
         # Store the Qdrant client specific attributes
         self.location = location
@@ -260,7 +259,7 @@ class QdrantDocumentStore:
         self.write_batch_size = write_batch_size
         self.scroll_size = scroll_size
 
-    async def get_async_client(self):
+    async def _initialize_async_client(self):
         """
         Returns the asynchronous Qdrant client, initializing it if necessary.
         """
@@ -290,10 +289,9 @@ class QdrantDocumentStore:
                 self.on_disk,
                 self.payload_fields_to_index,
             )
-        return self._async_client
 
-    def _ensure_initialized(self):
-        if not self._initialized:
+    def _initialize_client(self):
+        if self._client is None:
             self._client = qdrant_client.QdrantClient(
                 location=self.location,
                 url=self.url,
@@ -322,13 +320,11 @@ class QdrantDocumentStore:
                 self.payload_fields_to_index,
             )
 
-            self._initialized = True
-
     def count_documents(self) -> int:
         """
         Returns the number of documents present in the Document Store.
         """
-        self._ensure_initialized()
+        self._initialize_client()
         assert self._client is not None
         try:
             response = self._client.count(
@@ -345,7 +341,7 @@ class QdrantDocumentStore:
         """
         Asynchronously returns the number of documents present in the document dtore.
         """
-        self._ensure_initialized()
+        await self._initialize_async_client()
         assert self._async_client is not None
         try:
             response = await self._async_client.count(
@@ -372,9 +368,6 @@ class QdrantDocumentStore:
         :returns: A list of documents that match the given filters.
         """
 
-        self._ensure_initialized()
-        assert self._client is not None
-
         if filters and not isinstance(filters, dict) and not isinstance(filters, rest.Filter):
             msg = "Filter must be a dictionary or an instance of `qdrant_client.http.models.Filter`"
             raise ValueError(msg)
@@ -395,8 +388,6 @@ class QdrantDocumentStore:
         """
         Asynchronously returns the documents that match the provided filters.
         """
-        self._ensure_initialized()
-        assert self._async_client is not None
 
         if filters and not isinstance(filters, dict) and not isinstance(filters, rest.Filter):
             msg = "Filter must be a dictionary or an instance of `qdrant_client.http.models.Filter`"
@@ -405,11 +396,7 @@ class QdrantDocumentStore:
         if filters and not isinstance(filters, rest.Filter) and "operator" not in filters:
             msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
             raise ValueError(msg)
-        return list(
-            await self.get_documents_generator(
-                filters,
-            )
-        )
+        return [doc async for doc in self.get_documents_generator_async(filters)]
 
     def write_documents(
         self,
@@ -430,7 +417,7 @@ class QdrantDocumentStore:
         :returns: The number of documents written to the document store.
         """
 
-        self._ensure_initialized()
+        self._initialize_client()
         assert self._client is not None
 
         for doc in documents:
@@ -486,9 +473,13 @@ class QdrantDocumentStore:
         :returns: The number of documents written to the document store.
         """
 
+        await self._initialize_async_client()
+        assert self._async_client is not None
+
         for doc in documents:
             if not isinstance(doc, Document):
-                msg = f"DocumentStore.write_documents_async() expects a list of Documents but got an element of {type(doc)}."
+                msg = f"""DocumentStore.write_documents_async() expects a list of
+                Documents but got an element of {type(doc)}."""
                 raise ValueError(msg)
         await self._set_up_collection_async(
             self.index, self.embedding_dim, False, self.similarity, self.use_sparse_embeddings, self.sparse_idf
@@ -527,7 +518,7 @@ class QdrantDocumentStore:
         :param document_ids: the document ids to delete
         """
 
-        self._ensure_initialized()
+        self._initialize_client()
         assert self._client is not None
 
         ids = [convert_id(_id) for _id in document_ids]
@@ -549,7 +540,7 @@ class QdrantDocumentStore:
         :param document_ids: the document ids to delete
         """
 
-        self._ensure_initialized()
+        self._initialize_async_client()
         assert self._async_client is not None
 
         ids = [convert_id(_id) for _id in document_ids]
@@ -605,6 +596,9 @@ class QdrantDocumentStore:
         :returns: A generator that yields documents retrieved from Qdrant.
         """
 
+        self._initialize_client()
+        assert self._client is not None
+
         index = self.index
         qdrant_filters = convert_filters_to_qdrant(filters)
 
@@ -639,6 +633,9 @@ class QdrantDocumentStore:
         :returns: A generator that yields documents retrieved from Qdrant.
         """
 
+        await self._initialize_async_client()
+        assert self._async_client is not None
+
         index = self.index
         qdrant_filters = convert_filters_to_qdrant(filters)
 
@@ -657,7 +654,7 @@ class QdrantDocumentStore:
                 isinstance(next_offset, grpc.PointId) and next_offset.num == 0 and next_offset.uuid == ""
             )
 
-            async for record in records:
+            for record in records:
                 yield convert_qdrant_point_to_haystack_document(
                     record, use_sparse_embeddings=self.use_sparse_embeddings
                 )
@@ -678,7 +675,7 @@ class QdrantDocumentStore:
         """
         documents: List[Document] = []
 
-        self._ensure_initialized()
+        self._initialize_client()
         assert self._client is not None
 
         ids = [convert_id(_id) for _id in ids]
@@ -711,7 +708,7 @@ class QdrantDocumentStore:
         """
         documents: List[Document] = []
 
-        self._ensure_initialized()
+        self._initialize_async_client()
         assert self._async_client is not None
 
         ids = [convert_id(_id) for _id in ids]
@@ -761,6 +758,8 @@ class QdrantDocumentStore:
         :raises QdrantStoreError:
             If the Document Store was initialized with `use_sparse_embeddings=False`.
         """
+        self._initialize_client()
+        assert self._client is not None
 
         if not self.use_sparse_embeddings:
             message = (
@@ -820,6 +819,103 @@ class QdrantDocumentStore:
                 document.score = score
         return results
 
+    async def _query_by_sparse_async(
+        self,
+        query_sparse_embedding: SparseEmbedding,
+        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
+        top_k: int = 10,
+        scale_score: bool = False,
+        return_embedding: bool = False,
+        score_threshold: Optional[float] = None,
+        group_by: Optional[str] = None,
+        group_size: Optional[int] = None,
+    ) -> List[Document]:
+        """
+        Asynchronously queries Qdrant using a sparse embedding and returns the most relevant documents.
+
+        :param query_sparse_embedding: Sparse embedding of the query.
+        :param filters: Filters applied to the retrieved documents.
+        :param top_k: Maximum number of documents to return. If using `group_by` parameters, maximum number of
+             groups to return.
+        :param scale_score: Whether to scale the scores of the retrieved documents.
+        :param return_embedding: Whether to return the embeddings of the retrieved documents.
+        :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the Distance function used.
+            E.g. for cosine similarity only higher scores will be returned.
+        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
+             value, all values will be used for grouping. One point can be in multiple groups.
+        :param group_size: Maximum amount of points to return per group. Default is 3.
+
+        :returns: List of documents that are most similar to `query_sparse_embedding`.
+
+        :raises QdrantStoreError:
+            If the Document Store was initialized with `use_sparse_embeddings=False`.
+        """
+
+        await self._initialize_async_client()
+        assert self._async_client is not None
+
+        if not self.use_sparse_embeddings:
+            message = (
+                "You are trying to query using sparse embeddings, but the Document Store "
+                "was initialized with `use_sparse_embeddings=False`. "
+            )
+            raise QdrantStoreError(message)
+
+        qdrant_filters = convert_filters_to_qdrant(filters)
+        query_indices = query_sparse_embedding.indices
+        query_values = query_sparse_embedding.values
+        if group_by:
+            response = await self._async_client.query_points_groups(
+                collection_name=self.index,
+                query=rest.SparseVector(
+                    indices=query_indices,
+                    values=query_values,
+                ),
+                using=SPARSE_VECTORS_NAME,
+                query_filter=qdrant_filters,
+                limit=top_k,
+                group_by=group_by,
+                group_size=group_size,
+                with_vectors=return_embedding,
+                score_threshold=score_threshold,
+            )
+            groups = response.groups
+            results = (
+                [
+                    convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+                    for group in groups
+                    for point in group.hits
+                ]
+                if groups
+                else []
+            )
+        else:
+            response = await self._async_client.query_points(
+                collection_name=self.index,
+                query=rest.SparseVector(
+                    indices=query_indices,
+                    values=query_values,
+                ),
+                using=SPARSE_VECTORS_NAME,
+                query_filter=qdrant_filters,
+                limit=top_k,
+                with_vectors=return_embedding,
+                score_threshold=score_threshold,
+            )
+            points = response.points
+            results = [
+                convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+                for point in points
+            ]
+        if scale_score:
+            for document in results:
+                score = document.score
+                score = float(1 / (1 + np.exp(-score / 100)))
+                document.score = score
+        return results
+
     def _query_by_embedding(
         self,
         query_embedding: List[float],
@@ -850,6 +946,9 @@ class QdrantDocumentStore:
 
         :returns: List of documents that are most similar to `query_embedding`.
         """
+        self._initialize_client()
+        assert self._client is not None
+
         qdrant_filters = convert_filters_to_qdrant(filters)
         if group_by:
             groups = self._client.query_points_groups(
@@ -882,6 +981,88 @@ class QdrantDocumentStore:
                 with_vectors=return_embedding,
                 score_threshold=score_threshold,
             ).points
+            results = [
+                convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+                for point in points
+            ]
+
+        if scale_score:
+            for document in results:
+                score = document.score
+                if self.similarity == "cosine":
+                    score = (score + 1) / 2
+                else:
+                    score = float(1 / (1 + np.exp(-score / 100)))
+                document.score = score
+        return results
+
+    async def _query_by_embedding_async(
+        self,
+        query_embedding: List[float],
+        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
+        top_k: int = 10,
+        scale_score: bool = False,
+        return_embedding: bool = False,
+        score_threshold: Optional[float] = None,
+        group_by: Optional[str] = None,
+        group_size: Optional[int] = None,
+    ) -> List[Document]:
+        """
+        Asynchronously queries Qdrant using a dense embedding and returns the most relevant documents.
+
+        :param query_embedding: Dense embedding of the query.
+        :param filters: Filters applied to the retrieved documents.
+        :param top_k: Maximum number of documents to return. If using `group_by` parameters, maximum number of
+             groups to return.
+        :param scale_score: Whether to scale the scores of the retrieved documents.
+        :param return_embedding: Whether to return the embeddings of the retrieved documents.
+        :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the Distance function used.
+            E.g. for cosine similarity only higher scores will be returned.
+        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
+             value, all values will be used for grouping. One point can be in multiple groups.
+        :param group_size: Maximum amount of points to return per group. Default is 3.
+
+        :returns: List of documents that are most similar to `query_embedding`.
+        """
+        await self._initialize_async_client()
+        assert self._async_client is not None
+
+        qdrant_filters = convert_filters_to_qdrant(filters)
+        if group_by:
+            response = await self._async_client.query_points_groups(
+                collection_name=self.index,
+                query=query_embedding,
+                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
+                query_filter=qdrant_filters,
+                limit=top_k,
+                group_by=group_by,
+                group_size=group_size,
+                with_vectors=return_embedding,
+                score_threshold=score_threshold,
+            )
+            groups = response.groups
+            results = (
+                [
+                    convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+                    for group in groups
+                    for point in group.hits
+                ]
+                if groups
+                else []
+            )
+        else:
+            response = await self._async_client.query_points(
+                collection_name=self.index,
+                query=query_embedding,
+                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
+                query_filter=qdrant_filters,
+                limit=top_k,
+                with_vectors=return_embedding,
+                score_threshold=score_threshold,
+            )
+            points = response.points
             results = [
                 convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
                 for point in points
@@ -936,6 +1117,10 @@ class QdrantDocumentStore:
 
         # This implementation is based on the code from the Python Qdrant client:
         # https://github.com/qdrant/qdrant-client/blob/8e3ea58f781e4110d11c0a6985b5e6bb66b85d33/qdrant_client/qdrant_fastembed.py#L519
+
+        self._initialize_client()
+        assert self._client is not None
+
         if not self.use_sparse_embeddings:
             message = (
                 "You are trying to query using sparse embeddings, but the Document Store "
@@ -996,6 +1181,129 @@ class QdrantDocumentStore:
                     with_payload=True,
                     with_vectors=return_embedding,
                 ).points
+
+        except Exception as e:
+            msg = "Error during hybrid search"
+            raise QdrantStoreError(msg) from e
+
+        if group_by:
+            results = (
+                [
+                    convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+                    for group in groups
+                    for point in group.hits
+                ]
+                if groups
+                else []
+            )
+        else:
+            results = [convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=True) for point in points]
+
+        return results
+
+    async def _query_hybrid_async(
+        self,
+        query_embedding: List[float],
+        query_sparse_embedding: SparseEmbedding,
+        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
+        top_k: int = 10,
+        return_embedding: bool = False,
+        score_threshold: Optional[float] = None,
+        group_by: Optional[str] = None,
+        group_size: Optional[int] = None,
+    ) -> List[Document]:
+        """
+        Asynchronously retrieves documents based on dense and sparse embeddings and fuses
+        the results using Reciprocal Rank Fusion.
+
+        This method is not part of the public interface of `QdrantDocumentStore` and shouldn't be used directly.
+        Use the `QdrantHybridRetriever` instead.
+
+        :param query_embedding: Dense embedding of the query.
+        :param query_sparse_embedding: Sparse embedding of the query.
+        :param filters: Filters applied to the retrieved documents.
+        :param top_k: Maximum number of documents to return. If using `group_by` parameters, maximum number of
+             groups to return.
+        :param return_embedding: Whether to return the embeddings of the retrieved documents.
+        :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the Distance function used.
+            E.g. for cosine similarity only higher scores will be returned.
+        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
+             value, all values will be used for grouping. One point can be in multiple groups.
+        :param group_size: Maximum amount of points to return per group. Default is 3.
+
+        :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
+
+        :raises QdrantStoreError:
+            If the Document Store was initialized with `use_sparse_embeddings=False`.
+        """
+
+        await self._initialize_async_client()
+        assert self._async_client is not None
+
+        if not self.use_sparse_embeddings:
+            message = (
+                "You are trying to query using sparse embeddings, but the Document Store "
+                "was initialized with `use_sparse_embeddings=False`. "
+            )
+            raise QdrantStoreError(message)
+
+        qdrant_filters = convert_filters_to_qdrant(filters)
+
+        try:
+            if group_by:
+                response = await self._async_client.query_points_groups(
+                    collection_name=self.index,
+                    prefetch=[
+                        rest.Prefetch(
+                            query=rest.SparseVector(
+                                indices=query_sparse_embedding.indices,
+                                values=query_sparse_embedding.values,
+                            ),
+                            using=SPARSE_VECTORS_NAME,
+                            filter=qdrant_filters,
+                        ),
+                        rest.Prefetch(
+                            query=query_embedding,
+                            using=DENSE_VECTORS_NAME,
+                            filter=qdrant_filters,
+                        ),
+                    ],
+                    query=rest.FusionQuery(fusion=rest.Fusion.RRF),
+                    limit=top_k,
+                    group_by=group_by,
+                    group_size=group_size,
+                    score_threshold=score_threshold,
+                    with_payload=True,
+                    with_vectors=return_embedding,
+                )
+                groups = response.groups
+            else:
+                response = await self._async_client.query_points(
+                    collection_name=self.index,
+                    prefetch=[
+                        rest.Prefetch(
+                            query=rest.SparseVector(
+                                indices=query_sparse_embedding.indices,
+                                values=query_sparse_embedding.values,
+                            ),
+                            using=SPARSE_VECTORS_NAME,
+                            filter=qdrant_filters,
+                        ),
+                        rest.Prefetch(
+                            query=query_embedding,
+                            using=DENSE_VECTORS_NAME,
+                            filter=qdrant_filters,
+                        ),
+                    ],
+                    query=rest.FusionQuery(fusion=rest.Fusion.RRF),
+                    limit=top_k,
+                    score_threshold=score_threshold,
+                    with_payload=True,
+                    with_vectors=return_embedding,
+                )
+                points = response.points
 
         except Exception as e:
             msg = "Error during hybrid search"
@@ -1101,6 +1409,10 @@ class QdrantDocumentStore:
             If the collection exists with a different similarity measure or embedding dimension.
 
         """
+
+        self._initialize_client()
+        assert self._client is not None
+
         distance = self.get_distance(similarity)
 
         if recreate_collection or not self._client.collection_exists(collection_name):
@@ -1200,10 +1512,13 @@ class QdrantDocumentStore:
             If the collection exists with a different similarity measure or embedding dimension.
 
         """
-        distance = self.get_distance(similarity)
-        async_client = await self.get_async_client()
 
-        if recreate_collection or not await async_client.collection_exists(collection_name):
+        self._initialize_async_client()
+        assert self._async_client is not None
+
+        distance = self.get_distance(similarity)
+
+        if recreate_collection or not await self._async_client.collection_exists(collection_name):
             # There is no need to verify the current configuration of that
             # collection. It might be just recreated again or does not exist yet.
             await self.recreate_collection_async(
