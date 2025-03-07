@@ -8,7 +8,6 @@
 
 ### 🌀 Miscellaneous
 
-- Docs: update changelog for integrations/qdrant (#1419)
 - Docs: Update document store descriptions for deepset Pipeline Builder (#1447)
 - Refactor: Qdrant - raise error if existing collection is not compatible with Haystack (#1481)
 
