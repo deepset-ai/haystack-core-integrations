@@ -140,22 +140,6 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         for document in results:
             assert document.embedding is None
 
-    @pytest.mark.asyncio
-    async def test_run_async(self, filterable_docs: List[Document]):
-        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
-
-        await document_store.write_documents_async(filterable_docs)
-
-        retriever = QdrantEmbeddingRetriever(document_store=document_store)
-        result = await retriever.run_async(query_embedding=_random_embeddings(768))
-        assert len(result["documents"]) == 10
-
-        result = await retriever.run_async(query_embedding=_random_embeddings(768), top_k=5, return_embedding=False)
-        assert len(result["documents"]) == 5
-
-        for document in result["documents"]:
-            assert document.embedding is None
-
     def test_run_filters(self, filterable_docs: List[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
 
@@ -188,7 +172,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         document_store = QdrantDocumentStore(
             embedding_dim=4, location=":memory:", similarity="cosine", index="Boi", use_sparse_embeddings=False
         )
-
+        document_store._initialize_client()
         document_store.write_documents(
             [
                 Document(
@@ -242,6 +226,113 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         assert len(results) >= 3  # This test is Flaky
         assert len(results) <= 6  # This test is Flaky
         for document in results:
+            assert document.embedding is None
+
+    @pytest.mark.asyncio
+    async def test_run_async(self, filterable_docs: List[Document]):
+        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
+
+        await document_store.write_documents_async(filterable_docs)
+
+        retriever = QdrantEmbeddingRetriever(document_store=document_store)
+        result = await retriever.run_async(query_embedding=_random_embeddings(768))
+        assert len(result["documents"]) == 10
+
+        result = await retriever.run_async(query_embedding=_random_embeddings(768), top_k=5, return_embedding=False)
+        assert len(result["documents"]) == 5
+
+        for document in result["documents"]:
+            assert document.embedding is None
+
+    @pytest.mark.asyncio
+    async def test_run_filters_async(self, filterable_docs: List[Document]):
+        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
+
+        await document_store.write_documents_async(filterable_docs)
+
+        retriever = QdrantEmbeddingRetriever(
+            document_store=document_store,
+            filters={"field": "meta.name", "operator": "==", "value": "name_0"},
+            filter_policy=FilterPolicy.MERGE,
+        )
+
+        results = await retriever.run_async(query_embedding=_random_embeddings(768))
+        assert len(results["documents"]) == 3
+
+        result = await retriever.run_async(
+            query_embedding=_random_embeddings(768),
+            top_k=5,
+            filters={"field": "meta.chapter", "operator": "==", "value": "abstract"},
+            return_embedding=False,
+        )
+        assert len(result["documents"]) == 1
+        # we need to combine init filter and run filter as the policy is MERGE
+        # when we combine these filters we use AND logical operator by default
+        # so the result should be 1 as we have only one document that matches both filters
+
+        for document in result["documents"]:
+            assert document.embedding is None
+
+    @pytest.mark.asyncio
+    async def test_run_with_score_threshold_async(self):
+        document_store = QdrantDocumentStore(
+            embedding_dim=4, location=":memory:", similarity="cosine", index="Boi", use_sparse_embeddings=False
+        )
+        await document_store.write_documents_async(
+            [
+                Document(
+                    content="Yet another document",
+                    embedding=[-0.1, -0.9, -10.0, -0.2],
+                ),
+                Document(content="The document", embedding=[1.0, 1.0, 1.0, 1.0]),
+                Document(content="Another document", embedding=[0.8, 0.8, 0.5, 1.0]),
+            ]
+        )
+
+        retriever = QdrantEmbeddingRetriever(document_store=document_store)
+        result = await retriever.run_async(
+            query_embedding=[0.9, 0.9, 0.9, 0.9], top_k=5, return_embedding=False, score_threshold=0.5
+        )
+        assert len(result["documents"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_run_with_sparse_activated_async(self, filterable_docs: List[Document]):
+        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
+
+        await document_store.write_documents_async(filterable_docs)
+
+        retriever = QdrantEmbeddingRetriever(document_store=document_store)
+
+        result = await retriever.run_async(query_embedding=_random_embeddings(768))
+
+        assert len(result["documents"]) == 10
+
+        result = await retriever.run_async(query_embedding=_random_embeddings(768), top_k=5, return_embedding=False)
+
+        assert len(result["documents"]) == 5
+
+        for document in result["documents"]:
+            assert document.embedding is None
+
+    @pytest.mark.asyncio
+    async def test_run_with_group_by_async(self, filterable_docs: List[Document]):
+        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
+        # Add group_field metadata to documents
+        for index, doc in enumerate(filterable_docs):
+            doc.meta = {"group_field": index // 2}  # So at least two docs have same group each time
+        await document_store.write_documents_async(filterable_docs)
+
+        retriever = QdrantEmbeddingRetriever(document_store=document_store)
+        result = await retriever.run_async(
+            query_embedding=_random_embeddings(768),
+            top_k=3,
+            return_embedding=False,
+            group_by="meta.group_field",
+            group_size=2,
+        )
+        assert len(result["documents"]) >= 3  # This test is Flaky
+        assert len(result["documents"]) <= 6  # This test is Flaky
+        for document in result["documents"]:
             assert document.embedding is None
 
 
@@ -422,6 +513,51 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert len(results) <= 6  # This test is Flaky
 
         for document in results:
+            assert document.sparse_embedding
+
+    @pytest.mark.asyncio
+    async def test_run_async(self, filterable_docs: List[Document], generate_sparse_embedding):
+        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
+
+        # Add fake sparse embedding to documents
+        for doc in filterable_docs:
+            doc.sparse_embedding = generate_sparse_embedding()
+
+        await document_store.write_documents_async(filterable_docs)
+        retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
+        sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
+
+        result = await retriever.run_async(query_sparse_embedding=sparse_embedding)
+        assert len(result["documents"]) == 10
+
+        result = await retriever.run_async(query_sparse_embedding=sparse_embedding, top_k=5, return_embedding=True)
+        assert len(result["documents"]) == 5
+
+        for document in result["documents"]:
+            assert document.sparse_embedding
+
+    @pytest.mark.asyncio
+    async def test_run_with_group_by_async(self, filterable_docs: List[Document], generate_sparse_embedding):
+        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
+
+        # Add fake sparse embedding to documents
+        for index, doc in enumerate(filterable_docs):
+            doc.sparse_embedding = generate_sparse_embedding()
+            doc.meta = {"group_field": index // 2}  # So at least two docs have same group each time
+        await document_store.write_documents_async(filterable_docs)
+        retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
+        sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
+        result = await retriever.run_async(
+            query_sparse_embedding=sparse_embedding,
+            top_k=3,
+            return_embedding=True,
+            group_by="meta.group_field",
+            group_size=2,
+        )
+        assert len(result["documents"]) >= 3  # This test is Flaky
+        assert len(result["documents"]) <= 6  # This test is Flaky
+
+        for document in result["documents"]:
             assert document.sparse_embedding
 
 
@@ -607,3 +743,56 @@ class TestQdrantHybridRetriever:
         assert res["documents"][0].content == "Test doc"
         assert res["documents"][0].embedding == [0.1, 0.2]
         assert res["documents"][0].sparse_embedding == sparse_embedding
+
+    @pytest.mark.asyncio
+    async def test_run_async(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
+        mock_store._query_hybrid_async.return_value = [
+            Document(content="Test doc", embedding=[0.1, 0.2], sparse_embedding=sparse_embedding)
+        ]
+
+        retriever = QdrantHybridRetriever(document_store=mock_store)
+        result = await retriever.run_async(
+            query_embedding=[0.5, 0.7], query_sparse_embedding=SparseEmbedding(indices=[0, 5], values=[0.1, 0.7])
+        )
+
+        call_args = mock_store._query_hybrid_async.call_args
+        assert call_args[1]["query_embedding"] == [0.5, 0.7]
+        assert call_args[1]["query_sparse_embedding"].indices == [0, 5]
+        assert call_args[1]["query_sparse_embedding"].values == [0.1, 0.7]
+        assert call_args[1]["top_k"] == 10
+        assert call_args[1]["return_embedding"] is False
+
+        assert result["documents"][0].content == "Test doc"
+        assert result["documents"][0].embedding == [0.1, 0.2]
+        assert result["documents"][0].sparse_embedding == sparse_embedding
+
+    @pytest.mark.asyncio
+    async def test_run_with_group_by_async(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
+        mock_store._query_hybrid_async.return_value = [
+            Document(content="Test doc", embedding=[0.1, 0.2], sparse_embedding=sparse_embedding)
+        ]
+
+        retriever = QdrantHybridRetriever(document_store=mock_store)
+        result = await retriever.run_async(
+            query_embedding=[0.5, 0.7],
+            query_sparse_embedding=SparseEmbedding(indices=[0, 5], values=[0.1, 0.7]),
+            group_by="meta.group_field",
+            group_size=2,
+        )
+
+        call_args = mock_store._query_hybrid_async.call_args
+        assert call_args[1]["query_embedding"] == [0.5, 0.7]
+        assert call_args[1]["query_sparse_embedding"].indices == [0, 5]
+        assert call_args[1]["query_sparse_embedding"].values == [0.1, 0.7]
+        assert call_args[1]["top_k"] == 10
+        assert call_args[1]["return_embedding"] is False
+        assert call_args[1]["group_by"] == "meta.group_field"
+        assert call_args[1]["group_size"] == 2
+
+        assert result["documents"][0].content == "Test doc"
+        assert result["documents"][0].embedding == [0.1, 0.2]
+        assert result["documents"][0].sparse_embedding == sparse_embedding

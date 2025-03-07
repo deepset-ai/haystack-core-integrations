@@ -1352,7 +1352,7 @@ class QdrantDocumentStore:
         """
         if payload_fields_to_index is not None:
             for payload_index in payload_fields_to_index:
-                self._client.create_payload_index(
+                self._client.create_payload_index(  # type: ignore[attr-defined]
                     collection_name=collection_name,
                     field_name=payload_index["field_name"],
                     field_schema=payload_index["field_schema"],
@@ -1367,7 +1367,7 @@ class QdrantDocumentStore:
         """
         if payload_fields_to_index is not None:
             for payload_index in payload_fields_to_index:
-                await self._async_client.create_payload_index(
+                await self._async_client.create_payload_index(  # type: ignore[attr-defined]
                     collection_name=collection_name,
                     field_name=payload_index["field_name"],
                     field_schema=payload_index["field_schema"],
@@ -1427,10 +1427,18 @@ class QdrantDocumentStore:
 
         collection_info = self._client.get_collection(collection_name)
 
-        has_named_vectors = (
-            isinstance(collection_info.config.params.vectors, dict)
-            and DENSE_VECTORS_NAME in collection_info.config.params.vectors
-        )
+        has_named_vectors = isinstance(collection_info.config.params.vectors, dict)
+
+        if has_named_vectors and DENSE_VECTORS_NAME not in collection_info.config.params.vectors:
+            msg = (
+                f"Collection '{collection_name}' already exists in Qdrant, "
+                f"but it has been originally created outside of Haystack and is not supported. "
+                f"If possible, you should create a new Document Store with Haystack. "
+                f"In case you want to migrate the existing collection, see an example script in "
+                f"https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/qdrant/src/"
+                f"haystack_integrations/document_stores/qdrant/migrate_to_sparse.py."
+            )
+            raise QdrantStoreError(msg)
 
         if self.use_sparse_embeddings and not has_named_vectors:
             msg = (
@@ -1443,7 +1451,7 @@ class QdrantDocumentStore:
             )
             raise QdrantStoreError(msg)
 
-        elif not self.use_sparse_embeddings and has_named_vectors:
+        if not self.use_sparse_embeddings and has_named_vectors:
             msg = (
                 f"Collection '{collection_name}' already exists in Qdrant, "
                 f"but it has been originally created with sparse embedding vectors."
@@ -1634,10 +1642,10 @@ class QdrantDocumentStore:
                 ),
             }
 
-        if self._client.collection_exists(collection_name):
-            self._client.delete_collection(collection_name)
+        if self._client.collection_exists(collection_name):  # type: ignore[attr-defined]
+            self._client.delete_collection(collection_name)  # type: ignore[attr-defined]
 
-        self._client.create_collection(
+        self._client.create_collection(  # type: ignore[attr-defined]
             collection_name=collection_name,
             vectors_config=vectors_config,
             sparse_vectors_config=sparse_vectors_config if use_sparse_embeddings else None,
@@ -1699,10 +1707,10 @@ class QdrantDocumentStore:
                 ),
             }
 
-        if await self._async_client.collection_exists(collection_name):
-            await self._async_client.delete_collection(collection_name)
+        if await self._async_client.collection_exists(collection_name):  # type: ignore[attr-defined]
+            await self._async_client.delete_collection(collection_name)  # type: ignore[attr-defined]
 
-        await self._async_client.create_collection(
+        await self._async_client.create_collection(  # type: ignore[attr-defined]
             collection_name=collection_name,
             vectors_config=vectors_config,
             sparse_vectors_config=sparse_vectors_config if use_sparse_embeddings else None,
