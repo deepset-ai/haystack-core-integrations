@@ -1,5 +1,4 @@
 import json
-import logging
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import google.generativeai as genai
@@ -13,6 +12,7 @@ from google.generativeai.types import (
     content_types,
 )
 from google.generativeai.types.generation_types import to_generation_config_dict
+from haystack import logging
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk

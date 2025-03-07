@@ -1,12 +1,11 @@
 # SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
 #
 # SPDX-License-Identifier: Apache-2.0
-import logging
 from typing import Any, Dict, List, Literal, Optional
 
 import chromadb
 from chromadb.api.types import GetResult, QueryResult
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 from numpy import ndarray
@@ -250,18 +249,18 @@ class ChromaDocumentStore:
             if doc.content is None:
                 logger.warning(
                     "ChromaDocumentStore cannot store documents with `content=None`. "
-                    "Document with id %s will be skipped.",
-                    doc.id,
+                    "Document with id {doc_id} will be skipped.",
+                    doc_id=doc.id,
                 )
                 continue
             elif (hasattr(doc, "dataframe") and doc.dataframe is not None) or (
                 hasattr(doc, "blob") and doc.blob is not None
             ):
                 logger.warning(
-                    "Document with id %s contains `dataframe` or `blob` fields. "
+                    "Document with id {doc_id} contains `dataframe` or `blob` fields. "
                     "ChromaDocumentStore cannot store `dataframe` or `blob` fields. "
-                    "These fields will be ignored. ",
-                    doc.id,
+                    "These fields will be ignored.",
+                    doc_id=doc.id,
                 )
             data = {"ids": [doc.id], "documents": [doc.content]}
 
@@ -277,11 +276,11 @@ class ChromaDocumentStore:
 
                 if discarded_keys:
                     logger.warning(
-                        "Document %s contains `meta` values of unsupported types for the keys: %s. "
-                        "These items will be discarded. Supported types are: %s.",
-                        doc.id,
-                        ", ".join(discarded_keys),
-                        ", ".join([t.__name__ for t in SUPPORTED_TYPES_FOR_METADATA_VALUES]),
+                        "Document {doc_id} contains `meta` values of unsupported types for the keys: {keys}. "
+                        "These items will be discarded. Supported types are: {types}.",
+                        doc_id=doc.id,
+                        keys=", ".join(discarded_keys),
+                        types=", ".join([t.__name__ for t in SUPPORTED_TYPES_FOR_METADATA_VALUES]),
                     )
 
                 if valid_meta:
@@ -292,10 +291,10 @@ class ChromaDocumentStore:
 
             if hasattr(doc, "sparse_embedding") and doc.sparse_embedding is not None:
                 logger.warning(
-                    "Document %s has the `sparse_embedding` field set,"
-                    "but storing sparse embeddings in Chroma is not currently supported."
+                    "Document {doc_id} has the `sparse_embedding` field set, "
+                    "but storing sparse embeddings in Chroma is not currently supported. "
                     "The `sparse_embedding` field will be ignored.",
-                    doc.id,
+                    doc_id=doc.id,
                 )
 
             self._collection.add(**data)

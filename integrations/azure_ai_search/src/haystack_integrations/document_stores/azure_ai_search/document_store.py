@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import logging
+import logging as python_logging
 import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -24,7 +24,7 @@ from azure.search.documents.indexes.models import (
     VectorSearchProfile,
 )
 from azure.search.documents.models import VectorizedQuery
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -55,8 +55,8 @@ DEFAULT_VECTOR_SEARCH = VectorSearch(
 )
 
 logger = logging.getLogger(__name__)
-logging.getLogger("azure").setLevel(logging.ERROR)
-logging.getLogger("azure.identity").setLevel(logging.DEBUG)
+python_logging.getLogger("azure").setLevel(python_logging.ERROR)
+python_logging.getLogger("azure.identity").setLevel(python_logging.DEBUG)
 
 
 class AzureAISearchDocumentStore:
@@ -135,8 +135,8 @@ class AzureAISearchDocumentStore:
             if not self._index_exists(self._index_name):
                 # Create a new index if it does not exist
                 logger.debug(
-                    "The index '%s' does not exist. A new index will be created.",
-                    self._index_name,
+                    "The index '{idx_name}' does not exist. A new index will be created.",
+                    idx_name=self._index_name,
                 )
                 self._create_index(self._index_name)
         except (HttpResponseError, ClientAuthenticationError) as error:
@@ -369,10 +369,10 @@ class AzureAISearchDocumentStore:
             dataframe = doc_dict.pop("dataframe")
             if dataframe:
                 logger.warning(
-                    "Document %s has the `dataframe` field set. "
+                    "Document {doc_id} has the `dataframe` field set. "
                     "AzureAISearchDocumentStore does not support dataframes and this field will be ignored. "
                     "The `dataframe` field will soon be removed from Haystack Document.",
-                    doc_dict["id"],
+                    doc_id=doc_dict["id"],
                 )
 
         # Because Azure Search does not allow dynamic fields, we only include fields that are part of the schema

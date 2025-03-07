@@ -1,8 +1,7 @@
 import json
-import logging
 from typing import Any, Dict, List, Optional
 
-from haystack import component, default_from_dict, default_to_dict
+from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from llama_cpp import ChatCompletionResponseChoice, CreateChatCompletionResponse, Llama

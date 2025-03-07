@@ -1,10 +1,9 @@
 # SPDX-FileCopyrightText: 2023-present Anant Corporation <support@anant.us>
 #
 # SPDX-License-Identifier: Apache-2.0
-import logging
 from typing import Any, Dict, List, Optional, Union
 
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError, MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -207,20 +206,20 @@ class AstraDocumentStore:
                 dataframe = document_dict.pop("dataframe", None)
                 if dataframe:
                     logger.warning(
-                        "Document %s has the `dataframe` field set. "
+                        "Document {id} has the `dataframe` field set. "
                         "AstraDocumentStore no longer supports dataframes and this field will be ignored. "
                         "The `dataframe` field will soon be removed from Haystack Document.",
-                        document_dict["_id"],
+                        id=document_dict["_id"],
                     )
 
             if "sparse_embedding" in document_dict:
                 sparse_embedding = document_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
                     logger.warning(
-                        "Document %s has the `sparse_embedding` field set,"
+                        "Document {id} has the `sparse_embedding` field set,"
                         "but storing sparse embeddings in Astra is not currently supported."
                         "The `sparse_embedding` field will be ignored.",
-                        document_dict["_id"],
+                        id=document_dict["_id"],
                     )
 
             return document_dict

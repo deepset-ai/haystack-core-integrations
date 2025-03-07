@@ -1,7 +1,6 @@
-import logging
 from typing import Any, Dict, List, Optional
 
-from haystack import component
+from haystack import component, logging
 
 from llama_cpp import Llama
 

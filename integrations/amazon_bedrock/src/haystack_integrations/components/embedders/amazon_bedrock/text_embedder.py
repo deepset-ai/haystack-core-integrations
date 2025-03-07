@@ -1,10 +1,9 @@
 import json
-import logging
 from typing import Any, Dict, List, Literal, Optional
 
 from botocore.config import Config
 from botocore.exceptions import ClientError
-from haystack import component, default_from_dict, default_to_dict
+from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.common.amazon_bedrock.errors import (

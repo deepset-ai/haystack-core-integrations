@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import logging
 from collections.abc import Mapping
 from typing import Any, Dict, List, Literal, Optional, Union
 
@@ -9,7 +8,7 @@ import numpy as np
 
 # There are no import stubs for elastic_transport and elasticsearch so mypy fails
 from elastic_transport import NodeConfig  # type: ignore[import-not-found]
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -333,10 +332,10 @@ class ElasticsearchDocumentStore:
             dataframe = data.pop("dataframe")
             if dataframe:
                 logger.warning(
-                    "Document %s has the `dataframe` field set,"
+                    "Document {doc_id} has the `dataframe` field set,"
                     "ElasticsearchDocumentStore no longer supports dataframes and this field will be ignored. "
                     "The `dataframe` field will soon be removed from Haystack Document.",
-                    data["id"],
+                    doc_id=data["id"],
                 )
         return Document.from_dict(data)
 
@@ -369,19 +368,19 @@ class ElasticsearchDocumentStore:
                 dataframe = doc_dict.pop("dataframe")
                 if dataframe:
                     logger.warning(
-                        "Document %s has the `dataframe` field set,"
+                        "Document {doc_id} has the `dataframe` field set,"
                         "ElasticsearchDocumentStore no longer supports dataframes and this field will be ignored. "
                         "The `dataframe` field will soon be removed from Haystack Document.",
-                        doc.id,
+                        doc_id=doc.id,
                     )
             if "sparse_embedding" in doc_dict:
                 sparse_embedding = doc_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
                     logger.warning(
-                        "Document %s has the `sparse_embedding` field set,"
+                        "Document {doc_id} has the `sparse_embedding` field set,"
                         "but storing sparse embeddings in Elasticsearch is not currently supported."
                         "The `sparse_embedding` field will be ignored.",
-                        doc.id,
+                        doc_id=doc.id,
                     )
             elasticsearch_actions.append(
                 {
@@ -462,10 +461,10 @@ class ElasticsearchDocumentStore:
                 sparse_embedding = doc_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
                     logger.warning(
-                        "Document %s has the `sparse_embedding` field set,"
+                        "Document {doc_id} has the `sparse_embedding` field set,"
                         "but storing sparse embeddings in Elasticsearch is not currently supported."
                         "The `sparse_embedding` field will be ignored.",
-                        doc.id,
+                        doc_id=doc.id,
                     )
 
             action = {

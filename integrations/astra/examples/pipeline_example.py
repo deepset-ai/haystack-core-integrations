@@ -1,7 +1,6 @@
-import logging
 import os
 
-from haystack import Document, Pipeline
+from haystack import Document, Pipeline, logging
 from haystack.components.builders.answer_builder import AnswerBuilder
 from haystack.components.builders.prompt_builder import PromptBuilder
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
