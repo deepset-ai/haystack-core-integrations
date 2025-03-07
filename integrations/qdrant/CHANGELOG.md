@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/qdrant-v8.1.0] - 2025-03-07
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+
+### 🌀 Miscellaneous
+
+- Docs: Update document store descriptions for deepset Pipeline Builder (#1447)
+- Refactor: Qdrant - raise error if existing collection is not compatible with Haystack (#1481)
+
 ## [integrations/qdrant-v8.0.0] - 2025-02-19
 
 ### 🧹 Chores
