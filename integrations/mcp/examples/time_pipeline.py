@@ -41,7 +41,7 @@ def main():
     pipeline.connect("tool_invoker.tool_messages", "adapter.tool_messages")
     pipeline.connect("adapter.output", "response_llm.messages")
 
-    user_input = "What is the time in Berlin? Be brief."
+    user_input = "What is the time in New York? Be brief."  # can be any city
     user_input_msg = ChatMessage.from_user(text=user_input)
 
     result = pipeline.run({"llm": {"messages": [user_input_msg]}, "adapter": {"initial_msg": [user_input_msg]}})
