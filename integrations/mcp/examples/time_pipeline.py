@@ -4,6 +4,9 @@
 
 # Full example of a pipeline that uses MCPTool to get the current time
 # and then uses the time to answer a user question.
+# Here we use the mcp-server-time mcp package
+# See https://github.com/modelcontextprotocol/servers/tree/main/src/time for more details
+# prior to running this script, pip install mcp-server-time
 
 # flake8: noqa: T201
 from haystack import Pipeline
