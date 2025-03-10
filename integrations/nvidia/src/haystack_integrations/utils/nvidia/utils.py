@@ -96,18 +96,26 @@ def validate_hosted_model(
 
     Raises:
         ValueError: If the model is incompatible with the client or if the model is unknown.
-        Warning: If the model's client is unknown.
+        Warning: If no client is provided.
     """
+    supported = {
+        "NvidiaGenerator": ("chat",),
+        "NvidiaTextEmbedder": ("embedding",),
+        "NvidiaDocumentEmbedder": ("embedding",),
+        "NvidiaRanker": ("ranking",),
+    }
+
     if model := determine_model(model_name):
-        err_msg = f"Model {model.id} is incompatible with client {client}. \
-                        Please check `{client}.available_models`."
-        if not model.client:
+        err_msg = f"Model {model.id} is incompatible with client {client}. Please check `{client}.available_models`."
+
+        if client and model.client and model.client != client:
+            raise ValueError(err_msg)
+        elif client and not model.client and model.model_type not in supported[client]:
+            raise ValueError(err_msg)
+        elif not client:
             warn_msg = f"Unable to determine validity of {model.id}"
             warnings.warn(warn_msg, stacklevel=1)
-        elif model.model_type == "embedding" and client not in ["NvidiaTextEmbedder", "NvidiaDocumentEmbedder"]:
-            raise ValueError(err_msg)
-        elif model.client != client:
-            raise ValueError(err_msg)
+
     else:
         err_msg = f"Model {model_name} is unknown, check `available_models`"
         raise ValueError(err_msg)
