@@ -1,10 +1,9 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import logging
 from typing import Any, Dict, List, Literal, Optional
 
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -193,7 +192,7 @@ class PgvectorDocumentStore:
             try:
                 self._connection.close()
             except Error as e:
-                logger.debug("Failed to close connection: %s", str(e))
+                logger.debug("Failed to close connection: {e}", e=str(e))
 
         conn_str = self.connection_string.resolve_value() or ""
         connection = connect(conn_str)
@@ -295,7 +294,7 @@ class PgvectorDocumentStore:
         cursor = cursor or self.cursor
 
         sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
-        logger.debug("SQL query: %s\nParameters: %s", sql_query_str, params)
+        logger.debug("SQL query: {query}\nParameters: {parameters}", query=sql_query_str, parameters=params)
 
         try:
             result = cursor.execute(sql_query, params)
@@ -512,7 +511,7 @@ class PgvectorDocumentStore:
         sql_insert += SQL(" RETURNING id")
 
         sql_query_str = sql_insert.as_string(self.cursor) if not isinstance(sql_insert, str) else sql_insert
-        logger.debug("SQL query: %s\nParameters: %s", sql_query_str, db_documents)
+        logger.debug("SQL query: {query}\nParameters: {parameters}", query=sql_query_str, parameters=db_documents)
 
         try:
             self.cursor.executemany(sql_insert, db_documents, returning=True)
@@ -559,20 +558,20 @@ class PgvectorDocumentStore:
                 dataframe = db_document.pop("dataframe", None)
                 if dataframe:
                     logger.warning(
-                        "Document %s has the `dataframe` field set. "
+                        "Document {doc_id} has the `dataframe` field set. "
                         "PgvectorDocumentStore no longer supports dataframes and this field will be ignored. "
                         "The `dataframe` field will soon be removed from Haystack Document.",
-                        db_document["id"],
+                        doc_id=db_document["id"],
                     )
 
             if "sparse_embedding" in db_document:
                 sparse_embedding = db_document.pop("sparse_embedding", None)
                 if sparse_embedding:
                     logger.warning(
-                        "Document %s has the `sparse_embedding` field set,"
+                        "Document {doc_id} has the `sparse_embedding` field set,"
                         "but storing sparse embeddings in Pgvector is not currently supported."
                         "The `sparse_embedding` field will be ignored.",
-                        db_document["id"],
+                        doc_id=db_document["id"],
                     )
 
             db_documents.append(db_document)
@@ -599,10 +598,10 @@ class PgvectorDocumentStore:
 
             if dataframe:
                 logger.warning(
-                    "Document %s has the `dataframe` field set. "
+                    "Document {dict_id} has the `dataframe` field set. "
                     "PgvectorDocumentStore no longer supports dataframes and this field will be ignored. "
                     "The `dataframe` field will soon be removed from Haystack Document.",
-                    haystack_dict["id"],
+                    dict_id=haystack_dict["id"],
                 )
 
             haystack_document = Document.from_dict(haystack_dict)
