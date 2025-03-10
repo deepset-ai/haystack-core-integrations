@@ -21,6 +21,10 @@ tool = MCPTool(name="my_tool", server_info=server_info)
 result = tool.invoke(param1="value1", param2="value2")
 ```
 
+# Examples
+
+Check out the examples directory to see practical demonstrations of how to integrate the MCPTool into Haystack's tooling architecture. These examples will help you get started quickly with your own agentic applications.
+
 ## License
 
 Apache 2.0 
