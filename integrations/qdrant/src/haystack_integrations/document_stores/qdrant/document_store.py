@@ -1,11 +1,10 @@
 import inspect
-import logging
 from itertools import islice
 from typing import Any, AsyncGenerator, ClassVar, Dict, Generator, List, Optional, Set, Union
 
 import numpy as np
 import qdrant_client
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError

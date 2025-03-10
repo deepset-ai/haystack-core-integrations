@@ -212,7 +212,7 @@ def test_convert_meta_to_int():
 
 
 @pytest.mark.integration
-@pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
+@pytest.mark.skipif(not os.environ.get("PINECONE_API_KEY"), reason="PINECONE_API_KEY not set")
 def test_serverless_index_creation_from_scratch(sleep_time):
     # we use a fixed index name to avoid hitting the limit of Pinecone's free tier (max 5 indexes)
     # the index name is defined in the test matrix of the GitHub Actions workflow
@@ -252,7 +252,7 @@ def test_serverless_index_creation_from_scratch(sleep_time):
 
 
 @pytest.mark.integration
-@pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
+@pytest.mark.skipif(not os.environ.get("PINECONE_API_KEY"), reason="PINECONE_API_KEY not set")
 class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest):
     def test_write_documents(self, document_store: PineconeDocumentStore):
         docs = [Document(id="1")]

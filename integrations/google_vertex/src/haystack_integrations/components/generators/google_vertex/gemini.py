@@ -1,6 +1,6 @@
-import logging
 from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
+from haystack import logging
 from haystack.core.component import component
 from haystack.core.component.types import Variadic
 from haystack.core.serialization import default_from_dict, default_to_dict
