@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# flake8: noqa: T201
 from haystack_integrations.tools.mcp import HttpMCPServerInfo, MCPTool
 
 # run this client after running the server mcp_http_server.py

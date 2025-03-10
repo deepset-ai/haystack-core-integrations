@@ -24,6 +24,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: Implementation :: CPython",
 ]
 dependencies = ["mcp", "haystack-ai>=2.9.0"]
@@ -150,6 +151,7 @@ ban-relative-imports = "parents"
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
+"examples/**/*" = ["T201", "E501"] 
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
@@ -166,6 +168,9 @@ module = [
     "haystack.*",
     "haystack_integrations.*",
     "pytest.*",
+    "anyio.*",
+    "mcp.*",
+    "mcp",
 ]
 ignore_missing_imports = true
 

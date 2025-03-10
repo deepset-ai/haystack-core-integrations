@@ -8,7 +8,6 @@
 # See https://github.com/modelcontextprotocol/servers/tree/main/src/time for more details
 # prior to running this script, pip install mcp-server-time
 
-# flake8: noqa: T201
 from haystack import Pipeline
 from haystack.components.converters import OutputAdapter
 from haystack.components.generators.chat import OpenAIChatGenerator

@@ -428,7 +428,10 @@ if __name__ == "__main__":
 
         tool_message = tool_messages[0]
         assert tool_message.is_from(ChatRole.TOOL)
-        assert any(term in tool_message.tool_call_result.result for term in ["Bundestag", "elections"])
+        assert any(term in tool_message.tool_call_result.result for term in ["Bundestag", "election"]), (
+            "Result should contain information about German elections"
+            f"\n\nResult: {tool_message.tool_call_result.result}"
+        )
 
     @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     def test_mcp_tool_in_pipeline_with_multiple_tools(self):

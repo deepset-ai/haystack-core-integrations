@@ -9,15 +9,15 @@ from contextlib import AsyncExitStack
 from dataclasses import dataclass, fields
 from typing import Any, cast
 
-from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream  # type: ignore [import-not-found]
+from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.tools import Tool
 from haystack.tools.errors import ToolInvocationError
 
-from mcp import ClientSession, StdioServerParameters, types  # type: ignore [import-not-found]
-from mcp.client.sse import sse_client  # type: ignore [import-not-found]
-from mcp.client.stdio import stdio_client  # type: ignore [import-not-found]
+from mcp import ClientSession, StdioServerParameters, types
+from mcp.client.sse import sse_client
+from mcp.client.stdio import stdio_client
 
 logger = logging.getLogger(__name__)
 
@@ -93,48 +93,41 @@ class MCPClient(ABC):
 
         try:
             result = await self.session.call_tool(tool_name, tool_args)
-
-            # Process and validate the response content
-            processed_result = self._process_response_content(result, tool_name)
-            return processed_result
-
+            validated_result = self._validate_response(tool_name, result)
+            return validated_result
+        except MCPError:
+            # Re-raise specific MCP errors directly
+            raise
         except Exception as e:
-            if isinstance(e, MCPError):
-                # Re-raise specific MCP errors
-                raise
+            # Wrap other exceptions with context about which tool failed
             message = f"Failed to invoke tool '{tool_name}': {e!s}"
             raise MCPInvocationError(message) from e
 
-    def _process_response_content(self, result, tool_name: str) -> Any:
+    def _validate_response(self, tool_name: str, result: types.CallToolResult) -> types.CallToolResult:
         """
-        Process response content from an MCP tool call, accepting only TextContent.
+        Validate response from an MCP tool call, accepting only TextContent.
 
-        :param result: CallToolResult from MCP tool call
         :param tool_name: Name of the called tool (for error messages)
+        :param result: CallToolResult from MCP tool call
         :returns: The original CallToolResult object
         :raises MCPResponseTypeError: If content type is not TextContent
         :raises MCPInvocationError: If the tool call resulted in an error
         """
-        # Return the result directly if it's not a CallToolResult structure
-        if not hasattr(result, "content"):
-            return result
 
         # Check for error response
-        if hasattr(result, "isError") and result.isError:
-            error_msg = "Tool execution failed"
-            if result.content and isinstance(result.content, list) and len(result.content) > 0:
+        if result.isError:
+            if len(result.content) > 0 and isinstance(result.content[0], types.TextContent):
+                # Get the error message from the first item
                 first_item = result.content[0]
-                if hasattr(first_item, "text"):
-                    error_msg = first_item.text
-                else:
-                    error_msg = str(first_item)
-            message = f"Tool '{tool_name}' returned an error: {error_msg}"
+                message = f"Tool '{tool_name}' returned an error: {first_item.text}"
+            else:
+                message = f"Tool '{tool_name}' returned an error: {result.content!s}"
             raise MCPInvocationError(message)
 
-        # Validate content types - only allow TextContent
-        if result.content and isinstance(result.content, list):
+        # Validate content types - only allow TextContent for now
+        if result.content:
             for item in result.content:
-                if not (hasattr(item, "type") and item.type == "text" and hasattr(item, "text")):
+                if not isinstance(item, types.TextContent):
                     # Reject any non-TextContent
                     message = (
                         f"Unsupported content type in response from tool '{tool_name}'. "
@@ -463,9 +456,6 @@ class MCPTool(Tool):
                 except Exception as cleanup_error:
                     logger.warning(f"Error during cleanup after initialization failure: {cleanup_error}")
 
-            # Enhance the error message with more context
-            if isinstance(e, (MCPError | TimeoutError)):
-                raise
             message = f"Failed to initialize MCPTool '{name}': {e}"
             raise MCPError(message) from e
 
