@@ -1,5 +1,7 @@
 import os
 import subprocess
+import sys
+import tempfile
 import time
 from unittest.mock import MagicMock, patch
 
@@ -397,8 +399,10 @@ if __name__ == "__main__":
                 os.remove(server_script_path)
 
     @pytest.mark.skipif(
-        not os.environ.get("OPENAI_API_KEY") and not os.environ.get("BRAVE_API_KEY"),
-        reason="OPENAI_API_KEY or BRAVE_API_KEY not set",
+        (not os.environ.get("OPENAI_API_KEY") and not os.environ.get("BRAVE_API_KEY")) or
+        (sys.platform == "win32") or
+        (sys.platform == "darwin"),
+        reason="OPENAI_API_KEY or BRAVE_API_KEY not set, or running on Windows or macOS",
     )
     def test_mcp_brave_search(self):
         """Test using an MCPTool in a pipeline with OpenAI."""
