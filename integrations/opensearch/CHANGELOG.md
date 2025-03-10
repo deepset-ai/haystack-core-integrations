@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/opensearch-v2.2.0] - 2025-03-10
 
 ### 🐛 Bug Fixes
 
@@ -8,7 +8,6 @@
 
 ### 📚 Documentation
 
-- Update changelog for integrations/opensearch (#1415)
 - Add docstore description to docstring (#1446)
 
 ### 🧹 Chores
