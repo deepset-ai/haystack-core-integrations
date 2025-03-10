@@ -443,7 +443,7 @@ if __name__ == "__main__":
 
         # Mix mcp tool with a simple echo tool
         time_server_info = StdioMCPServerInfo(
-            command="python", args=["-m", "mcp_server_time", "--local-timezone=America/New_York"]
+            command="uvx", args=["mcp-server-time", "--local-timezone=America/New_York"]
         )
         time_tool = MCPTool(name="get_current_time", server_info=time_server_info)
 
