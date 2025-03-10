@@ -23,7 +23,7 @@ from .filters import _convert_filters_to_where_clause_and_params
 logger = logging.getLogger(__name__)
 
 CREATE_TABLE_STATEMENT = """
-CREATE TABLE IF NOT EXISTS {schema_name}.{table_name} (
+CREATE TABLE {schema_name}.{table_name} (
 id VARCHAR(128) PRIMARY KEY,
 embedding VECTOR({embedding_dimension}),
 content TEXT,
@@ -310,13 +310,22 @@ class PgvectorDocumentStore:
         Creates the table to store Haystack documents if it doesn't exist yet.
         """
 
-        create_sql = SQL(CREATE_TABLE_STATEMENT).format(
-            schema_name=Identifier(self.schema_name),
-            table_name=Identifier(self.table_name),
-            embedding_dimension=SQLLiteral(self.embedding_dimension),
+        table_exists = bool(
+            self._execute_sql(
+                "SELECT 1 FROM pg_tables WHERE schemaname = %s AND tablename = %s",
+                (self.schema_name, self.table_name),
+                "Could not check if table exists",
+            ).fetchone()
         )
 
-        self._execute_sql(create_sql, error_msg="Could not create table in PgvectorDocumentStore")
+        if not table_exists:
+            create_sql = SQL(CREATE_TABLE_STATEMENT).format(
+                schema_name=Identifier(self.schema_name),
+                table_name=Identifier(self.table_name),
+                embedding_dimension=SQLLiteral(self.embedding_dimension),
+            )
+
+            self._execute_sql(create_sql, error_msg="Could not create table in PgvectorDocumentStore")
 
     def delete_table(self):
         """
