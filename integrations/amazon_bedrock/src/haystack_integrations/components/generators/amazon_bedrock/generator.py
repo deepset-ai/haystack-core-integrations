@@ -141,7 +141,8 @@ class AmazonBedrockGenerator:
         if max_length is not None or truncate is not None:
             warnings.warn(
                 "The 'max_length' and 'truncate' parameters have been removed and no longer have any effect. "
-                "No truncation will be performed.",
+                "No truncation will be performed. To control the length of the generated text, use "
+                "the 'max_tokens' (or the model-specific variant) in the generation_kwargs of the run method.",
                 stacklevel=2,
             )
 
@@ -180,7 +181,7 @@ class AmazonBedrockGenerator:
         model_input_kwargs = kwargs
 
         model_adapter_cls = self.get_model_adapter(model=model, model_family=model_family)
-        self.model_adapter = model_adapter_cls(model_kwargs=model_input_kwargs, max_length=self.max_length)
+        self.model_adapter = model_adapter_cls(model_kwargs=model_input_kwargs)
 
     @component.output_types(replies=List[str])
     def run(
