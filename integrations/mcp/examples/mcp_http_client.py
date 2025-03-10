@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from haystack_integrations.tools.mcp import MCPTool, HttpMCPServerInfo
+# flake8: noqa: T201
+from haystack_integrations.tools.mcp import HttpMCPServerInfo, MCPTool
 
 # run this client after running the server mcp_http_server.py
 # it shows how easy it is to use the MCPTool with HTTP transport

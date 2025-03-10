@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-
+# flake8: noqa: T201
 from haystack_integrations.tools.mcp import MCPTool, StdioMCPServerInfo
 
 # For stdio MCPTool we don't need to run a server, we can just use the MCPTool directly
