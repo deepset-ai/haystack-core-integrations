@@ -309,7 +309,6 @@ class TestMCPToolInPipelineWithOpenAI:
         """Test using an MCPTool with a real HTTP server."""
         import os
         import socket
-        import tempfile
 
         # Find an available port
         def find_free_port():
@@ -399,9 +398,9 @@ if __name__ == "__main__":
                 os.remove(server_script_path)
 
     @pytest.mark.skipif(
-        (not os.environ.get("OPENAI_API_KEY") and not os.environ.get("BRAVE_API_KEY")) or
-        (sys.platform == "win32") or
-        (sys.platform == "darwin"),
+        (not os.environ.get("OPENAI_API_KEY") and not os.environ.get("BRAVE_API_KEY"))
+        or (sys.platform == "win32")
+        or (sys.platform == "darwin"),
         reason="OPENAI_API_KEY or BRAVE_API_KEY not set, or running on Windows or macOS",
     )
     def test_mcp_brave_search(self):
