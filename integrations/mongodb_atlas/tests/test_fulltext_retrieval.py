@@ -24,7 +24,7 @@ def get_document_store():
 
 
 @pytest.mark.skipif(
-    "MONGO_CONNECTION_STRING_2" not in os.environ,
+    not os.environ.get("MONGO_CONNECTION_STRING_2"),
     reason="No MongoDB Atlas connection string provided",
 )
 @pytest.mark.integration
