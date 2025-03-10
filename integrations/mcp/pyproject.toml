@@ -56,7 +56,7 @@ dependencies = [
     "pytest-tornasync",
     "pytest-rerunfailures",
     "pytest-pythonpath",
-    "mcp_server_time" ## time server for tests
+    "mcp-server-time" ## time server for tests
 ]
 
 [tool.hatch.envs.default.scripts]
