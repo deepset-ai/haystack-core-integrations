@@ -2,10 +2,6 @@
 
 ## [integrations/chroma-v3.0.0] - 2025-03-11
 
-### 📚 Documentation
-
-- Update changelog for integrations/chroma (#1399)
-
 ### 🧹 Chores
 
 - Use Haystack logging across integrations (#1484)
@@ -19,7 +15,6 @@
 
 ### 🌀 Miscellaneous
 
-- Docs: update changelog for integrations/chroma (#1396)
 - Better handle discarded fields (#1373)
 
 ## [integrations/chroma-v1.0.1] - 2025-02-14
