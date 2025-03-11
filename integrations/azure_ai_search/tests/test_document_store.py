@@ -17,7 +17,6 @@ from haystack.testing.document_store import (
     WriteDocumentsTest,
 )
 from haystack.utils.auth import EnvVarSecret, Secret
-from pandas import DataFrame
 
 from haystack_integrations.document_stores.azure_ai_search import DEFAULT_VECTOR_SEARCH, AzureAISearchDocumentStore
 
@@ -130,16 +129,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         document_store.write_documents(docs)
         doc = document_store.get_documents_by_id(["1"])
         assert doc[0] == docs[0]
-
-    def test_write_documents_skips_dataframe(self, document_store: AzureAISearchDocumentStore):
-        doc = Document(id="1", content="test")
-        doc.dataframe = DataFrame({"a": [1, 2, 3]})
-
-        assert document_store.write_documents([doc]) == 1
-        retrieved_docs = document_store.get_documents_by_id(["1"])
-        assert retrieved_docs[0].id == "1"
-        assert retrieved_docs[0].content == "test"
-        assert not hasattr(retrieved_docs[0], "dataframe") or retrieved_docs[0].dataframe is None
 
     @pytest.mark.skip(reason="Azure AI search index overwrites duplicate documents by default")
     def test_write_documents_duplicate_fail(self, document_store: AzureAISearchDocumentStore): ...
