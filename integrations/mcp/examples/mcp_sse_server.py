@@ -4,7 +4,7 @@
 
 from mcp.server.fastmcp import FastMCP
 
-# run this server first before running the client mcp_http_client.py
+# run this server first before running the client mcp_sse_client.py
 # it shows how easy it is to create a MCP server in just a few lines of code
 # then we'll use the MCPTool to invoke the server
 

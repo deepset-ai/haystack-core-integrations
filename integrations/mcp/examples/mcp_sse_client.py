@@ -4,12 +4,12 @@
 
 from haystack_integrations.tools.mcp import MCPTool, SSEServerInfo
 
-# run this client after running the server mcp_http_server.py
-# it shows how easy it is to use the MCPTool with HTTP transport
+# run this client after running the server mcp_sse_server.py
+# it shows how easy it is to use the MCPTool with SSE transport
 
 
 def main():
-    """Example of synchronous usage of MCPTool with HTTP transport."""
+    """Example of synchronous usage of MCPTool with SSE transport."""
 
     server_info = SSEServerInfo(
         base_url="http://localhost:8000",
