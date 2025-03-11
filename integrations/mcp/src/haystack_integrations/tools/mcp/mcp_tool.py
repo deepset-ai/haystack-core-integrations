@@ -525,12 +525,9 @@ class MCPTool(Tool):
         try:
             # Use the configured invocation timeout
             return self._run_sync(self._client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
+        except (MCPError, TimeoutError):
+            raise
         except Exception as e:
-            # Add context to the error message for better debugging
-            if isinstance(e, (MCPError | TimeoutError)):
-                # Re-raise specific errors
-                raise
-            # Wrap other exceptions
             message = f"Failed to invoke tool '{self.name}'"
             raise MCPInvocationError(message, self.name, kwargs) from e
 
