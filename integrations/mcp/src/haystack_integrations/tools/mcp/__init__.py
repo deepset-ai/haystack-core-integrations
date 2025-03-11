@@ -1,6 +1,4 @@
 from .mcp_tool import (
-    HttpMCPClient,
-    HttpMCPServerInfo,
     MCPClient,
     MCPConnectionError,
     MCPError,
@@ -8,13 +6,13 @@ from .mcp_tool import (
     MCPServerInfo,
     MCPTool,
     MCPToolNotFoundError,
-    StdioMCPClient,
-    StdioMCPServerInfo,
+    SSEClient,
+    SSEServerInfo,
+    StdioClient,
+    StdioServerInfo,
 )
 
 __all__ = [
-    "HttpMCPClient",
-    "HttpMCPServerInfo",
     "MCPClient",
     "MCPConnectionError",
     "MCPError",
@@ -22,6 +20,8 @@ __all__ = [
     "MCPServerInfo",
     "MCPTool",
     "MCPToolNotFoundError",
-    "StdioMCPClient",
-    "StdioMCPServerInfo",
+    "SSEClient",
+    "SSEServerInfo",
+    "StdioClient",
+    "StdioServerInfo",
 ]

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from haystack_integrations.tools.mcp import MCPTool, StdioMCPServerInfo
+from haystack_integrations.tools.mcp import MCPTool, StdioServerInfo
 
 # For stdio MCPTool we don't need to run a server, we can just use the MCPTool directly
 # Here we use the mcp-server-time server
@@ -17,9 +17,7 @@ def main():
 
         stdio_tool = MCPTool(
             name="get_current_time",
-            server_info=StdioMCPServerInfo(
-                command="python", args=["-m", "mcp_server_time", "--local-timezone=Europe/Berlin"]
-            ),
+            server_info=StdioServerInfo(command="python", args=["-m", "mcp_server_time", "--local-timezone=Europe/Berlin"]),
         )
 
         print(f"Tool spec: {stdio_tool.tool_spec}")

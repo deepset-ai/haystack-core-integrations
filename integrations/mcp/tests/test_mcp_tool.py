@@ -15,10 +15,10 @@ from haystack.tools.from_function import tool
 from haystack.utils.auth import TokenSecret
 
 from haystack_integrations.tools.mcp import (
-    HttpMCPServerInfo,
     MCPError,
     MCPTool,
-    StdioMCPServerInfo,
+    SSEServerInfo,
+    StdioServerInfo,
 )
 
 
@@ -60,9 +60,7 @@ def mock_mcp_tool():
         # Create the MCPTool
         tool = MCPTool(
             name="test_tool",
-            server_info=HttpMCPServerInfo(
-                base_url="http://example.com", token=TokenSecret.from_token("MCP_TEST_TOKEN")
-            ),
+            server_info=SSEServerInfo(base_url="http://example.com", token=TokenSecret.from_token("MCP_TEST_TOKEN")),
             description="A test MCP tool",
         )
 
@@ -91,7 +89,7 @@ def mock_mcp_tool():
                     "name": "test_tool",
                     "description": "A test MCP tool",
                     "server_info": {
-                        "type": "haystack_integrations.tools.mcp.mcp_tool.HttpMCPServerInfo",
+                        "type": "haystack_integrations.tools.mcp.mcp_tool.SSEServerInfo",
                         "base_url": "http://example.com",
                         "token": {
                             "type": "haystack.utils.auth.EnvVarSecret",
@@ -117,43 +115,43 @@ class TestMCPServerInfo:
     """Unit tests for MCPServerInfo classes."""
 
     def test_http_server_info_serde(self):
-        """Test serialization/deserialization of HttpMCPServerInfo."""
-        server_info = HttpMCPServerInfo(base_url="http://example.com", token="test-token", timeout=45)
+        """Test serialization/deserialization of SSEServerInfo."""
+        server_info = SSEServerInfo(base_url="http://example.com", token="test-token", timeout=45)
 
         # Test to_dict
         info_dict = server_info.to_dict()
-        assert info_dict["type"] == "haystack_integrations.tools.mcp.mcp_tool.HttpMCPServerInfo"
+        assert info_dict["type"] == "haystack_integrations.tools.mcp.mcp_tool.SSEServerInfo"
         assert info_dict["base_url"] == "http://example.com"
         assert info_dict["token"] == "test-token"
         assert info_dict["timeout"] == 45
 
         # Test from_dict
-        new_info = HttpMCPServerInfo.from_dict(info_dict)
+        new_info = SSEServerInfo.from_dict(info_dict)
         assert new_info.base_url == "http://example.com"
         assert new_info.token == "test-token"
         assert new_info.timeout == 45
 
     def test_stdio_server_info_serde(self):
-        """Test serialization/deserialization of StdioMCPServerInfo."""
-        server_info = StdioMCPServerInfo(command="python", args=["-m", "mcp_server_time"], env={"TEST_ENV": "value"})
+        """Test serialization/deserialization of StdioServerInfo."""
+        server_info = StdioServerInfo(command="python", args=["-m", "mcp_server_time"], env={"TEST_ENV": "value"})
 
         # Test to_dict
         info_dict = server_info.to_dict()
-        assert info_dict["type"] == "haystack_integrations.tools.mcp.mcp_tool.StdioMCPServerInfo"
+        assert info_dict["type"] == "haystack_integrations.tools.mcp.mcp_tool.StdioServerInfo"
         assert info_dict["command"] == "python"
         assert info_dict["args"] == ["-m", "mcp_server_time"]
         assert info_dict["env"] == {"TEST_ENV": "value"}
 
         # Test from_dict
-        new_info = StdioMCPServerInfo.from_dict(info_dict)
+        new_info = StdioServerInfo.from_dict(info_dict)
         assert new_info.command == "python"
         assert new_info.args == ["-m", "mcp_server_time"]
         assert new_info.env == {"TEST_ENV": "value"}
 
     def test_create_client(self):
         """Test client creation from server info."""
-        http_info = HttpMCPServerInfo(base_url="http://example.com")
-        stdio_info = StdioMCPServerInfo(command="python")
+        http_info = SSEServerInfo(base_url="http://example.com")
+        stdio_info = StdioServerInfo(command="python")
 
         http_client = http_info.create_client()
         stdio_client = stdio_info.create_client()
@@ -173,7 +171,7 @@ class TestMCPTool:
         # Check if the tool has all expected attributes
         assert tool.name == "test_tool"
         assert "A test MCP tool" == tool.description
-        assert isinstance(tool._server_info, HttpMCPServerInfo)
+        assert isinstance(tool._server_info, SSEServerInfo)
         assert tool._connection_timeout == 30
         assert tool._invocation_timeout == 30
 
@@ -192,7 +190,7 @@ class TestMCPTool:
         assert tool_dict["type"] == "haystack_integrations.tools.mcp.mcp_tool.MCPTool"
         assert tool_dict["data"]["name"] == "test_tool"
         assert tool_dict["data"]["description"] == "A test MCP tool"
-        assert tool_dict["data"]["server_info"]["type"] == "haystack_integrations.tools.mcp.mcp_tool.HttpMCPServerInfo"
+        assert tool_dict["data"]["server_info"]["type"] == "haystack_integrations.tools.mcp.mcp_tool.SSEServerInfo"
         assert tool_dict["data"]["server_info"]["base_url"] == "http://example.com"
 
         # The token should be stored as a secret in serialized format
@@ -210,7 +208,7 @@ class TestMCPTool:
             args, kwargs = mock_init.call_args
             assert kwargs["name"] == "test_tool"
             assert kwargs["description"] == "A test MCP tool"
-            assert isinstance(kwargs["server_info"], HttpMCPServerInfo)
+            assert isinstance(kwargs["server_info"], SSEServerInfo)
             assert kwargs["server_info"].base_url == "http://example.com"
 
     def test_serde_in_pipeline(self, monkeypatch):
@@ -232,7 +230,7 @@ class TestMCPTool:
                     "name": "test_tool",
                     "description": "A test MCP tool",
                     "server_info": {
-                        "type": "haystack_integrations.tools.mcp.mcp_tool.HttpMCPServerInfo",
+                        "type": "haystack_integrations.tools.mcp.mcp_tool.SSEServerInfo",
                         "base_url": "http://example.com",
                         "token": {
                             "type": "haystack.utils.auth.EnvVarSecret",
@@ -249,7 +247,7 @@ class TestMCPTool:
             mock_init.return_value = None
             tool = MCPTool(
                 name="test_tool",
-                server_info=HttpMCPServerInfo(
+                server_info=SSEServerInfo(
                     base_url="http://example.com", token=TokenSecret.from_env_var("MCP_TEST_TOKEN")
                 ),
             )
@@ -279,9 +277,7 @@ class TestMCPTool:
             assert tool_dict["type"] == "haystack_integrations.tools.mcp.mcp_tool.MCPTool"
             assert tool_dict["data"]["name"] == "test_tool"
             assert tool_dict["data"]["description"] == "A test MCP tool"
-            assert (
-                tool_dict["data"]["server_info"]["type"] == "haystack_integrations.tools.mcp.mcp_tool.HttpMCPServerInfo"
-            )
+            assert tool_dict["data"]["server_info"]["type"] == "haystack_integrations.tools.mcp.mcp_tool.SSEServerInfo"
 
             # Test round-trip serialization (dumps/loads) with a patched from_dict
             with patch("haystack_integrations.tools.mcp.mcp_tool.MCPTool.from_dict", return_value=tool):
@@ -355,7 +351,7 @@ if __name__ == "__main__":
             # Give the server a moment to start
             time.sleep(2)
             # Create an MCPTool that connects to the HTTP server
-            server_info = HttpMCPServerInfo(base_url=f"http://127.0.0.1:{port}")
+            server_info = SSEServerInfo(base_url=f"http://127.0.0.1:{port}")
 
             # Create the tool
             tool = MCPTool(name="add", server_info=server_info)
@@ -408,7 +404,7 @@ if __name__ == "__main__":
         """Test using an MCPTool in a pipeline with OpenAI."""
 
         # Create an MCPTool for the brave_web_search operation
-        server_info = StdioMCPServerInfo(
+        server_info = StdioServerInfo(
             command="docker",
             args=["run", "-i", "--rm", "-e", f"BRAVE_API_KEY={os.environ.get('BRAVE_API_KEY')}", "mcp/brave-search"],
             env=None,
@@ -442,9 +438,7 @@ if __name__ == "__main__":
         """Test using multiple MCPTools in a pipeline with OpenAI."""
 
         # Mix mcp tool with a simple echo tool
-        time_server_info = StdioMCPServerInfo(
-            command="uvx", args=["mcp-server-time", "--local-timezone=America/New_York"]
-        )
+        time_server_info = StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=America/New_York"])
         time_tool = MCPTool(name="get_current_time", server_info=time_server_info)
 
         # Create pipeline with OpenAIChatGenerator and ToolInvoker
@@ -473,6 +467,6 @@ if __name__ == "__main__":
         """Test error handling with MCPTool in a pipeline."""
 
         # Create a custom server info for a server that might return errors
-        server_info = HttpMCPServerInfo(base_url="http://localhost:8000")
+        server_info = SSEServerInfo(base_url="http://localhost:8000")
         with pytest.raises(MCPError):
             MCPTool(name="divide", server_info=server_info)

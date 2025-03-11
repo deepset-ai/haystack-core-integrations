@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from haystack_integrations.tools.mcp import HttpMCPServerInfo, MCPTool
+from haystack_integrations.tools.mcp import MCPTool, SSEServerInfo
 
 # run this client after running the server mcp_http_server.py
 # it shows how easy it is to use the MCPTool with HTTP transport
@@ -11,7 +11,7 @@ from haystack_integrations.tools.mcp import HttpMCPServerInfo, MCPTool
 def main():
     """Example of synchronous usage of MCPTool with HTTP transport."""
 
-    server_info = HttpMCPServerInfo(
+    server_info = SSEServerInfo(
         base_url="http://localhost:8000",
     )
 

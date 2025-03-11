@@ -11,10 +11,10 @@ pip install mcp-haystack
 ## Usage
 
 ```python
-from haystack_integrations.components.tools.mcp import MCPTool, HttpMCPServerInfo
+from haystack_integrations.components.tools.mcp import MCPTool, SSEServerInfo
 
 # Create an MCP tool that connects to an HTTP server
-server_info = HttpMCPServerInfo(base_url="http://localhost:8000")
+server_info = SSEServerInfo(base_url="http://localhost:8000")
 tool = MCPTool(name="my_tool", server_info=server_info)
 
 # Use the tool

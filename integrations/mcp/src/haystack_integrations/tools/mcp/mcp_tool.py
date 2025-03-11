@@ -190,7 +190,7 @@ class MCPClient(ABC):
             raise MCPConnectionError(message) from e
 
 
-class StdioMCPClient(MCPClient):
+class StdioClient(MCPClient):
     """
     MCP client that connects to servers using stdio transport.
     """
@@ -220,14 +220,14 @@ class StdioMCPClient(MCPClient):
         return await self._initialize_session_with_transport(stdio_transport, f"stdio server (command: {self.command})")
 
 
-class HttpMCPClient(MCPClient):
+class SSEClient(MCPClient):
     """
-    MCP client that connects to servers using HTTP transport.
+    MCP client that connects to servers using SSE transport.
     """
 
     def __init__(self, base_url: str, token: str | None = None, timeout: int = 5) -> None:
         """
-        Initialize an HTTP MCP client.
+        Initialize an SSE MCP client.
 
         :param base_url: Base URL of the server
         :param token: Authentication token for the server (optional)
@@ -240,7 +240,7 @@ class HttpMCPClient(MCPClient):
 
     async def connect(self) -> list[Tool]:
         """
-        Connect to an MCP server using HTTP transport.
+        Connect to an MCP server using SSE transport.
 
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
@@ -302,9 +302,9 @@ class MCPServerInfo(ABC):
 
 
 @dataclass
-class HttpMCPServerInfo(MCPServerInfo):
+class SSEServerInfo(MCPServerInfo):
     """
-    Data class that encapsulates HTTP MCP server connection parameters.
+    Data class that encapsulates SSE MCP server connection parameters.
 
     :param base_url: Base URL of the MCP server
     :param token: Authentication token for the server (optional)
@@ -317,15 +317,15 @@ class HttpMCPServerInfo(MCPServerInfo):
 
     def create_client(self) -> MCPClient:
         """
-        Create an HTTP MCP client.
+        Create an SSE MCP client.
 
         :returns: Configured HttpMCPClient instance
         """
-        return HttpMCPClient(self.base_url, self.token, self.timeout)
+        return SSEClient(self.base_url, self.token, self.timeout)
 
 
 @dataclass
-class StdioMCPServerInfo(MCPServerInfo):
+class StdioServerInfo(MCPServerInfo):
     """
     Data class that encapsulates stdio MCP server connection parameters.
 
@@ -344,7 +344,7 @@ class StdioMCPServerInfo(MCPServerInfo):
 
         :returns: Configured StdioMCPClient instance
         """
-        return StdioMCPClient(self.command, self.args, self.env)
+        return StdioClient(self.command, self.args, self.env)
 
 
 class MCPTool(Tool):
@@ -360,12 +360,12 @@ class MCPTool(Tool):
 
     Example using HTTP:
     ```python
-    from haystack.tools import MCPTool, HttpMCPServerInfo
+    from haystack.tools import MCPTool, SSEServerInfo
 
     # Create tool instance
     tool = MCPTool(
         name="add",
-        server_info=HttpMCPServerInfo(base_url="http://localhost:8000")
+        server_info=SSEServerInfo(base_url="http://localhost:8000")
     )
 
     # Use the tool
@@ -374,12 +374,12 @@ class MCPTool(Tool):
 
     Example using stdio:
     ```python
-    from haystack.tools import MCPTool, StdioMCPServerInfo
+    from haystack.tools import MCPTool, StdioServerInfo
 
     # Create tool instance
     tool = MCPTool(
         name="get_current_time",
-        server_info=StdioMCPServerInfo(command="python", args=["path/to/server.py"])
+        server_info=StdioServerInfo(command="python", args=["path/to/server.py"])
     )
 
     # Use the tool
