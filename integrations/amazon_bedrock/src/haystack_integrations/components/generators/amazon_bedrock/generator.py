@@ -143,7 +143,9 @@ class AmazonBedrockGenerator:
             warnings.warn(
                 "The 'max_length' and 'truncate' parameters have been removed and no longer have any effect. "
                 "No truncation will be performed. To control the length of the generated text, use "
-                "the 'max_tokens' (or the model-specific variant) in the generation_kwargs of the run method.",
+                "the 'max_tokens' (or the model-specific variant) in the generation_kwargs of the run method."
+                "For model-specific details, see the model's documentation "
+                "at https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html",
                 stacklevel=2,
             )
 
