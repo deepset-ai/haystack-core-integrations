@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/snowflake-v0.0.4] - 2025-03-11
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+
+### 🌀 Miscellaneous
+
+- Snowflake - add pandas depenency (#1520)
+
 ## [integrations/snowflake-v0.0.3] - 2024-12-13
 
 ### ⚙️ CI
