@@ -38,7 +38,7 @@ This example demonstrates how to create a simple calculator server using MCP and
 First, run the server that exposes calculator functionality (addition and subtraction) via MCP:
 
 ```bash
-python integrations/mcp/examples/mcp_sse_server.py
+python examples/mcp_sse_server.py
 ```
 
 This creates a FastMCP server with two tools:
@@ -52,7 +52,7 @@ The server runs on http://localhost:8000 by default.
 In a separate terminal, run the client that connects to the calculator server:
 
 ```bash
-python integrations/mcp/examples/mcp_sse_client.py
+python examples/mcp_sse_client.py
 ```
 
 The client creates MCPTool instances that connect to the server, inspect the tool specifications, and invoke the calculator functions remotely.
@@ -62,7 +62,7 @@ The client creates MCPTool instances that connect to the server, inspect the too
 This example shows how to use MCPTool with stdio transport to execute a local program directly:
 
 ```bash
-python integrations/mcp/examples/mcp_stdio_client.py
+python examples/mcp_stdio_client.py
 ```
 
 The example creates an MCPTool that uses stdio transport with `StdioServerInfo`, which automatically uses `uvx` behind the scenes to run the `mcp-server-time` tool without requiring manual installation. It queries the current time in different timezones (New York and Los Angeles) by invoking the tool with different parameters.
@@ -74,7 +74,7 @@ This demonstrates how MCPTool can work with local programs without running a sep
 This example showcases how to integrate MCPTool into a Haystack pipeline along with an LLM:
 
 ```bash
-python integrations/mcp/examples/time_pipeline.py
+python examples/time_pipeline.py
 ```
 
 This example creates a pipeline that:
