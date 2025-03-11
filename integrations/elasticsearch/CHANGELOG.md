@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/elasticsearch-v3.0.0] - 2025-03-11
+
+### 🧹 Chores
+
+- Use Haystack logging across integrations (#1484)
+- Elasticsearch - pin haystack and remove dataframe checks; add `aiohttp` dependency (#1502)
+
+### 🌀 Miscellaneous
+
+- Docs: Update document store descriptions for deepset Pipeline Builder (#1447)
+
 ## [integrations/elasticsearch-v2.1.0] - 2025-02-26
 
 ### 🚀 Features
