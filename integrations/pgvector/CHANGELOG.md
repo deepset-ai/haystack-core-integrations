@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/pgvector-v3.0.0] - 2025-03-11
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+- Use Haystack logging across integrations (#1484)
+- Pgvector - pin haystack and remove dataframe checks (#1518)
+
 ## [integrations/pgvector-v2.0.0] - 2025-02-13
 
 ### 🧹 Chores
