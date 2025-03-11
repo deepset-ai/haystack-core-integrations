@@ -1,6 +1,6 @@
 # Changelog
 
-## [integrations/opensearch-v2.2.0] - 2025-03-10
+## [integrations/opensearch-v3.0.0] - 2025-03-11
 
 ### 🐛 Bug Fixes
 
@@ -8,11 +8,17 @@
 
 ### 📚 Documentation
 
+- Update changelog for integrations/opensearch (#1415)
 - Add docstore description to docstring (#1446)
+- Update changelog for integrations/opensearch (#1488)
 
 ### 🧹 Chores
 
 - Remove Python 3.8 support (#1421)
+
+### 🌀 Miscellaneous
+
+- Chore: OpenSearch - pin haystack and remove dataframe checks (#1513)
 
 ## [integrations/opensearch-v2.1.0] - 2025-02-18
 
