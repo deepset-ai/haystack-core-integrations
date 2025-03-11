@@ -20,7 +20,7 @@ from haystack_integrations.tools.mcp.mcp_tool import MCPTool, StdioServerInfo
 def main():
     time_tool = MCPTool(
         name="get_current_time",
-        server_info=StdioServerInfo(command="python", args=["-m", "mcp_server_time", "--local-timezone=Europe/Berlin"]),
+        server_info=StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=Europe/Berlin"]),
     )
     pipeline = Pipeline()
     pipeline.add_component("llm", OpenAIChatGenerator(model="gpt-4o-mini", tools=[time_tool]))

@@ -17,7 +17,7 @@ def main():
 
         stdio_tool = MCPTool(
             name="get_current_time",
-            server_info=StdioServerInfo(command="python", args=["-m", "mcp_server_time", "--local-timezone=Europe/Berlin"]),
+            server_info=StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=Europe/Berlin"]),
         )
 
         print(f"Tool spec: {stdio_tool.tool_spec}")
@@ -25,8 +25,8 @@ def main():
         result = stdio_tool.invoke(timezone="America/New_York")
         print(f"Current time in New York: {result}")
 
-        result = stdio_tool.invoke(timezone="America/San_Francisco")
-        print(f"Current time in San Francisco: {result}")
+        result = stdio_tool.invoke(timezone="America/Los_Angeles")
+        print(f"Current time in Los Angeles: {result}")
     except Exception as e:
         print(f"Error in stdio example: {e}")
 
