@@ -1,7 +1,6 @@
-# Haystack 2.x Core Integrations
+# Haystack Core Integrations
 
-This repository contains integrations to extend the capabilities of [Haystack](https://github.com/deepset-ai/haystack) version 2.0 and
-onwards. The code in this repo is maintained by [deepset](https://www.deepset.ai), see each integration's `README` file for details around installation, usage and support.
+This repository contains integrations to extend the capabilities of [Haystack](https://github.com/deepset-ai/haystack). The code in this repo is maintained by [deepset](https://www.deepset.ai), see each integration's `README` file for details around installation, usage and support.
 
 ## Quick start
 
