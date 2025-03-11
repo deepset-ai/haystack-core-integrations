@@ -2,10 +2,6 @@
 
 ## [integrations/pinecone-v5.0.0] - 2025-03-11
 
-### 📚 Documentation
-
-- Update changelog for integrations/pinecone (#1433)
-
 ### 🧪 Testing
 
 - Skip tests that require credentials on PRs from forks for some integrations (#1485)
