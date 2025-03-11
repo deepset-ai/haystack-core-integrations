@@ -1,5 +1,18 @@
 # Changelog
 
+## [integrations/azure_ai_search-v1.0.0] - 2025-03-11
+
+### 🧪 Testing
+
+- Azure AI Search - improvements to the test suite (#1425)
+- Skip tests that require credentials on PRs from forks for some integrations (#1485)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+- Use Haystack logging across integrations (#1484)
+- Azure AI - pin haystack and remove dataframe checks (#1500)
+
 ## [integrations/azure_ai_search-v0.1.3] - 2025-02-17
 
 ### 🧹 Chores
