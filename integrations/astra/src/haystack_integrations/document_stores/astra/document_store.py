@@ -329,14 +329,6 @@ class AstraDocumentStore:
     def _get_result_to_documents(results) -> List[Document]:
         documents = []
         for match in results.matches:
-            dataframe = match.metadata.pop("dataframe", None)
-            if dataframe is not None:
-                logger.warning(
-                    "Document %s has the `dataframe` field set. "
-                    "AstraDocumentStore no longer supports dataframes and this field will be ignored. "
-                    "The `dataframe` field will soon be removed from Haystack Document.",
-                    match.document_id,
-                )
             document = Document(
                 content=match.text,
                 id=match.document_id,
