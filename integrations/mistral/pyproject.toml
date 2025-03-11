@@ -46,6 +46,7 @@ dependencies = [
   "pytest",
   "pytest-rerunfailures",
   "haystack-pydoc-tools",
+  "pytz",
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
