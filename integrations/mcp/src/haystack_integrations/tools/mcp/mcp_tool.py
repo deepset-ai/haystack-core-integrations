@@ -25,31 +25,78 @@ logger = logging.getLogger(__name__)
 class MCPError(Exception):
     """Base class for MCP-related errors."""
 
-    pass
+    def __init__(self, message: str) -> None:
+        """
+        Initialize the MCPError.
+
+        :param message: Descriptive error message
+        """
+        super().__init__(message)
+        self.message = message
 
 
 class MCPConnectionError(MCPError):
     """Error connecting to MCP server."""
 
-    pass
+    def __init__(self, message: str, server_info: "MCPServerInfo | None" = None, operation: str | None = None) -> None:
+        """
+        Initialize the MCPConnectionError.
+
+        :param message: Descriptive error message
+        :param server_info: Server connection information that was used
+        :param operation: Name of the operation that was being attempted
+        """
+        super().__init__(message)
+        self.server_info = server_info
+        self.operation = operation
 
 
 class MCPToolNotFoundError(MCPError):
     """Error when a tool is not found on the server."""
 
-    pass
+    def __init__(self, message: str, tool_name: str, available_tools: list[str] | None = None) -> None:
+        """
+        Initialize the MCPToolNotFoundError.
+
+        :param message: Descriptive error message
+        :param tool_name: Name of the tool that was requested but not found
+        :param available_tools: List of available tool names, if known
+        """
+        super().__init__(message)
+        self.tool_name = tool_name
+        self.available_tools = available_tools or []
 
 
 class MCPResponseTypeError(MCPError):
     """Error when response content type is not supported."""
 
-    pass
+    def __init__(self, message: str, response: Any, tool_name: str | None = None) -> None:
+        """
+        Initialize the MCPResponseTypeError.
+
+        :param message: Descriptive error message
+        :param response: The response that had the wrong type
+        :param tool_name: Name of the tool that produced the response
+        """
+        super().__init__(message)
+        self.response = response
+        self.tool_name = tool_name
 
 
 class MCPInvocationError(ToolInvocationError):
     """Error during tool invocation."""
 
-    pass
+    def __init__(self, message: str, tool_name: str, tool_args: dict[str, Any] | None = None) -> None:
+        """
+        Initialize the MCPInvocationError.
+
+        :param message: Descriptive error message
+        :param tool_name: Name of the tool that was being invoked
+        :param tool_args: Arguments that were passed to the tool
+        """
+        super().__init__(message)
+        self.tool_name = tool_name
+        self.tool_args = tool_args or {}
 
 
 class MCPClient(ABC):
@@ -83,13 +130,13 @@ class MCPClient(ABC):
         :param tool_name: Name of the tool to call
         :param tool_args: Arguments to pass to the tool
         :returns: Result of the tool invocation
-        :raises MCPError: If not connected to an MCP server
+        :raises MCPConnectionError: If not connected to an MCP server
         :raises MCPInvocationError: If the tool invocation fails
         :raises MCPResponseTypeError: If response type is not TextContent
         """
         if not self.session:
             message = "Not connected to an MCP server"
-            raise MCPError(message)
+            raise MCPConnectionError(message=message, operation="call_tool")
 
         try:
             result = await self.session.call_tool(tool_name, tool_args)
@@ -101,7 +148,7 @@ class MCPClient(ABC):
         except Exception as e:
             # Wrap other exceptions with context about which tool failed
             message = f"Failed to invoke tool '{tool_name}': {e!s}"
-            raise MCPInvocationError(message) from e
+            raise MCPInvocationError(message, tool_name, tool_args) from e
 
     def _validate_response(self, tool_name: str, result: types.CallToolResult) -> types.CallToolResult:
         """
@@ -122,7 +169,10 @@ class MCPClient(ABC):
                 message = f"Tool '{tool_name}' returned an error: {first_item.text}"
             else:
                 message = f"Tool '{tool_name}' returned an error: {result.content!s}"
-            raise MCPInvocationError(message)
+            raise MCPInvocationError(
+                message=message,
+                tool_name=tool_name,
+            )
 
         # Validate content types - only allow TextContent for now
         if result.content:
@@ -133,7 +183,7 @@ class MCPClient(ABC):
                         f"Unsupported content type in response from tool '{tool_name}'. "
                         f"Only TextContent is currently supported."
                     )
-                    raise MCPResponseTypeError(message)
+                    raise MCPResponseTypeError(message, result, tool_name)
 
         # Return the original result object
         return result
@@ -187,7 +237,7 @@ class MCPClient(ABC):
         except Exception as e:
             await self.close()
             message = f"Failed to connect to {connection_type}: {e}"
-            raise MCPConnectionError(message) from e
+            raise MCPConnectionError(message=message, operation="connect") from e
 
 
 class StdioClient(MCPClient):
@@ -425,14 +475,15 @@ class MCPTool(Tool):
             # Handle no tools case
             if not tools:
                 message = "No tools available on server"
-                raise MCPToolNotFoundError(message)
+                raise MCPToolNotFoundError(message, tool_name=name)
 
             # Find the specified tool
             tool_info = next((t for t in tools if t.name == name), None)
             if not tool_info:
-                available_tools = ", ".join(t.name for t in tools)
-                message = f"Tool '{name}' not found on server. Available tools: {available_tools}"
-                raise MCPToolNotFoundError(message)
+                available_tool_names = [t.name for t in tools]
+                available_tools_str = ", ".join(available_tool_names)
+                message = f"Tool '{name}' not found on server. Available tools: {available_tools_str}"
+                raise MCPToolNotFoundError(message, tool_name=name, available_tools=available_tool_names)
 
             # Store the client for later use
             self._client = client
@@ -457,7 +508,7 @@ class MCPTool(Tool):
                     logger.warning(f"Error during cleanup after initialization failure: {cleanup_error}")
 
             message = f"Failed to initialize MCPTool '{name}': {e}"
-            raise MCPError(message) from e
+            raise MCPConnectionError(message=message, server_info=server_info, operation="initialize") from e
 
     def _invoke_tool(self, **kwargs: Any) -> Any:
         """
@@ -481,7 +532,7 @@ class MCPTool(Tool):
                 raise
             # Wrap other exceptions
             message = f"Error invoking tool '{self.name}': {e}"
-            raise MCPInvocationError(message) from e
+            raise MCPInvocationError(message, self.name, kwargs) from e
 
     async def ainvoke(self, **kwargs: Any) -> Any:
         """
@@ -503,7 +554,7 @@ class MCPTool(Tool):
             if isinstance(e, MCPError):
                 raise
             message = f"Error invoking tool '{self.name}': {e}"
-            raise MCPInvocationError(message) from e
+            raise MCPInvocationError(message, self.name, kwargs) from e
 
     def to_dict(self) -> dict[str, Any]:
         """
