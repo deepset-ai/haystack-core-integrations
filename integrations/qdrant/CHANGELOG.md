@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/qdrant-v9.0.0] - 2025-03-11
+
+### 🧹 Chores
+
+- Use Haystack logging across integrations (#1484)
+- Qdrant - pin haystack and remove dataframe checks (#1519)
+
 ## [integrations/qdrant-v8.1.0] - 2025-03-07
 
 ### 🧹 Chores
