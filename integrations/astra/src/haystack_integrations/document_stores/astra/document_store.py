@@ -202,16 +202,6 @@ class AstraDocumentStore:
             if embedding := document_dict.pop("embedding", []):
                 document_dict["$vector"] = embedding
 
-            if "dataframe" in document_dict:
-                dataframe = document_dict.pop("dataframe", None)
-                if dataframe:
-                    logger.warning(
-                        "Document {id} has the `dataframe` field set. "
-                        "AstraDocumentStore no longer supports dataframes and this field will be ignored. "
-                        "The `dataframe` field will soon be removed from Haystack Document.",
-                        id=document_dict["_id"],
-                    )
-
             if "sparse_embedding" in document_dict:
                 sparse_embedding = document_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
