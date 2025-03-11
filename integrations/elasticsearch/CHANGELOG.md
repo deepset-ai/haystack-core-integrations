@@ -2,10 +2,6 @@
 
 ## [integrations/elasticsearch-v3.0.0] - 2025-03-11
 
-### 📚 Documentation
-
-- Update changelog for integrations/elasticsearch (#1444)
-
 ### 🧹 Chores
 
 - Use Haystack logging across integrations (#1484)
