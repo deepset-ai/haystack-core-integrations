@@ -357,15 +357,6 @@ class OpenSearchDocumentStore:
         opensearch_actions = []
         for doc in documents:
             doc_dict = doc.to_dict()
-            if "dataframe" in doc_dict:
-                dataframe = doc_dict.pop("dataframe")
-                if dataframe:
-                    logger.warning(
-                        "Document {id} has the `dataframe` field set,"
-                        "OpenSearchDocumentStore no longer supports dataframes and this field will be ignored. "
-                        "The `dataframe` field will soon be removed from Haystack Document.",
-                        id=doc.id,
-                    )
             if "sparse_embedding" in doc_dict:
                 sparse_embedding = doc_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
@@ -464,16 +455,6 @@ class OpenSearchDocumentStore:
         if "highlight" in hit:
             data["metadata"]["highlighted"] = hit["highlight"]
         data["score"] = hit["_score"]
-
-        if "dataframe" in data:
-            dataframe = data.pop("dataframe")
-            if dataframe:
-                logger.warning(
-                    "Document {id} has the `dataframe` field set,"
-                    "OpenSearchDocumentStore no longer supports dataframes and this field will be ignored. "
-                    "The `dataframe` field will soon be removed from Haystack Document.",
-                    id=data["id"],
-                )
 
         return Document.from_dict(data)
 
