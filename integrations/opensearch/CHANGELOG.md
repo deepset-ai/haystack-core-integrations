@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/opensearch-v3.0.0] - 2025-03-11
+
+### 🌀 Miscellaneous
+
+- Chore: OpenSearch - pin haystack and remove dataframe checks (#1513)
+
 ## [integrations/opensearch-v2.2.0] - 2025-03-10
 
 ### 🐛 Bug Fixes
