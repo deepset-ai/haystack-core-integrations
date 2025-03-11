@@ -554,16 +554,6 @@ class PgvectorDocumentStore:
             db_document["blob_mime_type"] = blob.mime_type if blob and blob.mime_type else None
             db_document["meta"] = Jsonb(db_document["meta"])
 
-            if "dataframe" in db_document:
-                dataframe = db_document.pop("dataframe", None)
-                if dataframe:
-                    logger.warning(
-                        "Document {doc_id} has the `dataframe` field set. "
-                        "PgvectorDocumentStore no longer supports dataframes and this field will be ignored. "
-                        "The `dataframe` field will soon be removed from Haystack Document.",
-                        doc_id=db_document["id"],
-                    )
-
             if "sparse_embedding" in db_document:
                 sparse_embedding = db_document.pop("sparse_embedding", None)
                 if sparse_embedding:
@@ -590,19 +580,10 @@ class PgvectorDocumentStore:
             blob_data = haystack_dict.pop("blob_data")
             blob_meta = haystack_dict.pop("blob_meta")
             blob_mime_type = haystack_dict.pop("blob_mime_type")
-            dataframe = haystack_dict.pop("dataframe", None)
 
             # convert the embedding to a list of floats
             if document.get("embedding") is not None:
                 haystack_dict["embedding"] = document["embedding"].tolist()
-
-            if dataframe:
-                logger.warning(
-                    "Document {dict_id} has the `dataframe` field set. "
-                    "PgvectorDocumentStore no longer supports dataframes and this field will be ignored. "
-                    "The `dataframe` field will soon be removed from Haystack Document.",
-                    dict_id=haystack_dict["id"],
-                )
 
             haystack_document = Document.from_dict(haystack_dict)
 
