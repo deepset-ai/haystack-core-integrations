@@ -11,7 +11,7 @@ from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocu
 
 
 @pytest.mark.skipif(
-    "MONGO_CONNECTION_STRING" not in os.environ,
+    not os.environ.get("MONGO_CONNECTION_STRING"),
     reason="No MongoDB Atlas connection string provided",
 )
 @pytest.mark.integration

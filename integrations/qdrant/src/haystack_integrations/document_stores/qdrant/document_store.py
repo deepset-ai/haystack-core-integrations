@@ -1,11 +1,10 @@
 import inspect
-import logging
 from itertools import islice
 from typing import Any, ClassVar, Dict, Generator, List, Optional, Set, Union
 
 import numpy as np
 import qdrant_client
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
@@ -866,10 +865,18 @@ class QdrantDocumentStore:
 
         collection_info = self.client.get_collection(collection_name)
 
-        has_named_vectors = (
-            isinstance(collection_info.config.params.vectors, dict)
-            and DENSE_VECTORS_NAME in collection_info.config.params.vectors
-        )
+        has_named_vectors = isinstance(collection_info.config.params.vectors, dict)
+
+        if has_named_vectors and DENSE_VECTORS_NAME not in collection_info.config.params.vectors:
+            msg = (
+                f"Collection '{collection_name}' already exists in Qdrant, "
+                f"but it has been originally created outside of Haystack and is not supported. "
+                f"If possible, you should create a new Document Store with Haystack. "
+                f"In case you want to migrate the existing collection, see an example script in "
+                f"https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/qdrant/src/"
+                f"haystack_integrations/document_stores/qdrant/migrate_to_sparse.py."
+            )
+            raise QdrantStoreError(msg)
 
         if self.use_sparse_embeddings and not has_named_vectors:
             msg = (
@@ -882,7 +889,7 @@ class QdrantDocumentStore:
             )
             raise QdrantStoreError(msg)
 
-        elif not self.use_sparse_embeddings and has_named_vectors:
+        if not self.use_sparse_embeddings and has_named_vectors:
             msg = (
                 f"Collection '{collection_name}' already exists in Qdrant, "
                 f"but it has been originally created with sparse embedding vectors."

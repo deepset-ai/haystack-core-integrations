@@ -1,7 +1,7 @@
-import logging
 from typing import Any, Dict, List, Optional
 
 import vertexai
+from haystack import logging
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.byte_stream import ByteStream

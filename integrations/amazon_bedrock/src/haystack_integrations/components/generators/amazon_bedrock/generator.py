@@ -1,12 +1,11 @@
 import json
-import logging
 import re
 import warnings
 from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Type, get_args
 
 from botocore.config import Config
 from botocore.exceptions import ClientError
-from haystack import component, default_from_dict, default_to_dict
+from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingChunk
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
