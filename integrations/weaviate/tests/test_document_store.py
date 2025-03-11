@@ -23,7 +23,6 @@ from haystack.utils.auth import Secret
 from numpy import array as np_array
 from numpy import array_equal as np_array_equal
 from numpy import float32 as np_float32
-from pandas import DataFrame
 from weaviate.collections.classes.data import DataObject
 from weaviate.config import AdditionalConfig, ConnectionConfig, Proxies, Timeout
 from weaviate.embedded import (
@@ -314,16 +313,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             "key": "value",
         }
 
-    def test_to_data_object_skips_dataframe(self, document_store):
-        doc = Document(id="test_id", content="test content")
-        doc.dataframe = DataFrame([{"a": 1, "b": 2}, {"a": 3, "b": 4}])
-
-        data = document_store._to_data_object(doc)
-
-        assert data["_original_id"] == "test_id"
-        assert data["content"] == "test content"
-        assert "dataframe" not in data
-
     def test_to_document(self, document_store, test_files_path):
         image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")
         data = DataObject(
@@ -345,20 +334,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert doc.embedding == [1, 2, 3]
         assert doc.score is None
         assert doc.meta == {"key": "value"}
-
-    def test_to_document_skips_dataframe(self, document_store):
-        data = DataObject(
-            properties={
-                "_original_id": "test_id",
-                "content": "test content",
-                "dataframe": {"a": [1, 2, 3]},
-            }
-        )
-
-        doc = document_store._to_document(data)
-        assert doc.id == "test_id"
-        assert doc.content == "test content"
-        assert not hasattr(doc, "dataframe") or doc.dataframe is None
 
     def test_write_documents(self, document_store):
         """
