@@ -2,10 +2,6 @@
 
 ## [integrations/pgvector-v3.0.0] - 2025-03-11
 
-### 📚 Documentation
-
-- Update changelog for integrations/pgvector (#1374)
-
 ### 🧹 Chores
 
 - Remove Python 3.8 support (#1421)
@@ -17,12 +13,6 @@
 ### 🧹 Chores
 
 - Pgvector - remove support for dataframe (#1370)
-
-### 🌀 Miscellaneous
-
-- Update changelog for integrations/pgvector (#1345)
-
-Co-authored-by: anakin87 <44616784+anakin87@users.noreply.github.com>
 
 ## [integrations/pgvector-v1.3.0] - 2025-02-03
 
@@ -83,12 +73,10 @@ Co-authored-by: anakin87 <44616784+anakin87@users.noreply.github.com>
 
 ### 🌀 Miscellaneous
 
-- Install pytest-rerunfailures; change test-cov script (#845)
-- Minor retriever pydoc fix (#884)
-- Update test for the new apply_filter_policy usage (#970)
-- Ruff update, don't ruff tests (#984)
-
-Co-authored-by: Madeesh Kannan <shadeMe@users.noreply.github.com>
+- Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
+- Chore: Minor retriever pydoc fix (#884)
+- Chore: Update pgvector test for the new `apply_filter_policy` usage (#970)
+- Chore: pgvector ruff update, don't ruff tests (#984)
 
 ## [integrations/pgvector-v0.4.0] - 2024-06-20
 
@@ -99,24 +87,8 @@ Co-authored-by: Madeesh Kannan <shadeMe@users.noreply.github.com>
 
 ### 🌀 Miscellaneous
 
-- Missing api references (#728)
+- Docs: add missing api references (#728)
 - [deepset-ai/haystack-core-integrations#727] (#738)
-
-* hybrid retrieval ex
-
-* Update integrations/pgvector/examples/hybrid_retrieval.py
-
-Co-authored-by: Stefano Fiorucci <stefanofiorucci@gmail.com>
-
-* suggested updates
-
-* suggested updates
-
-* suggested updates
-
----------
-
-Co-authored-by: Stefano Fiorucci <stefanofiorucci@gmail.com>
 
 ## [integrations/pgvector-v0.2.0] - 2024-05-08
 
@@ -129,8 +101,6 @@ Co-authored-by: Stefano Fiorucci <stefanofiorucci@gmail.com>
 
 - Fix order of API docs (#447)
 
-This PR will also push the docs to Readme
-
 ### 📚 Documentation
 
 - Update category slug (#442)
@@ -139,259 +109,27 @@ This PR will also push the docs to Readme
 ### 🌀 Miscellaneous
 
 - Pgvector - review docstrings and API reference (#502)
-
-* pgvector - docstrings and api ref
-
-* rm os.environ from usage example
 - Refactor tests (#574)
-
-* first refactorings
-
-* separate unit tests in pgvector
-
-* small change to weaviate
-
-* fix format
-
-* usefixtures when possible
 - Remove references to Python 3.7 (#601)
-- Make Document Stores initially skip SparseEmbedding (#606)
-- Add license classifiers (#680)
+- Make Document Stores initially skip `SparseEmbedding` (#606)
+- Chore: add license classifiers (#680)
 - Type hints in pgvector document store updated for 3.8 compability (#704)
-- Change the pydoc renderer class (#718)
+- Chore: change the pydoc renderer class (#718)
 
 ## [integrations/pgvector-v0.1.0] - 2024-02-14
 
 ### 🐛 Bug Fixes
 
-- Fix linting (#328)
+- Pgvector: fix linting (#328)
 
 ### 🌀 Miscellaneous
 
 - Pgvector Document Store - minimal implementation (#239)
-
-* very first draft
-
-* setup integration folder and workflow
-
-* update readme
-
-* making progress!
-
-* mypy overrides
-
-* making progress on index
-
-* drop sqlalchemy in favor of psycopggit add tests/test_document_store.py !
-
-* good improvements!
-
-* docstrings
-
-* improve definition
-
-* small improvements
-
-* more test cases
-
-* standardize
-
-* inner_product
-
-* explicit create statement
-
-* address feedback
-
-* change embedding_similarity_function to vector_function
-
-* explicit insert and update statements
-
-* remove useless condition
-
-* unit tests for conversion functions
 - Pgvector - filters (#257)
-
-* very first draft
-
-* setup integration folder and workflow
-
-* update readme
-
-* making progress!
-
-* mypy overrides
-
-* making progress on index
-
-* drop sqlalchemy in favor of psycopggit add tests/test_document_store.py !
-
-* good improvements!
-
-* docstrings
-
-* improve definition
-
-* small improvements
-
-* more test cases
-
-* standardize
-
-* start working on filters
-
-* inner_product
-
-* explicit create statement
-
-* address feedback
-
-* tests separation
-
-* filters - draft
-
-* change embedding_similarity_function to vector_function
-
-* explicit insert and update statements
-
-* remove useless condition
-
-* unit tests for conversion functions
-
-* tests change
-
-* simplify!
-
-* progress!
-
-* better error messages and more
-
-* cover also complex cases
-
-* fmt
-
-* make things work again
-
-* progress on simplification
-
-* further simplification
-
-* filters simplification
-
-* fmt
-
-* rm print
-
-* uncomment line
-
-* fix name
-
-* mv check filters is a dict in filter_documents
-
-* f-strings
-
-* NO_VALUE constant
-
-* handle nested logical conditions in _parse_logical_condition
-
-* add examples to _treat_meta_field
-
-* fix fmt
-
-* ellipsis fmt
-
-* more tests for unhappy paths
-
-* more tests for internal methods
-
-* black
-
-* log debug query and params
 - Pgvector - embedding retrieval (#298)
-
-* squash
-
-* Update integrations/pgvector/src/haystack_integrations/document_stores/pgvector/document_store.py
-
-Co-authored-by: Massimiliano Pippi <mpippi@gmail.com>
-
-* Update integrations/pgvector/src/haystack_integrations/document_stores/pgvector/document_store.py
-
-Co-authored-by: Massimiliano Pippi <mpippi@gmail.com>
-
-* Update integrations/pgvector/src/haystack_integrations/document_stores/pgvector/document_store.py
-
-Co-authored-by: Massimiliano Pippi <mpippi@gmail.com>
-
-* Update integrations/pgvector/src/haystack_integrations/document_stores/pgvector/document_store.py
-
-Co-authored-by: Massimiliano Pippi <mpippi@gmail.com>
-
-* fix fmt
-
----------
-
-Co-authored-by: Massimiliano Pippi <mpippi@gmail.com>
 - Pgvector - Embedding Retriever (#320)
-
-* squash
-
-* squash
-
-* Update integrations/pgvector/src/haystack_integrations/document_stores/pgvector/document_store.py
-
-Co-authored-by: Massimiliano Pippi <mpippi@gmail.com>
-
-* Update integrations/pgvector/src/haystack_integrations/document_stores/pgvector/document_store.py
-
-Co-authored-by: Massimiliano Pippi <mpippi@gmail.com>
-
-* Update integrations/pgvector/src/haystack_integrations/document_stores/pgvector/document_store.py
-
-Co-authored-by: Massimiliano Pippi <mpippi@gmail.com>
-
-* Update integrations/pgvector/src/haystack_integrations/document_stores/pgvector/document_store.py
-
-Co-authored-by: Massimiliano Pippi <mpippi@gmail.com>
-
-* fix fmt
-
-* adjust docstrings
-
-* Update integrations/pgvector/src/haystack_integrations/components/retrievers/pgvector/embedding_retriever.py
-
-Co-authored-by: Massimiliano Pippi <mpippi@gmail.com>
-
-* Update integrations/pgvector/src/haystack_integrations/components/retrievers/pgvector/embedding_retriever.py
-
-Co-authored-by: Massimiliano Pippi <mpippi@gmail.com>
-
-* improve docstrings
-
-* fmt
-
----------
-
-Co-authored-by: Massimiliano Pippi <mpippi@gmail.com>
-- Api docs (#325)
-- Add example (#334)
+- Pgvector: generate API docs (#325)
+- Pgvector: add an example (#334)
 - Adopt `Secret` to pgvector (#402)
-
-* initial import
-
-* adding Secret support and fixing tests
-
-* completing docs
-
-* code formating
-
-* linting and typing
-
-* fixing tests
-
-* adding custom from_dict
-
-* adding test coverage
-
-* use deserialize_secrets_inplace()
 
 <!-- generated by git-cliff -->
