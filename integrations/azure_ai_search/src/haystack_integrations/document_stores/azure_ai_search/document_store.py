@@ -365,16 +365,6 @@ class AzureAISearchDocumentStore:
 
         doc_dict = document.to_dict(flatten=False)
 
-        if "dataframe" in doc_dict:
-            dataframe = doc_dict.pop("dataframe")
-            if dataframe:
-                logger.warning(
-                    "Document {doc_id} has the `dataframe` field set. "
-                    "AzureAISearchDocumentStore does not support dataframes and this field will be ignored. "
-                    "The `dataframe` field will soon be removed from Haystack Document.",
-                    doc_id=doc_dict["id"],
-                )
-
         # Because Azure Search does not allow dynamic fields, we only include fields that are part of the schema
         index_document = {k: v for k, v in {**doc_dict, **doc_dict.get("meta", {})}.items() if k in self._index_fields}
         if index_document["embedding"] is None:
