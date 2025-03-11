@@ -2,10 +2,6 @@
 
 ## [integrations/qdrant-v9.0.0] - 2025-03-11
 
-### 📚 Documentation
-
-- Update changelog for integrations/qdrant (#1482)
-
 ### 🧹 Chores
 
 - Use Haystack logging across integrations (#1484)
@@ -19,7 +15,6 @@
 
 ### 🌀 Miscellaneous
 
-- Docs: update changelog for integrations/qdrant (#1419)
 - Docs: Update document store descriptions for deepset Pipeline Builder (#1447)
 - Refactor: Qdrant - raise error if existing collection is not compatible with Haystack (#1481)
 
