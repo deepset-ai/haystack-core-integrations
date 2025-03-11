@@ -250,10 +250,11 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         prompt = "Hello, how are you?"
         expected_body = {
             "messages": [{"role": "user", "content": "Hello, how are you?"}],
+            "max_tokens_to_sample": 99,
             "anthropic_version": "bedrock-2023-05-31",
         }
 
-        body = layer.prepare_body(prompt)
+        body = layer.prepare_body(prompt, max_tokens_to_sample=99)
 
         assert body == expected_body
 
@@ -262,6 +263,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         prompt = "Hello, how are you?"
         expected_body = {
             "messages": [{"role": "user", "content": "Hello, how are you?"}],
+            "max_tokens_to_sample": 50,
             "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "top_p": 0.8,
@@ -276,6 +278,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             temperature=0.7,
             top_p=0.8,
             top_k=5,
+            max_tokens_to_sample=50,
             stop_sequences=["CUSTOM_STOP"],
             system="system prompt",
             anthropic_version="custom_version",
@@ -291,6 +294,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 "temperature": 0.7,
                 "top_p": 0.8,
                 "top_k": 5,
+                "max_tokens_to_sample": 50,
                 "stop_sequences": ["CUSTOM_STOP"],
                 "system": "system prompt",
                 "anthropic_version": "custom_version",
@@ -304,6 +308,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "top_p": 0.8,
+            "max_tokens_to_sample": 50,
             "top_k": 5,
             "system": "system prompt",
             "anthropic_version": "custom_version",
@@ -320,6 +325,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 "temperature": 0.6,
                 "top_p": 0.7,
                 "top_k": 4,
+                "max_tokens_to_sample": 49,
                 "stop_sequences": ["CUSTOM_STOP_MODEL_KWARGS"],
                 "system": "system prompt",
                 "anthropic_version": "custom_version",
@@ -333,6 +339,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             "temperature": 0.7,
             "top_p": 0.8,
             "top_k": 5,
+            "max_tokens_to_sample": 49,
             "system": "new system prompt",
             "anthropic_version": "new_custom_version",
             "thinking": {"type": "enabled", "budget_tokens": 2048},
@@ -343,6 +350,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             temperature=0.7,
             top_p=0.8,
             top_k=5,
+            max_tokens_to_sample=49,
             system="new system prompt",
             anthropic_version="new_custom_version",
             thinking={"type": "enabled", "budget_tokens": 2048},
@@ -703,11 +711,12 @@ class TestAnthropicClaudeAdapterNoMessagesAPI:
         layer = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False})
         prompt = "Hello, how are you?"
         expected_body = {
+            "max_tokens_to_sample": 50,
             "prompt": "\n\nHuman: Hello, how are you?\n\nAssistant:",
             "stop_sequences": ["\n\nHuman:"],
         }
 
-        body = layer.prepare_body(prompt)
+        body = layer.prepare_body(prompt, max_tokens_to_sample=50)
 
         assert body == expected_body
 
@@ -716,6 +725,7 @@ class TestAnthropicClaudeAdapterNoMessagesAPI:
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "\n\nHuman: Hello, how are you?\n\nAssistant:",
+            "max_tokens_to_sample": 50,
             "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
             "top_p": 0.8,
@@ -747,6 +757,7 @@ class TestAnthropicClaudeAdapterNoMessagesAPI:
         )
         prompt = "Hello, how are you?"
         expected_body = {
+            "max_tokens_to_sample": 4000,
             "prompt": "\n\nHuman: Hello, how are you?\n\nAssistant:",
             "stop_sequences": ["CUSTOM_STOP"],
             "temperature": 0.7,
@@ -770,6 +781,7 @@ class TestAnthropicClaudeAdapterNoMessagesAPI:
         )
         prompt = "Hello, how are you?"
         expected_body = {
+            "max_tokens_to_sample": 4000,
             "prompt": "\n\nHuman: Hello, how are you?\n\nAssistant:",
             "stop_sequences": ["CUSTOM_STOP_MODEL_KWARGS"],
             "temperature": 0.7,
@@ -836,7 +848,10 @@ class TestMistralAdapter:
     def test_prepare_body_with_default_params(self) -> None:
         layer = MistralAdapter(model_kwargs={})
         prompt = "Hello, how are you?"
-        expected_body = {"prompt": "<s>[INST] Hello, how are you? [/INST]", "stop": []}
+        expected_body = {
+            "prompt": "<s>[INST] Hello, how are you? [/INST]",
+            "stop": [],
+        }
 
         body = layer.prepare_body(prompt)
         assert body == expected_body

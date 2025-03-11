@@ -126,6 +126,7 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
         if self.use_messages_api:
             default_params: Dict[str, Any] = {
                 "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens_to_sample": 4000,  # recommended max by Anthropic
                 "system": None,
                 "stop_sequences": None,
                 "temperature": None,
@@ -138,6 +139,7 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
             body = {"messages": [{"role": "user", "content": prompt}], **params}
         else:
             default_params = {
+                "max_tokens_to_sample": 4000,  # recommended max by Anthropic
                 "stop_sequences": ["\n\nHuman:"],
                 "temperature": None,
                 "top_p": None,
