@@ -74,7 +74,7 @@ def test_bedrock_ranker_run_inference_error(mock_aws_session):
         aws_region_name=Secret.from_token("us-west-2"),
     )
 
-    mock_aws_session.invoke_model.side_effect = Exception("Inference error")
+    mock_aws_session.rerank.side_effect = Exception("Inference error")
 
     docs = [Document(content="Test document 1"), Document(content="Test document 2")]
     with pytest.raises(AmazonBedrockInferenceError):
