@@ -39,14 +39,8 @@ def test_bedrock_ranker_run(mock_aws_session):
         aws_region_name=Secret.from_token("us-west-2"),
     )
 
-    mock_response = {
-        "body": MagicMock(
-            read=MagicMock(
-                return_value=b'{"results": [{"index": 0, "relevanceScore": 0.9},'
-                b' {"index": 1, "relevanceScore": 0.7}]}'
-            )
-        )
-    }
+    mock_response = {"results": [{"index": 0, "relevanceScore": 0.9}, {"index": 1, "relevanceScore": 0.7}]}
+
     mock_aws_session.invoke_model.return_value = mock_response
 
     docs = [Document(content="Test document 1"), Document(content="Test document 2")]
