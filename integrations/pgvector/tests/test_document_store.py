@@ -288,3 +288,50 @@ def test_hnsw_index_recreation():
 
     # verify that oids differ
     assert second_oid != first_oid, "Index was not recreated (OID remained the same)"
+
+    # Clean up: drop the schema after the test
+    with psycopg.connect(connection_string, autocommit=True) as conn:
+        conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
+
+
+@pytest.mark.integration
+def test_create_table_if_not_exists():
+    def get_table_oid(document_store, schema_name, table_name):
+        sql_get_table_oid = """
+            SELECT c.oid
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relkind = 'r'
+            AND n.nspname = %s
+            AND c.relname = %s;
+        """
+        return document_store.cursor.execute(sql_get_table_oid, (schema_name, table_name)).fetchone()[0]
+
+    connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
+    schema_name = "test_schema"
+    table_name = "test_table"
+
+    # Create a new schema
+    with psycopg.connect(connection_string, autocommit=True) as conn:
+        conn.execute(f"CREATE SCHEMA {schema_name}")
+
+    document_store = PgvectorDocumentStore(
+        connection_string=Secret.from_token(connection_string),
+        schema_name=schema_name,
+        table_name=table_name,
+    )
+
+    document_store._create_table_if_not_exists()
+
+    first_table_oid = get_table_oid(document_store, schema_name, table_name)
+    assert first_table_oid is not None, "Table was not created"
+
+    document_store._create_table_if_not_exists()
+
+    second_table_oid = get_table_oid(document_store, schema_name, table_name)
+
+    assert first_table_oid == second_table_oid, "Table was recreated"
+
+    # Clean up: drop the schema after the test
+    with psycopg.connect(connection_string, autocommit=True) as conn:
+        conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
