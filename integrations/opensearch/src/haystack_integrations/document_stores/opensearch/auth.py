@@ -135,6 +135,8 @@ class AWSAuth:
         :param method: HTTP method
         :param url: URL
         :param body: Body
+        :return:
+            A dictionary containing the signed headers.
         """
         return self._urllib3_aws_v4_signer_auth(method, url, body)
 
@@ -170,6 +172,11 @@ class AsyncAWSAuth:
     """
 
     def __init__(self, aws_auth: AWSAuth) -> None:
+        """
+        Initializes an AsyncAWSAuth instance
+
+        :param aws_auth: The AWSAuth instance to be used for signing requests.
+        """
         self.aws_auth = aws_auth
         self._async_aws_v4_signer_auth = self.aws_auth._get_aws_v4_signer_auth(AWSV4SignerAsyncAuth)
 
@@ -183,5 +190,7 @@ class AsyncAWSAuth:
         :param url: URL
         :param query_string: Query string
         :param body: Body
+        :return:
+            A dictionary containing the signed headers.
         """
         return self._async_aws_v4_signer_auth(method, url, query_string, body)
