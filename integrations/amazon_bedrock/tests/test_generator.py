@@ -34,7 +34,7 @@ def test_to_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
     generator = AmazonBedrockGenerator(
-        model="anthropic.claude-v2", max_length=99, truncate=False, temperature=10, boto3_config=boto3_config
+        model="anthropic.claude-v2", max_length=99, temperature=10, boto3_config=boto3_config
     )
 
     expected_dict = {
@@ -47,7 +47,6 @@ def test_to_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]
             "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
             "model": "anthropic.claude-v2",
             "max_length": 99,
-            "truncate": False,
             "temperature": 10,
             "streaming_callback": None,
             "boto3_config": boto3_config,
