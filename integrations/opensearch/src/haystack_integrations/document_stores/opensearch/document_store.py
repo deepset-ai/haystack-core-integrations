@@ -260,7 +260,7 @@ class OpenSearchDocumentStore:
 
             self._initialized = True
 
-        self._ensure_index_exists()
+            self._ensure_index_exists()
 
     def _ensure_index_exists(self):
         assert self._client is not None
