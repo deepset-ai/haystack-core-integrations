@@ -140,7 +140,7 @@ class AmazonBedrockGenerator:
         self.model = model
 
         if truncate is not None:
-            msg = "The 'truncate' parameter no longer have any effect. No truncation will be performed."
+            msg = "The 'truncate' parameter no longer has any effect. No truncation will be performed."
             logger.warning(msg)
             warnings.warn(msg, stacklevel=2)
         self.truncate = truncate
