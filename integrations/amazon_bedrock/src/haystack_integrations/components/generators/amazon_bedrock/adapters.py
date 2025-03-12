@@ -11,6 +11,11 @@ class BedrockModelAdapter(ABC):
 
     Each subclass of this class is designed to address the unique specificities of a particular LLM it adapts,
     focusing on preparing the requests and extracting the responses from the Amazon Bedrock hosted LLMs.
+
+    :param model_kwargs: Keyword arguments for the model. You can find the full list of parameters in the
+        Amazon Bedrock API [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html).
+    :param max_length: Maximum length of generated text. This is mapped to the correct parameter for each model.
+        It will be overridden by the corresponding parameter in the `model_kwargs` if it is present.
     """
 
     def __init__(self, model_kwargs: Dict[str, Any], max_length: Optional[int]) -> None:
@@ -99,7 +104,10 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
     """
     Adapter for the Anthropic Claude models.
 
-    :param model_kwargs: model configuration:
+    :param model_kwargs: Keyword arguments for the model. You can find the full list of parameters in the
+        Amazon Bedrock API documentation for the Claude model
+        [here](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-claude.html).
+        Some example parameters are:
         - use_messages_api: Whether to use the messages API, default: True
         - include_thinking: Whether to include thinking output, default: True
         - thinking_tag: XML tag for thinking content, default: "thinking"
