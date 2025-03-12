@@ -105,7 +105,7 @@ class BedrockRanker:
 
         region = resolve_secret(aws_region_name)
         if region not in SUPPORTED_REGIONS:
-            msg = f"""Region {aws_region_name} is not supported by Amazon Bedrock.
+            msg = f"""Region {region} is not supported by Amazon Bedrock.
                         Supported regions are {SUPPORTED_REGIONS}"""
             raise ValueError(msg)
 
