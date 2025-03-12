@@ -41,7 +41,7 @@ def test_bedrock_ranker_run(mock_aws_session):
 
     mock_response = {"results": [{"index": 0, "relevanceScore": 0.9}, {"index": 1, "relevanceScore": 0.7}]}
 
-    mock_aws_session.invoke_model.return_value = mock_response
+    mock_aws_session.rerank.return_value = mock_response
 
     docs = [Document(content="Test document 1"), Document(content="Test document 2")]
     result = ranker.run(query="test query", documents=docs)
