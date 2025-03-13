@@ -341,7 +341,7 @@ class QdrantDocumentStore:
         :param filters: The filters to apply to the document list.
         :returns: A list of documents that match the given filters.
         """
-        # No need to initialize client here as _get_documents_generator 
+        # No need to initialize client here as _get_documents_generator
         # will handle client initialization internally
 
         self._validate_filters(filters)
@@ -358,7 +358,7 @@ class QdrantDocumentStore:
         """
         Asynchronously returns the documents that match the provided filters.
         """
-        # No need to initialize client here as _get_documents_generator_async 
+        # No need to initialize client here as _get_documents_generator_async
         # will handle client initialization internally
 
         self._validate_filters(filters)
