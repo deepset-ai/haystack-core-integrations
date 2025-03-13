@@ -71,7 +71,7 @@ class WeaveConnector:
 
     """
 
-    def __init__(self, pipeline_name: str, weave_init_kwargs: dict[str, Any] | None = None) -> None:
+    def __init__(self, pipeline_name: str, weave_init_kwargs: Optional[dict[str, Any]] = None) -> None:
         """
         Initialize WeaveConnector.
 
