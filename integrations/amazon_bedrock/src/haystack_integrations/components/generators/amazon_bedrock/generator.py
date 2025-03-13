@@ -118,7 +118,8 @@ class AmazonBedrockGenerator:
         :param aws_session_token: The AWS session token.
         :param aws_region_name: The AWS region name. Make sure the region you set supports Amazon Bedrock.
         :param aws_profile_name: The AWS profile name.
-        :param max_length: Deprecated. This parameter no longer has any effect.
+        :param max_length: The maximum length of the generated text. This can also be set in the `kwargs` parameter
+            by using the model specific parameter name.
         :param truncate: Deprecated. This parameter no longer has any effect.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
@@ -126,6 +127,8 @@ class AmazonBedrockGenerator:
         :param model_family: The model family to use. If not provided, the model adapter is selected based on the model
             name.
         :param kwargs: Additional keyword arguments to be passed to the model.
+            You can find the model specific arguments in AWS Bedrock's
+            [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html).
         These arguments are specific to the model. You can find them in the model's documentation.
         :raises ValueError: If the model name is empty or None.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
@@ -135,16 +138,14 @@ class AmazonBedrockGenerator:
             msg = "'model' cannot be None or empty string"
             raise ValueError(msg)
         self.model = model
-        self.max_length = max_length
+
+        if truncate is not None:
+            msg = "The 'truncate' parameter no longer has any effect. No truncation will be performed."
+            logger.warning(msg)
+            warnings.warn(msg, stacklevel=2)
         self.truncate = truncate
 
-        if max_length is not None or truncate is not None:
-            warnings.warn(
-                "The 'max_length' and 'truncate' parameters have been removed and no longer have any effect. "
-                "No truncation will be performed.",
-                stacklevel=2,
-            )
-
+        self.max_length = max_length
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
         self.aws_session_token = aws_session_token
@@ -285,7 +286,6 @@ class AmazonBedrockGenerator:
             aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
             model=self.model,
             max_length=self.max_length,
-            truncate=self.truncate,
             streaming_callback=callback_name,
             boto3_config=self.boto3_config,
             model_family=self.model_family,
