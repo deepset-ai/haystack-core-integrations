@@ -386,9 +386,6 @@ class QdrantDocumentStore:
             if not isinstance(doc, Document):
                 msg = f"DocumentStore.write_documents() expects a list of Documents but got an element of {type(doc)}."
                 raise ValueError(msg)
-        self._set_up_collection(
-            self.index, self.embedding_dim, False, self.similarity, self.use_sparse_embeddings, self.sparse_idf
-        )
 
         if len(documents) == 0:
             logger.warning("Calling QdrantDocumentStore.write_documents() with empty list")
@@ -443,12 +440,8 @@ class QdrantDocumentStore:
                 msg = f"""DocumentStore.write_documents_async() expects a list of
                 Documents but got an element of {type(doc)}."""
                 raise ValueError(msg)
-        await self._set_up_collection_async(
-            self.index, self.embedding_dim, False, self.similarity, self.use_sparse_embeddings, self.sparse_idf
-        )
 
         if len(documents) == 0:
-            logger.warning("Calling QdrantDocumentStore.write_documents_async() with empty list")
             logger.warning("Calling QdrantDocumentStore.write_documents_async() with empty list")
             return 0
 
@@ -1220,7 +1213,11 @@ class QdrantDocumentStore:
         """
         if payload_fields_to_index is not None:
             for payload_index in payload_fields_to_index:
-                self._client.create_payload_index(  # type: ignore[attr-defined]
+                # self._client is initialized at this point
+                # since _initialize_client() is called before this method is executed
+
+                assert self._client is not None
+                self._client.create_payload_index(
                     collection_name=collection_name,
                     field_name=payload_index["field_name"],
                     field_schema=payload_index["field_schema"],
@@ -1235,7 +1232,12 @@ class QdrantDocumentStore:
         """
         if payload_fields_to_index is not None:
             for payload_index in payload_fields_to_index:
-                await self._async_client.create_payload_index(  # type: ignore[attr-defined]
+
+                # self._async_client is initialized at this point
+                # since _initialize_async_client() is called before this method is executed
+                assert self._async_client is not None
+
+                await self._async_client.create_payload_index(
                     collection_name=collection_name,
                     field_name=payload_index["field_name"],
                     field_schema=payload_index["field_schema"],
