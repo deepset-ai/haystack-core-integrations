@@ -1,6 +1,7 @@
 from typing import Any, Optional
 
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
+from weave.trace.autopatch import AutopatchSettings
 
 from haystack_integrations.tracing.weave import WeaveTracer
 
@@ -70,19 +71,21 @@ class WeaveConnector:
 
     """
 
-    def __init__(self, pipeline_name: str) -> None:
+    def __init__(self, pipeline_name: str, weave_init_kwargs: dict[str, Any] | None = None) -> None:
         """
         Initialize WeaveConnector.
 
         :param pipeline_name: The name of the pipeline you want to trace.
+        :param weave_init_kwargs: Additional arguments to pass to the Weave client.
         """
         self.pipeline_name = pipeline_name
+        self.weave_init_kwargs = weave_init_kwargs or {}
         self.tracer: Optional[WeaveTracer] = None
 
     def warm_up(self) -> None:
         """Initialize the WeaveTracer."""
         if self.tracer is None:
-            self.tracer = WeaveTracer(project_name=self.pipeline_name)
+            self.tracer = WeaveTracer(project_name=self.pipeline_name, **self.weave_init_kwargs)
             tracing.enable_tracing(self.tracer)
 
     @component.output_types(pipeline_name=str)
@@ -97,7 +100,12 @@ class WeaveConnector:
         :returns:
             Dictionary with all the necessary information to recreate this component.
         """
-        return default_to_dict(self, pipeline_name=self.pipeline_name)
+        weave_init_kwargs = self.weave_init_kwargs.copy()
+        autopatch_settings = weave_init_kwargs.get("autopatch_settings", None)
+        if isinstance(autopatch_settings, AutopatchSettings):
+            weave_init_kwargs["autopatch_settings"] = autopatch_settings.model_dump(exclude_defaults=True)
+
+        return default_to_dict(self, pipeline_name=self.pipeline_name, weave_init_kwargs=weave_init_kwargs)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WeaveConnector":
@@ -108,4 +116,12 @@ class WeaveConnector:
         :returns:
             Deserialized component.
         """
+        if (
+            autopatch_settings := data.get("init_parameters", {})
+            .get("weave_init_kwargs", {})
+            .get("autopatch_settings", None)
+        ):
+            parsed_settings = AutopatchSettings.model_validate(autopatch_settings)
+            data["init_parameters"]["weave_init_kwargs"]["autopatch_settings"] = parsed_settings
+
         return default_from_dict(cls, data)

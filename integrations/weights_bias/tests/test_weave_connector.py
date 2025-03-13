@@ -7,6 +7,7 @@ import pytest
 from haystack import Pipeline, component
 from haystack.components.builders import PromptBuilder
 from haystack.tracing import tracer as haystack_configured_tracer
+from weave.trace.autopatch import AutopatchSettings
 
 from haystack_integrations.components.connectors import WeaveConnector
 from haystack_integrations.tracing.weave import WeaveTracer
@@ -58,6 +59,27 @@ class TestWeaveConnector:
         assert isinstance(deserialized, WeaveConnector)
         assert deserialized.pipeline_name == "test_pipeline"
         assert deserialized.tracer is None  # tracer is only initialized with warm_up
+        assert deserialized.weave_init_kwargs == {}
+
+    def test_serialization_of_weave_init_kwargs(self) -> None:
+        """Test that WeaveConnector can be serialized and deserialized correctly"""
+        connector = WeaveConnector(
+            pipeline_name="test_pipeline",
+            weave_init_kwargs={"autopatch_settings": AutopatchSettings(disable_autopatch=True)},
+        )
+        serialized: dict[str, Any] = connector.to_dict()
+
+        assert serialized["init_parameters"]["pipeline_name"] == "test_pipeline"
+        assert serialized["init_parameters"]["weave_init_kwargs"] == {"autopatch_settings": {"disable_autopatch": True}}
+        assert "type" in serialized
+        assert serialized["type"] == "haystack_integrations.components.connectors.weave_connector.WeaveConnector"
+
+        deserialized = WeaveConnector.from_dict(serialized)
+
+        assert isinstance(deserialized, WeaveConnector)
+        assert deserialized.pipeline_name == "test_pipeline"
+        assert deserialized.tracer is None  # tracer is only initialized with warm_up
+        assert deserialized.weave_init_kwargs == {"autopatch_settings": AutopatchSettings(disable_autopatch=True)}
 
     def test_pipeline_tracing(self, mock_weave_client: Mock, sample_pipeline: Pipeline) -> None:
         """Test that pipeline operations are correctly traced"""
@@ -114,6 +136,26 @@ class TestWeaveConnector:
         """Test that warm_up initializes the tracer correctly"""
         monkeypatch.setenv("HAYSTACK_CONTENT_TRACING_ENABLED", "true")
         connector = WeaveConnector(pipeline_name="test_pipeline")
+        assert connector.tracer is None
+
+        connector.warm_up()  # initialize tracer
+
+        assert connector.tracer is not None
+        assert isinstance(connector.tracer, WeaveTracer)
+        assert haystack_configured_tracer.is_content_tracing_enabled is True
+
+    @pytest.mark.skipif(
+        not os.environ.get("WANDB_API_KEY", None),
+        reason="Export an env var called WANDB_API_KEY containing the Weights & Bias API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_warmup_initializes_tracer_with_weave_init_kwargs(self, monkeypatch) -> None:
+        """Test that warm_up initializes the tracer correctly"""
+        monkeypatch.setenv("HAYSTACK_CONTENT_TRACING_ENABLED", "true")
+        connector = WeaveConnector(
+            pipeline_name="test_pipeline",
+            weave_init_kwargs={"autopatch_settings": AutopatchSettings(disable_autopatch=True)},
+        )
         assert connector.tracer is None
 
         connector.warm_up()  # initialize tracer
