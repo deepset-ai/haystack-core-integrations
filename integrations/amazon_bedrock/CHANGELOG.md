@@ -1,10 +1,28 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.2.1] - 2025-03-13
+
+### 🐛 Bug Fixes
+
+- Update serialization/deserialization tests to add new parameter `connection_type_validation` (#1464)
+
+### 🚜 Refactor
+
+- Update AWS Bedrock with improved docstrings and warning message (#1532)
+
+### 📚 Documentation
+
+- Update changelog for integrations/amazon_bedrock (#1449)
+
+### 🧹 Chores
+
+- Use Haystack logging across integrations (#1484)
+
 ## [integrations/amazon_bedrock-v3.2.0] - 2025-02-27
 
 ### 🚀 Features
 
-- Adding async support to `AmazonChatGenerator` (#1445)
+- Adding async to `AmazonChatGenerator` (#1445)
 
 ### 📚 Documentation
 
