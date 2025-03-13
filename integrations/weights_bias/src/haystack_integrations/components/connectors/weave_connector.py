@@ -76,7 +76,7 @@ class WeaveConnector:
         Initialize WeaveConnector.
 
         :param pipeline_name: The name of the pipeline you want to trace.
-        :param weave_init_kwargs: Additional arguments to pass to the Weave client.
+        :param weave_init_kwargs: Additional arguments to pass to the WeaveTracer client.
         """
         self.pipeline_name = pipeline_name
         self.weave_init_kwargs = weave_init_kwargs or {}
