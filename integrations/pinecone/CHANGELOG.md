@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/pinecone-v5.0.0] - 2025-03-11
+
+### 🧪 Testing
+
+- Skip tests that require credentials on PRs from forks for some integrations (#1485)
+
+### 🧹 Chores
+
+- Use Haystack logging across integrations (#1484)
+
+### 🌀 Miscellaneous
+
+- Increase sleep time (#1478)
+- Chore: Pinecone - pin haystack and remove dataframe checks (#1514)
+
 ## [integrations/pinecone-v4.0.0] - 2025-02-25
 
 ### 🐛 Bug Fixes

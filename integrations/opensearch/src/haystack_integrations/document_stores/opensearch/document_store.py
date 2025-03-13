@@ -10,10 +10,10 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret
-from opensearchpy import AsyncOpenSearch, OpenSearch
+from opensearchpy import AsyncHttpConnection, AsyncOpenSearch, OpenSearch
 from opensearchpy.helpers import async_bulk, bulk
 
-from haystack_integrations.document_stores.opensearch.auth import AWSAuth
+from haystack_integrations.document_stores.opensearch.auth import AsyncAWSAuth, AWSAuth
 from haystack_integrations.document_stores.opensearch.filters import normalize_filters
 
 logger = logging.getLogger(__name__)
@@ -245,18 +245,22 @@ class OpenSearchDocumentStore:
                 timeout=self._timeout,
                 **self._kwargs,
             )
+            async_http_auth = AsyncAWSAuth(self._http_auth) if isinstance(self._http_auth, AWSAuth) else self._http_auth
             self._async_client = AsyncOpenSearch(
                 hosts=self._hosts,
-                http_auth=self._http_auth,
+                http_auth=async_http_auth,
                 use_ssl=self._use_ssl,
                 verify_certs=self._verify_certs,
                 timeout=self._timeout,
+                # IAM Authentication requires AsyncHttpConnection:
+                # https://github.com/opensearch-project/opensearch-py/blob/main/guides/auth.md#iam-authentication-with-an-async-client
+                connection_class=AsyncHttpConnection,
                 **self._kwargs,
             )
 
             self._initialized = True
 
-        self._ensure_index_exists()
+            self._ensure_index_exists()
 
     def _ensure_index_exists(self):
         assert self._client is not None
@@ -357,15 +361,6 @@ class OpenSearchDocumentStore:
         opensearch_actions = []
         for doc in documents:
             doc_dict = doc.to_dict()
-            if "dataframe" in doc_dict:
-                dataframe = doc_dict.pop("dataframe")
-                if dataframe:
-                    logger.warning(
-                        "Document {id} has the `dataframe` field set,"
-                        "OpenSearchDocumentStore no longer supports dataframes and this field will be ignored. "
-                        "The `dataframe` field will soon be removed from Haystack Document.",
-                        id=doc.id,
-                    )
             if "sparse_embedding" in doc_dict:
                 sparse_embedding = doc_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
@@ -464,16 +459,6 @@ class OpenSearchDocumentStore:
         if "highlight" in hit:
             data["metadata"]["highlighted"] = hit["highlight"]
         data["score"] = hit["_score"]
-
-        if "dataframe" in data:
-            dataframe = data.pop("dataframe")
-            if dataframe:
-                logger.warning(
-                    "Document {id} has the `dataframe` field set,"
-                    "OpenSearchDocumentStore no longer supports dataframes and this field will be ignored. "
-                    "The `dataframe` field will soon be removed from Haystack Document.",
-                    id=data["id"],
-                )
 
         return Document.from_dict(data)
 

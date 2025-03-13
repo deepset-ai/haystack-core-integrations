@@ -147,26 +147,24 @@ class AmazonBedrockChatGenerator:
         and `aws_region_name`.
 
         :param model: The model to use for text generation. The model must be available in Amazon Bedrock and must
-        be specified in the format outlined in the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html).
+            be specified in the format outlined in the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html).
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
         :param aws_session_token: AWS session token.
         :param aws_region_name: AWS region name. Make sure the region you set supports Amazon Bedrock.
         :param aws_profile_name: AWS profile name.
-        :param generation_kwargs: Keyword arguments sent to the model. These
-        parameters are specific to a model. You can find them in the model's documentation.
-          For example, you can find the
-        Anthropic Claude generation parameters in [Anthropic documentation](https://docs.anthropic.com/claude/reference/complete_post).
+        :param generation_kwargs: Keyword arguments sent to the model. These parameters are specific to a model.
+            You can find the model specific arguments in the AWS Bedrock API
+            [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html).
         :param stop_words: A list of stop words that stop the model from generating more text
-          when encountered. You can provide them using
-        this parameter or using the model's `generation_kwargs` under a model's specific key for stop words.
-          For example, you can provide
-        stop words for Anthropic Claude in the `stop_sequences` key.
+            when encountered. You can provide them using this parameter or using the model's `generation_kwargs`
+            under a model's specific key for stop words.
+            For example, you can provide stop words for Anthropic Claude in the `stop_sequences` key.
         :param streaming_callback: A callback function called when a new token is received from the stream.
-        By default, the model is not set up for streaming. To enable streaming, set this parameter to a callback
-        function that handles the streaming chunks. The callback function receives a
-          [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk) object and
-        switches the streaming mode on.
+            By default, the model is not set up for streaming. To enable streaming, set this parameter to a callback
+            function that handles the streaming chunks. The callback function receives a
+            [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk) object and switches
+            the streaming mode on.
         :param boto3_config: The configuration for the boto3 client.
         :param tools: A list of Tool objects that the model can use. Each tool should have a unique name.
 

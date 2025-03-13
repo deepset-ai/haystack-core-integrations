@@ -1,9 +1,9 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from opensearchpy import Urllib3AWSV4SignerAuth
+from opensearchpy import AWSV4SignerAsyncAuth, Urllib3AWSV4SignerAuth
 
-from haystack_integrations.document_stores.opensearch.auth import AWSAuth
+from haystack_integrations.document_stores.opensearch.auth import AsyncAWSAuth, AWSAuth
 
 
 class TestAWSAuth:
@@ -105,10 +105,37 @@ class TestAWSAuth:
         assert aws_auth.aws_service == "aoss"
         assert isinstance(aws_auth._urllib3_aws_v4_signer_auth, Urllib3AWSV4SignerAuth)
 
-    @patch("haystack_integrations.document_stores.opensearch.auth.AWSAuth._get_urllib3_aws_v4_signer_auth")
-    def test_call(self, _get_urllib3_aws_v4_signer_auth_mock):
-        signer_auth_mock = Mock(spec=Urllib3AWSV4SignerAuth)
-        _get_urllib3_aws_v4_signer_auth_mock.return_value = signer_auth_mock
+    @patch("haystack_integrations.document_stores.opensearch.auth.AWSAuth._get_aws_v4_signer_auth")
+    def test_call(self, _get_aws_v4_signer_auth):
+        signer_auth_mock = Mock()
+        _get_aws_v4_signer_auth.return_value = signer_auth_mock
         aws_auth = AWSAuth()
         aws_auth(method="GET", url="http://some.url", body="some body")
         signer_auth_mock.assert_called_once_with("GET", "http://some.url", "some body")
+
+    @patch("haystack_integrations.document_stores.opensearch.auth.AWSAuth._get_aws_v4_signer_auth")
+    def test_call_async(self, _get_aws_v4_signer_auth):
+        signer_auth_mock = Mock()
+        _get_aws_v4_signer_auth.return_value = signer_auth_mock
+        async_aws_auth = AsyncAWSAuth(AWSAuth())
+        async_aws_auth(method="GET", url="http://some.url", query_string="", body="some body")
+        signer_auth_mock.assert_called_once_with("GET", "http://some.url", "", "some body")
+
+    def test_async_aws_auth_init(self):
+        data = {
+            "type": "haystack_integrations.document_stores.opensearch.auth.AWSAuth",
+            "init_parameters": {
+                "aws_access_key_id": None,
+                "aws_secret_access_key": None,
+                "aws_session_token": None,
+                "aws_service": "aoss",
+            },
+        }
+        async_aws_auth = AsyncAWSAuth(AWSAuth.from_dict(data))
+        assert async_aws_auth.aws_auth.aws_access_key_id is None
+        assert async_aws_auth.aws_auth.aws_secret_access_key is None
+        assert async_aws_auth.aws_auth.aws_session_token is None
+        assert async_aws_auth.aws_auth.aws_region_name.resolve_value() == "fake_region"
+        assert async_aws_auth.aws_auth.aws_profile_name.resolve_value() == "some_fake_profile"
+        assert async_aws_auth.aws_auth.aws_service == "aoss"
+        assert isinstance(async_aws_auth._async_aws_v4_signer_auth, AWSV4SignerAsyncAuth)

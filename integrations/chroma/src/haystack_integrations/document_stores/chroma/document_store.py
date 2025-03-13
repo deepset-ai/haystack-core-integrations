@@ -253,13 +253,11 @@ class ChromaDocumentStore:
                     doc_id=doc.id,
                 )
                 continue
-            elif (hasattr(doc, "dataframe") and doc.dataframe is not None) or (
-                hasattr(doc, "blob") and doc.blob is not None
-            ):
+            elif hasattr(doc, "blob") and doc.blob is not None:
                 logger.warning(
-                    "Document with id {doc_id} contains `dataframe` or `blob` fields. "
-                    "ChromaDocumentStore cannot store `dataframe` or `blob` fields. "
-                    "These fields will be ignored.",
+                    "Document with id {doc_id} contains the `blob` field. "
+                    "ChromaDocumentStore cannot store `blob` fields. "
+                    "This field will be ignored.",
                     doc_id=doc.id,
                 )
             data = {"ids": [doc.id], "documents": [doc.content]}

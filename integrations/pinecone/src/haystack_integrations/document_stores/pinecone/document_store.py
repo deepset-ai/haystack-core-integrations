@@ -288,15 +288,6 @@ class PineconeDocumentStore:
         for pinecone_doc in pinecone_docs:
             content = pinecone_doc["metadata"].pop("content", None)
 
-            dataframe = pinecone_doc["metadata"].pop("dataframe", None)
-            if dataframe:
-                logger.warning(
-                    "Document %s has the `dataframe` field set. "
-                    "PineconeDocumentStore no longer supports dataframes and this field will be ignored. "
-                    "The `dataframe` field will soon be removed from Haystack Document.",
-                    pinecone_doc["id"],
-                )
-
             # we always store vectors during writing but we don't want to return them if they are dummy vectors
             embedding = None
             if pinecone_doc["values"] != self._dummy_vector:
@@ -363,13 +354,7 @@ class PineconeDocumentStore:
             # we save content as metadata
             if document.content is not None:
                 doc_for_pinecone["metadata"]["content"] = document.content
-            if document.dataframe is not None:
-                logger.warning(
-                    "Document %s has the `dataframe` field set. "
-                    "PineconeDocumentStore no longer supports dataframes and this field will be ignored. "
-                    "The `dataframe` field will soon be removed from Haystack Document.",
-                    document.id,
-                )
+
             # currently, storing blob in Pinecone is not supported
             if document.blob is not None:
                 logger.warning(
