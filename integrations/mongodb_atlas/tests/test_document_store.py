@@ -9,9 +9,8 @@ import pytest
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseTests, FilterDocumentsTestWithDataframe
+from haystack.testing.document_store import DocumentStoreBaseTests
 from haystack.utils import Secret
-from pandas import DataFrame
 from pymongo import MongoClient
 from pymongo.driver_info import DriverInfo
 
@@ -31,11 +30,11 @@ def test_init_is_lazy(_mock_client):
 
 
 @pytest.mark.skipif(
-    "MONGO_CONNECTION_STRING" not in os.environ,
+    not os.environ.get("MONGO_CONNECTION_STRING"),
     reason="No MongoDB Atlas connection string provided",
 )
 @pytest.mark.integration
-class TestDocumentStore(DocumentStoreBaseTests, FilterDocumentsTestWithDataframe):
+class TestDocumentStore(DocumentStoreBaseTests):
     @pytest.fixture
     def document_store(self):
         database_name = "haystack_integration_test"
@@ -68,13 +67,6 @@ class TestDocumentStore(DocumentStoreBaseTests, FilterDocumentsTestWithDataframe
     def test_write_blob(self, document_store: MongoDBAtlasDocumentStore):
         bytestream = ByteStream(b"test", meta={"meta_key": "meta_value"}, mime_type="mime_type")
         docs = [Document(blob=bytestream)]
-        document_store.write_documents(docs)
-        retrieved_docs = document_store.filter_documents()
-        assert retrieved_docs == docs
-
-    def test_write_dataframe(self, document_store: MongoDBAtlasDocumentStore):
-        dataframe = DataFrame({"col1": [1, 2], "col2": [3, 4]})
-        docs = [Document(dataframe=dataframe)]
         document_store.write_documents(docs)
         retrieved_docs = document_store.filter_documents()
         assert retrieved_docs == docs

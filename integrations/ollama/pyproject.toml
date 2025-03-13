@@ -7,7 +7,7 @@ name = "ollama-haystack"
 dynamic = ["version"]
 description = 'An integration between the Ollama LLM framework and Haystack'
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
 authors = [
@@ -51,7 +51,6 @@ dependencies = [
     "pytest",
     "pytest-rerunfailures",
     "haystack-pydoc-tools",
-    "jsonschema",  # needed for Tool
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"

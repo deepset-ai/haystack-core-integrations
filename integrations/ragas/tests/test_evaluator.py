@@ -51,7 +51,7 @@ def test_invalid_llm():
     valid_metric = MagicMock(spec=Metric)
     invalid_llm = "not_a_llm"
 
-    with pytest.raises(TypeError, match="Expected evaluator_llm to be BaseRagasLLM or LangchainLLM"):
+    with pytest.raises(TypeError, match="Expected evaluator_llm to be BaseRagasLLM"):
         RagasEvaluator(ragas_metrics=[valid_metric], evaluator_llm=invalid_llm)
 
 
@@ -60,9 +60,7 @@ def test_invalid_embedding():
     valid_metric = MagicMock(spec=Metric)
     invalid_embedding = "not_an_embedding"
 
-    with pytest.raises(
-        TypeError, match="Expected evaluator_embedding to be BaseRagasEmbeddings or LangchainEmbeddings"
-    ):
+    with pytest.raises(TypeError, match="Expected evaluator_embedding to be BaseRagasEmbeddings"):
         RagasEvaluator(ragas_metrics=[valid_metric], evaluator_embedding=invalid_embedding)
 
 

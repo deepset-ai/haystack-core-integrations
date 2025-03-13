@@ -1,11 +1,10 @@
 import json
-import logging
 from typing import Any, ClassVar, Dict, List, Optional
 
 import boto3
 import requests
 from botocore.exceptions import BotoCoreError
-from haystack import component, default_from_dict, default_to_dict
+from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.generators.amazon_sagemaker.errors import (

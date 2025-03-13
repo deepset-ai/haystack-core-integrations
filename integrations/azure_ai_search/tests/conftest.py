@@ -86,10 +86,16 @@ def document_store(request):
 def cleanup_indexes():
     """
     Fixture to clean up all remaining indexes at the end of the test session.
+    Only runs if Azure credentials are available.
     Automatically runs after all tests.
     """
-    azure_endpoint = os.environ["AZURE_SEARCH_SERVICE_ENDPOINT"]
-    api_key = os.environ["AZURE_SEARCH_API_KEY"]
+    azure_endpoint = os.getenv("AZURE_SEARCH_SERVICE_ENDPOINT")
+    api_key = os.getenv("AZURE_SEARCH_API_KEY")
+
+    # Skip cleanup if credentials aren't available
+    if not azure_endpoint or not api_key:
+        yield
+        return
 
     client = SearchIndexClient(azure_endpoint, AzureKeyCredential(api_key))
 

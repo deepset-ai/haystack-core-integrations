@@ -1,10 +1,10 @@
-import logging
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import google.generativeai as genai
 from google.ai.generativelanguage import Content, Part
 from google.generativeai import GenerationConfig, GenerativeModel
 from google.generativeai.types import GenerateContentResponse, HarmBlockThreshold, HarmCategory
+from haystack import logging
 from haystack.core.component import component
 from haystack.core.component.types import Variadic
 from haystack.core.serialization import default_from_dict, default_to_dict
@@ -25,7 +25,7 @@ class GoogleAIGeminiGenerator:
     from haystack.utils import Secret
     from haystack_integrations.components.generators.google_ai import GoogleAIGeminiGenerator
 
-    gemini = GoogleAIGeminiGenerator(model="gemini-pro", api_key=Secret.from_token("<MY_API_KEY>"))
+    gemini = GoogleAIGeminiGenerator(model="gemini-1.5-pro", api_key=Secret.from_token("<MY_API_KEY>"))
     res = gemini.run(parts = ["What is the most interesting thing you know?"])
     for answer in res["replies"]:
         print(answer)

@@ -4,8 +4,11 @@ from unittest.mock import patch
 
 import pytest
 import pytz
+from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage, StreamingChunk
+from haystack.components.tools import ToolInvoker
+from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
+from haystack.tools import Tool
 from haystack.utils.auth import Secret
 from openai import OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
@@ -22,6 +25,24 @@ def chat_messages():
     ]
 
 
+def weather(city: str):
+    """Get weather for a given city."""
+    return f"The weather in {city} is sunny and 32°C"
+
+
+@pytest.fixture
+def tools():
+    tool_parameters = {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
+    tool = Tool(
+        name="weather",
+        description="useful to determine the weather in a given location",
+        parameters=tool_parameters,
+        function=weather,
+    )
+
+    return [tool]
+
+
 @pytest.fixture
 def mock_chat_completion():
     """
@@ -30,7 +51,7 @@ def mock_chat_completion():
     with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
         completion = ChatCompletion(
             id="foo",
-            model="mistral-tiny",
+            model="mistral-small-latest",
             object="chat.completion",
             choices=[
                 Choice(
@@ -53,7 +74,7 @@ class TestMistralChatGenerator:
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
         component = MistralChatGenerator()
         assert component.client.api_key == "test-api-key"
-        assert component.model == "mistral-tiny"
+        assert component.model == "mistral-small-latest"
         assert component.api_base_url == "https://api.mistral.ai/v1"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
@@ -88,8 +109,7 @@ class TestMistralChatGenerator:
 
         expected_params = {
             "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
-            "model": "mistral-tiny",
-            "organization": None,
+            "model": "mistral-small-latest",
             "streaming_callback": None,
             "api_base_url": "https://api.mistral.ai/v1",
             "generation_kwargs": {},
@@ -226,7 +246,7 @@ class TestMistralChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "mistral-tiny" in message.meta["model"]
+        assert "mistral-small-latest" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -256,14 +276,241 @@ class TestMistralChatGenerator:
 
         callback = Callback()
         component = MistralChatGenerator(streaming_callback=callback)
-        results = component.run([ChatMessage.from_user("What's the capital of France?")])
+        results = component.run(
+            [ChatMessage.from_user("What's the capital of France?")], generation_kwargs={"tool_choice": "any"}
+        )
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "mistral-tiny" in message.meta["model"]
+        assert "mistral-small-latest" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
         assert "Paris" in callback.responses
+
+    @pytest.mark.skipif(
+        not os.environ.get("MISTRAL_API_KEY", None),
+        reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_tools(self, tools):
+        chat_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = MistralChatGenerator(tools=tools)
+        results = component.run(chat_messages)
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+        assert message.text == ""
+
+        assert message.tool_calls
+        tool_call = message.tool_call
+        assert isinstance(tool_call, ToolCall)
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
+        assert message.meta["finish_reason"] == "tool_calls"
+
+    @pytest.mark.skipif(
+        not os.environ.get("MISTRAL_API_KEY", None),
+        reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_tools_and_response(self, tools):
+        """
+        Integration test that the MistralChatGenerator component can run with tools and get a response.
+        """
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = MistralChatGenerator(tools=tools)
+        results = component.run(messages=initial_messages, generation_kwargs={"tool_choice": "any"})
+
+        assert len(results["replies"]) > 0, "No replies received"
+
+        # Find the message with tool calls
+        tool_message = None
+        for message in results["replies"]:
+            if message.tool_call:
+                tool_message = message
+                break
+
+        assert tool_message is not None, "No message with tool call found"
+        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_call = tool_message.tool_call
+        assert tool_call.id, "Tool call does not contain value for 'id' key"
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
+        assert tool_message.meta["finish_reason"] == "tool_calls"
+
+        new_messages = [
+            initial_messages[0],
+            tool_message,
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
+        ]
+        # Pass the tool result to the model to get the final response
+        results = component.run(new_messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_call
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+
+    @pytest.mark.skipif(
+        not os.environ.get("MISTRAL_API_KEY", None),
+        reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_tools_streaming(self, tools):
+        """
+        Integration test that the MistralChatGenerator component can run with tools and streaming.
+        """
+
+        class Callback:
+            def __init__(self):
+                self.responses = ""
+                self.counter = 0
+                self.tool_calls = []
+
+            def __call__(self, chunk: StreamingChunk) -> None:
+                self.counter += 1
+                if chunk.content:
+                    self.responses += chunk.content
+                if chunk.meta.get("tool_calls"):
+                    self.tool_calls.extend(chunk.meta["tool_calls"])
+
+        callback = Callback()
+        component = MistralChatGenerator(tools=tools, streaming_callback=callback)
+        results = component.run(
+            [ChatMessage.from_user("What's the weather like in Paris?")], generation_kwargs={"tool_choice": "any"}
+        )
+
+        assert len(results["replies"]) > 0, "No replies received"
+        assert callback.counter > 1, "Streaming callback was not called multiple times"
+        assert callback.tool_calls, "No tool calls received in streaming"
+
+        # Find the message with tool calls
+        tool_message = None
+        for message in results["replies"]:
+            if message.tool_call:
+                tool_message = message
+                break
+
+        assert tool_message is not None, "No message with tool call found"
+        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_call = tool_message.tool_call
+        assert tool_call.id, "Tool call does not contain value for 'id' key"
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
+        assert tool_message.meta["finish_reason"] == "tool_calls"
+
+    @pytest.mark.skipif(
+        not os.environ.get("MISTRAL_API_KEY", None),
+        reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_pipeline_with_mistral_chat_generator(self, tools):
+        """
+        Test that the MistralChatGenerator component can be used in a pipeline
+        """
+        pipeline = Pipeline()
+        pipeline.add_component("generator", MistralChatGenerator(tools=tools))
+        pipeline.add_component("tool_invoker", ToolInvoker(tools=tools))
+
+        pipeline.connect("generator", "tool_invoker")
+
+        results = pipeline.run(
+            data={
+                "generator": {
+                    "messages": [ChatMessage.from_user("What's the weather like in Paris?")],
+                    "generation_kwargs": {"tool_choice": "any"},
+                }
+            }
+        )
+
+        assert (
+            "The weather in Paris is sunny and 32°C"
+            == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
+        )
+
+    def test_serde_in_pipeline(self, monkeypatch):
+        """
+        Test serialization/deserialization of MistralChatGenerator in a Pipeline,
+        including YAML conversion and detailed dictionary validation
+        """
+        # Set mock API key
+        monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
+
+        # Create a test tool
+        tool = Tool(
+            name="weather",
+            description="useful to determine the weather in a given location",
+            parameters={"city": {"type": "string"}},
+            function=weather,
+        )
+
+        # Create generator with specific configuration
+        generator = MistralChatGenerator(
+            model="mistral-small",
+            generation_kwargs={"temperature": 0.7},
+            streaming_callback=print_streaming_chunk,
+            tools=[tool],
+        )
+
+        # Create and configure pipeline
+        pipeline = Pipeline()
+        pipeline.add_component("generator", generator)
+
+        # Get pipeline dictionary and verify its structure
+        pipeline_dict = pipeline.to_dict()
+        expected_dict = {
+            "metadata": {},
+            "max_runs_per_component": 100,
+            "connection_type_validation": True,
+            "components": {
+                "generator": {
+                    "type": "haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",  # noqa: E501
+                    "init_parameters": {
+                        "api_key": {"type": "env_var", "env_vars": ["MISTRAL_API_KEY"], "strict": True},
+                        "model": "mistral-small",
+                        "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
+                        "api_base_url": "https://api.mistral.ai/v1",
+                        "generation_kwargs": {"temperature": 0.7},
+                        "tools": [
+                            {
+                                "type": "haystack.tools.tool.Tool",
+                                "data": {
+                                    "name": "weather",
+                                    "description": "useful to determine the weather in a given location",
+                                    "parameters": {"city": {"type": "string"}},
+                                    "function": "tests.test_mistral_chat_generator.weather",
+                                },
+                            }
+                        ],
+                    },
+                }
+            },
+            "connections": [],
+        }
+
+        if not hasattr(pipeline, "_connection_type_validation"):
+            expected_dict.pop("connection_type_validation")
+
+        assert pipeline_dict == expected_dict
+
+        # Test YAML serialization/deserialization
+        pipeline_yaml = pipeline.dumps()
+        new_pipeline = Pipeline.loads(pipeline_yaml)
+        assert new_pipeline == pipeline
+
+        # Verify the loaded pipeline's generator has the same configuration
+        loaded_generator = new_pipeline.get_component("generator")
+        assert loaded_generator.model == generator.model
+        assert loaded_generator.generation_kwargs == generator.generation_kwargs
+        assert loaded_generator.streaming_callback == generator.streaming_callback
+        assert len(loaded_generator.tools) == len(generator.tools)
+        assert loaded_generator.tools[0].name == generator.tools[0].name
+        assert loaded_generator.tools[0].description == generator.tools[0].description
+        assert loaded_generator.tools[0].parameters == generator.tools[0].parameters

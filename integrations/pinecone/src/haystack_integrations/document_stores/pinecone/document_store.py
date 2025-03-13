@@ -1,13 +1,10 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import io
-import logging
 from copy import copy
 from typing import Any, Dict, List, Literal, Optional
 
-import pandas as pd
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -291,11 +288,6 @@ class PineconeDocumentStore:
         for pinecone_doc in pinecone_docs:
             content = pinecone_doc["metadata"].pop("content", None)
 
-            dataframe = None
-            dataframe_string = pinecone_doc["metadata"].pop("dataframe", None)
-            if dataframe_string:
-                dataframe = pd.read_json(io.StringIO(dataframe_string))
-
             # we always store vectors during writing but we don't want to return them if they are dummy vectors
             embedding = None
             if pinecone_doc["values"] != self._dummy_vector:
@@ -304,7 +296,6 @@ class PineconeDocumentStore:
             doc = Document(
                 id=pinecone_doc["id"],
                 content=content,
-                dataframe=dataframe,
                 meta=self._convert_meta_to_int(pinecone_doc["metadata"]),
                 embedding=embedding,
                 score=pinecone_doc["score"],
@@ -360,11 +351,10 @@ class PineconeDocumentStore:
 
             doc_for_pinecone = {"id": document.id, "values": embedding, "metadata": dict(document.meta)}
 
-            # we save content/dataframe as metadata
+            # we save content as metadata
             if document.content is not None:
                 doc_for_pinecone["metadata"]["content"] = document.content
-            if document.dataframe is not None:
-                doc_for_pinecone["metadata"]["dataframe"] = document.dataframe.to_json()
+
             # currently, storing blob in Pinecone is not supported
             if document.blob is not None:
                 logger.warning(

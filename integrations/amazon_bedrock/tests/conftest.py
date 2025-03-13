@@ -17,3 +17,10 @@ def set_env_variables(monkeypatch):
 def mock_boto3_session():
     with patch("boto3.Session") as mock_client:
         yield mock_client
+
+
+# create a fixture with mocked aioboto3 client and session
+@pytest.fixture
+def mock_aioboto3_session():
+    with patch("aioboto3.Session") as mock_client:
+        yield mock_client

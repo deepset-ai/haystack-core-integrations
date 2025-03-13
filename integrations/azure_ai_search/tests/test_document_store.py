@@ -14,7 +14,6 @@ from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
     FilterDocumentsTest,
-    FilterDocumentsTestWithDataframe,
     WriteDocumentsTest,
 )
 from haystack.utils.auth import EnvVarSecret, Secret
@@ -100,6 +99,7 @@ def test_init(_mock_azure_search_client):
     assert document_store._vector_search_configuration == DEFAULT_VECTOR_SEARCH
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
     not os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT", None) and not os.environ.get("AZURE_SEARCH_API_KEY", None),
     reason="Missing AZURE_SEARCH_SERVICE_ENDPOINT or AZURE_SEARCH_API_KEY.",
@@ -145,6 +145,7 @@ TEST_EMBEDDING_1 = _random_embeddings(768)
 TEST_EMBEDDING_2 = _random_embeddings(768)
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
     not os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT", None) and not os.environ.get("AZURE_SEARCH_API_KEY", None),
     reason="Missing AZURE_SEARCH_SERVICE_ENDPOINT or AZURE_SEARCH_API_KEY.",
@@ -156,10 +157,9 @@ TEST_EMBEDDING_2 = _random_embeddings(768)
     ],
     indirect=True,
 )
-class TestFilters(FilterDocumentsTest, FilterDocumentsTestWithDataframe):
+class TestFilters(FilterDocumentsTest):
 
     # Overriding to change "date" to compatible ISO 8601 format
-    # and remove incompatible fields (dataframes) for Azure search index
     @pytest.fixture
     def filterable_docs(self) -> List[Document]:
         """Fixture that returns a list of Documents that can be used to test filtering."""
@@ -226,24 +226,6 @@ class TestFilters(FilterDocumentsTest, FilterDocumentsTestWithDataframe):
         sorted_recieved = sorted(received, key=lambda doc: doc.id)
         sorted_expected = sorted(expected, key=lambda doc: doc.id)
         assert sorted_recieved == sorted_expected
-
-    @pytest.mark.skip(reason="Azure AI search index does not support dataframes")
-    def test_comparison_equal_with_dataframe(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="Azure AI search index does not support dataframes")
-    def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="Azure AI search index does not support dataframes")
-    def test_comparison_greater_than_with_dataframe(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="Azure AI search index does not support dataframes")
-    def test_comparison_less_than_with_dataframe(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="Azure AI search index does not support dataframes")
-    def test_comparison_greater_than_equal_with_dataframe(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="Azure AI search index does not support dataframes")
-    def test_comparison_less_than_equal_with_dataframe(self, document_store, filterable_docs): ...
 
     # Azure search index supports UTC datetime in ISO 8601 format
     def test_comparison_greater_than_with_iso_date(self, document_store, filterable_docs):

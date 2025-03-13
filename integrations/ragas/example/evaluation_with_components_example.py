@@ -13,12 +13,12 @@ from haystack.components.embedders import OpenAITextEmbedder, OpenAIDocumentEmbe
 from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.components.builders import ChatPromptBuilder
 from haystack.dataclasses import ChatMessage
+from haystack.components.generators import OpenAIGenerator
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.builders import AnswerBuilder
 from haystack_integrations.components.evaluators.ragas import RagasEvaluator
 
-from langchain_openai import ChatOpenAI
-from ragas.llms import LangchainLLMWrapper
+from ragas.llms import HaystackLLMWrapper
 from ragas.metrics import AnswerRelevancy, ContextPrecision, Faithfulness
 
 
@@ -67,8 +67,8 @@ prompt_builder = ChatPromptBuilder(template=template)
 chat_generator = OpenAIChatGenerator(model="gpt-4o-mini")
 
 # Setting the RagasEvaluator Component
-llm = ChatOpenAI(model="gpt-4o-mini")
-evaluator_llm = LangchainLLMWrapper(llm)
+llm = OpenAIGenerator(model="gpt-4o-mini")
+evaluator_llm = HaystackLLMWrapper(llm)
 
 ragas_evaluator = RagasEvaluator(
     ragas_metrics=[AnswerRelevancy(), ContextPrecision(), Faithfulness()], evaluator_llm=evaluator_llm

@@ -9,9 +9,7 @@ from typing import Any, Dict, List, Optional
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.utils.nvidia import Model, NimBackend, is_hosted, url_validation, validate_hosted_model
-
-_DEFAULT_API_URL = "https://integrate.api.nvidia.com/v1"
+from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Model, NimBackend, is_hosted, url_validation
 
 
 @component
@@ -47,7 +45,7 @@ class NvidiaGenerator:
     def __init__(
         self,
         model: Optional[str] = None,
-        api_url: str = _DEFAULT_API_URL,
+        api_url: str = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_arguments: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
@@ -77,7 +75,7 @@ class NvidiaGenerator:
             or set to 60 by default.
         """
         self._model = model
-        self._api_url = url_validation(api_url, _DEFAULT_API_URL, ["v1/chat/completions"])
+        self.api_url = url_validation(api_url)
         self._api_key = api_key
         self._model_arguments = model_arguments or {}
 
@@ -87,6 +85,10 @@ class NvidiaGenerator:
         if timeout is None:
             timeout = float(os.environ.get("NVIDIA_TIMEOUT", 60.0))
         self.timeout = timeout
+
+    @classmethod
+    def class_name(cls) -> str:
+        return "NvidiaGenerator"
 
     def default_model(self):
         """Set default model in local NIM mode."""
@@ -114,22 +116,21 @@ class NvidiaGenerator:
         if self.backend is not None:
             return
 
-        if self._api_url == _DEFAULT_API_URL and self._api_key is None:
-            msg = "API key is required for hosted NVIDIA NIMs."
-            raise ValueError(msg)
         self.backend = NimBackend(
             model=self._model,
-            api_url=self._api_url,
+            model_type="chat",
+            api_url=self.api_url,
             api_key=self._api_key,
             model_kwargs=self._model_arguments,
             timeout=self.timeout,
             client=self.__class__.__name__,
-            model_type="chat",
         )
 
-        if not self._model:
-            self.default_model()
-        validate_hosted_model(self.__class__.__name__, self._model, self)
+        if not self.is_hosted and not self._model:
+            if self.backend.model:
+                self.model = self.backend.model
+            else:
+                self.default_model()
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -141,7 +142,7 @@ class NvidiaGenerator:
         return default_to_dict(
             self,
             model=self._model,
-            api_url=self._api_url,
+            api_url=self.api_url,
             api_key=self._api_key.to_dict() if self._api_key else None,
             model_arguments=self._model_arguments,
         )

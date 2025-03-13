@@ -1,14 +1,14 @@
 # SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
 #
 # SPDX-License-Identifier: Apache-2.0
-import logging
 from typing import Any, Dict, List, Literal, Optional
 
 import chromadb
 from chromadb.api.types import GetResult, QueryResult
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
+from numpy import ndarray
 
 from .filters import _convert_filters
 from .utils import get_embedding_function
@@ -208,18 +208,18 @@ class ChromaDocumentStore:
         self._ensure_initialized()
         assert self._collection is not None
 
+        kwargs: Dict[str, Any] = {"include": ["embeddings", "documents", "metadatas"]}
+
         if filters:
             chroma_filter = _convert_filters(filters)
-            kwargs: Dict[str, Any] = {"where": chroma_filter.where}
+            kwargs["where"] = chroma_filter.where
 
             if chroma_filter.ids:
                 kwargs["ids"] = chroma_filter.ids
             if chroma_filter.where_document:
                 kwargs["where_document"] = chroma_filter.where_document
 
-            result = self._collection.get(**kwargs)
-        else:
-            result = self._collection.get()
+        result = self._collection.get(**kwargs)
 
         return self._get_result_to_documents(result)
 
@@ -249,11 +249,17 @@ class ChromaDocumentStore:
             if doc.content is None:
                 logger.warning(
                     "ChromaDocumentStore cannot store documents with `content=None`. "
-                    "`array`, `dataframe` and `blob` are not supported. "
-                    "Document with id %s will be skipped.",
-                    doc.id,
+                    "Document with id {doc_id} will be skipped.",
+                    doc_id=doc.id,
                 )
                 continue
+            elif hasattr(doc, "blob") and doc.blob is not None:
+                logger.warning(
+                    "Document with id {doc_id} contains the `blob` field. "
+                    "ChromaDocumentStore cannot store `blob` fields. "
+                    "This field will be ignored.",
+                    doc_id=doc.id,
+                )
             data = {"ids": [doc.id], "documents": [doc.content]}
 
             if doc.meta:
@@ -268,11 +274,11 @@ class ChromaDocumentStore:
 
                 if discarded_keys:
                     logger.warning(
-                        "Document %s contains `meta` values of unsupported types for the keys: %s. "
-                        "These items will be discarded. Supported types are: %s.",
-                        doc.id,
-                        ", ".join(discarded_keys),
-                        ", ".join([t.__name__ for t in SUPPORTED_TYPES_FOR_METADATA_VALUES]),
+                        "Document {doc_id} contains `meta` values of unsupported types for the keys: {keys}. "
+                        "These items will be discarded. Supported types are: {types}.",
+                        doc_id=doc.id,
+                        keys=", ".join(discarded_keys),
+                        types=", ".join([t.__name__ for t in SUPPORTED_TYPES_FOR_METADATA_VALUES]),
                     )
 
                 if valid_meta:
@@ -283,10 +289,10 @@ class ChromaDocumentStore:
 
             if hasattr(doc, "sparse_embedding") and doc.sparse_embedding is not None:
                 logger.warning(
-                    "Document %s has the `sparse_embedding` field set,"
-                    "but storing sparse embeddings in Chroma is not currently supported."
+                    "Document {doc_id} has the `sparse_embedding` field set, "
+                    "but storing sparse embeddings in Chroma is not currently supported. "
                     "The `sparse_embedding` field will be ignored.",
-                    doc.id,
+                    doc_id=doc.id,
                 )
 
             self._collection.add(**data)
@@ -416,8 +422,11 @@ class ChromaDocumentStore:
                 document_dict["meta"] = result_metadata[i]
 
             result_embeddings = result.get("embeddings")
-            if result_embeddings:
-                document_dict["embedding"] = list(result_embeddings[i])
+            if result_embeddings is not None:
+                if isinstance(result_embeddings[i], ndarray):
+                    document_dict["embedding"] = result_embeddings[i].tolist()
+                else:
+                    document_dict["embedding"] = result_embeddings[i]
 
             retval.append(Document.from_dict(document_dict))
 

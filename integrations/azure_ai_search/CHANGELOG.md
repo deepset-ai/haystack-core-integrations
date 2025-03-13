@@ -1,5 +1,43 @@
 # Changelog
 
+## [integrations/azure_ai_search-v1.0.0] - 2025-03-11
+
+### 🧪 Testing
+
+- Azure AI Search - improvements to the test suite (#1425)
+- Skip tests that require credentials on PRs from forks for some integrations (#1485)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+- Use Haystack logging across integrations (#1484)
+- Azure AI - pin haystack and remove dataframe checks (#1500)
+
+## [integrations/azure_ai_search-v0.1.3] - 2025-02-17
+
+### 🧹 Chores
+
+- Azure AI search - clarify that dataframe is not supported (#1407)
+
+## [integrations/azure_ai_search-v0.1.2] - 2025-02-03
+
+### 🐛 Bug Fixes
+
+- Logger for index deletion failures in Azure AI (#1240)
+
+### ⚙️ CI
+
+- Delete all azure_ai_search indexes (#1247)
+
+### 🧹 Chores
+
+- Fix linting/isort (#1215)
+- Inherit from `FilterDocumentsTestWithDataframe` in Document Stores (#1290)
+
+### 🌀 Miscellaneous
+
+- Fix: remove setting `query_type="simple"` in retrieval request (#1346)
+
 ## [integrations/azure_ai_search-v0.1.1] - 2024-11-22
 
 ### 🐛 Bug Fixes

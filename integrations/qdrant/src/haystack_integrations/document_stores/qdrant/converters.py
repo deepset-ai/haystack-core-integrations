@@ -1,7 +1,7 @@
-import logging
 import uuid
 from typing import List, Union
 
+from haystack import logging
 from haystack.dataclasses import Document
 from qdrant_client.http import models as rest
 
@@ -22,6 +22,7 @@ def convert_haystack_documents_to_qdrant_points(
     points = []
     for document in documents:
         payload = document.to_dict(flatten=False)
+
         if use_sparse_embeddings:
             vector = {}
 

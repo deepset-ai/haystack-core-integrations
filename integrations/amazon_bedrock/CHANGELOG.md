@@ -1,5 +1,58 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.2.1] - 2025-03-13
+
+### 🐛 Bug Fixes
+
+- Update serialization/deserialization tests to add new parameter `connection_type_validation` (#1464)
+
+### 🚜 Refactor
+
+- Update AWS Bedrock with improved docstrings and warning message (#1532)
+
+### 📚 Documentation
+
+- Update changelog for integrations/amazon_bedrock (#1449)
+
+### 🧹 Chores
+
+- Use Haystack logging across integrations (#1484)
+
+## [integrations/amazon_bedrock-v3.2.0] - 2025-02-27
+
+### 🚀 Features
+
+- Adding async to `AmazonChatGenerator` (#1445)
+
+### 📚 Documentation
+
+- Update changelog for integrations/amazon_bedrock (#1443)
+
+## [integrations/amazon_bedrock-v3.1.1] - 2025-02-26
+
+### 🐛 Bug Fixes
+
+- Avoid thinking end tag on first content block (#1442)
+
+### 📚 Documentation
+
+- Update changelog for integrations/amazon_bedrock (#1441)
+
+## [integrations/amazon_bedrock-v3.1.0] - 2025-02-26
+
+### 🚀 Features
+
+- Support thinking parameter for Claude 3.7 in AmazonBedrockGenerator (#1439)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+
+### 🌀 Miscellaneous
+
+- Docs: update changelog for integrations/amazon_bedrock (#1336)
+- Chore: remove `jsonschema` dependency from `default` environment (#1368)
+
 ## [integrations/amazon_bedrock-v3.0.1] - 2025-01-30
 
 ### 🐛 Bug Fixes

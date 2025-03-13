@@ -7,7 +7,7 @@ name = "amazon-bedrock-haystack"
 dynamic = ["version"]
 description = 'An integration of Amazon Bedrock as an AmazonBedrockGenerator component.'
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
@@ -15,15 +15,15 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "boto3>=1.28.57"]
+dependencies = ["haystack-ai", "boto3>=1.28.57", "aioboto3>=14.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/amazon_bedrock#readme"
@@ -45,11 +45,12 @@ git_describe_command = 'git describe --tags --match="integrations/amazon_bedrock
 installer = "uv"
 dependencies = [
   "coverage[toml]>=6.5",
-  "pytest",
-  "pytest-rerunfailures",
   "haystack-pydoc-tools",
-  "jsonschema",
+  "pytest",
+  "pytest-asyncio",
+  "pytest-rerunfailures",
 ]
+
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
@@ -58,20 +59,19 @@ cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
 cov-retry = ["test-cov-retry", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
+
 [[tool.hatch.envs.all.matrix]]
-python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
+python = ["3.9", "3.13"]
 
 [tool.hatch.envs.lint]
 installer = "uv"
 detached = true
 dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
+
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-
 style = ["ruff check {args:.}", "black --check --diff {args:.}"]
-
 fmt = ["black {args:.}", "ruff check --fix {args:.}", "style"]
-
 all = ["style", "typing"]
 
 [tool.black]

@@ -1,11 +1,10 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import logging
 import re
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -22,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class MongoDBAtlasDocumentStore:
     """
-    MongoDBAtlasDocumentStore is a DocumentStore implementation that uses
+    A MongoDBAtlasDocumentStore implementation that uses the
     [MongoDB Atlas](https://www.mongodb.com/atlas/database) service that is easy to deploy, operate, and scale.
 
     To connect to MongoDB Atlas, you need to provide a connection string in the format:
@@ -200,10 +199,10 @@ class MongoDBAtlasDocumentStore:
                 sparse_embedding = doc_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
                     logger.warning(
-                        "Document %s has the `sparse_embedding` field set,"
+                        "Document {id} has the `sparse_embedding` field set,"
                         "but storing sparse embeddings in MongoDB Atlas is not currently supported."
                         "The `sparse_embedding` field will be ignored.",
-                        doc.id,
+                        id=doc.id,
                     )
             mongo_documents.append(doc_dict)
         operations: List[Union[UpdateOne, InsertOne, ReplaceOne]]
@@ -273,7 +272,6 @@ class MongoDBAtlasDocumentStore:
                 "$project": {
                     "_id": 0,
                     "content": 1,
-                    "dataframe": 1,
                     "blob": 1,
                     "meta": 1,
                     "embedding": 1,
@@ -376,7 +374,6 @@ class MongoDBAtlasDocumentStore:
                 "$project": {
                     "_id": 0,
                     "content": 1,
-                    "dataframe": 1,
                     "blob": 1,
                     "meta": 1,
                     "embedding": 1,

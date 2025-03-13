@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/elasticsearch/**"
+      - "!integrations/elasticsearch/*.md"
       - ".github/workflows/elasticsearch.yml"
 
 defaults:
@@ -30,7 +31,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.9", "3.10", "3.11"]
 
     steps:
       - uses: actions/checkout@v4

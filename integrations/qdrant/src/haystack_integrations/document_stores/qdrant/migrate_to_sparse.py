@@ -1,13 +1,14 @@
-import logging
+import logging as python_logging
 import time
 
+from haystack import logging
 from qdrant_client.http import models
 
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 logger = logging.getLogger(__name__)
-logger.addHandler(logging.StreamHandler())
-logger.setLevel(logging.INFO)
+logger.addHandler(python_logging.StreamHandler())
+logger.setLevel(python_logging.INFO)
 
 
 def migrate_to_sparse_embeddings_support(old_document_store: QdrantDocumentStore, new_index: str):

@@ -1,9 +1,8 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import logging
+import logging as python_logging
 import os
-from dataclasses import asdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -25,7 +24,7 @@ from azure.search.documents.indexes.models import (
     VectorSearchProfile,
 )
 from azure.search.documents.models import VectorizedQuery
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -56,8 +55,8 @@ DEFAULT_VECTOR_SEARCH = VectorSearch(
 )
 
 logger = logging.getLogger(__name__)
-logging.getLogger("azure").setLevel(logging.ERROR)
-logging.getLogger("azure.identity").setLevel(logging.DEBUG)
+python_logging.getLogger("azure").setLevel(python_logging.ERROR)
+python_logging.getLogger("azure.identity").setLevel(python_logging.DEBUG)
 
 
 class AzureAISearchDocumentStore:
@@ -136,8 +135,8 @@ class AzureAISearchDocumentStore:
             if not self._index_exists(self._index_name):
                 # Create a new index if it does not exist
                 logger.debug(
-                    "The index '%s' does not exist. A new index will be created.",
-                    self._index_name,
+                    "The index '{idx_name}' does not exist. A new index will be created.",
+                    idx_name=self._index_name,
                 )
                 self._create_index(self._index_name)
         except (HttpResponseError, ClientAuthenticationError) as error:
@@ -246,15 +245,6 @@ class AzureAISearchDocumentStore:
         :return: the number of documents added to index.
         """
 
-        def _convert_input_document(documents: Document):
-            document_dict = asdict(documents)
-            if not isinstance(document_dict["id"], str):
-                msg = f"Document id {document_dict['id']} is not a string, "
-                raise TypeError(msg)
-            index_document = self._convert_haystack_documents_to_azure(document_dict)
-
-            return index_document
-
         if len(documents) > 0:
             if not isinstance(documents[0], Document):
                 msg = "param 'documents' must contain a list of objects of type Document"
@@ -266,7 +256,7 @@ class AzureAISearchDocumentStore:
                 f"but got {policy}. Overwriting duplicates is enabled by default."
             )
         client = self.client
-        documents_to_write = [(_convert_input_document(doc)) for doc in documents]
+        documents_to_write = [self._convert_haystack_document_to_azure(doc) for doc in documents]
 
         if documents_to_write != []:
             client.upload_documents(documents_to_write)
@@ -370,11 +360,13 @@ class AzureAISearchDocumentStore:
                 logger.warning(f"Document with ID {doc_id} not found.")
         return azure_documents
 
-    def _convert_haystack_documents_to_azure(self, document: Dict[str, Any]) -> Dict[str, Any]:
-        """Map the document keys to fields of search index"""
+    def _convert_haystack_document_to_azure(self, document: Document) -> Dict[str, Any]:
+        """Convert a Haystack Document to an Azure Search document"""
+
+        doc_dict = document.to_dict(flatten=False)
 
         # Because Azure Search does not allow dynamic fields, we only include fields that are part of the schema
-        index_document = {k: v for k, v in {**document, **document.get("meta", {})}.items() if k in self._index_fields}
+        index_document = {k: v for k, v in {**doc_dict, **doc_dict.get("meta", {})}.items() if k in self._index_fields}
         if index_document["embedding"] is None:
             index_document["embedding"] = self._dummy_vector
 

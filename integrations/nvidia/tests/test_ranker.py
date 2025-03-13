@@ -11,15 +11,16 @@ from haystack import Document
 from haystack.utils import Secret
 
 from haystack_integrations.components.rankers.nvidia import NvidiaRanker
-from haystack_integrations.components.rankers.nvidia.ranker import _DEFAULT_MODEL
 from haystack_integrations.components.rankers.nvidia.truncate import RankerTruncateMode
+
+_DEFAULT_MODEL = "nvidia/nv-rerankqa-mistral-4b-v3"
 
 
 class TestNvidiaRanker:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         client = NvidiaRanker()
-        assert client.model == _DEFAULT_MODEL
+        assert client.model is None  # as default model logic is moved to backend
         assert client.api_key == Secret.from_env_var("NVIDIA_API_KEY")
 
     def test_init_with_parameters(self):
@@ -247,29 +248,24 @@ class TestNvidiaRanker:
             client.run("query", [Document(content="doc")], top_k="1")
         assert "parameter to be an integer" in str(e.value)
 
-    def test_model_unknown(self) -> None:
-        with pytest.raises(ValueError) as e:
-            NvidiaRanker(model="unknown-model")
-        assert "unknown" in str(e.value)
-
     def test_warm_up_once(self, monkeypatch) -> None:
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
 
         client = NvidiaRanker()
         client.warm_up()
-        backend = client._backend
+        backend = client.backend
         client.warm_up()
-        assert backend == client._backend
+        assert backend == client.backend
 
     def test_to_dict(self) -> None:
         client = NvidiaRanker()
         assert client.to_dict() == {
             "type": "haystack_integrations.components.rankers.nvidia.ranker.NvidiaRanker",
             "init_parameters": {
-                "model": "nvidia/nv-rerankqa-mistral-4b-v3",
+                "model": None,
                 "top_k": 5,
                 "truncate": None,
-                "api_url": None,
+                "api_url": "https://integrate.api.nvidia.com/v1",
                 "api_key": {"type": "env_var", "env_vars": ["NVIDIA_API_KEY"], "strict": True},
                 "query_prefix": "",
                 "document_prefix": "",
@@ -315,10 +311,10 @@ class TestNvidiaRanker:
                 "init_parameters": {},
             }
         )
-        assert client.model == "nvidia/nv-rerankqa-mistral-4b-v3"
+        assert client.model is None
         assert client.top_k == 5
         assert client.truncate is None
-        assert client.api_url is None
+        assert client.api_url == "https://integrate.api.nvidia.com/v1"
         assert client.api_key == Secret.from_env_var("NVIDIA_API_KEY")
         assert client.query_prefix == ""
         assert client.document_prefix == ""
@@ -330,14 +326,14 @@ class TestNvidiaRanker:
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         client = NvidiaRanker(timeout=10.0)
         client.warm_up()
-        assert client._backend.timeout == 10.0
+        assert client.backend.timeout == 10.0
 
     def test_setting_timeout_env(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         monkeypatch.setenv("NVIDIA_TIMEOUT", "45")
         client = NvidiaRanker()
         client.warm_up()
-        assert client._backend.timeout == 45.0
+        assert client.backend.timeout == 45.0
 
     def test_prepare_texts_to_embed_w_metadata(self):
         documents = [

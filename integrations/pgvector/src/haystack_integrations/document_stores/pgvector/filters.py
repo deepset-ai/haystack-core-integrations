@@ -6,7 +6,6 @@ from itertools import chain
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from haystack.errors import FilterError
-from pandas import DataFrame
 from psycopg.sql import SQL
 from psycopg.types.json import Jsonb
 
@@ -93,10 +92,6 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Tuple[str, List[An
         raise FilterError(msg)
 
     value: Any = condition["value"]
-    if isinstance(value, DataFrame):
-        # DataFrames are stored as JSONB and we query them as such
-        value = Jsonb(value.to_json())
-        field = f"({field})::jsonb"
 
     if field.startswith("meta."):
         field = _treat_meta_field(field, value, operator)

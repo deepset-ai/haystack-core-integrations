@@ -1,10 +1,9 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import logging
 from typing import Any, Dict, List, Literal, Optional
 
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -24,11 +23,10 @@ from .filters import _convert_filters_to_where_clause_and_params
 logger = logging.getLogger(__name__)
 
 CREATE_TABLE_STATEMENT = """
-CREATE TABLE IF NOT EXISTS {schema_name}.{table_name} (
+CREATE TABLE {schema_name}.{table_name} (
 id VARCHAR(128) PRIMARY KEY,
 embedding VECTOR({embedding_dimension}),
 content TEXT,
-dataframe JSONB,
 blob_data BYTEA,
 blob_meta JSONB,
 blob_mime_type VARCHAR(255),
@@ -37,15 +35,14 @@ meta JSONB)
 
 INSERT_STATEMENT = """
 INSERT INTO {schema_name}.{table_name}
-(id, embedding, content, dataframe, blob_data, blob_meta, blob_mime_type, meta)
-VALUES (%(id)s, %(embedding)s, %(content)s, %(dataframe)s, %(blob_data)s, %(blob_meta)s, %(blob_mime_type)s, %(meta)s)
+(id, embedding, content, blob_data, blob_meta, blob_mime_type, meta)
+VALUES (%(id)s, %(embedding)s, %(content)s, %(blob_data)s, %(blob_meta)s, %(blob_mime_type)s, %(meta)s)
 """
 
 UPDATE_STATEMENT = """
 ON CONFLICT (id) DO UPDATE SET
 embedding = EXCLUDED.embedding,
 content = EXCLUDED.content,
-dataframe = EXCLUDED.dataframe,
 blob_data = EXCLUDED.blob_data,
 blob_meta = EXCLUDED.blob_meta,
 blob_mime_type = EXCLUDED.blob_mime_type,
@@ -195,7 +192,7 @@ class PgvectorDocumentStore:
             try:
                 self._connection.close()
             except Error as e:
-                logger.debug("Failed to close connection: %s", str(e))
+                logger.debug("Failed to close connection: {e}", e=str(e))
 
         conn_str = self.connection_string.resolve_value() or ""
         connection = connect(conn_str)
@@ -297,7 +294,7 @@ class PgvectorDocumentStore:
         cursor = cursor or self.cursor
 
         sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
-        logger.debug("SQL query: %s\nParameters: %s", sql_query_str, params)
+        logger.debug("SQL query: {query}\nParameters: {parameters}", query=sql_query_str, parameters=params)
 
         try:
             result = cursor.execute(sql_query, params)
@@ -313,13 +310,22 @@ class PgvectorDocumentStore:
         Creates the table to store Haystack documents if it doesn't exist yet.
         """
 
-        create_sql = SQL(CREATE_TABLE_STATEMENT).format(
-            schema_name=Identifier(self.schema_name),
-            table_name=Identifier(self.table_name),
-            embedding_dimension=SQLLiteral(self.embedding_dimension),
+        table_exists = bool(
+            self._execute_sql(
+                "SELECT 1 FROM pg_tables WHERE schemaname = %s AND tablename = %s",
+                (self.schema_name, self.table_name),
+                "Could not check if table exists",
+            ).fetchone()
         )
 
-        self._execute_sql(create_sql, error_msg="Could not create table in PgvectorDocumentStore")
+        if not table_exists:
+            create_sql = SQL(CREATE_TABLE_STATEMENT).format(
+                schema_name=Identifier(self.schema_name),
+                table_name=Identifier(self.table_name),
+                embedding_dimension=SQLLiteral(self.embedding_dimension),
+            )
+
+            self._execute_sql(create_sql, error_msg="Could not create table in PgvectorDocumentStore")
 
     def delete_table(self):
         """
@@ -514,7 +520,7 @@ class PgvectorDocumentStore:
         sql_insert += SQL(" RETURNING id")
 
         sql_query_str = sql_insert.as_string(self.cursor) if not isinstance(sql_insert, str) else sql_insert
-        logger.debug("SQL query: %s\nParameters: %s", sql_query_str, db_documents)
+        logger.debug("SQL query: {query}\nParameters: {parameters}", query=sql_query_str, parameters=db_documents)
 
         try:
             self.cursor.executemany(sql_insert, db_documents, returning=True)
@@ -555,18 +561,16 @@ class PgvectorDocumentStore:
             db_document["blob_data"] = blob.data if blob else None
             db_document["blob_meta"] = Jsonb(blob.meta) if blob and blob.meta else None
             db_document["blob_mime_type"] = blob.mime_type if blob and blob.mime_type else None
-
-            db_document["dataframe"] = Jsonb(db_document["dataframe"]) if db_document["dataframe"] else None
             db_document["meta"] = Jsonb(db_document["meta"])
 
             if "sparse_embedding" in db_document:
                 sparse_embedding = db_document.pop("sparse_embedding", None)
                 if sparse_embedding:
                     logger.warning(
-                        "Document %s has the `sparse_embedding` field set,"
+                        "Document {doc_id} has the `sparse_embedding` field set,"
                         "but storing sparse embeddings in Pgvector is not currently supported."
                         "The `sparse_embedding` field will be ignored.",
-                        db_document["id"],
+                        doc_id=db_document["id"],
                     )
 
             db_documents.append(db_document)
@@ -586,8 +590,7 @@ class PgvectorDocumentStore:
             blob_meta = haystack_dict.pop("blob_meta")
             blob_mime_type = haystack_dict.pop("blob_mime_type")
 
-            # postgresql returns the embedding as a string
-            # so we need to convert it to a list of floats
+            # convert the embedding to a list of floats
             if document.get("embedding") is not None:
                 haystack_dict["embedding"] = document["embedding"].tolist()
 

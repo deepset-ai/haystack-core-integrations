@@ -5,7 +5,6 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 from haystack.errors import FilterError
-from pandas import DataFrame
 
 
 def normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
@@ -57,7 +56,7 @@ def _equal(field: str, value: Any) -> Dict[str, Any]:
                 }
             }
         }
-    if field in ["text", "dataframe"]:
+    if field == "text":
         # We want to fully match the text field.
         return {"match": {field: {"query": value, "minimum_should_match": "100%"}}}
     return {"term": {field: value}}
@@ -69,7 +68,7 @@ def _not_equal(field: str, value: Any) -> Dict[str, Any]:
 
     if isinstance(value, list):
         return {"bool": {"must_not": {"terms": {field: value}}}}
-    if field in ["text", "dataframe"]:
+    if field == "text":
         # We want to fully match the text field.
         return {"bool": {"must_not": {"match": {field: {"query": value, "minimum_should_match": "100%"}}}}}
 
@@ -92,7 +91,7 @@ def _greater_than(field: str, value: Any) -> Dict[str, Any]:
                 "Strings are only comparable if they are ISO formatted dates."
             )
             raise FilterError(msg) from exc
-    if type(value) in [list, DataFrame]:
+    if isinstance(value, list):
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
     return {"range": {field: {"gt": value}}}
@@ -114,7 +113,7 @@ def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
                 "Strings are only comparable if they are ISO formatted dates."
             )
             raise FilterError(msg) from exc
-    if type(value) in [list, DataFrame]:
+    if isinstance(value, list):
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
     return {"range": {field: {"gte": value}}}
@@ -136,7 +135,7 @@ def _less_than(field: str, value: Any) -> Dict[str, Any]:
                 "Strings are only comparable if they are ISO formatted dates."
             )
             raise FilterError(msg) from exc
-    if type(value) in [list, DataFrame]:
+    if isinstance(value, list):
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
     return {"range": {field: {"lt": value}}}
@@ -158,7 +157,7 @@ def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
                 "Strings are only comparable if they are ISO formatted dates."
             )
             raise FilterError(msg) from exc
-    if type(value) in [list, DataFrame]:
+    if isinstance(value, list):
         msg = f"Filter value can't be of type {type(value)} using operators '>', '>=', '<', '<='"
         raise FilterError(msg)
     return {"range": {field: {"lte": value}}}
@@ -212,8 +211,6 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         raise FilterError(msg)
     operator: str = condition["operator"]
     value: Any = condition["value"]
-    if isinstance(value, DataFrame):
-        value = value.to_json()
 
     return COMPARISON_OPERATORS[operator](field, value)
 

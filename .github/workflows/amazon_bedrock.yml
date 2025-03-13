@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/amazon_bedrock/**"
+      - "!integrations/amazon_bedrock/*.md"
       - ".github/workflows/amazon_bedrock.yml"
 
 defaults:
@@ -68,7 +69,7 @@ jobs:
       # Do not authenticate on pull requests from forks
       - name: AWS authentication
         if: github.event.pull_request.head.repo.full_name == github.repository
-        uses: aws-actions/configure-aws-credentials@4fc4975a852c8cd99761e2de1f4ba73402e44dd9
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
