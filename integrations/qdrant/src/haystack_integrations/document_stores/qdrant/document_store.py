@@ -503,7 +503,7 @@ class QdrantDocumentStore:
         :param document_ids: the document ids to delete
         """
 
-        self._initialize_async_client()
+        await self._initialize_async_client()
         assert self._async_client is not None
 
         ids = [convert_id(_id) for _id in document_ids]
@@ -671,7 +671,7 @@ class QdrantDocumentStore:
         """
         documents: List[Document] = []
 
-        self._initialize_async_client()
+        await self._initialize_async_client()
         assert self._async_client is not None
 
         ids = [convert_id(_id) for _id in ids]
@@ -1295,63 +1295,7 @@ class QdrantDocumentStore:
 
         collection_info = self._client.get_collection(collection_name)
 
-        has_named_vectors = isinstance(collection_info.config.params.vectors, dict)
-
-        if has_named_vectors and DENSE_VECTORS_NAME not in collection_info.config.params.vectors:
-            msg = (
-                f"Collection '{collection_name}' already exists in Qdrant, "
-                f"but it has been originally created outside of Haystack and is not supported. "
-                f"If possible, you should create a new Document Store with Haystack. "
-                f"In case you want to migrate the existing collection, see an example script in "
-                f"https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/qdrant/src/"
-                f"haystack_integrations/document_stores/qdrant/migrate_to_sparse.py."
-            )
-            raise QdrantStoreError(msg)
-
-        if self.use_sparse_embeddings and not has_named_vectors:
-            msg = (
-                f"Collection '{collection_name}' already exists in Qdrant, "
-                f"but it has been originally created without sparse embedding vectors. "
-                f"If you want to use that collection, you can set `use_sparse_embeddings=False`. "
-                f"To use sparse embeddings, you need to recreate the collection or migrate the existing one. "
-                f"See `migrate_to_sparse_embeddings_support` function in "
-                f"`haystack_integrations.document_stores.qdrant`."
-            )
-            raise QdrantStoreError(msg)
-
-        if not self.use_sparse_embeddings and has_named_vectors:
-
-            msg = (
-                f"Collection '{collection_name}' already exists in Qdrant, "
-                f"but it has been originally created with sparse embedding vectors."
-                f"If you want to use that collection, please set `use_sparse_embeddings=True`."
-            )
-            raise QdrantStoreError(msg)
-
-        if self.use_sparse_embeddings:
-            current_distance = collection_info.config.params.vectors[DENSE_VECTORS_NAME].distance
-            current_vector_size = collection_info.config.params.vectors[DENSE_VECTORS_NAME].size
-        else:
-            current_distance = collection_info.config.params.vectors.distance
-            current_vector_size = collection_info.config.params.vectors.size
-
-        if current_distance != distance:
-            msg = (
-                f"Collection '{collection_name}' already exists in Qdrant, "
-                f"but it is configured with a similarity '{current_distance.name}'. "
-                f"If you want to use that collection, but with a different "
-                f"similarity, please set `recreate_collection=True` argument."
-            )
-            raise ValueError(msg)
-
-        if current_vector_size != embedding_dim:
-            msg = (
-                f"Collection '{collection_name}' already exists in Qdrant, "
-                f"but it is configured with a vector size '{current_vector_size}'. "
-                f"If you want to use that collection, but with a different "
-                f"vector size, please set `recreate_collection=True` argument."
-            )
-            raise ValueError(msg)
+        self._validate_collection_compatibility(collection_name, collection_info, distance, embedding_dim)
 
     async def _set_up_collection_async(
         self,
@@ -1390,7 +1334,7 @@ class QdrantDocumentStore:
 
         """
 
-        self._initialize_async_client()
+        await self._initialize_async_client()
         assert self._async_client is not None
 
         distance = self.get_distance(similarity)
@@ -1407,63 +1351,7 @@ class QdrantDocumentStore:
 
         collection_info = await self._async_client.get_collection(collection_name)
 
-        has_named_vectors = isinstance(collection_info.config.params.vectors, dict)
-
-        if has_named_vectors and DENSE_VECTORS_NAME not in collection_info.config.params.vectors:
-            msg = (
-                f"Collection '{collection_name}' already exists in Qdrant, "
-                f"but it has been originally created outside of Haystack and is not supported. "
-                f"If possible, you should create a new Document Store with Haystack. "
-                f"In case you want to migrate the existing collection, see an example script in "
-                f"https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/qdrant/src/"
-                f"haystack_integrations/document_stores/qdrant/migrate_to_sparse.py."
-            )
-            raise QdrantStoreError(msg)
-
-        if self.use_sparse_embeddings and not has_named_vectors:
-            msg = (
-                f"Collection '{collection_name}' already exists in Qdrant, "
-                f"but it has been originally created without sparse embedding vectors. "
-                f"If you want to use that collection, you can set `use_sparse_embeddings=False`. "
-                f"To use sparse embeddings, you need to recreate the collection or migrate the existing one. "
-                f"See `migrate_to_sparse_embeddings_support` function in "
-                f"`haystack_integrations.document_stores.qdrant`."
-            )
-            raise QdrantStoreError(msg)
-
-        if not self.use_sparse_embeddings and has_named_vectors:
-
-            msg = (
-                f"Collection '{collection_name}' already exists in Qdrant, "
-                f"but it has been originally created with sparse embedding vectors."
-                f"If you want to use that collection, please set `use_sparse_embeddings=True`."
-            )
-            raise QdrantStoreError(msg)
-
-        if self.use_sparse_embeddings:
-            current_distance = collection_info.config.params.vectors[DENSE_VECTORS_NAME].distance
-            current_vector_size = collection_info.config.params.vectors[DENSE_VECTORS_NAME].size
-        else:
-            current_distance = collection_info.config.params.vectors.distance
-            current_vector_size = collection_info.config.params.vectors.size
-
-        if current_distance != distance:
-            msg = (
-                f"Collection '{collection_name}' already exists in Qdrant, "
-                f"but it is configured with a similarity '{current_distance.name}'. "
-                f"If you want to use that collection, but with a different "
-                f"similarity, please set `recreate_collection=True` argument."
-            )
-            raise ValueError(msg)
-
-        if current_vector_size != embedding_dim:
-            msg = (
-                f"Collection '{collection_name}' already exists in Qdrant, "
-                f"but it is configured with a vector size '{current_vector_size}'. "
-                f"If you want to use that collection, but with a different "
-                f"vector size, please set `recreate_collection=True` argument."
-            )
-            raise ValueError(msg)
+        self._validate_collection_compatibility(collection_name, collection_info, distance, embedding_dim)
 
     def recreate_collection(
         self,
@@ -1494,6 +1382,9 @@ class QdrantDocumentStore:
             embedding_dim, distance, on_disk, use_sparse_embeddings, sparse_idf
         )
         collection_params = self._prepare_collection_params()
+
+        self._initialize_client()
+        assert self._client is not None
 
         if self._client.collection_exists(collection_name):
             self._client.delete_collection(collection_name)
@@ -1534,6 +1425,9 @@ class QdrantDocumentStore:
             embedding_dim, distance, on_disk, use_sparse_embeddings, sparse_idf
         )
         collection_params = self._prepare_collection_params()
+
+        await self._initialize_async_client()
+        assert self._async_client is not None
 
         if await self._async_client.collection_exists(collection_name):
             await self._async_client.delete_collection(collection_name)
@@ -1740,3 +1634,73 @@ class QdrantDocumentStore:
             for group in groups
             for point in group.hits
         ]
+
+    def _validate_collection_compatibility(
+        self,
+        collection_name: str,
+        collection_info,
+        distance,
+        embedding_dim: int,
+    ):
+        """
+        Validates that an existing collection is compatible with the current configuration.
+        """
+        has_named_vectors = isinstance(collection_info.config.params.vectors, dict)
+
+        if has_named_vectors and DENSE_VECTORS_NAME not in collection_info.config.params.vectors:
+            msg = (
+                f"Collection '{collection_name}' already exists in Qdrant, "
+                f"but it has been originally created outside of Haystack and is not supported. "
+                f"If possible, you should create a new Document Store with Haystack. "
+                f"In case you want to migrate the existing collection, see an example script in "
+                f"https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/qdrant/src/"
+                f"haystack_integrations/document_stores/qdrant/migrate_to_sparse.py."
+            )
+            raise QdrantStoreError(msg)
+
+        if self.use_sparse_embeddings and not has_named_vectors:
+            msg = (
+                f"Collection '{collection_name}' already exists in Qdrant, "
+                f"but it has been originally created without sparse embedding vectors. "
+                f"If you want to use that collection, you can set `use_sparse_embeddings=False`. "
+                f"To use sparse embeddings, you need to recreate the collection or migrate the existing one. "
+                f"See `migrate_to_sparse_embeddings_support` function in "
+                f"`haystack_integrations.document_stores.qdrant`."
+            )
+            raise QdrantStoreError(msg)
+
+        if not self.use_sparse_embeddings and has_named_vectors:
+            msg = (
+                f"Collection '{collection_name}' already exists in Qdrant, "
+                f"but it has been originally created with sparse embedding vectors."
+                f"If you want to use that collection, please set `use_sparse_embeddings=True`."
+            )
+            raise QdrantStoreError(msg)
+
+        # Get current distance and vector size based on collection configuration
+        if self.use_sparse_embeddings:
+            current_distance = collection_info.config.params.vectors[DENSE_VECTORS_NAME].distance
+            current_vector_size = collection_info.config.params.vectors[DENSE_VECTORS_NAME].size
+        else:
+            current_distance = collection_info.config.params.vectors.distance
+            current_vector_size = collection_info.config.params.vectors.size
+
+        # Validate distance metric
+        if current_distance != distance:
+            msg = (
+                f"Collection '{collection_name}' already exists in Qdrant, "
+                f"but it is configured with a similarity '{current_distance.name}'. "
+                f"If you want to use that collection, but with a different "
+                f"similarity, please set `recreate_collection=True` argument."
+            )
+            raise ValueError(msg)
+
+        # Validate embedding dimension
+        if current_vector_size != embedding_dim:
+            msg = (
+                f"Collection '{collection_name}' already exists in Qdrant, "
+                f"but it is configured with a vector size '{current_vector_size}'. "
+                f"If you want to use that collection, but with a different "
+                f"vector size, please set `recreate_collection=True` argument."
+            )
+            raise ValueError(msg)
