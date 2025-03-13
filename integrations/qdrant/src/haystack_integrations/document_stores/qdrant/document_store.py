@@ -258,27 +258,12 @@ class QdrantDocumentStore:
         self.write_batch_size = write_batch_size
         self.scroll_size = scroll_size
 
-    async def _initialize_async_client(self):
-        """
-        Returns the asynchronous Qdrant client, initializing it if necessary.
-        """
-        if self._async_client is None:
-            self._async_client = qdrant_client.AsyncQdrantClient(
-                location=self.location,
-                url=self.url,
-                port=self.port,
-                grpc_port=self.grpc_port,
-                prefer_grpc=self.prefer_grpc,
-                https=self.https,
-                api_key=self.api_key.resolve_value() if self.api_key else None,
-                prefix=self.prefix,
-                timeout=self.timeout,
-                host=self.host,
-                path=self.path,
-                metadata=self.metadata,
-                force_disable_check_same_thread=self.force_disable_check_same_thread,
-            )
-            await self._set_up_collection_async(
+    def _initialize_client(self):
+        if self._client is None:
+            client_params = self._prepare_client_params()
+            self._client = qdrant_client.QdrantClient(**client_params)
+            # Make sure the collection is properly set up
+            self._set_up_collection(
                 self.index,
                 self.embedding_dim,
                 self.recreate_index,
@@ -289,26 +274,16 @@ class QdrantDocumentStore:
                 self.payload_fields_to_index,
             )
 
-    def _initialize_client(self):
-        if self._client is None:
-            self._client = qdrant_client.QdrantClient(
-                location=self.location,
-                url=self.url,
-                port=self.port,
-                grpc_port=self.grpc_port,
-                prefer_grpc=self.prefer_grpc,
-                https=self.https,
-                api_key=self.api_key.resolve_value() if self.api_key else None,
-                prefix=self.prefix,
-                timeout=self.timeout,
-                host=self.host,
-                path=self.path,
-                metadata=self.metadata,
-                force_disable_check_same_thread=self.force_disable_check_same_thread,
+    async def _initialize_async_client(self):
+        """
+        Returns the asynchronous Qdrant client, initializing it if necessary.
+        """
+        if self._async_client is None:
+            client_params = self._prepare_client_params()
+            self._async_client = qdrant_client.AsyncQdrantClient(
+                **client_params,
             )
-
-            # Make sure the collection is properly set up
-            self._set_up_collection(
+            await self._set_up_collection_async(
                 self.index,
                 self.embedding_dim,
                 self.recreate_index,
@@ -367,15 +342,9 @@ class QdrantDocumentStore:
         :returns: A list of documents that match the given filters.
         """
 
-        if filters and not isinstance(filters, dict) and not isinstance(filters, rest.Filter):
-            msg = "Filter must be a dictionary or an instance of `qdrant_client.http.models.Filter`"
-            raise ValueError(msg)
-
-        if filters and not isinstance(filters, rest.Filter) and "operator" not in filters:
-            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
-            raise ValueError(msg)
+        self._validate_filters(filters)
         return list(
-            self.get_documents_generator(
+            self._get_documents_generator(
                 filters,
             )
         )
@@ -388,14 +357,8 @@ class QdrantDocumentStore:
         Asynchronously returns the documents that match the provided filters.
         """
 
-        if filters and not isinstance(filters, dict) and not isinstance(filters, rest.Filter):
-            msg = "Filter must be a dictionary or an instance of `qdrant_client.http.models.Filter`"
-            raise ValueError(msg)
-
-        if filters and not isinstance(filters, rest.Filter) and "operator" not in filters:
-            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
-            raise ValueError(msg)
-        return [doc async for doc in self.get_documents_generator_async(filters)]
+        self._validate_filters(filters)
+        return [doc async for doc in self._get_documents_generator_async(filters)]
 
     def write_documents(
         self,
@@ -585,7 +548,7 @@ class QdrantDocumentStore:
             **init_params,
         )
 
-    def get_documents_generator(
+    def _get_documents_generator(
         self,
         filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
     ) -> Generator[Document, None, None]:
@@ -622,15 +585,15 @@ class QdrantDocumentStore:
                     record, use_sparse_embeddings=self.use_sparse_embeddings
                 )
 
-    async def get_documents_generator_async(
+    async def _get_documents_generator_async(
         self,
         filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
     ) -> AsyncGenerator[Document, None]:
         """
-        Asynchronously returns a generator that yields documents from Qdrant based on the provided filters.
+        Returns an asynchronous generator that yields documents from Qdrant based on the provided filters.
 
         :param filters: Filters applied to the retrieved documents.
-        :returns: A generator that yields documents retrieved from Qdrant.
+        :returns: An asynchronous generator that yields documents retrieved from Qdrant.
         """
 
         await self._initialize_async_client()
@@ -786,15 +749,7 @@ class QdrantDocumentStore:
                 with_vectors=return_embedding,
                 score_threshold=score_threshold,
             ).groups
-            results = (
-                [
-                    convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
-                    for group in groups
-                    for point in group.hits
-                ]
-                if groups
-                else []
-            )
+            return self._process_group_results(groups)
         else:
             points = self._client.query_points(
                 collection_name=self.index,
@@ -808,113 +763,7 @@ class QdrantDocumentStore:
                 with_vectors=return_embedding,
                 score_threshold=score_threshold,
             ).points
-            results = [
-                convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
-                for point in points
-            ]
-        if scale_score:
-            for document in results:
-                score = document.score
-                score = float(1 / (1 + np.exp(-score / 100)))
-                document.score = score
-        return results
-
-    async def _query_by_sparse_async(
-        self,
-        query_sparse_embedding: SparseEmbedding,
-        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
-        top_k: int = 10,
-        scale_score: bool = False,
-        return_embedding: bool = False,
-        score_threshold: Optional[float] = None,
-        group_by: Optional[str] = None,
-        group_size: Optional[int] = None,
-    ) -> List[Document]:
-        """
-        Asynchronously queries Qdrant using a sparse embedding and returns the most relevant documents.
-
-        :param query_sparse_embedding: Sparse embedding of the query.
-        :param filters: Filters applied to the retrieved documents.
-        :param top_k: Maximum number of documents to return. If using `group_by` parameters, maximum number of
-             groups to return.
-        :param scale_score: Whether to scale the scores of the retrieved documents.
-        :param return_embedding: Whether to return the embeddings of the retrieved documents.
-        :param score_threshold: A minimal score threshold for the result.
-            Score of the returned result might be higher or smaller than the threshold
-             depending on the Distance function used.
-            E.g. for cosine similarity only higher scores will be returned.
-        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
-             value, all values will be used for grouping. One point can be in multiple groups.
-        :param group_size: Maximum amount of points to return per group. Default is 3.
-
-        :returns: List of documents that are most similar to `query_sparse_embedding`.
-
-        :raises QdrantStoreError:
-            If the Document Store was initialized with `use_sparse_embeddings=False`.
-        """
-
-        await self._initialize_async_client()
-        assert self._async_client is not None
-
-        if not self.use_sparse_embeddings:
-            message = (
-                "You are trying to query using sparse embeddings, but the Document Store "
-                "was initialized with `use_sparse_embeddings=False`. "
-            )
-            raise QdrantStoreError(message)
-
-        qdrant_filters = convert_filters_to_qdrant(filters)
-        query_indices = query_sparse_embedding.indices
-        query_values = query_sparse_embedding.values
-        if group_by:
-            response = await self._async_client.query_points_groups(
-                collection_name=self.index,
-                query=rest.SparseVector(
-                    indices=query_indices,
-                    values=query_values,
-                ),
-                using=SPARSE_VECTORS_NAME,
-                query_filter=qdrant_filters,
-                limit=top_k,
-                group_by=group_by,
-                group_size=group_size,
-                with_vectors=return_embedding,
-                score_threshold=score_threshold,
-            )
-            groups = response.groups
-            results = (
-                [
-                    convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
-                    for group in groups
-                    for point in group.hits
-                ]
-                if groups
-                else []
-            )
-        else:
-            response = await self._async_client.query_points(
-                collection_name=self.index,
-                query=rest.SparseVector(
-                    indices=query_indices,
-                    values=query_values,
-                ),
-                using=SPARSE_VECTORS_NAME,
-                query_filter=qdrant_filters,
-                limit=top_k,
-                with_vectors=return_embedding,
-                score_threshold=score_threshold,
-            )
-            points = response.points
-            results = [
-                convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
-                for point in points
-            ]
-        if scale_score:
-            for document in results:
-                score = document.score
-                score = float(1 / (1 + np.exp(-score / 100)))
-                document.score = score
-        return results
+            return self._process_query_point_results(points, scale_score=scale_score)
 
     def _query_by_embedding(
         self,
@@ -962,15 +811,8 @@ class QdrantDocumentStore:
                 with_vectors=return_embedding,
                 score_threshold=score_threshold,
             ).groups
-            results = (
-                [
-                    convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
-                    for group in groups
-                    for point in group.hits
-                ]
-                if groups
-                else []
-            )
+            return self._process_group_results(groups)
+
         else:
             points = self._client.query_points(
                 collection_name=self.index,
@@ -981,102 +823,7 @@ class QdrantDocumentStore:
                 with_vectors=return_embedding,
                 score_threshold=score_threshold,
             ).points
-            results = [
-                convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
-                for point in points
-            ]
-
-        if scale_score:
-            for document in results:
-                score = document.score
-                if self.similarity == "cosine":
-                    score = (score + 1) / 2
-                else:
-                    score = float(1 / (1 + np.exp(-score / 100)))
-                document.score = score
-        return results
-
-    async def _query_by_embedding_async(
-        self,
-        query_embedding: List[float],
-        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
-        top_k: int = 10,
-        scale_score: bool = False,
-        return_embedding: bool = False,
-        score_threshold: Optional[float] = None,
-        group_by: Optional[str] = None,
-        group_size: Optional[int] = None,
-    ) -> List[Document]:
-        """
-        Asynchronously queries Qdrant using a dense embedding and returns the most relevant documents.
-
-        :param query_embedding: Dense embedding of the query.
-        :param filters: Filters applied to the retrieved documents.
-        :param top_k: Maximum number of documents to return. If using `group_by` parameters, maximum number of
-             groups to return.
-        :param scale_score: Whether to scale the scores of the retrieved documents.
-        :param return_embedding: Whether to return the embeddings of the retrieved documents.
-        :param score_threshold: A minimal score threshold for the result.
-            Score of the returned result might be higher or smaller than the threshold
-             depending on the Distance function used.
-            E.g. for cosine similarity only higher scores will be returned.
-        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
-             value, all values will be used for grouping. One point can be in multiple groups.
-        :param group_size: Maximum amount of points to return per group. Default is 3.
-
-        :returns: List of documents that are most similar to `query_embedding`.
-        """
-        await self._initialize_async_client()
-        assert self._async_client is not None
-
-        qdrant_filters = convert_filters_to_qdrant(filters)
-        if group_by:
-            response = await self._async_client.query_points_groups(
-                collection_name=self.index,
-                query=query_embedding,
-                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
-                query_filter=qdrant_filters,
-                limit=top_k,
-                group_by=group_by,
-                group_size=group_size,
-                with_vectors=return_embedding,
-                score_threshold=score_threshold,
-            )
-            groups = response.groups
-            results = (
-                [
-                    convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
-                    for group in groups
-                    for point in group.hits
-                ]
-                if groups
-                else []
-            )
-        else:
-            response = await self._async_client.query_points(
-                collection_name=self.index,
-                query=query_embedding,
-                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
-                query_filter=qdrant_filters,
-                limit=top_k,
-                with_vectors=return_embedding,
-                score_threshold=score_threshold,
-            )
-            points = response.points
-            results = [
-                convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
-                for point in points
-            ]
-
-        if scale_score:
-            for document in results:
-                score = document.score
-                if self.similarity == "cosine":
-                    score = (score + 1) / 2
-                else:
-                    score = float(1 / (1 + np.exp(-score / 100)))
-                document.score = score
-        return results
+            return self._process_query_point_results(points, scale_score=scale_score)
 
     def _query_hybrid(
         self,
@@ -1187,19 +934,150 @@ class QdrantDocumentStore:
             raise QdrantStoreError(msg) from e
 
         if group_by:
-            results = (
-                [
-                    convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
-                    for group in groups
-                    for point in group.hits
-                ]
-                if groups
-                else []
-            )
+            return self._process_group_results(groups)
         else:
-            results = [convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=True) for point in points]
+            return self._process_query_point_results(points)
 
-        return results
+    async def _query_by_sparse_async(
+        self,
+        query_sparse_embedding: SparseEmbedding,
+        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
+        top_k: int = 10,
+        scale_score: bool = False,
+        return_embedding: bool = False,
+        score_threshold: Optional[float] = None,
+        group_by: Optional[str] = None,
+        group_size: Optional[int] = None,
+    ) -> List[Document]:
+        """
+        Asynchronously queries Qdrant using a sparse embedding and returns the most relevant documents.
+
+        :param query_sparse_embedding: Sparse embedding of the query.
+        :param filters: Filters applied to the retrieved documents.
+        :param top_k: Maximum number of documents to return. If using `group_by` parameters, maximum number of
+             groups to return.
+        :param scale_score: Whether to scale the scores of the retrieved documents.
+        :param return_embedding: Whether to return the embeddings of the retrieved documents.
+        :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the Distance function used.
+            E.g. for cosine similarity only higher scores will be returned.
+        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
+             value, all values will be used for grouping. One point can be in multiple groups.
+        :param group_size: Maximum amount of points to return per group. Default is 3.
+
+        :returns: List of documents that are most similar to `query_sparse_embedding`.
+
+        :raises QdrantStoreError:
+            If the Document Store was initialized with `use_sparse_embeddings=False`.
+        """
+
+        await self._initialize_async_client()
+        assert self._async_client is not None
+
+        if not self.use_sparse_embeddings:
+            message = (
+                "You are trying to query using sparse embeddings, but the Document Store "
+                "was initialized with `use_sparse_embeddings=False`. "
+            )
+            raise QdrantStoreError(message)
+
+        qdrant_filters = convert_filters_to_qdrant(filters)
+        query_indices = query_sparse_embedding.indices
+        query_values = query_sparse_embedding.values
+        if group_by:
+            response = await self._async_client.query_points_groups(
+                collection_name=self.index,
+                query=rest.SparseVector(
+                    indices=query_indices,
+                    values=query_values,
+                ),
+                using=SPARSE_VECTORS_NAME,
+                query_filter=qdrant_filters,
+                limit=top_k,
+                group_by=group_by,
+                group_size=group_size,
+                with_vectors=return_embedding,
+                score_threshold=score_threshold,
+            )
+            groups = response.groups
+            return self._process_group_results(groups)
+        else:
+            response = await self._async_client.query_points(
+                collection_name=self.index,
+                query=rest.SparseVector(
+                    indices=query_indices,
+                    values=query_values,
+                ),
+                using=SPARSE_VECTORS_NAME,
+                query_filter=qdrant_filters,
+                limit=top_k,
+                with_vectors=return_embedding,
+                score_threshold=score_threshold,
+            )
+            points = response.points
+            return self._process_query_point_results(points, scale_score=scale_score)
+
+    async def _query_by_embedding_async(
+        self,
+        query_embedding: List[float],
+        filters: Optional[Union[Dict[str, Any], rest.Filter]] = None,
+        top_k: int = 10,
+        scale_score: bool = False,
+        return_embedding: bool = False,
+        score_threshold: Optional[float] = None,
+        group_by: Optional[str] = None,
+        group_size: Optional[int] = None,
+    ) -> List[Document]:
+        """
+        Asynchronously queries Qdrant using a dense embedding and returns the most relevant documents.
+
+        :param query_embedding: Dense embedding of the query.
+        :param filters: Filters applied to the retrieved documents.
+        :param top_k: Maximum number of documents to return. If using `group_by` parameters, maximum number of
+             groups to return.
+        :param scale_score: Whether to scale the scores of the retrieved documents.
+        :param return_embedding: Whether to return the embeddings of the retrieved documents.
+        :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the Distance function used.
+            E.g. for cosine similarity only higher scores will be returned.
+        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
+             value, all values will be used for grouping. One point can be in multiple groups.
+        :param group_size: Maximum amount of points to return per group. Default is 3.
+
+        :returns: List of documents that are most similar to `query_embedding`.
+        """
+        await self._initialize_async_client()
+        assert self._async_client is not None
+
+        qdrant_filters = convert_filters_to_qdrant(filters)
+        if group_by:
+            response = await self._async_client.query_points_groups(
+                collection_name=self.index,
+                query=query_embedding,
+                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
+                query_filter=qdrant_filters,
+                limit=top_k,
+                group_by=group_by,
+                group_size=group_size,
+                with_vectors=return_embedding,
+                score_threshold=score_threshold,
+            )
+            groups = response.groups
+            return self._process_group_results(groups)
+        else:
+            response = await self._async_client.query_points(
+                collection_name=self.index,
+                query=query_embedding,
+                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
+                query_filter=qdrant_filters,
+                limit=top_k,
+                with_vectors=return_embedding,
+                score_threshold=score_threshold,
+            )
+            points = response.points
+            return self._process_query_point_results(points, scale_score=scale_score)
 
     async def _query_hybrid_async(
         self,
@@ -1310,19 +1188,9 @@ class QdrantDocumentStore:
             raise QdrantStoreError(msg) from e
 
         if group_by:
-            results = (
-                [
-                    convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
-                    for group in groups
-                    for point in group.hits
-                ]
-                if groups
-                else []
-            )
+            return self._process_group_results(groups)
         else:
-            results = [convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=True) for point in points]
-
-        return results
+            return self._process_query_point_results(points)
 
     def get_distance(self, similarity: str) -> rest.Distance:
         """
@@ -1622,44 +1490,19 @@ class QdrantDocumentStore:
         :param sparse_idf:
             Whether to compute the Inverse Document Frequency (IDF) when using sparse embeddings. Required for BM42.
         """
-        if on_disk is None:
-            on_disk = self.on_disk
+        vectors_config, sparse_vectors_config = self._prepare_collection_config(
+            embedding_dim, distance, on_disk, use_sparse_embeddings, sparse_idf
+        )
+        collection_params = self._prepare_collection_params()
 
-        if use_sparse_embeddings is None:
-            use_sparse_embeddings = self.use_sparse_embeddings
+        if self._client.collection_exists(collection_name):
+            self._client.delete_collection(collection_name)
 
-        # dense vectors configuration
-        vectors_config = rest.VectorParams(size=embedding_dim, on_disk=on_disk, distance=distance)
-
-        if use_sparse_embeddings:
-            # in this case, we need to define named vectors
-            vectors_config = {DENSE_VECTORS_NAME: vectors_config}
-
-            sparse_vectors_config = {
-                SPARSE_VECTORS_NAME: rest.SparseVectorParams(
-                    index=rest.SparseIndexParams(
-                        on_disk=on_disk,
-                    ),
-                    modifier=rest.Modifier.IDF if sparse_idf else None,
-                ),
-            }
-
-        if self._client.collection_exists(collection_name):  # type: ignore[attr-defined]
-            self._client.delete_collection(collection_name)  # type: ignore[attr-defined]
-
-        self._client.create_collection(  # type: ignore[attr-defined]
+        self._client.create_collection(
             collection_name=collection_name,
             vectors_config=vectors_config,
-            sparse_vectors_config=sparse_vectors_config if use_sparse_embeddings else None,
-            shard_number=self.shard_number,
-            replication_factor=self.replication_factor,
-            write_consistency_factor=self.write_consistency_factor,
-            on_disk_payload=self.on_disk_payload,
-            hnsw_config=self.hnsw_config,
-            optimizers_config=self.optimizers_config,
-            wal_config=self.wal_config,
-            quantization_config=self.quantization_config,
-            init_from=self.init_from,
+            sparse_vectors_config=sparse_vectors_config,
+            **collection_params,
         )
 
     async def recreate_collection_async(
@@ -1687,44 +1530,19 @@ class QdrantDocumentStore:
         :param sparse_idf:
             Whether to compute the Inverse Document Frequency (IDF) when using sparse embeddings. Required for BM42.
         """
-        if on_disk is None:
-            on_disk = self.on_disk
+        vectors_config, sparse_vectors_config = self._prepare_collection_config(
+            embedding_dim, distance, on_disk, use_sparse_embeddings, sparse_idf
+        )
+        collection_params = self._prepare_collection_params()
 
-        if use_sparse_embeddings is None:
-            use_sparse_embeddings = self.use_sparse_embeddings
+        if await self._async_client.collection_exists(collection_name):
+            await self._async_client.delete_collection(collection_name)
 
-        # dense vectors configuration
-        vectors_config = rest.VectorParams(size=embedding_dim, on_disk=on_disk, distance=distance)
-
-        if use_sparse_embeddings:
-            # in this case, we need to define named vectors
-            vectors_config = {DENSE_VECTORS_NAME: vectors_config}
-
-            sparse_vectors_config = {
-                SPARSE_VECTORS_NAME: rest.SparseVectorParams(
-                    index=rest.SparseIndexParams(
-                        on_disk=on_disk,
-                    ),
-                    modifier=rest.Modifier.IDF if sparse_idf else None,
-                ),
-            }
-
-        if await self._async_client.collection_exists(collection_name):  # type: ignore[attr-defined]
-            await self._async_client.delete_collection(collection_name)  # type: ignore[attr-defined]
-
-        await self._async_client.create_collection(  # type: ignore[attr-defined]
+        await self._async_client.create_collection(
             collection_name=collection_name,
             vectors_config=vectors_config,
-            sparse_vectors_config=sparse_vectors_config if use_sparse_embeddings else None,
-            shard_number=self.shard_number,
-            replication_factor=self.replication_factor,
-            write_consistency_factor=self.write_consistency_factor,
-            on_disk_payload=self.on_disk_payload,
-            hnsw_config=self.hnsw_config,
-            optimizers_config=self.optimizers_config,
-            wal_config=self.wal_config,
-            quantization_config=self.quantization_config,
-            init_from=self.init_from,
+            sparse_vectors_config=sparse_vectors_config,
+            **collection_params,
         )
 
     def _handle_duplicate_documents(
@@ -1760,7 +1578,8 @@ class QdrantDocumentStore:
         policy: DuplicatePolicy = None,
     ):
         """
-        Checks whether any of the passed documents is already existing in the chosen index and returns a list of
+        Asynchronously checks whether any of the passed documents is already existing
+        in the chosen index and returns a list of
         documents that are not in the index yet.
 
         :param documents: A list of Haystack Document objects.
@@ -1785,8 +1604,6 @@ class QdrantDocumentStore:
         """
         Drop duplicate documents based on same hash ID.
 
-        :param documents: A list of Haystack Document objects.
-        :returns: A list of Haystack Document objects.
         """
         _hash_ids: Set = set()
         _documents: List[Document] = []
@@ -1803,3 +1620,123 @@ class QdrantDocumentStore:
             _hash_ids.add(document.id)
 
         return _documents
+
+    def _prepare_collection_params(self):
+        """
+        Prepares the common parameters for collection creation.
+        """
+        return {
+            "shard_number": self.shard_number,
+            "replication_factor": self.replication_factor,
+            "write_consistency_factor": self.write_consistency_factor,
+            "on_disk_payload": self.on_disk_payload,
+            "hnsw_config": self.hnsw_config,
+            "optimizers_config": self.optimizers_config,
+            "wal_config": self.wal_config,
+            "quantization_config": self.quantization_config,
+            "init_from": self.init_from,
+        }
+
+    def _prepare_client_params(self):
+        """
+        Prepares the common parameters for client initialization.
+
+        """
+        return {
+            "location": self.location,
+            "url": self.url,
+            "port": self.port,
+            "grpc_port": self.grpc_port,
+            "prefer_grpc": self.prefer_grpc,
+            "https": self.https,
+            "api_key": self.api_key.resolve_value() if self.api_key else None,
+            "prefix": self.prefix,
+            "timeout": self.timeout,
+            "host": self.host,
+            "path": self.path,
+            "metadata": self.metadata,
+            "force_disable_check_same_thread": self.force_disable_check_same_thread,
+        }
+
+    def _prepare_collection_config(
+        self,
+        embedding_dim: int,
+        distance,
+        on_disk: Optional[bool] = None,
+        use_sparse_embeddings: Optional[bool] = None,
+        sparse_idf: bool = False,
+    ):
+        """
+        Prepares the configuration for creating or recreating a Qdrant collection.
+
+        """
+        if on_disk is None:
+            on_disk = self.on_disk
+
+        if use_sparse_embeddings is None:
+            use_sparse_embeddings = self.use_sparse_embeddings
+
+        # dense vectors configuration
+        vectors_config = rest.VectorParams(size=embedding_dim, on_disk=on_disk, distance=distance)
+        sparse_vectors_config = None
+
+        if use_sparse_embeddings:
+            # in this case, we need to define named vectors
+            vectors_config = {DENSE_VECTORS_NAME: vectors_config}
+
+            sparse_vectors_config = {
+                SPARSE_VECTORS_NAME: rest.SparseVectorParams(
+                    index=rest.SparseIndexParams(
+                        on_disk=on_disk,
+                    ),
+                    modifier=rest.Modifier.IDF if sparse_idf else None,
+                ),
+            }
+
+        return vectors_config, sparse_vectors_config
+
+    def _validate_filters(self, filters: Optional[Union[Dict[str, Any], rest.Filter]] = None):
+        """
+        Validates the filters provided for querying.
+        """
+        if filters and not isinstance(filters, dict) and not isinstance(filters, rest.Filter):
+            msg = "Filter must be a dictionary or an instance of `qdrant_client.http.models.Filter`"
+            raise ValueError(msg)
+
+        if filters and not isinstance(filters, rest.Filter) and "operator" not in filters:
+            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
+            raise ValueError(msg)
+
+    def _process_query_point_results(self, results, scale_score: bool = False):
+        """
+        Processes query results from Qdrant.
+        """
+        documents = [
+            convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+            for point in results
+        ]
+
+        if scale_score:
+            for document in documents:
+                score = document.score
+                if self.similarity == "cosine":
+                    score = (score + 1) / 2
+                else:
+                    score = float(1 / (1 + np.exp(-score / 100)))
+                document.score = score
+
+        return documents
+
+    def _process_group_results(self, groups):
+        """
+        Processes grouped query results from Qdrant.
+
+        """
+        if not groups:
+            return []
+
+        return [
+            convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
+            for group in groups
+            for point in group.hits
+        ]

@@ -608,7 +608,7 @@ class QdrantHybridRetriever:
         group_size: Optional[int] = None,
     ):
         """
-        Run the Sparse Embedding Retriever on the given input data.
+        Asynchronously run the Sparse Embedding Retriever on the given input data.
 
         :param query_embedding: Dense embedding of the query.
         :param query_sparse_embedding: Sparse embedding of the query.

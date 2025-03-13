@@ -64,6 +64,7 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             sparse_idf=True,
         )
         document_store._initialize_client()
+
         sparse_config = document_store._client.get_collection("Document").config.params.sparse_vectors
 
         assert SPARSE_VECTORS_NAME in sparse_config
@@ -273,7 +274,6 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             )
 
         await document_store.write_documents_async(docs)
-
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
         embedding = [0.1] * 768
 
