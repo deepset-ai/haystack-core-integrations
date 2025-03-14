@@ -68,11 +68,12 @@ class WeaveTracer(Tracer):
     to Weave spans. It creates spans for each Haystack component run.
     """
 
-    def __init__(self, project_name: str) -> None:
+    def __init__(self, project_name: str, **weave_init_kwargs: Any) -> None:
         """
         Initialize the WeaveTracer.
 
         :param project_name: The name of the project to trace, this is will be the name appearing in Weave project.
+        :param weave_init_kwargs: Additional arguments to pass to the Weave client.
         """
 
         content_tracing_enabled = os.getenv("HAYSTACK_CONTENT_TRACING_ENABLED", "false").lower()
@@ -84,7 +85,7 @@ class WeaveTracer(Tracer):
                 "before importing Haystack."
             )
 
-        self._client = weave.init(project_name)
+        self._client = weave.init(project_name, **weave_init_kwargs)
         self._current_span: Optional[WeaveSpan] = None
 
     @staticmethod
