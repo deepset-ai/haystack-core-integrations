@@ -1,4 +1,3 @@
-import json
 from typing import Any, Dict, List, Optional
 
 from botocore.exceptions import ClientError
@@ -22,6 +21,10 @@ class BedrockRanker:
     Ranks Documents based on their similarity to the query using Amazon Bedrock's Cohere Rerank model.
 
     Documents are indexed from most to least semantically relevant to the query.
+
+    Supported Amazon Bedrock models:
+    - cohere.rerank-v3-5:0
+    - amazon.rerank-v1:0
 
     Usage example:
     ```python
@@ -107,7 +110,7 @@ class BedrockRanker:
                 aws_region_name=resolve_secret(aws_region_name),
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
-            self._bedrock_client = session.client("bedrock-runtime")
+            self._bedrock_client = session.client("bedrock-agent-runtime")
         except Exception as exception:
             msg = (
                 "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
@@ -172,7 +175,7 @@ class BedrockRanker:
     @component.output_types(documents=List[Document])
     def run(self, query: str, documents: List[Document], top_k: Optional[int] = None):
         """
-        Use the Amazon Bedrock Cohere Reranker to re-rank the list of documents based on the query.
+        Use the Amazon Bedrock Reranker to re-rank the list of documents based on the query.
 
         :param query:
             Query string.
@@ -194,6 +197,11 @@ class BedrockRanker:
         if not documents:
             return {"documents": []}
 
+        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+            return secret.resolve_value() if secret else None
+
+        region = resolve_secret(self.aws_region_name)
+
         bedrock_input_docs = self._prepare_bedrock_input_docs(documents)
         if len(bedrock_input_docs) > MAX_NUM_DOCS_FOR_BEDROCK_RANKER:
             logger.warning(
@@ -203,29 +211,48 @@ class BedrockRanker:
             )
             bedrock_input_docs = bedrock_input_docs[:MAX_NUM_DOCS_FOR_BEDROCK_RANKER]
 
-        # Prepare the request body for Amazon Bedrock
-        request_body = {"documents": bedrock_input_docs, "query": query, "top_n": top_k, "api_version": 2}
-
         try:
             # Make the API call to Amazon Bedrock
-            response = self._bedrock_client.invoke_model(modelId=self.model_name, body=json.dumps(request_body))
+            response = self._bedrock_client.rerank(
+                queries=[
+                    {"textQuery": {"text": query}, "type": "TEXT"},
+                ],
+                rerankingConfiguration={
+                    "bedrockRerankingConfiguration": {
+                        "modelConfiguration": {
+                            "modelArn": f"arn:aws:bedrock:{region}::foundation-model/{self.model_name}"
+                        },
+                        "numberOfResults": top_k,
+                    },
+                    "type": "BEDROCK_RERANKING_MODEL",
+                },
+                sources=[
+                    {
+                        "inlineDocumentSource": {
+                            "textDocument": {"text": doc},
+                            "type": "TEXT",
+                        },
+                        "type": "INLINE",
+                    }
+                    for doc in bedrock_input_docs
+                ],
+            )
 
             # Parse the response
-            response_body = json.loads(response["body"].read())
-            results = response_body["results"]
+            results = response["results"]
 
             # Sort documents based on the reranking results
             sorted_docs = []
             for result in results:
                 idx = result["index"]
-                score = result["relevance_score"]
+                score = result["relevanceScore"]
                 doc = documents[idx]
                 doc.score = score
                 sorted_docs.append(doc)
 
             return {"documents": sorted_docs}
         except ClientError as exception:
-            msg = f"Could not inference Amazon Bedrock model {self.model_name} due: {exception}"
+            msg = f"Could not inference Amazon Bedrock model {self.model_name} due to: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
         except KeyError as e:
             msg = f"Unexpected response format from Amazon Bedrock: {e!s}"
