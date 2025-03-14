@@ -1,12 +1,18 @@
 from typing import Any, Dict, Optional
 
-from haystack import component, logging, tracing
+import httpx
+from haystack import component, default_from_dict, default_to_dict, logging, tracing
+from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils.base_serialization import (
+    deserialize_class_instance,
+    serialize_class_instance,
+)
 
-from haystack_integrations.tracing.langfuse import LangfuseTracer
+from haystack_integrations.tracing.langfuse import LangfuseTracer, SpanHandler
 from langfuse import Langfuse
 
-logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
 
 @component
 class LangfuseConnector:
@@ -98,23 +104,27 @@ class LangfuseConnector:
         self,
         name: str,
         public: bool = False,
+        public_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),
+        secret_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_SECRET_KEY"),
+        httpx_client: Optional[httpx.Client] = None,
+        span_handler: Optional[SpanHandler] = None,
         input_operation_name: Optional[str] = None,
         output_operation_name: Optional[str] = None,
     ):
-        """
-        Initialize the LangfuseConnector component.
-
-        :param name: The name of the pipeline or component. This name will be used to identify the tracing run on the
-            Langfuse dashboard.
-        :param public: Whether the tracing data should be public or private. If set to `True`, the tracing data will be
-            publicly accessible to anyone with the tracing URL. If set to `False`, the tracing data will be private and
-            only accessible to the Langfuse account owner. The default is `False`.
-        """
         self.name = name
+        self.public = public
+        self.secret_key = secret_key
+        self.public_key = public_key
+        self.span_handler = span_handler
         self.tracer = LangfuseTracer(
-            tracer=Langfuse(),
+            tracer=Langfuse(
+                secret_key=secret_key.resolve_value() if secret_key else None,
+                public_key=public_key.resolve_value() if public_key else None,
+                httpx_client=httpx_client,
+            ),
             name=name,
             public=public,
+            span_handler=span_handler,
             input_operation_name=input_operation_name,
             output_operation_name=output_operation_name,
         )
@@ -122,19 +132,32 @@ class LangfuseConnector:
 
     @component.output_types(name=str, trace_url=str)
     def run(self, invocation_context: Optional[Dict[str, Any]] = None):
-        """
-        Runs the LangfuseConnector component.
-
-        :param invocation_context: A dictionary with additional context for the invocation. This parameter
-            is useful when users want to mark this particular invocation with additional information, e.g.
-            a run id from their own execution framework, user id, etc. These key-value pairs are then visible
-            in the Langfuse traces.
-        :returns: A dictionary with the following keys:
-            - `name`: The name of the tracing component.
-            - `trace_url`: The URL to the tracing data.
-        """
         logger.debug(
             "Langfuse tracer invoked with the following context: '{invocation_context}'",
             invocation_context=invocation_context,
         )
         return {"name": self.name, "trace_url": self.tracer.get_trace_url()}
+
+    def to_dict(self) -> Dict[str, Any]:
+        span_handler = (
+            serialize_class_instance(self.span_handler) if self.span_handler else None
+        )
+        return default_to_dict(
+            self,
+            name=self.name,
+            public=self.public,
+            secret_key=self.secret_key.to_dict() if self.secret_key else None,
+            public_key=self.public_key.to_dict() if self.public_key else None,
+            span_handler=span_handler,
+        )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "LangfuseConnector":
+        init_params = data["init_parameters"]
+        deserialize_secrets_inplace(init_params, keys=["secret_key", "public_key"])
+        init_params["span_handler"] = (
+            deserialize_class_instance(init_params["span_handler"])
+            if init_params["span_handler"]
+            else None
+        )
+        return default_from_dict(cls, data)
