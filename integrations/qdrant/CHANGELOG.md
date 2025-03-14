@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/qdrant-v9.1.0] - 2025-03-14
+
+### 🚀 Features
+
+- Qdrant -- async support (#1480)
+
 ## [integrations/qdrant-v9.0.0] - 2025-03-11
 
 ### 🧹 Chores
