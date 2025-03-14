@@ -45,7 +45,7 @@ git_describe_command = 'git describe --tags --match="integrations/qdrant-v[0-9]*
 
 [tool.hatch.envs.default]
 installer = "uv"
-dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "haystack-pydoc-tools"]
+dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "haystack-pydoc-tools", "pytest-asyncio"]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
@@ -123,6 +123,8 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
+  # Ignore assertions
+  "S101",
 ]
 unfixable = [
   # Don't touch unused imports
