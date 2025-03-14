@@ -13,7 +13,6 @@ from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 logger = logging.getLogger(__name__)
 
 MAX_NUM_DOCS_FOR_BEDROCK_RANKER = 1000
-SUPPORTED_REGIONS = ["us-west-2", "ap-northeast-1", "ca-central-1", "eu-central-1"]
 
 
 @component
