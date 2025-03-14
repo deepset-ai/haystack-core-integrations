@@ -115,7 +115,7 @@ class NvidiaRanker:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
         if timeout is None:
-            timeout = float(os.environ.get("NVIDIA_TIMEOUT", 60.0))
+            timeout = float(os.environ.get("NVIDIA_TIMEOUT", "60.0"))
         self.timeout = timeout
 
     @classmethod

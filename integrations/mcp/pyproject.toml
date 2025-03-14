@@ -68,9 +68,6 @@ cov = ["test-cov", "cov-report"]
 cov-retry = ["test-cov-retry", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
 
-[[tool.hatch.envs.all.matrix]]
-python = ["3.10", "3.11", "3.12"]
-
 [tool.hatch.envs.lint]
 installer = "uv"
 detached = true

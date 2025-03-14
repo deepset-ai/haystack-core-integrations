@@ -30,8 +30,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        python-version: ["3.9", "3.10", "3.11"]
+        os: [ubuntu-latest] # we run Unstructured using Docker, which is not available on MacOS and Windows GitHub Runners
+        python-version: ["3.9", "3.13"]
 
     steps:
       - name: Free up disk space

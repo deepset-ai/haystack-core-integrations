@@ -31,7 +31,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest] # we don't test on windows because of issues on llama-cpp-python
-        python-version: ["3.9", "3.12"]
+        python-version: ["3.9", "3.13"]
 
     steps:
       - name: Support longpaths

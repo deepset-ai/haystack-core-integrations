@@ -85,7 +85,7 @@ class NvidiaTextEmbedder:
         self._initialized = False
 
         if timeout is None:
-            timeout = float(os.environ.get("NVIDIA_TIMEOUT", 60.0))
+            timeout = float(os.environ.get("NVIDIA_TIMEOUT", "60.0"))
         self.timeout = timeout
 
     @classmethod
