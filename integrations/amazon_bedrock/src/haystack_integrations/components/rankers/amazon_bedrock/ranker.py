@@ -103,12 +103,6 @@ class BedrockRanker:
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
 
-        region = resolve_secret(aws_region_name)
-        if region not in SUPPORTED_REGIONS:
-            msg = f"""Region {region} is not supported by Amazon Bedrock.
-                        Supported regions are {SUPPORTED_REGIONS}"""
-            raise ValueError(msg)
-
         try:
             session = get_aws_session(
                 aws_access_key_id=resolve_secret(aws_access_key_id),
@@ -221,16 +215,12 @@ class BedrockRanker:
         try:
             # Make the API call to Amazon Bedrock
             response = self._bedrock_client.rerank(
-                # nextToken='string',
                 queries=[
                     {"textQuery": {"text": query}, "type": "TEXT"},
                 ],
                 rerankingConfiguration={
                     "bedrockRerankingConfiguration": {
                         "modelConfiguration": {
-                            # 'additionalModelRequestFields': {
-                            #     'string': {...}|[...]|123|123.4|'string'|True|None
-                            # },
                             "modelArn": f"arn:aws:bedrock:{region}::foundation-model/{self.model_name}"
                         },
                         "numberOfResults": top_k,
@@ -240,7 +230,6 @@ class BedrockRanker:
                 sources=[
                     {
                         "inlineDocumentSource": {
-                            # 'jsonDocument': {},
                             "textDocument": {"text": doc},
                             "type": "TEXT",
                         },
