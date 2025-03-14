@@ -82,11 +82,7 @@ def test_bedrock_ranker_run_inference_error(mock_aws_session):
 
 
 def test_bedrock_ranker_serialization(mock_aws_session):
-    ranker = BedrockRanker(
-        model="cohere.rerank-v3-5:0",
-        top_k=2,
-        aws_region_name=Secret.from_token("us-west-2")
-    )
+    ranker = BedrockRanker(model="cohere.rerank-v3-5:0", top_k=2, aws_region_name=Secret.from_token("us-west-2"))
 
     serialized = ranker.to_dict()
     assert serialized["init_parameters"]["model"] == "cohere.rerank-v3-5:0"
