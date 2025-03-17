@@ -156,36 +156,20 @@ class PgvectorDocumentStore:
         self.hnsw_ef_search = hnsw_ef_search
         self.keyword_index_name = keyword_index_name
         self.language = language
+        
         self._connection = None
         self._cursor = None
         self._dict_cursor = None
         self._table_initialized = False
 
-    @property
-    def cursor(self):
-        if self._cursor is None or not self._connection_is_valid(self._connection):
-            self._create_connection()
 
-        return self._cursor
-
-    @property
-    def dict_cursor(self):
-        if self._dict_cursor is None or not self._connection_is_valid(self._connection):
-            self._create_connection()
-
-        return self._dict_cursor
-
-    @property
-    def connection(self):
-        if self._connection is None or not self._connection_is_valid(self._connection):
-            self._create_connection()
-
-        return self._connection
-
-    def _create_connection(self):
+    def _ensure_valid_connection(self):
         """
-        Internal method to create a connection to the PostgreSQL database.
+        Internal method to ensure that the connection to the PostgreSQL database exists and is valid.
+        If not, it will be created and the cursors will be initialized.
         """
+        if self._connection and self._cursor and self._dict_cursor and self._connection_is_valid(self._connection):
+            return
 
         # close the connection if it already exists
         if self._connection:
@@ -207,8 +191,6 @@ class PgvectorDocumentStore:
 
         if not self._table_initialized:
             self._initialize_table()
-
-        return self._connection
 
     def _initialize_table(self):
         """
@@ -291,7 +273,7 @@ class PgvectorDocumentStore:
         """
 
         params = params or ()
-        cursor = cursor or self.cursor
+        cursor = cursor or self._cursor
 
         sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
         logger.debug("SQL query: {query}\nParameters: {parameters}", query=sql_query_str, parameters=params)
@@ -299,7 +281,7 @@ class PgvectorDocumentStore:
         try:
             result = cursor.execute(sql_query, params)
         except Error as e:
-            self.connection.rollback()
+            self._connection.rollback()
             detailed_error_msg = f"{error_msg}.\nYou can find the SQL query and the parameters in the debug logs."
             raise DocumentStoreError(detailed_error_msg) from e
 
@@ -438,11 +420,11 @@ class PgvectorDocumentStore:
         """
         Returns how many documents are present in the document store.
         """
-
         sql_count = SQL("SELECT COUNT(*) FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
         )
 
+        self._ensure_valid_connection()
         count = self._execute_sql(sql_count, error_msg="Could not count documents in PgvectorDocumentStore").fetchone()[
             0
         ]
@@ -476,11 +458,12 @@ class PgvectorDocumentStore:
             sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
             sql_filter += sql_where_clause
 
+        self._ensure_valid_connection()
         result = self._execute_sql(
             sql_filter,
             params,
             error_msg="Could not filter documents from PgvectorDocumentStore.",
-            cursor=self.dict_cursor,
+            cursor=self._dict_cursor,
         )
 
         records = result.fetchall()
@@ -497,7 +480,6 @@ class PgvectorDocumentStore:
              and the policy is set to `DuplicatePolicy.FAIL` (or not specified).
         :returns: The number of documents written to the document store.
         """
-
         if len(documents) > 0:
             if not isinstance(documents[0], Document):
                 msg = "param 'documents' must contain a list of objects of type Document"
@@ -519,16 +501,17 @@ class PgvectorDocumentStore:
 
         sql_insert += SQL(" RETURNING id")
 
-        sql_query_str = sql_insert.as_string(self.cursor) if not isinstance(sql_insert, str) else sql_insert
+        self._ensure_valid_connection()
+        sql_query_str = sql_insert.as_string(self._cursor) if not isinstance(sql_insert, str) else sql_insert
         logger.debug("SQL query: {query}\nParameters: {parameters}", query=sql_query_str, parameters=db_documents)
 
         try:
-            self.cursor.executemany(sql_insert, db_documents, returning=True)
+            self._cursor.executemany(sql_insert, db_documents, returning=True)
         except IntegrityError as ie:
-            self.connection.rollback()
+            self._connection.rollback()
             raise DuplicateDocumentError from ie
         except Error as e:
-            self.connection.rollback()
+            self._connection.rollback()
             error_msg = (
                 "Could not write documents to PgvectorDocumentStore. \n"
                 "You can find the SQL query and the parameters in the debug logs."
@@ -539,9 +522,9 @@ class PgvectorDocumentStore:
         # https://www.psycopg.org/psycopg3/docs/api/cursors.html#psycopg.Cursor.executemany
         written_docs = 0
         while True:
-            if self.cursor.fetchone():
+            if self._cursor.fetchone():
                 written_docs += 1
-            if not self.cursor.nextset():
+            if not self._cursor.nextset():
                 break
 
         return written_docs
@@ -610,7 +593,6 @@ class PgvectorDocumentStore:
 
         :param document_ids: the document ids to delete
         """
-
         if not document_ids:
             return
 
@@ -622,6 +604,7 @@ class PgvectorDocumentStore:
             document_ids_str=SQL(document_ids_str),
         )
 
+        self._ensure_valid_connection()
         self._execute_sql(delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore")
 
     def _keyword_retrieval(
@@ -662,11 +645,12 @@ class PgvectorDocumentStore:
 
         sql_query = sql_select + sql_where_clause + sql_sort
 
+        self._ensure_valid_connection()
         result = self._execute_sql(
             sql_query,
             (query, *where_params),
             error_msg="Could not retrieve documents from PgvectorDocumentStore.",
-            cursor=self.dict_cursor,
+            cursor=self._dict_cursor,
         )
 
         records = result.fetchall()
@@ -741,11 +725,12 @@ class PgvectorDocumentStore:
 
         sql_query = sql_select + sql_where_clause + sql_sort
 
+        self._ensure_valid_connection()
         result = self._execute_sql(
             sql_query,
             params,
             error_msg="Could not retrieve documents from PgvectorDocumentStore.",
-            cursor=self.dict_cursor,
+            cursor=self._dict_cursor,
         )
 
         records = result.fetchall()

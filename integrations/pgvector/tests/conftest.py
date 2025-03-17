@@ -25,6 +25,9 @@ def document_store(request):
 
     yield store
 
+    # Ensure connection just for table deletion.
+    # During test execution, the tested methods are expected to call _ensure_valid_connection() themselves.
+    store._ensure_valid_connection()
     store.delete_table()
 
 

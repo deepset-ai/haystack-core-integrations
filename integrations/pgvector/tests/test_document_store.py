@@ -33,10 +33,12 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert retrieved_docs == docs
 
     def test_connection_check_and_recreation(self, document_store: PgvectorDocumentStore):
-        original_connection = document_store.connection
+        document_store._ensure_valid_connection()
+        original_connection = document_store._connection
 
         with patch.object(PgvectorDocumentStore, "_connection_is_valid", return_value=False):
-            new_connection = document_store.connection
+            document_store._ensure_valid_connection()
+            new_connection = document_store._connection
 
         # verify that a new connection is created
         assert new_connection is not original_connection
@@ -48,7 +50,8 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
 
         # test with new connection
         with patch.object(PgvectorDocumentStore, "_connection_is_valid", return_value=True):
-            same_connection = document_store.connection
+            document_store._ensure_valid_connection()
+            same_connection = document_store._connection
             assert same_connection is document_store._connection
 
 
@@ -257,7 +260,7 @@ def test_hnsw_index_recreation():
             AND n.nspname = %s
             AND c.relname = %s;
         """
-        return document_store.cursor.execute(sql_get_index_oid, (schema_name, index_name)).fetchone()[0]
+        return document_store._cursor.execute(sql_get_index_oid, (schema_name, index_name)).fetchone()[0]
 
     # create a new schema
     connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
@@ -273,7 +276,7 @@ def test_hnsw_index_recreation():
         "search_strategy": "hnsw",
     }
     ds1 = PgvectorDocumentStore(**params)
-    ds1._initialize_table()
+    ds1._ensure_valid_connection()
 
     # get the hnsw index oid
     hnws_index_name = "haystack_hnsw_index"
@@ -281,7 +284,7 @@ def test_hnsw_index_recreation():
 
     # create second document store with recreation enabled
     ds2 = PgvectorDocumentStore(**params, hnsw_recreate_index_if_exists=True)
-    ds2._initialize_table()
+    ds2._ensure_valid_connection()
 
     # get the index oid
     second_oid = get_index_oid(ds2, ds2.schema_name, hnws_index_name)
@@ -305,7 +308,7 @@ def test_create_table_if_not_exists():
             AND n.nspname = %s
             AND c.relname = %s;
         """
-        return document_store.cursor.execute(sql_get_table_oid, (schema_name, table_name)).fetchone()[0]
+        return document_store._cursor.execute(sql_get_table_oid, (schema_name, table_name)).fetchone()[0]
 
     connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
     schema_name = "test_schema"
@@ -320,6 +323,8 @@ def test_create_table_if_not_exists():
         schema_name=schema_name,
         table_name=table_name,
     )
+
+    document_store._ensure_valid_connection()
 
     document_store._create_table_if_not_exists()
 
