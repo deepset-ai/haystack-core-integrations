@@ -352,7 +352,7 @@ class GoogleAIGeminiChatGenerator:
 
     @staticmethod
     def _convert_response_to_messages(
-        response_body: GenerateContentResponse | AsyncGenerateContentResponse,
+        response_body: Union[GenerateContentResponse, AsyncGenerateContentResponse],
     ) -> List[ChatMessage]:
         """
         Converts the Google AI response to a list of `ChatMessage` instances.
