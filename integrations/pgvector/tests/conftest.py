@@ -25,7 +25,7 @@ def document_store(request, monkeypatch):
     yield store
 
     # Ensure connection just for table deletion.
-    # During test execution, the tested methods are expected to call _ensure_valid_connection() themselves.
+    # During test execution, the tested methods are expected to call _ensure_db_setup() themselves.
     store._ensure_db_setup()
     store.delete_table()
 
@@ -49,7 +49,7 @@ def document_store_w_hnsw_index(request, monkeypatch):
     yield store
 
     # Ensure connection just for table deletion.
-    # During test execution, the tested methods are expected to call _ensure_valid_connection() themselves.
+    # During test execution, the tested methods are expected to call _ensure_db_setup() themselves.
     store._ensure_db_setup()
     store.delete_table()
 

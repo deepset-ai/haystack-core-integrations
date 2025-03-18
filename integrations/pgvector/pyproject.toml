@@ -124,6 +124,8 @@ ignore = [
   "PLR0915",
   # ignore function-call-in-default-argument
   "B008",
+  # ignore assertions
+  "S101",
 ]
 unfixable = [
   # Don't touch unused imports

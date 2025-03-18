@@ -245,6 +245,13 @@ class PgvectorDocumentStore:
         params = params or ()
         cursor = cursor or self._cursor
 
+        if cursor is None or self._connection is None:
+            message = (
+                "The cursor or the connection is not initialized. "
+                "Make sure to call _ensure_db_setup() before calling this method."
+            )
+            raise ValueError(message)
+
         sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
         logger.debug("SQL query: {query}\nParameters: {parameters}", query=sql_query_str, parameters=params)
 
@@ -275,6 +282,13 @@ class PgvectorDocumentStore:
 
         params = params or ()
         cursor = cursor or self._async_cursor
+
+        if cursor is None or self._async_connection is None:
+            message = (
+                "The cursor or the connection is not initialized. "
+                "Make sure to call _ensure_db_setup_async() before calling this method."
+            )
+            raise ValueError(message)
 
         sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
         logger.debug("SQL query: {query}\nParameters: {parameters}", query=sql_query_str, parameters=params)
@@ -423,20 +437,29 @@ class PgvectorDocumentStore:
             self._build_table_creation_queries()
         )
 
-        await self._execute_sql_async(
-            sql_table_exists, (self.schema_name, self.table_name), "Could not check if table exists", self._async_cursor
+        table_exists = bool(
+            await (
+                await self._execute_sql_async(
+                    sql_table_exists,
+                    (self.schema_name, self.table_name),
+                    "Could not check if table exists",
+                    self._async_cursor,
+                )
+            ).fetchone()
         )
-        table_exists = bool(await self._async_cursor.fetchone())
         if not table_exists:
             await self._execute_sql_async(sql_create_table, error_msg="Could not create table")
 
-        await self._execute_sql_async(
-            sql_keyword_index_exists,
-            (self.schema_name, self.table_name, self.keyword_index_name),
-            "Could not check if keyword index exists",
-            self._async_cursor,
+        index_exists = bool(
+            await (
+                await self._execute_sql_async(
+                    sql_keyword_index_exists,
+                    (self.schema_name, self.table_name, self.keyword_index_name),
+                    "Could not check if keyword index exists",
+                    self._async_cursor,
+                )
+            ).fetchone()
         )
-        index_exists = bool(await self._async_cursor.fetchone())
         if not index_exists:
             await self._execute_sql_async(sql_create_keyword_index, error_msg="Could not create keyword index on table")
 
@@ -559,14 +582,16 @@ class PgvectorDocumentStore:
         if self.hnsw_ef_search:
             await self._execute_sql_async(sql_set_hnsw_ef_search, error_msg="Could not set hnsw.ef_search")
 
-        await self._execute_sql_async(
-            sql_hnsw_index_exists,
-            (self.schema_name, self.table_name, self.hnsw_index_name),
-            "Could not check if HNSW index exists",
-            self._async_cursor,
+        index_exists = bool(
+            await (
+                await self._execute_sql_async(
+                    sql_hnsw_index_exists,
+                    (self.schema_name, self.table_name, self.hnsw_index_name),
+                    "Could not check if HNSW index exists",
+                    self._async_cursor,
+                )
+            ).fetchone()
         )
-
-        index_exists = bool(await self._async_cursor.fetchone())
 
         if index_exists and not self.hnsw_recreate_index_if_exists:
             logger.warning(
@@ -604,11 +629,10 @@ class PgvectorDocumentStore:
 
         await self._ensure_db_setup_async()
 
-        await self._execute_sql_async(
-            sql_count, error_msg="Could not count documents in PgvectorDocumentStore", cursor=self._async_cursor
-        )
+        result = await (
+            await self._execute_sql_async(sql_count, error_msg="Could not count documents in PgvectorDocumentStore")
+        ).fetchone()
 
-        result = await self._async_cursor.fetchone()
         return result[0]
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
@@ -712,6 +736,9 @@ class PgvectorDocumentStore:
         sql_insert = self._build_insert_statement(policy)
 
         self._ensure_db_setup()
+        assert self._cursor is not None  # verified in _ensure_db_setup() but mypy doesn't know that
+        assert self._connection is not None  # verified in _ensure_db_setup() but mypy doesn't know that
+
         sql_query_str = sql_insert.as_string(self._cursor) if not isinstance(sql_insert, str) else sql_insert
         logger.debug("SQL query: {query}\nParameters: {parameters}", query=sql_query_str, parameters=db_documents)
 
@@ -758,6 +785,9 @@ class PgvectorDocumentStore:
         sql_insert = self._build_insert_statement(policy)
 
         await self._ensure_db_setup_async()
+        assert self._async_cursor is not None  # verified in _ensure_db_setup_async() but mypy doesn't know that
+        assert self._async_connection is not None  # verified in _ensure_db_setup_async() but mypy doesn't know that
+
         sql_query_str = sql_insert.as_string(self._async_cursor) if not isinstance(sql_insert, str) else sql_insert
         logger.debug("SQL query: {query}\nParameters: {parameters}", query=sql_query_str, parameters=db_documents)
 
@@ -907,7 +937,7 @@ class PgvectorDocumentStore:
     def _check_and_build_embedding_retrieval_query(
         self,
         query_embedding: List[float],
-        vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"],
+        vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]],
         top_k: int,
         filters: Optional[Dict[str, Any]] = None,
     ):
