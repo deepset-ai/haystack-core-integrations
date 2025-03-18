@@ -72,11 +72,11 @@ class TestDocumentStoreAsync:
         assert await document_store.count_documents_async() == 0
 
     async def test_connection_check_and_recreation(self, document_store: PgvectorDocumentStore):
-        await document_store._ensure_valid_connection_async()
+        await document_store._ensure_db_setup_async()
         original_connection = document_store._async_connection
 
         with patch.object(PgvectorDocumentStore, "_connection_is_valid_async", return_value=False):
-            await document_store._ensure_valid_connection_async()
+            await document_store._ensure_db_setup_async()
             new_connection = document_store._async_connection
 
         # verify that a new connection is created
@@ -89,7 +89,7 @@ class TestDocumentStoreAsync:
 
         # test with new connection
         with patch.object(PgvectorDocumentStore, "_connection_is_valid_async", return_value=True):
-            await document_store._ensure_valid_connection_async()
+            await document_store._ensure_db_setup_async()
             same_connection = document_store._async_connection
             assert same_connection is document_store._async_connection
 
@@ -123,7 +123,7 @@ async def test_hnsw_index_recreation():
         "search_strategy": "hnsw",
     }
     ds1 = PgvectorDocumentStore(**params)
-    await ds1._ensure_valid_connection_async()
+    await ds1._ensure_db_setup_async()
 
     # get the hnsw index oid
     hnws_index_name = "haystack_hnsw_index"
@@ -131,7 +131,7 @@ async def test_hnsw_index_recreation():
 
     # create second document store with recreation enabled
     ds2 = PgvectorDocumentStore(**params, hnsw_recreate_index_if_exists=True)
-    await ds2._ensure_valid_connection_async()
+    await ds2._ensure_db_setup_async()
 
     # get the index oid
     second_oid = await get_index_oid(ds2, ds2.schema_name, hnws_index_name)
@@ -173,13 +173,13 @@ async def test_create_table_if_not_exists():
         table_name=table_name,
     )
 
-    await document_store._ensure_valid_connection_async()
-    await document_store._create_table_if_not_exists_async()
+    await document_store._ensure_db_setup_async()
+    await document_store._initialize_table_async()
 
     first_table_oid = await get_table_oid(document_store, schema_name, table_name)
     assert first_table_oid is not None, "Table was not created"
 
-    await document_store._create_table_if_not_exists_async()
+    await document_store._initialize_table_async()
     second_table_oid = await get_table_oid(document_store, schema_name, table_name)
 
     assert first_table_oid == second_table_oid, "Table was recreated"
