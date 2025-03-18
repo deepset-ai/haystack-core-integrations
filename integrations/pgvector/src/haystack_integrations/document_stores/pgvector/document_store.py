@@ -502,21 +502,61 @@ class PgvectorDocumentStore:
 
             await self._execute_sql_async(sql_create_index, error_msg="Could not create keyword index on table")
 
+    def _build_hnsw_queries(self):
+        """Common method to build all HNSW-related SQL queries"""
+
+        sql_set_hnsw_ef_search = (
+            SQL("SET hnsw.ef_search = {hnsw_ef_search}").format(hnsw_ef_search=SQLLiteral(self.hnsw_ef_search))
+            if self.hnsw_ef_search
+            else None
+        )
+
+        sql_hnsw_index_exists = SQL(
+            "SELECT 1 FROM pg_indexes WHERE schemaname = %s AND tablename = %s AND indexname = %s"
+        )
+
+        sql_drop_hnsw_index = SQL("DROP INDEX IF EXISTS {schema_name}.{index_name}").format(
+            schema_name=Identifier(self.schema_name),
+            index_name=Identifier(self.hnsw_index_name),
+        )
+
+        pg_ops = VECTOR_FUNCTION_TO_POSTGRESQL_OPS[self.vector_function]
+
+        sql_create_hnsw_index = SQL(
+            "CREATE INDEX {index_name} ON {schema_name}.{table_name} USING hnsw (embedding {ops})"
+        ).format(
+            schema_name=Identifier(self.schema_name),
+            index_name=Identifier(self.hnsw_index_name),
+            table_name=Identifier(self.table_name),
+            ops=SQL(pg_ops),
+        )
+
+        # Add creation kwargs if any valid ones exist
+        valid_kwargs = {
+            k: v for k, v in self.hnsw_index_creation_kwargs.items() if k in HNSW_INDEX_CREATION_VALID_KWARGS
+        }
+        if valid_kwargs:
+            kwargs_str = ", ".join(f"{k} = {v}" for k, v in valid_kwargs.items())
+            sql_create_hnsw_index += SQL(" WITH ({})").format(SQL(kwargs_str))
+
+        return sql_set_hnsw_ef_search, sql_hnsw_index_exists, sql_drop_hnsw_index, sql_create_hnsw_index
+
     def _handle_hnsw(self):
         """
         Internal method to handle the HNSW index creation.
         It also sets the `hnsw.ef_search` parameter for queries if it is specified.
         """
 
+        sql_set_hnsw_ef_search, sql_hnsw_index_exists, sql_drop_hnsw_index, sql_create_hnsw_index = (
+            self._build_hnsw_queries()
+        )
+
         if self.hnsw_ef_search:
-            sql_set_hnsw_ef_search = SQL("SET hnsw.ef_search = {hnsw_ef_search}").format(
-                hnsw_ef_search=SQLLiteral(self.hnsw_ef_search)
-            )
             self._execute_sql(sql_set_hnsw_ef_search, error_msg="Could not set hnsw.ef_search")
 
         index_exists = bool(
             self._execute_sql(
-                "SELECT 1 FROM pg_indexes WHERE schemaname = %s AND tablename = %s AND indexname = %s",
+                sql_hnsw_index_exists,
                 (self.schema_name, self.table_name, self.hnsw_index_name),
                 "Could not check if HNSW index exists",
             ).fetchone()
@@ -530,25 +570,24 @@ class PgvectorDocumentStore:
             )
             return
 
-        sql_drop_index = SQL("DROP INDEX IF EXISTS {schema_name}.{index_name}").format(
-            schema_name=Identifier(self.schema_name), index_name=Identifier(self.hnsw_index_name)
-        )
-        self._execute_sql(sql_drop_index, error_msg="Could not drop HNSW index")
+        self._execute_sql(sql_drop_hnsw_index, error_msg="Could not drop HNSW index")
 
-        self._create_hnsw_index()
+        self._execute_sql(sql_create_hnsw_index, error_msg="Could not create HNSW index")
 
     async def _handle_hnsw_async(self):
         """
         Internal async method to handle the HNSW index creation.
         """
+
+        sql_set_hnsw_ef_search, sql_hnsw_index_exists, sql_drop_hnsw_index, sql_create_hnsw_index = (
+            self._build_hnsw_queries()
+        )
+
         if self.hnsw_ef_search:
-            sql_set_hnsw_ef_search = SQL("SET hnsw.ef_search = {hnsw_ef_search}").format(
-                hnsw_ef_search=SQLLiteral(self.hnsw_ef_search)
-            )
             await self._execute_sql_async(sql_set_hnsw_ef_search, error_msg="Could not set hnsw.ef_search")
 
         await self._execute_sql_async(
-            "SELECT 1 FROM pg_indexes WHERE schemaname = %s AND tablename = %s AND indexname = %s",
+            sql_hnsw_index_exists,
             (self.schema_name, self.table_name, self.hnsw_index_name),
             "Could not check if HNSW index exists",
             self._async_cursor,
@@ -564,75 +603,9 @@ class PgvectorDocumentStore:
             )
             return
 
-        sql_drop_index = SQL("DROP INDEX IF EXISTS {schema_name}.{index_name}").format(
-            schema_name=Identifier(self.schema_name), index_name=Identifier(self.hnsw_index_name)
-        )
-        await self._execute_sql_async(sql_drop_index, error_msg="Could not drop HNSW index")
+        await self._execute_sql_async(sql_drop_hnsw_index, error_msg="Could not drop HNSW index")
 
-        await self._create_hnsw_index_async()
-
-    def _create_hnsw_index(self):
-        """
-        Internal method to create the HNSW index.
-        """
-
-        pg_ops = VECTOR_FUNCTION_TO_POSTGRESQL_OPS[self.vector_function]
-        actual_hnsw_index_creation_kwargs = {
-            key: value
-            for key, value in self.hnsw_index_creation_kwargs.items()
-            if key in HNSW_INDEX_CREATION_VALID_KWARGS
-        }
-
-        sql_create_index = SQL(
-            "CREATE INDEX {index_name} ON {schema_name}.{table_name} USING hnsw (embedding {ops}) "
-        ).format(
-            schema_name=Identifier(self.schema_name),
-            index_name=Identifier(self.hnsw_index_name),
-            table_name=Identifier(self.table_name),
-            ops=SQL(pg_ops),
-        )
-
-        if actual_hnsw_index_creation_kwargs:
-            actual_hnsw_index_creation_kwargs_str = ", ".join(
-                f"{key} = {value}" for key, value in actual_hnsw_index_creation_kwargs.items()
-            )
-            sql_add_creation_kwargs = SQL("WITH ({creation_kwargs_str})").format(
-                creation_kwargs_str=SQL(actual_hnsw_index_creation_kwargs_str)
-            )
-            sql_create_index += sql_add_creation_kwargs
-
-        self._execute_sql(sql_create_index, error_msg="Could not create HNSW index")
-
-    async def _create_hnsw_index_async(self):
-        """
-        Internal async method to create the HNSW index.
-        """
-        pg_ops = VECTOR_FUNCTION_TO_POSTGRESQL_OPS[self.vector_function]
-        actual_hnsw_index_creation_kwargs = {
-            key: value
-            for key, value in self.hnsw_index_creation_kwargs.items()
-            if key in HNSW_INDEX_CREATION_VALID_KWARGS
-        }
-
-        sql_create_index = SQL(
-            "CREATE INDEX {index_name} ON {schema_name}.{table_name} USING hnsw (embedding {ops}) "
-        ).format(
-            schema_name=Identifier(self.schema_name),
-            index_name=Identifier(self.hnsw_index_name),
-            table_name=Identifier(self.table_name),
-            ops=SQL(pg_ops),
-        )
-
-        if actual_hnsw_index_creation_kwargs:
-            actual_hnsw_index_creation_kwargs_str = ", ".join(
-                f"{key} = {value}" for key, value in actual_hnsw_index_creation_kwargs.items()
-            )
-            sql_add_creation_kwargs = SQL("WITH ({creation_kwargs_str})").format(
-                creation_kwargs_str=SQL(actual_hnsw_index_creation_kwargs_str)
-            )
-            sql_create_index += sql_add_creation_kwargs
-
-        await self._execute_sql_async(sql_create_index, error_msg="Could not create HNSW index")
+        await self._execute_sql_async(sql_create_hnsw_index, error_msg="Could not create HNSW index")
 
     def count_documents(self) -> int:
         """
