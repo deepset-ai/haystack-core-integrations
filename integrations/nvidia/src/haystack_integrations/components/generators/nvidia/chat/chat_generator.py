@@ -207,11 +207,13 @@ class NvidiaChatGenerator:
         message = ChatMessage.from_assistant(text=text)
 
         # Add metadata to the message
-        message._meta.update({
-            "model": response.get("model", None),
-            "finish_reason": response.get("finish_reason", None),
-            "usage": response.get("usage", {}),
-        })
+        message._meta.update(
+            {
+                "model": response.get("model", None),
+                "finish_reason": response.get("finish_reason", None),
+                "usage": response.get("usage", {}),
+            }
+        )
 
         return message
 
@@ -233,7 +235,6 @@ class NvidiaChatGenerator:
 
         # Convert messages to NVIDIA format
         nvidia_messages = self._convert_messages_to_nvidia_format(messages)
-
 
         # Call the backend and process response
         assert self.backend is not None
