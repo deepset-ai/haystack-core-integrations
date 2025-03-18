@@ -1,4 +1,3 @@
-import os
 from unittest.mock import patch
 
 import pytest
@@ -7,8 +6,8 @@ from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
 
 @pytest.fixture
-def document_store(request):
-    os.environ["PG_CONN_STR"] = "postgresql://postgres:postgres@localhost:5432/postgres"
+def document_store(request, monkeypatch):
+    monkeypatch.setenv("PG_CONN_STR", "postgresql://postgres:postgres@localhost:5432/postgres")
     table_name = f"haystack_{request.node.name}"
     embedding_dimension = 768
     vector_function = "cosine_similarity"
@@ -32,10 +31,32 @@ def document_store(request):
 
 
 @pytest.fixture
+def document_store_w_hnsw_index(request, monkeypatch):
+    monkeypatch.setenv("PG_CONN_STR", "postgresql://postgres:postgres@localhost:5432/postgres")
+    table_name = f"haystack_hnsw_{request.node.name}"
+    embedding_dimension = 768
+    vector_function = "cosine_similarity"
+    recreate_table = True
+    search_strategy = "hnsw"
+
+    store = PgvectorDocumentStore(
+        table_name=table_name,
+        embedding_dimension=embedding_dimension,
+        vector_function=vector_function,
+        recreate_table=recreate_table,
+        search_strategy=search_strategy,
+    )
+    yield store
+
+    # Ensure connection just for table deletion.
+    # During test execution, the tested methods are expected to call _ensure_valid_connection() themselves.
+    store._ensure_valid_connection()
+    store.delete_table()
+
+
+@pytest.fixture
 def patches_for_unit_tests():
-    with patch("haystack_integrations.document_stores.pgvector.document_store.connect") as mock_connect, patch(
-        "haystack_integrations.document_stores.pgvector.document_store.register_vector"
-    ) as mock_register, patch(
+    with patch("haystack_integrations.document_stores.pgvector.document_store.register_vector") as mock_register, patch(
         "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore.delete_table"
     ) as mock_delete, patch(
         "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore._create_table_if_not_exists"
@@ -44,7 +65,7 @@ def patches_for_unit_tests():
     ) as mock_create_kw_index, patch(
         "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore._handle_hnsw"
     ) as mock_hnsw:
-        yield mock_connect, mock_register, mock_delete, mock_create, mock_create_kw_index, mock_hnsw
+        yield mock_register, mock_delete, mock_create, mock_create_kw_index, mock_hnsw
 
 
 @pytest.fixture

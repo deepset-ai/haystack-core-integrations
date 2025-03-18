@@ -13,26 +13,6 @@ from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
 @pytest.mark.integration
 class TestEmbeddingRetrieval:
-    @pytest.fixture
-    def document_store_w_hnsw_index(self, request):
-        connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
-        table_name = f"haystack_hnsw_{request.node.name}"
-        embedding_dimension = 768
-        vector_function = "cosine_similarity"
-        recreate_table = True
-        search_strategy = "hnsw"
-
-        store = PgvectorDocumentStore(
-            connection_string=connection_string,
-            table_name=table_name,
-            embedding_dimension=embedding_dimension,
-            vector_function=vector_function,
-            recreate_table=recreate_table,
-            search_strategy=search_strategy,
-        )
-        yield store
-
-        store.delete_table()
 
     @pytest.mark.parametrize("document_store", ["document_store", "document_store_w_hnsw_index"], indirect=True)
     def test_embedding_retrieval_cosine_similarity(self, document_store: PgvectorDocumentStore):
@@ -130,3 +110,50 @@ class TestEmbeddingRetrieval:
         query_embedding = [0.1] * 4
         with pytest.raises(ValueError):
             document_store._embedding_retrieval(query_embedding=query_embedding)
+
+
+@pytest.mark.integration
+class TestKeywordRetrieval:
+    def test_keyword_retrieval(self, document_store: PgvectorDocumentStore):
+        docs = [
+            Document(content="The quick brown fox chased the dog", embedding=[0.1] * 768),
+            Document(content="The fox was brown", embedding=[0.1] * 768),
+            Document(content="The lazy dog", embedding=[0.1] * 768),
+            Document(content="fox fox fox", embedding=[0.1] * 768),
+        ]
+
+        document_store.write_documents(docs)
+
+        results = document_store._keyword_retrieval(query="fox", top_k=2)
+
+        assert len(results) == 2
+        for doc in results:
+            assert "fox" in doc.content
+        assert results[0].id == docs[-1].id
+        assert results[0].score > results[1].score
+
+    def test_keyword_retrieval_with_filters(self, document_store: PgvectorDocumentStore):
+        docs = [
+            Document(
+                content="The quick brown fox chased the dog",
+                embedding=([0.1] * 768),
+                meta={"meta_field": "right_value"},
+            ),
+            Document(content="The fox was brown", embedding=([0.1] * 768), meta={"meta_field": "right_value"}),
+            Document(content="The lazy dog", embedding=([0.1] * 768), meta={"meta_field": "right_value"}),
+            Document(content="fox fox fox", embedding=([0.1] * 768), meta={"meta_field": "wrong_value"}),
+        ]
+
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.meta_field", "operator": "==", "value": "right_value"}
+
+        results = document_store._keyword_retrieval(query="fox", top_k=3, filters=filters)
+        assert len(results) == 2
+        for doc in results:
+            assert "fox" in doc.content
+            assert doc.meta["meta_field"] == "right_value"
+
+    def test_empty_query(self, document_store: PgvectorDocumentStore):
+        with pytest.raises(ValueError):
+            document_store._keyword_retrieval(query="")
