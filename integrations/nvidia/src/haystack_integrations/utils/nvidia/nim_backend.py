@@ -27,7 +27,7 @@ class NimBackend:
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_kwargs: Optional[Dict[str, Any]] = None,
         client: Optional[
-            Literal["NvidiaGenerator", "NvidiaTextEmbedder", "NvidiaDocumentEmbedder", "NvidiaRanker"]
+            Literal["NvidiaGenerator", "NvidiaTextEmbedder", "NvidiaDocumentEmbedder", "NvidiaRanker", "NvidiaChatGenerator"]
         ] = None,
         timeout: Optional[float] = None,
     ):
@@ -144,6 +144,55 @@ class NimBackend:
             meta.append(choice_meta)
 
         return replies, meta
+    
+    def generate_chat(
+        self, 
+        messages: List[Dict[str, Any]],
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """
+        Generate chat completions from a list of messages.
+        
+        :param messages: List of messages in the format expected by the NIM API
+        :returns: A tuple containing the response and metadata
+        """
+        url = f"{self.api_url}/chat/completions"
+        
+        json_data = {
+            "model": self.model,
+            "messages": messages,
+            **self.model_kwargs,
+        }
+        
+        try:
+            res = self.session.post(
+                url,
+                json=json_data,
+                timeout=self.timeout,
+            )
+            res.raise_for_status()
+
+        except requests.HTTPError as e:
+            logger.error("Error when calling NIM chat completion endpoint: Error - {error}", error=e.response.text)
+            msg = f"Failed to query chat completion endpoint: Error - {e.response.text}"
+            raise ValueError(msg) from e
+            
+        # Process the response to extract content and metadata
+        data = res.json()
+        responses = []
+        for choice in data.get("choices", []):
+            message = choice.get("message", {})
+            response_data = {
+                "content": message.get("content", ""),
+                "model": data.get("model", self.model),
+                "finish_reason": choice.get("finish_reason", None),
+            }
+            # Add usage information if available
+            if "usage" in data:
+                response_data["usage"] = data["usage"]
+            responses.append(response_data)
+        
+        meta = {"model": data.get("model", self.model)}
+        return responses, meta
 
     def models(self) -> List[Model]:
         url = f"{self.api_url}/models"
