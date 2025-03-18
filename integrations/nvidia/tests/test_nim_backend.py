@@ -6,22 +6,25 @@ from unittest.mock import patch
 
 import requests
 
-from haystack_integrations.utils.nvidia import NimBackend, DEFAULT_API_URL
+from haystack_integrations.utils.nvidia import DEFAULT_API_URL, NimBackend
 from haystack_integrations.utils.nvidia.nim_backend import REQUEST_TIMEOUT
 
 
-def mock_embed_post_response(*args, **kwargs):
+def mock_embed_post_response(*args, **kwargs):  # noqa: ARG001
     inputs = kwargs["json"]["input"]
     model = kwargs["json"]["model"]
     mock_response = requests.Response()
     mock_response.status_code = 200
-    data = [{"object": "embedding", "index": i, "embedding": [0.1, 0.2, 0.3]} for i in range(len(inputs))]
+    data = [
+        {"object": "embedding", "index": i, "embedding": [i / 10.0, 0.1, 0.1]} for i in reversed(range(len(inputs)))
+    ]
     mock_response._content = json.dumps(
         {"model": model, "object": "list", "usage": {"total_tokens": 4, "prompt_tokens": 4}, "data": data}
     ).encode()
     return mock_response
 
-def mock_generate_post_response(*args, **kwargs):
+
+def mock_generate_post_response(*args, **kwargs):  # noqa: ARG001
     prompt = kwargs["json"]["messages"][0]["content"]
     model = kwargs["json"]["model"]
     mock_response = requests.Response()
@@ -30,7 +33,7 @@ def mock_generate_post_response(*args, **kwargs):
         {
             "index": i,
             "message": {"role": "assistant", "content": f"Response {i} to '{prompt}'"},
-            "finish_reason": "stop"
+            "finish_reason": "stop",
         }
         for i in range(3)
     ]
@@ -44,15 +47,14 @@ def mock_generate_post_response(*args, **kwargs):
     ).encode()
     return mock_response
 
+
 def mock_models_get_response(*args, **kwargs):  # noqa: ARG001
     mock_response = requests.Response()
     mock_response.status_code = 200
-    data = [
-        {"id": f"model_{i}", "object": "model", "root": f"base_model_{i}"}
-        for i in range(3)
-    ]
+    data = [{"id": f"model_{i}", "object": "model", "root": f"base_model_{i}"} for i in range(3)]
     mock_response._content = json.dumps({"object": "list", "data": data}).encode()
     return mock_response
+
 
 def mock_rank_post_response(*args, **kwargs):  # noqa: ARG001
     passages = kwargs["json"]["passages"]
@@ -85,9 +87,13 @@ class TestNimBackend:
 
     def test_init_overrides_endpoint(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-        backend = NimBackend(model="nvidia/nv-rerankqa-mistral-4b-v3", api_url=DEFAULT_API_URL, client="NvidiaRanker", model_type = "ranking")
+        backend = NimBackend(
+            model="nvidia/nv-rerankqa-mistral-4b-v3",
+            api_url=DEFAULT_API_URL,
+            client="NvidiaRanker",
+            model_type="ranking",
+        )
         assert backend.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia/nv-rerankqa-mistral-4b-v3/reranking"
-
 
     def test_embed(self, monkeypatch):
         with patch("requests.sessions.Session.post", side_effect=mock_embed_post_response) as mock_post:
@@ -96,7 +102,10 @@ class TestNimBackend:
             texts = ["a", "b", "c"]
             embeddings, meta = backend.embed(texts=texts)
 
-            expected_url = DEFAULT_API_URL+"/embeddings"
+            assert embeddings == [[0.0, 0.1, 0.1], [0.1, 0.1, 0.1], [0.2, 0.1, 0.1]]
+            assert meta == {"usage": {"prompt_tokens": 4, "total_tokens": 4}}
+
+            expected_url = DEFAULT_API_URL + "/embeddings"
             mock_post.assert_called_once_with(
                 expected_url,
                 json={
@@ -113,7 +122,7 @@ class TestNimBackend:
             prompt = "a"
             replies, meta = backend.generate(prompt=prompt)
 
-            expected_url = DEFAULT_API_URL+"/chat/completions"
+            expected_url = DEFAULT_API_URL + "/chat/completions"
             mock_post.assert_called_once_with(
                 expected_url,
                 json={
@@ -131,10 +140,14 @@ class TestNimBackend:
     def test_models(self, monkeypatch):
         with patch("requests.sessions.Session.get", side_effect=mock_models_get_response) as mock_get:
             monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-            backend = NimBackend(model="nvidia/nv-embedqa-e5-v5", api_url=DEFAULT_API_URL, client="NvidiaDocumentEmbedder")
+            backend = NimBackend(
+                model="nvidia/nv-embedqa-e5-v5", api_url=DEFAULT_API_URL, client="NvidiaDocumentEmbedder"
+            )
             models = backend.models()
 
-            expected_url = DEFAULT_API_URL+"/models"
+            assert len(models) == 3
+            assert all([model.client == "NvidiaDocumentEmbedder"] for model in models)
+            expected_url = DEFAULT_API_URL + "/models"
             mock_get.assert_called_once_with(
                 expected_url,
                 timeout=60.0,
@@ -143,12 +156,19 @@ class TestNimBackend:
     def test_rank(self, monkeypatch):
         with patch("requests.sessions.Session.post", side_effect=mock_rank_post_response) as mock_post:
             monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-            backend = NimBackend(model="nvidia/llama-3.2-nv-rerankqa-1b-v2", api_url=DEFAULT_API_URL, client="NvidiaRanker")
+            backend = NimBackend(
+                model="nvidia/llama-3.2-nv-rerankqa-1b-v2", api_url=DEFAULT_API_URL, client="NvidiaRanker"
+            )
             query_text = "query"
             document_texts = ["text1", "text2"]
             rankings = backend.rank(query_text=query_text, document_texts=document_texts)
 
-            expected_url = 'https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-3_2-nv-rerankqa-1b-v2/reranking'
+            assert rankings == [
+                {"index": 0, "object": "ranking", "score": 1.0, "text": "text1"},
+                {"index": 1, "object": "ranking", "score": 0.9, "text": "text2"},
+            ]
+
+            expected_url = "https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-3_2-nv-rerankqa-1b-v2/reranking"
             mock_post.assert_called_once_with(
                 expected_url,
                 json={
