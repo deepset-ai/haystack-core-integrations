@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.3.0] - 2025-03-18
+
+### 🚀 Features
+
+- Support new Amazon Bedrock rerank API (#1529)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🌀 Miscellaneous
+
+- Docs: update changelog for integrations/amazon_bedrock (#1536)
+
 ## [integrations/amazon_bedrock-v3.2.1] - 2025-03-13
 
 ### 🐛 Bug Fixes
