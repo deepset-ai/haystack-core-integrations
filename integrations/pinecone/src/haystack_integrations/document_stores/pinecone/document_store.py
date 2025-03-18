@@ -9,7 +9,7 @@ from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from pinecone import Pinecone, PodSpec, ServerlessSpec
+from pinecone import Pinecone, PodSpec, ServerlessSpec, PineconeAsyncio
 
 from .filters import _normalize_filters
 
@@ -102,6 +102,36 @@ class PineconeDocumentStore:
         self._dummy_vector = [-10.0] * self.dimension
 
         return self._index
+    
+    @property
+    def async_index(self):
+        if self._index is not None:
+            return self._index
+
+        async_client = PineconeAsyncio(api_key=self.api_key.resolve_value(), source_tag="haystack")
+
+        if self.index_name not in async_client.list_indexes().names():
+            logger.info(f"Index {self.index_name} does not exist. Creating a new index.")
+            pinecone_spec = self._convert_dict_spec_to_pinecone_object(self.spec)
+            async_client.create_index(name=self.index_name, dimension=self.dimension, spec=pinecone_spec, metric=self.metric)
+        else:
+            logger.info(
+                f"Connecting to existing index {self.index_name}. `dimension`, `spec`, and `metric` will be ignored."
+            )
+
+        self._index = async_client.Index(name=self.index_name)
+
+        actual_dimension = self._index.describe_index_stats().get("dimension")
+        if actual_dimension and actual_dimension != self.dimension:
+            logger.warning(
+                f"Dimension of index {self.index_name} is {actual_dimension}, but {self.dimension} was specified. "
+                "The specified dimension will be ignored."
+                "If you need an index with a different dimension, please create a new one."
+            )
+        self.dimension = actual_dimension or self.dimension
+        self._dummy_vector = [-10.0] * self.dimension
+
+        return self._index
 
     @staticmethod
     def _convert_dict_spec_to_pinecone_object(spec: Dict[str, Any]):
@@ -159,15 +189,23 @@ class PineconeDocumentStore:
             count = 0
         return count
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
+    async def count_documents(self) -> int:
         """
-        Writes Documents to Pinecone.
-
-        :param documents: A list of Documents to write to the document store.
+        Asynchronously returns how many documents are present in the document store.
+        """
+        try:
+            count = await self.async_index.describe_index_stats()["namespaces"][self.namespace]["vector_count"]
+        except KeyError:
+            count = 0
+        return count
+    
+    def _prepare_documents_for_writing(self, documents: List[Document], policy: DuplicatePolicy) -> List[Dict[str, Any]]:
+        """
+        Helper method to prepare documents for writing to Pinecone.
+        
+        :param documents: A list of Documents to prepare for writing.
         :param policy: The duplicate policy to use when writing documents.
-            PineconeDocumentStore only supports `DuplicatePolicy.OVERWRITE`.
-
-        :returns: The number of documents written to the document store.
+        :returns: A list of documents formatted for Pinecone.
         """
         if len(documents) > 0 and not isinstance(documents[0], Document):
             msg = "param 'documents' must contain a list of objects of type Document"
@@ -179,9 +217,39 @@ class PineconeDocumentStore:
                 f"but got {policy}. Overwriting duplicates is enabled by default."
             )
 
-        documents_for_pinecone = self._convert_documents_to_pinecone_format(documents)
+        return self._convert_documents_to_pinecone_format(documents)
+
+
+    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
+        """
+        Writes Documents to Pinecone.
+
+        :param documents: A list of Documents to write to the document store.
+        :param policy: The duplicate policy to use when writing documents.
+            PineconeDocumentStore only supports `DuplicatePolicy.OVERWRITE`.
+
+        :returns: The number of documents written to the document store.
+        """
+        documents_for_pinecone = self._prepare_documents_for_writing(documents, policy)
 
         result = self.index.upsert(vectors=documents_for_pinecone, namespace=self.namespace, batch_size=self.batch_size)
+
+        written_docs = result["upserted_count"]
+        return written_docs
+    
+    async def write_documents_async(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
+        """
+        Asynchronously writes Documents to Pinecone.
+
+        :param documents: A list of Documents to write to the document store.
+        :param policy: The duplicate policy to use when writing documents.
+            PineconeDocumentStore only supports `DuplicatePolicy.OVERWRITE`.
+
+        :returns: The number of documents written to the document store.
+        """
+        documents_for_pinecone = self._prepare_documents_for_writing(documents, policy)
+
+        result = await self.async_index.upsert(vectors=documents_for_pinecone, namespace=self.namespace, batch_size=self.batch_size)
 
         written_docs = result["upserted_count"]
         return written_docs
@@ -216,6 +284,29 @@ class PineconeDocumentStore:
                 f"It is likely that there are more matching documents in the document store. "
             )
         return documents
+    
+    async def filter_documents_async(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        """
+        Asynchronously returns the documents that match the filters provided.
+
+        :param filters: The filters to apply to the document list.
+        :returns: A list of Documents that match the given filters.
+        """
+        if filters and "operator" not in filters and "conditions" not in filters:
+            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
+            raise ValueError(msg)
+
+        documents = await self._embedding_retrieval_async(query_embedding=self._dummy_vector, filters=filters, top_k=TOP_K_LIMIT)
+
+        for doc in documents:
+            doc.score = None
+
+        if len(documents) == TOP_K_LIMIT:
+            logger.warning(
+                f"PineconeDocumentStore can return at most {TOP_K_LIMIT} documents and the query has hit this limit. "
+                f"It is likely that there are more matching documents in the document store. "
+            )
+        return documents
 
     def delete_documents(self, document_ids: List[str]) -> None:
         """
@@ -224,6 +315,14 @@ class PineconeDocumentStore:
         :param document_ids: the document ids to delete
         """
         self.index.delete(ids=document_ids, namespace=self.namespace)
+
+    async def delete_documents_async(self, document_ids: List[str]) -> None:
+        """
+        Asynchronously deletes documents that match the provided `document_ids` from the document store.
+
+        :param document_ids: the document ids to delete
+        """
+        await self.async_index.delete(ids=document_ids, namespace=self.namespace)
 
     def _embedding_retrieval(
         self,
@@ -267,6 +366,46 @@ class PineconeDocumentStore:
         )
 
         return self._convert_query_result_to_documents(result)
+    
+    async def _embedding_retrieval_async(
+        self,
+        query_embedding: List[float],
+        *,
+        namespace: Optional[str] = None,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+    ) -> List[Document]:
+        """
+        Asynchronously retrieves documents that are most similar to the query embedding using a vector similarity metric.
+
+        :param query_embedding: Embedding of the query.
+        :param namespace: Pinecone namespace to query. Defaults the namespace of the document store.
+        :param filters: Filters applied to the retrieved Documents.
+        :param top_k: Maximum number of Documents to return.
+
+        :returns: List of Document that are most similar to `query_embedding`
+        """
+        if not query_embedding:
+            msg = "query_embedding must be a non-empty list of floats"
+            raise ValueError(msg)
+
+        if filters and "operator" not in filters and "conditions" not in filters:
+            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
+            raise ValueError(msg)
+        
+        filters = _normalize_filters(filters) if filters else None
+
+        result = await self.async_index.query(
+            vector=query_embedding,
+            top_k=top_k,
+            namespace=namespace or self.namespace,
+            filter=filters,
+            include_values=True,
+            include_metadata=True,
+        )
+
+        return self._convert_query_result_to_documents(result)
+        
 
     @staticmethod
     def _convert_meta_to_int(metadata: Dict[str, Any]) -> Dict[str, Any]:
