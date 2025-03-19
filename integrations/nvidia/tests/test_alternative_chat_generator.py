@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 from haystack.dataclasses import ChatMessage
 from haystack.utils import Secret
-from openai.types.chat import ChatCompletion
+from openai.types.chat import ChatCompletion  # type: ignore
 from requests_mock import Mocker
 
 from haystack_integrations.components.generators.nvidia.chat.alternative_chat_generator import (
