@@ -608,6 +608,9 @@ class PgvectorDocumentStore:
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
+
+        :returns:
+            Number of documents in the document store.
         """
         sql_count = SQL("SELECT COUNT(*) FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
@@ -622,6 +625,9 @@ class PgvectorDocumentStore:
     async def count_documents_async(self) -> int:
         """
         Returns how many documents are present in the document store.
+
+        :returns:
+            Number of documents in the document store.
         """
         sql_count = SQL("SELECT COUNT(*) FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
@@ -644,6 +650,7 @@ class PgvectorDocumentStore:
 
         :param filters: The filters to apply to the document list.
         :raises TypeError: If `filters` is not a dictionary.
+        :raises ValueError: If `filters` syntax is invalid.
         :returns: A list of Documents that match the given filters.
         """
         _validate_filters(filters)
@@ -671,7 +678,16 @@ class PgvectorDocumentStore:
 
     async def filter_documents_async(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
-        Returns the documents that match the filters provided.
+        Asynchronously returns the documents that match the filters provided.
+
+        For a detailed specification of the filters,
+        refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
+
+        :param filters: The filters to apply to the document list.
+
+        :raises TypeError: If `filters` is not a dictionary.
+        :raises ValueError: If `filters` syntax is invalid.
+        :returns: A list of Documents that match the given filters.
         """
         _validate_filters(filters)
 
@@ -719,8 +735,10 @@ class PgvectorDocumentStore:
 
         :param documents: A list of Documents to write to the document store.
         :param policy: The duplicate policy to use when writing documents.
+        :raises ValueError: If `documents` contains objects that are not of type `Document`.
         :raises DuplicateDocumentError: If a document with the same id already exists in the document store
              and the policy is set to `DuplicatePolicy.FAIL` (or not specified).
+        :raises DocumentStoreError: If the write operation fails for any other reason.
         :returns: The number of documents written to the document store.
         """
         if len(documents) > 0:
@@ -770,7 +788,15 @@ class PgvectorDocumentStore:
         self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
     ) -> int:
         """
-        Writes documents to the document store asynchronously.
+        Asynchronously writes documents to the document store.
+
+        :param documents: A list of Documents to write to the document store.
+        :param policy: The duplicate policy to use when writing documents.
+        :raises ValueError: If `documents` contains objects that are not of type `Document`.
+        :raises DuplicateDocumentError: If a document with the same id already exists in the document store
+             and the policy is set to `DuplicatePolicy.FAIL` (or not specified).
+        :raises DocumentStoreError: If the write operation fails for any other reason.
+        :returns: The number of documents written to the document store.
         """
         if len(documents) > 0:
             if not isinstance(documents[0], Document):
@@ -832,7 +858,9 @@ class PgvectorDocumentStore:
 
     async def delete_documents_async(self, document_ids: List[str]) -> None:
         """
-        Deletes documents that match the provided `document_ids` from the document store asynchronously.
+        Asynchronously deletes documents that match the provided `document_ids` from the document store.
+
+        :param document_ids: the document ids to delete
         """
         if not document_ids:
             return
