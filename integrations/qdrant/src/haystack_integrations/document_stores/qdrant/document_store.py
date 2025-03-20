@@ -1511,9 +1511,9 @@ class QdrantDocumentStore:
         for document in documents:
             if document.id in _hash_ids:
                 logger.info(
-                    "Duplicate Documents: Document with id '%s' already exists in index '%s'",
-                    document.id,
-                    self.index,
+                    "Duplicate Documents: Document with id '{document_id}' already exists in index '{index}'",
+                    document_id=document.id,
+                    index=self.index,
                 )
                 continue
             _documents.append(document)
