@@ -514,7 +514,7 @@ class OpenSearchDocumentStore:
                 custom_query,
                 {
                     "$query": query,
-                    "$filters": normalize_filters(filters),  # type:ignore
+                    "$filters": normalize_filters(filters) if filters else None,
                 },
             )
 
