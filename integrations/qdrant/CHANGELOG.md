@@ -2,10 +2,6 @@
 
 ## [integrations/qdrant-v9.1.1] - 2025-03-20
 
-### 📚 Documentation
-
-- Update changelog for integrations/qdrant (#1539)
-
 ### ⚙️ CI
 
 - Review testing workflows (#1541)
@@ -20,15 +16,7 @@
 
 - Qdrant -- async support (#1480)
 
-### 📚 Documentation
-
-- Update changelog for integrations/qdrant (#1526)
-
 ## [integrations/qdrant-v9.0.0] - 2025-03-11
-
-### 📚 Documentation
-
-- Update changelog for integrations/qdrant (#1482)
 
 ### 🧹 Chores
 
@@ -43,7 +31,6 @@
 
 ### 🌀 Miscellaneous
 
-- Docs: update changelog for integrations/qdrant (#1419)
 - Docs: Update document store descriptions for deepset Pipeline Builder (#1447)
 - Refactor: Qdrant - raise error if existing collection is not compatible with Haystack (#1481)
 
