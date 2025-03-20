@@ -11,6 +11,7 @@ from haystack_integrations.document_stores.pgvector.filters import (
     _parse_comparison_condition,
     _parse_logical_condition,
     _treat_meta_field,
+    _validate_filters,
 )
 
 
@@ -233,3 +234,16 @@ def test_convert_filters_to_where_clause_and_params_handle_null():
     where_clause, params = _convert_filters_to_where_clause_and_params(filters)
     assert where_clause == SQL(" WHERE ") + SQL("(meta->>'number' IS NULL AND meta->>'chapter' = %s)")
     assert params == ("intro",)
+
+
+def test_validate_filters():
+    filters = {"field": "meta.number", "operator": "==", "value": 100}
+    _validate_filters(filters)
+
+    my_list = ["a", "nice", "list"]
+    with pytest.raises(TypeError):
+        _validate_filters(my_list)
+
+    invalid_filters = {"field": "meta.number", "value": "100"}
+    with pytest.raises(ValueError):
+        _validate_filters(invalid_filters)
