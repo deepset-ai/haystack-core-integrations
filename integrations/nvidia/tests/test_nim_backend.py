@@ -124,20 +124,20 @@ class TestNimBackend:
             assert replies == ["Response 0 to 'a'", "Response 1 to 'a'", "Response 2 to 'a'"]
             assert meta == [
                 {
-                    'role': 'assistant',
-                    'usage': {'prompt_tokens': 5, 'total_tokens': 10, 'completion_tokens': 5},
-                    'finish_reason': 'stop'
+                    "role": "assistant",
+                    "usage": {"prompt_tokens": 5, "total_tokens": 10, "completion_tokens": 5},
+                    "finish_reason": "stop",
                 },
                 {
-                    'role': 'assistant',
-                    'usage': {'prompt_tokens': 5, 'total_tokens': 10, 'completion_tokens': 5},
-                    'finish_reason': 'stop'
+                    "role": "assistant",
+                    "usage": {"prompt_tokens": 5, "total_tokens": 10, "completion_tokens": 5},
+                    "finish_reason": "stop",
                 },
                 {
-                    'role': 'assistant',
-                    'usage': {'prompt_tokens': 5, 'total_tokens': 10, 'completion_tokens': 5},
-                    'finish_reason': 'stop'
-                }
+                    "role": "assistant",
+                    "usage": {"prompt_tokens": 5, "total_tokens": 10, "completion_tokens": 5},
+                    "finish_reason": "stop",
+                },
             ]
 
             expected_url = DEFAULT_API_URL + "/chat/completions"
