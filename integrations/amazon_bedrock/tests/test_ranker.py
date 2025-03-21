@@ -24,7 +24,7 @@ def test_bedrock_ranker_initialization(mock_aws_session):
         top_k=2,
         aws_access_key_id=Secret.from_token("test_access_key"),
         aws_secret_access_key=Secret.from_token("test_secret_key"),
-        aws_region_name=Secret.from_token("us-east-1"),
+        aws_region_name=Secret.from_token("us-west-2"),
     )
     assert ranker.model_name == "cohere.rerank-v3-5:0"
     assert ranker.top_k == 2
@@ -36,18 +36,12 @@ def test_bedrock_ranker_run(mock_aws_session):
         top_k=2,
         aws_access_key_id=Secret.from_token("test_access_key"),
         aws_secret_access_key=Secret.from_token("test_secret_key"),
-        aws_region_name=Secret.from_token("us-east-1"),
+        aws_region_name=Secret.from_token("us-west-2"),
     )
 
-    mock_response = {
-        "body": MagicMock(
-            read=MagicMock(
-                return_value=b'{"results": [{"index": 0, "relevance_score": 0.9},'
-                b' {"index": 1, "relevance_score": 0.7}]}'
-            )
-        )
-    }
-    mock_aws_session.invoke_model.return_value = mock_response
+    mock_response = {"results": [{"index": 0, "relevanceScore": 0.9}, {"index": 1, "relevanceScore": 0.7}]}
+
+    mock_aws_session.rerank.return_value = mock_response
 
     docs = [Document(content="Test document 1"), Document(content="Test document 2")]
     result = ranker.run(query="test query", documents=docs)
@@ -77,10 +71,10 @@ def test_bedrock_ranker_run_inference_error(mock_aws_session):
         top_k=2,
         aws_access_key_id=Secret.from_token("test_access_key"),
         aws_secret_access_key=Secret.from_token("test_secret_key"),
-        aws_region_name=Secret.from_token("us-east-1"),
+        aws_region_name=Secret.from_token("us-west-2"),
     )
 
-    mock_aws_session.invoke_model.side_effect = Exception("Inference error")
+    mock_aws_session.rerank.side_effect = Exception("Inference error")
 
     docs = [Document(content="Test document 1"), Document(content="Test document 2")]
     with pytest.raises(AmazonBedrockInferenceError):
@@ -88,10 +82,7 @@ def test_bedrock_ranker_run_inference_error(mock_aws_session):
 
 
 def test_bedrock_ranker_serialization(mock_aws_session):
-    ranker = BedrockRanker(
-        model="cohere.rerank-v3-5:0",
-        top_k=2,
-    )
+    ranker = BedrockRanker(model="cohere.rerank-v3-5:0", top_k=2)
 
     serialized = ranker.to_dict()
     assert serialized["init_parameters"]["model"] == "cohere.rerank-v3-5:0"
@@ -109,7 +100,7 @@ def test_bedrock_ranker_empty_documents(mock_aws_session):
         top_k=2,
         aws_access_key_id=Secret.from_token("test_access_key"),
         aws_secret_access_key=Secret.from_token("test_secret_key"),
-        aws_region_name=Secret.from_token("us-east-1"),
+        aws_region_name=Secret.from_token("us-west-2"),
     )
 
     docs = []
