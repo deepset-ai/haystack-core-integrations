@@ -9,7 +9,7 @@ from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.retrievers import SentenceWindowRetriever
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
 from haystack.utils import Secret
-from pinecone import Pinecone, PodSpec, ServerlessSpec
+from pinecone import PineconeAsyncio
 
 from haystack_integrations.components.retrievers.pinecone import PineconeEmbeddingRetriever
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
@@ -22,7 +22,7 @@ def test_init_is_lazy(_mock_client):
 
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
-async def test_init(mock_pinecone):
+async def test_init_async(mock_pinecone):
     mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {"dimension": 60}
 
     document_store = PineconeDocumentStore(
@@ -59,13 +59,13 @@ async def test_init_api_key_in_environment_variable(mock_pinecone, monkeypatch):
     )
 
     # Trigger an actual connection
-    _ = ds.initialize_index()
+    _ = await ds.initialize_async_index()
 
     mock_pinecone.assert_called_with(api_key="env-api-key", source_tag="haystack")
 
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
-def test_to_from_dict(mock_pinecone, monkeypatch):
+async def test_to_from_dict(mock_pinecone, monkeypatch):
     mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {"dimension": 60}
     monkeypatch.setenv("PINECONE_API_KEY", "env-api-key")
     document_store = PineconeDocumentStore(
@@ -77,7 +77,7 @@ def test_to_from_dict(mock_pinecone, monkeypatch):
     )
 
     # Trigger an actual connection
-    document_store.initialize_index()
+    await document_store.initialize_async_index()
     _ = document_store._index
 
     dict_output = {
@@ -110,119 +110,25 @@ def test_to_from_dict(mock_pinecone, monkeypatch):
     assert document_store.spec == {"serverless": {"region": "us-east-1", "cloud": "aws"}}
 
 
-def test_init_fails_wo_api_key(monkeypatch):
+async def test_init_fails_wo_api_key(monkeypatch):
     monkeypatch.delenv("PINECONE_API_KEY", raising=False)
     with pytest.raises(ValueError):
         _ = PineconeDocumentStore(
             index="my_index",
-        ).initialize_index()
-
-
-def test_convert_dict_spec_to_pinecone_object_serverless():
-    dict_spec = {"serverless": {"region": "us-east-1", "cloud": "aws"}}
-    pinecone_object = PineconeDocumentStore._convert_dict_spec_to_pinecone_object(dict_spec)
-    assert isinstance(pinecone_object, ServerlessSpec)
-    assert pinecone_object.region == "us-east-1"
-    assert pinecone_object.cloud == "aws"
-
-
-def test_convert_dict_spec_to_pinecone_object_pod():
-    dict_spec = {"pod": {"replicas": 1, "shards": 1, "pods": 1, "pod_type": "p1.x1", "environment": "us-west1-gcp"}}
-    pinecone_object = PineconeDocumentStore._convert_dict_spec_to_pinecone_object(dict_spec)
-
-    assert isinstance(pinecone_object, PodSpec)
-    assert pinecone_object.replicas == 1
-    assert pinecone_object.shards == 1
-    assert pinecone_object.pods == 1
-    assert pinecone_object.pod_type == "p1.x1"
-    assert pinecone_object.environment == "us-west1-gcp"
-
-
-def test_convert_dict_spec_to_pinecone_object_fail():
-    dict_spec = {
-        "strange_key": {"replicas": 1, "shards": 1, "pods": 1, "pod_type": "p1.x1", "environment": "us-west1-gcp"}
-    }
-    with pytest.raises(ValueError):
-        PineconeDocumentStore._convert_dict_spec_to_pinecone_object(dict_spec)
-
-
-def test_discard_invalid_meta_invalid():
-    invalid_metadata_doc = Document(
-        content="The moonlight shimmered ",
-        meta={
-            "source_id": "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0",
-            "page_number": 1,
-            "split_id": 0,
-            "split_idx_start": 0,
-            "_split_overlap": [
-                {"doc_id": "68ed48ba830048c5d7815874ed2de794722e6d10866b6c55349a914fd9a0df65", "range": (0, 20)}
-            ],
-        },
-    )
-    pinecone_doc = PineconeDocumentStore._discard_invalid_meta(invalid_metadata_doc)
-
-    assert pinecone_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
-    assert pinecone_doc.meta["page_number"] == 1
-    assert pinecone_doc.meta["split_id"] == 0
-    assert pinecone_doc.meta["split_idx_start"] == 0
-    assert "_split_overlap" not in pinecone_doc.meta
-
-
-def test_discard_invalid_meta_valid():
-    valid_metadata_doc = Document(
-        content="The moonlight shimmered ",
-        meta={
-            "source_id": "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0",
-            "page_number": 1,
-        },
-    )
-    pinecone_doc = PineconeDocumentStore._discard_invalid_meta(valid_metadata_doc)
-
-    assert pinecone_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
-    assert pinecone_doc.meta["page_number"] == 1
-
-
-def test_convert_meta_to_int():
-    # Test with floats
-    meta_data = {"split_id": 1.0, "split_idx_start": 2.0, "page_number": 3.0}
-    assert PineconeDocumentStore._convert_meta_to_int(meta_data) == {
-        "split_id": 1,
-        "split_idx_start": 2,
-        "page_number": 3,
-    }
-
-    # Test with floats and ints
-    meta_data = {"split_id": 1.0, "split_idx_start": 2, "page_number": 3.0}
-    assert PineconeDocumentStore._convert_meta_to_int(meta_data) == {
-        "split_id": 1,
-        "split_idx_start": 2,
-        "page_number": 3,
-    }
-
-    # Test with floats and strings
-    meta_data = {"split_id": 1.0, "other": "other_data", "page_number": 3.0}
-    assert PineconeDocumentStore._convert_meta_to_int(meta_data) == {
-        "split_id": 1,
-        "other": "other_data",
-        "page_number": 3,
-    }
-
-    # Test with empty dict
-    meta_data = {}
-    assert PineconeDocumentStore._convert_meta_to_int(meta_data) == {}
+        ).initialize_async_index()
 
 
 @pytest.mark.integration
 @pytest.mark.skipif(not os.environ.get("PINECONE_API_KEY"), reason="PINECONE_API_KEY not set")
-def test_serverless_index_creation_from_scratch(sleep_time):
+async def test_serverless_index_creation_from_scratch(sleep_time):
     # we use a fixed index name to avoid hitting the limit of Pinecone's free tier (max 5 indexes)
     # the index name is defined in the test matrix of the GitHub Actions workflow
     # the default value is provided for local testing
     index_name = os.environ.get("INDEX_NAME", "serverless-test-index")
 
-    client = Pinecone(api_key=os.environ["PINECONE_API_KEY"])
+    client = PineconeAsyncio(api_key=os.environ["PINECONE_API_KEY"])
     try:
-        client.delete_index(name=index_name)
+        await client.delete_index(name=index_name)
     except Exception:  # noqa S110
         pass
 
@@ -237,9 +143,9 @@ def test_serverless_index_creation_from_scratch(sleep_time):
         spec={"serverless": {"region": "us-east-1", "cloud": "aws"}},
     )
     # Trigger the connection
-    _ = ds.initialize_index()
+    _ = await ds.initialize_async_index()
 
-    index_description = client.describe_index(name=index_name)
+    index_description = await client.describe_index(name=index_name)
     assert index_description["name"] == index_name
     assert index_description["dimension"] == 30
     assert index_description["metric"] == "euclidean"
@@ -247,7 +153,7 @@ def test_serverless_index_creation_from_scratch(sleep_time):
     assert index_description["spec"]["serverless"]["cloud"] == "aws"
 
     try:
-        client.delete_index(name=index_name)
+        await client.delete_index(name=index_name)
     except Exception:  # noqa S110
         pass
 
@@ -255,9 +161,9 @@ def test_serverless_index_creation_from_scratch(sleep_time):
 @pytest.mark.integration
 @pytest.mark.skipif(not os.environ.get("PINECONE_API_KEY"), reason="PINECONE_API_KEY not set")
 class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest):
-    def test_write_documents(self, document_store: PineconeDocumentStore):
+    async def test_write_documents(self, document_store: PineconeDocumentStore):
         docs = [Document(id="1")]
-        assert document_store.write_documents(docs) == 1
+        assert await document_store.write_documents_async(docs) == 1
 
     @pytest.mark.xfail(
         run=True, reason="Pinecone supports overwriting by default, but it takes a while for it to take effect"
