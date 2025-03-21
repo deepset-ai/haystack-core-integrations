@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/opensearch-v3.1.1] - 2025-03-21
+
+### 🐛 Bug Fixes
+
+- OpenSearch custom_query use without filters (#1554)
+
+### 📚 Documentation
+
+- Update changelog for integrations/opensearch (#1531)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
 ## [integrations/opensearch-v3.1.0] - 2025-03-12
 
 ### 🚀 Features
