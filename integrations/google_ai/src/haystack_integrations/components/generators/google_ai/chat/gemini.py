@@ -1,5 +1,5 @@
 import json
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import google.generativeai as genai
 from google.ai.generativelanguage import Content, Part
@@ -144,7 +144,7 @@ class GoogleAIGeminiChatGenerator:
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
         tool_config: Optional[content_types.ToolConfigDict] = None,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
     ):
         """
         Initializes a `GoogleAIGeminiChatGenerator` instance.
@@ -396,7 +396,7 @@ class GoogleAIGeminiChatGenerator:
 
     @staticmethod
     def _stream_response_and_convert_to_messages(
-        stream: GenerateContentResponse, streaming_callback: Callable[[StreamingChunk], None]
+        stream: GenerateContentResponse, streaming_callback: StreamingCallbackT
     ) -> List[ChatMessage]:
         """
         Streams the Google AI response and converts it to a list of `ChatMessage` instances.
