@@ -147,7 +147,7 @@ class PineconeEmbeddingRetriever:
         top_k: Optional[int] = None,
     ):
         """
-        Retrieve documents from the `PineconeDocumentStore`, based on their dense embeddings.
+        Asynchronously retrieve documents from the `PineconeDocumentStore`, based on their dense embeddings.
 
         :param query_embedding: Embedding of the query.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
