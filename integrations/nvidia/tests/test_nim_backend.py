@@ -164,7 +164,7 @@ class TestNimBackend:
             models = backend.models()
 
             assert len(models) == 3
-            assert all([model.client == "NvidiaDocumentEmbedder"] for model in models)
+            assert all(model.client == "NvidiaDocumentEmbedder" for model in models)
             expected_url = DEFAULT_API_URL + "/models"
             mock_get.assert_called_once_with(
                 expected_url,
