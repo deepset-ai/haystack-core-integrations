@@ -22,7 +22,7 @@ def test_init_is_lazy(_mock_client):
 
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
-async def test_init(mock_pinecone):
+def test_init(mock_pinecone):
     mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {"dimension": 60}
 
     document_store = PineconeDocumentStore(
@@ -35,7 +35,7 @@ async def test_init(mock_pinecone):
     )
 
     # Trigger an actual connection
-    _ = await document_store.initialize_async_index()
+    _ = document_store.initialize_index()
 
     mock_pinecone.assert_called_with(api_key="fake-api-key", source_tag="haystack")
 
@@ -47,7 +47,7 @@ async def test_init(mock_pinecone):
 
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
-async def test_init_api_key_in_environment_variable(mock_pinecone, monkeypatch):
+def test_init_api_key_in_environment_variable(mock_pinecone, monkeypatch):
     monkeypatch.setenv("PINECONE_API_KEY", "env-api-key")
 
     ds = PineconeDocumentStore(

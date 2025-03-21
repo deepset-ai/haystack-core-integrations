@@ -15,11 +15,6 @@ from haystack_integrations.components.retrievers.pinecone import PineconeEmbeddi
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
 
-@patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
-def test_init_is_lazy(_mock_client):
-    _ = PineconeDocumentStore(api_key=Secret.from_token("fake-api-key"))
-    _mock_client.assert_not_called()
-
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
 async def test_init_async(mock_pinecone):

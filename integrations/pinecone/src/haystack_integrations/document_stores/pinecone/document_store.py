@@ -71,6 +71,7 @@ class PineconeDocumentStore:
         self.index_name = index
 
         self._index = None
+        self._async_index = None
         self._dummy_vector = [-10.0] * self.dimension
 
     def initialize_index(self):
