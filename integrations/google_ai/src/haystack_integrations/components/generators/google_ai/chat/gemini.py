@@ -16,7 +16,7 @@ from google.generativeai.types.generation_types import to_generation_config_dict
 from haystack import logging
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
-from haystack.dataclasses import StreamingChunk
+from haystack.dataclasses import AsyncStreamingCallbackT, StreamingCallbackT, StreamingChunk, select_streaming_callback
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole, ToolCall
 from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
@@ -248,7 +248,7 @@ class GoogleAIGeminiChatGenerator:
     def run(
         self,
         messages: List[ChatMessage],
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         *,
         tools: Optional[List[Tool]] = None,
     ):
@@ -301,7 +301,7 @@ class GoogleAIGeminiChatGenerator:
     async def run_async(
         self,
         messages: List[ChatMessage],
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         *,
         tools: Optional[List[Tool]] = None,
     ):
@@ -319,7 +319,10 @@ class GoogleAIGeminiChatGenerator:
             A dictionary containing the following key:
             - `replies`:  A list containing the generated responses as `ChatMessage` instances.
         """
-        streaming_callback = streaming_callback or self._streaming_callback
+        # validate and select the streaming callback
+        streaming_callback = select_streaming_callback(
+            self._streaming_callback, streaming_callback, requires_async=True
+        )
 
         tools = tools or self._tools
         _check_duplicate_tool_names(tools)
@@ -446,7 +449,7 @@ class GoogleAIGeminiChatGenerator:
 
     @staticmethod
     async def _stream_response_and_convert_to_messages_async(
-        stream: AsyncGenerateContentResponse, streaming_callback: Callable[[StreamingChunk], None]
+        stream: AsyncGenerateContentResponse, streaming_callback: AsyncStreamingCallbackT
     ) -> List[ChatMessage]:
         """
         Streams the Google AI response and converts it to a list of `ChatMessage` instances.
@@ -479,7 +482,7 @@ class GoogleAIGeminiChatGenerator:
                         )
                     )
 
-            streaming_callback(StreamingChunk(content=content_to_stream, meta=chunk_dict))
+            await streaming_callback(StreamingChunk(content=content_to_stream, meta=chunk_dict))
 
         # store the last chunk metadata
         meta = chunk_dict

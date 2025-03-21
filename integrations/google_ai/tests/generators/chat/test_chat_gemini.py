@@ -584,7 +584,7 @@ class TestGoogleAIGeminiChatGenerator:
     async def test_run_with_streaming_callback_and_tools_async(self, tools):
         streaming_callback_called = False
 
-        def streaming_callback(_chunk: StreamingChunk) -> None:
+        async def streaming_callback(_chunk: StreamingChunk) -> None:
             nonlocal streaming_callback_called
             streaming_callback_called = True
 
