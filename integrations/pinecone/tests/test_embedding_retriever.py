@@ -174,3 +174,12 @@ def test_run():
     assert len(res["documents"]) == 1
     assert res["documents"][0].content == "Test doc"
     assert res["documents"][0].embedding == [0.1, 0.2]
+
+
+async def test_run_async():
+    mock_store = Mock(spec=PineconeDocumentStore)
+    mock_store._embedding_retrieval_async.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
+    retriever = PineconeEmbeddingRetriever(document_store=mock_store)
+    res = await retriever.run_async(query_embedding=[0.5, 0.7])
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
