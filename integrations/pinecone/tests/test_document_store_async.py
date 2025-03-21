@@ -15,7 +15,6 @@ from haystack_integrations.components.retrievers.pinecone import PineconeEmbeddi
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
 
-
 @patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
 async def test_init_async(mock_pinecone):
     mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {"dimension": 60}
