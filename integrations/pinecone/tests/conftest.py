@@ -38,6 +38,9 @@ def document_store(request):
         dimension=dimension,
     )
 
+    store.initialize_index()
+    store.initialize_async_index()
+
     # Override some methods to wait for the documents to be available
     original_write_documents = store.write_documents
 
@@ -57,6 +60,6 @@ def document_store(request):
 
     yield store
     try:
-        store.index.delete(delete_all=True, namespace=namespace)
+        store._index.delete(delete_all=True, namespace=namespace)
     except NotFoundException:
         pass
