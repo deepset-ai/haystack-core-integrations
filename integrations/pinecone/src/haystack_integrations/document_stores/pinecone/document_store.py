@@ -11,7 +11,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 
 from pinecone import Pinecone, PineconeAsyncio, PodSpec, ServerlessSpec
 
-from .filters import _normalize_filters
+from .filters import _normalize_filters, _validate_filters
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ class PineconeDocumentStore:
         self._async_index = None
         self._dummy_vector = [-10.0] * self.dimension
 
-    def initialize_index(self):
+    def _initialize_index(self):
         if self._index is not None:
             return self._index
 
@@ -101,26 +101,30 @@ class PineconeDocumentStore:
         self.dimension = actual_dimension or self.dimension
         self._dummy_vector = [-10.0] * self.dimension
 
-    async def initialize_async_index(self):
+    async def _initialize_async_index(self):
         if self._async_index is not None:
             return self._async_index
 
         async_client = PineconeAsyncio(api_key=self.api_key.resolve_value(), source_tag="haystack")
 
-        if self.index_name not in await async_client.list_indexes().names():
+        indexes = await async_client.list_indexes()
+        if self.index_name not in indexes.names():
             logger.info(f"Index {self.index_name} does not exist. Creating a new index.")
             pinecone_spec = self._convert_dict_spec_to_pinecone_object(self.spec)
-            await async_client.create_index(
+            new_index = await async_client.create_index(
                 name=self.index_name, dimension=self.dimension, spec=pinecone_spec, metric=self.metric
             )
+            host = new_index["host"]
         else:
             logger.info(
                 f"Connecting to existing index {self.index_name}. `dimension`, `spec`, and `metric` will be ignored."
             )
+            host = next((index["host"] for index in indexes if index["name"] == self.index_name), None)
 
-        self._async_index = await async_client.Index(name=self.index_name)
+        self._async_index = async_client.IndexAsyncio(host=host)
 
-        actual_dimension = self._index.describe_index_stats().get("dimension")
+        index_stats = await self._async_index.describe_index_stats()
+        actual_dimension = index_stats.get("dimension")
         if actual_dimension and actual_dimension != self.dimension:
             logger.warning(
                 f"Dimension of index {self.index_name} is {actual_dimension}, but {self.dimension} was specified. "
@@ -129,6 +133,8 @@ class PineconeDocumentStore:
             )
         self.dimension = actual_dimension or self.dimension
         self._dummy_vector = [-10.0] * self.dimension
+
+        await async_client.close()
 
     @staticmethod
     def _convert_dict_spec_to_pinecone_object(spec: Dict[str, Any]):
@@ -180,7 +186,7 @@ class PineconeDocumentStore:
         """
         Returns how many documents are present in the document store.
         """
-        self.initialize_index()
+        self._initialize_index()
         assert self._index is not None, "Index is not initialized"
 
         try:
@@ -193,11 +199,12 @@ class PineconeDocumentStore:
         """
         Asynchronously returns how many documents are present in the document store.
         """
-        await self.initialize_async_index()
+        await self._initialize_async_index()
         assert self._async_index is not None, "Index is not initialized"
 
         try:
-            count = await self._async_index.describe_index_stats()["namespaces"][self.namespace]["vector_count"]
+            index_stats = await self._async_index.describe_index_stats()
+            count = index_stats["namespaces"][self.namespace]["vector_count"]
         except KeyError:
             count = 0
         return count
@@ -212,7 +219,7 @@ class PineconeDocumentStore:
 
         :returns: The number of documents written to the document store.
         """
-        self.initialize_index()
+        self._initialize_index()
         assert self._index is not None, "Index is not initialized"
 
         documents_for_pinecone = self._prepare_documents_for_writing(documents, policy)
@@ -236,7 +243,7 @@ class PineconeDocumentStore:
 
         :returns: The number of documents written to the document store.
         """
-        await self.initialize_async_index()
+        await self._initialize_async_index()
         assert self._async_index is not None, "Index is not initialized"
 
         documents_for_pinecone = self._prepare_documents_for_writing(documents, policy)
@@ -246,6 +253,7 @@ class PineconeDocumentStore:
         )
 
         written_docs = result["upserted_count"]
+
         return written_docs
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
@@ -259,7 +267,7 @@ class PineconeDocumentStore:
         :returns: A list of Documents that match the given filters.
         """
 
-        self._validate_filters(filters)
+        _validate_filters(filters)
 
         # Pinecone only performs vector similarity search
         # here we are querying with a dummy vector and the max compatible top_k
@@ -284,7 +292,7 @@ class PineconeDocumentStore:
         :param filters: The filters to apply to the document list.
         :returns: A list of Documents that match the given filters.
         """
-        self._validate_filters(filters)
+        _validate_filters(filters)
 
         documents = await self._embedding_retrieval_async(
             query_embedding=self._dummy_vector, filters=filters, top_k=TOP_K_LIMIT
@@ -306,7 +314,7 @@ class PineconeDocumentStore:
 
         :param document_ids: the document ids to delete
         """
-        self.initialize_index()
+        self._initialize_index()
         assert self._index is not None, "Index is not initialized"
         self._index.delete(ids=document_ids, namespace=self.namespace)
 
@@ -316,7 +324,7 @@ class PineconeDocumentStore:
 
         :param document_ids: the document ids to delete
         """
-        await self.initialize_async_index()
+        await self._initialize_async_index()
         assert self._async_index is not None, "Index is not initialized"
         await self._async_index.delete(ids=document_ids, namespace=self.namespace)
 
@@ -347,9 +355,9 @@ class PineconeDocumentStore:
             msg = "query_embedding must be a non-empty list of floats"
             raise ValueError(msg)
 
-        self._validate_filters(filters)
+        _validate_filters(filters)
         filters = _normalize_filters(filters) if filters else None
-        self.initialize_index()
+        self._initialize_index()
         assert self._index is not None, "Index is not initialized"
 
         result = self._index.query(
@@ -385,10 +393,10 @@ class PineconeDocumentStore:
             msg = "query_embedding must be a non-empty list of floats"
             raise ValueError(msg)
 
-        self._validate_filters(filters)
+        _validate_filters(filters)
         filters = _normalize_filters(filters) if filters else None
 
-        await self.initialize_async_index()
+        await self._initialize_async_index()
         assert self._async_index is not None, "Index is not initialized"
 
         result = await self._async_index.query(
@@ -524,12 +532,3 @@ class PineconeDocumentStore:
             )
 
         return self._convert_documents_to_pinecone_format(documents)
-
-    @staticmethod
-    def _validate_filters(filters: Optional[Dict[str, Any]]) -> None:
-        """
-        Helper method to validate filter syntax.
-        """
-        if filters and "operator" not in filters and "conditions" not in filters:
-            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
-            raise ValueError(msg)

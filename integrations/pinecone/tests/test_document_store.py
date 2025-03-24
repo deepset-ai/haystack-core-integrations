@@ -35,7 +35,7 @@ def test_init(mock_pinecone):
     )
 
     # Trigger an actual connection
-    _ = document_store.initialize_index()
+    _ = document_store._initialize_index()
 
     mock_pinecone.assert_called_with(api_key="fake-api-key", source_tag="haystack")
 
@@ -59,7 +59,7 @@ def test_init_api_key_in_environment_variable(mock_pinecone, monkeypatch):
     )
 
     # Trigger an actual connection
-    _ = ds.initialize_index()
+    _ = ds._initialize_index()
 
     mock_pinecone.assert_called_with(api_key="env-api-key", source_tag="haystack")
 
@@ -77,7 +77,7 @@ def test_to_from_dict(mock_pinecone, monkeypatch):
     )
 
     # Trigger an actual connection
-    document_store.initialize_index()
+    document_store._initialize_index()
     _ = document_store._index
 
     dict_output = {
@@ -115,7 +115,7 @@ def test_init_fails_wo_api_key(monkeypatch):
     with pytest.raises(ValueError):
         _ = PineconeDocumentStore(
             index="my_index",
-        ).initialize_index()
+        )._initialize_index()
 
 
 def test_convert_dict_spec_to_pinecone_object_serverless():
@@ -237,7 +237,7 @@ def test_serverless_index_creation_from_scratch(sleep_time):
         spec={"serverless": {"region": "us-east-1", "cloud": "aws"}},
     )
     # Trigger the connection
-    _ = ds.initialize_index()
+    _ = ds._initialize_index()
 
     index_description = client.describe_index(name=index_name)
     assert index_description["name"] == index_name
