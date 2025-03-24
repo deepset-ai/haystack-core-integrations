@@ -39,8 +39,6 @@ def document_store(request):
         dimension=dimension,
     )
 
-    store._initialize_index()
-
     # Override some methods to wait for the documents to be available
     original_write_documents = store.write_documents
 
@@ -82,8 +80,6 @@ async def document_store_async(request):
         namespace=namespace,
         dimension=dimension,
     )
-
-    await store._initialize_async_index()
 
     # Override some methods to wait for the documents to be available
     original_write_documents = store.write_documents_async
