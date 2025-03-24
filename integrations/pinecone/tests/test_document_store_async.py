@@ -6,7 +6,6 @@ import pytest
 from haystack import Document
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.retrievers import SentenceWindowRetriever
-from haystack.dataclasses import ByteStream
 from pinecone import PineconeAsyncio
 
 from haystack_integrations.components.retrievers.pinecone import PineconeEmbeddingRetriever
@@ -63,13 +62,12 @@ class TestDocumentStoreAsync:
 
         assert await document_store_async.write_documents_async(docs) == 1
 
-    async def test_write_blob(self, document_store_async: PineconeDocumentStore):
-        bytestream = ByteStream(b"test", meta={"meta_key": "meta_value"}, mime_type="mime_type")
-        docs = [Document(id="1", blob=bytestream)]
-        await document_store_async.write_documents_async(docs)
-
-        retrieved_docs = await document_store_async.filter_documents_async()
-        assert retrieved_docs == docs
+    async def test_write_documents_invalid_input(self, document_store_async: PineconeDocumentStore):
+        """Test write_documents() fails when providing unexpected input."""
+        with pytest.raises(ValueError):
+            await document_store_async.write_documents_async(["not a document for sure"])  # type: ignore
+        with pytest.raises(ValueError):
+            await document_store_async.write_documents_async("not a list actually")  # type: ignore
 
     async def test_count_documents(self, document_store_async: PineconeDocumentStore):
         await document_store_async.write_documents_async(
