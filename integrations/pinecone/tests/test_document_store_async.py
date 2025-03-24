@@ -109,6 +109,7 @@ class TestDocumentStoreAsync:
         await document_store_async.delete_documents_async([doc.id])
         assert await document_store_async.count_documents_async() == 0
 
+
     async def test_embedding_retrieval(self, document_store_async: PineconeDocumentStore):
         query_embedding = [0.1] * 768
         most_similar_embedding = [0.8] * 768
@@ -123,7 +124,7 @@ class TestDocumentStoreAsync:
 
         await document_store_async.write_documents_async(docs)
 
-        results = await document_store_async._embedding_retrieval(query_embedding=query_embedding, top_k=2, filters={})
+        results = await document_store_async._embedding_retrieval_async(query_embedding=query_embedding, top_k=2, filters={})
         assert len(results) == 2
         assert results[0].content == "Most similar document"
         assert results[1].content == "2nd best document"
@@ -147,7 +148,7 @@ class TestDocumentStoreAsync:
         # query
         embedding_retriever = PineconeEmbeddingRetriever(document_store=document_store_async)
         query_embedding = [0.1] * 768
-        retrieved_doc = embedding_retriever.run(query_embedding=query_embedding, top_k=1, filters={})
+        retrieved_doc = await embedding_retriever.run_async(query_embedding=query_embedding, top_k=1, filters={})
         sentence_window_retriever = SentenceWindowRetriever(document_store=document_store_async, window_size=2)
         result = sentence_window_retriever.run(retrieved_documents=[retrieved_doc["documents"][0]])
 
