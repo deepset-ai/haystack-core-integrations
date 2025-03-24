@@ -1,6 +1,5 @@
 import os
 import time
-from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -8,58 +7,10 @@ from haystack import Document
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.retrievers import SentenceWindowRetriever
 from haystack.dataclasses import ByteStream
-from haystack.utils import Secret
 from pinecone import PineconeAsyncio
 
 from haystack_integrations.components.retrievers.pinecone import PineconeEmbeddingRetriever
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
-
-
-@pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
-async def test_to_from_dict(mock_pinecone, monkeypatch):
-    mock_pinecone.return_value.Index.return_value.describe_index_stats.return_value = {"dimension": 60}
-    monkeypatch.setenv("PINECONE_API_KEY", "env-api-key")
-    document_store = PineconeDocumentStore(
-        index="my_index",
-        namespace="test",
-        batch_size=50,
-        dimension=30,
-        metric="euclidean",
-    )
-
-    # Trigger an actual connection
-    await document_store._initialize_async_index()
-    _ = document_store._async_index
-
-    dict_output = {
-        "type": "haystack_integrations.document_stores.pinecone.document_store.PineconeDocumentStore",
-        "init_parameters": {
-            "api_key": {
-                "env_vars": [
-                    "PINECONE_API_KEY",
-                ],
-                "strict": True,
-                "type": "env_var",
-            },
-            "index": "my_index",
-            "dimension": 60,
-            "namespace": "test",
-            "batch_size": 50,
-            "metric": "euclidean",
-            "spec": {"serverless": {"region": "us-east-1", "cloud": "aws"}},
-        },
-    }
-    assert document_store.to_dict() == dict_output
-
-    document_store = PineconeDocumentStore.from_dict(dict_output)
-    assert document_store.api_key == Secret.from_env_var("PINECONE_API_KEY", strict=True)
-    assert document_store.index_name == "my_index"
-    assert document_store.namespace == "test"
-    assert document_store.batch_size == 50
-    assert document_store.dimension == 60
-    assert document_store.metric == "euclidean"
-    assert document_store.spec == {"serverless": {"region": "us-east-1", "cloud": "aws"}}
 
 
 @pytest.mark.integration
