@@ -25,7 +25,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai>=2.11.0",
-  "pinecone>=3", # our implementation is not compatible with pinecone <3
+  "pinecone[asyncio]>=3", # our implementation is not compatible with pinecone <3,
 ]
 
 [project.urls]
@@ -49,6 +49,7 @@ installer = "uv"
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "pytest-asyncio",
   "pytest-rerunfailures",
   "pytest-xdist",
   "haystack-pydoc-tools",
@@ -129,6 +130,8 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
+  # Ignore assertions
+  "S101",
 ]
 unfixable = [
   # Don't touch unused imports
@@ -163,5 +166,5 @@ minversion = "6.0"
 markers = ["unit: unit tests", "integration: integration tests"]
 
 [[tool.mypy.overrides]]
-module = ["pinecone.*", "haystack.*", "haystack_integrations.*", "pytest.*"]
+module = ["pinecone.*", "haystack.*", "haystack_integrations.*", "pytest.*", "pytest_asyncio.*"]
 ignore_missing_imports = true

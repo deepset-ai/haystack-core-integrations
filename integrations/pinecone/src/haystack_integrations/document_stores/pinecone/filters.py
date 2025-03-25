@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from haystack.errors import FilterError
 
@@ -182,3 +182,12 @@ COMPARISON_OPERATORS = {
 }
 
 LOGICAL_OPERATORS = {"AND": "$and", "OR": "$or"}
+
+
+def _validate_filters(filters: Optional[Dict[str, Any]]) -> None:
+    """
+    Helper method to validate filter syntax.
+    """
+    if filters and "operator" not in filters and "conditions" not in filters:
+        msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
+        raise ValueError(msg)
