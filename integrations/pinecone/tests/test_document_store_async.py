@@ -1,12 +1,10 @@
 import os
-import time
 
 import numpy as np
 import pytest
 from haystack import Document
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.retrievers import SentenceWindowRetriever
-from pinecone import PineconeAsyncio
 
 from haystack_integrations.components.retrievers.pinecone import PineconeEmbeddingRetriever
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore

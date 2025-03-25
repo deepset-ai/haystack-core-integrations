@@ -1,5 +1,6 @@
-import time
 import asyncio
+import time
+
 import pytest
 import pytest_asyncio
 from haystack.document_stores.types import DuplicatePolicy

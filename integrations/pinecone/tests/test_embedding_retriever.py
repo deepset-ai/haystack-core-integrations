@@ -175,6 +175,7 @@ def test_run():
     assert res["documents"][0].content == "Test doc"
     assert res["documents"][0].embedding == [0.1, 0.2]
 
+
 @pytest.mark.asyncio
 async def test_run_async():
     mock_store = Mock(spec=PineconeDocumentStore)
