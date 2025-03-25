@@ -136,3 +136,33 @@ class PgvectorKeywordRetriever:
             top_k=top_k,
         )
         return {"documents": docs}
+
+    @component.output_types(documents=List[Document])
+    async def run_async(
+        self,
+        query: str,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: Optional[int] = None,
+    ):
+        """
+        Asynchronously retrieve documents from the `PgvectorDocumentStore`, based on keywords.
+
+        :param query: String to search in `Document`s' content.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
+                        details.
+        :param top_k: Maximum number of Documents to return.
+
+        :returns: A dictionary with the following keys:
+            - `documents`: List of `Document`s that match the query.
+        """
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
+
+        top_k = top_k or self.top_k
+
+        docs = await self.document_store._keyword_retrieval_async(
+            query=query,
+            filters=filters,
+            top_k=top_k,
+        )
+        return {"documents": docs}
