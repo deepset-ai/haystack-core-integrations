@@ -78,7 +78,6 @@ def test_to_from_dict(mock_pinecone, monkeypatch):
 
     # Trigger an actual connection
     document_store._initialize_index()
-    _ = document_store._index
 
     dict_output = {
         "type": "haystack_integrations.document_stores.pinecone.document_store.PineconeDocumentStore",

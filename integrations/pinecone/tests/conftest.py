@@ -1,5 +1,5 @@
 import time
-
+import asyncio
 import pytest
 import pytest_asyncio
 from haystack.document_stores.types import DuplicatePolicy
@@ -64,7 +64,6 @@ def document_store(request):
 
 
 @pytest_asyncio.fixture
-@pytest.mark.asyncio
 async def document_store_async(request):
     """
     This is the most basic requirement for the child class: provide
@@ -86,14 +85,14 @@ async def document_store_async(request):
 
     async def write_documents_and_wait_async(documents, policy=DuplicatePolicy.NONE):
         written_docs = await original_write_documents(documents, policy)
-        time.sleep(SLEEP_TIME_IN_SECONDS)
+        await asyncio.sleep(SLEEP_TIME_IN_SECONDS)
         return written_docs
 
     original_delete_documents = store.delete_documents_async
 
     async def delete_documents_and_wait_async(filters):
         await original_delete_documents(filters)
-        time.sleep(SLEEP_TIME_IN_SECONDS)
+        await asyncio.sleep(SLEEP_TIME_IN_SECONDS)
 
     store.write_documents_async = write_documents_and_wait_async
     store.delete_documents_async = delete_documents_and_wait_async

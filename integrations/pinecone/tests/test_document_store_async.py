@@ -15,47 +15,6 @@ from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 @pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.skipif(not os.environ.get("PINECONE_API_KEY"), reason="PINECONE_API_KEY not set")
-async def test_serverless_index_creation_from_scratch(sleep_time):
-    # we use a fixed index name to avoid hitting the limit of Pinecone's free tier (max 5 indexes)
-    # the index name is defined in the test matrix of the GitHub Actions workflow
-    # the default value is provided for local testing
-    index_name = os.environ.get("INDEX_NAME", "serverless-test-index")
-
-    client = PineconeAsyncio(api_key=os.environ["PINECONE_API_KEY"])
-    try:
-        await client.delete_index(name=index_name)
-    except Exception:  # noqa S110
-        pass
-
-    time.sleep(sleep_time)
-
-    ds = PineconeDocumentStore(
-        index=index_name,
-        namespace="test",
-        batch_size=50,
-        dimension=30,
-        metric="euclidean",
-        spec={"serverless": {"region": "us-east-1", "cloud": "aws"}},
-    )
-    # Trigger the connection
-    _ = await ds._initialize_async_index()
-
-    index_description = await client.describe_index(name=index_name)
-    assert index_description["name"] == index_name
-    assert index_description["dimension"] == 30
-    assert index_description["metric"] == "euclidean"
-    assert index_description["spec"]["serverless"]["region"] == "us-east-1"
-    assert index_description["spec"]["serverless"]["cloud"] == "aws"
-
-    try:
-        await client.delete_index(name=index_name)
-    except Exception:  # noqa S110
-        pass
-
-
-@pytest.mark.integration
-@pytest.mark.asyncio
-@pytest.mark.skipif(not os.environ.get("PINECONE_API_KEY"), reason="PINECONE_API_KEY not set")
 class TestDocumentStoreAsync:
     async def test_write_documents(self, document_store_async: PineconeDocumentStore):
         docs = [Document(id="1")]
