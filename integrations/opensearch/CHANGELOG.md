@@ -1,10 +1,6 @@
-# Changelog
+# g
 
 ## [integrations/opensearch-v4.0.0] - 2025-03-26
-
-### 📚 Documentation
-
-- Update changelog for integrations/opensearch (#1557)
 
 ### 🌀 Miscellaneous
 
@@ -15,10 +11,6 @@
 ### 🐛 Bug Fixes
 
 - OpenSearch custom_query use without filters (#1554)
-
-### 📚 Documentation
-
-- Update changelog for integrations/opensearch (#1531)
 
 ### ⚙️ CI
 
@@ -34,10 +26,6 @@
 
 - OpenSearch - call _ensure_index_exists only at initialization (#1522)
 
-### 📚 Documentation
-
-- Update changelog for integrations/opensearch (#1515)
-
 ## [integrations/opensearch-v3.0.0] - 2025-03-11
 
 ### 🐛 Bug Fixes
@@ -46,9 +34,7 @@
 
 ### 📚 Documentation
 
-- Update changelog for integrations/opensearch (#1415)
 - Add docstore description to docstring (#1446)
-- Update changelog for integrations/opensearch (#1488)
 
 ### 🧹 Chores
 
@@ -63,10 +49,6 @@
 ### 🚀 Features
 
 - OpenSearch - async support (#1414)
-
-### 📚 Documentation
-
-- Update changelog for integrations/opensearch (#1402)
 
 ## [integrations/opensearch-v2.0.0] - 2025-02-14
 
@@ -111,7 +93,7 @@
 ### 🧹 Chores
 
 - OpenSearch - remove legacy filter support (#1067)
-- Update changelog after removing legacy filters (#1083)
+- Update g after removing legacy filters (#1083)
 - Update ruff linting scripts and settings (#1105)
 
 ### 🌀 Miscellaneous
