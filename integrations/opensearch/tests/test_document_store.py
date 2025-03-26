@@ -117,6 +117,102 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
     you can add more to this class.
     """
 
+<<<<<<< HEAD
+=======
+    @pytest.fixture
+    def document_store(self, request):
+        """
+        This is the most basic requirement for the child class: provide
+        an instance of this document store so the base class can use it.
+        """
+        hosts = ["https://localhost:9200"]
+        # Use a different index for each test so we can run them in parallel
+        index = f"{request.node.name}"
+
+        store = OpenSearchDocumentStore(
+            hosts=hosts,
+            index=index,
+            http_auth=("admin", "admin"),
+            verify_certs=False,
+            embedding_dim=768,
+            # this is the document store we use to test filters and we want to also compare embeddings
+            return_embedding=True,
+            method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
+        )
+        yield store
+        store._ensure_initialized()
+        assert store._client
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
+
+    @pytest.fixture
+    def document_store_readonly(self, request):
+        """
+        This is the most basic requirement for the child class: provide
+        an instance of this document store so the base class can use it.
+        """
+        hosts = ["https://localhost:9200"]
+        # Use a different index for each test so we can run them in parallel
+        index = f"{request.node.name}"
+
+        store = OpenSearchDocumentStore(
+            hosts=hosts,
+            index=index,
+            http_auth=("admin", "admin"),
+            verify_certs=False,
+            embedding_dim=768,
+            method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
+            create_index=False,
+        )
+        store._ensure_initialized()
+        assert store._client
+        store._client.cluster.put_settings(body={"transient": {"action.auto_create_index": False}})
+        yield store
+        store._client.cluster.put_settings(body={"transient": {"action.auto_create_index": True}})
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
+
+    @pytest.fixture
+    def document_store_embedding_dim_4(self, request):
+        """
+        This is the most basic requirement for the child class: provide
+        an instance of this document store so the base class can use it.
+        """
+        hosts = ["https://localhost:9200"]
+        # Use a different index for each test so we can run them in parallel
+        index = f"{request.node.name}"
+
+        store = OpenSearchDocumentStore(
+            hosts=hosts,
+            index=index,
+            http_auth=("admin", "admin"),
+            verify_certs=False,
+            embedding_dim=4,
+            method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
+        )
+        yield store
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
+
+    @pytest.fixture
+    def document_store_embedding_dim_4_faiss(self, request):
+        """
+        This is the most basic requirement for the child class: provide
+        an instance of this document store so the base class can use it.
+        """
+        hosts = ["https://localhost:9200"]
+        # Use a different index for each test so we can run them in parallel
+        index = f"{request.node.name}"
+
+        store = OpenSearchDocumentStore(
+            hosts=hosts,
+            index=index,
+            http_auth=("admin", "admin"),
+            verify_certs=False,
+            embedding_dim=4,
+            method={"space_type": "innerproduct", "engine": "faiss", "name": "hnsw"},
+        )
+        yield store
+        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
+
+>>>>>>> main
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
         The OpenSearchDocumentStore.filter_documents() method returns a Documents with their score set.
