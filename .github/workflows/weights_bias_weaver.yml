@@ -16,7 +16,7 @@ defaults:
     working-directory: integrations/weights_bias_weaver
 
 concurrency:
-  group: weights_bias-${{ github.head_ref }}
+  group: weights_bias_weaver-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
