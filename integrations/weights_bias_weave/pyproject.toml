@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "weaver-haystack"
 dynamic = ["version"]
-description = "An integration of Weight & Bias Weave tracer with Haystack"
+description = "An integration of Weights & Biases Weave tracer with Haystack"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"
