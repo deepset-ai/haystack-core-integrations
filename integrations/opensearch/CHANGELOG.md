@@ -1,4 +1,4 @@
-# g
+# Changelog
 
 ## [integrations/opensearch-v4.0.0] - 2025-03-26
 
@@ -93,7 +93,7 @@
 ### 🧹 Chores
 
 - OpenSearch - remove legacy filter support (#1067)
-- Update g after removing legacy filters (#1083)
+- Update changelog after removing legacy filters (#1083)
 - Update ruff linting scripts and settings (#1105)
 
 ### 🌀 Miscellaneous
