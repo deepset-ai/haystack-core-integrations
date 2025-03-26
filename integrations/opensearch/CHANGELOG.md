@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/opensearch-v4.0.0] - 2025-03-26
+
+### 📚 Documentation
+
+- Update changelog for integrations/opensearch (#1557)
+
+### 🌀 Miscellaneous
+
+- Feat!: OpenSearch - apply `return_embedding` to `filter_documents` (#1562)
+
 ## [integrations/opensearch-v3.1.1] - 2025-03-21
 
 ### 🐛 Bug Fixes
