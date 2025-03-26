@@ -355,6 +355,8 @@ class TestDocumentStore(DocumentStoreBaseTests):
             http_auth=("admin", "admin"),
             verify_certs=False,
             embedding_dim=768,
+            # this is the document store we use to test filters and we want to also compare embeddings
+            return_embedding=True,
             method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
         )
         yield store
@@ -970,7 +972,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert mock_bulk.call_args.kwargs["max_chunk_bytes"] == DEFAULT_MAX_CHUNK_BYTES
 
     @pytest.fixture
-    def document_store_no_embbding_returned(self, request):
+    def document_store_no_embedding_returned(self, request):
         """
         This is the most basic requirement for the child class: provide
         an instance of this document store so the base class can use it.
@@ -992,32 +994,46 @@ class TestDocumentStore(DocumentStoreBaseTests):
         store._client.indices.delete(index=index, params={"ignore": [400, 404]})
 
     def test_embedding_retrieval_but_dont_return_embeddings_for_embedding_retrieval(
-        self, document_store_no_embbding_returned: OpenSearchDocumentStore
+        self, document_store_no_embedding_returned: OpenSearchDocumentStore
     ):
         docs = [
             Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
             Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
             Document(content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]),
         ]
-        document_store_no_embbding_returned.write_documents(docs)
-        results = document_store_no_embbding_returned._embedding_retrieval(
+        document_store_no_embedding_returned.write_documents(docs)
+        results = document_store_no_embedding_returned._embedding_retrieval(
             query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=2, filters={}
         )
         assert len(results) == 2
         assert results[0].embedding is None
 
     def test_embedding_retrieval_but_dont_return_embeddings_for_bm25_retrieval(
-        self, document_store_no_embbding_returned: OpenSearchDocumentStore
+        self, document_store_no_embedding_returned: OpenSearchDocumentStore
     ):
         docs = [
             Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
             Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
             Document(content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]),
         ]
-        document_store_no_embbding_returned.write_documents(docs)
-        results = document_store_no_embbding_returned._bm25_retrieval("document", top_k=2)
+        document_store_no_embedding_returned.write_documents(docs)
+        results = document_store_no_embedding_returned._bm25_retrieval("document", top_k=2)
         assert len(results) == 2
         assert results[0].embedding is None
+
+    def filter_documents_no_embedding_returned(self, document_store_no_embedding_returned: OpenSearchDocumentStore):
+        docs = [
+            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
+            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
+            Document(content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]),
+        ]
+        document_store_no_embedding_returned.write_documents(docs)
+        results = document_store_no_embedding_returned.filter_documents()
+
+        assert len(results) == 3
+        assert results[0].embedding is None
+        assert results[1].embedding is None
+        assert results[2].embedding is None
 
 
 @pytest.mark.integration
@@ -1099,7 +1115,7 @@ class TestDocumentStoreAsync:
         await store._async_client.close()
 
     @pytest.fixture
-    async def document_store_no_embbding_returned(self, request):
+    async def document_store_no_embedding_returned(self, request):
         """
         This is the most basic requirement for the child class: provide
         an instance of this document store so the base class can use it.
@@ -1458,16 +1474,16 @@ class TestDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_embedding_retrieval_but_dont_return_embeddings_for_embedding_retrieval(
-        self, document_store_no_embbding_returned: OpenSearchDocumentStore
+        self, document_store_no_embedding_returned: OpenSearchDocumentStore
     ):
         docs = [
             Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
             Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
             Document(content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]),
         ]
-        document_store_no_embbding_returned.write_documents(docs)
+        document_store_no_embedding_returned.write_documents(docs)
 
-        results = await document_store_no_embbding_returned._embedding_retrieval_async(
+        results = await document_store_no_embedding_returned._embedding_retrieval_async(
             query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=2, filters={}
         )
         assert len(results) == 2
