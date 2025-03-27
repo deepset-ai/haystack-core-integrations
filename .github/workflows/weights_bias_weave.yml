@@ -7,16 +7,16 @@ on:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/weights_bias_weaver/**"
-      - ".github/workflows/weights_bias_weaver.yml"
-      - "!integrations/weights_bias_weaver/*.md"
+      - "integrations/weights_bias_weave/**"
+      - ".github/workflows/weights_bias_weave.yml"
+      - "!integrations/weights_bias_weave/*.md"
 
 defaults:
   run:
-    working-directory: integrations/weights_bias_weaver
+    working-directory: integrations/weights_bias_weave
 
 concurrency:
-  group: weights_bias_weaver-${{ github.head_ref }}
+  group: weights_bias_weave-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
