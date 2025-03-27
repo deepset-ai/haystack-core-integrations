@@ -3,10 +3,6 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/weave-haystack.svg)](https://pypi.org/project/weave-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/weave-haystack)](https://pypi.org/project/weave-haystack)
 
----
-
-**Table of Contents**
-
 - [Installation](#installation)
 - [Example](#example)
 - [License](#license)
