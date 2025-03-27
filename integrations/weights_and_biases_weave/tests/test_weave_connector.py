@@ -21,7 +21,7 @@ class FailingComponent:
     def run(self) -> dict[str, Any]:
         """Execute the component's logic - always raises an exception."""
         msg = "Test error"
-        raise ValueError(msg)
+        raise PipelineRuntimeError(msg)
 
 
 @pytest.fixture
