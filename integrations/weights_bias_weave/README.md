@@ -1,22 +1,21 @@
-# weights_biases-haystack
+# weave-haystack
 
-[![PyPI - Version](https://img.shields.io/pypi/v/weights_bias-haystack.svg)](https://pypi.org/project/weights_bias-haystack)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/weights_bias-haystack.svg)](https://pypi.org/project/weights_bias-haystack)
+[![PyPI - Version](https://img.shields.io/pypi/v/weave-haystack.svg)](https://pypi.org/project/weave-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/weave-haystack)](https://pypi.org/project/weave-haystack)
 
 ---
 
 **Table of Contents**
 
-- [weights_bias-haystack](#weights_bias-haystack)
-  - [Installation](#installation)
-  - [Example](#example)
-  - [License](#license)
+- [Installation](#installation)
+- [Example](#example)
+- [License](#license)
 
 
 ## Installation
 
 ```console
-pip install weights_biases-haystack
+pip install weave-haystack
 ```
 
 ## Weave by Weights & Biases
