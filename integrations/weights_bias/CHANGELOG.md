@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/weights_bias-v0.0.3] - 2025-03-27
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🌀 Miscellaneous
+
+- Docs: update changelog for integrations/weights_bias (#1538)
+- Docs: updating README.MD - project archived and moved (#1568)
+
 ## [integrations/weights_bias-v0.0.2] - 2025-03-13
 
 ### 🚀 Features
