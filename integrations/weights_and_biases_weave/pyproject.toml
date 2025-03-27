@@ -39,7 +39,7 @@ tag-pattern = 'integrations\/weights_and_biases_weave-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/weights_bias_weave-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/weights_and_biases_weave-v[0-9]*"'
 
 [tool.hatch.envs.default]
 installer = "uv"
