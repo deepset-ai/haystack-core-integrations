@@ -25,7 +25,7 @@ body = """
         If we don't do this we get an empty section since we don't show
         commits that update the changelog
     #}\
-    {% if commits | length == 1 and commits[0].message == 'Update the changelog' %}\
+    {% if commits | length == 1 and 'Update changelog for' in commits[0].message %}\
         {% continue %}\
     {% endif %}\
     ### {{ group | striptags | trim | upper_first }}
@@ -33,7 +33,7 @@ body = """
         {#
             Skip commits that update the changelog, they're not useful to the user
         #}\
-        {% if commit.message == 'Update the changelog' %}\
+        {% if 'Update changelog for' in commit.message %}\
             {% continue %}\
         {% endif %}
         - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
