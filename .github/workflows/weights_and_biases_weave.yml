@@ -1,22 +1,22 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / weights_bias
+name: Test / weights_and_biases_weave
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/weights_bias/**"
-      - ".github/workflows/weights_bias.yml"
-      - "!integrations/weights_bias/*.md"
+      - "integrations/weights_and_biases_weave/**"
+      - ".github/workflows/`weights_and_biases_weave.yml"
+      - "!integrations/weights_and_biases_weave/*.md"
 
 defaults:
   run:
-    working-directory: integrations/weights_bias
+    working-directory: integrations/weights_and_biases_weave
 
 concurrency:
-  group: weights_bias-${{ github.head_ref }}
+  group: weights_and_biases_weave-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
