@@ -1,6 +1,7 @@
 import asyncio
 
 import pytest
+from haystack import Document
 
 from haystack_integrations.document_stores.opensearch.document_store import OpenSearchDocumentStore
 
@@ -107,3 +108,64 @@ def document_store_embedding_dim_4_no_emb_returned_faiss(request):
 
     store._client.indices.delete(index=index, params={"ignore": [400, 404]})
     asyncio.run(store._async_client.close())
+
+
+@pytest.fixture
+def test_documents():
+    return [
+        Document(
+            content="Haskell is a functional programming language",
+            meta={"likes": 100000, "language_type": "functional"},
+            id="1",
+        ),
+        Document(
+            content="Lisp is a functional programming language",
+            meta={"likes": 10000, "language_type": "functional"},
+            id="2",
+        ),
+        Document(
+            content="Exilir is a functional programming language",
+            meta={"likes": 1000, "language_type": "functional"},
+            id="3",
+        ),
+        Document(
+            content="F# is a functional programming language",
+            meta={"likes": 100, "language_type": "functional"},
+            id="4",
+        ),
+        Document(
+            content="C# is a functional programming language",
+            meta={"likes": 10, "language_type": "functional"},
+            id="5",
+        ),
+        Document(
+            content="C++ is an object oriented programming language",
+            meta={"likes": 100000, "language_type": "object_oriented"},
+            id="6",
+        ),
+        Document(
+            content="Dart is an object oriented programming language",
+            meta={"likes": 10000, "language_type": "object_oriented"},
+            id="7",
+        ),
+        Document(
+            content="Go is an object oriented programming language",
+            meta={"likes": 1000, "language_type": "object_oriented"},
+            id="8",
+        ),
+        Document(
+            content="Python is a object oriented programming language",
+            meta={"likes": 100, "language_type": "object_oriented"},
+            id="9",
+        ),
+        Document(
+            content="Ruby is a object oriented programming language",
+            meta={"likes": 10, "language_type": "object_oriented"},
+            id="10",
+        ),
+        Document(
+            content="PHP is a object oriented programming language",
+            meta={"likes": 1, "language_type": "object_oriented"},
+            id="11",
+        ),
+    ]
