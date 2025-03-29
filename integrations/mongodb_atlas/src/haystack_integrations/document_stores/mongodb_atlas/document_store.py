@@ -9,7 +9,7 @@ from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
-from pymongo import InsertOne, MongoClient, ReplaceOne, UpdateOne
+from pymongo import AsyncMongoClient, InsertOne, MongoClient, ReplaceOne, UpdateOne
 from pymongo.collection import Collection
 from pymongo.driver_info import DriverInfo
 from pymongo.errors import BulkWriteError
@@ -156,6 +156,14 @@ class MongoDBAtlasDocumentStore:
         """
         return self.collection.count_documents({})
 
+    async def count_documents_async(self) -> int:
+        """
+        Asynchronously returns how many documents are present in the document store.
+
+        :returns: The number of documents in the document store.
+        """
+        pass
+
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
         Returns the documents that match the filters provided.
@@ -171,6 +179,18 @@ class MongoDBAtlasDocumentStore:
         for doc in documents:
             doc.pop("_id", None)  # MongoDB's internal id doesn't belong into a Haystack document, so we remove it.
         return [Document.from_dict(doc) for doc in documents]
+
+    async def filter_documents_async(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        """
+        Asynchronously returns the documents that match the filters provided.
+
+        For a detailed specification of the filters,
+        refer to the Haystack [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering).
+
+        :param filters: The filters to apply. It returns only the documents that match the filters.
+        :returns: A list of Documents that match the given filters.
+        """
+        pass
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
@@ -235,6 +255,14 @@ class MongoDBAtlasDocumentStore:
             return
         self.collection.delete_many(filter={"id": {"$in": document_ids}})
 
+    async def delete_documents_async(self, document_ids: List[str]) -> None:
+        """
+        Asynchronously deletes all documents with a matching document_ids from the document store.
+
+        :param document_ids: the document ids to delete
+        """
+        pass
+
     def _embedding_retrieval(
         self,
         query_embedding: List[float],
@@ -292,6 +320,22 @@ class MongoDBAtlasDocumentStore:
 
         documents = [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
         return documents
+
+    async def _embedding_retrieval_async(
+        self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: int = 10
+    ) -> List[Document]:
+        """
+        Asynchronously find the documents that are most similar to the provided `query_embedding` by using a vector
+        similarity metric.
+
+        :param query_embedding: Embedding of the query
+        :param filters: Optional filters.
+        :param top_k: How many documents to return.
+        :returns: A list of Documents that are most similar to the given `query_embedding`
+        :raises ValueError: If `query_embedding` is empty.
+        :raises DocumentStoreError: If the retrieval of documents from MongoDB Atlas fails.
+        """
+        pass
 
     def _fulltext_retrieval(
         self,
@@ -391,6 +435,42 @@ class MongoDBAtlasDocumentStore:
             raise DocumentStoreError(error_msg) from e
 
         return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
+
+    async def _fulltext_retrieval_async(
+        self,
+        query: Union[str, List[str]],
+        fuzzy: Optional[Dict[str, int]] = None,
+        match_criteria: Optional[Literal["any", "all"]] = None,
+        score: Optional[Dict[str, Dict]] = None,
+        synonyms: Optional[str] = None,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+    ) -> List[Document]:
+        """
+        Asynchronously retrieve documents similar to the provided `query` using a full-text search asynchronously.
+
+        :param query: The query string or a list of query strings to search for.
+            If the query contains multiple terms, Atlas Search evaluates each term separately for matches.
+        :param fuzzy: Enables finding strings similar to the search term(s).
+            Note, `fuzzy` cannot be used with `synonyms`. Configurable options include `maxEdits`, `prefixLength`,
+            and `maxExpansions`. For more details refer to MongoDB Atlas
+            [documentation](https://www.mongodb.com/docs/atlas/atlas-search/text/#fields).
+        :param match_criteria: Defines how terms in the query are matched. Supported options are `"any"` and `"all"`.
+            For more details refer to MongoDB Atlas
+            [documentation](https://www.mongodb.com/docs/atlas/atlas-search/text/#fields).
+        :param score: Specifies the scoring method for matching results. Supported options include `boost`, `constant`,
+            and `function`. For more details refer to MongoDB Atlas
+            [documentation](https://www.mongodb.com/docs/atlas/atlas-search/text/#fields).
+        :param synonyms: The name of the synonym mapping definition in the index. This value cannot be an empty string.
+            Note, `synonyms` can not be used with `fuzzy`.
+        :param filters: Optional filters.
+        :param top_k: How many documents to return.
+        :returns: A list of Documents that are most similar to the given `query`
+        :raises ValueError: If `query` or `synonyms` is empty.
+        :raises ValueError: If `synonyms` and `fuzzy` are used together.
+        :raises DocumentStoreError: If the retrieval of documents from MongoDB Atlas fails.
+        """
+        pass
 
     def _mongo_doc_to_haystack_doc(self, mongo_doc: Dict[str, Any]) -> Document:
         """
