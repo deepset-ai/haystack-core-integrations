@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/mongodb_atlas-v3.0.0] - 2025-03-11
+
+### 🧪 Testing
+
+- Skip tests that require credentials on PRs from forks for some integrations (#1485)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+- Use Haystack logging across integrations (#1484)
+
+### 🌀 Miscellaneous
+
+- Docs: Update document store descriptions for deepset Pipeline Builder (#1447)
+- Chore: Mongo - pin haystack and remove dataframe checks (#1512)
+
 ## [integrations/mongodb_atlas-v2.0.0] - 2025-02-14
 
 ### 🧹 Chores

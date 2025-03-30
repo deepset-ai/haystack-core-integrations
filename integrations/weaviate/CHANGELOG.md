@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/weaviate-v6.0.0] - 2025-03-11
+
+### 📚 Documentation
+
+- Update changelog for integrations/weaviate (#1410)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+- Weaviate - pin haystack and remove dataframe checks (#1521)
+
+### 🌀 Miscellaneous
+
+- Docs: Update document store descriptions for deepset Pipeline Builder (#1447)
+
 ## [integrations/weaviate-v5.0.0] - 2025-02-17
 
 ### 🧹 Chores

@@ -18,12 +18,14 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai",
-  "pinecone>=3", # our implementation is not compatible with pinecone <3
+  "haystack-ai>=2.11.0",
+  "pinecone[asyncio]>=3", # our implementation is not compatible with pinecone <3,
 ]
 
 [project.urls]
@@ -47,6 +49,7 @@ installer = "uv"
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "pytest-asyncio",
   "pytest-rerunfailures",
   "pytest-xdist",
   "haystack-pydoc-tools",
@@ -61,9 +64,6 @@ cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
 cov-retry = ["test-cov-retry", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
-
-[[tool.hatch.envs.all.matrix]]
-python = [ "3.9", "3.10", "3.11"]
 
 [tool.hatch.envs.lint]
 installer = "uv"
@@ -130,6 +130,8 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
+  # Ignore assertions
+  "S101",
 ]
 unfixable = [
   # Don't touch unused imports
@@ -164,5 +166,5 @@ minversion = "6.0"
 markers = ["unit: unit tests", "integration: integration tests"]
 
 [[tool.mypy.overrides]]
-module = ["pinecone.*", "haystack.*", "haystack_integrations.*", "pytest.*"]
+module = ["pinecone.*", "haystack.*", "haystack_integrations.*", "pytest.*", "pytest_asyncio.*"]
 ignore_missing_imports = true

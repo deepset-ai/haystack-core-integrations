@@ -237,17 +237,15 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         document_store.write_documents([Document(content=None)])
         assert document_store.filter_documents() == []
 
-    def test_dataframe_and_blob_are_not_stored(self, document_store: ChromaDocumentStore):
+    def test_blob_not_stored(self, document_store: ChromaDocumentStore):
         bs = ByteStream(data=b"test")
         doc_mixed = Document(content="test", blob=bs)
-        doc_mixed.dataframe = "non null content"  # just a placeholder
 
         document_store.write_documents([doc_mixed])
 
         retrieved_doc = document_store.filter_documents()[0]
         assert retrieved_doc.content == "test"
         assert retrieved_doc.blob is None
-        assert not hasattr(retrieved_doc, "dataframe") or retrieved_doc.dataframe is None
 
     @pytest.mark.integration
     def test_to_dict(self, request):

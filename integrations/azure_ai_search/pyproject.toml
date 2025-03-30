@@ -7,7 +7,7 @@ name = "azure-ai-search-haystack"
 dynamic = ["version"]
 description = 'Haystack 2.x Document Store for Azure AI Search'
 readme = "README.md"
-requires-python = ">=3.9,<3.13"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "deepset", email = "info@deepset.ai" }]
@@ -18,10 +18,12 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "azure-search-documents>=11.5", "azure-identity"]
+dependencies = ["haystack-ai>=2.11.0", "azure-search-documents>=11.5", "azure-identity"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/azure_ai_search#readme"
@@ -56,9 +58,6 @@ cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
 cov-retry = ["test-cov-retry", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
-
-[[tool.hatch.envs.all.matrix]]
-python = ["3.9", "3.10", "3.11"]
 
 [tool.hatch.envs.lint]
 detached = true

@@ -1,5 +1,49 @@
 # Changelog
 
+## [integrations/opensearch-v4.0.0] - 2025-03-26
+
+### 🌀 Miscellaneous
+
+- Feat!: OpenSearch - apply `return_embedding` to `filter_documents` (#1562)
+
+## [integrations/opensearch-v3.1.1] - 2025-03-21
+
+### 🐛 Bug Fixes
+
+- OpenSearch custom_query use without filters (#1554)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+## [integrations/opensearch-v3.1.0] - 2025-03-12
+
+### 🚀 Features
+
+- AWS IAM Auth support for OpenSearch async (#1527)
+
+### 🐛 Bug Fixes
+
+- OpenSearch - call _ensure_index_exists only at initialization (#1522)
+
+## [integrations/opensearch-v3.0.0] - 2025-03-11
+
+### 🐛 Bug Fixes
+
+- OpenSearchDocumentStore depends on async opensearch-py (#1438)
+
+### 📚 Documentation
+
+- Add docstore description to docstring (#1446)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+
+### 🌀 Miscellaneous
+
+- Chore: OpenSearch - pin haystack and remove dataframe checks (#1513)
+
 ## [integrations/opensearch-v2.1.0] - 2025-02-18
 
 ### 🚀 Features
@@ -8,16 +52,18 @@
 
 ## [integrations/opensearch-v2.0.0] - 2025-02-14
 
+### 🚀 Features
+
+- Add Secret handling in OpenSearchDocumentStore (#1288)
+
 ### 🧹 Chores
 
 - Inherit from `FilterDocumentsTestWithDataframe` in Document Stores (#1290)
 - [**breaking**] OpenSearch - remove dataframe support (#1378)
 
-## [integrations/opensearch-v1.3.0] - 2025-01-16
+### 🌀 Miscellaneous
 
-### 🚀 Features
-
-- Add Secret handling in OpenSearchDocumentStore (#1288)
+- Chore: OpenSearch - manually fix changelog (#1299)
 
 ## [integrations/opensearch-v1.2.0] - 2024-12-12
 

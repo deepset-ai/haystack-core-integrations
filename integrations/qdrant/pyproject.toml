@@ -22,10 +22,11 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "qdrant-client>=1.10.0"]
+dependencies = ["haystack-ai>=2.11.0", "qdrant-client>=1.10.0"]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations"
@@ -45,7 +46,7 @@ git_describe_command = 'git describe --tags --match="integrations/qdrant-v[0-9]*
 
 [tool.hatch.envs.default]
 installer = "uv"
-dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "haystack-pydoc-tools"]
+dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "haystack-pydoc-tools", "pytest-asyncio"]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
@@ -54,9 +55,6 @@ cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
 cov-retry = ["test-cov-retry", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
-
-[[tool.hatch.envs.all.matrix]]
-python = [ "3.9", "3.10", "3.11"]
 
 [tool.hatch.envs.lint]
 installer = "uv"
@@ -123,6 +121,8 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
+  # Ignore assertions
+  "S101",
 ]
 unfixable = [
   # Don't touch unused imports

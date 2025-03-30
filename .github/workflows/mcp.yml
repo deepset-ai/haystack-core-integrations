@@ -1,0 +1,89 @@
+# This workflow comes from https://github.com/ofek/hatch-mypyc
+# https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
+name: Test / mcp
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  pull_request:
+    paths:
+      - "integrations/mcp/**"
+      - "!integrations/mcp/*.md"
+      - ".github/workflows/mcp.yml"
+
+defaults:
+  run:
+    working-directory: integrations/mcp
+
+concurrency:
+  group: mcp-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  FORCE_COLOR: "1"
+  BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}  
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+jobs:
+  run:
+    name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.13"]  # MCP Python SDK is not compatible with Python<3.10
+
+    steps:
+      - name: Support longpaths
+        if: matrix.os == 'windows-latest'
+        working-directory: .
+        run: git config --system core.longpaths true
+
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Hatch
+        run: pip install --upgrade hatch
+
+      - name: Set up Docker
+        if: runner.os == 'Linux'
+        uses: docker/setup-buildx-action@v3
+
+      # we need to pull the mcp/brave-search image to run the test
+      # on the actual mcp server as an example of real life usage
+      # We also need to set the BRAVE_API_KEY environment variable
+      # to run the tests
+      - name: Pull mcp/brave-search Docker image
+        if: runner.os == 'Linux'
+        run: docker pull mcp/brave-search
+
+      - name: Lint
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        run: hatch run lint:all
+
+      - name: Generate docs
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        run: hatch run docs
+
+      - name: Run tests
+        run: hatch run cov-retry
+
+      - name: Nightly - run unit tests with Haystack main branch
+        if: github.event_name == 'schedule'
+        run: |
+          hatch run uv pip install git+https://github.com/deepset-ai/haystack.git@main
+          hatch run cov-retry -m "not integration"
+
+      - name: Send event to Datadog for nightly failures
+        if: failure() && github.event_name == 'schedule'
+        uses: ./.github/actions/send_failure
+        with:
+          title: |
+            Core integrations nightly tests failure: ${{ github.workflow }}
+          api-key: ${{ secrets.CORE_DATADOG_API_KEY }}

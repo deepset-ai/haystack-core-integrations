@@ -83,7 +83,7 @@ class NvidiaGenerator:
 
         self.is_hosted = is_hosted(api_url)
         if timeout is None:
-            timeout = float(os.environ.get("NVIDIA_TIMEOUT", 60.0))
+            timeout = float(os.environ.get("NVIDIA_TIMEOUT", "60.0"))
         self.timeout = timeout
 
     @classmethod

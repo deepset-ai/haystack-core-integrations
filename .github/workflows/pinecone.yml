@@ -31,15 +31,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Pinecone tests are time expensive, so the matrix is limited to Python 3.9 and 3.10
+        # Pinecone tests are time expensive, so only test on Ubuntu
         os: [ubuntu-latest]
-        python-version: ["3.9", "3.10"]
+        python-version: ["3.9", "3.13"]
         # the INDEX_NAME is used in test_serverless_index_creation_from_scratch
         include:
           - python-version: "3.9"
             INDEX_NAME: "index-39"
-          - python-version: "3.10"
-            INDEX_NAME: "index-310"
+          - python-version: "3.13"
+            INDEX_NAME: "index-313"
 
     steps:
       - uses: actions/checkout@v4

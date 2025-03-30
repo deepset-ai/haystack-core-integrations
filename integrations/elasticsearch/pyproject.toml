@@ -18,10 +18,16 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "elasticsearch>=8,<9"]
+dependencies = [
+                "haystack-ai>=2.11.0",
+                "elasticsearch>=8,<9",
+                "aiohttp" # for async support https://elasticsearch-py.readthedocs.io/en/latest/async.html#valueerror-when-initializing-asyncelasticsearch
+                ]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/elasticsearch#readme"
@@ -57,9 +63,6 @@ cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
 cov-retry = ["test-cov-retry", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
-
-[[tool.hatch.envs.all.matrix]]
-python = [ "3.9", "3.10", "3.11"]
 
 [tool.hatch.envs.lint]
 installer = "uv"

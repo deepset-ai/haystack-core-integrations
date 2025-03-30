@@ -1,11 +1,11 @@
 import json
-import logging
 from typing import Dict, List, Optional, Union
 from warnings import warn
 
 from astrapy import DataAPIClient as AstraDBClient
 from astrapy.constants import ReturnDocument
 from astrapy.exceptions import CollectionAlreadyExistsException
+from haystack import logging
 from haystack.version import __version__ as integration_version
 from pydantic.dataclasses import dataclass
 

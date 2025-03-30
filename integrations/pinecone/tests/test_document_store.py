@@ -35,7 +35,7 @@ def test_init(mock_pinecone):
     )
 
     # Trigger an actual connection
-    _ = document_store.index
+    _ = document_store._initialize_index()
 
     mock_pinecone.assert_called_with(api_key="fake-api-key", source_tag="haystack")
 
@@ -59,7 +59,7 @@ def test_init_api_key_in_environment_variable(mock_pinecone, monkeypatch):
     )
 
     # Trigger an actual connection
-    _ = ds.index
+    _ = ds._initialize_index()
 
     mock_pinecone.assert_called_with(api_key="env-api-key", source_tag="haystack")
 
@@ -77,7 +77,7 @@ def test_to_from_dict(mock_pinecone, monkeypatch):
     )
 
     # Trigger an actual connection
-    _ = document_store.index
+    document_store._initialize_index()
 
     dict_output = {
         "type": "haystack_integrations.document_stores.pinecone.document_store.PineconeDocumentStore",
@@ -114,7 +114,7 @@ def test_init_fails_wo_api_key(monkeypatch):
     with pytest.raises(ValueError):
         _ = PineconeDocumentStore(
             index="my_index",
-        ).index
+        )._initialize_index()
 
 
 def test_convert_dict_spec_to_pinecone_object_serverless():
@@ -212,7 +212,7 @@ def test_convert_meta_to_int():
 
 
 @pytest.mark.integration
-@pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
+@pytest.mark.skipif(not os.environ.get("PINECONE_API_KEY"), reason="PINECONE_API_KEY not set")
 def test_serverless_index_creation_from_scratch(sleep_time):
     # we use a fixed index name to avoid hitting the limit of Pinecone's free tier (max 5 indexes)
     # the index name is defined in the test matrix of the GitHub Actions workflow
@@ -236,7 +236,7 @@ def test_serverless_index_creation_from_scratch(sleep_time):
         spec={"serverless": {"region": "us-east-1", "cloud": "aws"}},
     )
     # Trigger the connection
-    _ = ds.index
+    _ = ds._initialize_index()
 
     index_description = client.describe_index(name=index_name)
     assert index_description["name"] == index_name
@@ -252,7 +252,7 @@ def test_serverless_index_creation_from_scratch(sleep_time):
 
 
 @pytest.mark.integration
-@pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
+@pytest.mark.skipif(not os.environ.get("PINECONE_API_KEY"), reason="PINECONE_API_KEY not set")
 class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest):
     def test_write_documents(self, document_store: PineconeDocumentStore):
         docs = [Document(id="1")]

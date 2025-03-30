@@ -2,13 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import copy
-import logging
 import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from haystack import Document, component, default_from_dict, default_to_dict
+from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.utils import normalize_metadata
 from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm

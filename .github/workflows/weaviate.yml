@@ -30,8 +30,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        os: [ubuntu-latest] # we run Weaviate using Docker, which is not available on MacOS and Windows GitHub Runners
+        python-version: ["3.9", "3.13"]
 
     steps:
       - uses: actions/checkout@v4

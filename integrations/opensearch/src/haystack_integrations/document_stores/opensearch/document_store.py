@@ -10,10 +10,10 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret
-from opensearchpy import AsyncOpenSearch, OpenSearch
+from opensearchpy import AsyncHttpConnection, AsyncOpenSearch, OpenSearch
 from opensearchpy.helpers import async_bulk, bulk
 
-from haystack_integrations.document_stores.opensearch.auth import AWSAuth
+from haystack_integrations.document_stores.opensearch.auth import AsyncAWSAuth, AWSAuth
 from haystack_integrations.document_stores.opensearch.filters import normalize_filters
 
 logger = logging.getLogger(__name__)
@@ -72,7 +72,8 @@ class OpenSearchDocumentStore:
         :param max_chunk_bytes: Maximum size of the requests in bytes. Defaults to 100MB
         :param embedding_dim: Dimension of the embeddings. Defaults to 768
         :param return_embedding:
-            Whether to return the embedding of the retrieved Documents.
+            Whether to return the embedding of the retrieved Documents. This parameter also applies to the
+            `filter_documents` and `filter_documents_async` methods.
         :param method: The method definition of the underlying configuration of the approximate k-NN algorithm. Please
             see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#method-definitions)
             for more information. Defaults to None
@@ -245,18 +246,22 @@ class OpenSearchDocumentStore:
                 timeout=self._timeout,
                 **self._kwargs,
             )
+            async_http_auth = AsyncAWSAuth(self._http_auth) if isinstance(self._http_auth, AWSAuth) else self._http_auth
             self._async_client = AsyncOpenSearch(
                 hosts=self._hosts,
-                http_auth=self._http_auth,
+                http_auth=async_http_auth,
                 use_ssl=self._use_ssl,
                 verify_certs=self._verify_certs,
                 timeout=self._timeout,
+                # IAM Authentication requires AsyncHttpConnection:
+                # https://github.com/opensearch-project/opensearch-py/blob/main/guides/auth.md#iam-authentication-with-an-async-client
+                connection_class=AsyncHttpConnection,
                 **self._kwargs,
             )
 
             self._initialized = True
 
-        self._ensure_index_exists()
+            self._ensure_index_exists()
 
     def _ensure_index_exists(self):
         assert self._client is not None
@@ -305,6 +310,11 @@ class OpenSearchDocumentStore:
         search_kwargs: Dict[str, Any] = {"size": 10_000}
         if filters:
             search_kwargs["query"] = {"bool": {"filter": normalize_filters(filters)}}
+
+        # For some applications not returning the embedding can save a lot of bandwidth
+        # if you don't need this data not retrieving it can be a good idea
+        if not self._return_embedding:
+            search_kwargs["_source"] = {"excludes": ["embedding"]}
         return search_kwargs
 
     def _search_documents(self, request_body: Dict[str, Any]) -> List[Document]:
@@ -357,15 +367,6 @@ class OpenSearchDocumentStore:
         opensearch_actions = []
         for doc in documents:
             doc_dict = doc.to_dict()
-            if "dataframe" in doc_dict:
-                dataframe = doc_dict.pop("dataframe")
-                if dataframe:
-                    logger.warning(
-                        "Document {id} has the `dataframe` field set,"
-                        "OpenSearchDocumentStore no longer supports dataframes and this field will be ignored. "
-                        "The `dataframe` field will soon be removed from Haystack Document.",
-                        id=doc.id,
-                    )
             if "sparse_embedding" in doc_dict:
                 sparse_embedding = doc_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
@@ -465,16 +466,6 @@ class OpenSearchDocumentStore:
             data["metadata"]["highlighted"] = hit["highlight"]
         data["score"] = hit["_score"]
 
-        if "dataframe" in data:
-            dataframe = data.pop("dataframe")
-            if dataframe:
-                logger.warning(
-                    "Document {id} has the `dataframe` field set,"
-                    "OpenSearchDocumentStore no longer supports dataframes and this field will be ignored. "
-                    "The `dataframe` field will soon be removed from Haystack Document.",
-                    id=data["id"],
-                )
-
         return Document.from_dict(data)
 
     def _prepare_bulk_delete_request(self, *, document_ids: List[str], is_async: bool) -> Dict[str, Any]:
@@ -529,7 +520,7 @@ class OpenSearchDocumentStore:
                 custom_query,
                 {
                     "$query": query,
-                    "$filters": normalize_filters(filters),  # type:ignore
+                    "$filters": normalize_filters(filters) if filters else None,
                 },
             )
 
