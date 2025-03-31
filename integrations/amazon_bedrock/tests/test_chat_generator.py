@@ -809,8 +809,8 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
             if not paris_found_in_response:
                 paris_found_in_response = "paris" in chunk.content.lower()
 
-        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
-        response = await client.run_async(chat_messages)
+        client = AmazonBedrockChatGenerator(model=model_name)
+        response = await client.run_async(chat_messages, streaming_callback=streaming_callback)
 
         assert streaming_callback_called, "Streaming callback was not called"
         assert paris_found_in_response, "The streaming callback response did not contain 'paris'"
