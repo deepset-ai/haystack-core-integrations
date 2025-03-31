@@ -858,8 +858,11 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
             "toolChoice": {"auto": {}},
         }
 
+        async def streaming_callback(chunk: StreamingChunk):
+            print(chunk, flush=True, end="")  # noqa: T201
+
         messages = [ChatMessage.from_user("What is the most popular song on WZPZ?")]
-        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=print_streaming_chunk)
+        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
         response = await client.run_async(messages=messages, generation_kwargs={"toolConfig": tool_config})
         replies = response["replies"]
         assert isinstance(replies, list), "Replies is not a list"
@@ -884,8 +887,12 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         """
         Integration test that the AmazonBedrockChatGenerator component can run asynchronously with tools and streaming
         """
+
+        async def streaming_callback(chunk: StreamingChunk):
+            print(chunk, flush=True, end="")  # noqa: T201
+
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = AmazonBedrockChatGenerator(model=model_name, tools=tools, streaming_callback=print_streaming_chunk)
+        component = AmazonBedrockChatGenerator(model=model_name, tools=tools, streaming_callback=streaming_callback)
         results = await component.run_async(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"
