@@ -1,10 +1,10 @@
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from botocore.config import Config
 from botocore.eventstream import EventStream
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.dataclasses import ChatMessage, StreamingChunk
+from haystack.dataclasses import ChatMessage, StreamingCallbackT, select_streaming_callback
 from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
@@ -132,7 +132,7 @@ class AmazonBedrockChatGenerator:
         aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         generation_kwargs: Optional[Dict[str, Any]] = None,
         stop_words: Optional[List[str]] = None,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         boto3_config: Optional[Dict[str, Any]] = None,
         tools: Optional[List[Tool]] = None,
     ):
@@ -220,11 +220,9 @@ class AmazonBedrockChatGenerator:
 
         self.generation_kwargs = generation_kwargs or {}
         self.stop_words = stop_words or []
-        self.streaming_callback = streaming_callback
         self.async_session = None
 
     def _get_async_session(self):
-
         if self.async_session:
             return self.async_session
 
@@ -295,10 +293,10 @@ class AmazonBedrockChatGenerator:
     def _prepare_request_params(
         self,
         messages: List[ChatMessage],
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[List[Tool]] = None,
-    ) -> Tuple[Dict[str, Any], Optional[Callable[[StreamingChunk], None]]]:
+    ) -> Tuple[Dict[str, Any], Optional[StreamingCallbackT]]:
         """
         Prepares the request parameters for both sync and async run methods.
 
@@ -348,7 +346,11 @@ class AmazonBedrockChatGenerator:
         if additional_fields:
             params["additionalModelRequestFields"] = additional_fields
 
-        callback = streaming_callback or self.streaming_callback
+        callback = select_streaming_callback(
+            init_callback=self.streaming_callback,
+            runtime_callback=streaming_callback,
+            requires_async=self.async_session is not None,  # only async session can handle async streaming
+        )
 
         return params, callback
 
@@ -356,7 +358,7 @@ class AmazonBedrockChatGenerator:
     def run(
         self,
         messages: List[ChatMessage],
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[List[Tool]] = None,
     ):
@@ -385,7 +387,7 @@ class AmazonBedrockChatGenerator:
     async def run_async(
         self,
         messages: List[ChatMessage],
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[List[Tool]] = None,
     ):
