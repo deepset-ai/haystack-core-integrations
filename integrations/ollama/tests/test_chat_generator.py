@@ -215,7 +215,8 @@ class TestOllamaChatGenerator:
             response_format={"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "number"}}},
         )
         data = component.to_dict()
-        assert data == {
+
+        expected_dict = {
             "type": "haystack_integrations.components.generators.ollama.chat.chat_generator.OllamaChatGenerator",
             "init_parameters": {
                 "timeout": 120,
@@ -248,6 +249,14 @@ class TestOllamaChatGenerator:
                 },
             },
         }
+
+        # add inputs_from_state and outputs_to_state tool parameters for compatibility with haystack-ai>=2.12.0
+        if hasattr(tool, "inputs_from_state"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = tool.inputs_from_state
+        if hasattr(tool, "outputs_to_state"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = tool.outputs_to_state
+
+        assert data == expected_dict
 
     def test_from_dict(self):
         tool = Tool(
