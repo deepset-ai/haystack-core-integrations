@@ -305,6 +305,8 @@ class AmazonBedrockChatGenerator:
         :param streaming_callback: Optional callback function for handling streaming responses.
         :param generation_kwargs: Optional dictionary of generation parameters.
         :param tools: Optional list of Tool objects that the model can use.
+        :param requires_async: Boolean indicating whether the request is for async execution.
+            This affects how the streaming callback is selected.
         :return: Tuple of (request parameters dict, callback function)
         """
         generation_kwargs = generation_kwargs or {}
