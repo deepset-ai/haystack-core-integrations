@@ -296,6 +296,7 @@ class AmazonBedrockChatGenerator:
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[List[Tool]] = None,
+        requires_async: bool = False,
     ) -> Tuple[Dict[str, Any], Optional[StreamingCallbackT]]:
         """
         Prepares the request parameters for both sync and async run methods.
@@ -349,7 +350,7 @@ class AmazonBedrockChatGenerator:
         callback = select_streaming_callback(
             init_callback=self.streaming_callback,
             runtime_callback=streaming_callback,
-            requires_async=self.async_session is not None,  # only async session can handle async streaming
+            requires_async=requires_async,
         )
 
         return params, callback
@@ -363,7 +364,11 @@ class AmazonBedrockChatGenerator:
         tools: Optional[List[Tool]] = None,
     ):
         params, callback = self._prepare_request_params(
-            messages=messages, streaming_callback=streaming_callback, generation_kwargs=generation_kwargs, tools=tools
+            messages=messages,
+            streaming_callback=streaming_callback,
+            generation_kwargs=generation_kwargs,
+            tools=tools,
+            requires_async=False,
         )
 
         try:
@@ -401,7 +406,11 @@ class AmazonBedrockChatGenerator:
         :return: Dictionary containing the model's replies as a list of ChatMessage objects.
         """
         params, callback = self._prepare_request_params(
-            messages=messages, streaming_callback=streaming_callback, generation_kwargs=generation_kwargs, tools=tools
+            messages=messages,
+            streaming_callback=streaming_callback,
+            generation_kwargs=generation_kwargs,
+            tools=tools,
+            requires_async=True,
         )
 
         try:
