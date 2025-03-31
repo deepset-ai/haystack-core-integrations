@@ -171,7 +171,7 @@ class TestAnthropicChatGenerator:
         )
         data = component.to_dict()
 
-        assert data == {
+        expected_dict = {
             "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ENV_VAR"], "type": "env_var", "strict": True},
@@ -196,6 +196,14 @@ class TestAnthropicChatGenerator:
                 ],
             },
         }
+
+        # add inputs_from_state and outputs_to_state tool parameters for compatibility with haystack-ai>=2.12.0
+        if hasattr(tool, "inputs_from_state"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = tool.inputs_from_state
+        if hasattr(tool, "outputs_to_state"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = tool.outputs_to_state
+
+        assert data == expected_dict
 
     def test_from_dict(self, monkeypatch):
         """
@@ -565,6 +573,16 @@ class TestAnthropicChatGenerator:
 
         if not hasattr(pipeline, "_connection_type_validation"):
             expected_dict.pop("connection_type_validation")
+
+        # add inputs_from_state and outputs_to_state tool parameters for compatibility with haystack-ai>=2.12.0
+        if hasattr(tool, "inputs_from_state"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
+                "inputs_from_state"
+            ] = tool.inputs_from_state
+        if hasattr(tool, "outputs_to_state"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
+                "outputs_to_state"
+            ] = tool.outputs_to_state
 
         assert pipeline_dict == expected_dict
 
