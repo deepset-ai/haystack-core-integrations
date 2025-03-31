@@ -563,7 +563,7 @@ class AnthropicChatGenerator:
 
         streaming_callback = select_streaming_callback(
             init_callback=self.streaming_callback,
-            run_callback=streaming_callback,
+            runtime_callback=streaming_callback,
             requires_async=False,
         )
 
@@ -604,7 +604,7 @@ class AnthropicChatGenerator:
 
         streaming_callback = select_streaming_callback(
             init_callback=self.streaming_callback,
-            run_callback=streaming_callback,
+            runtime_callback=streaming_callback,
             requires_async=True,
         )
 
