@@ -801,7 +801,7 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         streaming_callback_called = False
         paris_found_in_response = False
 
-        def streaming_callback(chunk: StreamingChunk):
+        async def streaming_callback(chunk: StreamingChunk):
             nonlocal streaming_callback_called, paris_found_in_response
             streaming_callback_called = True
             assert isinstance(chunk, StreamingChunk)
