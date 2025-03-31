@@ -1173,23 +1173,20 @@ class TestAnthropicChatGeneratorAsync:
         Test that the async run method of AnthropicChatGenerator works with streaming.
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = AnthropicChatGenerator(streaming_callback=print_streaming_chunk)
+        component = AnthropicChatGenerator()  # No streaming callback during initialization
 
-        # Create a callback to capture streaming chunks
-        class Callback:
-            def __init__(self):
-                self.responses = ""
-                self.counter = 0
+        counter = 0
+        responses = ""
 
-            def __call__(self, chunk: StreamingChunk) -> None:
-                self.counter += 1
-                self.responses += chunk.content if chunk.content else ""
-
-        callback = Callback()
-        component.streaming_callback = callback
+        # Create a callback that's compatible with async operations
+        async def callback(chunk: StreamingChunk) -> None:
+            nonlocal counter
+            nonlocal responses
+            counter += 1
+            responses += chunk.content if chunk.content else ""
 
         # Run the async streaming test
-        results = await component.run_async(messages=initial_messages)
+        results = await component.run_async(messages=initial_messages, streaming_callback=callback)
 
         # Verify the results
         assert len(results["replies"]) == 1
@@ -1199,8 +1196,8 @@ class TestAnthropicChatGeneratorAsync:
         assert message.meta["finish_reason"] == "end_turn"
 
         # Verify streaming behavior
-        assert callback.counter > 1  # Should have received multiple chunks
-        assert "paris" in callback.responses.lower()  # Should have received the response in chunks
+        assert counter > 1  # Should have received multiple chunks
+        assert "paris" in responses.lower()  # Should have received the response in chunks
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(
