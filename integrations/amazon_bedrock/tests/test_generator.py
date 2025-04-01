@@ -1768,6 +1768,3 @@ class TestMetaLlamaAdapter:
         assert isinstance(result, dict)
         assert "meta" in result
         assert result["meta"] == mock_response["ResponseMetadata"]
-        assert result["meta"]["RequestId"] == "test-stream-request-id"
-        assert result["meta"]["HTTPStatusCode"] == 200
-        assert result["meta"]["HTTPHeaders"]["content-type"] == "application/json"
