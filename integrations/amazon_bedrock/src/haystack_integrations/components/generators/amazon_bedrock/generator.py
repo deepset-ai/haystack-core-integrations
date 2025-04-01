@@ -183,7 +183,7 @@ class AmazonBedrockGenerator:
         model_adapter_cls = self.get_model_adapter(model=model, model_family=model_family)
         self.model_adapter = model_adapter_cls(model_kwargs=model_input_kwargs, max_length=self.max_length)
 
-    @component.output_types(replies=List[str])
+    @component.output_types(replies=List[str], meta=Dict[str, Any])
     def run(
         self,
         prompt: str,
@@ -199,6 +199,7 @@ class AmazonBedrockGenerator:
         :param generation_kwargs: Additional keyword arguments passed to the generator.
         :returns: A dictionary with the following keys:
             - `replies`: A list of generated responses.
+            - `meta`: A dictionary containing response metadata.
         :raises ValueError: If the prompt is empty or None.
         :raises AmazonBedrockInferenceError: If the model cannot be invoked.
         """
@@ -229,6 +230,11 @@ class AmazonBedrockGenerator:
                 )
                 response_body = json.loads(response.get("body").read().decode("utf-8"))
                 replies = self.model_adapter.get_responses(response_body=response_body)
+
+            metadata = response.get("ResponseMetadata", {})
+            if not metadata:
+                logger.warning("No metadata returned from Amazon Bedrock")
+
         except ClientError as exception:
             msg = (
                 f"Could not connect to Amazon Bedrock model {self.model}. "
@@ -237,7 +243,7 @@ class AmazonBedrockGenerator:
             )
             raise AmazonBedrockInferenceError(msg) from exception
 
-        return {"replies": replies}
+        return {"replies": replies, "meta": metadata}
 
     @classmethod
     def get_model_adapter(cls, model: str, model_family: Optional[str] = None) -> Type[BedrockModelAdapter]:

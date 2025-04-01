@@ -1697,3 +1697,80 @@ class TestMetaLlamaAdapter:
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_not_called()
+
+
+    def test_run_with_metadata(self, mock_boto3_session) -> None:
+
+        generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
+        mock_client = mock_boto3_session.return_value.client.return_value
+        
+        mock_response = {
+            "body": MagicMock(),
+            "ResponseMetadata": {
+                "RequestId": "test-request-id",
+                "HTTPStatusCode": 200,
+                "HTTPHeaders": {
+                    "x-amzn-requestid": "test-request-id",
+                    "content-type": "application/json"
+                }
+            }
+        }
+        mock_client.invoke_model.return_value = mock_response
+        mock_response["body"].read.return_value.decode.return_value = '{"content": [{"type": "text", "text": "test response"}]}'
+
+        result = generator.run("Hello, how are you?")
+
+        assert isinstance(result, dict)
+        assert "meta" in result
+        assert result["meta"] == mock_response["ResponseMetadata"]
+        assert result["meta"]["RequestId"] == "test-request-id"
+        assert result["meta"]["HTTPStatusCode"] == 200
+        assert result["meta"]["HTTPHeaders"]["content-type"] == "application/json"
+
+    def test_run_without_metadata(self, mock_boto3_session) -> None:
+
+        generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
+        mock_client = mock_boto3_session.return_value.client.return_value
+        
+        mock_response = {
+            "body": MagicMock()
+        }
+        mock_client.invoke_model.return_value = mock_response
+        mock_response["body"].read.return_value.decode.return_value = '{"content": [{"type": "text", "text": "test response"}]}'
+
+        result = generator.run("Hello, how are you?")
+
+        assert isinstance(result, dict)
+        assert "meta" in result
+        assert result["meta"] == {}
+
+    def test_run_with_streaming_metadata(self, mock_boto3_session) -> None:
+
+        generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
+        mock_client = mock_boto3_session.return_value.client.return_value
+        streaming_callback_mock = MagicMock()
+        
+        mock_response = {
+            "body": MagicMock(),
+            "ResponseMetadata": {
+                "RequestId": "test-stream-request-id", 
+                "HTTPStatusCode": 200,
+                "HTTPHeaders": {
+                    "x-amzn-requestid": "test-stream-request-id",
+                    "content-type": "application/json"
+                }
+            }
+        }
+        mock_client.invoke_model_with_response_stream.return_value = mock_response
+        mock_response["body"].__iter__.return_value = [
+            {"delta": {"type": "text", "text": "test response"}}
+        ]
+
+        result = generator.run("Hello, how are you?", streaming_callback=streaming_callback_mock)
+
+        assert isinstance(result, dict)
+        assert "meta" in result
+        assert result["meta"] == mock_response["ResponseMetadata"]
+        assert result["meta"]["RequestId"] == "test-stream-request-id"
+        assert result["meta"]["HTTPStatusCode"] == 200
+        assert result["meta"]["HTTPHeaders"]["content-type"] == "application/json"
