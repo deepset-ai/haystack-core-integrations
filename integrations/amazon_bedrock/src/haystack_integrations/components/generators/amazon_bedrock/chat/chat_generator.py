@@ -357,7 +357,7 @@ class AmazonBedrockChatGenerator:
 
         return params, callback
 
-    @component.output_types(replies=List[ChatMessage], meta=Dict[str, Any])
+    @component.output_types(replies=List[ChatMessage])
     def run(
         self,
         messages: List[ChatMessage],
@@ -384,19 +384,13 @@ class AmazonBedrockChatGenerator:
             else:
                 response = self.client.converse(**params)
                 replies = _parse_completion_response(response, self.model)
-
-            # Extract metadata from response
-            metadata = response.get("ResponseMetadata", {})
-            if not metadata:
-                logger.warning("No metadata returned from Amazon Bedrock")
-
         except ClientError as exception:
             msg = f"Could not generate inference for Amazon Bedrock model {self.model} due: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
 
-        return {"replies": replies, "meta": metadata}
+        return {"replies": replies}
 
-    @component.output_types(replies=List[ChatMessage], meta=Dict[str, Any])
+    @component.output_types(replies=List[ChatMessage])
     async def run_async(
         self,
         messages: List[ChatMessage],
@@ -411,7 +405,7 @@ class AmazonBedrockChatGenerator:
         :param streaming_callback: Optional callback function for handling streaming responses.
         :param generation_kwargs: Optional dictionary of generation parameters.
         :param tools: Optional list of Tool objects that the model can use.
-        :return: Dictionary containing the model's replies as a list of ChatMessage objects and response metadata.
+        :return: Dictionary containing the model's replies as a list of ChatMessage objects.
         """
         params, callback = self._prepare_request_params(
             messages=messages,
@@ -437,13 +431,8 @@ class AmazonBedrockChatGenerator:
                     response = await async_client.converse(**params)
                     replies = _parse_completion_response(response, self.model)
 
-                # Extract metadata from response
-                metadata = response.get("ResponseMetadata", {})
-                if not metadata:
-                    logger.warning("No metadata returned from Amazon Bedrock")
-
         except ClientError as exception:
             msg = f"Could not generate inference for Amazon Bedrock model {self.model} due: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
 
-        return {"replies": replies, "meta": metadata}
+        return {"replies": replies}
