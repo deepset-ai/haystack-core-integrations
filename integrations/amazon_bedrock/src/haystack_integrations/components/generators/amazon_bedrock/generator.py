@@ -232,8 +232,6 @@ class AmazonBedrockGenerator:
                 replies = self.model_adapter.get_responses(response_body=response_body)
 
             metadata = response.get("ResponseMetadata", {})
-            if not metadata:
-                logger.warning("No metadata returned from Amazon Bedrock")
 
         except ClientError as exception:
             msg = (
