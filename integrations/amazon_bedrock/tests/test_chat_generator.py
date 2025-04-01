@@ -686,7 +686,7 @@ class TestAmazonBedrockChatGeneratorInference:
         assert "meta" in response, "Response does not contain 'meta' key"
         metadata = response["meta"]
         assert isinstance(metadata, dict), "Metadata is not a dictionary"
-        
+
         assert "RequestId" in metadata, "Metadata does not contain 'RequestId'"
         assert "HTTPStatusCode" in metadata, "Metadata does not contain 'HTTPStatusCode'"
         assert metadata["HTTPStatusCode"] == 200, "HTTP status code is not 200"
@@ -726,7 +726,7 @@ class TestAmazonBedrockChatGeneratorInference:
         assert "meta" in response, "Response does not contain 'meta' key"
         metadata = response["meta"]
         assert isinstance(metadata, dict), "Metadata is not a dictionary"
-        
+
         # Verify common metadata fields
         assert "RequestId" in metadata, "Metadata does not contain 'RequestId'"
         assert "HTTPStatusCode" in metadata, "Metadata does not contain 'HTTPStatusCode'"
@@ -752,7 +752,7 @@ class TestAmazonBedrockChatGeneratorInference:
         assert "meta" in response, "Response does not contain 'meta' key"
         metadata = response["meta"]
         assert isinstance(metadata, dict), "Metadata is not a dictionary"
-        
+
         assert "RequestId" in metadata, "Metadata does not contain 'RequestId'"
         assert "HTTPStatusCode" in metadata, "Metadata does not contain 'HTTPStatusCode'"
         assert metadata["HTTPStatusCode"] == 200, "HTTP status code is not 200"
