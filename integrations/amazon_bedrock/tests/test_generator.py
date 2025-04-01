@@ -1698,25 +1698,23 @@ class TestMetaLlamaAdapter:
 
         streaming_callback_mock.assert_not_called()
 
-
     def test_run_with_metadata(self, mock_boto3_session) -> None:
-
         generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
         mock_client = mock_boto3_session.return_value.client.return_value
-        
+
+        # Create a proper mock for the response body
+        mock_body = MagicMock()
+        mock_body.read.return_value = b'{"content": [{"type": "text", "text": "test response"}]}'
+
         mock_response = {
-            "body": MagicMock(),
+            "body": mock_body,
             "ResponseMetadata": {
                 "RequestId": "test-request-id",
                 "HTTPStatusCode": 200,
-                "HTTPHeaders": {
-                    "x-amzn-requestid": "test-request-id",
-                    "content-type": "application/json"
-                }
-            }
+                "HTTPHeaders": {"x-amzn-requestid": "test-request-id", "content-type": "application/json"},
+            },
         }
         mock_client.invoke_model.return_value = mock_response
-        mock_response["body"].read.return_value.decode.return_value = '{"content": [{"type": "text", "text": "test response"}]}'
 
         result = generator.run("Hello, how are you?")
 
@@ -1728,15 +1726,15 @@ class TestMetaLlamaAdapter:
         assert result["meta"]["HTTPHeaders"]["content-type"] == "application/json"
 
     def test_run_without_metadata(self, mock_boto3_session) -> None:
-
         generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
         mock_client = mock_boto3_session.return_value.client.return_value
-        
-        mock_response = {
-            "body": MagicMock()
-        }
+
+        # Create a proper mock for the response body
+        mock_body = MagicMock()
+        mock_body.read.return_value = b'{"content": [{"type": "text", "text": "test response"}]}'
+
+        mock_response = {"body": mock_body}
         mock_client.invoke_model.return_value = mock_response
-        mock_response["body"].read.return_value.decode.return_value = '{"content": [{"type": "text", "text": "test response"}]}'
 
         result = generator.run("Hello, how are you?")
 
@@ -1745,26 +1743,25 @@ class TestMetaLlamaAdapter:
         assert result["meta"] == {}
 
     def test_run_with_streaming_metadata(self, mock_boto3_session) -> None:
-
         generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
         mock_client = mock_boto3_session.return_value.client.return_value
         streaming_callback_mock = MagicMock()
-        
+
+        # Create a proper mock for the streaming response body
+        mock_body = MagicMock()
+        mock_body.__iter__.return_value = [
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}, "index": 0}'}}
+        ]
+
         mock_response = {
-            "body": MagicMock(),
+            "body": mock_body,
             "ResponseMetadata": {
-                "RequestId": "test-stream-request-id", 
+                "RequestId": "test-stream-request-id",
                 "HTTPStatusCode": 200,
-                "HTTPHeaders": {
-                    "x-amzn-requestid": "test-stream-request-id",
-                    "content-type": "application/json"
-                }
-            }
+                "HTTPHeaders": {"x-amzn-requestid": "test-stream-request-id", "content-type": "application/json"},
+            },
         }
         mock_client.invoke_model_with_response_stream.return_value = mock_response
-        mock_response["body"].__iter__.return_value = [
-            {"delta": {"type": "text", "text": "test response"}}
-        ]
 
         result = generator.run("Hello, how are you?", streaming_callback=streaming_callback_mock)
 
