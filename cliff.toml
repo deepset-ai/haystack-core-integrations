@@ -28,7 +28,7 @@ body = """
     {% if commits | length == 1 and 'Update changelog for' in commits[0].message %}\
         {% continue %}\
     {% if commits | length == 1 and commits[0].message == 'Update the changelog' %}\
-        {% continue %}\        
+        {% continue %}\
     {% endif %}\
     ### {{ group | striptags | trim | upper_first }}
     {% for commit in commits %}\
