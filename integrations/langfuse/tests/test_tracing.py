@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 import time
 from urllib.parse import urlparse
@@ -33,6 +37,7 @@ def poll_langfuse(url: str):
     attempts = 5
     delay = 1
 
+    res = None
     while attempts > 0:
         res = requests.get(url, auth=auth)
         if res.status_code == 200:
@@ -135,12 +140,14 @@ def test_tracing_integration(llm_class, env_var, expected_trace, pipeline_fixtur
     res = poll_langfuse(url)
     assert res.status_code == 200, f"Failed to retrieve data from Langfuse API: {res.status_code}"
 
-    # check if the trace contains the expected LLM name
-    assert expected_trace in str(res.content)
-    # check if the trace contains the expected generation span
-    assert "GENERATION" in str(res.content)
-    # check if the trace contains the expected user_id
-    assert "user_42" in str(res.content)
+    res_json = res.json()
+    assert res_json["name"] == f"Chat example - {expected_trace}"
+    assert isinstance(res_json["input"], dict)
+    assert res_json["input"]["tracer"]["invocation_context"]["user_id"] == "user_42"
+    assert isinstance(res_json["output"], dict)
+    assert isinstance(res_json["metadata"], dict)
+    assert isinstance(res_json["observations"], list)
+    assert res_json["observations"][0]["type"] == "GENERATION"
 
 
 def test_pipeline_serialization(monkeypatch):

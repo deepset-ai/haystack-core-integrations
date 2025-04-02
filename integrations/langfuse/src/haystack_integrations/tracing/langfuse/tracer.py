@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import contextlib
 import os
 from abc import ABC, abstractmethod
@@ -6,15 +10,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, Iterator, List, Optional, Union
 
+import langfuse
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage
 from haystack.tracing import Span, Tracer
 from haystack.tracing import tracer as proxy_tracer
 from haystack.tracing import utils as tracing_utils
-from typing_extensions import TypeAlias
-
-import langfuse
 from langfuse.client import StatefulGenerationClient, StatefulSpanClient, StatefulTraceClient
+from typing_extensions import TypeAlias
 
 # Type alias for Langfuse stateful clients
 LangfuseStatefulClient: TypeAlias = Union[StatefulTraceClient, StatefulSpanClient, StatefulGenerationClient]
@@ -43,6 +46,8 @@ _ALL_SUPPORTED_GENERATORS = _SUPPORTED_GENERATORS + _SUPPORTED_CHAT_GENERATORS
 
 # These are the keys used by Haystack for traces and span.
 # We keep them here to avoid making typos when using them.
+_PIPELINE_INPUT_KEY = "haystack.pipeline.input_data"
+_PIPELINE_OUTPUT_KEY = "haystack.pipeline.output_data"
 _PIPELINE_RUN_KEY = "haystack.pipeline.run"
 _COMPONENT_NAME_KEY = "haystack.component.name"
 _COMPONENT_TYPE_KEY = "haystack.component.type"
@@ -234,9 +239,10 @@ class DefaultSpanHandler(SpanHandler):
     """DefaultSpanHandler provides the default Langfuse tracing behavior for Haystack."""
 
     def create_span(self, context: SpanContext) -> LangfuseSpan:
-        message = "Tracer is not initialized"
         if self.tracer is None:
+            message = "Tracer is not initialized"
             raise RuntimeError(message)
+
         tracing_ctx = tracing_context_var.get({})
         if not context.parent_span:
             if context.operation_name != _PIPELINE_RUN_KEY:
@@ -262,6 +268,10 @@ class DefaultSpanHandler(SpanHandler):
             return LangfuseSpan(context.parent_span.raw_span().span(name=context.name))
 
     def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
+        # Means we are at the pipeline level
+        if component_type is None:
+            span._span.update(input=span._data.get(_PIPELINE_INPUT_KEY), output=span._data.get(_PIPELINE_OUTPUT_KEY))
+
         if component_type in _SUPPORTED_GENERATORS:
             meta = span._data.get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
             if meta:
