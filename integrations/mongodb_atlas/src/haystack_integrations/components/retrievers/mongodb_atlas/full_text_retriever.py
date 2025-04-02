@@ -184,4 +184,17 @@ class MongoDBAtlasFullTextRetriever:
         :returns: A dictionary with the following keys:
             - `documents`: List of Documents most similar to the given `query`
         """
-        pass
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
+        top_k = top_k or self.top_k
+
+        docs = await self.document_store._fulltext_retrieval_async(
+            query=query,
+            fuzzy=fuzzy,
+            match_criteria=match_criteria,
+            score=score,
+            synonyms=synonyms,
+            filters=filters,
+            top_k=top_k,
+        )
+
+        return {"documents": docs}

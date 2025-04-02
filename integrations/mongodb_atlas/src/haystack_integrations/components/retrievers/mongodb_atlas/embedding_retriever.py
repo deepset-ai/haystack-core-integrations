@@ -153,4 +153,12 @@ class MongoDBAtlasEmbeddingRetriever:
         :returns: A dictionary with the following keys:
             - `documents`: List of Documents most similar to the given `query_embedding`
         """
-        pass
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
+        top_k = top_k or self.top_k
+
+        docs = await self.document_store._embedding_retrieval_async(
+            query_embedding=query_embedding,
+            filters=filters,
+            top_k=top_k,
+        )
+        return {"documents": docs}
