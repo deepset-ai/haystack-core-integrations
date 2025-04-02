@@ -98,7 +98,7 @@ class MongoDBAtlasDocumentStore:
         self.vector_search_index = vector_search_index
         self.full_text_search_index = full_text_search_index
         self._connection: Optional[MongoClient] = None
-        self._connection_async : Optional[AsyncMongoClient] = None
+        self._connection_async: Optional[AsyncMongoClient] = None
         self._collection: Optional[Collection] = None
         self._collection_async: Optional[AsyncCollection] = None
 
@@ -159,8 +159,7 @@ class MongoDBAtlasDocumentStore:
         """
         if not self._connection:
             self._connection = MongoClient(
-            self.mongo_connection_string.resolve_value(),
-            driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
+                self.mongo_connection_string.resolve_value(), driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
             )
 
         if not self._connection_is_valid():
@@ -184,8 +183,7 @@ class MongoDBAtlasDocumentStore:
         """
         if not self._connection_async:
             self._connection_async = AsyncMongoClient(
-                self.mongo_connection_string.resolve_value(),
-                driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
+                self.mongo_connection_string.resolve_value(), driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
             )
 
         if not await self._connection_is_valid_async():
@@ -259,7 +257,7 @@ class MongoDBAtlasDocumentStore:
         """
         self._ensure_connection_setup()
         filters = _normalize_filters(filters) if filters else None
-        documents = self._collection.find(filters).to_list()
+        documents = list(self._collection.find(filters))
         for doc in documents:
             doc.pop("_id", None)  # MongoDB's internal id doesn't belong into a Haystack document, so we remove it.
         return [Document.from_dict(doc) for doc in documents]
@@ -468,7 +466,7 @@ class MongoDBAtlasDocumentStore:
             },
         ]
         try:
-            documents = self._collection.aggregate(pipeline).to_list()
+            documents = list(self._collection.aggregate(pipeline))
         except Exception as e:
             msg = f"Retrieval of documents from MongoDB Atlas failed: {e}"
             if filters:
@@ -627,8 +625,9 @@ class MongoDBAtlasDocumentStore:
             },
         ]
 
+        self._ensure_connection_setup()
         try:
-            documents = self._collection.aggregate(pipeline).to_list()
+            documents = list(self._collection.aggregate(pipeline))
         except Exception as e:
             error_msg = f"Failed to retrieve documents from MongoDB Atlas: {e}"
             if filters:
@@ -726,6 +725,7 @@ class MongoDBAtlasDocumentStore:
             },
         ]
 
+        await self._ensure_connection_setup_async()
         try:
             documents = self._collection.aggregate(pipeline).to_list()
         except Exception as e:
