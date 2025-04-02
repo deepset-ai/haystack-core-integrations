@@ -736,7 +736,8 @@ class MongoDBAtlasDocumentStore:
 
         return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
 
-    def _mongo_doc_to_haystack_doc(self, mongo_doc: Dict[str, Any]) -> Document:
+    @staticmethod
+    def _mongo_doc_to_haystack_doc(mongo_doc: Dict[str, Any]) -> Document:
         """
         Converts the dictionary coming out of MongoDB into a Haystack document
 
