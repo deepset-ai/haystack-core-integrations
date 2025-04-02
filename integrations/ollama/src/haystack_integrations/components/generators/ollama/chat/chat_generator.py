@@ -46,9 +46,31 @@ def _convert_ollama_meta(intput_response_dict: Dict) -> Dict:
     This function is using the dict from the ollama response to generate OpenAI format meta dict.
     To goal of this function is to have better logging in Langfuse
     Example ollama response: (source)
-    {'model': 'phi4:14b-q4_K_M', 'created_at': '2025-03-09T18:38:33.004185821Z', 'done': True, 'done_reason': 'stop', 'total_duration': 86627206961, 'load_duration': 23585622554, 'prompt_eval_count': 3518, 'prompt_eval_duration': 3426000000, 'eval_count': 1661, 'eval_duration': 59391000000}
+    {
+        'model': 'phi4:14b-q4_K_M',
+        'created_at': '2025-03-09T18:38:33.004185821Z',
+        'done': True,
+        'done_reason': 'stop',
+        'total_duration': 86627206961,
+        'load_duration': 23585622554,
+        'prompt_eval_count': 3518,
+        'prompt_eval_duration': 3426000000,
+        'eval_count': 1661,
+        'eval_duration': 59391000000
+    }
     Example OpenAI API response meta: (target)
-    {'model': 'phi4:14b-q4_K_M', 'index': 0, 'finish_reason': 'stop', 'usage': {'completion_tokens': 774, 'prompt_tokens': 976, 'total_tokens': 1750, 'completion_tokens_details': None, 'prompt_tokens_details': None}}
+    {
+        'model': 'phi4:14b-q4_K_M',
+        'index': 0,
+        'finish_reason': 'stop',
+        'usage': {
+            'completion_tokens': 774,
+            'prompt_tokens': 976,
+            'total_tokens': 1750,
+            'completion_tokens_details': None,
+            'prompt_tokens_details': None
+        }
+    }
     """
     response_dict = {key: value for key, value in intput_response_dict.items() if key != "message"}
     response_dict["finish_reason"] = response_dict["done_reason"]
