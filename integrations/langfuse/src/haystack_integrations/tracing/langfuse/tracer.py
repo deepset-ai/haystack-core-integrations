@@ -47,8 +47,6 @@ _ALL_SUPPORTED_GENERATORS = _SUPPORTED_GENERATORS + _SUPPORTED_CHAT_GENERATORS
 
 # These are the keys used by Haystack for traces and span.
 # We keep them here to avoid making typos when using them.
-_PIPELINE_INPUT_KEY = "haystack.pipeline.input_data"
-_PIPELINE_OUTPUT_KEY = "haystack.pipeline.output_data"
 _PIPELINE_RUN_KEY = "haystack.pipeline.run"
 _COMPONENT_NAME_KEY = "haystack.component.name"
 _COMPONENT_TYPE_KEY = "haystack.component.type"
@@ -269,10 +267,6 @@ class DefaultSpanHandler(SpanHandler):
             return LangfuseSpan(context.parent_span.raw_span().span(name=context.name))
 
     def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
-        # Means we are at the pipeline level
-        if component_type is None:
-            span._span.update(input=span._data.get(_PIPELINE_INPUT_KEY), output=span._data.get(_PIPELINE_OUTPUT_KEY))
-
         if component_type in _SUPPORTED_GENERATORS:
             meta = span._data.get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
             if meta:
