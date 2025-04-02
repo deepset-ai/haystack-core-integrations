@@ -69,9 +69,7 @@ def pipeline_with_env_vars(llm_class, expected_trace):
         (CohereChatGenerator, "COHERE_API_KEY", "Cohere"),
     ],
 )
-@pytest.mark.parametrize(
-    "pipeline_fixture", ["pipeline_with_env_vars"]
-)
+@pytest.mark.parametrize("pipeline_fixture", ["pipeline_with_env_vars"])
 def test_tracing_integration(llm_class, env_var, expected_trace, pipeline_fixture, request):
     if not all([os.environ.get("LANGFUSE_SECRET_KEY"), os.environ.get("LANGFUSE_PUBLIC_KEY"), os.environ.get(env_var)]):
         pytest.skip(f"Missing required environment variables: LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, or {env_var}")
