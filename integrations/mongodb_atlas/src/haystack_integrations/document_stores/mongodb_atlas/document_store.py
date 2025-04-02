@@ -259,7 +259,7 @@ class MongoDBAtlasDocumentStore:
         """
         self._ensure_connection_setup()
         filters = _normalize_filters(filters) if filters else None
-        documents = list(self.collection.find(filters))
+        documents = self._collection.find(filters).to_list()
         for doc in documents:
             doc.pop("_id", None)  # MongoDB's internal id doesn't belong into a Haystack document, so we remove it.
         return [Document.from_dict(doc) for doc in documents]
@@ -276,6 +276,7 @@ class MongoDBAtlasDocumentStore:
         """
         await self._ensure_connection_setup_async()
         filters = _normalize_filters(filters) if filters else None
+        documents = await self._collection_async.find(filters).to_list()
         for doc in documents:
             doc.pop("_id", None)
         return [Document.from_dict(doc) for doc in documents]
@@ -467,7 +468,7 @@ class MongoDBAtlasDocumentStore:
             },
         ]
         try:
-            documents = list(self.collection.aggregate(pipeline))
+            documents = self._collection.aggregate(pipeline).to_list()
         except Exception as e:
             msg = f"Retrieval of documents from MongoDB Atlas failed: {e}"
             if filters:
@@ -627,7 +628,7 @@ class MongoDBAtlasDocumentStore:
         ]
 
         try:
-            documents = list(self.collection.aggregate(pipeline))
+            documents = self._collection.aggregate(pipeline).to_list()
         except Exception as e:
             error_msg = f"Failed to retrieve documents from MongoDB Atlas: {e}"
             if filters:
