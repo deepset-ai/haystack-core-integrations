@@ -10,6 +10,7 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 from pymongo import AsyncMongoClient, InsertOne, MongoClient, ReplaceOne, UpdateOne
+from pymongo.asynchronous.collection import AsyncCollection
 from pymongo.collection import Collection
 from pymongo.driver_info import DriverInfo
 from pymongo.errors import BulkWriteError
@@ -97,27 +98,107 @@ class MongoDBAtlasDocumentStore:
         self.vector_search_index = vector_search_index
         self.full_text_search_index = full_text_search_index
         self._connection: Optional[MongoClient] = None
+        self._connection_async : Optional[AsyncMongoClient] = None
         self._collection: Optional[Collection] = None
+        self._collection_async: Optional[AsyncCollection] = None
 
-    @property
-    def connection(self) -> MongoClient:
-        if self._connection is None:
+    def _connection_is_valid(self) -> bool:
+        """
+        Checks if the connection to MongoDB Atlas is valid.
+
+        :returns: True if the connection is valid, False otherwise.
+        """
+        try:
+            self._connection.admin.command("ping")
+            return True
+        except Exception as e:
+            logger.error(f"Connection to MongoDB Atlas failed: {e}")
+            return False
+
+    async def _connection_is_valid_async(self) -> bool:
+        """
+        Asynchronously checks if the connection to MongoDB Atlas is valid.
+
+        :returns: True if the connection is valid, False otherwise.
+        """
+        try:
+            await self._connection_async.admin.command("ping")
+            return True
+        except Exception as e:
+            logger.error(f"Connection to MongoDB Atlas failed: {e}")
+            return False
+
+    def _collection_exists(self) -> bool:
+        """
+        Checks if the collection exists in the MongoDB Atlas database.
+
+        :returns: True if the collection exists, False otherwise.
+        """
+        database = self._connection[self.database_name]
+        if self.collection_name in database.list_collection_names():
+            return True
+        return False
+
+    async def _collection_exists_async(self) -> bool:
+        """
+        Asynchronously checks if the collection exists in the MongoDB Atlas database.
+
+        :returns: True if the collection exists, False otherwise.
+        """
+        database = self._connection_async[self.database_name]
+        if self.collection_name in await database.list_collection_names():
+            return True
+        return False
+
+    def _ensure_connection_setup(self) -> None:
+        """
+        Ensures that the connection to MongoDB Atlas is set up and the collection exists.
+
+        :raises DocumentStoreError: If the connection to MongoDB Atlas fails.
+        :raises DocumentStoreError: If the collection does not exist.
+        """
+        if not self._connection:
             self._connection = MongoClient(
-                self.mongo_connection_string.resolve_value(), driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
+            self.mongo_connection_string.resolve_value(),
+            driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
             )
 
-        return self._connection
+        if not self._connection_is_valid():
+            msg = "Connection to MongoDB Atlas failed."
+            raise DocumentStoreError(msg)
 
-    @property
-    def collection(self) -> Collection:
+        if not self._collection_exists():
+            msg = f"Collection '{self.collection_name}' does not exist in database '{self.database_name}'."
+            raise DocumentStoreError(msg)
+
         if self._collection is None:
-            database = self.connection[self.database_name]
-
-            if self.collection_name not in database.list_collection_names():
-                msg = f"Collection '{self.collection_name}' does not exist in database '{self.database_name}'."
-                raise ValueError(msg)
+            database = self._connection[self.database_name]
             self._collection = database[self.collection_name]
-        return self._collection
+
+    async def _ensure_connection_setup_async(self) -> None:
+        """
+        Asynchronously ensures that the connection to MongoDB Atlas is set up and the collection exists.
+
+        :raises DocumentStoreError: If the connection to MongoDB Atlas fails.
+        :raises DocumentStoreError: If the collection does not exist.
+        """
+        if not self._connection_async:
+            self._connection_async = AsyncMongoClient(
+                self.mongo_connection_string.resolve_value(),
+                driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
+            )
+
+        if not await self._connection_is_valid_async():
+            msg = "Connection to MongoDB Atlas failed."
+            raise DocumentStoreError(msg)
+
+        if not await self._collection_exists_async():
+            msg = f"Collection '{self.collection_name}' does not exist in database '{self.database_name}'."
+            raise DocumentStoreError(msg)
+
+        if self._collection_async is None:
+            database = self._connection_async[self.database_name]
+            self._collection_async = database[self.collection_name]
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -154,7 +235,8 @@ class MongoDBAtlasDocumentStore:
 
         :returns: The number of documents in the document store.
         """
-        return self.collection.count_documents({})
+        self._ensure_connection_setup()
+        return self._collection.count_documents({})
 
     async def count_documents_async(self) -> int:
         """
@@ -162,7 +244,8 @@ class MongoDBAtlasDocumentStore:
 
         :returns: The number of documents in the document store.
         """
-        pass
+        await self._ensure_connection_setup_async()
+        return await self._collection_async.count_documents({})
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
@@ -174,6 +257,7 @@ class MongoDBAtlasDocumentStore:
         :param filters: The filters to apply. It returns only the documents that match the filters.
         :returns: A list of Documents that match the given filters.
         """
+        self._ensure_connection_setup()
         filters = _normalize_filters(filters) if filters else None
         documents = list(self.collection.find(filters))
         for doc in documents:
@@ -190,7 +274,11 @@ class MongoDBAtlasDocumentStore:
         :param filters: The filters to apply. It returns only the documents that match the filters.
         :returns: A list of Documents that match the given filters.
         """
-        pass
+        await self._ensure_connection_setup_async()
+        filters = _normalize_filters(filters) if filters else None
+        for doc in documents:
+            doc.pop("_id", None)
+        return [Document.from_dict(doc) for doc in documents]
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
@@ -203,6 +291,7 @@ class MongoDBAtlasDocumentStore:
         :raises ValueError: If the documents are not of type Document.
         :returns: The number of documents written to the document store.
         """
+        self._ensure_connection_setup()
 
         if len(documents) > 0:
             if not isinstance(documents[0], Document):
@@ -230,7 +319,7 @@ class MongoDBAtlasDocumentStore:
 
         if policy == DuplicatePolicy.SKIP:
             operations = [UpdateOne({"id": doc["id"]}, {"$setOnInsert": doc}, upsert=True) for doc in mongo_documents]
-            existing_documents = self.collection.count_documents({"id": {"$in": [doc.id for doc in documents]}})
+            existing_documents = self._collection.count_documents({"id": {"$in": [doc.id for doc in documents]}})
             written_docs -= existing_documents
         elif policy == DuplicatePolicy.FAIL:
             operations = [InsertOne(doc) for doc in mongo_documents]
@@ -238,7 +327,72 @@ class MongoDBAtlasDocumentStore:
             operations = [ReplaceOne({"id": doc["id"]}, upsert=True, replacement=doc) for doc in mongo_documents]
 
         try:
-            self.collection.bulk_write(operations)
+            self._collection.bulk_write(operations)
+        except BulkWriteError as e:
+            msg = f"Duplicate documents found: {e.details['writeErrors']}"
+            raise DuplicateDocumentError(msg) from e
+
+        return written_docs
+
+    async def write_documents_async(
+        self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
+    ) -> int:
+        """
+        Writes documents into the MongoDB Atlas collection.
+
+        :param documents: A list of Documents to write to the document store.
+        :param policy: The duplicate policy to use when writing documents.
+        :raises DuplicateDocumentError: If a document with the same ID already exists in the document store
+             and the policy is set to DuplicatePolicy.FAIL (or not specified).
+        :raises ValueError: If the documents are not of type Document.
+        :returns: The number of documents written to the document store.
+        """
+        await self._ensure_connection_setup_async()
+
+        if len(documents) > 0:
+            if not isinstance(documents[0], Document):
+                msg = "param 'documents' must contain a list of objects of type Document"
+                raise ValueError(msg)
+
+        if policy == DuplicatePolicy.NONE:
+            policy = DuplicatePolicy.FAIL
+
+        mongo_documents = []
+        for doc in documents:
+            doc_dict = doc.to_dict(flatten=False)
+            if "sparse_embedding" in doc_dict:
+                sparse_embedding = doc_dict.pop("sparse_embedding", None)
+                if sparse_embedding:
+                    logger.warning(
+                        "Document {id} has the `sparse_embedding` field set,"
+                        "but storing sparse embeddings in MongoDB Atlas is not currently supported."
+                        "The `sparse_embedding` field will be ignored.",
+                        id=doc.id,
+                    )
+            if "dataframe" in doc_dict:
+                dataframe = doc_dict.pop("dataframe", None)
+                if dataframe:
+                    logger.warning(
+                        "Document {id} has the `dataframe` field set,"
+                        "MongoDBAtlasDocumentStore no longer supports dataframes and this field will be ignored. "
+                        "The `dataframe` field will soon be removed from Haystack Document.",
+                        id=doc.id,
+                    )
+            mongo_documents.append(doc_dict)
+        operations: List[Union[UpdateOne, InsertOne, ReplaceOne]]
+        written_docs = len(documents)
+
+        if policy == DuplicatePolicy.SKIP:
+            operations = [UpdateOne({"id": doc["id"]}, {"$setOnInsert": doc}, upsert=True) for doc in mongo_documents]
+            existing_documents = self._collection.count_documents({"id": {"$in": [doc.id for doc in documents]}})
+            written_docs -= existing_documents
+        elif policy == DuplicatePolicy.FAIL:
+            operations = [InsertOne(doc) for doc in mongo_documents]
+        else:
+            operations = [ReplaceOne({"id": doc["id"]}, upsert=True, replacement=doc) for doc in mongo_documents]
+
+        try:
+            await self._collection_async.bulk_write(operations)
         except BulkWriteError as e:
             msg = f"Duplicate documents found: {e.details['writeErrors']}"
             raise DuplicateDocumentError(msg) from e
@@ -251,9 +405,10 @@ class MongoDBAtlasDocumentStore:
 
         :param document_ids: the document ids to delete
         """
+        self._ensure_connection_setup()
         if not document_ids:
             return
-        self.collection.delete_many(filter={"id": {"$in": document_ids}})
+        self._collection.delete_many(filter={"id": {"$in": document_ids}})
 
     async def delete_documents_async(self, document_ids: List[str]) -> None:
         """
@@ -261,7 +416,10 @@ class MongoDBAtlasDocumentStore:
 
         :param document_ids: the document ids to delete
         """
-        pass
+        await self._ensure_connection_setup_async()
+        if not document_ids:
+            return
+        await self._collection_async.delete_many(filter={"id": {"$in": document_ids}})
 
     def _embedding_retrieval(
         self,
@@ -279,6 +437,7 @@ class MongoDBAtlasDocumentStore:
         :raises ValueError: If `query_embedding` is empty.
         :raises DocumentStoreError: If the retrieval of documents from MongoDB Atlas fails.
         """
+        self._ensure_connection_setup()
         if not query_embedding:
             msg = "Query embedding must not be empty"
             raise ValueError(msg)
@@ -335,7 +494,48 @@ class MongoDBAtlasDocumentStore:
         :raises ValueError: If `query_embedding` is empty.
         :raises DocumentStoreError: If the retrieval of documents from MongoDB Atlas fails.
         """
-        pass
+        await self._ensure_connection_setup_async()
+        if not query_embedding:
+            msg = "Query embedding must not be empty"
+            raise ValueError(msg)
+
+        filters = _normalize_filters(filters) if filters else {}
+
+        pipeline = [
+            {
+                "$vectorSearch": {
+                    "index": self.vector_search_index,
+                    "path": "embedding",
+                    "queryVector": query_embedding,
+                    "numCandidates": 100,
+                    "limit": top_k,
+                    "filter": filters,
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "content": 1,
+                    "blob": 1,
+                    "meta": 1,
+                    "embedding": 1,
+                    "score": {"$meta": "vectorSearchScore"},
+                }
+            },
+        ]
+        try:
+            documents = await self._collection_async.aggregate(pipeline).to_list()
+        except Exception as e:
+            msg = f"Retrieval of documents from MongoDB Atlas failed: {e}"
+            if filters:
+                msg += (
+                    "\nMake sure that the fields used in the filters are included "
+                    "in the `vector_search_index` configuration"
+                )
+            raise DocumentStoreError(msg) from e
+
+        documents = [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
+        return documents
 
     def _fulltext_retrieval(
         self,
@@ -470,7 +670,70 @@ class MongoDBAtlasDocumentStore:
         :raises ValueError: If `synonyms` and `fuzzy` are used together.
         :raises DocumentStoreError: If the retrieval of documents from MongoDB Atlas fails.
         """
-        pass
+        # Validate user input according to MongoDB Atlas Search requirements
+        if not query:
+            msg = "Argument query must not be empty."
+            raise ValueError(msg)
+
+        if isinstance(synonyms, str) and not synonyms:
+            msg = "Argument synonyms cannot be an empty string."
+            raise ValueError(msg)
+
+        if synonyms and fuzzy:
+            msg = "Cannot use both synonyms and fuzzy search together."
+            raise ValueError(msg)
+
+        if synonyms and not match_criteria:
+            logger.warning(
+                "Specify matchCriteria when using synonyms. "
+                "Atlas Search matches terms in exact order by default, which may change in future versions."
+            )
+
+        filters = _normalize_filters(filters) if filters else {}
+
+        # Build the text search options
+        text_search: Dict[str, Any] = {"path": "content", "query": query}
+        if match_criteria:
+            text_search["matchCriteria"] = match_criteria
+        if synonyms:
+            text_search["synonyms"] = synonyms
+        if fuzzy:
+            text_search["fuzzy"] = fuzzy
+        if score:
+            text_search["score"] = score
+
+        # Define the pipeline for MongoDB aggregation
+        pipeline = [
+            {
+                "$search": {
+                    "index": self.full_text_search_index,
+                    "compound": {"must": [{"text": text_search}]},
+                }
+            },
+            # TODO: Use compound filter. See: (https://www.mongodb.com/docs/atlas/atlas-search/performance/query-performance/#avoid--match-after--search)
+            {"$match": filters},
+            {"$limit": top_k},
+            {
+                "$project": {
+                    "_id": 0,
+                    "content": 1,
+                    "blob": 1,
+                    "meta": 1,
+                    "embedding": 1,
+                    "score": {"$meta": "searchScore"},
+                }
+            },
+        ]
+
+        try:
+            documents = self._collection.aggregate(pipeline).to_list()
+        except Exception as e:
+            error_msg = f"Failed to retrieve documents from MongoDB Atlas: {e}"
+            if filters:
+                error_msg += "\nEnsure fields in filters are included in the `full_text_search_index` configuration."
+            raise DocumentStoreError(error_msg) from e
+
+        return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
 
     def _mongo_doc_to_haystack_doc(self, mongo_doc: Dict[str, Any]) -> Document:
         """
