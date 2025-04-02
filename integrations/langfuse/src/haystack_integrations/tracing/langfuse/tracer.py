@@ -120,6 +120,14 @@ class LangfuseSpan(Span):
         """
         return self._span
 
+    def get_data(self) -> Dict[str, Any]:
+        """
+        Return the data associated with the span.
+
+        :return: The data associated with the span.
+        """
+        return self._data
+
     def get_correlation_data_for_logs(self) -> Dict[str, Any]:
         return {}
 
@@ -215,7 +223,7 @@ class SpanHandler(ABC):
         """
         Process a span after component execution by attaching metadata and metrics.
 
-        This method is called after the component yields its span, allowing you to:
+        This method is called after the component or pipeline yields its span, allowing you to:
         - Extract and attach token usage statistics
         - Add model information
         - Record timing data (e.g., time-to-first-token)
@@ -269,17 +277,20 @@ class DefaultSpanHandler(SpanHandler):
             return LangfuseSpan(context.parent_span.raw_span().span(name=context.name))
 
     def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
-        # Means we are at the pipeline level
-        if component_type is None:
-            span._span.update(input=span._data.get(_PIPELINE_INPUT_KEY), output=span._data.get(_PIPELINE_OUTPUT_KEY))
+        # If the span is at the pipeline level, we add input and output keys to the span
+        at_pipeline_level = span.get_data().get(_PIPELINE_INPUT_KEY) is not None
+        if at_pipeline_level:
+            span.raw_span().update(
+                input=span.get_data().get(_PIPELINE_INPUT_KEY), output=span.get_data().get(_PIPELINE_OUTPUT_KEY)
+            )
 
         if component_type in _SUPPORTED_GENERATORS:
-            meta = span._data.get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
-            if meta:
-                m = meta[0]
-                span._span.update(usage=m.get("usage") or None, model=m.get("model"))
-        elif component_type in _SUPPORTED_CHAT_GENERATORS:
-            replies = span._data.get(_COMPONENT_OUTPUT_KEY, {}).get("replies")
+            meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
+            if meta is not None:
+                span.raw_span().update(usage=meta[0].get("usage") or None, model=meta[0].get("model"))
+
+        if component_type in _SUPPORTED_CHAT_GENERATORS:
+            replies = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("replies")
             if replies:
                 meta = replies[0].meta
                 completion_start_time = meta.get("completion_start_time")
@@ -289,7 +300,7 @@ class DefaultSpanHandler(SpanHandler):
                     except ValueError:
                         logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
                         completion_start_time = None
-                span._span.update(
+                span.raw_span().update(
                     usage=meta.get("usage") or None,
                     model=meta.get("model"),
                     completion_start_time=completion_start_time,
