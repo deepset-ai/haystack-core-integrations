@@ -10,14 +10,15 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, Iterator, List, Optional, Union
 
-import langfuse
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage
 from haystack.tracing import Span, Tracer
 from haystack.tracing import tracer as proxy_tracer
 from haystack.tracing import utils as tracing_utils
-from langfuse.client import StatefulGenerationClient, StatefulSpanClient, StatefulTraceClient
 from typing_extensions import TypeAlias
+
+import langfuse
+from langfuse.client import StatefulGenerationClient, StatefulSpanClient, StatefulTraceClient
 
 # Type alias for Langfuse stateful clients
 LangfuseStatefulClient: TypeAlias = Union[StatefulTraceClient, StatefulSpanClient, StatefulGenerationClient]
