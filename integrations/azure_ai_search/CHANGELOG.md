@@ -1,6 +1,24 @@
 # Changelog
 
+## [integrations/azure_ai_search-v2.0.0] - 2025-04-03
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Rename env variables for Azure AI (#1597)
+
+### 📚 Documentation
+
+- Update changelog for integrations/azure_ai_search (#1506)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
 ## [integrations/azure_ai_search-v1.0.0] - 2025-03-11
+
+### 📚 Documentation
+
+- Update changelog for integrations/azure_ai_search (#1411)
 
 ### 🧪 Testing
 
@@ -14,6 +32,10 @@
 - Azure AI - pin haystack and remove dataframe checks (#1500)
 
 ## [integrations/azure_ai_search-v0.1.3] - 2025-02-17
+
+### 📚 Documentation
+
+- Update changelog for integrations/azure_ai_search (#1348)
 
 ### 🧹 Chores
 
