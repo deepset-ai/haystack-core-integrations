@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/pinecone-v5.1.0] - 2025-03-25
+
+### 🚀 Features
+
+- Pinecone -- async support (#1560)
+
 ## [integrations/pinecone-v5.0.0] - 2025-03-11
 
 ### 🧪 Testing

@@ -157,7 +157,7 @@ class TestGoogleAIGeminiChatGenerator:
                 tools=tools,
                 tool_config=tool_config,
             )
-        assert gemini.to_dict() == {
+        expected_dict = {
             "type": TYPE,
             "init_parameters": {
                 "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
@@ -191,6 +191,17 @@ class TestGoogleAIGeminiChatGenerator:
                 },
             },
         }
+
+        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
+        # haystack-ai>=2.12.0
+        if hasattr(tools[0], "outputs_to_string"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_string"] = tools[0].outputs_to_string
+        if hasattr(tools[0], "inputs_from_state"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = tools[0].inputs_from_state
+        if hasattr(tools[0], "outputs_to_state"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = tools[0].outputs_to_state
+
+        assert gemini.to_dict() == expected_dict
 
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test")
@@ -325,6 +336,21 @@ class TestGoogleAIGeminiChatGenerator:
         if not hasattr(pipeline, "_connection_type_validation"):
             expected_dict.pop("connection_type_validation")
 
+        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
+        # haystack-ai>=2.12.0
+        if hasattr(tool, "outputs_to_string"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
+                "outputs_to_string"
+            ] = tool.outputs_to_string
+        if hasattr(tool, "inputs_from_state"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
+                "inputs_from_state"
+            ] = tool.inputs_from_state
+        if hasattr(tool, "outputs_to_state"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
+                "outputs_to_state"
+            ] = tool.outputs_to_state
+
         assert pipeline_dict == expected_dict
 
         pipeline_yaml = pipeline.dumps()
@@ -349,6 +375,28 @@ class TestGoogleAIGeminiChatGenerator:
         gemini_chat = GoogleAIGeminiChatGenerator()
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
         response = gemini_chat.run(messages=chat_messages)
+        assert "replies" in response
+        assert len(response["replies"]) > 0
+
+        reply = response["replies"][0]
+        assert reply.role == ChatRole.ASSISTANT
+        assert "paris" in reply.text.lower()
+
+        assert not reply.tool_calls
+        assert not reply.tool_call_results
+
+        assert "usage" in reply.meta
+        assert "prompt_tokens" in reply.meta["usage"]
+        assert "completion_tokens" in reply.meta["usage"]
+        assert "total_tokens" in reply.meta["usage"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
+    async def test_run_async(self):
+        gemini_chat = GoogleAIGeminiChatGenerator()
+        chat_messages = [ChatMessage.from_user("What's the capital of France")]
+        response = await gemini_chat.run_async(messages=chat_messages)
         assert "replies" in response
         assert len(response["replies"]) > 0
 
@@ -400,6 +448,43 @@ class TestGoogleAIGeminiChatGenerator:
         assert chat_message.text
         assert "berlin" in chat_message.text.lower()
 
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
+    async def test_run_with_tools_async(self, tools):
+
+        gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-2.0-flash-exp", tools=tools)
+        user_message = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
+        response = await gemini_chat.run_async(messages=user_message)
+        assert "replies" in response
+        assert len(response["replies"]) > 0
+        assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
+
+        # check the first response contains a tool call
+        chat_message = response["replies"][0]
+        assert chat_message.tool_calls
+        assert chat_message.tool_calls[0].tool_name == "get_current_weather"
+        assert chat_message.tool_calls[0].arguments == {"city": "Berlin", "unit": "Celsius"}
+
+        weather = tools[0].invoke(**chat_message.tool_calls[0].arguments)
+
+        messages = (
+            user_message
+            + response["replies"]
+            + [ChatMessage.from_tool(tool_result=weather, origin=chat_message.tool_calls[0])]
+        )
+
+        response = await gemini_chat.run_async(messages=messages)
+        assert "replies" in response
+        assert len(response["replies"]) > 0
+        assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
+
+        # check the second response is not a tool call
+        chat_message = response["replies"][0]
+        assert not chat_message.tool_calls
+        assert chat_message.text
+        assert "berlin" in chat_message.text.lower()
+
     @pytest.mark.integration
     @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
     def test_run_with_tools_and_tool_config(self, tools):
@@ -424,6 +509,42 @@ class TestGoogleAIGeminiChatGenerator:
             ChatMessage.from_user("What is the temperature in celsius in Berlin and how many people live there?")
         ]
         response = gemini_chat.run(messages=user_message)
+        assert "replies" in response
+        assert len(response["replies"]) > 0
+        assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
+
+        # check the only the allowed function is called
+        chat_message = response["replies"][0]
+        assert chat_message.tool_calls
+        assert len(chat_message.tool_calls) == 1
+        assert chat_message.tool_calls[0].tool_name == "get_current_weather"
+        assert chat_message.tool_calls[0].arguments == {"city": "Berlin", "unit": "Celsius"}
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
+    async def test_run_with_tools_and_tool_config_async(self, tools):
+
+        def get_population(city: Annotated[str, "the city for which to get the population, e.g. 'Munich'"] = "Munich"):
+            """A simple function to get the population for a location."""
+            return f"Population of {city}: 1,000,000"
+
+        multiple_tools = [tools[0], create_tool_from_function(get_population)]
+
+        tool_config = {
+            "function_calling_config": {
+                "mode": "any",
+                "allowed_function_names": ["get_current_weather"],
+            },
+        }
+
+        gemini_chat = GoogleAIGeminiChatGenerator(
+            model="gemini-2.0-flash-exp", tools=multiple_tools, tool_config=tool_config
+        )
+        user_message = [
+            ChatMessage.from_user("What is the temperature in celsius in Berlin and how many people live there?")
+        ]
+        response = await gemini_chat.run_async(messages=user_message)
         assert "replies" in response
         assert len(response["replies"]) > 0
         assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
@@ -483,6 +604,55 @@ class TestGoogleAIGeminiChatGenerator:
         assert "completion_tokens" in chat_message.meta["usage"]
         assert "total_tokens" in chat_message.meta["usage"]
 
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
+    async def test_run_with_streaming_callback_and_tools_async(self, tools):
+        streaming_callback_called = False
+
+        async def streaming_callback(_chunk: StreamingChunk) -> None:
+            nonlocal streaming_callback_called
+            streaming_callback_called = True
+
+        gemini_chat = GoogleAIGeminiChatGenerator(
+            model="gemini-2.0-flash-exp", tools=tools, streaming_callback=streaming_callback
+        )
+        messages = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
+        response = await gemini_chat.run_async(messages=messages)
+        assert "replies" in response
+        assert len(response["replies"]) > 0
+        assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
+        assert streaming_callback_called
+
+        # check the first response contains a tool call
+        chat_message = response["replies"][0]
+        assert chat_message.tool_calls
+        assert chat_message.tool_calls[0].tool_name == "get_current_weather"
+        assert chat_message.tool_calls[0].arguments == {"city": "Berlin", "unit": "Celsius"}
+        assert "usage" in chat_message.meta
+        assert "prompt_tokens" in chat_message.meta["usage"]
+        assert "completion_tokens" in chat_message.meta["usage"]
+        assert "total_tokens" in chat_message.meta["usage"]
+
+        weather = tools[0].invoke(**chat_message.tool_calls[0].arguments)
+        messages += response["replies"] + [
+            ChatMessage.from_tool(tool_result=weather, origin=chat_message.tool_calls[0])
+        ]
+        response = await gemini_chat.run_async(messages=messages)
+        assert "replies" in response
+        assert len(response["replies"]) > 0
+        assert all(reply.role == ChatRole.ASSISTANT for reply in response["replies"])
+
+        # check the second response is not a tool call
+        chat_message = response["replies"][0]
+        assert not chat_message.tool_calls
+        assert chat_message.text
+        assert "berlin" in chat_message.text.lower()
+        assert "usage" in chat_message.meta
+        assert "prompt_tokens" in chat_message.meta["usage"]
+        assert "completion_tokens" in chat_message.meta["usage"]
+        assert "total_tokens" in chat_message.meta["usage"]
+
     @pytest.mark.integration
     @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
     def test_past_conversation(self):
@@ -494,6 +664,28 @@ class TestGoogleAIGeminiChatGenerator:
             ChatMessage.from_user("Yeah, but what's the result?"),
         ]
         response = gemini_chat.run(messages=messages)
+        assert "replies" in response
+        replies = response["replies"]
+        assert len(replies) > 0
+        assert all(reply.role == ChatRole.ASSISTANT for reply in replies)
+
+        assert all("usage" in reply.meta for reply in replies)
+        assert all("prompt_tokens" in reply.meta["usage"] for reply in replies)
+        assert all("completion_tokens" in reply.meta["usage"] for reply in replies)
+        assert all("total_tokens" in reply.meta["usage"] for reply in replies)
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
+    async def test_past_conversation_async(self):
+        gemini_chat = GoogleAIGeminiChatGenerator()
+        messages = [
+            ChatMessage.from_system("You are a knowledageable mathematician."),
+            ChatMessage.from_user("What is 2+2?"),
+            ChatMessage.from_assistant("It's an arithmetic operation."),
+            ChatMessage.from_user("Yeah, but what's the result?"),
+        ]
+        response = await gemini_chat.run_async(messages=messages)
         assert "replies" in response
         replies = response["replies"]
         assert len(replies) > 0

@@ -3,9 +3,9 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "weights-bias-haystack"
+name = "weave-haystack"
 dynamic = ["version"]
-description = "An integration of Weight and Bias Weave tracer with Haystack"
+description = "An integration of Weights & Biases Weave tracer with Haystack"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"
@@ -19,6 +19,7 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
@@ -26,7 +27,7 @@ dependencies = ["haystack-ai", "weave>=0.51.33"]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations"
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/weights_bias/README.md"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/weights_and_biases_weave/README.md"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 
 [tool.hatch.build.targets.wheel]
@@ -34,15 +35,15 @@ packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/weights_bias-v(?P<version>.*)'
+tag-pattern = 'integrations\/weights_and_biases_weave-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/weights_bias-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/weights_and_biases_weave-v[0-9]*"'
 
 [tool.hatch.envs.default]
 installer = "uv"
-dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "ipython", "haystack-pydoc-tools"]
+dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "haystack-pydoc-tools"]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
@@ -51,9 +52,6 @@ cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
 cov-retry = ["test-cov-retry", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
-
-[[tool.hatch.envs.all.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12"]
 
 [tool.hatch.envs.lint]
 installer = "uv"

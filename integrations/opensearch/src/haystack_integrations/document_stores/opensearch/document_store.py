@@ -72,7 +72,8 @@ class OpenSearchDocumentStore:
         :param max_chunk_bytes: Maximum size of the requests in bytes. Defaults to 100MB
         :param embedding_dim: Dimension of the embeddings. Defaults to 768
         :param return_embedding:
-            Whether to return the embedding of the retrieved Documents.
+            Whether to return the embedding of the retrieved Documents. This parameter also applies to the
+            `filter_documents` and `filter_documents_async` methods.
         :param method: The method definition of the underlying configuration of the approximate k-NN algorithm. Please
             see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#method-definitions)
             for more information. Defaults to None
@@ -309,6 +310,11 @@ class OpenSearchDocumentStore:
         search_kwargs: Dict[str, Any] = {"size": 10_000}
         if filters:
             search_kwargs["query"] = {"bool": {"filter": normalize_filters(filters)}}
+
+        # For some applications not returning the embedding can save a lot of bandwidth
+        # if you don't need this data not retrieving it can be a good idea
+        if not self._return_embedding:
+            search_kwargs["_source"] = {"excludes": ["embedding"]}
         return search_kwargs
 
     def _search_documents(self, request_body: Dict[str, Any]) -> List[Document]:
@@ -514,7 +520,7 @@ class OpenSearchDocumentStore:
                 custom_query,
                 {
                     "$query": query,
-                    "$filters": normalize_filters(filters),  # type:ignore
+                    "$filters": normalize_filters(filters) if filters else None,
                 },
             )
 

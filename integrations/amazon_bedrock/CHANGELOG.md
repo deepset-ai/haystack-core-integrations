@@ -1,5 +1,31 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.4.0] - 2025-04-02
+
+### 🚀 Features
+
+- AmazonBedrockGenerator - return response metadata (#1584)
+
+
+### 🧪 Testing
+
+- Update tool serialization in tests to include `inputs_from_state` and `outputs_to_state` (#1581)
+
+### 🌀 Miscellaneous
+
+- Improve streaming_callback type and use async version in run_async (#1582)
+
+## [integrations/amazon_bedrock-v3.3.0] - 2025-03-18
+
+### 🚀 Features
+
+- Support new Amazon Bedrock rerank API (#1529)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+
 ## [integrations/amazon_bedrock-v3.2.1] - 2025-03-13
 
 ### 🐛 Bug Fixes
@@ -24,9 +50,6 @@
 
 - Adding async to `AmazonChatGenerator` (#1445)
 
-### 📚 Documentation
-
-- Update changelog for integrations/amazon_bedrock (#1443)
 
 ## [integrations/amazon_bedrock-v3.1.1] - 2025-02-26
 
@@ -34,9 +57,6 @@
 
 - Avoid thinking end tag on first content block (#1442)
 
-### 📚 Documentation
-
-- Update changelog for integrations/amazon_bedrock (#1441)
 
 ## [integrations/amazon_bedrock-v3.1.0] - 2025-02-26
 
@@ -50,7 +70,6 @@
 
 ### 🌀 Miscellaneous
 
-- Docs: update changelog for integrations/amazon_bedrock (#1336)
 - Chore: remove `jsonschema` dependency from `default` environment (#1368)
 
 ## [integrations/amazon_bedrock-v3.0.1] - 2025-01-30
@@ -60,6 +79,9 @@
 - Chore: Bedrock - manually fix changelog (#1319)
 - Fix error when empty document list (#1325)
 
+### 🌀 Miscellaneous
+
+- Update the changelog
 
 ## [integrations/amazon_bedrock-v3.0.0] - 2025-01-23
 
@@ -72,6 +94,9 @@
 
 - [**breaking**] AmazonBedrockGenerator - remove truncation  (#1314)
 
+### 🌀 Miscellaneous
+
+- Update the changelog
 
 ## [integrations/amazon_bedrock-v2.1.3] - 2025-01-21
 
@@ -79,11 +104,15 @@
 
 - Bedrock - pin `transformers!=4.48.*` (#1306)
 
+### 🌀 Miscellaneous
+
+- Update the changelog
 
 ## [integrations/amazon_bedrock-v2.1.2] - 2025-01-20
 
 ### 🌀 Miscellaneous
 
+- Update the changelog
 - Fix: Bedrock - pin `transformers!=4.48.0` (#1302)
 
 ## [integrations/amazon_bedrock-v2.1.1] - 2024-12-18
@@ -92,6 +121,9 @@
 
 - Fixes to Bedrock Chat Generator for compatibility with the new ChatMessage (#1250)
 
+### 🌀 Miscellaneous
+
+- Update the changelog
 
 ## [integrations/amazon_bedrock-v2.1.0] - 2024-12-11
 
@@ -99,6 +131,9 @@
 
 - Support model_arn in AmazonBedrockGenerator (#1244)
 
+### 🌀 Miscellaneous
+
+- Update the changelog
 
 ## [integrations/amazon_bedrock-v2.0.0] - 2024-12-10
 
@@ -106,6 +141,9 @@
 
 - Update AmazonBedrockChatGenerator to use Converse API (BREAKING CHANGE) (#1219)
 
+### 🌀 Miscellaneous
+
+- Update the changelog
 
 ## [integrations/amazon_bedrock-v1.1.1] - 2024-12-03
 
@@ -120,6 +158,7 @@
 
 ### 🌀 Miscellaneous
 
+- Update the changelog
 - Chore: use class methods to create `ChatMessage` (#1222)
 
 ## [integrations/amazon_bedrock-v1.1.0] - 2024-10-23
@@ -132,6 +171,9 @@
 
 - Adopt uv as installer (#1142)
 
+### 🌀 Miscellaneous
+
+- Update the changelog
 
 ## [integrations/amazon_bedrock-v1.0.5] - 2024-10-17
 
@@ -139,6 +181,9 @@
 
 - Add prefixes to supported model patterns to allow cross region model ids (#1127)
 
+### 🌀 Miscellaneous
+
+- Update the changelog
 
 ## [integrations/amazon_bedrock-v1.0.4] - 2024-10-16
 
@@ -146,6 +191,9 @@
 
 - Avoid bedrock read timeout (add boto3_config param) (#1135)
 
+### 🌀 Miscellaneous
+
+- Update the changelog
 
 ## [integrations/amazon_bedrock-v1.0.3] - 2024-10-04
 
@@ -164,6 +212,8 @@
 
 ### 🌀 Miscellaneous
 
+- Update the changelog
+- Update the changelog
 - Modify regex to allow cross-region inference in bedrock  (#1120)
 
 ## [integrations/amazon_bedrock-v1.0.1] - 2024-08-19
@@ -176,6 +226,9 @@
 
 - Normalising ChatGenerators output (#973)
 
+### 🌀 Miscellaneous
+
+- Update the changelog
 
 ## [integrations/amazon_bedrock-v1.0.0] - 2024-08-12
 
@@ -187,6 +240,9 @@
 
 - Do not retry tests in `hatch run test` command (#954)
 
+### 🌀 Miscellaneous
+
+- Update the changelog
 
 ## [integrations/amazon_bedrock-v0.10.0] - 2024-08-12
 
@@ -196,6 +252,7 @@
 
 ### 🌀 Miscellaneous
 
+- Update the changelog
 - Update AmazonBedrockChatGenerator docstrings (#949)
 - Update AmazonBedrockGenerator docstrings (#956)
 
@@ -216,7 +273,10 @@
 
 ### 🌀 Miscellaneous
 
+- Update the changelog
 - Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
+- Update the changelog
+- Update the changelog
 - Add meta deprecration warning (#910)
 
 ## [integrations/amazon_bedrock-v0.9.0] - 2024-06-14

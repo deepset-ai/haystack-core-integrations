@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/opensearch-v4.0.0] - 2025-03-26
+
+### 🌀 Miscellaneous
+
+- Feat!: OpenSearch - apply `return_embedding` to `filter_documents` (#1562)
+
+## [integrations/opensearch-v3.1.1] - 2025-03-21
+
+### 🐛 Bug Fixes
+
+- OpenSearch custom_query use without filters (#1554)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
 ## [integrations/opensearch-v3.1.0] - 2025-03-12
 
 ### 🚀 Features
@@ -10,10 +26,6 @@
 
 - OpenSearch - call _ensure_index_exists only at initialization (#1522)
 
-### 📚 Documentation
-
-- Update changelog for integrations/opensearch (#1515)
-
 ## [integrations/opensearch-v3.0.0] - 2025-03-11
 
 ### 🐛 Bug Fixes
@@ -22,9 +34,7 @@
 
 ### 📚 Documentation
 
-- Update changelog for integrations/opensearch (#1415)
 - Add docstore description to docstring (#1446)
-- Update changelog for integrations/opensearch (#1488)
 
 ### 🧹 Chores
 
@@ -39,10 +49,6 @@
 ### 🚀 Features
 
 - OpenSearch - async support (#1414)
-
-### 📚 Documentation
-
-- Update changelog for integrations/opensearch (#1402)
 
 ## [integrations/opensearch-v2.0.0] - 2025-02-14
 

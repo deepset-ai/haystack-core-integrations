@@ -63,8 +63,6 @@ class NimBackend:
         self.model_kwargs = model_kwargs or {}
         self.client = client
         self.model_type = model_type
-        self.client = client
-        self.model_type = model_type
         if timeout is None:
             timeout = float(os.environ.get("NVIDIA_TIMEOUT", REQUEST_TIMEOUT))
         self.timeout = timeout

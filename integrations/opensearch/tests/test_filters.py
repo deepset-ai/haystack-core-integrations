@@ -1,8 +1,12 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+from typing import List
+
 import pytest
+from haystack.dataclasses import Document
 from haystack.errors import FilterError
+from haystack.testing.document_store import FilterDocumentsTest
 
 from haystack_integrations.document_stores.opensearch.filters import _normalize_ranges, normalize_filters
 
@@ -219,3 +223,16 @@ def test_normalize_ranges():
     assert conditions == [
         {"range": {"date": {"lt": "2021-01-01", "gte": "2015-01-01"}}},
     ]
+
+
+@pytest.mark.integration
+class TestFilters(FilterDocumentsTest):
+
+    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+        """
+        The OpenSearchDocumentStore.filter_documents() method returns a Documents with their score set.
+        We don't want to compare the score, so we set it to None before comparing the documents.
+        """
+        for doc in received:
+            doc.score = None
+        assert received == expected

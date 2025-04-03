@@ -21,6 +21,19 @@ PYTHON_TYPES_TO_PG_TYPES = {
 NO_VALUE = "no_value"
 
 
+def _validate_filters(filters: Optional[Dict[str, Any]] = None):
+    """
+    Validates the filters provided.
+    """
+    if filters:
+        if not isinstance(filters, dict):
+            msg = "Filters must be a dictionary"
+            raise TypeError(msg)
+        if "operator" not in filters and "conditions" not in filters:
+            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
+            raise ValueError(msg)
+
+
 def _convert_filters_to_where_clause_and_params(
     filters: Dict[str, Any], operator: Literal["WHERE", "AND"] = "WHERE"
 ) -> Tuple[SQL, Tuple]:

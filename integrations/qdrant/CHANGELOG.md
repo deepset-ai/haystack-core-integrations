@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/qdrant-v9.1.1] - 2025-03-20
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🌀 Miscellaneous
+
+- Fix: `TypeError` in `QdrantDocumentStore` when handling duplicate documents (#1551)
+
+## [integrations/qdrant-v9.1.0] - 2025-03-14
+
+### 🚀 Features
+
+- Qdrant -- async support (#1480)
+
 ## [integrations/qdrant-v9.0.0] - 2025-03-11
 
 ### 🧹 Chores
