@@ -51,6 +51,9 @@ dependencies = [
     "pytest",
     "pytest-rerunfailures",
     "haystack-pydoc-tools",
+    # "transformers[sentencepiece]" is required for models using a custom HF tokenizer.  
+    # We exclude it from dependencies since some use cases don't need it.  
+    # If missing when required, llama-cpp-python will provide a clear error message. 
     "transformers[sentencepiece]",
 ]
 [tool.hatch.envs.default.scripts]
