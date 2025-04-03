@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/astra-v2.0.1] - 2025-04-03
+
+### 📚 Documentation
+
+- Update changelog for integrations/astra (#1503)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🌀 Miscellaneous
+
+- Fix: astra-haystack remove init files to make them namespace packages (#1595)
+
 ## [integrations/astra-v2.0.0] - 2025-03-11
 
 ### 🧹 Chores
@@ -7,12 +21,15 @@
 - Use Haystack logging across integrations (#1484)
 - Astra - pin `haystack-ai>=2.11.0` and remove dataframe checks (#1492)
 
+
 ## [integrations/astra-v1.0.0] - 2025-02-17
 
 ### 🧹 Chores
 
 - Inherit from `FilterDocumentsTestWithDataframe` in Document Stores (#1290)
 - [**breaking**] Astra - remove dataframe support (#1376)
+
+## [integrations/astra-v0.1.2] - 2024-11-25
 
 
 ## [integrations/astra-v0.9.4] - 2024-11-25
