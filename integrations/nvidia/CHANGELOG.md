@@ -1,10 +1,38 @@
 # Changelog
 
+## [integrations/nvidia-v0.1.7] - 2025-04-03
+
+### 📚 Documentation
+
+- Update changelog for integrations/nvidia (#1365)
+
+### 🧪 Testing
+
+- Reduce Nvidia API calls in integration tests (#1432)
+- Add test cases for all utils methods for Nvidia integration (#1458)
+- Add unit tests for Nvidia NimBackend (#1546)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+
+### 🌀 Miscellaneous
+
+- Fix: nvidia-haystack remove init files to make them namespace packages (#1594)
+
 ## [integrations/nvidia-v0.1.6] - 2025-02-11
 
 ### 🚀 Features
 
 - Add nvidia latest embedding models (#1364)
+
+### 📚 Documentation
+
+- Update changelog for integrations/nvidia (#1353)
 
 ## [integrations/nvidia-v0.1.5] - 2025-02-04
 
