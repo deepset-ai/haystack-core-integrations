@@ -286,7 +286,7 @@ class DefaultSpanHandler(SpanHandler):
 
         if component_type in _SUPPORTED_GENERATORS:
             meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
-            if meta is not None:
+            if meta:
                 span.raw_span().update(usage=meta[0].get("usage") or None, model=meta[0].get("model"))
 
         if component_type in _SUPPORTED_CHAT_GENERATORS:
