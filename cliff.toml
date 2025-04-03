@@ -27,13 +27,15 @@ body = """
     #}\
     {% if commits | length == 1 and 'Update changelog for' in commits[0].message %}\
         {% continue %}\
+    {% if commits | length == 1 and commits[0].message == 'Update the changelog' %}\
+        {% continue %}\
     {% endif %}\
     ### {{ group | striptags | trim | upper_first }}
     {% for commit in commits %}\
         {#
             Skip commits that update the changelog, they're not useful to the user
         #}\
-        {% if 'Update changelog for' in commit.message %}\
+        {% if 'Update changelog for' in commit.message or commit.message == 'Update the changelog' %}\
             {% continue %}\
         {% endif %}
         - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
