@@ -109,7 +109,7 @@ class MongoDBAtlasDocumentStore:
         :returns: True if the connection is valid, False otherwise.
         """
         try:
-            self._connection.admin.command("ping")
+            self._connection.admin.command("ping")  # type: ignore[union-attr]
             return True
         except Exception as e:
             logger.error(f"Connection to MongoDB Atlas failed: {e}")
@@ -122,7 +122,7 @@ class MongoDBAtlasDocumentStore:
         :returns: True if the connection is valid, False otherwise.
         """
         try:
-            await self._connection_async.admin.command("ping")
+            await self._connection_async.admin.command("ping")  # type: ignore[union-attr]
             return True
         except Exception as e:
             logger.error(f"Connection to MongoDB Atlas failed: {e}")
@@ -134,7 +134,7 @@ class MongoDBAtlasDocumentStore:
 
         :returns: True if the collection exists, False otherwise.
         """
-        database = self._connection[self.database_name]
+        database = self._connection[self.database_name]  # type: ignore[index]
         if self.collection_name in database.list_collection_names():
             return True
         return False
@@ -145,7 +145,7 @@ class MongoDBAtlasDocumentStore:
 
         :returns: True if the collection exists, False otherwise.
         """
-        database = self._connection_async[self.database_name]
+        database = self._connection_async[self.database_name]  # type: ignore[index]
         if self.collection_name in await database.list_collection_names():
             return True
         return False
@@ -234,7 +234,7 @@ class MongoDBAtlasDocumentStore:
         :returns: The number of documents in the document store.
         """
         self._ensure_connection_setup()
-        return self._collection.count_documents({})
+        return self._collection.count_documents({})  # type: ignore[union-attr]
 
     async def count_documents_async(self) -> int:
         """
@@ -243,7 +243,7 @@ class MongoDBAtlasDocumentStore:
         :returns: The number of documents in the document store.
         """
         await self._ensure_connection_setup_async()
-        return await self._collection_async.count_documents({})
+        return await self._collection_async.count_documents({})  # type: ignore[union-attr]
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
@@ -257,7 +257,7 @@ class MongoDBAtlasDocumentStore:
         """
         self._ensure_connection_setup()
         filters = _normalize_filters(filters) if filters else None
-        documents = list(self._collection.find(filters))
+        documents = list(self._collection.find(filters))  # type: ignore[union-attr]
         for doc in documents:
             doc.pop("_id", None)  # MongoDB's internal id doesn't belong into a Haystack document, so we remove it.
         return [Document.from_dict(doc) for doc in documents]
@@ -274,7 +274,7 @@ class MongoDBAtlasDocumentStore:
         """
         await self._ensure_connection_setup_async()
         filters = _normalize_filters(filters) if filters else None
-        documents = await self._collection_async.find(filters).to_list()
+        documents = await self._collection_async.find(filters).to_list()  # type: ignore[union-attr]
         for doc in documents:
             doc.pop("_id", None)
         return [Document.from_dict(doc) for doc in documents]
@@ -318,7 +318,7 @@ class MongoDBAtlasDocumentStore:
 
         if policy == DuplicatePolicy.SKIP:
             operations = [UpdateOne({"id": doc["id"]}, {"$setOnInsert": doc}, upsert=True) for doc in mongo_documents]
-            existing_documents = self._collection.count_documents({"id": {"$in": [doc.id for doc in documents]}})
+            existing_documents = self._collection.count_documents({"id": {"$in": [doc.id for doc in documents]}})  # type: ignore[union-attr]
             written_docs -= existing_documents
         elif policy == DuplicatePolicy.FAIL:
             operations = [InsertOne(doc) for doc in mongo_documents]
@@ -326,7 +326,7 @@ class MongoDBAtlasDocumentStore:
             operations = [ReplaceOne({"id": doc["id"]}, upsert=True, replacement=doc) for doc in mongo_documents]
 
         try:
-            self._collection.bulk_write(operations)
+            self._collection.bulk_write(operations)  # type: ignore[union-attr]
         except BulkWriteError as e:
             msg = f"Duplicate documents found: {e.details['writeErrors']}"
             raise DuplicateDocumentError(msg) from e
@@ -383,7 +383,7 @@ class MongoDBAtlasDocumentStore:
 
         if policy == DuplicatePolicy.SKIP:
             operations = [UpdateOne({"id": doc["id"]}, {"$setOnInsert": doc}, upsert=True) for doc in mongo_documents]
-            existing_documents = self._collection.count_documents({"id": {"$in": [doc.id for doc in documents]}})
+            existing_documents = self._collection.count_documents({"id": {"$in": [doc.id for doc in documents]}})  # type: ignore[union-attr]
             written_docs -= existing_documents
         elif policy == DuplicatePolicy.FAIL:
             operations = [InsertOne(doc) for doc in mongo_documents]
@@ -391,7 +391,7 @@ class MongoDBAtlasDocumentStore:
             operations = [ReplaceOne({"id": doc["id"]}, upsert=True, replacement=doc) for doc in mongo_documents]
 
         try:
-            await self._collection_async.bulk_write(operations)
+            await self._collection_async.bulk_write(operations)  # type: ignore[union-attr]
         except BulkWriteError as e:
             msg = f"Duplicate documents found: {e.details['writeErrors']}"
             raise DuplicateDocumentError(msg) from e
@@ -407,7 +407,7 @@ class MongoDBAtlasDocumentStore:
         self._ensure_connection_setup()
         if not document_ids:
             return
-        self._collection.delete_many(filter={"id": {"$in": document_ids}})
+        self._collection.delete_many(filter={"id": {"$in": document_ids}})  # type: ignore[union-attr]
 
     async def delete_documents_async(self, document_ids: List[str]) -> None:
         """
@@ -418,7 +418,7 @@ class MongoDBAtlasDocumentStore:
         await self._ensure_connection_setup_async()
         if not document_ids:
             return
-        await self._collection_async.delete_many(filter={"id": {"$in": document_ids}})
+        await self._collection_async.delete_many(filter={"id": {"$in": document_ids}})  # type: ignore[union-attr]
 
     def _embedding_retrieval(
         self,
@@ -466,7 +466,7 @@ class MongoDBAtlasDocumentStore:
             },
         ]
         try:
-            documents = list(self._collection.aggregate(pipeline))
+            documents = list(self._collection.aggregate(pipeline))  # type: ignore[union-attr]
         except Exception as e:
             msg = f"Retrieval of documents from MongoDB Atlas failed: {e}"
             if filters:
@@ -523,7 +523,7 @@ class MongoDBAtlasDocumentStore:
             },
         ]
         try:
-            documents = await self._collection_async.aggregate(pipeline).to_list()
+            documents = await self._collection_async.aggregate(pipeline).to_list()  # type: ignore[union-attr]
         except Exception as e:
             msg = f"Retrieval of documents from MongoDB Atlas failed: {e}"
             if filters:
@@ -627,7 +627,7 @@ class MongoDBAtlasDocumentStore:
 
         self._ensure_connection_setup()
         try:
-            documents = list(self._collection.aggregate(pipeline))
+            documents = list(self._collection.aggregate(pipeline))  # type: ignore[union-attr]
         except Exception as e:
             error_msg = f"Failed to retrieve documents from MongoDB Atlas: {e}"
             if filters:
@@ -727,7 +727,7 @@ class MongoDBAtlasDocumentStore:
 
         await self._ensure_connection_setup_async()
         try:
-            documents = self._collection.aggregate(pipeline).to_list()
+            documents = self._collection.aggregate(pipeline).to_list()  # type: ignore[union-attr]
         except Exception as e:
             error_msg = f"Failed to retrieve documents from MongoDB Atlas: {e}"
             if filters:
