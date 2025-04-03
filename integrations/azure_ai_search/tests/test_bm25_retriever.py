@@ -41,10 +41,10 @@ def test_to_dict():
                 "init_parameters": {
                     "azure_endpoint": {
                         "type": "env_var",
-                        "env_vars": ["AZURE_SEARCH_SERVICE_ENDPOINT"],
+                        "env_vars": ["AZURE_AI_SEARCH_ENDPOINT"],
                         "strict": True,
                     },
-                    "api_key": {"type": "env_var", "env_vars": ["AZURE_SEARCH_API_KEY"], "strict": False},
+                    "api_key": {"type": "env_var", "env_vars": ["AZURE_AI_SEARCH_API_KEY"], "strict": False},
                     "index_name": "default",
                     "embedding_dimension": 768,
                     "metadata_fields": None,
