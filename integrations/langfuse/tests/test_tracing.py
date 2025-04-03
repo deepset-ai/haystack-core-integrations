@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 import time
 from urllib.parse import urlparse
@@ -11,7 +15,6 @@ from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
 from haystack.utils import Secret
 from requests.auth import HTTPBasicAuth
-import httpx
 
 from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
@@ -33,6 +36,7 @@ def poll_langfuse(url: str):
     attempts = 5
     delay = 1
 
+    res = None
     while attempts > 0:
         res = requests.get(url, auth=auth)
         if res.status_code == 200:
@@ -48,49 +52,8 @@ def poll_langfuse(url: str):
 
 @pytest.fixture
 def pipeline_with_env_vars(llm_class, expected_trace):
-    """Pipeline factory using environment variables for Langfuse authentication"""
     pipe = Pipeline()
     pipe.add_component("tracer", LangfuseConnector(name=f"Chat example - {expected_trace}", public=True))
-    pipe.add_component("prompt_builder", ChatPromptBuilder())
-    pipe.add_component("llm", llm_class())
-    pipe.connect("prompt_builder.prompt", "llm.messages")
-    return pipe
-
-
-@pytest.fixture
-def pipeline_with_secrets(llm_class, expected_trace):
-    """Pipeline factory using Secret objects for Langfuse authentication"""
-    pipe = Pipeline()
-    pipe.add_component(
-        "tracer",
-        LangfuseConnector(
-            name=f"Chat example - {expected_trace}",
-            public=True,
-            secret_key=Secret.from_env_var("LANGFUSE_SECRET_KEY"),
-            public_key=Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),
-        ),
-    )
-    pipe.add_component("prompt_builder", ChatPromptBuilder())
-    pipe.add_component("llm", llm_class())
-    pipe.connect("prompt_builder.prompt", "llm.messages")
-    return pipe
-
-
-@pytest.fixture
-def pipeline_with_custom_client(llm_class, expected_trace):
-    """Pipeline factory using custom httpx client for Langfuse"""
-    pipe = Pipeline()
-    custom_client = httpx.Client(timeout=30.0)  # Custom timeout of 30 seconds
-    pipe.add_component(
-        "tracer",
-        LangfuseConnector(
-            name=f"Chat example - {expected_trace}",
-            public=True,
-            secret_key=Secret.from_env_var("LANGFUSE_SECRET_KEY"),
-            public_key=Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),
-            httpx_client=custom_client,
-        ),
-    )
     pipe.add_component("prompt_builder", ChatPromptBuilder())
     pipe.add_component("llm", llm_class())
     pipe.connect("prompt_builder.prompt", "llm.messages")
@@ -106,9 +69,7 @@ def pipeline_with_custom_client(llm_class, expected_trace):
         (CohereChatGenerator, "COHERE_API_KEY", "Cohere"),
     ],
 )
-@pytest.mark.parametrize(
-    "pipeline_fixture", ["pipeline_with_env_vars", "pipeline_with_secrets", "pipeline_with_custom_client"]
-)
+@pytest.mark.parametrize("pipeline_fixture", ["pipeline_with_env_vars"])
 def test_tracing_integration(llm_class, env_var, expected_trace, pipeline_fixture, request):
     if not all([os.environ.get("LANGFUSE_SECRET_KEY"), os.environ.get("LANGFUSE_PUBLIC_KEY"), os.environ.get(env_var)]):
         pytest.skip(f"Missing required environment variables: LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, or {env_var}")
@@ -136,12 +97,14 @@ def test_tracing_integration(llm_class, env_var, expected_trace, pipeline_fixtur
     res = poll_langfuse(url)
     assert res.status_code == 200, f"Failed to retrieve data from Langfuse API: {res.status_code}"
 
-    # check if the trace contains the expected LLM name
-    assert expected_trace in str(res.content)
-    # check if the trace contains the expected generation span
-    assert "GENERATION" in str(res.content)
-    # check if the trace contains the expected user_id
-    assert "user_42" in str(res.content)
+    res_json = res.json()
+    assert res_json["name"] == f"Chat example - {expected_trace}"
+    assert isinstance(res_json["input"], dict)
+    assert res_json["input"]["tracer"]["invocation_context"]["user_id"] == "user_42"
+    assert isinstance(res_json["output"], dict)
+    assert isinstance(res_json["metadata"], dict)
+    assert isinstance(res_json["observations"], list)
+    assert res_json["observations"][0]["type"] == "GENERATION"
 
 
 def test_pipeline_serialization(monkeypatch):

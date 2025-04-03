@@ -8,9 +8,9 @@ import httpx
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.base_serialization import deserialize_class_instance, serialize_class_instance
+from langfuse import Langfuse
 
 from haystack_integrations.tracing.langfuse import LangfuseTracer, SpanHandler
-from langfuse import Langfuse
 
 logger = logging.getLogger(__name__)
 
