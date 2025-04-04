@@ -117,13 +117,7 @@ class ChromaDocumentStore:
             if "hnsw:space" not in self._metadata:
                 self._metadata["hnsw:space"] = self._distance_function
 
-            existing_collections = client.list_collections()
-            if len(existing_collections) > 0 and isinstance(existing_collections[0], str):
-                # Chroma >= 0.6.0,< 1.0.0
-                existing_collection_names = existing_collections
-            else:
-                # Chroma >= 1.0.0
-                existing_collection_names = [c.name for c in existing_collections]
+            existing_collection_names = [c.name for c in client.list_collections()]
             if self._collection_name in existing_collection_names:
                 self._collection = client.get_collection(self._collection_name, embedding_function=self._embedding_func)
 
