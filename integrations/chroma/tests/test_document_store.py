@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import logging
 import operator
 import sys
@@ -308,10 +309,16 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         store = ChromaDocumentStore("test_4", distance_function="cosine")
         store._ensure_initialized()
 
-        with pytest.raises(chromadb.errors.InternalError, match="Collection [test_4] already exists"):
-            _ = ChromaDocumentStore("test_4", distance_function="ip")
+        with caplog.at_level(logging.WARNING):
+            new_store = ChromaDocumentStore("test_4", distance_function="ip")
+            new_store._ensure_initialized()
 
+        assert (
+            "Collection already exists. The `distance_function` and `metadata` parameters will be ignored."
+            in caplog.text
+        )
         assert store._collection.metadata["hnsw:space"] == "cosine"
+        assert new_store._collection.metadata["hnsw:space"] == "cosine"
 
     @pytest.mark.integration
     def test_metadata_initialization(self, caplog):
@@ -342,8 +349,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
                     "hnsw:M": 103,
                 },
             )
-
-        new_store._ensure_initialized()
+            new_store._ensure_initialized()
 
         assert (
             "Collection already exists. The `distance_function` and `metadata` parameters will be ignored."
