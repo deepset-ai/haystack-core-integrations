@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/langfuse-v0.10.0] - 2025-04-04
 
 
 ### 🚀 Features
