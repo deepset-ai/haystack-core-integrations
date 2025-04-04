@@ -41,11 +41,13 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any
     return ollama_msg
 
 
-def _convert_ollama_meta(intput_response_dict: Dict) -> Dict:
+def _convert_ollama_meta_to_openai_format(intput_response_dict: Dict) -> Dict:
     """
-    This function is using the dict from the ollama response to generate OpenAI format meta dict.
-    To goal of this function is to have better logging in Langfuse
-    Example ollama response: (source)
+    Internal function to convert Ollama metadata to OpenAI format.
+
+    All fields that are not part of the OpenAI metadata are left unchanged in the returned dict.
+
+    Example Ollama metadata:
     {
         'model': 'phi4:14b-q4_K_M',
         'created_at': '2025-03-09T18:38:33.004185821Z',
@@ -53,34 +55,44 @@ def _convert_ollama_meta(intput_response_dict: Dict) -> Dict:
         'done_reason': 'stop',
         'total_duration': 86627206961,
         'load_duration': 23585622554,
-        'prompt_eval_count': 3518,
+        'prompt_eval_count': 26,
         'prompt_eval_duration': 3426000000,
-        'eval_count': 1661,
-        'eval_duration': 59391000000
+        'eval_count': 298,
+        'eval_duration': 4799921000
     }
-    Example OpenAI API response meta: (target)
+
+    Example OpenAI metadata:
     {
         'model': 'phi4:14b-q4_K_M',
-        'index': 0,
         'finish_reason': 'stop',
         'usage': {
-            'completion_tokens': 774,
-            'prompt_tokens': 976,
-            'total_tokens': 1750,
-            'completion_tokens_details': None,
-            'prompt_tokens_details': None
+            'completion_tokens': 298,
+            'prompt_tokens': 26,
+            'total_tokens': 324,
         }
+        'completion_start_time': '2025-03-09T18:38:33.004185821Z',
+        'done': True,
+        'total_duration': 86627206961,
+        'load_duration': 23585622554,
+        'prompt_eval_duration': 3426000000,
+        'eval_duration': 4799921000,
     }
     """
-    response_dict = {key: value for key, value in intput_response_dict.items() if key != "message"}
-    response_dict["finish_reason"] = response_dict["done_reason"]
-    response_dict["completion_start_time"] = response_dict["created_at"]
-    response_dict["usage"] = {
-        "completion_tokens": response_dict["eval_count"],
-        "prompt_tokens": response_dict["prompt_eval_count"],
-        "total_tokens": response_dict["eval_count"] + response_dict["prompt_eval_count"],
-    }
-    return response_dict
+    meta = {key: value for key, value in intput_response_dict.items() if key != "message"}
+
+    if "done_reason" in meta:
+        meta["finish_reason"] = meta.pop("done_reason")
+    if "created_at" in meta:
+        meta["completion_start_time"] = meta.pop("created_at")
+    if "eval_count" in meta and "prompt_eval_count" in meta:
+        eval_count = meta.pop("eval_count")
+        prompt_eval_count = meta.pop("prompt_eval_count")
+        meta["usage"] = {
+            "completion_tokens": eval_count,
+            "prompt_tokens": prompt_eval_count,
+            "total_tokens": eval_count + prompt_eval_count,
+        }
+    return meta
 
 
 def _convert_ollama_response_to_chatmessage(ollama_response: "ChatResponse") -> ChatMessage:
@@ -102,7 +114,7 @@ def _convert_ollama_response_to_chatmessage(ollama_response: "ChatResponse") -> 
 
     message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls)
 
-    message.meta.update(_convert_ollama_meta(response_dict))
+    message._meta = _convert_ollama_meta_to_openai_format(response_dict)
     return message
 
 
