@@ -28,7 +28,7 @@ def test_init(monkeypatch):
             safety_settings=safety_settings,
         )
     mock_genai_configure.assert_called_once_with(api_key="test")
-    assert gemini.model_name == "gemini-1.5-flash"
+    assert gemini.model_name == "gemini-2.0-flash"
     assert gemini.generation_config == generation_config
     assert gemini.safety_settings == safety_settings
     assert isinstance(gemini._model, GenerativeModel)
@@ -47,7 +47,7 @@ def test_to_dict(monkeypatch):
     assert gemini.to_dict() == {
         "type": "haystack_integrations.components.generators.google_ai.gemini.GoogleAIGeminiGenerator",
         "init_parameters": {
-            "model": "gemini-1.5-flash",
+            "model": "gemini-2.0-flash",
             "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
             "generation_config": None,
             "safety_settings": None,
@@ -77,7 +77,7 @@ def test_to_dict_with_param(monkeypatch):
     assert gemini.to_dict() == {
         "type": "haystack_integrations.components.generators.google_ai.gemini.GoogleAIGeminiGenerator",
         "init_parameters": {
-            "model": "gemini-1.5-flash",
+            "model": "gemini-2.0-flash",
             "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
             "generation_config": {
                 "temperature": 0.5,
@@ -101,7 +101,7 @@ def test_from_dict_with_param(monkeypatch):
             {
                 "type": "haystack_integrations.components.generators.google_ai.gemini.GoogleAIGeminiGenerator",
                 "init_parameters": {
-                    "model": "gemini-1.5-flash",
+                    "model": "gemini-2.0-flash",
                     "generation_config": {
                         "temperature": 0.5,
                         "top_p": 0.5,
@@ -116,7 +116,7 @@ def test_from_dict_with_param(monkeypatch):
             }
         )
 
-    assert gemini.model_name == "gemini-1.5-flash"
+    assert gemini.model_name == "gemini-2.0-flash"
     assert gemini.generation_config == GenerationConfig(
         candidate_count=1,
         stop_sequences=["stop"],
@@ -137,7 +137,7 @@ def test_from_dict(monkeypatch):
             {
                 "type": "haystack_integrations.components.generators.google_ai.gemini.GoogleAIGeminiGenerator",
                 "init_parameters": {
-                    "model": "gemini-1.5-flash",
+                    "model": "gemini-2.0-flash",
                     "generation_config": {
                         "temperature": 0.5,
                         "top_p": 0.5,
@@ -152,7 +152,7 @@ def test_from_dict(monkeypatch):
             }
         )
 
-    assert gemini.model_name == "gemini-1.5-flash"
+    assert gemini.model_name == "gemini-2.0-flash"
     assert gemini.generation_config == GenerationConfig(
         candidate_count=1,
         stop_sequences=["stop"],
