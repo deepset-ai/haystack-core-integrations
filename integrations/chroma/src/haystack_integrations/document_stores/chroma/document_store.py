@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from typing import Any, Dict, List, Literal, Optional
 
 import chromadb
@@ -116,7 +117,8 @@ class ChromaDocumentStore:
             if "hnsw:space" not in self._metadata:
                 self._metadata["hnsw:space"] = self._distance_function
 
-            if self._collection_name in client.list_collections():
+            existing_collection_names = [c.name for c in client.list_collections()]
+            if self._collection_name in existing_collection_names:
                 self._collection = client.get_collection(self._collection_name, embedding_function=self._embedding_func)
 
                 if self._metadata != self._collection.metadata:
