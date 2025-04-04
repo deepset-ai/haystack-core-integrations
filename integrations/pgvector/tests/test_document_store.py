@@ -11,8 +11,63 @@ from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
 from haystack.utils import Secret
+from packaging.version import parse as parse_version
 
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
+
+
+def get_column_type(document_store: PgvectorDocumentStore, schema_name: str, table_name: str, column_name: str) -> str:
+    """Helper function to fetch the user-defined type name of a column."""
+    sql_get_col_type = """
+        SELECT udt_name
+        FROM information_schema.columns
+        WHERE table_schema = %s
+        AND table_name = %s
+        AND column_name = %s;
+    """
+    try:
+        result = document_store._cursor.execute(sql_get_col_type, (schema_name, table_name, column_name)).fetchone()
+        return result[0] if result else ""
+    except Exception:
+        # Handle cases where the table might not exist yet or other DB errors during checks
+        return ""
+
+
+def check_pgvector_version(min_version_str="0.7.0"):
+    """
+    Connects to the test DB and checks if the installed pgvector version
+    is less than the required minimum. Returns True if the test should be skipped.
+    """
+    connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
+    min_version = parse_version(min_version_str)
+    try:
+        with psycopg.connect(connection_string, autocommit=True, connect_timeout=5) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM pg_catalog.pg_extension WHERE extname = 'vector'")
+                if cur.fetchone() is None:
+                    return True
+
+                cur.execute("SELECT extversion FROM pg_catalog.pg_extension WHERE extname = 'vector'")
+                result = cur.fetchone()
+                if result and result[0]:
+                    current_version_str = result[0]
+                    current_version = parse_version(current_version_str)
+                    should_skip = current_version < min_version
+                    if should_skip:
+                        pass
+                    return should_skip
+                else:
+                    return True
+    except psycopg.Error:
+        return True
+    except Exception:
+        return True
+
+
+PGVECTOR_VERSION_TOO_LOW = check_pgvector_version("0.7.0")
+requires_pgvector_0_7 = pytest.mark.skipif(
+    PGVECTOR_VERSION_TOO_LOW, reason="Requires pgvector >= 0.7.0 for halfvec support"
+)
 
 
 @pytest.mark.integration
@@ -95,6 +150,7 @@ def test_to_dict(monkeypatch):
         create_extension=False,
         table_name="my_table",
         embedding_dimension=512,
+        vector_type="halfvec",
         vector_function="l2_distance",
         recreate_table=True,
         search_strategy="hnsw",
@@ -113,6 +169,7 @@ def test_to_dict(monkeypatch):
             "table_name": "my_table",
             "schema_name": "public",
             "embedding_dimension": 512,
+            "vector_type": "halfvec",
             "vector_function": "l2_distance",
             "recreate_table": True,
             "search_strategy": "hnsw",
@@ -215,3 +272,44 @@ def test_create_table_if_not_exists():
     # Clean up: drop the schema after the test
     with psycopg.connect(connection_string, autocommit=True) as conn:
         conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
+
+
+@pytest.mark.integration
+@requires_pgvector_0_7
+def test_halfvec_hnsw_high_dimension():
+    """
+    Test that PgvectorDocumentStore works with vector_type='halfvec',
+    search_strategy='hnsw', and dimensions > 2000.
+    """
+    high_dimension = 3072
+    test_schema_name = "test_halfvec_schema"
+    test_table_name = "test_halfvec_table"
+    connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
+
+    try:
+        with psycopg.connect(connection_string, autocommit=True) as conn:
+            conn.execute(f"DROP SCHEMA IF EXISTS {test_schema_name} CASCADE")
+            conn.execute(f"CREATE SCHEMA {test_schema_name}")
+
+        document_store = PgvectorDocumentStore(
+            connection_string=Secret.from_token(connection_string),
+            schema_name=test_schema_name,
+            table_name=test_table_name,
+            embedding_dimension=high_dimension,
+            vector_type="halfvec",
+            search_strategy="hnsw",
+            vector_function="cosine_similarity",
+            recreate_table=True,
+            hnsw_recreate_index_if_exists=True,
+        )
+
+        # Ensure the database setup is complete
+        document_store._ensure_db_setup()
+
+        # Verify the column type
+        col_type = get_column_type(document_store, test_schema_name, test_table_name, "embedding")
+        assert col_type == "halfvec", f"Expected column type 'halfvec', but found '{col_type}'"
+
+    finally:
+        with psycopg.connect(connection_string, autocommit=True) as conn:
+            conn.execute(f"DROP SCHEMA IF EXISTS {test_schema_name} CASCADE")
