@@ -167,7 +167,7 @@ def test_from_dict(monkeypatch):
 
 @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
 def test_run():
-    gemini = GoogleAIGeminiGenerator(model="gemini-1.5-pro")
+    gemini = GoogleAIGeminiGenerator(model="gemini-2.0-flash")
     res = gemini.run("Tell me something cool")
     assert len(res["replies"]) > 0
 
@@ -180,7 +180,7 @@ def test_run_with_streaming_callback():
         nonlocal streaming_callback_called
         streaming_callback_called = True
 
-    gemini = GoogleAIGeminiGenerator(model="gemini-1.5-pro", streaming_callback=streaming_callback)
+    gemini = GoogleAIGeminiGenerator(model="gemini-2.0-flash", streaming_callback=streaming_callback)
     res = gemini.run("Tell me something cool")
     assert len(res["replies"]) > 0
     assert streaming_callback_called
