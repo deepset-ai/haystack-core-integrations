@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/langfuse-v0.10.0] - 2025-04-04
+
+
+### 🚀 Features
+
+
+- Adapt Ollama metadata to OpenAI format; support Ollama in Langfuse (#1577)
+
+
+
 ## [integrations/langfuse-v0.9.0] - 2025-04-04
 
 
