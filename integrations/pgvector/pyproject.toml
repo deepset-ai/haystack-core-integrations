@@ -50,6 +50,7 @@ dependencies = [
   "ipython",
   "haystack-pydoc-tools",
   "pytest-asyncio",
+  "packaging",
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
