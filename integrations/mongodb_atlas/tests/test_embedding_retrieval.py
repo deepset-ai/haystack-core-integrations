@@ -83,7 +83,7 @@ class TestEmbeddingRetrieval:
     def test_embedding_retrieval_with_filters(self):
         """
         Note: we can combine embedding retrieval with filters
-        becuse the `cosine_index` vector_search_index was created with the `content` field as the filter field.
+        because the `cosine_index` vector_search_index was created with the `content` field as the filter field.
         {
         "fields": [
             {

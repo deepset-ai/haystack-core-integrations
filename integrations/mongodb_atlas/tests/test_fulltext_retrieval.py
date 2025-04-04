@@ -35,7 +35,8 @@ class TestFullTextRetrieval:
 
     @pytest.fixture(autouse=True, scope="class")
     def setup_teardown(self, document_store):
-        document_store.collection.delete_many({})
+        document_store._ensure_connection_setup()
+        document_store._collection.delete_many({})
         document_store.write_documents(
             [
                 Document(content="The quick brown fox chased the dog", meta={"meta_field": "right_value"}),
@@ -144,3 +145,55 @@ class TestFullTextRetrieval:
     def test_synonyms_and_fuzzy_raises_value_error(self, document_store: MongoDBAtlasDocumentStore):
         with pytest.raises(ValueError):
             document_store._fulltext_retrieval(query="fox", synonyms="wolf", fuzzy={"maxEdits": 1})
+
+    @pytest.mark.asyncio
+    async def test_query_retrieval_async(self, document_store: MongoDBAtlasDocumentStore):
+        results = await document_store._fulltext_retrieval_async(query="fox", top_k=2)
+        assert len(results) == 2
+        for doc in results:
+            assert "fox" in doc.content
+        assert results[0].score >= results[1].score
+
+    @pytest.mark.asyncio
+    async def test_fuzzy_retrieval_async(self, document_store: MongoDBAtlasDocumentStore):
+        results = await document_store._fulltext_retrieval_async(query="fax", fuzzy={"maxEdits": 1}, top_k=2)
+        assert len(results) == 2
+        for doc in results:
+            assert "fox" in doc.content
+        assert results[0].score >= results[1].score
+
+    @pytest.mark.asyncio
+    async def test_filters_retrieval_async(self, document_store: MongoDBAtlasDocumentStore):
+        filters = {"field": "meta.meta_field", "operator": "==", "value": "right_value"}
+
+        results = await document_store._fulltext_retrieval_async(query="fox", top_k=3, filters=filters)
+        assert len(results) == 2
+        for doc in results:
+            assert "fox" in doc.content
+            assert doc.meta["meta_field"] == "right_value"
+
+    @pytest.mark.asyncio
+    async def test_synonyms_retrieval_async(self, document_store: MongoDBAtlasDocumentStore):
+        results = await document_store._fulltext_retrieval_async(query="reynard", synonyms="synonym_mapping", top_k=2)
+        assert len(results) == 2
+        for doc in results:
+            assert "fox" in doc.content
+        assert results[0].score >= results[1].score
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("query", ["", []])
+    async def test_empty_query_raises_value_error_async(
+        self, query: Union[str, List], document_store: MongoDBAtlasDocumentStore
+    ):
+        with pytest.raises(ValueError):
+            await document_store._fulltext_retrieval_async(query=query)
+
+    @pytest.mark.asyncio
+    async def test_empty_synonyms_raises_value_error_async(self, document_store: MongoDBAtlasDocumentStore):
+        with pytest.raises(ValueError):
+            await document_store._fulltext_retrieval_async(query="fox", synonyms="")
+
+    @pytest.mark.asyncio
+    async def test_synonyms_and_fuzzy_raises_value_error_async(self, document_store: MongoDBAtlasDocumentStore):
+        with pytest.raises(ValueError):
+            await document_store._fulltext_retrieval_async(query="fox", synonyms="wolf", fuzzy={"maxEdits": 1})
