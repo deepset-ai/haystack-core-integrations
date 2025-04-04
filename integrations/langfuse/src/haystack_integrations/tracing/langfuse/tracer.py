@@ -402,3 +402,10 @@ class LangfuseTracer(Tracer):
         :return: The URL to the tracing data.
         """
         return self._tracer.get_trace_url()
+
+    def get_trace_id(self) -> str:
+        """
+        Return the trace ID.
+        :return: The trace ID.
+        """
+        return self._tracer.get_trace_id()

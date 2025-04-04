@@ -88,6 +88,7 @@ def test_tracing_integration(llm_class, env_var, expected_trace, pipeline_fixtur
     )
     assert "Berlin" in response["llm"]["replies"][0].text
     assert response["tracer"]["trace_url"]
+    assert response["tracer"]["trace_id"]
 
     trace_url = response["tracer"]["trace_url"]
     uuid = os.path.basename(urlparse(trace_url).path)
