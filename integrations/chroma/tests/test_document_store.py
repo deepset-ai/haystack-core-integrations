@@ -9,7 +9,6 @@ import uuid
 from typing import List
 from unittest import mock
 
-import chromadb.errors
 import numpy as np
 import pytest
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
