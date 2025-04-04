@@ -97,13 +97,12 @@ def test_convert_chatmessage_to_ollama_invalid():
 
 
 def test_convert_ollama_response_to_chatmessage():
-    model = "some_model"
-
     ollama_response = ChatResponse(
-        model=model,
+        model="some_model",
         created_at="2023-12-12T14:13:43.416799Z",
         message={"role": "assistant", "content": "Hello! How are you today?"},
         done=True,
+        done_reason="stop",
         total_duration=5191566416,
         load_duration=2154458,
         prompt_eval_count=26,
@@ -116,6 +115,22 @@ def test_convert_ollama_response_to_chatmessage():
 
     assert observed.role == "assistant"
     assert observed.text == "Hello! How are you today?"
+
+    assert observed.meta == {
+        "finish_reason": "stop",
+        "usage": {
+            "completion_tokens": 298,
+            "prompt_tokens": 26,
+            "total_tokens": 324,
+        },
+        "completion_start_time": "2023-12-12T14:13:43.416799Z",
+        "load_duration": 2154458,
+        "total_duration": 5191566416,
+        "eval_duration": 4799921000,
+        "prompt_eval_duration": 383809000,
+        "done": True,
+        "model": "some_model",
+    }
 
 
 def test_convert_ollama_response_to_chatmessage_with_tools():
