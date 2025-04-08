@@ -1,10 +1,10 @@
 import json
-from typing import Any, Callable, Dict, Iterable, List, Optional, Union
+from typing import Any, AsyncIterable, Dict, Iterable, List, Optional, Union
 
 from haystack import logging
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
-from haystack.dataclasses import StreamingChunk
+from haystack.dataclasses import AsyncStreamingCallbackT, StreamingCallbackT, StreamingChunk, select_streaming_callback
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole, ToolCall
 from haystack.tools import Tool, _check_duplicate_tool_names
 from haystack.utils import deserialize_callable, serialize_callable
@@ -150,7 +150,7 @@ class VertexAIGeminiChatGenerator:
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
         tool_config: Optional[ToolConfig] = None,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
     ):
         """
         `VertexAIGeminiChatGenerator` enables chat completion using Google Gemini models.
@@ -300,7 +300,7 @@ class VertexAIGeminiChatGenerator:
     def run(
         self,
         messages: List[ChatMessage],
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         *,
         tools: Optional[List[Tool]] = None,
     ):
@@ -355,6 +355,69 @@ class VertexAIGeminiChatGenerator:
 
         return {"replies": replies}
 
+    @component.output_types(replies=List[ChatMessage])
+    async def run_async(
+        self,
+        messages: List[ChatMessage],
+        streaming_callback: Optional[StreamingCallbackT] = None,
+        *,
+        tools: Optional[List[Tool]] = None,
+    ):
+        """
+        Async version of the run method. Generates text based on the provided messages.
+        :param messages:
+            A list of `ChatMessage` instances, representing the input messages.
+        :param streaming_callback:
+            A callback function that is called when a new token is received from the stream.
+        :param tools:
+            A list of tools for which the model can prepare calls. If set, it will override the `tools` parameter set
+            during component initialization.
+        :returns:
+            A dictionary containing the following key:
+            - `replies`:  A list containing the generated responses as `ChatMessage` instances.
+        """
+        streaming_callback = select_streaming_callback(
+            self._streaming_callback, streaming_callback, requires_async=True
+        )
+
+        tools = tools or self._tools
+        _check_duplicate_tool_names(tools)
+        google_tools = self._convert_to_vertex_tools(tools) if tools else None
+
+        if messages[0].is_from(ChatRole.SYSTEM):
+            self._model._system_instruction = Part.from_text(messages[0].text)
+            messages = messages[1:]
+
+        google_messages = [_convert_chatmessage_to_google_content(m) for m in messages]
+
+        session = self._model.start_chat(history=google_messages[:-1])
+
+        candidate_count = 1
+        if self._generation_config:
+            config_dict = self._generation_config_to_dict(self._generation_config)
+            candidate_count = config_dict.get("candidate_count", 1)
+
+        if streaming_callback and candidate_count > 1:
+            msg = "Streaming is not supported with multiple candidates. Set candidate_count to 1."
+            raise ValueError(msg)
+
+        res = await session.send_message_async(
+            content=google_messages[-1],
+            generation_config=self._generation_config,
+            safety_settings=self._safety_settings,
+            stream=streaming_callback is not None,
+            tools=google_tools,
+            tool_config=self._tool_config,
+        )
+
+        replies = (
+            await self._stream_response_and_convert_to_messages_async(res, streaming_callback)
+            if streaming_callback
+            else self._convert_response_to_messages(res)
+        )
+
+        return {"replies": replies}
+
     @staticmethod
     def _convert_response_to_messages(response_body: GenerationResponse) -> List[ChatMessage]:
         """
@@ -395,7 +458,7 @@ class VertexAIGeminiChatGenerator:
         return replies
 
     def _stream_response_and_convert_to_messages(
-        self, stream: Iterable[GenerationResponse], streaming_callback: Callable[[StreamingChunk], None]
+        self, stream: Iterable[GenerationResponse], streaming_callback: StreamingCallbackT
     ) -> List[ChatMessage]:
         """
         Streams the Google Vertex AI response and converts it to a list of `ChatMessage` instances.
@@ -430,6 +493,60 @@ class VertexAIGeminiChatGenerator:
                     )
 
             streaming_callback(StreamingChunk(content=content_to_stream, meta=chunk_dict))
+
+        # store the last chunk metadata
+        meta = chunk_dict
+
+        # format the usage metadata to be compatible with OpenAI
+        usage_metadata = meta.pop("usage_metadata", {})
+
+        openai_usage = {
+            "prompt_tokens": usage_metadata.get("prompt_token_count", 0),
+            "completion_tokens": usage_metadata.get("candidates_token_count", 0),
+            "total_tokens": usage_metadata.get("total_token_count", 0),
+        }
+
+        meta["usage"] = openai_usage
+
+        return [ChatMessage.from_assistant(text=text or None, meta=meta, tool_calls=tool_calls)]
+
+    @staticmethod
+    async def _stream_response_and_convert_to_messages_async(
+        stream: AsyncIterable[GenerationResponse], streaming_callback: AsyncStreamingCallbackT
+    ) -> List[ChatMessage]:
+        """
+        Streams the Google Vertex AI response and converts it to a list of `ChatMessage` instances.
+
+        :param stream: The streaming response from the Google AI request.
+        :param streaming_callback: The handler for the streaming response.
+        :returns: List of `ChatMessage` instances.
+        """
+
+        text = ""
+        tool_calls = []
+        chunk_dict = {}
+
+        async for chunk in stream:
+            content_to_stream = ""
+            chunk_dict = chunk.to_dict()
+
+            # Only one candidate is supported with streaming
+            candidate = chunk_dict["candidates"][0]
+
+            for part in candidate["content"]["parts"]:
+                if new_text := part.get("text"):
+                    content_to_stream += new_text
+                    text += new_text
+                elif new_function_call := part.get("function_call"):
+                    content_to_stream += json.dumps(dict(new_function_call))
+                    tool_calls.append(
+                        ToolCall(
+                            tool_name=new_function_call["name"],
+                            arguments=new_function_call["args"],
+                        )
+                    )
+
+            await streaming_callback(StreamingChunk(content=content_to_stream, meta=chunk_dict))
 
         # store the last chunk metadata
         meta = chunk_dict
