@@ -9,7 +9,7 @@ from haystack.utils.callable_serialization import deserialize_callable, serializ
 try:
     from haystack.tools import deserialize_tools_or_toolset_inplace
 except ImportError:
-    from haystack.tools import deserialize_tools_inplace as deserialize_tools_or_toolset_inplaceq
+    from haystack.tools import deserialize_tools_inplace as deserialize_tools_or_toolset_inplace
 
 from pydantic.json_schema import JsonSchemaValue
 from ollama import ChatResponse, Client
