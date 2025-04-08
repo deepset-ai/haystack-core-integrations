@@ -27,7 +27,10 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: Implementation :: CPython",
 ]
-dependencies = ["mcp", "haystack-ai>=2.9.0"]
+dependencies = [
+    "mcp",
+    "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@main"
+]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/mcp#readme"
