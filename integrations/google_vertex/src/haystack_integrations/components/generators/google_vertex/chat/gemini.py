@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Any, AsyncIterable, Dict, Iterable, List, Optional, Union
 
 from haystack import logging
 from haystack.core.component import component
@@ -504,7 +504,7 @@ class VertexAIGeminiChatGenerator:
 
     @staticmethod
     async def _stream_response_and_convert_to_messages_async(
-        stream: Iterable[GenerationResponse], streaming_callback: AsyncStreamingCallbackT
+        stream: AsyncIterable[GenerationResponse], streaming_callback: AsyncStreamingCallbackT
     ) -> List[ChatMessage]:
         """
         Streams the Google Vertex AI response and converts it to a list of `ChatMessage` instances.
