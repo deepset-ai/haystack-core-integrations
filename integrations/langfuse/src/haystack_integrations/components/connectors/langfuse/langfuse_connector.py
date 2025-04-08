@@ -97,6 +97,7 @@ class LangfuseConnector:
         )
         print(response["llm"]["replies"][0])
         print(response["tracer"]["trace_url"])
+        print(response["tracer"]["trace_id"])
     ```
 
     For advanced use cases, you can also customize how spans are created and processed by

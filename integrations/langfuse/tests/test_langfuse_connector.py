@@ -10,6 +10,12 @@ from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.utils import Secret
 
 from haystack_integrations.components.connectors.langfuse import LangfuseConnector
+from haystack_integrations.tracing.langfuse import DefaultSpanHandler
+
+
+class CustomSpanHandler(DefaultSpanHandler):
+    def handle(self, span, component_type=None):
+        pass
 
 
 class TestLangfuseConnector:
@@ -33,6 +39,135 @@ class TestLangfuseConnector:
         assert response["name"] == "Chat example - OpenAI"
         assert response["trace_url"] == "https://example.com/trace"
         assert response["trace_id"] == "12345"
+
+    def test_to_dict(self, monkeypatch):
+        monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
+        monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "public")
+
+        langfuse_connector = LangfuseConnector(name="Chat example - OpenAI")
+        serialized = langfuse_connector.to_dict()
+
+        assert serialized == {
+            "type": "haystack_integrations.components.connectors.langfuse.langfuse_connector.LangfuseConnector",
+            "init_parameters": {
+                "name": "Chat example - OpenAI",
+                "public": False,
+                "secret_key": {
+                    "type": "env_var",
+                    "env_vars": ["LANGFUSE_SECRET_KEY"],
+                    "strict": True,
+                },
+                "public_key": {
+                    "type": "env_var",
+                    "env_vars": ["LANGFUSE_PUBLIC_KEY"],
+                    "strict": True,
+                },
+                "span_handler": None,
+            },
+        }
+
+    def test_to_dict_with_params(self, monkeypatch):
+        monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
+        monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "public")
+
+        langfuse_connector = LangfuseConnector(
+            name="Chat example - OpenAI",
+            public=True,
+            secret_key=Secret.from_env_var("LANGFUSE_SECRET_KEY"),
+            public_key=Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),
+            span_handler=CustomSpanHandler(),
+        )
+
+        serialized = langfuse_connector.to_dict()
+        assert serialized == {
+            "type": "haystack_integrations.components.connectors.langfuse.langfuse_connector.LangfuseConnector",
+            "init_parameters": {
+                "name": "Chat example - OpenAI",
+                "public": True,
+                "secret_key": {
+                    "type": "env_var",
+                    "env_vars": ["LANGFUSE_SECRET_KEY"],
+                    "strict": True,
+                },
+                "public_key": {
+                    "type": "env_var",
+                    "env_vars": ["LANGFUSE_PUBLIC_KEY"],
+                    "strict": True,
+                },
+                "span_handler": {
+                    "type": "tests.test_langfuse_connector.CustomSpanHandler",
+                    "data": {
+                        "type": "tests.test_langfuse_connector.CustomSpanHandler",
+                        "init_parameters": {},
+                    },
+                },
+            },
+        }
+
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
+        monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "public")
+
+        data = {
+            "type": "haystack_integrations.components.connectors.langfuse.langfuse_connector.LangfuseConnector",
+            "init_parameters": {
+                "name": "Chat example - OpenAI",
+                "public": False,
+                "secret_key": {
+                    "type": "env_var",
+                    "env_vars": ["LANGFUSE_SECRET_KEY"],
+                    "strict": True,
+                },
+                "public_key": {
+                    "type": "env_var",
+                    "env_vars": ["LANGFUSE_PUBLIC_KEY"],
+                    "strict": True,
+                },
+                "span_handler": None,
+            },
+        }
+        langfuse_connector = LangfuseConnector.from_dict(data)
+        assert langfuse_connector.name == "Chat example - OpenAI"
+        assert langfuse_connector.public is False
+        assert langfuse_connector.secret_key == Secret.from_env_var("LANGFUSE_SECRET_KEY")
+        assert langfuse_connector.public_key == Secret.from_env_var("LANGFUSE_PUBLIC_KEY")
+        assert langfuse_connector.span_handler is None
+
+    def test_from_dict_with_params(self, monkeypatch):
+        monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
+        monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "public")
+
+        data = {
+            "type": "haystack_integrations.components.connectors.langfuse.langfuse_connector.LangfuseConnector",
+            "init_parameters": {
+                "name": "Chat example - OpenAI",
+                "public": True,
+                "secret_key": {
+                    "type": "env_var",
+                    "env_vars": ["LANGFUSE_SECRET_KEY"],
+                    "strict": True,
+                },
+                "public_key": {
+                    "type": "env_var",
+                    "env_vars": ["LANGFUSE_PUBLIC_KEY"],
+                    "strict": True,
+                },
+                "span_handler": {
+                    "type": "tests.test_langfuse_connector.CustomSpanHandler",
+                    "data": {
+                        "type": "tests.test_langfuse_connector.CustomSpanHandler",
+                        "init_parameters": {},
+                    },
+                },
+            },
+        }
+
+        langfuse_connector = LangfuseConnector.from_dict(data)
+        assert langfuse_connector.name == "Chat example - OpenAI"
+        assert langfuse_connector.public is True
+        assert langfuse_connector.secret_key == Secret.from_env_var("LANGFUSE_SECRET_KEY")
+        assert langfuse_connector.public_key == Secret.from_env_var("LANGFUSE_PUBLIC_KEY")
+        assert isinstance(langfuse_connector.span_handler, CustomSpanHandler)
 
     def test_pipeline_serialization(self, monkeypatch):
         # Set test env vars
