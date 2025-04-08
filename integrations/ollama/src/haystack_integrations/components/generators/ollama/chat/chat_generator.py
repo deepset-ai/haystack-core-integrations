@@ -12,6 +12,7 @@ except ImportError:
     from haystack.tools import deserialize_tools_inplace as deserialize_tools_or_toolset_inplace
 
 from pydantic.json_schema import JsonSchemaValue
+
 from ollama import ChatResponse, Client
 
 
