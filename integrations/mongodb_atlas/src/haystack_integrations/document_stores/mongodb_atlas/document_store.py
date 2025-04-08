@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import re
 from typing import Any, Dict, List, Literal, Optional, Union
 
@@ -101,6 +102,22 @@ class MongoDBAtlasDocumentStore:
         self._connection_async: Optional[AsyncMongoClient] = None
         self._collection: Optional[Collection] = None
         self._collection_async: Optional[AsyncCollection] = None
+
+    @property
+    def connection(self) -> Union[AsyncMongoClient,MongoClient]:
+        if self._connection:
+            return self._connection
+        if self._connection_async:
+            return self._connection_async
+        raise DocumentStoreError("The connection is not established yet.")
+
+    @property
+    def collection(self) -> Union[AsyncCollection, Collection]:
+        if self._collection:
+            return self._collection
+        if self._collection_async:
+            return self._collection_async
+        raise DocumentStoreError("The collection is not established yet.")
 
     def _connection_is_valid(self) -> bool:
         """
