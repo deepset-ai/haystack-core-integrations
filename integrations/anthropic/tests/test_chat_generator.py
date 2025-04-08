@@ -171,7 +171,7 @@ class TestAnthropicChatGenerator:
         )
         data = component.to_dict()
 
-        assert data == {
+        expected_dict = {
             "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ENV_VAR"], "type": "env_var", "strict": True},
@@ -196,6 +196,17 @@ class TestAnthropicChatGenerator:
                 ],
             },
         }
+
+        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
+        # haystack-ai>=2.12.0
+        if hasattr(tool, "outputs_to_string"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_string"] = tool.outputs_to_string
+        if hasattr(tool, "inputs_from_state"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = tool.inputs_from_state
+        if hasattr(tool, "outputs_to_state"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = tool.outputs_to_state
+
+        assert data == expected_dict
 
     def test_from_dict(self, monkeypatch):
         """
@@ -565,6 +576,21 @@ class TestAnthropicChatGenerator:
 
         if not hasattr(pipeline, "_connection_type_validation"):
             expected_dict.pop("connection_type_validation")
+
+        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
+        # haystack-ai>=2.12.0
+        if hasattr(tool, "outputs_to_string"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
+                "outputs_to_string"
+            ] = tool.outputs_to_string
+        if hasattr(tool, "inputs_from_state"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
+                "inputs_from_state"
+            ] = tool.inputs_from_state
+        if hasattr(tool, "outputs_to_state"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
+                "outputs_to_state"
+            ] = tool.outputs_to_state
 
         assert pipeline_dict == expected_dict
 
@@ -1173,23 +1199,20 @@ class TestAnthropicChatGeneratorAsync:
         Test that the async run method of AnthropicChatGenerator works with streaming.
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = AnthropicChatGenerator(streaming_callback=print_streaming_chunk)
+        component = AnthropicChatGenerator()  # No streaming callback during initialization
 
-        # Create a callback to capture streaming chunks
-        class Callback:
-            def __init__(self):
-                self.responses = ""
-                self.counter = 0
+        counter = 0
+        responses = ""
 
-            def __call__(self, chunk: StreamingChunk) -> None:
-                self.counter += 1
-                self.responses += chunk.content if chunk.content else ""
-
-        callback = Callback()
-        component.streaming_callback = callback
+        # Create a callback that's compatible with async operations
+        async def callback(chunk: StreamingChunk) -> None:
+            nonlocal counter
+            nonlocal responses
+            counter += 1
+            responses += chunk.content if chunk.content else ""
 
         # Run the async streaming test
-        results = await component.run_async(messages=initial_messages)
+        results = await component.run_async(messages=initial_messages, streaming_callback=callback)
 
         # Verify the results
         assert len(results["replies"]) == 1
@@ -1199,8 +1222,8 @@ class TestAnthropicChatGeneratorAsync:
         assert message.meta["finish_reason"] == "end_turn"
 
         # Verify streaming behavior
-        assert callback.counter > 1  # Should have received multiple chunks
-        assert "paris" in callback.responses.lower()  # Should have received the response in chunks
+        assert counter > 1  # Should have received multiple chunks
+        assert "paris" in responses.lower()  # Should have received the response in chunks
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(

@@ -25,15 +25,19 @@ body = """
         If we don't do this we get an empty section since we don't show
         commits that update the changelog
     #}\
-    {% if commits | length == 1 and commits[0].message == 'Update the changelog' %}\
+    {% set first_commit_message_low = commits[0].message | lower %}\
+    {% if commits | length == 1 and 'update changelog for' in first_commit_message_low %}\
+        {% continue %}\
+    {% elif commits | length == 1 and first_commit_message_low == 'update the changelog' %}\
         {% continue %}\
     {% endif %}\
     ### {{ group | striptags | trim | upper_first }}
     {% for commit in commits %}\
+        {% set commit_message_low = commit.message | lower %}\
         {#
             Skip commits that update the changelog, they're not useful to the user
         #}\
-        {% if commit.message == 'Update the changelog' %}\
+        {% if 'update changelog for' in commit_message_low or commit_message_low == 'update the changelog' %}\
             {% continue %}\
         {% endif %}
         - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\

@@ -2,7 +2,16 @@ import json
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall, ToolCallResult
+from haystack.dataclasses import (
+    AsyncStreamingCallbackT,
+    ChatMessage,
+    ChatRole,
+    StreamingCallbackT,
+    StreamingChunk,
+    ToolCall,
+    ToolCallResult,
+    select_streaming_callback,
+)
 from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
@@ -168,7 +177,7 @@ class AnthropicChatGenerator:
         self,
         api_key: Secret = Secret.from_env_var("ANTHROPIC_API_KEY"),  # noqa: B008
         model: str = "claude-3-5-sonnet-20240620",
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         ignore_tools_thinking_messages: bool = True,
         tools: Optional[List[Tool]] = None,
@@ -491,7 +500,7 @@ class AnthropicChatGenerator:
     async def _process_response_async(
         self,
         response: Any,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[AsyncStreamingCallbackT] = None,
     ) -> Dict[str, List[ChatMessage]]:
         """
         Process the response from the Anthropic API asynchronously.
@@ -518,7 +527,7 @@ class AnthropicChatGenerator:
                     streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk)
                     chunks.append(streaming_chunk)
                     if streaming_callback:
-                        streaming_callback(streaming_chunk)
+                        await streaming_callback(streaming_chunk)
 
             completion = self._convert_streaming_chunks_to_chat_message(chunks, model)
             return {"replies": [completion]}
@@ -533,7 +542,7 @@ class AnthropicChatGenerator:
     def run(
         self,
         messages: List[ChatMessage],
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[List[Tool]] = None,
     ):
@@ -552,8 +561,11 @@ class AnthropicChatGenerator:
             messages, generation_kwargs, tools
         )
 
-        # ToDO: use haystack.dataclasses.select_streaming_callback once it is available
-        streaming_callback = streaming_callback or self.streaming_callback
+        streaming_callback = select_streaming_callback(
+            init_callback=self.streaming_callback,
+            runtime_callback=streaming_callback,
+            requires_async=False,
+        )
 
         response = self.client.messages.create(
             model=self.model,
@@ -571,7 +583,7 @@ class AnthropicChatGenerator:
     async def run_async(
         self,
         messages: List[ChatMessage],
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[List[Tool]] = None,
     ):
@@ -590,8 +602,11 @@ class AnthropicChatGenerator:
             messages, generation_kwargs, tools
         )
 
-        # ToDO: use haystack.dataclasses.select_streaming_callback once it is available
-        streaming_callback = streaming_callback or self.streaming_callback
+        streaming_callback = select_streaming_callback(
+            init_callback=self.streaming_callback,
+            runtime_callback=streaming_callback,
+            requires_async=True,
+        )
 
         response = await self.async_client.messages.create(
             model=self.model,

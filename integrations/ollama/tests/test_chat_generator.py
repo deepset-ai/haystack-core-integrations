@@ -97,13 +97,12 @@ def test_convert_chatmessage_to_ollama_invalid():
 
 
 def test_convert_ollama_response_to_chatmessage():
-    model = "some_model"
-
     ollama_response = ChatResponse(
-        model=model,
+        model="some_model",
         created_at="2023-12-12T14:13:43.416799Z",
         message={"role": "assistant", "content": "Hello! How are you today?"},
         done=True,
+        done_reason="stop",
         total_duration=5191566416,
         load_duration=2154458,
         prompt_eval_count=26,
@@ -116,6 +115,22 @@ def test_convert_ollama_response_to_chatmessage():
 
     assert observed.role == "assistant"
     assert observed.text == "Hello! How are you today?"
+
+    assert observed.meta == {
+        "finish_reason": "stop",
+        "usage": {
+            "completion_tokens": 298,
+            "prompt_tokens": 26,
+            "total_tokens": 324,
+        },
+        "completion_start_time": "2023-12-12T14:13:43.416799Z",
+        "load_duration": 2154458,
+        "total_duration": 5191566416,
+        "eval_duration": 4799921000,
+        "prompt_eval_duration": 383809000,
+        "done": True,
+        "model": "some_model",
+    }
 
 
 def test_convert_ollama_response_to_chatmessage_with_tools():
@@ -215,7 +230,8 @@ class TestOllamaChatGenerator:
             response_format={"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "number"}}},
         )
         data = component.to_dict()
-        assert data == {
+
+        expected_dict = {
             "type": "haystack_integrations.components.generators.ollama.chat.chat_generator.OllamaChatGenerator",
             "init_parameters": {
                 "timeout": 120,
@@ -248,6 +264,17 @@ class TestOllamaChatGenerator:
                 },
             },
         }
+
+        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
+        # haystack-ai>=2.12.0
+        if hasattr(tool, "outputs_to_string"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_string"] = tool.outputs_to_string
+        if hasattr(tool, "inputs_from_state"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = tool.inputs_from_state
+        if hasattr(tool, "outputs_to_state"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = tool.outputs_to_state
+
+        assert data == expected_dict
 
     def test_from_dict(self):
         tool = Tool(
