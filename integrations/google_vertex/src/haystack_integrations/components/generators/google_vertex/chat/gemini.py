@@ -369,7 +369,9 @@ class VertexAIGeminiChatGenerator:
             A dictionary containing the following key:
             - `replies`:  A list containing the generated responses as `ChatMessage` instances.
         """
-        streaming_callback = select_streaming_callback(self._streaming_callback, streaming_callback, requires_async=True)
+        streaming_callback = select_streaming_callback(
+            self._streaming_callback, streaming_callback, requires_async=True
+        )
 
         tools = tools or self._tools
         _check_duplicate_tool_names(tools)
@@ -532,7 +534,7 @@ class VertexAIGeminiChatGenerator:
                     tool_calls.append(
                         ToolCall(
                             tool_name=new_function_call["name"],
-                            arguments=dict(new_function_call["args"]),
+                            arguments=new_function_call["args"],
                         )
                     )
 

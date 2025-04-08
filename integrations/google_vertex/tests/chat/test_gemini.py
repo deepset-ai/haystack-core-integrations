@@ -48,7 +48,9 @@ def test_convert_chatmessage_to_google_content():
     assert google_content.parts[0].text == "I have a question"
     assert google_content.role == "user"
 
-    message = ChatMessage.from_assistant(tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})])
+    message = ChatMessage.from_assistant(
+        tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})]
+    )
     google_content = _convert_chatmessage_to_google_content(message)
     assert google_content.parts[0].function_call.name == "weather"
     assert google_content.parts[0].function_call.args == {"city": "Paris"}
@@ -253,7 +255,9 @@ class TestVertexAIGeminiChatGenerator:
                         "max_output_tokens": 10,
                         "stop_sequences": ["stop"],
                     },
-                    "safety_settings": {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH},
+                    "safety_settings": {
+                        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH
+                    },
                     "tools": [
                         {
                             "type": "haystack.tools.tool.Tool",
@@ -279,11 +283,16 @@ class TestVertexAIGeminiChatGenerator:
         assert gemini._model_name == "gemini-1.5-flash"
         assert gemini._project_id == "TestID123"
         assert gemini._location == "TestLocation"
-        assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
+        assert gemini._safety_settings == {
+            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH
+        }
         assert gemini._tools == tools
         assert isinstance(gemini._tool_config, ToolConfig)
         assert isinstance(gemini._generation_config, GenerationConfig)
-        assert gemini._tool_config._gapic_tool_config.function_calling_config.mode == ToolConfig.FunctionCallingConfig.Mode.ANY
+        assert (
+            gemini._tool_config._gapic_tool_config.function_calling_config.mode
+            == ToolConfig.FunctionCallingConfig.Mode.ANY
+        )
 
     def test_convert_to_vertex_tools(self, tools):
         vertex_tools = VertexAIGeminiChatGenerator._convert_to_vertex_tools(tools)
@@ -300,7 +309,9 @@ class TestVertexAIGeminiChatGenerator:
     @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
     def test_run(self, mock_generative_model):
         mock_model = Mock()
-        mock_candidate = MagicMock(content=Content(parts=[Part.from_text("This is a generated response.")], role="model"))
+        mock_candidate = MagicMock(
+            content=Content(parts=[Part.from_text("This is a generated response.")], role="model")
+        )
         mock_response = MagicMock(spec=GenerationResponse, candidates=[mock_candidate])
 
         mock_model.send_message.return_value = mock_response
@@ -493,7 +504,9 @@ class TestVertexAIGeminiChatGenerator:
     @pytest.mark.asyncio
     async def test_run_async(self, mock_generative_model):
         mock_model = Mock()
-        mock_candidate = MagicMock(content=Content(parts=[Part.from_text("This is a generated response.")], role="model"))
+        mock_candidate = MagicMock(
+            content=Content(parts=[Part.from_text("This is a generated response.")], role="model")
+        )
         mock_response = MagicMock(spec=GenerationResponse, candidates=[mock_candidate])
 
         mock_model.send_message_async = AsyncMock(return_value=mock_response)
