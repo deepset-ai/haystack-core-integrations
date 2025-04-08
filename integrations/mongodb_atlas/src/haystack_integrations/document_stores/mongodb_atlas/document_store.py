@@ -110,7 +110,7 @@ class MongoDBAtlasDocumentStore:
         if self._connection:
             self._connection.close()
         if self._connection_async:
-            # not possible to await in __del__, so we just close the connection            
+            # not possible to await in __del__, so we just close the connection
             self._connection_async.close()
 
     @property
