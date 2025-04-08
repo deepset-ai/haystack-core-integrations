@@ -24,84 +24,60 @@ class MCPToolset(Toolset):
     supporting both network-based SSE connections and local process-based stdio connections.
     This dual connectivity allows for integrating with both remote and local MCP servers.
 
-    Example using SSE (for remote API services):
+    Example using MCPToolset in a Haystack Pipeline:
     ```python
-    from haystack_integrations.tools.mcp import MCPToolset, SSEServerInfo
+    import os
+    from haystack import Pipeline
+    from haystack.components.converters import OutputAdapter
+    from haystack.components.generators.chat import OpenAIChatGenerator
     from haystack.components.tools import ToolInvoker
-
-    # Connect to a remote MCP server via SSE
-    server_info = SSEServerInfo(
-        base_url="https://api.example.com/mcp",  # Remote server URL
-        token="your-auth-token",                 # Authentication token
-        timeout=30                               # Connection timeout in seconds
-    )
-
-    # Create the toolset with the remote server connection info
-    toolset = MCPToolset(server_info=server_info)
-
-    # Tools are automatically discovered and can be used with Haystack components
-    invoker = ToolInvoker(tools=toolset)
-    result = invoker.run(tool_name="calculator", parameters={"expression": "2+2"})
-    ```
-
-    Example using stdio (for local tool processes):
-    ```python
+    from haystack.dataclasses import ChatMessage
     from haystack_integrations.tools.mcp import MCPToolset, StdioServerInfo
-    from haystack.components.tools import ToolInvoker
 
-    # Connect to a local MCP-compatible tool via stdio
-    server_info = StdioServerInfo(
-        command="python",                         # Command to execute
-        args=["path/to/mcp_tool_server.py"],      # Arguments for the command
-        env={"DEBUG": "true"}                     # Optional environment variables
+    # Create server info for the time service (can also use SSEServerInfo for remote servers)
+    server_info = StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=Europe/Berlin"])
+
+    # Create the toolset - this will automatically discover all available tools
+    mcp_toolset = MCPToolset(server_info)
+
+    # Create a pipeline with the toolset
+    pipeline = Pipeline()
+    pipeline.add_component("llm", OpenAIChatGenerator(model="gpt-4o-mini", tools=mcp_toolset))
+    pipeline.add_component("tool_invoker", ToolInvoker(tools=mcp_toolset))
+    pipeline.add_component(
+        "adapter",
+        OutputAdapter(
+            template="{{ initial_msg + initial_tool_messages + tool_messages }}",
+            output_type=list[ChatMessage],
+            unsafe=True,
+        ),
     )
+    pipeline.add_component("response_llm", OpenAIChatGenerator(model="gpt-4o-mini"))
+    pipeline.connect("llm.replies", "tool_invoker.messages")
+    pipeline.connect("llm.replies", "adapter.initial_tool_messages")
+    pipeline.connect("tool_invoker.tool_messages", "adapter.tool_messages")
+    pipeline.connect("adapter.output", "response_llm.messages")
 
-    # Create the toolset - discovery works the same way regardless of connection type
-    toolset = MCPToolset(server_info=server_info)
+    # Run the pipeline with a user question
+    user_input = "What is the time in New York? Be brief."
+    user_input_msg = ChatMessage.from_user(text=user_input)
 
-    # Use the toolset in a tool invoker
-    invoker = ToolInvoker(tools=toolset)
-    result = invoker.run(tool_name="time_tool", parameters={"timezone": "UTC"})
+    result = pipeline.run({"llm": {"messages": [user_input_msg]}, "adapter": {"initial_msg": [user_input_msg]}})
+    print(result["response_llm"]["replies"][0].text)
     ```
 
-    Combining with other tools:
+    You can also use the toolset via MCP SSE to talk to remote servers:
     ```python
-    from haystack.tools import Tool
     from haystack_integrations.tools.mcp import MCPToolset, SSEServerInfo
     from haystack.components.tools import ToolInvoker
 
-    # Create a regular Tool
-    def my_python_function(x: int, y: int) -> int:
-        return x * y
-
-    multiply_tool = Tool(
-        name="multiply",
-        description="Multiply two numbers",
-        function=my_python_function,
-        parameters={
-            "type": "object",
-            "properties": {
-                "x": {"type": "integer"},
-                "y": {"type": "integer"}
-            },
-            "required": ["x", "y"]
-        }
+    # Create the toolset with an SSE connection
+    sse_toolset = MCPToolset(
+        server_info=SSEServerInfo(base_url="http://some-remote-server.com:8000"),
     )
 
-    # Create an MCP toolset connected to a remote server
-    mcp_tools = MCPToolset(
-        server_info=SSEServerInfo(base_url="https://api.example.com/mcp")
-    )
-
-    # Combine them (creates a new toolset)
-    combined_tools = mcp_tools + [multiply_tool]
-
-    # Use the combined toolset
-    invoker = ToolInvoker(tools=combined_tools)
+    # Use the toolset as shown in the pipeline example above
     ```
-
-    The MCPToolset handles connection and cleanup automatically, making it simple
-    to integrate MCP-compatible tools into Haystack pipelines.
     """
 
     def __init__(self, server_info: MCPServerInfo, connection_timeout: int = 30, invocation_timeout: int = 30):
