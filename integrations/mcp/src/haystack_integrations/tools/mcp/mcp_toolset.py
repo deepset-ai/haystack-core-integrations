@@ -154,20 +154,31 @@ class MCPToolset(Toolset):
         :raises TimeoutError: If the operation times out
         """
         try:
-            # Get or create an event loop
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                # Create a new loop if none exists
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
             # Apply timeout if specified
             if timeout is not None:
                 coro = asyncio.wait_for(coro, timeout=timeout)
 
-            # Run the coroutine in the loop
-            return loop.run_until_complete(coro)
+            # Try to get a running loop first
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                # If we can't get a running loop, create a new one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                return loop.run_until_complete(coro)
+
+            # If the loop is already running, run our coroutine inline
+            if loop.is_running():
+                # Create a new loop for our coroutine to avoid conflicts
+                # This should prevent "This event loop is already running" errors
+                temp_loop = asyncio.new_event_loop()
+                try:
+                    return temp_loop.run_until_complete(coro)
+                finally:
+                    temp_loop.close()
+            else:
+                # Use the existing loop
+                return loop.run_until_complete(coro)
 
         except asyncio.TimeoutError as e:
             message = f"Operation timed out after {timeout} seconds"
