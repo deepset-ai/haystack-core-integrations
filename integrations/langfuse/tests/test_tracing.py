@@ -60,6 +60,73 @@ def pipeline_with_env_vars(llm_class, expected_trace):
     return pipe
 
 
+class QualityCheckSpanHandler(DefaultSpanHandler):
+    """Extends default handler to add quality checks with warning levels."""
+
+    def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
+        # First do the default handling (model, usage, etc.)
+        super().handle(span, component_type)
+
+        # Then add our custom quality checks
+        if component_type == "OpenAIChatGenerator":
+            output = span.get_data().get(_COMPONENT_OUTPUT_KEY, {})
+            replies = output.get("replies", [])
+
+            if not replies:
+                span.raw_span().update(level="ERROR", status_message="No response received")
+                return
+
+            reply = replies[0]
+            if "error" in reply.meta:
+                span.raw_span().update(level="ERROR", status_message=f"OpenAI error: {reply.meta['error']}")
+            elif len(reply.text) > 10:
+                span.raw_span().update(level="WARNING", status_message="Response too long (> 10 chars)")
+            else:
+                span.raw_span().update(level="DEFAULT", status_message="Success")
+
+
+def test_pipeline_serialization(monkeypatch):
+    """Test that a pipeline with secrets can be properly serialized and deserialized"""
+
+    # Set test env vars
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "public")
+    monkeypatch.setenv("OPENAI_API_KEY", "openai_api_key")
+
+    # Create pipeline with OpenAI LLM
+    pipe = Pipeline()
+    pipe.add_component(
+        "tracer",
+        LangfuseConnector(
+            name="Chat example - OpenAI",
+            public=True,
+            secret_key=Secret.from_env_var("LANGFUSE_SECRET_KEY"),
+            public_key=Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),
+        ),
+    )
+    pipe.add_component("prompt_builder", ChatPromptBuilder())
+    pipe.add_component("llm", OpenAIChatGenerator())
+    pipe.connect("prompt_builder.prompt", "llm.messages")
+
+    # Serialize
+    serialized = pipe.to_dict()
+
+    # Check serialized secrets
+    tracer_params = serialized["components"]["tracer"]["init_parameters"]
+    assert isinstance(tracer_params["secret_key"], dict)
+    assert tracer_params["secret_key"]["type"] == "env_var"
+    assert tracer_params["secret_key"]["env_vars"] == ["LANGFUSE_SECRET_KEY"]
+    assert isinstance(tracer_params["public_key"], dict)
+    assert tracer_params["public_key"]["type"] == "env_var"
+    assert tracer_params["public_key"]["env_vars"] == ["LANGFUSE_PUBLIC_KEY"]
+
+    # Deserialize
+    new_pipe = Pipeline.from_dict(serialized)
+
+    # Verify pipeline is the same
+    assert new_pipe == pipe
+
+
 @pytest.mark.integration
 @pytest.mark.parametrize(
     "llm_class, env_var, expected_trace",
@@ -105,73 +172,6 @@ def test_tracing_integration(llm_class, env_var, expected_trace, pipeline_fixtur
     assert isinstance(res_json["metadata"], dict)
     assert isinstance(res_json["observations"], list)
     assert res_json["observations"][0]["type"] == "GENERATION"
-
-
-def test_pipeline_serialization(monkeypatch):
-    """Test that a pipeline with secrets can be properly serialized and deserialized"""
-
-    # Set test env vars
-    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
-    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "public")
-    monkeypatch.setenv("OPENAI_API_KEY", "openai_api_key")
-
-    # Create pipeline with OpenAI LLM
-    pipe = Pipeline()
-    pipe.add_component(
-        "tracer",
-        LangfuseConnector(
-            name="Chat example - OpenAI",
-            public=True,
-            secret_key=Secret.from_env_var("LANGFUSE_SECRET_KEY"),
-            public_key=Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),
-        ),
-    )
-    pipe.add_component("prompt_builder", ChatPromptBuilder())
-    pipe.add_component("llm", OpenAIChatGenerator())
-    pipe.connect("prompt_builder.prompt", "llm.messages")
-
-    # Serialize
-    serialized = pipe.to_dict()
-
-    # Check serialized secrets
-    tracer_params = serialized["components"]["tracer"]["init_parameters"]
-    assert isinstance(tracer_params["secret_key"], dict)
-    assert tracer_params["secret_key"]["type"] == "env_var"
-    assert tracer_params["secret_key"]["env_vars"] == ["LANGFUSE_SECRET_KEY"]
-    assert isinstance(tracer_params["public_key"], dict)
-    assert tracer_params["public_key"]["type"] == "env_var"
-    assert tracer_params["public_key"]["env_vars"] == ["LANGFUSE_PUBLIC_KEY"]
-
-    # Deserialize
-    new_pipe = Pipeline.from_dict(serialized)
-
-    # Verify pipeline is the same
-    assert new_pipe == pipe
-
-
-class QualityCheckSpanHandler(DefaultSpanHandler):
-    """Extends default handler to add quality checks with warning levels."""
-
-    def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
-        # First do the default handling (model, usage, etc.)
-        super().handle(span, component_type)
-
-        # Then add our custom quality checks
-        if component_type == "OpenAIChatGenerator":
-            output = span._data.get(_COMPONENT_OUTPUT_KEY, {})
-            replies = output.get("replies", [])
-
-            if not replies:
-                span._span.update(level="ERROR", status_message="No response received")
-                return
-
-            reply = replies[0]
-            if "error" in reply.meta:
-                span._span.update(level="ERROR", status_message=f"OpenAI error: {reply.meta['error']}")
-            elif len(reply.text) > 10:
-                span._span.update(level="WARNING", status_message="Response too long (> 10 chars)")
-            else:
-                span._span.update(level="DEFAULT", status_message="Success")
 
 
 @pytest.mark.integration
