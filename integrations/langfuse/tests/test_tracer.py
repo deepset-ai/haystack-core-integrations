@@ -6,10 +6,12 @@ import datetime
 import logging
 import sys
 from unittest.mock import MagicMock, Mock, patch
+from typing import Optional
 
 import pytest
 from haystack.dataclasses import ChatMessage
 from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer, LangfuseSpan, SpanContext, DefaultSpanHandler
+from haystack_integrations.tracing.langfuse.tracer import _COMPONENT_OUTPUT_KEY
 
 
 class MockSpan:
@@ -43,6 +45,15 @@ class MockTracer:
 
     def flush(self):
         pass
+
+
+class CustomSpanHandler(DefaultSpanHandler):
+    def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
+        if component_type == "OpenAIChatGenerator":
+            output = span.get_data().get(_COMPONENT_OUTPUT_KEY, {})
+            replies = output.get("replies", [])
+            if len(replies[0].text) > 10:
+                span.raw_span().update(level="WARNING", status_message="Response too long (> 10 chars)")
 
 
 class TestLangfuseSpan:
@@ -188,9 +199,33 @@ class TestDefaultSpanHandler:
         }
 
 
-class TestLangfuseTracer:
+class TestCustomSpanHandler:
+    def test_handle(self):
+        mock_span = Mock()
+        mock_span.raw_span.return_value = mock_span
+        mock_span.get_data.return_value = {
+            "haystack.component.type": "OpenAIChatGenerator",
+            "haystack.component.output": {
+                "replies": [
+                    ChatMessage.from_assistant(
+                        "This the LLM's response",
+                        meta={"model": "test_model", "completion_start_time": "2021-07-32"},
+                    )
+                ]
+            },
+        }
 
-    #  LangfuseTracer can be initialized with a Langfuse instance, a name and a boolean value for public.
+        handler = CustomSpanHandler()
+        handler.handle(mock_span, component_type="OpenAIChatGenerator")
+
+        assert mock_span.update.call_count == 1
+        assert mock_span.update.call_args_list[0][1] == {
+            "level": "WARNING",
+            "status_message": "Response too long (> 10 chars)",
+        }
+
+
+class TestLangfuseTracer:
     def test_initialization(self):
         langfuse_instance = Mock()
         tracer = LangfuseTracer(tracer=langfuse_instance, name="Haystack", public=True)
@@ -199,8 +234,6 @@ class TestLangfuseTracer:
         assert tracer._name == "Haystack"
         assert tracer._public
 
-    # check that the trace method is called on the tracer instance with the provided operation name and tags
-    # check that the span is added to the context and removed after the context manager exits
     def test_create_new_span(self):
         mock_raw_span = MagicMock()
         mock_raw_span.operation_name = "operation_name"
@@ -218,6 +251,7 @@ class TestLangfuseTracer:
 
             tracer = LangfuseTracer(tracer=mock_tracer, name="Haystack", public=False)
 
+            # check that the trace method is called on the tracer instance with the provided operation name and tags
             with tracer.trace("operation_name", tags={"tag1": "value1", "tag2": "value2"}) as span:
                 assert len(tracer._context) == 1, "The trace span should have been added to the the root context span"
                 assert span.raw_span().operation_name == "operation_name"
