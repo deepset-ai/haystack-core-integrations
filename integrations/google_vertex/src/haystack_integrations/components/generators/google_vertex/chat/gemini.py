@@ -407,6 +407,7 @@ class VertexAIGeminiChatGenerator:
             safety_settings=self._safety_settings,
             stream=streaming_callback is not None,
             tools=google_tools,
+            tool_config=self._tool_config,
         )
 
         replies = (
