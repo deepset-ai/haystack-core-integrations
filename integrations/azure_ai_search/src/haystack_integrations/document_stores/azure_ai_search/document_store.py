@@ -63,8 +63,8 @@ class AzureAISearchDocumentStore:
     def __init__(
         self,
         *,
-        api_key: Secret = Secret.from_env_var("AZURE_SEARCH_API_KEY", strict=False),  # noqa: B008
-        azure_endpoint: Secret = Secret.from_env_var("AZURE_SEARCH_SERVICE_ENDPOINT", strict=True),  # noqa: B008
+        api_key: Secret = Secret.from_env_var("AZURE_AI_SEARCH_API_KEY", strict=False),  # noqa: B008
+        azure_endpoint: Secret = Secret.from_env_var("AZURE_AI_SEARCH_ENDPOINT", strict=True),  # noqa: B008
         index_name: str = "default",
         embedding_dimension: int = 768,
         metadata_fields: Optional[Dict[str, type]] = None,
@@ -97,12 +97,12 @@ class AzureAISearchDocumentStore:
         For more information on parameters, see the [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/).
         """
 
-        azure_endpoint = azure_endpoint or os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT") or None
+        azure_endpoint = azure_endpoint or os.environ.get("AZURE_AI_SEARCH_ENDPOINT") or None
         if not azure_endpoint:
-            msg = "Please provide an Azure endpoint or set the environment variable AZURE_SEARCH_SERVICE_ENDPOINT."
+            msg = "Please provide an Azure endpoint or set the environment variable AZURE_AI_SEARCH_ENDPOINT."
             raise ValueError(msg)
 
-        api_key = api_key or os.environ.get("AZURE_SEARCH_API_KEY") or None
+        api_key = api_key or os.environ.get("AZURE_AI_SEARCH_API_KEY") or None
 
         self._client = None
         self._index_client = None

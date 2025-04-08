@@ -1,12 +1,16 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from typing import Any, Dict, Optional
 
 import httpx
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.base_serialization import deserialize_class_instance, serialize_class_instance
+from langfuse import Langfuse
 
 from haystack_integrations.tracing.langfuse import LangfuseTracer, SpanHandler
-from langfuse import Langfuse
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +163,7 @@ class LangfuseConnector:
         )
         tracing.enable_tracing(self.tracer)
 
-    @component.output_types(name=str, trace_url=str)
+    @component.output_types(name=str, trace_url=str, trace_id=str)
     def run(self, invocation_context: Optional[Dict[str, Any]] = None):
         """
         Runs the LangfuseConnector component.
@@ -176,7 +180,7 @@ class LangfuseConnector:
             "Langfuse tracer invoked with the following context: '{invocation_context}'",
             invocation_context=invocation_context,
         )
-        return {"name": self.name, "trace_url": self.tracer.get_trace_url()}
+        return {"name": self.name, "trace_url": self.tracer.get_trace_url(), "trace_id": self.tracer.get_trace_id()}
 
     def to_dict(self) -> Dict[str, Any]:
         """

@@ -23,15 +23,15 @@ from haystack_integrations.document_stores.azure_ai_search import DEFAULT_VECTOR
 
 @patch("haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore")
 def test_to_dict(monkeypatch):
-    monkeypatch.setenv("AZURE_SEARCH_API_KEY", "test-api-key")
-    monkeypatch.setenv("AZURE_SEARCH_SERVICE_ENDPOINT", "test-endpoint")
+    monkeypatch.setenv("AZURE_AI_SEARCH_API_KEY", "test-api-key")
+    monkeypatch.setenv("AZURE_AI_SEARCH_ENDPOINT", "test-endpoint")
     document_store = AzureAISearchDocumentStore()
     res = document_store.to_dict()
     assert res == {
         "type": "haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore",
         "init_parameters": {
-            "azure_endpoint": {"env_vars": ["AZURE_SEARCH_SERVICE_ENDPOINT"], "strict": True, "type": "env_var"},
-            "api_key": {"env_vars": ["AZURE_SEARCH_API_KEY"], "strict": False, "type": "env_var"},
+            "azure_endpoint": {"env_vars": ["AZURE_AI_SEARCH_ENDPOINT"], "strict": True, "type": "env_var"},
+            "api_key": {"env_vars": ["AZURE_AI_SEARCH_API_KEY"], "strict": False, "type": "env_var"},
             "index_name": "default",
             "embedding_dimension": 768,
             "metadata_fields": None,
@@ -53,14 +53,14 @@ def test_to_dict(monkeypatch):
 
 @patch("haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore")
 def test_from_dict(monkeypatch):
-    monkeypatch.setenv("AZURE_SEARCH_API_KEY", "test-api-key")
-    monkeypatch.setenv("AZURE_SEARCH_SERVICE_ENDPOINT", "test-endpoint")
+    monkeypatch.setenv("AZURE_AI_SEARCH_API_KEY", "test-api-key")
+    monkeypatch.setenv("AZURE_AI_SEARCH_ENDPOINT", "test-endpoint")
 
     data = {
         "type": "haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore",
         "init_parameters": {
-            "azure_endpoint": {"env_vars": ["AZURE_SEARCH_SERVICE_ENDPOINT"], "strict": True, "type": "env_var"},
-            "api_key": {"env_vars": ["AZURE_SEARCH_API_KEY"], "strict": False, "type": "env_var"},
+            "azure_endpoint": {"env_vars": ["AZURE_AI_SEARCH_ENDPOINT"], "strict": True, "type": "env_var"},
+            "api_key": {"env_vars": ["AZURE_AI_SEARCH_API_KEY"], "strict": False, "type": "env_var"},
             "embedding_dimension": 768,
             "index_name": "default",
             "metadata_fields": None,
@@ -101,8 +101,8 @@ def test_init(_mock_azure_search_client):
 
 @pytest.mark.integration
 @pytest.mark.skipif(
-    not os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT", None) and not os.environ.get("AZURE_SEARCH_API_KEY", None),
-    reason="Missing AZURE_SEARCH_SERVICE_ENDPOINT or AZURE_SEARCH_API_KEY.",
+    not os.environ.get("AZURE_AI_SEARCH_ENDPOINT", None) and not os.environ.get("AZURE_AI_SEARCH_API_KEY", None),
+    reason="Missing AZURE_AI_SEARCH_ENDPOINT or AZURE_AI_SEARCH_API_KEY.",
 )
 class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
 
@@ -147,8 +147,8 @@ TEST_EMBEDDING_2 = _random_embeddings(768)
 
 @pytest.mark.integration
 @pytest.mark.skipif(
-    not os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT", None) and not os.environ.get("AZURE_SEARCH_API_KEY", None),
-    reason="Missing AZURE_SEARCH_SERVICE_ENDPOINT or AZURE_SEARCH_API_KEY.",
+    not os.environ.get("AZURE_AI_SEARCH_ENDPOINT", None) and not os.environ.get("AZURE_AI_SEARCH_API_KEY", None),
+    reason="Missing AZURE_AI_SEARCH_ENDPOINT or AZURE_AI_SEARCH_API_KEY.",
 )
 @pytest.mark.parametrize(
     "document_store",
