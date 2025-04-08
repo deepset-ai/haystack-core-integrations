@@ -1,135 +1,150 @@
 import asyncio
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
-from haystack.tools import Tool, Toolset
+from haystack.tools import Toolset
 
 # Import MCP-related classes
 from .mcp_tool import (
+    MCPConnectionError,
+    MCPServerInfo,
     MCPTool,
-    SSEClient,
-    SSEServerInfo,
 )
 
 logger = logging.getLogger(__name__)
 
 
-class MCPServerError(Exception):
-    """Base class for MCP server-related errors."""
-
-    def __init__(self, message: str) -> None:
-        """
-        Initialize the MCPServerError.
-
-        :param message: Descriptive error message
-        """
-        super().__init__(message)
-        self.message = message
-
-
-class MCPServerConnectionError(MCPServerError):
-    """Error connecting to MCP server."""
-
-    def __init__(self, message: str, server_info: Optional[SSEServerInfo] = None) -> None:
-        """
-        Initialize the MCPServerConnectionError.
-
-        :param message: Descriptive error message
-        :param server_info: Server connection information that was used
-        """
-        super().__init__(message)
-        self.server_info = server_info
-
-
-@dataclass
-class MCPServer(Toolset):
+class MCPToolset(Toolset):
     """
-    A Toolset that connects to an MCP server and provides access to its tools.
+    A Toolset that connects to an MCP (Model Context Protocol) server and provides
+    access to its tools.
 
-    This implementation connects to a remote MCP server using SSE (Server-Sent Events)
-    and dynamically loads the available tools from the server.
+    MCPToolset dynamically discovers and loads tools from any MCP-compliant server,
+    supporting both network-based SSE connections and local process-based stdio connections.
+    This dual connectivity allows for integrating with both remote and local MCP servers.
 
-    Example:
+    Example using SSE (for remote API services):
     ```python
-    from haystack.tools import MCPServer, SSEServerInfo
+    from haystack_integrations.tools.mcp import MCPToolset, SSEServerInfo
     from haystack.components.tools import ToolInvoker
 
-    # Create server info
+    # Connect to a remote MCP server via SSE
     server_info = SSEServerInfo(
-        base_url="http://localhost:8000",
-        token="your-auth-token",  # Optional
-        timeout=30  # Optional, defaults to 30 seconds
+        base_url="https://api.example.com/mcp",  # Remote server URL
+        token="your-auth-token",                 # Authentication token
+        timeout=30                               # Connection timeout in seconds
     )
 
-    # Create the MCP server toolset
-    mcp_server = MCPServer(server_info=server_info)
+    # Create the toolset with the remote server connection info
+    toolset = MCPToolset(server_info=server_info)
 
-    # Use the toolset with a ToolInvoker or ChatGenerator component
-    invoker = ToolInvoker(tools=mcp_server)
+    # Tools are automatically discovered and can be used with Haystack components
+    invoker = ToolInvoker(tools=toolset)
+    result = invoker.run(tool_name="calculator", parameters={"expression": "2+2"})
     ```
 
-    The MCPServer class handles:
-    - Connecting to the MCP server
-    - Discovering available tools
-    - Creating Tool instances for each available tool
-    - Managing the connection lifecycle
-    - Serialization and deserialization of the server configuration
+    Example using stdio (for local tool processes):
+    ```python
+    from haystack_integrations.tools.mcp import MCPToolset, StdioServerInfo
+    from haystack.components.tools import ToolInvoker
+
+    # Connect to a local MCP-compatible tool via stdio
+    server_info = StdioServerInfo(
+        command="python",                         # Command to execute
+        args=["path/to/mcp_tool_server.py"],      # Arguments for the command
+        env={"DEBUG": "true"}                     # Optional environment variables
+    )
+
+    # Create the toolset - discovery works the same way regardless of connection type
+    toolset = MCPToolset(server_info=server_info)
+
+    # Use the toolset in a tool invoker
+    invoker = ToolInvoker(tools=toolset)
+    result = invoker.run(tool_name="time_tool", parameters={"timezone": "UTC"})
+    ```
+
+    Combining with other tools:
+    ```python
+    from haystack.tools import Tool
+    from haystack_integrations.tools.mcp import MCPToolset, SSEServerInfo
+    from haystack.components.tools import ToolInvoker
+
+    # Create a regular Tool
+    def my_python_function(x: int, y: int) -> int:
+        return x * y
+
+    multiply_tool = Tool(
+        name="multiply",
+        description="Multiply two numbers",
+        function=my_python_function,
+        parameters={
+            "type": "object",
+            "properties": {
+                "x": {"type": "integer"},
+                "y": {"type": "integer"}
+            },
+            "required": ["x", "y"]
+        }
+    )
+
+    # Create an MCP toolset connected to a remote server
+    mcp_tools = MCPToolset(
+        server_info=SSEServerInfo(base_url="https://api.example.com/mcp")
+    )
+
+    # Combine them (creates a new toolset)
+    combined_tools = mcp_tools + [multiply_tool]
+
+    # Use the combined toolset
+    invoker = ToolInvoker(tools=combined_tools)
+    ```
+
+    The MCPToolset handles connection and cleanup automatically, making it simple
+    to integrate MCP-compatible tools into Haystack pipelines.
     """
 
-    server_info: SSEServerInfo
-    connection_timeout: int = 30
-    invocation_timeout: int = 30
-    tools: List[Tool] = field(default_factory=list, init=False)
-
-    def __post_init__(self):
+    def __init__(self, server_info: MCPServerInfo, connection_timeout: int = 30, invocation_timeout: int = 30):
         """
-        Initialize the MCP server and load tools.
+        Initialize the MCP toolset.
 
-        This method connects to the MCP server and loads all available tools.
+        :param server_info: Connection information for the MCP server
+        :param connection_timeout: Timeout in seconds for server connection
+        :param invocation_timeout: Default timeout in seconds for tool invocations
         """
+        # Initialize with empty tools list first
+        super().__init__(tools=[])
+
+        # Store configuration
+        self.server_info = server_info
+        self.connection_timeout = connection_timeout
+        self.invocation_timeout = invocation_timeout
+
+        # Connect and load tools
         try:
-            # Create the SSE client
-            client = SSEClient(
-                self.server_info.base_url,
-                self.server_info.token,
-                self.server_info.timeout
-            )
+            # Create the appropriate client using the factory method
+            client = self.server_info.create_client()
 
             # Connect and get available tools
             tools = self._run_sync(client.connect(), timeout=self.connection_timeout)
 
-            # Create MCPTool instances for each available tool
+            # Create MCPTool instances for each available tool and add them
             for tool_info in tools:
                 tool = MCPTool(
                     name=tool_info.name,
                     server_info=self.server_info,
                     description=tool_info.description,
                     connection_timeout=self.connection_timeout,
-                    invocation_timeout=self.invocation_timeout
+                    invocation_timeout=self.invocation_timeout,
                 )
-                self.tools.append(tool)
-
-            # Check for duplicate tool names
-            self._check_duplicate_tool_names()
+                # Handles duplicates and other validation
+                self.add(tool)
 
         except Exception as e:
-            message = f"Failed to initialize MCPServer: {e}"
-            raise MCPServerConnectionError(message, self.server_info) from e
+            message = f"Failed to initialize MCPToolset: {e}"
+            raise MCPConnectionError(message=message, server_info=self.server_info, operation="initialize") from e
 
-    def _check_duplicate_tool_names(self):
-        """
-        Check for duplicate tool names in the toolset.
-
-        :raises ValueError: If duplicate tool names are found
-        """
-        tool_names = [tool.name for tool in self.tools]
-        if len(tool_names) != len(set(tool_names)):
-            duplicates = [name for name in tool_names if tool_names.count(name) > 1]
-            raise ValueError(f"Duplicate tool names found: {duplicates}")
-
-    def _run_sync(self, coro, timeout: Optional[float] = None):
+    def _run_sync(self, coro, timeout: float | None = None):
         """
         Run an async coroutine synchronously.
 
@@ -139,15 +154,33 @@ class MCPServer(Toolset):
         :raises TimeoutError: If the operation times out
         """
         try:
-            return asyncio.run(asyncio.wait_for(coro, timeout=timeout))
+            # Get or create an event loop
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                # Create a new loop if none exists
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            # Apply timeout if specified
+            if timeout is not None:
+                coro = asyncio.wait_for(coro, timeout=timeout)
+
+            # Run the coroutine in the loop
+            return loop.run_until_complete(coro)
+
         except asyncio.TimeoutError as e:
-            raise TimeoutError(f"Operation timed out after {timeout} seconds") from e
+            message = f"Operation timed out after {timeout} seconds"
+            raise TimeoutError(message) from e
+        except Exception as e:
+            # Re-raise any other exceptions
+            raise e
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
-        Serialize the MCPServer to a dictionary.
+        Serialize the MCPToolset to a dictionary.
 
-        :returns: A dictionary representation of the MCPServer
+        :returns: A dictionary representation of the MCPToolset
         """
         return {
             "type": generate_qualified_class_name(type(self)),
@@ -159,98 +192,23 @@ class MCPServer(Toolset):
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "MCPServer":
+    def from_dict(cls, data: dict[str, Any]) -> "MCPToolset":
         """
-        Deserialize an MCPServer from a dictionary.
+        Deserialize an MCPToolset from a dictionary.
 
-        :param data: Dictionary representation of the MCPServer
-        :returns: A new MCPServer instance
+        :param data: Dictionary representation of the MCPToolset
+        :returns: A new MCPToolset instance
         """
         inner_data = data["data"]
-        
+
         # Reconstruct the server_info object
         server_info_dict = inner_data.get("server_info", {})
         server_info_class = import_class_by_name(server_info_dict["type"])
         server_info = server_info_class.from_dict(server_info_dict)
-        
-        # Create a new MCPServer instance
+
+        # Create a new MCPToolset instance
         return cls(
             server_info=server_info,
             connection_timeout=inner_data.get("connection_timeout", 30),
             invocation_timeout=inner_data.get("invocation_timeout", 30),
         )
-
-    def __iter__(self):
-        """
-        Return an iterator over the Tools in this MCPServer.
-
-        :returns: An iterator yielding Tool instances
-        """
-        return iter(self.tools)
-
-    def __contains__(self, item: Any) -> bool:
-        """
-        Check if a tool is in this MCPServer.
-
-        Supports checking by:
-        - Tool instance: tool in mcp_server
-        - Tool name: "tool_name" in mcp_server
-
-        :param item: Tool instance or tool name string
-        :returns: True if contained, False otherwise
-        """
-        if isinstance(item, str):
-            return any(tool.name == item for tool in self.tools)
-        if isinstance(item, Tool):
-            return item in self.tools
-        return False
-
-    def __len__(self) -> int:
-        """
-        Return the number of Tools in this MCPServer.
-
-        :returns: Number of Tools
-        """
-        return len(self.tools)
-
-    def __getitem__(self, index):
-        """
-        Get a Tool by index.
-
-        :param index: Index of the Tool to get
-        :returns: The Tool at the specified index
-        """
-        return self.tools[index]
-
-    def __add__(self, other: Union[Tool, "MCPServer", List[Tool]]) -> "MCPServer":
-        """
-        Concatenate this MCPServer with another Tool, MCPServer, or list of Tools.
-
-        :param other: Another Tool, MCPServer, or list of Tools to concatenate
-        :returns: A new MCPServer containing all tools
-        :raises TypeError: If the other parameter is not a Tool, MCPServer, or list of Tools
-        :raises ValueError: If the combination would result in duplicate tool names
-        """
-        if isinstance(other, Tool):
-            combined_tools = self.tools + [other]
-        elif isinstance(other, (MCPServer, Toolset)):
-            combined_tools = self.tools + list(other)
-        elif isinstance(other, list) and all(isinstance(item, Tool) for item in other):
-            combined_tools = self.tools + other
-        else:
-            raise TypeError(f"Cannot add {type(other).__name__} to MCPServer")
-
-        # Check for duplicates
-        tool_names = [tool.name for tool in combined_tools]
-        if len(tool_names) != len(set(tool_names)):
-            duplicates = [name for name in tool_names if tool_names.count(name) > 1]
-            raise ValueError(f"Duplicate tool names found: {duplicates}")
-
-        # Create a new MCPServer with the combined tools
-        new_server = MCPServer(
-            server_info=self.server_info,
-            connection_timeout=self.connection_timeout,
-            invocation_timeout=self.invocation_timeout,
-        )
-        new_server.tools = combined_tools
-        return new_server

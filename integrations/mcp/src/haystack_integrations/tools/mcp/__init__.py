@@ -11,6 +11,7 @@ from .mcp_tool import (
     StdioClient,
     StdioServerInfo,
 )
+from .mcp_toolset import MCPToolset
 
 __all__ = [
     "MCPClient",
@@ -20,6 +21,7 @@ __all__ = [
     "MCPServerInfo",
     "MCPTool",
     "MCPToolNotFoundError",
+    "MCPToolset",
     "SSEClient",
     "SSEServerInfo",
     "StdioClient",
