@@ -104,7 +104,7 @@ class MongoDBAtlasDocumentStore:
         self._collection_async: Optional[AsyncCollection] = None
 
     @property
-    def connection(self) -> Union[AsyncMongoClient,MongoClient]:
+    def connection(self) -> Union[AsyncMongoClient, MongoClient]:
         if self._connection:
             return self._connection
         if self._connection_async:
