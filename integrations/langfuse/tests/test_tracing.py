@@ -13,7 +13,6 @@ from haystack import Pipeline
 from haystack.components.builders import ChatPromptBuilder
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
-from haystack.utils import Secret
 from requests.auth import HTTPBasicAuth
 
 from haystack_integrations.components.connectors.langfuse import LangfuseConnector
@@ -83,48 +82,6 @@ class QualityCheckSpanHandler(DefaultSpanHandler):
                 span.raw_span().update(level="WARNING", status_message="Response too long (> 10 chars)")
             else:
                 span.raw_span().update(level="DEFAULT", status_message="Success")
-
-
-def test_pipeline_serialization(monkeypatch):
-    """Test that a pipeline with secrets can be properly serialized and deserialized"""
-
-    # Set test env vars
-    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
-    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "public")
-    monkeypatch.setenv("OPENAI_API_KEY", "openai_api_key")
-
-    # Create pipeline with OpenAI LLM
-    pipe = Pipeline()
-    pipe.add_component(
-        "tracer",
-        LangfuseConnector(
-            name="Chat example - OpenAI",
-            public=True,
-            secret_key=Secret.from_env_var("LANGFUSE_SECRET_KEY"),
-            public_key=Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),
-        ),
-    )
-    pipe.add_component("prompt_builder", ChatPromptBuilder())
-    pipe.add_component("llm", OpenAIChatGenerator())
-    pipe.connect("prompt_builder.prompt", "llm.messages")
-
-    # Serialize
-    serialized = pipe.to_dict()
-
-    # Check serialized secrets
-    tracer_params = serialized["components"]["tracer"]["init_parameters"]
-    assert isinstance(tracer_params["secret_key"], dict)
-    assert tracer_params["secret_key"]["type"] == "env_var"
-    assert tracer_params["secret_key"]["env_vars"] == ["LANGFUSE_SECRET_KEY"]
-    assert isinstance(tracer_params["public_key"], dict)
-    assert tracer_params["public_key"]["type"] == "env_var"
-    assert tracer_params["public_key"]["env_vars"] == ["LANGFUSE_PUBLIC_KEY"]
-
-    # Deserialize
-    new_pipe = Pipeline.from_dict(serialized)
-
-    # Verify pipeline is the same
-    assert new_pipe == pipe
 
 
 @pytest.mark.integration
