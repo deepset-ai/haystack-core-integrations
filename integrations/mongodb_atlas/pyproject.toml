@@ -47,6 +47,7 @@ dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
   "pytest-rerunfailures",
+  "pytest-asyncio",
   "ipython",
   "haystack-pydoc-tools",
 ]
@@ -160,3 +161,5 @@ addopts = "--strict-markers"
 markers = [
   "integration: integration tests",
 ]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "class"
