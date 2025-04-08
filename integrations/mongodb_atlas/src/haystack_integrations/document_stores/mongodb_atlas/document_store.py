@@ -109,7 +109,8 @@ class MongoDBAtlasDocumentStore:
             return self._connection
         if self._connection_async:
             return self._connection_async
-        raise DocumentStoreError("The connection is not established yet.")
+        msg = "The connection is not established yet."
+        raise DocumentStoreError(msg)
 
     @property
     def collection(self) -> Union[AsyncCollection, Collection]:
@@ -117,7 +118,8 @@ class MongoDBAtlasDocumentStore:
             return self._collection
         if self._collection_async:
             return self._collection_async
-        raise DocumentStoreError("The collection is not established yet.")
+        msg = "The collection is not established yet."
+        raise DocumentStoreError(msg)
 
     def _connection_is_valid(self) -> bool:
         """
