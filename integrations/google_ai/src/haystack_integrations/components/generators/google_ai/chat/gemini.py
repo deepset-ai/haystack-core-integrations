@@ -18,8 +18,14 @@ from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import AsyncStreamingCallbackT, StreamingCallbackT, StreamingChunk, select_streaming_callback
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole, ToolCall
-from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
+from haystack.tools import Tool, _check_duplicate_tool_names
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
+
+# Compatibility with Haystack 2.12.0 and 2.13.0 - remove after 2.13.0 is released
+try:
+    from haystack.tools import deserialize_tools_or_toolset_inplace
+except ImportError:
+    from haystack.tools import deserialize_tools_inplace as deserialize_tools_or_toolset_inplace
 
 logger = logging.getLogger(__name__)
 
@@ -217,7 +223,7 @@ class GoogleAIGeminiChatGenerator:
             Deserialized component.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-        deserialize_tools_inplace(data["init_parameters"], key="tools")
+        deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
             data["init_parameters"]["generation_config"] = GenerationConfig(**generation_config)
         if (safety_settings := data["init_parameters"].get("safety_settings")) is not None:
