@@ -250,7 +250,11 @@ class DefaultSpanHandler(SpanHandler):
 
     def create_span(self, context: SpanContext) -> LangfuseSpan:
         if self.tracer is None:
-            message = "Tracer is not initialized"
+            message = (
+                "Tracer is not initialized. "
+                "Make sure the environment variable HAYSTACK_CONTENT_TRACING_ENABLED is set to true before "
+                "importing Haystack."
+            )
             raise RuntimeError(message)
 
         tracing_ctx = tracing_context_var.get({})
@@ -353,18 +357,21 @@ class LangfuseTracer(Tracer):
         span_name = tags.get(_COMPONENT_NAME_KEY, operation_name)
         component_type = tags.get(_COMPONENT_TYPE_KEY)
 
-        # Create span using the handler
-        span = self._span_handler.create_span(
-            SpanContext(
-                name=span_name,
-                operation_name=operation_name,
-                component_type=component_type,
-                tags=tags,
-                parent_span=parent_span,
-                trace_name=self._name,
-                public=self._public,
-            )
+        # Create a new span context
+        span_context = SpanContext(
+            name=span_name,
+            operation_name=operation_name,
+            component_type=component_type,
+            tags=tags,
+            # We use the current active span as the parent span if not provided to handle nested pipelines
+            # The nested pipeline (or sub-pipeline) will be a child of the current active span
+            parent_span=parent_span or self.current_span(),
+            trace_name=self._name,
+            public=self._public,
         )
+
+        # Create span using the handler
+        span = self._span_handler.create_span(span_context)
 
         self._context.append(span)
         span.set_tags(tags)
@@ -374,11 +381,11 @@ class LangfuseTracer(Tracer):
         # Let the span handler process the span
         self._span_handler.handle(span, component_type)
 
-        raw_span = span.raw_span()
-
         # In this section, we finalize both regular spans and generation spans created using the LangfuseSpan class.
         # It's important to end() these spans to ensure they are properly closed and all relevant data is recorded.
-        # Note that we do not call end() on the main trace span itself, as its lifecycle is managed differently.
+        # Note that we do not call end() on the main trace span itself (StatefulTraceClient), as its lifecycle is
+        # managed differently.
+        raw_span = span.raw_span()
         if isinstance(raw_span, (StatefulSpanClient, StatefulGenerationClient)):
             raw_span.end()
         self._context.pop()
