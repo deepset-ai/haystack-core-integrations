@@ -4,11 +4,12 @@
 
 import os
 import time
+from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 import pytest
 import requests
-from haystack import Pipeline
+from haystack import Pipeline, component
 from haystack.components.builders import ChatPromptBuilder
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
@@ -65,18 +66,16 @@ def basic_pipeline(llm_class, expected_trace):
         (CohereChatGenerator, "COHERE_API_KEY", "Cohere"),
     ],
 )
-@pytest.mark.parametrize("pipeline_fixture", ["basic_pipeline"])
-def test_tracing_integration(llm_class, env_var, expected_trace, pipeline_fixture, request):
+def test_tracing_integration(llm_class, env_var, expected_trace, basic_pipeline):
     if not all([os.environ.get("LANGFUSE_SECRET_KEY"), os.environ.get("LANGFUSE_PUBLIC_KEY"), os.environ.get(env_var)]):
         pytest.skip(f"Missing required environment variables: LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, or {env_var}")
 
-    pipe = request.getfixturevalue(pipeline_fixture)
     messages = [
         ChatMessage.from_system("Always respond in German even if some input data is in other languages."),
         ChatMessage.from_user("Tell me about {{location}}"),
     ]
 
-    response = pipe.run(
+    response = basic_pipeline.run(
         data={
             "prompt_builder": {"template_variables": {"location": "Berlin"}, "template": messages},
             "tracer": {"invocation_context": {"user_id": "user_42"}},
@@ -101,3 +100,82 @@ def test_tracing_integration(llm_class, env_var, expected_trace, pipeline_fixtur
     assert isinstance(res_json["metadata"], dict)
     assert isinstance(res_json["observations"], list)
     assert res_json["observations"][0]["type"] == "GENERATION"
+
+
+@pytest.mark.integration
+def test_tracing_with_sub_pipelines():
+    if not all(
+        [os.environ.get("LANGFUSE_SECRET_KEY"), os.environ.get("LANGFUSE_PUBLIC_KEY"), os.environ.get("OPENAI_API_KEY")]
+    ):
+        pytest.skip(
+            f"Missing required environment variables: LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, or OPENAI_API_KEY"
+        )
+
+    @component
+    class SubGenerator:
+        def __init__(self):
+            self.sub_pipeline = Pipeline()
+            self.sub_pipeline.add_component("llm", OpenAIChatGenerator())
+
+        @component.output_types(replies=List[ChatMessage])
+        def run(self, messages: List[ChatMessage]) -> Dict[str, Any]:
+            return {"replies": self.sub_pipeline.run(data={"llm": {"messages": messages}})["llm"]["replies"]}
+
+    @component
+    class SubPipeline:
+        def __init__(self):
+            self.sub_pipeline = Pipeline()
+            self.sub_pipeline.add_component("prompt_builder", ChatPromptBuilder())
+            self.sub_pipeline.add_component("sub_llm", SubGenerator())
+            self.sub_pipeline.connect("prompt_builder.prompt", "sub_llm.messages")
+
+        @component.output_types(replies=List[ChatMessage])
+        def run(self, messages: List[ChatMessage]) -> Dict[str, Any]:
+            return {
+                "replies": self.sub_pipeline.run(
+                    data={"prompt_builder": {"template": messages, "template_variables": {"location": "Berlin"}}}
+                )["sub_llm"]["replies"]
+            }
+
+    # Create the main pipeline
+    pipe = Pipeline()
+    pipe.add_component("tracer", LangfuseConnector(name="Sub-pipeline example"))
+    pipe.add_component("sub_pipeline", SubPipeline())
+
+    msgs = [
+        ChatMessage.from_system("Always respond in German even if some input data is in other languages."),
+        ChatMessage.from_user("Tell me about {{location}}"),
+    ]
+    response = pipe.run(
+        data={"sub_pipeline": {"messages": msgs}, "tracer": {"invocation_context": {"user_id": "user_42"}}}
+    )
+
+    assert "Berlin" in response["sub_pipeline"]["replies"][0].text
+    assert response["tracer"]["trace_url"]
+    assert response["tracer"]["trace_id"]
+
+    trace_url = response["tracer"]["trace_url"]
+    uuid = os.path.basename(urlparse(trace_url).path)
+    url = f"https://cloud.langfuse.com/api/public/traces/{uuid}"
+
+    res = poll_langfuse(url)
+    assert res.status_code == 200, f"Failed to retrieve data from Langfuse API: {res.status_code}"
+
+    res_json = res.json()
+    assert res_json["name"] == "Sub-pipeline example"
+    assert isinstance(res_json["input"], dict)
+    assert "sub_pipeline" in res_json["input"]
+    assert "messages" in res_json["input"]["sub_pipeline"]
+    assert res_json["input"]["tracer"]["invocation_context"]["user_id"] == "user_42"
+    assert isinstance(res_json["output"], dict)
+    assert isinstance(res_json["metadata"], dict)
+    assert isinstance(res_json["observations"], list)
+
+    observations = res_json["observations"]
+
+    haystack_pipeline_run_observations = [obs for obs in observations if obs["name"] == "haystack.pipeline.run"]
+    # There should be two observations for the haystack.pipeline.run span: one for each sub pipeline
+    # Main pipeline is stored under the name "Sub-pipeline example"
+    assert len(haystack_pipeline_run_observations) == 2
+    assert "prompt_builder" in haystack_pipeline_run_observations[0]["input"]
+    assert "llm" in haystack_pipeline_run_observations[1]["input"]
