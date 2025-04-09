@@ -113,7 +113,6 @@ class MongoDBAtlasDocumentStore:
             # not possible to await in __del__, so we just close the connection
             self._connection_async.close()
 
-
     @property
     def connection(self) -> Union[AsyncMongoClient, MongoClient]:
         if self._connection:
