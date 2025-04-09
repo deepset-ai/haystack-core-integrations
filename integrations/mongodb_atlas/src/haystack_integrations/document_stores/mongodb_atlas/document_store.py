@@ -131,7 +131,6 @@ class MongoDBAtlasDocumentStore:
             # not possible to await in __del__, so we just close the connection
             self._connection_async.close()
 
-
     def _connection_is_valid(self) -> bool:
         """
         Checks if the connection to MongoDB Atlas is valid.

@@ -22,11 +22,11 @@ def get_document_store():
         full_text_search_index="full_text_index",
     )
 
+
 @pytest.mark.skipif(
     not os.environ.get("MONGO_CONNECTION_STRING_2"),
     reason="No MongoDB Atlas connection string provided",
 )
-
 @pytest.mark.integration
 class TestFullTextRetrieval:
 
@@ -39,7 +39,7 @@ class TestFullTextRetrieval:
     async def setup(self, document_store):
         await document_store._ensure_connection_setup_async()
         await document_store._collection_async.delete_many({})
-        await document_store.write_documents_async  (
+        await document_store.write_documents_async(
             [
                 Document(content="The quick brown fox chased the dog", meta={"meta_field": "right_value"}),
                 Document(content="The fox was brown", meta={"meta_field": "right_value"}),
