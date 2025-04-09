@@ -44,7 +44,7 @@ git_describe_command = 'git describe --tags --match="integrations/snowflake-v[0-
 
 [tool.hatch.envs.default]
 installer = "uv"
-dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "haystack-pydoc-tools", "pytest>=7.4.2", "pytest-mock==3.14.0", "pytest-mock==3.14.0"]
+dependencies = ["coverage[toml]>=6.5", "pytest-rerunfailures", "haystack-pydoc-tools", "pytest>=7.4.2", "pytest-mock==3.14.0"]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
