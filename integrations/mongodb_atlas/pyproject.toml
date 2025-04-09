@@ -122,8 +122,6 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
-  # temporarily ignore some rules - remove before merging to main
-  "T201"
 ]
 unfixable = [
   # Don't touch unused imports
