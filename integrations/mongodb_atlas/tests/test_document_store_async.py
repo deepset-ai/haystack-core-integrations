@@ -56,10 +56,10 @@ class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
                 vector_search_index="cosine_index",
                 full_text_search_index="full_text_index",
             )
-            
+
             # Initialize the async connection immediately in the same event loop
             await store._ensure_connection_setup_async()
-            
+
             yield store
             database[collection_name].drop()
 

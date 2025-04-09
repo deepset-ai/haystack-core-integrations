@@ -113,7 +113,7 @@ class MongoDBAtlasDocumentStore:
             # not possible to await in __del__, so we just close the connection
             self._connection_async.close()
 
-    def __aexit__(self) -> None:
+    def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """
         Asynchronous exit method to close MongoDB connections when the instance is destroyed.
         """
