@@ -121,6 +121,17 @@ class MongoDBAtlasDocumentStore:
         msg = "The collection is not established yet."
         raise DocumentStoreError(msg)
 
+    def __del__(self) -> None:
+        """
+        Destructor method to close MongoDB connections when the instance is destroyed.
+        """
+        if self._connection:
+            self._connection.close()
+        if self._connection_async:
+            # not possible to await in __del__, so we just close the connection
+            self._connection_async.close()
+
+
     def _connection_is_valid(self) -> bool:
         """
         Checks if the connection to MongoDB Atlas is valid.
@@ -745,8 +756,10 @@ class MongoDBAtlasDocumentStore:
         ]
 
         await self._ensure_connection_setup_async()
+
         try:
-            documents = self._collection.aggregate(pipeline).to_list()  # type: ignore[union-attr]
+            cursor = await self._collection_async.aggregate(pipeline)  # type: ignore[union-attr]
+            documents = await cursor.to_list(length=None)
         except Exception as e:
             error_msg = f"Failed to retrieve documents from MongoDB Atlas: {e}"
             if filters:

@@ -22,11 +22,11 @@ def get_document_store():
         full_text_search_index="full_text_index",
     )
 
-
 @pytest.mark.skipif(
     not os.environ.get("MONGO_CONNECTION_STRING_2"),
     reason="No MongoDB Atlas connection string provided",
 )
+
 @pytest.mark.integration
 class TestFullTextRetrieval:
 
@@ -35,10 +35,11 @@ class TestFullTextRetrieval:
         return get_document_store()
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup_teardown(self, document_store):
-        document_store._ensure_connection_setup()
-        document_store._collection.delete_many({})
-        document_store.write_documents(
+    @pytest.mark.asyncio
+    async def setup(self, document_store):
+        await document_store._ensure_connection_setup_async()
+        await document_store._collection_async.delete_many({})
+        await document_store.write_documents_async  (
             [
                 Document(content="The quick brown fox chased the dog", meta={"meta_field": "right_value"}),
                 Document(content="The fox was brown", meta={"meta_field": "right_value"}),
@@ -50,15 +51,6 @@ class TestFullTextRetrieval:
         # Wait for documents to be indexed
         sleep(5)
 
-        yield
-
-    @pytest.fixture(autouse=True)
-    async def setup_async_connection(self, document_store):
-        """
-        Ensures that the async connection is set up in the same event loop as the test.
-        This fixture is automatically used by all async tests.
-        """
-        await document_store._ensure_connection_setup_async()
         yield
 
     @pytest.mark.asyncio
@@ -80,7 +72,6 @@ class TestFullTextRetrieval:
     @pytest.mark.asyncio
     async def test_filters_retrieval_async(self, document_store: MongoDBAtlasDocumentStore):
         filters = {"field": "meta.meta_field", "operator": "==", "value": "right_value"}
-
         results = await document_store._fulltext_retrieval_async(query="fox", top_k=3, filters=filters)
         assert len(results) == 2
         for doc in results:
