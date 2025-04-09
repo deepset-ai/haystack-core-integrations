@@ -31,13 +31,16 @@ def get_document_store():
 class TestFullTextRetrieval:
 
     @pytest.fixture(scope="class")
-    def document_store(self) -> MongoDBAtlasDocumentStore:
-        return get_document_store()
+    async def document_store(self) -> MongoDBAtlasDocumentStore:
+        # Create the document store in the same event loop as the tests
+        store = get_document_store()
+        # Initialize the async connection immediately
+        await store._ensure_connection_setup_async()
+        return store
 
     @pytest.fixture(autouse=True, scope="class")
     @pytest.mark.asyncio
     async def setup(self, document_store):
-        await document_store._ensure_connection_setup_async()
         await document_store._collection_async.delete_many({})
         await document_store.write_documents_async(
             [

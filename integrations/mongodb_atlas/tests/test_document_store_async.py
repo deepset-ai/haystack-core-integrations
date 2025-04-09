@@ -37,7 +37,7 @@ def test_init_is_lazy(_mock_client):
 @pytest.mark.integration
 class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
     @pytest.fixture
-    def document_store(self):
+    async def document_store(self):
         database_name = "haystack_integration_test"
         collection_name = "test_collection_" + str(uuid4())
 
@@ -56,6 +56,10 @@ class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
                 vector_search_index="cosine_index",
                 full_text_search_index="full_text_index",
             )
+            
+            # Initialize the async connection immediately in the same event loop
+            await store._ensure_connection_setup_async()
+            
             yield store
             database[collection_name].drop()
 
