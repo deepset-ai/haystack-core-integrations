@@ -215,6 +215,10 @@ class MongoDBAtlasDocumentStore:
                 self.mongo_connection_string.resolve_value(), driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
             )
 
+        print("\n\n\n\n")
+        print(self._connection_async)
+        print("\n\n\n\n")
+
         if not await self._connection_is_valid_async():
             msg = "Connection to MongoDB Atlas failed."
             raise DocumentStoreError(msg)
