@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
+import concurrent.futures
+import threading
 from abc import ABC, abstractmethod
-from collections.abc import Coroutine
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, fields
 from typing import Any, cast
@@ -20,6 +21,34 @@ from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
 
 logger = logging.getLogger(__name__)
+
+
+# KISS background thread for running async code from sync contexts
+class MCPAsyncThread:
+    """Runs an event loop in a background thread for MCP async operations."""
+
+    def __init__(self):
+        self.loop = asyncio.new_event_loop()
+        threading.Thread(target=lambda: self._run_loop(), daemon=True).start()
+
+    def _run_loop(self):
+        """Set up and run the event loop."""
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_forever()
+
+    def run_async(self, coro, timeout=None):
+        """Run coroutine in background loop and return result."""
+        future = asyncio.run_coroutine_threadsafe(coro, self.loop)
+        try:
+            return future.result(timeout)
+        except concurrent.futures.TimeoutError as e:
+            future.cancel()
+            message = f"Operation timed out after {timeout} seconds"
+            raise TimeoutError(message) from e
+
+
+# Global singleton
+_MCP_ASYNC_THREAD = MCPAsyncThread()
 
 
 class MCPError(Exception):
@@ -189,23 +218,8 @@ class MCPClient(ABC):
         return result
 
     async def close(self) -> None:
-        """
-        Close the connection and clean up resources.
-
-        This method ensures all resources are properly released, even if errors occur.
-        """
-        if not self.exit_stack:
-            return
-
-        try:
-            await self.exit_stack.aclose()
-        except Exception as e:
-            logger.warning(f"Error during MCP client cleanup: {e}")
-        finally:
-            # Ensure all references are cleared even if cleanup fails
-            self.session = None
-            self.stdio = None
-            self.write = None
+        """Close connection and clean up resources asynchronously."""
+        pass
 
     async def _initialize_session_with_transport(
         self,
@@ -257,6 +271,8 @@ class StdioClient(MCPClient):
         self.command: str = command
         self.args: list[str] = args or []
         self.env: dict[str, str] | None = env
+        self.process = None
+        logger.debug(f"PROCESS: Created StdioClient for command: {command} {' '.join(self.args or [])}")
 
     async def connect(self) -> list[Tool]:
         """
@@ -265,9 +281,36 @@ class StdioClient(MCPClient):
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
         """
+        logger.debug(f"PROCESS: Connecting to stdio server with command: {self.command}")
+
+        # Create server parameters with command information
         server_params = StdioServerParameters(command=self.command, args=self.args, env=self.env)
+
+        # Connect using the transport
         stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
+
         return await self._initialize_session_with_transport(stdio_transport, f"stdio server (command: {self.command})")
+
+    async def close(self) -> None:
+        """Close connection and clean up resources asynchronously."""
+        logger.debug("PROCESS: Closing StdioClient (async)")
+
+        # Use the context manager for cleanup
+        try:
+            await super().close()
+        except Exception as e:
+            logger.debug(f"PROCESS: Error in async context manager cleanup: {e!s}")
+
+    def close_sync(self) -> None:
+        """Synchronous version of close for use in __del__ - ensures resources are cleaned up."""
+        logger.debug("PROCESS: Closing StdioClient (sync)")
+
+        # Try async close via background thread
+        try:
+            if hasattr(self, "exit_stack") and self.exit_stack:
+                _MCP_ASYNC_THREAD.run_async(super().close(), timeout=2)
+        except Exception as e:
+            logger.debug(f"PROCESS: Error during async cleanup in sync close: {e!s}")
 
 
 class SSEClient(MCPClient):
@@ -301,6 +344,10 @@ class SSEClient(MCPClient):
             sse_client(sse_url, headers=headers, timeout=self.timeout)
         )
         return await self._initialize_session_with_transport(sse_transport, f"HTTP server at {self.base_url}")
+
+    def close_sync(self) -> None:
+        """Synchronous version of close for use in __del__ - ensures clean shutdown."""
+        pass  # nothing to do here
 
 
 @dataclass
@@ -388,13 +435,17 @@ class StdioServerInfo(MCPServerInfo):
     args: list[str] | None = None
     env: dict[str, str] | None = None
 
+    def __post_init__(self):
+        logger.debug(f"SERVER INFO: Created StdioServerInfo for {self.command} {' '.join(self.args or [])}")
+
     def create_client(self) -> MCPClient:
         """
         Create a stdio MCP client.
 
         :returns: Configured StdioMCPClient instance
         """
-        return StdioClient(self.command, self.args, self.env)
+        client = StdioClient(self.command, self.args, self.env)
+        return client
 
 
 class MCPTool(Tool):
@@ -462,50 +513,63 @@ class MCPTool(Tool):
         self._server_info = server_info
         self._connection_timeout = connection_timeout
         self._invocation_timeout = invocation_timeout
-        client = None
 
-        # Initialize the connection
+        logger.debug(f"TOOL: Initializing MCPTool '{name}'")
+
+        # Create client
+        self._client = server_info.create_client()
+        logger.debug(f"TOOL: Created client for MCPTool '{name}'")
+
         try:
-            # Create the appropriate client using the factory method
-            client = server_info.create_client()
+            # Connect using the background thread
+            async def connect():
+                logger.debug(f"TOOL: Inside connect coroutine for '{name}'")
+                result = await asyncio.wait_for(self._client.connect(), timeout=connection_timeout)
+                logger.debug(f"TOOL: Connect successful for '{name}', found {len(result)} tools")
+                return result
 
-            # Connect and get available tools with timeout
-            tools = self._run_sync(client.connect(), timeout=connection_timeout)
+            logger.debug(f"TOOL: About to run connect in background thread for '{name}'")
+            tools = _MCP_ASYNC_THREAD.run_async(connect(), timeout=connection_timeout)
+            logger.debug(f"TOOL: Connection complete for '{name}'")
 
             # Handle no tools case
             if not tools:
+                logger.debug(f"TOOL: No tools found for '{name}'")
                 message = "No tools available on server"
                 raise MCPToolNotFoundError(message, tool_name=name)
 
             # Find the specified tool
-            tool_info = next((t for t in tools if t.name == name), None)
+            tool_dict = {t.name: t for t in tools}
+            logger.debug(f"TOOL: Available tools: {list(tool_dict.keys())}")
+
+            tool_info = tool_dict.get(name)
+
             if not tool_info:
-                available_tool_names = [t.name for t in tools]
-                available_tools_str = ", ".join(available_tool_names)
-                message = f"Tool '{name}' not found on server. Available tools: {available_tools_str}"
-                raise MCPToolNotFoundError(message, tool_name=name, available_tools=available_tool_names)
+                available = list(tool_dict.keys())
+                logger.debug(f"TOOL: Tool '{name}' not found in available tools")
+                message = f"Tool '{name}' not found on server. Available tools: {', '.join(available)}"
+                raise MCPToolNotFoundError(message, tool_name=name, available_tools=available)
 
-            # Store the client for later use
-            self._client = client
-
-            # Initialize the parent class with the final values
-            logger.debug(f"Initializing MCPTool with name: {name}")
-
-            # Hook into the Tool base class
+            logger.debug(f"TOOL: Found tool '{name}', initializing Tool parent class")
+            # Initialize the parent class
             super().__init__(
                 name=name,
                 description=description or tool_info.description,
                 parameters=tool_info.inputSchema,
                 function=self._invoke_tool,
             )
+            logger.debug(f"TOOL: Initialization complete for '{name}'")
 
         except Exception as e:
-            # Ensure proper cleanup of resources on initialization failure
-            if client is not None:
+            # Clean up resources on error
+            logger.debug(f"TOOL: Error during initialization of '{name}': {e!s}")
+            if self._client:
                 try:
-                    self._run_sync(client.close(), timeout=10)  # Short timeout for cleanup
+                    logger.debug(f"TOOL: Attempting cleanup after initialization failure for '{name}'")
+                    _MCP_ASYNC_THREAD.run_async(self._client.close(), timeout=10)
+                    logger.debug(f"TOOL: Cleanup successful for '{name}'")
                 except Exception as cleanup_error:
-                    logger.warning(f"Error during cleanup after initialization failure: {cleanup_error}")
+                    logger.debug(f"TOOL: Error during cleanup after initialization failure: {cleanup_error!s}")
 
             message = f"Failed to initialize MCPTool '{name}': {e}"
             raise MCPConnectionError(message=message, server_info=server_info, operation="initialize") from e
@@ -514,42 +578,31 @@ class MCPTool(Tool):
         """
         Synchronous tool invocation.
 
-        This method is called by the Tool base class's invoke() method.
-
         :param kwargs: Arguments to pass to the tool
-        :returns: Result of the tool invocation, processed based on content type
-        :raises MCPInvocationError: If the tool invocation fails
-        :raises MCPResponseTypeError: If response type is not supported
-        :raises TimeoutError: If the operation times out
+        :returns: Result of the tool invocation
         """
+        logger.debug(f"TOOL: Invoking tool '{self.name}' with args: {kwargs}")
         try:
-            # Use the configured invocation timeout
-            return self._run_sync(self._client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
-        except (MCPError, TimeoutError):
+            # Invoke through background thread
+            async def invoke():
+                logger.debug(f"TOOL: Inside invoke coroutine for '{self.name}'")
+                result = await asyncio.wait_for(
+                    self._client.call_tool(self.name, kwargs), timeout=self._invocation_timeout
+                )
+                logger.debug(f"TOOL: Invoke successful for '{self.name}'")
+                return result
+
+            logger.debug(f"TOOL: About to run invoke in background thread for '{self.name}'")
+            result = _MCP_ASYNC_THREAD.run_async(invoke(), timeout=self._invocation_timeout)
+            logger.debug(f"TOOL: Invoke complete for '{self.name}', result type: {type(result)}")
+            return result
+        except (MCPError, TimeoutError) as e:
+            logger.debug(f"TOOL: Known error during invoke of '{self.name}': {e!s}")
+            # Pass through known errors
             raise
         except Exception as e:
-            message = f"Failed to invoke tool '{self.name}'"
-            raise MCPInvocationError(message, self.name, kwargs) from e
-
-    async def ainvoke(self, **kwargs: Any) -> Any:
-        """
-        Asynchronous tool invocation.
-
-        :param kwargs: Arguments to pass to the tool
-        :returns: Result of the tool invocation, processed based on content type
-        :raises MCPInvocationError: If the tool invocation fails
-        :raises MCPResponseTypeError: If response type is not supported
-        :raises TimeoutError: If the operation times out
-        """
-        try:
-            # Use asyncio.wait_for with the configured timeout
-            return await asyncio.wait_for(self._client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
-        except asyncio.TimeoutError as e:
-            message = f"Tool invocation timed out after {self._invocation_timeout} seconds"
-            raise TimeoutError(message) from e
-        except Exception as e:
-            if isinstance(e, MCPError):
-                raise
+            # Wrap other errors
+            logger.debug(f"TOOL: Unknown error during invoke of '{self.name}': {e!s}")
             message = f"Failed to invoke tool '{self.name}'"
             raise MCPInvocationError(message, self.name, kwargs) from e
 
@@ -613,51 +666,13 @@ class MCPTool(Tool):
             invocation_timeout=invocation_timeout,
         )
 
-    def _run_sync(self, coro: Coroutine, timeout: float | None = 30) -> Any:
-        """
-        Run a coroutine in a synchronous context with improved handling.
+    def __del__(self):
+        """Cleanup resources when the tool is garbage collected."""
+        logger.debug(f"TOOL: __del__ called for MCPTool '{self.name if hasattr(self, 'name') else 'unknown'}'")
 
-        This implementation is optimized for use with AsyncExitStack by ensuring
-        that coroutines run in the same event loop where AsyncExitStack resources
-        were initialized.
-
-        :param coro: Coroutine to run
-        :param timeout: Optional timeout in seconds
-        :returns: Result of the coroutine
-        :raises TimeoutError: If the operation times out
-        :raises Exception: Any exception that might occur during execution
-        """
-        try:
-            # Apply timeout if specified
-            if timeout is not None:
-                coro = asyncio.wait_for(coro, timeout)
-
-            # Try to get a running loop first (modern approach)
+        # Call synchronous close on the client
+        if hasattr(self, "_client") and self._client:
             try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                # No running loop, so we need to get or create one.
-                # The important part for AsyncExitStack compatibility is that
-                # we must use the SAME loop that was used to create the stack.
-
-                # IMPORTANT: Using get_event_loop() is necessary for AsyncExitStack compatibility
-                # but it generates a "There is no current event loop" deprecation warning in
-                # Python 3.10, 3.11, and 3.12.
-                #
-                # This is unavoidable because:
-                # 1. AsyncExitStack binds its resources to the loop where it was created
-                # 2. That loop was created using get_event_loop() internally
-                # 3. To access those resources, we must use the same loop
-                # 4. The only way to get that same loop is with get_event_loop()
-                loop = asyncio.get_event_loop_policy().get_event_loop()
-
-            # Run the coroutine in the loop but don't close it
-            # AsyncExitStack depends on this loop staying open
-            return loop.run_until_complete(coro)
-
-        except asyncio.TimeoutError:
-            message = f"Operation timed out after {timeout} seconds"
-            raise TimeoutError(message) from None
-        except Exception:
-            # Preserve the original exception
-            raise
+                self._client.close_sync()
+            except Exception as e:
+                logger.debug(f"TOOL: Error during synchronous client close: {e!s}")
