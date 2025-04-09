@@ -52,6 +52,15 @@ class TestFullTextRetrieval:
 
         yield
 
+    @pytest.fixture(autouse=True)
+    async def setup_async_connection(self, document_store):
+        """
+        Ensures that the async connection is set up in the same event loop as the test.
+        This fixture is automatically used by all async tests.
+        """
+        await document_store._ensure_connection_setup_async()
+        yield
+
     @pytest.mark.asyncio
     async def test_query_retrieval_async(self, document_store: MongoDBAtlasDocumentStore):
         results = await document_store._fulltext_retrieval_async(query="fox", top_k=2)
