@@ -38,7 +38,7 @@ class SnowflakeTableRetriever:
     query = "SELECT * FROM table_name"
     results = executor.run(query=query)
     print(results["dataframe"].head(2))
-    print(results["dataframe_markdown"])
+    print(results["table"])
     ```
     """
 
@@ -175,7 +175,7 @@ class SnowflakeTableRetriever:
         :param query: The SQL query to execute.
         :returns: A dictionary containing:
             - `"dataframe"`: A Pandas DataFrame with the query results.
-            - `"dataframe_markdown"`: A Markdown-formatted string representation of the DataFrame.
+            - `"table"`: A Markdown-formatted string representation of the DataFrame.
         """
         # Validate SQL query
         if not query:
