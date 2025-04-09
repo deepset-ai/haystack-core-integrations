@@ -103,6 +103,7 @@ class MongoDBAtlasDocumentStore:
         self._collection: Optional[Collection] = None
         self._collection_async: Optional[AsyncCollection] = None
 
+    # ToDo: Remove this
     def __del__(self) -> None:
         """
         Destructor method to close MongoDB connections when the instance is destroyed.
