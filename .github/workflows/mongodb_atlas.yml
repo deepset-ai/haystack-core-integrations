@@ -28,15 +28,12 @@ env:
 jobs:
   run:
     name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
-	name: Test
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        # os: [ubuntu-latest, windows-latest, macos-latest]
-		os: ubuntu-latest
-        #python-version: ['3.9', '3.13']
-		python-version: '3.13'
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.9', '3.13']
 
     steps:
       - uses: actions/checkout@v4
