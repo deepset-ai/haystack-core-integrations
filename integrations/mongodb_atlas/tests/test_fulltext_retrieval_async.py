@@ -5,22 +5,14 @@
 import os
 from time import sleep
 from typing import List, Union
+import asyncio
 
 import pytest
 from haystack import Document
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
-
-
-def get_document_store():
-    return MongoDBAtlasDocumentStore(
-        mongo_connection_string=Secret.from_env_var("MONGO_CONNECTION_STRING_2"),
-        database_name="haystack_test",
-        collection_name="test_collection",
-        vector_search_index="cosine_index",
-        full_text_search_index="full_text_index",
-    )
+from tests.test_utils import AsyncDocumentStoreContext
 
 
 @pytest.mark.skipif(
@@ -32,15 +24,18 @@ class TestFullTextRetrieval:
 
     @pytest.fixture(scope="class")
     async def document_store(self) -> MongoDBAtlasDocumentStore:
-        # Create the document store in the same event loop as the tests
-        store = get_document_store()
-        # Initialize the async connection immediately
-        await store._ensure_connection_setup_async()
-        return store
+        async with AsyncDocumentStoreContext(
+            mongo_connection_string=Secret.from_env_var("MONGO_CONNECTION_STRING_2"),
+            database_name="haystack_test",
+            collection_name="test_collection",
+            vector_search_index="cosine_index",
+            full_text_search_index="full_text_index",
+        ) as store:
+            yield store
 
     @pytest.fixture(autouse=True, scope="class")
-    @pytest.mark.asyncio
     async def setup(self, document_store):
+        # clean up the collection and insert test documents
         await document_store._collection_async.delete_many({})
         await document_store.write_documents_async(
             [
