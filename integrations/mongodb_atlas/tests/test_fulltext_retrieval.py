@@ -164,7 +164,7 @@ class TestFullTextRetrieval:
         for doc in results:
             assert "fox" in doc.content
         assert results[0].score >= results[1].score
-    
+
     @pytest.mark.asyncio
     async def test_filters_retrieval_async(self, document_store: MongoDBAtlasDocumentStore):
         filters = {"field": "meta.meta_field", "operator": "==", "value": "right_value"}
@@ -200,4 +200,4 @@ class TestFullTextRetrieval:
     async def test_synonyms_and_fuzzy_raises_value_error_async(self, document_store: MongoDBAtlasDocumentStore):
         with pytest.raises(ValueError):
             await document_store._fulltext_retrieval_async(query="fox", synonyms="wolf", fuzzy={"maxEdits": 1})
-    """
+"""
