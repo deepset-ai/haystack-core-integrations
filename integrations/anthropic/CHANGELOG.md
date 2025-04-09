@@ -1,14 +1,31 @@
 # Changelog
 
+## [unreleased]
+
+
+### 🧪 Testing
+
+- Update tool serialization in tests to include `inputs_from_state` and `outputs_to_state` (#1581)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🧹 Chores
+
+- Update ChatGenerators with `deserialize_tools_or_toolset_inplace` (#1623)
+
+### 🌀 Miscellaneous
+
+- Improve `streaming_callback` type and use async version in `run_async` (#1579)
+- Test: Update tests to check for `outputs_to_string` in Tool when running haystack-ai>=2.12 (#1585)
+
 ## [integrations/anthropic-v2.4.0] - 2025-03-06
 
 ### 🚀 Features
 
 - Support extended thinking mode with AnthropicGenerator (#1455)
 
-### 📚 Documentation
-
-- Update changelog for integrations/anthropic (#1474)
 
 ## [integrations/anthropic-v2.3.0] - 2025-03-05
 
@@ -16,9 +33,6 @@
 
 - Support thinking parameter in Anthropic generators (#1473)
 
-### 🌀 Miscellaneous
-
-- Docs: update changelog for integrations/anthropic (#1471)
 
 ## [integrations/anthropic-v2.2.1] - 2025-03-05
 
@@ -26,9 +40,6 @@
 
 - Apply ddtrace workaround to chat generator (#1470)
 
-### 🌀 Miscellaneous
-
-- Docs: update changelog for integrations/anthropic (#1465)
 
 ## [integrations/anthropic-v2.2.0] - 2025-03-05
 
@@ -40,9 +51,6 @@
 
 - Update serialization/deserialization tests to add new parameter `connection_type_validation` (#1464)
 
-### 🌀 Miscellaneous
-
-- Docs: update changelog for integrations/anthropic (#1459)
 
 ## [integrations/anthropic-v2.1.0] - 2025-03-03
 
