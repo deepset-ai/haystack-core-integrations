@@ -5,14 +5,39 @@
 import os
 from time import sleep
 from typing import List, Union
-import asyncio
 
 import pytest
 from haystack import Document
 from haystack.utils import Secret
-
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
-from tests.test_utils import AsyncDocumentStoreContext
+
+
+class AsyncDocumentStoreContext:
+    """Context manager for MongoDB Atlas document store with async support."""
+
+    def __init__(self, mongo_connection_string, database_name, collection_name,
+                 vector_search_index, full_text_search_index):
+        self.mongo_connection_string = mongo_connection_string
+        self.database_name = database_name
+        self.collection_name = collection_name
+        self.vector_search_index = vector_search_index
+        self.full_text_search_index = full_text_search_index
+        self.store = None
+
+    async def __aenter__(self):
+        self.store = MongoDBAtlasDocumentStore(
+            mongo_connection_string=self.mongo_connection_string,
+            database_name=self.database_name,
+            collection_name=self.collection_name,
+            vector_search_index=self.vector_search_index,
+            full_text_search_index=self.full_text_search_index,
+        )
+        await self.store._ensure_connection_setup_async()
+        return self.store
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.store and self.store._connection_async:
+            self.store._connection_async.close()
 
 
 @pytest.mark.skipif(
