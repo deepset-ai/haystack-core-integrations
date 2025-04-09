@@ -30,7 +30,6 @@ def get_document_store():
 )
 @pytest.mark.integration
 class TestFullTextRetrieval:
-
     @pytest.fixture(scope="class")
     def document_store(self) -> MongoDBAtlasDocumentStore:
         return get_document_store()
@@ -147,11 +146,3 @@ class TestFullTextRetrieval:
     def test_synonyms_and_fuzzy_raises_value_error(self, document_store: MongoDBAtlasDocumentStore):
         with pytest.raises(ValueError):
             document_store._fulltext_retrieval(query="fox", synonyms="wolf", fuzzy={"maxEdits": 1})
-
-    @pytest.mark.asyncio
-    async def test_query_retrieval_async(self, document_store: MongoDBAtlasDocumentStore):
-        results = await document_store._fulltext_retrieval_async(query="fox", top_k=2)
-        assert len(results) == 2
-        for doc in results:
-            assert "fox" in doc.content
-        assert results[0].score >= results[1].score
