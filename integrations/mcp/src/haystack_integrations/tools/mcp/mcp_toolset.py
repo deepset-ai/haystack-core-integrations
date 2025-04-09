@@ -20,7 +20,7 @@ class MCPToolset(Toolset):
     A Toolset that connects to an MCP (Model Context Protocol) server and provides
     access to its tools.
 
-    MCPToolset dynamically discovers and loads tools from any MCP-compliant server,
+    MCPToolset dynamically discovers and loads all tools from any MCP-compliant server,
     supporting both network-based SSE connections and local process-based stdio connections.
     This dual connectivity allows for integrating with both remote and local MCP servers.
 
