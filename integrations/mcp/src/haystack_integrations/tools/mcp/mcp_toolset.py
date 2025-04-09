@@ -38,7 +38,11 @@ class MCPToolset(Toolset):
     server_info = StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=Europe/Berlin"])
 
     # Create the toolset - this will automatically discover all available tools
-    mcp_toolset = MCPToolset(server_info)
+    # You can optionally specify which tools to include
+    mcp_toolset = MCPToolset(
+        server_info=server_info,
+        tool_names=["get_current_time"]  # Only include the get_current_time tool
+    )
 
     # Create a pipeline with the toolset
     pipeline = Pipeline()
@@ -74,17 +78,26 @@ class MCPToolset(Toolset):
     # Create the toolset with an SSE connection
     sse_toolset = MCPToolset(
         server_info=SSEServerInfo(base_url="http://some-remote-server.com:8000"),
+        tool_names=["add", "subtract"]  # Only include specific tools
     )
 
     # Use the toolset as shown in the pipeline example above
     ```
     """
 
-    def __init__(self, server_info: MCPServerInfo, connection_timeout: int = 30, invocation_timeout: int = 30):
+    def __init__(
+        self,
+        server_info: MCPServerInfo,
+        tool_names: list[str] | None = None,
+        connection_timeout: int = 30,
+        invocation_timeout: int = 30,
+    ):
         """
         Initialize the MCP toolset.
 
         :param server_info: Connection information for the MCP server
+        :param tool_names: Optional list of tool names to include. If provided, only tools with
+                          matching names will be added to the toolset.
         :param connection_timeout: Timeout in seconds for server connection
         :param invocation_timeout: Default timeout in seconds for tool invocations
         """
@@ -93,6 +106,7 @@ class MCPToolset(Toolset):
 
         # Store configuration
         self.server_info = server_info
+        self.tool_names = tool_names
         self.connection_timeout = connection_timeout
         self.invocation_timeout = invocation_timeout
 
@@ -106,6 +120,11 @@ class MCPToolset(Toolset):
 
             # Create MCPTool instances for each available tool and add them
             for tool_info in tools:
+                # Skip tools not in the tool_names list if tool_names is provided
+                if self.tool_names is not None and tool_info.name not in self.tool_names:
+                    logger.debug(f"Skipping tool '{tool_info.name}' as it's not in the requested tool_names list")
+                    continue
+
                 tool = MCPTool(
                     name=tool_info.name,
                     server_info=self.server_info,
@@ -173,6 +192,7 @@ class MCPToolset(Toolset):
             "type": generate_qualified_class_name(type(self)),
             "data": {
                 "server_info": self.server_info.to_dict(),
+                "tool_names": self.tool_names,
                 "connection_timeout": self.connection_timeout,
                 "invocation_timeout": self.invocation_timeout,
             },
@@ -196,6 +216,7 @@ class MCPToolset(Toolset):
         # Create a new MCPToolset instance
         return cls(
             server_info=server_info,
+            tool_names=inner_data.get("tool_names"),
             connection_timeout=inner_data.get("connection_timeout", 30),
             invocation_timeout=inner_data.get("invocation_timeout", 30),
         )
