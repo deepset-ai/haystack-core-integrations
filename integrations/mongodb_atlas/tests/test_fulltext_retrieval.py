@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import os
 from time import sleep
 from typing import List, Union
@@ -29,6 +30,7 @@ def get_document_store():
 )
 @pytest.mark.integration
 class TestFullTextRetrieval:
+
     @pytest.fixture(scope="class")
     def document_store(self) -> MongoDBAtlasDocumentStore:
         return get_document_store()
@@ -51,7 +53,7 @@ class TestFullTextRetrieval:
 
         yield
 
-    def test_pipeline_correctly_passes_parameters(self):
+    def test_pipeline_correctly_passes_parameters(self, document_store):
         document_store = get_document_store()
         mock_collection = MagicMock()
         document_store._collection = mock_collection
