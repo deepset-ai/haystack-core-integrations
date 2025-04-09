@@ -50,6 +50,7 @@ _ALL_SUPPORTED_GENERATORS = _SUPPORTED_GENERATORS + _SUPPORTED_CHAT_GENERATORS
 # We keep them here to avoid making typos when using them.
 _PIPELINE_INPUT_KEY = "haystack.pipeline.input_data"
 _PIPELINE_OUTPUT_KEY = "haystack.pipeline.output_data"
+_ASYNC_PIPELINE_RUN_KEY = "haystack.async_pipeline.run"
 _PIPELINE_RUN_KEY = "haystack.pipeline.run"
 _COMPONENT_NAME_KEY = "haystack.component.name"
 _COMPONENT_TYPE_KEY = "haystack.component.type"
@@ -259,7 +260,7 @@ class DefaultSpanHandler(SpanHandler):
 
         tracing_ctx = tracing_context_var.get({})
         if not context.parent_span:
-            if context.operation_name != _PIPELINE_RUN_KEY:
+            if context.operation_name not in [_PIPELINE_RUN_KEY, _ASYNC_PIPELINE_RUN_KEY]:
                 logger.warning(
                     "Creating a new trace without a parent span is not recommended for operation '{operation_name}'.",
                     operation_name=context.operation_name,
