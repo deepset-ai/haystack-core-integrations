@@ -103,15 +103,16 @@ class MongoDBAtlasDocumentStore:
         self._collection: Optional[Collection] = None
         self._collection_async: Optional[AsyncCollection] = None
 
-    def __del__(self) -> None:
-        """
-        Destructor method to close MongoDB connections when the instance is destroyed.
-        """
-        if self._connection:
-            self._connection.close()
-        if self._connection_async:
-            # not possible to await in __del__, so we just close the connection
-            self._connection_async.close()
+
+    # def __del__(self) -> None:
+    #     """
+    #     Destructor method to close MongoDB connections when the instance is destroyed.
+    #     """
+    #     if self._connection:
+    #         self._connection.close()
+    #     if self._connection_async:
+    #         # not possible to await in __del__, so we just close the connection
+    #         self._connection_async.close()
 
     @property
     def connection(self) -> Union[AsyncMongoClient, MongoClient]:
