@@ -4,7 +4,6 @@
 import os
 from unittest.mock import patch
 from uuid import uuid4
-import asyncio
 
 import pytest
 from haystack.dataclasses.document import ByteStream, Document
@@ -16,7 +15,6 @@ from pymongo import MongoClient
 from pymongo.driver_info import DriverInfo
 
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
-from tests.test_utils import AsyncDocumentStoreContext
 
 
 @patch("haystack_integrations.document_stores.mongodb_atlas.document_store.AsyncMongoClient")
@@ -39,11 +37,10 @@ def test_init_is_lazy(_mock_client):
 @pytest.mark.integration
 class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
     @pytest.fixture
-    async def document_store(self):
+    def document_store(self):
         database_name = "haystack_integration_test"
         collection_name = "test_collection_" + str(uuid4())
 
-        # Create the collection using the sync client
         with MongoClient(
             os.environ["MONGO_CONNECTION_STRING"], driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
         ) as connection:
@@ -53,22 +50,14 @@ class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
             database.create_collection(collection_name)
             database[collection_name].create_index("id", unique=True)
 
-        # Use the async context manager for the document store
-        async with AsyncDocumentStoreContext(
-            mongo_connection_string=Secret.from_env_var("MONGO_CONNECTION_STRING"),
-            database_name=database_name,
-            collection_name=collection_name,
-            vector_search_index="cosine_index",
-            full_text_search_index="full_text_index",
-        ) as store:
+            store = MongoDBAtlasDocumentStore(
+                database_name=database_name,
+                collection_name=collection_name,
+                vector_search_index="cosine_index",
+                full_text_search_index="full_text_index",
+            )
             yield store
-            
-            # Clean up the collection after tests
-            with MongoClient(
-                os.environ["MONGO_CONNECTION_STRING"], driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
-            ) as connection:
-                database = connection[database_name]
-                database[collection_name].drop()
+            database[collection_name].drop()
 
     @pytest.mark.asyncio
     async def test_write_documents_async(self, document_store: MongoDBAtlasDocumentStore):
