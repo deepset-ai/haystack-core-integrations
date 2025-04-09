@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "pandas", "snowflake-connector-python>=3.10.1", "tabulate>=0.9.0"]
+dependencies = ["haystack-ai", "adbc_driver_snowflake>=1.4.0", "polars>=1.23.0", "pyarrow>=19.0.1", "pandas"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/snowflake#readme"
@@ -44,7 +44,7 @@ git_describe_command = 'git describe --tags --match="integrations/snowflake-v[0-
 
 [tool.hatch.envs.default]
 installer = "uv"
-dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "haystack-pydoc-tools"]
+dependencies = ["coverage[toml]>=6.5", "pytest", "pytest-rerunfailures", "haystack-pydoc-tools", "pytest>=7.4.2", "pytest-mock==3.14.0", "pytest-mock==3.14.0"]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
@@ -145,5 +145,5 @@ show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [[tool.mypy.overrides]]
-module = ["haystack.*", "haystack_integrations.*", "pytest.*", "openai.*", "snowflake.*"]
+module = ["haystack.*", "haystack_integrations.*", "pytest.*", "openai.*", "polars"]
 ignore_missing_imports = true

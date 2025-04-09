@@ -1,33 +1,27 @@
-# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+# SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import re
-from typing import Any, Dict, Final, Optional, Union
+from typing import Any, Dict, Optional
 
 import pandas as pd
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.lazy_imports import LazyImport
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-with LazyImport("Run 'pip install snowflake-connector-python>=3.10.1'") as snow_import:
-    import snowflake.connector
-    from snowflake.connector.connection import SnowflakeConnection
-    from snowflake.connector.errors import (
-        DatabaseError,
-        ForbiddenError,
-        ProgrammingError,
-    )
+with LazyImport("Run 'pip install polars>=1.23.0'") as polars_import:
+    import polars as pl
 
 logger = logging.getLogger(__name__)
-
-MAX_SYS_ROWS: Final = 1000000  # Max rows to fetch from a table
 
 
 @component
 class SnowflakeTableRetriever:
     """
-    Connects to a Snowflake database to execute a SQL query.
-    For more information, see [Snowflake documentation](https://docs.snowflake.com/en/developer-guide/python-connector/python-connector).
+    Connects to a Snowflake database to execute a SQL query using ADBC and Polars.
+    Returns the results as a Pandas DataFrame (converted from a Polars DataFrame)
+    along with a Markdown-formatted string.
+    For more information, see [Polars documentation](https://docs.pola.rs/api/python/dev/reference/api/polars.read_database_uri.html).
+    and [ADBC documentation](https://arrow.apache.org/adbc/main/driver/snowflake.html).
 
     ### Usage example:
 
@@ -35,32 +29,16 @@ class SnowflakeTableRetriever:
     executor = SnowflakeTableRetriever(
         user="<ACCOUNT-USER>",
         account="<ACCOUNT-IDENTIFIER>",
-        api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
+        api_key=Secret.from_env_var("<SNOWFLAKE-API-KEY>"),
         database="<DATABASE-NAME>",
         db_schema="<SCHEMA-NAME>",
         warehouse="<WAREHOUSE-NAME>",
     )
 
-    # When database and schema are provided during component initialization.
     query = "SELECT * FROM table_name"
-
-    # or
-
-    # When database and schema are NOT provided during component initialization.
-    query = "SELECT * FROM database_name.schema_name.table_name"
-
     results = executor.run(query=query)
-
-    print(results["dataframe"].head(2))  # Pandas dataframe
-    #   Column 1  Column 2
-    # 0       Value1 Value2
-    # 1       Value1 Value2
-
-    print(results["table"])  # Markdown
-    # | Column 1  | Column 2  |
-    # |:----------|:----------|
-    # | Value1    | Value2    |
-    # | Value1    | Value2    |
+    print(results["dataframe"].head(2))
+    print(results["dataframe_markdown"])
     ```
     """
 
@@ -73,7 +51,7 @@ class SnowflakeTableRetriever:
         db_schema: Optional[str] = None,
         warehouse: Optional[str] = None,
         login_timeout: Optional[int] = None,
-        application_name: Optional[str] = None,
+        return_markdown: bool = True,
     ) -> None:
         """
         :param user: User's login.
@@ -82,8 +60,8 @@ class SnowflakeTableRetriever:
         :param database: Name of the database to use.
         :param db_schema: Name of the schema to use.
         :param warehouse: Name of the warehouse to use.
-        :param login_timeout: Timeout in seconds for login. By default, 60 seconds.
-        :param application_name: Name of the application to use when connecting to Snowflake.
+        :param login_timeout: Timeout in seconds for login. Defaults to 60 seconds.
+        :param return_markdown: Whether to return a Markdown-formatted string of the DataFrame. Defaults to True.
         """
 
         self.user = user
@@ -93,7 +71,7 @@ class SnowflakeTableRetriever:
         self.db_schema = db_schema
         self.warehouse = warehouse
         self.login_timeout = login_timeout or 60
-        self.application_name = application_name
+        self.return_markdown = return_markdown
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -102,7 +80,7 @@ class SnowflakeTableRetriever:
         :returns:
             Dictionary with serialized data.
         """
-        return default_to_dict(
+        return default_to_dict(  # type: ignore
             self,
             user=self.user,
             account=self.account,
@@ -111,7 +89,7 @@ class SnowflakeTableRetriever:
             db_schema=self.db_schema,
             warehouse=self.warehouse,
             login_timeout=self.login_timeout,
-            application_name=self.application_name,
+            return_markdown=self.return_markdown,
         )
 
     @classmethod
@@ -128,213 +106,164 @@ class SnowflakeTableRetriever:
         deserialize_secrets_inplace(init_params, ["api_key"])
         return default_from_dict(cls, data)
 
-    @staticmethod
-    def _snowflake_connector(connect_params: Dict[str, Any]) -> Union[SnowflakeConnection, None]:
+    def _snowflake_uri_constructor(self) -> str:
         """
-        Connect to a Snowflake database.
+        Constructs the Snowflake connection URI.
 
-        :param connect_params: Snowflake connection parameters.
+        Format: "snowflake://user:password@account/database/schema?warehouse=warehouse"
+
+        :raises ValueError: If required credentials (`user` or `account`) are missing.
+        :returns: A formatted Snowflake connection URI.
         """
+        if not self.user or not self.account:
+            msg = "Missing required Snowflake connection parameters: user and account."
+            raise ValueError(msg)
+
+        uri = f"snowflake://{self.user}:{self.api_key.resolve_value()}@{self.account}"
+        if self.database:
+            uri += f"/{self.database}"
+            if self.db_schema:
+                uri += f"/{self.db_schema}"
+        uri += "?"
+        if self.warehouse:
+            uri += f"warehouse={self.warehouse}&"
+        uri = uri.rstrip("&?")
+
+        # Logging placeholder for the actual password
+        masked_uri = uri.replace(self.api_key.resolve_value(), "***REDACTED***")
+        logger.info("Constructed Snowflake URI: {masked_uri}", masked_uri=masked_uri)
+        return uri
+
+    @staticmethod
+    def _polars_to_md(data: "pl.DataFrame") -> str:
+        """
+        Converts a Polars DataFrame to a Markdown-formatted string.
+        Uses Polars' built-in table formatting for efficient conversion.
+
+        :param data: The Polars DataFrame to convert.
+        :returns: A Markdown-formatted string if `data` is not empty; otherwise, an empty string.
+        """
+        polars_import.check()  # Ensure polars is imported
+        if data.is_empty():
+            return ""  # No markdown for empty DataFrame.
+
         try:
-            return snowflake.connector.connect(**connect_params)
-        except DatabaseError as e:
-            logger.error("{error_msg} ", errno=e.errno, error_msg=e.msg)
-            return None
-
-    @staticmethod
-    def _extract_table_names(query: str) -> list:
-        """
-        Extract table names from an SQL query using regex.
-        The extracted table names will be checked for privilege.
-
-        :param query: SQL query to extract table names from.
-        """
-
-        suffix = "\\s+([a-zA-Z0-9_.]+)"  # Regular expressions to match table names in various clauses
-
-        patterns = [
-            "MERGE\\s+INTO",
-            "USING",
-            "JOIN",
-            "FROM",
-            "UPDATE",
-            "DROP\\s+TABLE",
-            "TRUNCATE\\s+TABLE",
-            "CREATE\\s+TABLE",
-            "INSERT\\s+INTO",
-            "DELETE\\s+FROM",
-        ]
-
-        # Combine all patterns into a single regex
-        combined_pattern = "|".join([pattern + suffix for pattern in patterns])
-
-        # Find all matches in the query
-        matches = re.findall(pattern=combined_pattern, string=query, flags=re.IGNORECASE)
-
-        # Flatten the list of tuples and remove duplication
-        matches = list(set(sum(matches, ())))
-
-        # Clean and return unique table names
-        return [match.strip('`"[]').upper() for match in matches if match]
-
-    @staticmethod
-    def _execute_sql_query(conn: SnowflakeConnection, query: str) -> pd.DataFrame:
-        """
-        Execute an SQL query and fetch the results.
-
-        :param conn: An open connection to Snowflake.
-        :param query: The query to execute.
-        """
-        cur = conn.cursor()
-        try:
-            cur.execute(query)
-            rows = cur.fetchmany(size=MAX_SYS_ROWS)  # set a limit to avoid fetching too many rows
-
-            df = pd.DataFrame(rows, columns=[desc.name for desc in cur.description])  # Convert data to a dataframe
-            return df
+            with pl.Config(tbl_formatting="MARKDOWN"):
+                return str(data)
         except Exception as e:
-            if isinstance(e, ProgrammingError):
-                logger.warning(
-                    "{error_msg} Use the following ID to check the status of the query in Snowflake UI (ID: {sfqid})",
-                    error_msg=e.msg,
-                    sfqid=e.sfqid,
-                )
-            else:
-                logger.warning("An unexpected error occurred: {error_msg}", error_msg=e)
-
-        return pd.DataFrame()
-
-    @staticmethod
-    def _has_select_privilege(privileges: list, table_name: str) -> bool:
-        """
-        Check user's privilege for a specific table.
-
-        :param privileges: List of privileges.
-        :param table_name: Name of the table.
-        """
-
-        for privilege in reversed(privileges):
-            if table_name.lower() == privilege[3].lower() and re.match(
-                pattern="truncate|update|insert|delete|operate|references",
-                string=privilege[1],
-                flags=re.IGNORECASE,
-            ):
-                return False
-
-        return True
-
-    def _check_privilege(
-        self,
-        conn: SnowflakeConnection,
-        query: str,
-        user: str,
-    ) -> bool:
-        """
-        Check whether a user has a `select`-only access to the table.
-
-        :param conn: An open connection to Snowflake.
-        :param query: The query from where to extract table names to check read-only access.
-        """
-        cur = conn.cursor()
-
-        cur.execute(f"SHOW GRANTS TO USER {user};")
-
-        # Get user's latest role
-        roles = cur.fetchall()
-        if not roles:
-            logger.error("User does not exist")
-            return False
-
-        # Last row second column from GRANT table
-        role = roles[-1][1]
-
-        # Get role privilege
-        cur.execute(f"SHOW GRANTS TO ROLE {role};")
-
-        # Keep table level privileges
-        table_privileges = [row for row in cur.fetchall() if row[2] == "TABLE"]
-
-        # Get table names to check for privilege
-        table_names = self._extract_table_names(query=query)
-
-        for table_name in table_names:
-            if not self._has_select_privilege(
-                privileges=table_privileges,
-                table_name=table_name,
-            ):
-                return False
-        return True
-
-    def _fetch_data(
-        self,
-        query: str,
-    ) -> pd.DataFrame:
-        """
-        Fetch data from a database using a SQL query.
-
-        :param query: SQL query to use to fetch the data from the database. Query must be a valid SQL query.
-        """
-
-        df = pd.DataFrame()
-        if not query:
-            return df
-        try:
-            # Create a new connection with every run
-            conn = self._snowflake_connector(
-                connect_params={
-                    "user": self.user,
-                    "account": self.account,
-                    "password": self.api_key.resolve_value(),
-                    "database": self.database,
-                    "schema": self.db_schema,
-                    "warehouse": self.warehouse,
-                    "login_timeout": self.login_timeout,
-                    **({"application": self.application_name} if self.application_name else {}),
-                }
-            )
-            if conn is None:
-                return df
-        except (ForbiddenError, ProgrammingError) as e:
             logger.error(
-                "Error connecting to Snowflake ({errno}): {error_msg}",
-                errno=e.errno,
-                error_msg=e.msg,
+                "Error converting Polars DataFrame to Markdown - Error {errno}: {error_msg}",
+                errno=getattr(e, "errno", "N/A"),
+                error_msg=getattr(e, "msg", str(e)),
+                exc_info=True,
             )
-            return df
+            return ""
 
-        try:
-            # Check if user has `select` privilege on the table
-            if self._check_privilege(
-                conn=conn,
-                query=query,
-                user=self.user,
-            ):
-                df = self._execute_sql_query(conn=conn, query=query)
-            else:
-                logger.error("User does not have `Select` privilege on the table.")
+    @staticmethod
+    def _empty_response() -> Dict[str, Any]:
+        """Returns a standardized empty response.
 
-        except Exception as e:
-            logger.error("An unexpected error has occurred: {error}", error=e)
-
-        # Close connection after every execution
-        conn.close()
-        return df
+        :returns: A dictionary containing an empty Pandas DataFrame and an empty Markdown string.
+        """
+        return {"dataframe": pd.DataFrame(), "table": ""}
 
     @component.output_types(dataframe=pd.DataFrame, table=str)
     def run(self, query: str) -> Dict[str, Any]:
         """
-        Execute a SQL query against a Snowflake database.
+        Executes a SQL query against a Snowflake database using ADBC and Polars.
 
-        :param query: A SQL query to execute.
+        :param query: The SQL query to execute.
+        :returns: A dictionary containing:
+            - `"dataframe"`: A Pandas DataFrame with the query results.
+            - `"dataframe_markdown"`: A Markdown-formatted string representation of the DataFrame.
         """
+        # Validate SQL query
         if not query:
-            logger.error("Provide a valid SQL query.")
-            return {
-                "dataframe": pd.DataFrame(),
-                "table": "",
-            }
-        else:
-            df = self._fetch_data(query)
-            table_markdown = df.to_markdown(index=False) if not df.empty else ""
+            logger.warning("Empty query provided, returning empty DataFrame")
+            return self._empty_response()
 
-        return {"dataframe": df, "table": table_markdown}
+        if not isinstance(query, str):
+            logger.warning("Query is not a string, returning empty DataFrame")
+            return self._empty_response()
+
+        logger.info("Starting query execution")
+        logger.info("Query: {query}", query=query)
+
+        try:
+            # Construct the URI using the helper method
+            uri = self._snowflake_uri_constructor()
+        except Exception as e:
+            logger.error(
+                "Error constructing Snowflake URI - Error {errno}: {error_msg}",
+                errno=getattr(e, "errno", "N/A"),
+                error_msg=getattr(e, "msg", str(e)),
+                exc_info=True,
+            )
+            return self._empty_response()
+
+        try:
+            # Execute the query via Polars using the ADBC engine
+            data = pl.read_database_uri(query, uri, engine="adbc")
+
+            # Check for valid data and schema before proceeding
+            if data.is_empty() or data.schema is None:
+                logger.warning("Query returned an empty DataFrame or invalid schema")
+                return self._empty_response()
+
+            logger.info(
+                "Query execution completed. Polars DataFrame shape: {shape}, columns: {columns}",
+                shape=data.shape,
+                columns=data.columns,
+            )
+        except Exception as e:
+            error_msg = getattr(e, "msg", str(e))  # Get error message
+
+            # Check if the error message indicates a SQL compilation issue
+            if "SQL compilation error" in error_msg or "invalid identifier" in error_msg:
+                logger.warning(
+                    "SQL compilation error encountered: {error_msg}",
+                    error_msg=error_msg,
+                    exc_info=False,  # Avoid full traceback in logs for expected warnings
+                )
+            else:
+                logger.error(
+                    "Error executing query via ADBC - Error {errno}: {error_msg}",
+                    errno=getattr(e, "errno", "N/A"),
+                    error_msg=error_msg,
+                    exc_info=True,  # Preserve traceback for debugging
+                )
+
+            return self._empty_response()
+
+        # Convert Polars DataFrame to Pandas DataFrame deliberately for downstream compatibility
+        try:
+            pandas_df = data.to_pandas()
+            column_info = f", columns: {pandas_df.columns.tolist()}" if pandas_df.shape[1] > 0 else ""
+            logger.info(
+                "Converted to Pandas DataFrame. Shape: {shape}{columns}",
+                shape=pandas_df.shape,
+                columns=column_info,
+            )
+        except Exception as e:
+            logger.error(
+                "Error converting Polars DataFrame to Pandas DataFrame - Error {errno}: {error_msg}",
+                errno=getattr(e, "errno", "N/A"),
+                error_msg=getattr(e, "msg", str(e)),
+                exc_info=True,
+            )
+            return self._empty_response()
+
+        # Convert Polars DataFrame to Markdown **only if return_markdown is True**
+        markdown_str = ""
+        if self.return_markdown:
+            try:
+                markdown_str = self._polars_to_md(data)
+            except Exception as e:
+                logger.error(
+                    "Error converting Polars DataFrame to Markdown - Error {errno}: {error_msg}",
+                    errno=getattr(e, "errno", "N/A"),
+                    error_msg=getattr(e, "msg", str(e)),
+                    exc_info=True,
+                )
+
+        return {"dataframe": pandas_df, "table": markdown_str}
