@@ -37,9 +37,17 @@ def mock_mcp_tool():
     """
     # Create patch for connection methods
     with (
-        patch("haystack_integrations.tools.mcp.mcp_tool.MCPTool._run_sync") as mock_run_sync,
+        patch("haystack_integrations.tools.mcp.mcp_tool.AsyncExecutor.get_instance") as mock_get_instance,
         patch("haystack_integrations.tools.mcp.mcp_tool.MCPServerInfo.create_client") as mock_create_client,
     ):
+        # Configure mock executor
+        mock_executor = MagicMock()
+        mock_tool_info = MagicMock()
+        mock_tool_info.name = "test_tool"
+        mock_tool_info.description = "A test tool"
+        mock_tool_info.inputSchema = {"type": "object", "properties": {}}
+        mock_executor.run.return_value = [mock_tool_info]
+        mock_get_instance.return_value = mock_executor
 
         # Configure mock client
         mock_client = MagicMock()
@@ -49,13 +57,6 @@ def mock_mcp_tool():
 
         mock_client.invoke = mock_invoke
         mock_create_client.return_value = mock_client
-
-        # Configure _run_sync to return a tool
-        mock_tool_info = MagicMock()
-        mock_tool_info.name = "test_tool"
-        mock_tool_info.description = "A test tool"
-        mock_tool_info.inputSchema = {"type": "object", "properties": {}}
-        mock_run_sync.return_value = [mock_tool_info]
 
         # Create the MCPTool
         tool = MCPTool(
@@ -219,7 +220,7 @@ class TestMCPTool:
 
         with (
             patch("haystack_integrations.tools.mcp.mcp_tool.MCPTool.__init__", return_value=None) as mock_init,
-            patch("haystack_integrations.tools.mcp.mcp_tool.MCPTool._run_sync"),
+            patch("haystack_integrations.tools.mcp.mcp_tool.AsyncExecutor.get_instance"),
             patch("haystack_integrations.tools.mcp.mcp_tool.MCPTool.to_dict") as mock_to_dict,
         ):
 
