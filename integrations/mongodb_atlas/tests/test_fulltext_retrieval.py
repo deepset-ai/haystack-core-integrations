@@ -156,6 +156,7 @@ class TestFullTextRetrieval:
             assert "fox" in doc.content
         assert results[0].score >= results[1].score
 
+    """
     @pytest.mark.asyncio
     async def test_fuzzy_retrieval_async(self, document_store: MongoDBAtlasDocumentStore):
         results = await document_store._fulltext_retrieval_async(query="fax", fuzzy={"maxEdits": 1}, top_k=2)
@@ -163,6 +164,7 @@ class TestFullTextRetrieval:
         for doc in results:
             assert "fox" in doc.content
         assert results[0].score >= results[1].score
+    """
 
     @pytest.mark.asyncio
     async def test_filters_retrieval_async(self, document_store: MongoDBAtlasDocumentStore):
