@@ -9,14 +9,16 @@ from typing import List, Union
 import pytest
 from haystack import Document
 from haystack.utils import Secret
+
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 
 
 class AsyncDocumentStoreContext:
     """Context manager for MongoDB Atlas document store with async support."""
 
-    def __init__(self, mongo_connection_string, database_name, collection_name,
-                 vector_search_index, full_text_search_index):
+    def __init__(
+        self, mongo_connection_string, database_name, collection_name, vector_search_index, full_text_search_index
+    ):
         self.mongo_connection_string = mongo_connection_string
         self.database_name = database_name
         self.collection_name = collection_name
