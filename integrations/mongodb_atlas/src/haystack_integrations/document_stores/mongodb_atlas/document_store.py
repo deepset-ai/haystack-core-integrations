@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-
+import asyncio
 import re
 from typing import Any, Dict, List, Literal, Optional, Union
 
@@ -110,6 +110,15 @@ class MongoDBAtlasDocumentStore:
         """
         if self._connection:
             self._connection.close()
+
+        if self._connection_async:
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            loop.run_until_complete(self._connection_async.close())
+            loop.close()
 
     def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """
