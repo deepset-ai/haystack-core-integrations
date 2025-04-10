@@ -29,7 +29,7 @@ class SnowflakeTableRetriever:
     executor = SnowflakeTableRetriever(
         user="<ACCOUNT-USER>",
         account="<ACCOUNT-IDENTIFIER>",
-        api_key=Secret.from_env_var("<SNOWFLAKE-API-KEY>"),
+        api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
         database="<DATABASE-NAME>",
         db_schema="<SCHEMA-NAME>",
         warehouse="<WAREHOUSE-NAME>",
@@ -37,8 +37,23 @@ class SnowflakeTableRetriever:
 
     query = "SELECT * FROM table_name"
     results = executor.run(query=query)
-    print(results["dataframe"].head(2))
-    print(results["table"])
+    
+    >> print(results["dataframe"].head(2))
+
+        column1  column2        column3
+    0     123   'data1'  2024-03-20
+    1     456   'data2'  2024-03-21   
+    
+    >> print(results["table"])
+
+    shape: (3, 3)
+    | column1 | column2 | column3    |
+    |---------|---------|------------|
+    | int     | str     | date       |
+    |---------|---------|------------|
+    | 123     | data1   | 2024-03-20 |
+    | 456     | data2   | 2024-03-21 |
+    | 789     | data3   | 2024-03-22 |
     ```
     """
 
@@ -50,7 +65,7 @@ class SnowflakeTableRetriever:
         database: Optional[str] = None,
         db_schema: Optional[str] = None,
         warehouse: Optional[str] = None,
-        login_timeout: Optional[int] = None,
+        login_timeout: Optional[int] = 60,
         return_markdown: bool = True,
     ) -> None:
         """
@@ -60,8 +75,8 @@ class SnowflakeTableRetriever:
         :param database: Name of the database to use.
         :param db_schema: Name of the schema to use.
         :param warehouse: Name of the warehouse to use.
-        :param login_timeout: Timeout in seconds for login. Defaults to 60 seconds.
-        :param return_markdown: Whether to return a Markdown-formatted string of the DataFrame. Defaults to True.
+        :param login_timeout: Timeout in seconds for login.
+        :param return_markdown: Whether to return a Markdown-formatted string of the DataFrame.
         """
 
         self.user = user
@@ -127,6 +142,7 @@ class SnowflakeTableRetriever:
         uri += "?"
         if self.warehouse:
             uri += f"warehouse={self.warehouse}&"
+        uri += f"login_timeout={self.login_timeout}&"
         uri = uri.rstrip("&?")
 
         # Logging placeholder for the actual password
@@ -163,7 +179,10 @@ class SnowflakeTableRetriever:
     def _empty_response() -> Dict[str, Any]:
         """Returns a standardized empty response.
 
-        :returns: A dictionary containing an empty Pandas DataFrame and an empty Markdown string.
+        :returns:
+            A dictionary with the following keys:
+            - `dataframe`: An empty Pandas DataFrame.
+            - `table`: An empty Markdown string.
         """
         return {"dataframe": pd.DataFrame(), "table": ""}
 
@@ -267,3 +286,20 @@ class SnowflakeTableRetriever:
                 )
 
         return {"dataframe": pandas_df, "table": markdown_str}
+
+
+if __name__ == "__main__":
+    executor = SnowflakeTableRetriever(
+      user = "snowflake_deepset_ro",
+      account = "CFUYGRA-TQA05215",
+      database = "AI",
+      db_schema = "FINAL_DATA",
+      warehouse = "AI_LARGE_WAREHOUSE",
+      api_key = Secret.from_token("gValIhcVsmAuuRms9ch1la8g")
+    )
+
+    query = "SELECT * FROM AI.FINAL_DATA.BEHAVIORAL_AND_TREND_SURVEYS limit 19"
+    results = executor.run(query=query)
+    
+    print(results["dataframe"].head(2))
+    print(results["table"])
