@@ -44,7 +44,7 @@ git_describe_command = 'git describe --tags --match="integrations/snowflake-v[0-
 
 [tool.hatch.envs.default]
 installer = "uv"
-dependencies = ["coverage[toml]>=6.5", "pytest-rerunfailures", "haystack-pydoc-tools", "pytest>=7.4.2", "pytest-mock==3.14.0"]
+dependencies = ["coverage[toml]>=6.5", "pytest-rerunfailures", "haystack-pydoc-tools", "pytest", "pytest-mock>=3.14.0"]
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
@@ -145,5 +145,5 @@ show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [[tool.mypy.overrides]]
-module = ["haystack.*", "haystack_integrations.*", "pytest.*", "openai.*", "polars"]
+module = ["haystack.*", "haystack_integrations.*", "pytest.*", "openai.*", "polars.*"]
 ignore_missing_imports = true
