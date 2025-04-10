@@ -36,14 +36,13 @@ def test_init_is_lazy(_mock_client):
 )
 @pytest.mark.integration
 class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
+
     @pytest.fixture
     def document_store(self):
         database_name = "haystack_integration_test"
         collection_name = "test_collection_" + str(uuid4())
-
-        with MongoClient(
-            os.environ["MONGO_CONNECTION_STRING"], driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
-        ) as connection:
+        connection_string = os.environ["MONGO_CONNECTION_STRING"]
+        with MongoClient(connection_string, driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")) as connection:
             database = connection[database_name]
             if collection_name in database.list_collection_names():
                 database[collection_name].drop()
@@ -59,14 +58,12 @@ class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
             yield store
             database[collection_name].drop()
 
-    @pytest.mark.asyncio
     async def test_write_documents_async(self, document_store: MongoDBAtlasDocumentStore):
         docs = [Document(content="some text")]
         assert await document_store.write_documents_async(docs) == 1
         with pytest.raises(DuplicateDocumentError):
             await document_store.write_documents_async(docs, DuplicatePolicy.FAIL)
 
-    @pytest.mark.asyncio
     async def test_write_blob_async(self, document_store: MongoDBAtlasDocumentStore):
         bytestream = ByteStream(b"test", meta={"meta_key": "meta_value"}, mime_type="mime_type")
         docs = [Document(blob=bytestream)]
@@ -74,13 +71,11 @@ class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
         retrieved_docs = await document_store.filter_documents_async()
         assert retrieved_docs == docs
 
-    @pytest.mark.asyncio
     async def test_count_documents_async(self, document_store: MongoDBAtlasDocumentStore):
         docs = [Document(content="some text")]
         await document_store.write_documents_async(docs)
         assert await document_store.count_documents_async() == 1
 
-    @pytest.mark.asyncio
     async def test_filter_documents_async(self, document_store: MongoDBAtlasDocumentStore, filterable_docs):
         filters = {
             "operator": "OR",
@@ -111,7 +106,6 @@ class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
         ]
         assert result == expected
 
-    @pytest.mark.asyncio
     async def test_delete_documents_async(self, document_store: MongoDBAtlasDocumentStore):
         docs = [Document(id="1", content="some text")]
         await document_store.write_documents_async(docs)
