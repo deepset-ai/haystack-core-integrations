@@ -418,6 +418,51 @@ class TestOllamaChatGenerator:
         assert result["replies"][0].text == "first chunk second chunk"
         assert result["replies"][0].role == "assistant"
 
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
+    def test_run_streaming_at_runtime(self, mock_client):
+        streaming_callback_called = False
+
+        def streaming_callback(_: StreamingChunk) -> None:
+            nonlocal streaming_callback_called
+            streaming_callback_called = True
+
+        generator = OllamaChatGenerator(streaming_callback=None)
+
+        mock_response = iter(
+            [
+                ChatResponse(
+                    model="llama3.2",
+                    created_at="2023-12-12T14:13:43.416799Z",
+                    message={"role": "assistant", "content": "first chunk "},
+                    done=False,
+                ),
+                ChatResponse(
+                    model="llama3.2",
+                    created_at="2023-12-12T14:13:43.416799Z",
+                    message={"role": "assistant", "content": "second chunk"},
+                    done=True,
+                    total_duration=4883583458,
+                    load_duration=1334875,
+                    prompt_eval_count=26,
+                    prompt_eval_duration=342546000,
+                    eval_count=282,
+                    eval_duration=4535599000,
+                ),
+            ]
+        )
+
+        mock_client_instance = mock_client.return_value
+        mock_client_instance.chat.return_value = mock_response
+
+        result = generator.run(messages=[ChatMessage.from_user("irrelevant")], streaming_callback=streaming_callback)
+
+        assert streaming_callback_called
+
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+        assert result["replies"][0].text == "first chunk second chunk"
+        assert result["replies"][0].role == "assistant"
+
     def test_run_fail_with_tools_and_streaming(self, tools):
         component = OllamaChatGenerator(tools=tools, streaming_callback=print_streaming_chunk)
 

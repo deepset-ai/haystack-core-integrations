@@ -135,7 +135,7 @@ class TestOllamaGenerator:
         assert component.keep_alive == "5m"
 
     @pytest.mark.integration
-    def test_ollama_generator_run_streaming(self):
+    def test_ollama_generator_streaming(self):
         class Callback:
             def __init__(self):
                 self.responses = ""
@@ -149,6 +149,28 @@ class TestOllamaGenerator:
         callback = Callback()
         component = OllamaGenerator(model="llama3.2:3b", streaming_callback=callback)
         results = component.run(prompt="What's the capital of Netherlands?")
+
+        assert len(results["replies"]) == 1
+        assert "amsterdam" in results["replies"][0].lower()
+        assert len(results["meta"]) == 1
+        assert callback.responses == results["replies"][0]
+        assert callback.count_calls > 1
+
+    @pytest.mark.integration
+    def test_ollama_generator_streaming_in_run(self):
+        class Callback:
+            def __init__(self):
+                self.responses = ""
+                self.count_calls = 0
+
+            def __call__(self, chunk):
+                self.responses += chunk.content
+                self.count_calls += 1
+                return chunk
+
+        callback = Callback()
+        component = OllamaGenerator(model="llama3.2:3b", streaming_callback=None)
+        results = component.run(prompt="What's the capital of Netherlands?", streaming_callback=callback)
 
         assert len(results["replies"]) == 1
         assert "amsterdam" in results["replies"][0].lower()
