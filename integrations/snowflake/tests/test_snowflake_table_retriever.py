@@ -330,7 +330,7 @@ class TestSnowflakeTableRetriever:
             account="test_account",
             api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
             database="test_db",
-            login_timeout=custom_timeout
+            login_timeout=custom_timeout,
         )
 
         uri = retriever._snowflake_uri_constructor()

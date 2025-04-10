@@ -37,13 +37,13 @@ class SnowflakeTableRetriever:
 
     query = "SELECT * FROM table_name"
     results = executor.run(query=query)
-    
+
     >> print(results["dataframe"].head(2))
 
         column1  column2        column3
     0     123   'data1'  2024-03-20
-    1     456   'data2'  2024-03-21   
-    
+    1     456   'data2'  2024-03-21
+
     >> print(results["table"])
 
     shape: (3, 3)
@@ -286,20 +286,3 @@ class SnowflakeTableRetriever:
                 )
 
         return {"dataframe": pandas_df, "table": markdown_str}
-
-
-if __name__ == "__main__":
-    executor = SnowflakeTableRetriever(
-      user = "snowflake_deepset_ro",
-      account = "CFUYGRA-TQA05215",
-      database = "AI",
-      db_schema = "FINAL_DATA",
-      warehouse = "AI_LARGE_WAREHOUSE",
-      api_key = Secret.from_token("gValIhcVsmAuuRms9ch1la8g")
-    )
-
-    query = "SELECT * FROM AI.FINAL_DATA.BEHAVIORAL_AND_TREND_SURVEYS limit 19"
-    results = executor.run(query=query)
-    
-    print(results["dataframe"].head(2))
-    print(results["table"])
