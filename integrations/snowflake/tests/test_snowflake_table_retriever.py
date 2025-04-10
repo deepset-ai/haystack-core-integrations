@@ -74,7 +74,7 @@ class TestSnowflakeTableRetriever:
                 "test_db",
                 "test_schema",
                 "test_warehouse",
-                "snowflake://test_user:test_api_key@test_account/test_db/test_schema?warehouse=test_warehouse",
+                "snowflake://test_user:test_api_key@test_account/test_db/test_schema?warehouse=test_warehouse&login_timeout=60",
                 False,
             ),
             (
@@ -83,7 +83,7 @@ class TestSnowflakeTableRetriever:
                 "test_db",
                 None,
                 "test_warehouse",
-                "snowflake://test_user:test_api_key@test_account/test_db?warehouse=test_warehouse",
+                "snowflake://test_user:test_api_key@test_account/test_db?warehouse=test_warehouse&login_timeout=60",
                 False,
             ),
             (
@@ -92,7 +92,7 @@ class TestSnowflakeTableRetriever:
                 None,
                 None,
                 None,
-                "snowflake://test_user:test_api_key@test_account",
+                "snowflake://test_user:test_api_key@test_account?login_timeout=60",
                 False,
             ),
             (
@@ -321,3 +321,18 @@ class TestSnowflakeTableRetriever:
         logger_mock.assert_any_call(
             "Constructed Snowflake URI: {masked_uri}", masked_uri=uri.replace("test_api_key", "***REDACTED***")
         )
+
+    def test_custom_login_timeout(self, mocker: Mock) -> None:
+        mocker.patch.dict(os.environ, {"SNOWFLAKE_API_KEY": "test_api_key"})
+        custom_timeout = 120
+        retriever = SnowflakeTableRetriever(
+            user="test_user",
+            account="test_account",
+            api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
+            database="test_db",
+            login_timeout=custom_timeout
+        )
+
+        uri = retriever._snowflake_uri_constructor()
+        expected_uri = f"snowflake://test_user:test_api_key@test_account/test_db?login_timeout={custom_timeout}"
+        assert uri == expected_uri
