@@ -282,7 +282,9 @@ class TestSnowflakeTableRetriever:
         assert result["dataframe"].equals(toy_pandas_df)
         assert result["table"] == ""
 
-    def test_run_with_markdown_parameter(self, mocker: Mock, toy_polars_df: pl.DataFrame, toy_pandas_df: pd.DataFrame, expected_markdown: str) -> None:
+    def test_run_with_markdown_parameter(
+        self, mocker: Mock, toy_polars_df: pl.DataFrame, toy_pandas_df: pd.DataFrame, expected_markdown: str
+    ) -> None:
         mocker.patch.dict(os.environ, {"SNOWFLAKE_API_KEY": "test_api_key"})
         retriever = SnowflakeTableRetriever(
             user="test_user",
@@ -295,7 +297,7 @@ class TestSnowflakeTableRetriever:
         mocker.patch("polars.read_database_uri", return_value=toy_polars_df)
         mocker.patch.object(toy_polars_df, "to_pandas", return_value=toy_pandas_df)
         mocker.patch.object(SnowflakeTableRetriever, "_polars_to_md", return_value=expected_markdown)
-        
+
         result = retriever.run(query="SELECT * FROM table_name", return_markdown=True)
         assert result["dataframe"].equals(toy_pandas_df)
         assert result["table"] == expected_markdown

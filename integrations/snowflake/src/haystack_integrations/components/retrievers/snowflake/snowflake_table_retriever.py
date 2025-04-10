@@ -276,7 +276,7 @@ class SnowflakeTableRetriever:
 
         # Convert Polars DataFrame to Markdown **only if return_markdown is True**
         markdown_str = ""
-        
+
         should_return_markdown = self.return_markdown if return_markdown is None else return_markdown
         if should_return_markdown:
             try:
