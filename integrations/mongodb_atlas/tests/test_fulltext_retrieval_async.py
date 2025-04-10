@@ -46,7 +46,6 @@ class AsyncDocumentStoreContext:
     not os.environ.get("MONGO_CONNECTION_STRING_2"),
     reason="No MongoDB Atlas connection string provided",
 )
-
 @pytest.mark.integration
 @pytest.mark.asyncio(scope="class")
 class TestFullTextRetrieval:
