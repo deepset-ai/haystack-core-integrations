@@ -39,14 +39,16 @@ class AsyncDocumentStoreContext:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.store and self.store._connection_async:
-            self.store._connection_async.close()
+            await self.store._connection_async.close()
 
 
 @pytest.mark.skipif(
     not os.environ.get("MONGO_CONNECTION_STRING_2"),
     reason="No MongoDB Atlas connection string provided",
 )
+
 @pytest.mark.integration
+@pytest.mark.asyncio(scope="class")
 class TestFullTextRetrieval:
 
     @pytest.fixture(scope="class")
