@@ -459,7 +459,9 @@ class TestOllamaChatGenerator:
         assert isinstance(response, dict)
         assert isinstance(response["replies"], list)
 
-        assert any(city in response["replies"][-1].text for city in ["Manchester", "Birmingham", "Glasgow"])
+        assert any(
+            city.lower() in response["replies"][-1].text.lower() for city in ["Manchester", "Birmingham", "Glasgow"]
+        )
 
     @pytest.mark.integration
     def test_run_model_unavailable(self):
@@ -486,7 +488,9 @@ class TestOllamaChatGenerator:
 
         assert isinstance(response, dict)
         assert isinstance(response["replies"], list)
-        assert any(city in response["replies"][-1].text for city in ["Manchester", "Birmingham", "Glasgow"])
+        assert any(
+            city.lower() in response["replies"][-1].text.lower() for city in ["Manchester", "Birmingham", "Glasgow"]
+        )
 
     @pytest.mark.integration
     def test_run_with_tools(self, tools):
@@ -525,7 +529,7 @@ class TestOllamaChatGenerator:
         assert isinstance(response_data["capital"], str)
         assert "population" in response_data
         assert isinstance(response_data["population"], (int, float))
-        assert response_data["capital"] == "Paris"
+        assert response_data["capital"].lower() == "paris"
 
     def test_run_with_streaming_and_format(self):
         response_format = {

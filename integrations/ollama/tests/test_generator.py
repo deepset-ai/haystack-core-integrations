@@ -151,7 +151,7 @@ class TestOllamaGenerator:
         results = component.run(prompt="What's the capital of Netherlands?")
 
         assert len(results["replies"]) == 1
-        assert "Amsterdam" in results["replies"][0]
+        assert "amsterdam" in results["replies"][0].lower()
         assert len(results["meta"]) == 1
         assert callback.responses == results["replies"][0]
         assert callback.count_calls > 1
