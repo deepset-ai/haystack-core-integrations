@@ -187,11 +187,13 @@ class SnowflakeTableRetriever:
         return {"dataframe": pd.DataFrame(), "table": ""}
 
     @component.output_types(dataframe=pd.DataFrame, table=str)
-    def run(self, query: str) -> Dict[str, Any]:
+    def run(self, query: str, return_markdown: Optional[bool] = None) -> Dict[str, Any]:
         """
         Executes a SQL query against a Snowflake database using ADBC and Polars.
 
         :param query: The SQL query to execute.
+        :param return_markdown: Whether to return a Markdown-formatted string of the DataFrame.
+            If not provided, uses the value set during initialization.
         :returns: A dictionary containing:
             - `"dataframe"`: A Pandas DataFrame with the query results.
             - `"table"`: A Markdown-formatted string representation of the DataFrame.
@@ -274,7 +276,9 @@ class SnowflakeTableRetriever:
 
         # Convert Polars DataFrame to Markdown **only if return_markdown is True**
         markdown_str = ""
-        if self.return_markdown:
+        
+        should_return_markdown = self.return_markdown if return_markdown is None else return_markdown
+        if should_return_markdown:
             try:
                 markdown_str = self._polars_to_md(data)
             except Exception as e:
