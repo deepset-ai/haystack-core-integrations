@@ -30,10 +30,7 @@ def test_init_is_lazy(_mock_client):
     _mock_client.assert_not_called()
 
 
-@pytest.mark.skipif(
-    not os.environ.get("MONGO_CONNECTION_STRING"),
-    reason="No MongoDB Atlas connection string provided",
-)
+@pytest.mark.skipif(not os.environ.get("MONGO_CONNECTION_STRING"), reason="No MongoDBAtlas connection string provided")
 @pytest.mark.integration
 class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
 
