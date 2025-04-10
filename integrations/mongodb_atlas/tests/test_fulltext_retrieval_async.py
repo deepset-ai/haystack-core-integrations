@@ -85,14 +85,14 @@ class TestFullTextRetrieval:
             assert "fox" in doc.content
         assert results[0].score >= results[1].score
 
-    async def skip_test_fuzzy_retrieval_async(self, document_store: MongoDBAtlasDocumentStore):
+    async def test_fuzzy_retrieval_async(self, document_store: MongoDBAtlasDocumentStore):
         results = await document_store._fulltext_retrieval_async(query="fax", fuzzy={"maxEdits": 1}, top_k=2)
         assert len(results) == 2
         for doc in results:
             assert "fox" in doc.content
         assert results[0].score >= results[1].score
 
-    async def skip_test_filters_retrieval_async(self, document_store: MongoDBAtlasDocumentStore):
+    async def test_filters_retrieval_async(self, document_store: MongoDBAtlasDocumentStore):
         filters = {"field": "meta.meta_field", "operator": "==", "value": "right_value"}
         results = await document_store._fulltext_retrieval_async(query="fox", top_k=3, filters=filters)
         assert len(results) == 2
@@ -100,7 +100,7 @@ class TestFullTextRetrieval:
             assert "fox" in doc.content
             assert doc.meta["meta_field"] == "right_value"
 
-    async def skip_test_synonyms_retrieval_async(self, document_store: MongoDBAtlasDocumentStore):
+    async def test_synonyms_retrieval_async(self, document_store: MongoDBAtlasDocumentStore):
         results = await document_store._fulltext_retrieval_async(query="reynard", synonyms="synonym_mapping", top_k=2)
         assert len(results) == 2
         for doc in results:
@@ -108,16 +108,16 @@ class TestFullTextRetrieval:
         assert results[0].score >= results[1].score
 
     @pytest.mark.parametrize("query", ["", []])
-    async def skip_test_empty_query_raises_value_error_async(
+    async def test_empty_query_raises_value_error_async(
         self, query: Union[str, List], document_store: MongoDBAtlasDocumentStore
     ):
         with pytest.raises(ValueError):
             await document_store._fulltext_retrieval_async(query=query)
 
-    async def skip_test_empty_synonyms_raises_value_error_async(self, document_store: MongoDBAtlasDocumentStore):
+    async def test_empty_synonyms_raises_value_error_async(self, document_store: MongoDBAtlasDocumentStore):
         with pytest.raises(ValueError):
             await document_store._fulltext_retrieval_async(query="fox", synonyms="")
 
-    async def skip_test_synonyms_and_fuzzy_raises_value_error_async(self, document_store: MongoDBAtlasDocumentStore):
+    async def test_synonyms_and_fuzzy_raises_value_error_async(self, document_store: MongoDBAtlasDocumentStore):
         with pytest.raises(ValueError):
             await document_store._fulltext_retrieval_async(query="fox", synonyms="wolf", fuzzy={"maxEdits": 1})
