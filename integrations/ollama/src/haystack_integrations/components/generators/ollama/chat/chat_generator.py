@@ -258,7 +258,9 @@ class OllamaChatGenerator:
         chunk_message = StreamingChunk(content, meta)
         return chunk_message
 
-    def _handle_streaming_response(self, response) -> Dict[str, List[Any]]:
+    def _handle_streaming_response(
+        self, response: Any, streaming_callback: Optional[Callable[[StreamingChunk], None]]
+    ) -> Dict[str, List[Any]]:
         """
         Handles streaming response and converts it to Haystack format
         """
@@ -266,8 +268,8 @@ class OllamaChatGenerator:
         for chunk in response:
             chunk_delta = self._build_chunk(chunk)
             chunks.append(chunk_delta)
-            if self.streaming_callback is not None:
-                self.streaming_callback(chunk_delta)
+            if streaming_callback is not None:
+                streaming_callback(chunk_delta)
 
         replies = [ChatMessage.from_assistant("".join([c.content for c in chunks]))]
         meta = {key: value for key, value in chunks[0].meta.items() if key != "message"}
@@ -280,6 +282,8 @@ class OllamaChatGenerator:
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[List[Tool]] = None,
+        *,
+        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
         """
         Runs an Ollama Model on a given chat history.
@@ -293,12 +297,15 @@ class OllamaChatGenerator:
         :param tools:
             A list of tools for which the model can prepare calls. If set, it will override the `tools` parameter set
             during component initialization.
+        :param streaming_callback:
+            A callback function that is called when a new token is received from the stream.
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
         """
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
+        resolved_streaming_callback = streaming_callback or self.streaming_callback
 
-        stream = self.streaming_callback is not None
+        stream = resolved_streaming_callback is not None
         tools = tools or self.tools
         _check_duplicate_tool_names(tools)
 
@@ -328,6 +335,6 @@ class OllamaChatGenerator:
         )
 
         if stream:
-            return self._handle_streaming_response(response)
+            return self._handle_streaming_response(response, resolved_streaming_callback)
 
         return {"replies": [_convert_ollama_response_to_chatmessage(response)]}
