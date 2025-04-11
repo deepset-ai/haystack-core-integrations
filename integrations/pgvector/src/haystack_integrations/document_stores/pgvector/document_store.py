@@ -119,12 +119,11 @@ class PgvectorDocumentStore:
             `SELECT cfgname FROM pg_ts_config;`.
             More information can be found in this [StackOverflow answer](https://stackoverflow.com/a/39752553).
         :param embedding_dimension: The dimension of the embedding.
-        :param vector_type: The type of the vector to use for the embedding.
-            `"vector"` is the default and uses the `vector` type in PostgreSQL.
-            `"halfvec"` uses the `halfvec` type in PostgreSQL, which uses half the memory but less precision.
-            `"halfvec"` is only supported for pg_vector versions 0.7.0 and above.
-            Use `"halfvec"` if your need to support more than 2,000 dimensions for embeddings.
-            More information can be found in the [Pgvector issue](https://github.com/pgvector/pgvector/issues/461).
+        :param vector_type: The type of vector used for embedding storage.
+            "vector" is the default.
+            "halfvec" stores embeddings in half-precision, which is particularly useful for high-dimensional embeddings
+            (dimension greater than 2,000 and up to 4,000). Requires pgvector versions 0.7.0 or later. For more
+            information, see the [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file).
         :param vector_function: The similarity function to use when searching for similar embeddings.
             `"cosine_similarity"` and `"inner_product"` are similarity functions and
             higher scores indicate greater similarity between the documents.
@@ -390,12 +389,12 @@ class PgvectorDocumentStore:
         """
 
         sql_table_exists = SQL("SELECT 1 FROM pg_tables WHERE schemaname = %s AND tablename = %s")
-        table_embedding_col_type = SQL("HALFVEC") if self.vector_type == "halfvec" else SQL("VECTOR")
+        # table_embedding_col_type = SQL("HALFVEC") if self.vector_type == "halfvec" else SQL("VECTOR")
         sql_create_table = SQL(CREATE_TABLE_STATEMENT).format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
             embedding_dimension=SQLLiteral(self.embedding_dimension),
-            embedding_col_type=table_embedding_col_type,
+            embedding_col_type=SQL(self.vector_type),
         )
 
         sql_keyword_index_exists = SQL(

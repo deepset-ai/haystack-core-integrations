@@ -51,14 +51,12 @@ def _from_pg_to_haystack_documents(documents: List[Dict[str, Any]]) -> List[Docu
         blob_mime_type = haystack_dict.pop("blob_mime_type")
 
         # convert the embedding to a list of floats
-        embedding_val = document.get("embedding")
-        converted_embedding = None
-        if embedding_val is not None:
-            if hasattr(embedding_val, "to_list"):  # Check for HalfVector method first
-                converted_embedding = embedding_val.to_list()
-            elif hasattr(embedding_val, "tolist"):  # Fallback to NumPy method
-                converted_embedding = embedding_val.tolist()
-            haystack_dict["embedding"] = converted_embedding
+        # for strange reasons, halfvec and vector have different methods to convert the embedding to a list
+        if document.get("embedding") is not None:
+            if hasattr(document["embedding"], "tolist"):  # vector
+                haystack_dict["embedding"] = document["embedding"].tolist()
+            else:  # halfvec
+                haystack_dict["embedding"] = document["embedding"].to_list()
 
         haystack_document = Document.from_dict(haystack_dict)
 

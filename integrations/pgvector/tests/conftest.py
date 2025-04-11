@@ -55,6 +55,30 @@ def document_store_w_hnsw_index(request, monkeypatch):
 
 
 @pytest.fixture
+def document_store_w_halfvec_hnsw_index(request, monkeypatch):
+    monkeypatch.setenv("PG_CONN_STR", "postgresql://postgres:postgres@localhost:5432/postgres")
+    table_name = f"haystack_halfvec_hnsw_{request.node.name}"
+    embedding_dimension = 2500
+    vector_function = "cosine_similarity"
+    recreate_table = True
+
+    store = PgvectorDocumentStore(
+        table_name=table_name,
+        embedding_dimension=embedding_dimension,
+        vector_function=vector_function,
+        recreate_table=recreate_table,
+        search_strategy="hnsw",
+        vector_type="halfvec",
+    )
+    yield store
+
+    # Ensure connection just for table deletion.
+    # During test execution, the tested methods are expected to call _ensure_db_setup() themselves.
+    store._ensure_db_setup()
+    store.delete_table()
+
+
+@pytest.fixture
 def patches_for_unit_tests():
     with patch("haystack_integrations.document_stores.pgvector.document_store.register_vector") as mock_register, patch(
         "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore.delete_table"
