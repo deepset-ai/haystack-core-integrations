@@ -35,8 +35,8 @@ Here's the correct way to set up your script:
 import os
 
 # Set environment variables first
-os.environ["LANGFUSE_HOST"] = "https://cloud.langfuse.com"
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["LANGFUSE_SECRET_KEY"] = ""  # Your Langfuse secret key
+os.environ["LANGFUSE_PUBLIC_KEY"] = ""  # Your Langfuse public key
 os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
 
 # Then import Haystack components
@@ -58,8 +58,8 @@ Here's a full example:
 ```python
 import os
 
-os.environ["LANGFUSE_HOST"] = "https://cloud.langfuse.com"
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["LANGFUSE_SECRET_KEY"] = ""  # Your Langfuse secret key
+os.environ["LANGFUSE_PUBLIC_KEY"] = ""  # Your Langfuse public key
 os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
 
 from haystack.components.builders import ChatPromptBuilder
