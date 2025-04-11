@@ -10,6 +10,7 @@ from .mcp_tool import (
     MCPConnectionError,
     MCPServerInfo,
     MCPTool,
+    AsyncExecutor,
 )
 
 logger = logging.getLogger(__name__)
@@ -115,8 +116,8 @@ class MCPToolset(Toolset):
             # Create the appropriate client using the factory method
             client = self.server_info.create_client()
 
-            # Connect and get available tools
-            tools = self._run_sync(client.connect(), timeout=self.connection_timeout)
+            # Connect and get available tools using AsyncExecutor
+            tools = AsyncExecutor.get_instance().run(client.connect(), timeout=self.connection_timeout)
 
             # Create MCPTool instances for each available tool and add them
             for tool_info in tools:
@@ -138,49 +139,6 @@ class MCPToolset(Toolset):
         except Exception as e:
             message = f"Failed to initialize MCPToolset: {e}"
             raise MCPConnectionError(message=message, server_info=self.server_info, operation="initialize") from e
-
-    def _run_sync(self, coro, timeout: float | None = None):
-        """
-        Run an async coroutine synchronously.
-
-        :param coro: The coroutine to run
-        :param timeout: Optional timeout in seconds
-        :returns: The result of the coroutine
-        :raises TimeoutError: If the operation times out
-        """
-        try:
-            # Apply timeout if specified
-            if timeout is not None:
-                coro = asyncio.wait_for(coro, timeout=timeout)
-
-            # Try to get a running loop first
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                # If we can't get a running loop, create a new one
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                return loop.run_until_complete(coro)
-
-            # If the loop is already running, run our coroutine inline
-            if loop.is_running():
-                # Create a new loop for our coroutine to avoid conflicts
-                # This should prevent "This event loop is already running" errors
-                temp_loop = asyncio.new_event_loop()
-                try:
-                    return temp_loop.run_until_complete(coro)
-                finally:
-                    temp_loop.close()
-            else:
-                # Use the existing loop
-                return loop.run_until_complete(coro)
-
-        except asyncio.TimeoutError as e:
-            message = f"Operation timed out after {timeout} seconds"
-            raise TimeoutError(message) from e
-        except Exception as e:
-            # Re-raise any other exceptions
-            raise e
 
     def to_dict(self) -> dict[str, Any]:
         """
