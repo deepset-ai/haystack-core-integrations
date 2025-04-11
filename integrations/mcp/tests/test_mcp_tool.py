@@ -345,8 +345,8 @@ if __name__ == "__main__":
         server_process = None
         try:
             # Start the server in a separate process
-            server_process = subprocess.Popen(  # noqa: S603
-                ["python", server_script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True  # noqa: S607
+            server_process = subprocess.Popen(
+                ["python", server_script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
 
             # Give the server a moment to start
