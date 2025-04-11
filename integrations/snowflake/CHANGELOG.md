@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/snowflake-v1.0.0] - 2025-04-10
+
+### 🚜 Refactor
+
+- Update the Snowflake component to utilize Polars and ADBC for improved performance. (#1630)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+
 ## [integrations/snowflake-v0.0.4] - 2025-03-11
 
 ### 🧹 Chores

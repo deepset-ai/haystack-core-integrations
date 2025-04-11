@@ -47,9 +47,11 @@ dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
   "pytest-rerunfailures",
+  "pytest-asyncio",
   "ipython",
   "haystack-pydoc-tools",
 ]
+
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
@@ -63,6 +65,7 @@ docs = ["pydoc-markdown pydoc/config.yml"]
 installer = "uv"
 detached = true
 dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
+
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
 style = ["ruff check {args:.}", "black --check --diff {args:.}"]
@@ -160,3 +163,4 @@ addopts = "--strict-markers"
 markers = [
   "integration: integration tests",
 ]
+asyncio_mode = "auto"

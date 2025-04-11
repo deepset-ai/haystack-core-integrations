@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import os
 from time import sleep
 from typing import List, Union
@@ -35,7 +36,8 @@ class TestFullTextRetrieval:
 
     @pytest.fixture(autouse=True, scope="class")
     def setup_teardown(self, document_store):
-        document_store.collection.delete_many({})
+        document_store._ensure_connection_setup()
+        document_store._collection.delete_many({})
         document_store.write_documents(
             [
                 Document(content="The quick brown fox chased the dog", meta={"meta_field": "right_value"}),
@@ -50,7 +52,7 @@ class TestFullTextRetrieval:
 
         yield
 
-    def test_pipeline_correctly_passes_parameters(self):
+    def test_pipeline_correctly_passes_parameters(self, document_store):
         document_store = get_document_store()
         mock_collection = MagicMock()
         document_store._collection = mock_collection

@@ -2,7 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
+
 from haystack_integrations.tools.mcp import MCPTool, StdioServerInfo
+
+# Setup logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("haystack_integrations.tools.mcp")
+logger.setLevel(logging.DEBUG)
 
 # For stdio MCPTool we don't need to run a server, we can just use the MCPTool directly
 # Here we use the mcp-server-time server
