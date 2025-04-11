@@ -389,7 +389,6 @@ class PgvectorDocumentStore:
         """
 
         sql_table_exists = SQL("SELECT 1 FROM pg_tables WHERE schemaname = %s AND tablename = %s")
-        # table_embedding_col_type = SQL("HALFVEC") if self.vector_type == "halfvec" else SQL("VECTOR")
         sql_create_table = SQL(CREATE_TABLE_STATEMENT).format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
