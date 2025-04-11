@@ -3,7 +3,14 @@ from typing import Any, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, ToolCall
-from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
+from haystack.tools import Tool, _check_duplicate_tool_names
+
+# Compatibility with Haystack 2.12.0 and 2.13.0 - remove after 2.13.0 is released
+try:
+    from haystack.tools import deserialize_tools_or_toolset_inplace
+except ImportError:
+    from haystack.tools import deserialize_tools_inplace as deserialize_tools_or_toolset_inplace
+
 from llama_cpp import ChatCompletionResponseChoice, CreateChatCompletionResponse, Llama
 from llama_cpp.llama_tokenizer import LlamaHFTokenizer
 
@@ -161,7 +168,7 @@ class LlamaCppChatGenerator:
         :returns:
             Deserialized component.
         """
-        deserialize_tools_inplace(data["init_parameters"], key="tools")
+        deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         return default_from_dict(cls, data)
 
     @component.output_types(replies=List[ChatMessage])

@@ -3,8 +3,14 @@ from typing import Any, Callable, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingChunk
-from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
+from haystack.tools import Tool, _check_duplicate_tool_names
 from haystack.utils import deserialize_callable, serialize_callable
+
+# Compatibility with Haystack 2.12.0 and 2.13.0 - remove after 2.13.0 is released
+try:
+    from haystack.tools import deserialize_tools_or_toolset_inplace
+except ImportError:
+    from haystack.tools import deserialize_tools_inplace as deserialize_tools_or_toolset_inplace
 
 from anthropic import AnthropicVertex
 
@@ -136,7 +142,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         :returns:
             The deserialized component instance.
         """
-        deserialize_tools_inplace(data["init_parameters"], key="tools")
+        deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         init_params = data.get("init_parameters", {})
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
