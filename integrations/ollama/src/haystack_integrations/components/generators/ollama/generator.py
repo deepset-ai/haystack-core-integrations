@@ -137,7 +137,9 @@ class OllamaGenerator:
 
         return {"replies": replies, "meta": [meta]}
 
-    def _handle_streaming_response(self, response) -> List[StreamingChunk]:
+    def _handle_streaming_response(
+        self, response: Any, streaming_callback: Optional[Callable[[StreamingChunk], None]]
+    ) -> List[StreamingChunk]:
         """
         Handles Streaming response cases
         """
@@ -145,8 +147,8 @@ class OllamaGenerator:
         for chunk in response:
             chunk_delta: StreamingChunk = self._build_chunk(chunk)
             chunks.append(chunk_delta)
-            if self.streaming_callback is not None:
-                self.streaming_callback(chunk_delta)
+            if streaming_callback is not None:
+                streaming_callback(chunk_delta)
         return chunks
 
     def _build_chunk(self, chunk_response: Any) -> StreamingChunk:
@@ -165,6 +167,8 @@ class OllamaGenerator:
         self,
         prompt: str,
         generation_kwargs: Optional[Dict[str, Any]] = None,
+        *,
+        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
         """
         Runs an Ollama Model on the given prompt.
@@ -175,20 +179,27 @@ class OllamaGenerator:
             Optional arguments to pass to the Ollama generation endpoint, such as temperature,
             top_p, and others. See the available arguments in
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
+        :param streaming_callback:
+            A callback function that is called when a new token is received from the stream.
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
             - `meta`: The metadata collected during the run
         """
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
-        stream = self.streaming_callback is not None
+        resolved_streaming_callback = streaming_callback or self.streaming_callback
+        stream = resolved_streaming_callback is not None
 
         response = self._client.generate(
-            model=self.model, prompt=prompt, stream=stream, keep_alive=self.keep_alive, options=generation_kwargs
+            model=self.model,
+            prompt=prompt,
+            stream=stream,
+            keep_alive=self.keep_alive,
+            options=generation_kwargs,
         )
 
         if stream:
-            chunks: List[StreamingChunk] = self._handle_streaming_response(response)
+            chunks: List[StreamingChunk] = self._handle_streaming_response(response, resolved_streaming_callback)
             return self._convert_to_streaming_response(chunks)
 
         return self._convert_to_response(response)

@@ -5,9 +5,15 @@ from botocore.eventstream import EventStream
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, StreamingCallbackT, select_streaming_callback
-from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
+from haystack.tools import Tool, _check_duplicate_tool_names
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
+
+# Compatibility with Haystack 2.12.0 and 2.13.0 - remove after 2.13.0 is released
+try:
+    from haystack.tools import deserialize_tools_or_toolset_inplace
+except ImportError:
+    from haystack.tools import deserialize_tools_inplace as deserialize_tools_or_toolset_inplace
 
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
@@ -287,7 +293,7 @@ class AmazonBedrockChatGenerator:
             data["init_parameters"],
             ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
         )
-        deserialize_tools_inplace(data["init_parameters"], key="tools")
+        deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         return default_from_dict(cls, data)
 
     def _prepare_request_params(
