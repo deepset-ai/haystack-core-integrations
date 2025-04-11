@@ -101,7 +101,8 @@ class LangfuseSpan(Span):
                 messages = [m.to_openai_dict_format() for m in value["messages"]]
                 self._span.update(input=messages)
             else:
-                self._span.update(input=value)
+                coerced_value = tracing_utils.coerce_tag_value(value)
+                self._span.update(input=coerced_value)
         elif key.endswith(".output"):
             if "replies" in value:
                 if all(isinstance(r, ChatMessage) for r in value["replies"]):
@@ -110,7 +111,8 @@ class LangfuseSpan(Span):
                     replies = value["replies"]
                 self._span.update(output=replies)
             else:
-                self._span.update(output=value)
+                coerced_value = tracing_utils.coerce_tag_value(value)
+                self._span.update(output=coerced_value)
 
         self._data[key] = value
 
@@ -286,9 +288,9 @@ class DefaultSpanHandler(SpanHandler):
         # If the span is at the pipeline level, we add input and output keys to the span
         at_pipeline_level = span.get_data().get(_PIPELINE_INPUT_KEY) is not None
         if at_pipeline_level:
-            span.raw_span().update(
-                input=span.get_data().get(_PIPELINE_INPUT_KEY), output=span.get_data().get(_PIPELINE_OUTPUT_KEY)
-            )
+            coerced_input = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_INPUT_KEY))
+            coerced_output = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_OUTPUT_KEY))
+            span.raw_span().update(input=coerced_input, output=coerced_output)
 
         if component_type in _SUPPORTED_GENERATORS:
             meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
