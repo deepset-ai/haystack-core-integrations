@@ -6,10 +6,6 @@
 
 - Fix MCPTool import in code example (#1578)
 
-### ⚙️ CI
-
-- Review testing workflows (#1541)
-
 ### 🌀 Miscellaneous
 
 - Feat: Add AsyncExecutor in MCPTool, ensure MCPTool works in hayhooks (#1643)
