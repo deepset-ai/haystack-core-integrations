@@ -30,43 +30,56 @@ def test_init_is_lazy(_mock_client):
     _mock_client.assert_not_called()
 
 
-@pytest.mark.skipif(
-    not os.environ.get("MONGO_CONNECTION_STRING"),
-    reason="No MongoDB Atlas connection string provided",
-)
+@pytest.mark.skipif(not os.environ.get("MONGO_CONNECTION_STRING"), reason="No MongoDBAtlas connection string provided")
 @pytest.mark.integration
 class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
+
     @pytest.fixture
-    def document_store(self):
+    async def document_store(self):
         database_name = "haystack_integration_test"
         collection_name = "test_collection_" + str(uuid4())
+        connection_string = os.environ["MONGO_CONNECTION_STRING"]
 
-        with MongoClient(
-            os.environ["MONGO_CONNECTION_STRING"], driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
-        ) as connection:
-            database = connection[database_name]
+        # We're using the sync client for setup/teardown ease
+        sync_client = MongoClient(connection_string, driver=DriverInfo(name="MongoDBAtlasHaystackIntegration"))
+
+        store = MongoDBAtlasDocumentStore(
+            database_name=database_name,
+            collection_name=collection_name,
+            vector_search_index="cosine_index",
+            full_text_search_index="full_text_index",
+        )
+        try:
+            database = sync_client[database_name]
             if collection_name in database.list_collection_names():
                 database[collection_name].drop()
             database.create_collection(collection_name)
             database[collection_name].create_index("id", unique=True)
 
-            store = MongoDBAtlasDocumentStore(
-                database_name=database_name,
-                collection_name=collection_name,
-                vector_search_index="cosine_index",
-                full_text_search_index="full_text_index",
-            )
-            yield store
-            database[collection_name].drop()
+            # Initialize the async connection before yielding
+            await store._ensure_connection_setup_async()
 
-    @pytest.mark.asyncio
+            yield store
+        finally:
+            # Ensure async connection is closed before synchronous teardown
+            if store._connection_async:
+                await store.connection.close()
+
+            # Synchronous teardown
+            if sync_client:
+                try:
+                    database = sync_client[database_name]
+                    if collection_name in database.list_collection_names():
+                        database[collection_name].drop()
+                finally:
+                    sync_client.close()
+
     async def test_write_documents_async(self, document_store: MongoDBAtlasDocumentStore):
         docs = [Document(content="some text")]
         assert await document_store.write_documents_async(docs) == 1
         with pytest.raises(DuplicateDocumentError):
             await document_store.write_documents_async(docs, DuplicatePolicy.FAIL)
 
-    @pytest.mark.asyncio
     async def test_write_blob_async(self, document_store: MongoDBAtlasDocumentStore):
         bytestream = ByteStream(b"test", meta={"meta_key": "meta_value"}, mime_type="mime_type")
         docs = [Document(blob=bytestream)]
@@ -74,13 +87,11 @@ class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
         retrieved_docs = await document_store.filter_documents_async()
         assert retrieved_docs == docs
 
-    @pytest.mark.asyncio
     async def test_count_documents_async(self, document_store: MongoDBAtlasDocumentStore):
         docs = [Document(content="some text")]
         await document_store.write_documents_async(docs)
         assert await document_store.count_documents_async() == 1
 
-    @pytest.mark.asyncio
     async def test_filter_documents_async(self, document_store: MongoDBAtlasDocumentStore, filterable_docs):
         filters = {
             "operator": "OR",
@@ -111,7 +122,6 @@ class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
         ]
         assert result == expected
 
-    @pytest.mark.asyncio
     async def test_delete_documents_async(self, document_store: MongoDBAtlasDocumentStore):
         docs = [Document(id="1", content="some text")]
         await document_store.write_documents_async(docs)

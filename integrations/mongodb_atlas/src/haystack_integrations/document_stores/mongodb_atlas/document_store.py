@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-
 import re
 from typing import Any, Dict, List, Literal, Optional, Union
 
@@ -109,9 +108,13 @@ class MongoDBAtlasDocumentStore:
         """
         if self._connection:
             self._connection.close()
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """
+        Asynchronous exit method to close MongoDB connections when the instance is destroyed.
+        """
         if self._connection_async:
-            # not possible to await in __del__, so we just close the connection
-            self._connection_async.close()
+            await self._connection_async.close()
 
     @property
     def connection(self) -> Union[AsyncMongoClient, MongoClient]:
@@ -755,8 +758,10 @@ class MongoDBAtlasDocumentStore:
         ]
 
         await self._ensure_connection_setup_async()
+
         try:
-            documents = self._collection.aggregate(pipeline).to_list()  # type: ignore[union-attr]
+            cursor = await self._collection_async.aggregate(pipeline)  # type: ignore[union-attr]
+            documents = await cursor.to_list(length=None)
         except Exception as e:
             error_msg = f"Failed to retrieve documents from MongoDB Atlas: {e}"
             if filters:
