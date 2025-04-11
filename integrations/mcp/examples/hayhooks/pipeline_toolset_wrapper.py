@@ -80,4 +80,4 @@ class PipelineToolsetWrapper(BasePipelineWrapper):
         )
 
         # Return the text of the first reply
-        return result["response_llm"]["replies"][0].text 
+        return result["response_llm"]["replies"][0].text

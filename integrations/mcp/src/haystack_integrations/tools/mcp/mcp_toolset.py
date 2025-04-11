@@ -1,16 +1,14 @@
-import asyncio
 import logging
 from typing import Any
 
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.tools import Toolset
 
-# Import MCP-related classes
 from .mcp_tool import (
+    AsyncExecutor,
     MCPConnectionError,
     MCPServerInfo,
     MCPTool,
-    AsyncExecutor,
 )
 
 logger = logging.getLogger(__name__)

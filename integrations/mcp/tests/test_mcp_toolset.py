@@ -22,7 +22,7 @@ def mock_mcp_toolset():
     mock_tool2.description = "Test tool 2"
 
     with (
-        patch("haystack_integrations.tools.mcp.mcp_toolset.MCPToolset._run_sync") as mock_run_sync,
+        patch("haystack_integrations.tools.mcp.mcp_toolset.AsyncExecutor.get_instance") as mock_executor,
         patch("haystack_integrations.tools.mcp.mcp_tool.MCPServerInfo.create_client") as mock_create_client,
         patch("haystack_integrations.tools.mcp.mcp_toolset.MCPTool", autospec=True) as mock_mcp_tool_class,
     ):
@@ -38,7 +38,7 @@ def mock_mcp_toolset():
         mock_tool_info2.description = "Test tool 2"
         mock_tool_info2.inputSchema = {"type": "object", "properties": {}}
 
-        mock_run_sync.return_value = [mock_tool_info1, mock_tool_info2]
+        mock_executor.return_value.run.return_value = [mock_tool_info1, mock_tool_info2]
         mock_create_client.return_value = mock_client
         mock_mcp_tool_class.side_effect = [mock_tool1, mock_tool2]
 
@@ -59,7 +59,7 @@ def mock_mcp_toolset_with_tool_names():
     mock_tool2.description = "Test tool 2"
 
     with (
-        patch("haystack_integrations.tools.mcp.mcp_toolset.MCPToolset._run_sync") as mock_run_sync,
+        patch("haystack_integrations.tools.mcp.mcp_toolset.AsyncExecutor.get_instance") as mock_executor,
         patch("haystack_integrations.tools.mcp.mcp_tool.MCPServerInfo.create_client") as mock_create_client,
         patch("haystack_integrations.tools.mcp.mcp_toolset.MCPTool", autospec=True) as mock_mcp_tool_class,
     ):
@@ -75,7 +75,7 @@ def mock_mcp_toolset_with_tool_names():
         mock_tool_info2.description = "Test tool 2"
         mock_tool_info2.inputSchema = {"type": "object", "properties": {}}
 
-        mock_run_sync.return_value = [mock_tool_info1, mock_tool_info2]
+        mock_executor.return_value.run.return_value = [mock_tool_info1, mock_tool_info2]
         mock_create_client.return_value = mock_client
         # Only the second tool should be created since we're filtering by name
         mock_mcp_tool_class.return_value = mock_tool2
@@ -201,12 +201,12 @@ class TestMCPToolset:
     def test_toolset_error_handling(self):
         """Test error handling during toolset initialization."""
         with (
-            patch("haystack_integrations.tools.mcp.mcp_toolset.MCPToolset._run_sync") as mock_run_sync,
+            patch("haystack_integrations.tools.mcp.mcp_toolset.AsyncExecutor.get_instance") as mock_executor,
             patch("haystack_integrations.tools.mcp.mcp_tool.MCPServerInfo.create_client") as mock_create_client,
         ):
             mock_client = MagicMock()
             mock_create_client.return_value = mock_client
-            mock_run_sync.side_effect = Exception("Connection failed")
+            mock_executor.return_value.run.side_effect = Exception("Connection failed")
 
             with pytest.raises(MCPConnectionError):
                 MCPToolset(
@@ -214,31 +214,6 @@ class TestMCPToolset:
                     connection_timeout=30,
                     invocation_timeout=30,
                 )
-
-    def test_run_sync_method(self):
-        """Test the _run_sync method for handling asyncio coroutines."""
-
-        async def sample_coro():
-            return "test_result"
-
-        # Test with no running loop
-        with patch("asyncio.get_running_loop", side_effect=RuntimeError):
-            result = MCPToolset._run_sync(None, sample_coro())
-            assert result == "test_result"
-
-        # Test with running loop - key behavior we improved
-        with patch("asyncio.get_running_loop") as mock_get_loop:
-            mock_loop = MagicMock()
-            mock_loop.is_running.return_value = True
-            mock_get_loop.return_value = mock_loop
-
-            mock_temp_loop = MagicMock()
-            mock_temp_loop.run_until_complete.return_value = "test_result"
-
-            with patch("asyncio.new_event_loop", return_value=mock_temp_loop):
-                result = MCPToolset._run_sync(None, sample_coro())
-                assert result == "test_result"
-                mock_temp_loop.close.assert_called_once()
 
 
 @pytest.mark.integration
@@ -259,26 +234,23 @@ class TestMCPToolsetIntegration:
         with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as temp_file:
             temp_file.write(
                 f"""
-import sys
 from mcp.server.fastmcp import FastMCP
-
-mcp = FastMCP("MCP Math Server", host="127.0.0.1", port={port})
-
+mcp = FastMCP("MCP Calculator", host="127.0.0.1", port={port})
 @mcp.tool()
 def add(a: int, b: int) -> int:
     \"\"\"Add two numbers\"\"\"
     return a + b
 
+# Add a subtraction tool
 @mcp.tool()
-def multiply(a: int, b: int) -> int:
-    \"\"\"Multiply two numbers\"\"\"
-    return a * b
+def subtract(a: int, b: int) -> int:
+    \"\"\"Subtract b from a\"\"\"
+    return a - b
 
 if __name__ == "__main__":
     try:
         mcp.run(transport="sse")
     except Exception as e:
-        print(f"Error: {{e}}", file=sys.stderr)
         sys.exit(1)
 """.encode()
             )
@@ -297,15 +269,15 @@ if __name__ == "__main__":
 
         tool_names = [tool.name for tool in toolset.tools]
         assert "add" in tool_names
-        assert "multiply" in tool_names
+        assert "subtract" in tool_names
 
         add_tool = next(tool for tool in toolset.tools if tool.name == "add")
         result = add_tool.invoke(a=5, b=3)
         assert result.content[0].text == "8"
 
-        multiply_tool = next(tool for tool in toolset.tools if tool.name == "multiply")
-        result = multiply_tool.invoke(a=4, b=7)
-        assert result.content[0].text == "28"
+        subtract_tool = next(tool for tool in toolset.tools if tool.name == "subtract")
+        result = subtract_tool.invoke(a=10, b=4)
+        assert result.content[0].text == "6"
 
         # Cleanup resources
         if server_process and server_process.poll() is None:
