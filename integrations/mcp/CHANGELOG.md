@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/mcp-v0.0.2] - 2025-04-11
+
+### 📚 Documentation
+
+- Fix MCPTool import in code example (#1578)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🌀 Miscellaneous
+
+- Feat: Add AsyncExecutor in MCPTool, ensure MCPTool works in hayhooks (#1643)
+
 ## [integrations/mcp-v0.0.1] - 2025-03-12
 
 ### 🚀 Features
