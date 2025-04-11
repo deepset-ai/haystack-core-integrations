@@ -2,13 +2,12 @@ import logging
 from typing import Any
 
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
-from haystack.tools import Toolset
+from haystack.tools import Tool, Toolset
 
 from .mcp_tool import (
     AsyncExecutor,
     MCPConnectionError,
     MCPServerInfo,
-    MCPTool,
 )
 
 logger = logging.getLogger(__name__)
@@ -117,19 +116,30 @@ class MCPToolset(Toolset):
             # Connect and get available tools using AsyncExecutor
             tools = AsyncExecutor.get_instance().run(client.connect(), timeout=self.connection_timeout)
 
-            # Create MCPTool instances for each available tool and add them
+            # This is the function will give Tool instance to invoke
+            def create_invoke_tool(client, tool_name, invocation_timeout):
+                def invoke_tool(**kwargs) -> Any:
+                    """Invoke a tool using the existing client and AsyncExecutor."""
+                    result = AsyncExecutor.get_instance().run(
+                        client.call_tool(tool_name, kwargs), timeout=invocation_timeout
+                    )
+                    return result
+
+                return invoke_tool
+
+            # Create Tool instances not MCPTool for each available tool and add them
             for tool_info in tools:
                 # Skip tools not in the tool_names list if tool_names is provided
                 if self.tool_names is not None and tool_info.name not in self.tool_names:
                     logger.debug(f"Skipping tool '{tool_info.name}' as it's not in the requested tool_names list")
                     continue
 
-                tool = MCPTool(
+                # Use the helper function to create the invoke_tool function
+                tool = Tool(
                     name=tool_info.name,
-                    server_info=self.server_info,
                     description=tool_info.description,
-                    connection_timeout=self.connection_timeout,
-                    invocation_timeout=self.invocation_timeout,
+                    parameters=tool_info.inputSchema,
+                    function=create_invoke_tool(client, tool_info.name, self.invocation_timeout),
                 )
                 # Handles duplicates and other validation
                 self.add(tool)

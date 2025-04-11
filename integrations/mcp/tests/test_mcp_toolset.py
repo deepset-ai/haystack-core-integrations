@@ -7,40 +7,29 @@ import pytest
 from haystack.tools import Tool
 
 from haystack_integrations.tools.mcp import MCPToolset, SSEServerInfo
-from haystack_integrations.tools.mcp.mcp_tool import MCPConnectionError, MCPTool
+from haystack_integrations.tools.mcp.mcp_tool import MCPConnectionError
 
 
 @pytest.fixture
 def mock_mcp_toolset():
     """Fixture to create a pre-configured MCPToolset for testing without server connection."""
-    mock_tool1 = MagicMock(spec=MCPTool)
+    mock_tool1 = MagicMock(spec=Tool)
     mock_tool1.name = "tool1"
     mock_tool1.description = "Test tool 1"
+    mock_tool1.inputSchema = {"type": "object", "properties": {}}
 
-    mock_tool2 = MagicMock(spec=MCPTool)
+    mock_tool2 = MagicMock(spec=Tool)
     mock_tool2.name = "tool2"
     mock_tool2.description = "Test tool 2"
+    mock_tool2.inputSchema = {"type": "object", "properties": {}}
 
     with (
         patch("haystack_integrations.tools.mcp.mcp_toolset.AsyncExecutor.get_instance") as mock_executor,
         patch("haystack_integrations.tools.mcp.mcp_tool.MCPServerInfo.create_client") as mock_create_client,
-        patch("haystack_integrations.tools.mcp.mcp_toolset.MCPTool", autospec=True) as mock_mcp_tool_class,
     ):
         mock_client = MagicMock()
-
-        mock_tool_info1 = MagicMock()
-        mock_tool_info1.name = "tool1"
-        mock_tool_info1.description = "Test tool 1"
-        mock_tool_info1.inputSchema = {"type": "object", "properties": {}}
-
-        mock_tool_info2 = MagicMock()
-        mock_tool_info2.name = "tool2"
-        mock_tool_info2.description = "Test tool 2"
-        mock_tool_info2.inputSchema = {"type": "object", "properties": {}}
-
-        mock_executor.return_value.run.return_value = [mock_tool_info1, mock_tool_info2]
         mock_create_client.return_value = mock_client
-        mock_mcp_tool_class.side_effect = [mock_tool1, mock_tool2]
+        mock_executor.return_value.run.return_value = [mock_tool1, mock_tool2]
 
         toolset = MCPToolset(
             server_info=SSEServerInfo(base_url="http://example.com", token="test-token"),
@@ -54,31 +43,18 @@ def mock_mcp_toolset():
 @pytest.fixture
 def mock_mcp_toolset_with_tool_names():
     """Fixture to create an MCPToolset with specific tool_names filtering."""
-    mock_tool2 = MagicMock(spec=MCPTool)
+    mock_tool2 = MagicMock(spec=Tool)
     mock_tool2.name = "tool2"
     mock_tool2.description = "Test tool 2"
+    mock_tool2.inputSchema = {"type": "object", "properties": {}}
 
     with (
         patch("haystack_integrations.tools.mcp.mcp_toolset.AsyncExecutor.get_instance") as mock_executor,
         patch("haystack_integrations.tools.mcp.mcp_tool.MCPServerInfo.create_client") as mock_create_client,
-        patch("haystack_integrations.tools.mcp.mcp_toolset.MCPTool", autospec=True) as mock_mcp_tool_class,
     ):
         mock_client = MagicMock()
-
-        mock_tool_info1 = MagicMock()
-        mock_tool_info1.name = "tool1"
-        mock_tool_info1.description = "Test tool 1"
-        mock_tool_info1.inputSchema = {"type": "object", "properties": {}}
-
-        mock_tool_info2 = MagicMock()
-        mock_tool_info2.name = "tool2"
-        mock_tool_info2.description = "Test tool 2"
-        mock_tool_info2.inputSchema = {"type": "object", "properties": {}}
-
-        mock_executor.return_value.run.return_value = [mock_tool_info1, mock_tool_info2]
         mock_create_client.return_value = mock_client
-        # Only the second tool should be created since we're filtering by name
-        mock_mcp_tool_class.return_value = mock_tool2
+        mock_executor.return_value.run.return_value = [mock_tool2]
 
         toolset = MCPToolset(
             server_info=SSEServerInfo(base_url="http://example.com", token="test-token"),
