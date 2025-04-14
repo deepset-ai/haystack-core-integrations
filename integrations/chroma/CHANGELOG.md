@@ -1,9 +1,6 @@
 # Changelog
 
-## [unreleased]
-
-
-## [integrations/chroma-v2.0.3] - 2025-04-04
+## [integrations/chroma-v3.1.0] - 2025-04-14
 
 ### 🐛 Bug Fixes
 
