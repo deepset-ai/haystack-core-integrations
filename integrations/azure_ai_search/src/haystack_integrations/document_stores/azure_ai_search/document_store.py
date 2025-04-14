@@ -223,7 +223,8 @@ class AzureAISearchDocumentStore:
             ans = {key: cls.TYPE_MAP[value] for key, value in fields.items()}
             return ans
         except KeyError as e:
-            raise ValueError(f"Unsupported type encountered in metadata_fields: {e}")
+            msg = f"Unsupported type encountered in metadata_fields: {e}"
+            raise ValueError(msg) from e
 
     @staticmethod
     def _serialize_index_creation_kwargs(index_creation_kwargs: Dict[str, Any]) -> Dict[str, Any]:
