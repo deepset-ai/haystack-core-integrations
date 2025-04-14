@@ -4,7 +4,7 @@
 import logging as python_logging
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List, Optional
 
 from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import ClientAuthenticationError, HttpResponseError, ResourceNotFoundError
@@ -12,22 +12,22 @@ from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
+    CharFilter,
     HnswAlgorithmConfiguration,
     HnswParameters,
+    LexicalAnalyzer,
+    LexicalTokenizer,
     SearchableField,
     SearchField,
     SearchFieldDataType,
     SearchIndex,
+    SearchResourceEncryptionKey,
+    SearchSuggester,
     SimpleField,
+    TokenFilter,
     VectorSearch,
     VectorSearchAlgorithmMetric,
     VectorSearchProfile,
-    SearchSuggester,
-    LexicalAnalyzer,
-    LexicalTokenizer,
-    TokenFilter,
-    CharFilter,
-    SearchResourceEncryptionKey
 )
 from azure.search.documents.models import VectorizedQuery
 from haystack import default_from_dict, default_to_dict, logging
@@ -44,6 +44,16 @@ type_mapping = {
     int: "Edm.Int32",
     float: "Edm.Double",
     datetime: "Edm.DateTimeOffset",
+}
+
+# Map of expected field names to their corresponding classes
+azure_type_mapping = {
+    "suggesters": SearchSuggester,
+    "analyzers": LexicalAnalyzer,
+    "tokenizers": LexicalTokenizer,
+    "token_filters": TokenFilter,
+    "char_filters": CharFilter,
+    "encryption_key": SearchResourceEncryptionKey,
 }
 
 DEFAULT_VECTOR_SEARCH = VectorSearch(
@@ -66,13 +76,8 @@ python_logging.getLogger("azure.identity").setLevel(python_logging.DEBUG)
 
 
 class AzureAISearchDocumentStore:
-    TYPE_MAP = {
-        "str": str,
-        "int": int,
-        "float": float,
-        "bool": bool,
-        "datetime": datetime
-    }
+    TYPE_MAP: ClassVar[Dict[str, type]] = {"str": str, "int": int, "float": float, "bool": bool, "datetime": datetime}
+
     def __init__(
         self,
         *,
@@ -202,66 +207,51 @@ class AzureAISearchDocumentStore:
             self._index_client.create_index(index)
 
     @staticmethod
-    def _serialize_metadata_fields(
-        metadata_fields: Optional[Dict[str, type]]
-    ) -> Optional[Dict[str, str]]:
+    def _serialize_metadata_fields(metadata_fields: Optional[Dict[str, type]]) -> Optional[Dict[str, str]]:
         """Convert type objects to their string representations."""
         if not metadata_fields:
             return None
         return {key: value.__name__ for key, value in metadata_fields.items()}
 
     @classmethod
-    def _deserialize_metadata_fields(
-        cls, fields: Optional[Dict[str, str]]
-    ) -> Optional[Dict[str, type]]:
+    def _deserialize_metadata_fields(cls, fields: Optional[Dict[str, str]]) -> Optional[Dict[str, type]]:
         """Convert string representations back to type objects."""
         if not fields:
             return None
         try:
             # Use the class-level TYPE_MAP for conversion.
-            return {key: cls.TYPE_MAP[value] for key, value in fields.items()}
+            ans = {key: cls.TYPE_MAP[value] for key, value in fields.items()}
+            return ans
         except KeyError as e:
-            raise ValueError(
-                f"Unsupported type encountered in metadata_fields: {e}"
-            )
-        
+            raise ValueError(f"Unsupported type encountered in metadata_fields: {e}")
+
     @staticmethod
     def _serialize_index_creation_kwargs(index_creation_kwargs: Dict[str, Any]) -> Dict[str, Any]:
-        for key,value in index_creation_kwargs.items():
+        result = {}
+        for key, value in index_creation_kwargs.items():
             if hasattr(value, "as_dict"):
-                index_creation_kwargs[key] = value.as_dict()
+                result[key] = value.as_dict()
+            elif isinstance(value, list) and all(hasattr(item, "as_dict") for item in value):
+                result[key] = [item.as_dict() for item in value]
             else:
-                index_creation_kwargs[key] = value
-        return index_creation_kwargs
-    
+                result[key] = value
+        return result
+
     @classmethod
     def _deserialize_index_creation_kwargs(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        # Map of expected field names to their corresponding classes
-        type_mapping = {
-            "suggesters": SearchSuggester,
-            "analyzers": LexicalAnalyzer,
-            "tokenizers": LexicalTokenizer,
-            "token_filters": TokenFilter,
-            "char_filters": CharFilter,
-            "encryption_key": SearchResourceEncryptionKey
-        }
-        
+
         result = {}
         for key, value in data.items():
-            if key in type_mapping:
-                # Handle list types
+            if key in azure_type_mapping:
                 if isinstance(value, list):
-                    result[key] = [type_mapping[key].from_dict(item) for item in value]
-                # Handle single objects
+                    result[key] = [azure_type_mapping[key].from_dict(item) for item in value]
                 else:
-                    result[key] = type_mapping[key].from_dict(value)
+                    result[key] = azure_type_mapping[key].from_dict(value)
+            elif isinstance(value, dict) and hasattr(value, "from_dict"):
+                result[key] = value.from_dict(value)
             else:
-                # For any other types that might have from_dict
-                if isinstance(value, dict) and hasattr(value, "from_dict"):
-                    result[key] = value.from_dict(value)
-                else:
-                    result[key] = value
-                    
+                result[key] = value
+
         return result
 
     def to_dict(self) -> Dict[str, Any]:
@@ -275,11 +265,7 @@ class AzureAISearchDocumentStore:
             Dictionary with serialized data.
         """
         serialized_metadata = self._serialize_metadata_fields(self._metadata_fields)
-        for key,value in self._index_creation_kwargs.items():
-            if hasattr(value, "as_dict"):
-                self._index_creation_kwargs[key] = value.as_dict()
-            else:
-                self._index_creation_kwargs[key] = value
+
         return default_to_dict(
             self,
             azure_endpoint=self._azure_endpoint.to_dict() if self._azure_endpoint else None,
@@ -288,7 +274,7 @@ class AzureAISearchDocumentStore:
             embedding_dimension=self._embedding_dimension,
             metadata_fields=serialized_metadata,
             vector_search_configuration=self._vector_search_configuration.as_dict(),
-            index_creation_kwargs=self._serialize_index_creation_kwargs(self._index_creation_kwargs),
+            **self._serialize_index_creation_kwargs(self._index_creation_kwargs),
         )
 
     @classmethod
@@ -302,11 +288,13 @@ class AzureAISearchDocumentStore:
         :returns:
             Deserialized component.
         """
+        if (fields := data["init_parameters"]["metadata_fields"]) is not None:
+            data["init_parameters"]["metadata_fields"] = cls._deserialize_metadata_fields(fields)
 
-        if (fields := data.get("metadata_fields")):
-            data["metadata_fields"] = cls._deserialize_metadata_fields(fields)
-        if (index_creation_kwargs := data["init_parameters"].get("index_creation_kwargs")) is not None:
-            data["init_parameters"]["index_creation_kwargs"] = cls._deserialize_index_creation_kwargs(index_creation_kwargs)
+        for key, _value in azure_type_mapping.items():
+            if key in data["init_parameters"]:
+                param_value = data["init_parameters"].get(key)
+                data["init_parameters"][key] = cls._deserialize_index_creation_kwargs({key: param_value})
 
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "azure_endpoint"])
         if (vector_search_configuration := data["init_parameters"].get("vector_search_configuration")) is not None:
