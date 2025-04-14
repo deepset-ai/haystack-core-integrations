@@ -117,7 +117,7 @@ class TestGoogleAIGeminiChatGenerator:
         with patch("haystack_integrations.components.generators.google_ai.chat.gemini.genai.configure"):
             gemini = GoogleAIGeminiChatGenerator()
         assert gemini.to_dict() == {
-            "type": "haystack_integrations.components.generators.google_ai.chat.gemini.GoogleAIGeminiChatGenerator",
+            "type": TYPE,
             "init_parameters": {
                 "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "gemini-1.5-flash",
