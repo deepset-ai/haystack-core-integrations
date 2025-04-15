@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 CREATE_TABLE_STATEMENT = """
 CREATE TABLE {schema_name}.{table_name} (
 id VARCHAR(128) PRIMARY KEY,
-embedding VECTOR({embedding_dimension}),
+embedding {embedding_col_type}({embedding_dimension}),
 content TEXT,
 blob_data BYTEA,
 blob_meta JSONB,
@@ -64,6 +64,12 @@ VECTOR_FUNCTION_TO_POSTGRESQL_OPS = {
     "l2_distance": "vector_l2_ops",
 }
 
+HALF_VECTOR_FUNCTION_TO_POSTGRESQL_OPS = {
+    "cosine_similarity": "halfvec_cosine_ops",
+    "inner_product": "halfvec_ip_ops",
+    "l2_distance": "halfvec_l2_ops",
+}
+
 HNSW_INDEX_CREATION_VALID_KWARGS = ["m", "ef_construction"]
 
 
@@ -81,6 +87,7 @@ class PgvectorDocumentStore:
         table_name: str = "haystack_documents",
         language: str = "english",
         embedding_dimension: int = 768,
+        vector_type: Literal["vector", "halfvec"] = "vector",
         vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"] = "cosine_similarity",
         recreate_table: bool = False,
         search_strategy: Literal["exact_nearest_neighbor", "hnsw"] = "exact_nearest_neighbor",
@@ -112,6 +119,11 @@ class PgvectorDocumentStore:
             `SELECT cfgname FROM pg_ts_config;`.
             More information can be found in this [StackOverflow answer](https://stackoverflow.com/a/39752553).
         :param embedding_dimension: The dimension of the embedding.
+        :param vector_type: The type of vector used for embedding storage.
+            "vector" is the default.
+            "halfvec" stores embeddings in half-precision, which is particularly useful for high-dimensional embeddings
+            (dimension greater than 2,000 and up to 4,000). Requires pgvector versions 0.7.0 or later. For more
+            information, see the [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file).
         :param vector_function: The similarity function to use when searching for similar embeddings.
             `"cosine_similarity"` and `"inner_product"` are similarity functions and
             higher scores indicate greater similarity between the documents.
@@ -145,6 +157,10 @@ class PgvectorDocumentStore:
         self.table_name = table_name
         self.schema_name = schema_name
         self.embedding_dimension = embedding_dimension
+        if vector_type not in ["vector", "halfvec"]:
+            msg = "vector_type must be one of ['vector', 'halfvec']"
+            raise ValueError(msg)
+        self.vector_type = vector_type
         if vector_function not in VALID_VECTOR_FUNCTIONS:
             msg = f"vector_function must be one of {VALID_VECTOR_FUNCTIONS}, but got {vector_function}"
             raise ValueError(msg)
@@ -180,6 +196,7 @@ class PgvectorDocumentStore:
             schema_name=self.schema_name,
             table_name=self.table_name,
             embedding_dimension=self.embedding_dimension,
+            vector_type=self.vector_type,
             vector_function=self.vector_function,
             recreate_table=self.recreate_table,
             search_strategy=self.search_strategy,
@@ -376,6 +393,7 @@ class PgvectorDocumentStore:
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
             embedding_dimension=SQLLiteral(self.embedding_dimension),
+            embedding_col_type=SQL(self.vector_type),
         )
 
         sql_keyword_index_exists = SQL(
@@ -516,7 +534,16 @@ class PgvectorDocumentStore:
             index_name=Identifier(self.hnsw_index_name),
         )
 
-        pg_ops = VECTOR_FUNCTION_TO_POSTGRESQL_OPS[self.vector_function]
+        if self.vector_type == "halfvec":
+            if self.vector_function not in HALF_VECTOR_FUNCTION_TO_POSTGRESQL_OPS:
+                msg = f"Unsupported vector_function '{self.vector_function}' for halfvec type."
+                raise ValueError(msg)
+            pg_ops = HALF_VECTOR_FUNCTION_TO_POSTGRESQL_OPS[self.vector_function]
+        else:
+            if self.vector_function not in VECTOR_FUNCTION_TO_POSTGRESQL_OPS:
+                msg = f"Unsupported vector_function '{self.vector_function}' for vector type."
+                raise ValueError(msg)
+            pg_ops = VECTOR_FUNCTION_TO_POSTGRESQL_OPS[self.vector_function]
 
         sql_create_hnsw_index = SQL(
             "CREATE INDEX {index_name} ON {schema_name}.{table_name} USING hnsw (embedding {ops})"

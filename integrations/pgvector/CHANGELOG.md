@@ -1,16 +1,25 @@
 # Changelog
 
+## [integrations/pgvector-v3.2.0] - 2025-04-11
+
+### 🚀 Features
+
+- Add halfvec support for storing high-dimensional embeddings in half-precision (#1607)
+
+
 ## [integrations/pgvector-v3.1.0] - 2025-03-20
 
 ### 🚀 Features
 
 - Pgvector - async support (+ refactoring) (#1547)
 
+
 ### ⚙️ CI
 
 - Review testing workflows (#1541)
 
 ## [integrations/pgvector-v3.0.1] - 2025-03-12
+
 
 ### 🌀 Miscellaneous
 
