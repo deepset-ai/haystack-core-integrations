@@ -13,6 +13,7 @@ from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
     CharFilter,
+    CorsOptions,
     HnswAlgorithmConfiguration,
     HnswParameters,
     LexicalAnalyzer,
@@ -23,6 +24,7 @@ from azure.search.documents.indexes.models import (
     SearchIndex,
     SearchResourceEncryptionKey,
     SearchSuggester,
+    SimilarityAlgorithm,
     SimpleField,
     TokenFilter,
     VectorSearch,
@@ -47,12 +49,14 @@ type_mapping = {
 }
 
 # Map of expected field names to their corresponding classes
-azure_type_mapping = {
+AZURE_CLASS_MAPPING = {
     "suggesters": SearchSuggester,
     "analyzers": LexicalAnalyzer,
     "tokenizers": LexicalTokenizer,
     "token_filters": TokenFilter,
     "char_filters": CharFilter,
+    "cors_options": CorsOptions,
+    "similarity_algorithm": SimilarityAlgorithm,
     "encryption_key": SearchResourceEncryptionKey,
 }
 
@@ -239,21 +243,21 @@ class AzureAISearchDocumentStore:
         return result
 
     @classmethod
-    def _deserialize_index_creation_kwargs(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _deserialize_index_creation_kwargs(cls, data: Dict[str, Any]) -> Any:
 
         result = {}
         for key, value in data.items():
-            if key in azure_type_mapping:
+            if key in AZURE_CLASS_MAPPING:
                 if isinstance(value, list):
-                    result[key] = [azure_type_mapping[key].from_dict(item) for item in value]
+                    result[key] = [AZURE_CLASS_MAPPING[key].from_dict(item) for item in value]
                 else:
-                    result[key] = azure_type_mapping[key].from_dict(value)
+                    result[key] = AZURE_CLASS_MAPPING[key].from_dict(value)
             elif isinstance(value, dict) and hasattr(value, "from_dict"):
                 result[key] = value.from_dict(value)
             else:
                 result[key] = value
 
-        return result
+        return result[key]
 
     def to_dict(self) -> Dict[str, Any]:
         # This is not the best solution to serialise this class but is the fastest to implement.
@@ -292,7 +296,7 @@ class AzureAISearchDocumentStore:
         if (fields := data["init_parameters"]["metadata_fields"]) is not None:
             data["init_parameters"]["metadata_fields"] = cls._deserialize_metadata_fields(fields)
 
-        for key, _value in azure_type_mapping.items():
+        for key, _value in AZURE_CLASS_MAPPING.items():
             if key in data["init_parameters"]:
                 param_value = data["init_parameters"].get(key)
                 data["init_parameters"][key] = cls._deserialize_index_creation_kwargs({key: param_value})

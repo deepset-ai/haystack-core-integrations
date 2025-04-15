@@ -8,7 +8,7 @@ from typing import List
 from unittest.mock import patch
 
 import pytest
-from azure.search.documents.indexes.models import LexicalAnalyzer, SearchResourceEncryptionKey
+from azure.search.documents.indexes.models import CustomAnalyzer, LexicalTokenizer, SearchResourceEncryptionKey
 from haystack.dataclasses.document import Document
 from haystack.errors import FilterError
 from haystack.testing.document_store import (
@@ -62,11 +62,17 @@ def test_to_dict_with_params(monkeypatch):
         key_version="my-version",
         vault_uri="my-uri",
     )
+    analyzer = CustomAnalyzer(
+        name="url-analyze",
+        tokenizer_name="uax_url_email",
+        token_filters=["lowercase"],  # Using token filter name directly as string
+    )
     document_store = AzureAISearchDocumentStore(
         index_name="my_index",
         embedding_dimension=15,
         metadata_fields={"Title": str, "Pages": int},
         encryption_key=encryption_key,
+        analyzers=[analyzer],
     )
 
     res = document_store.to_dict()
@@ -86,6 +92,14 @@ def test_to_dict_with_params(monkeypatch):
                 "key_version": "my-version",
                 "vault_uri": "my-uri",
             },
+            "analyzers": [
+                {
+                    "name": "url-analyze",
+                    "odata_type": "#Microsoft.Azure.Search.CustomAnalyzer",
+                    "tokenizer_name": "uax_url_email",
+                    "token_filters": ["lowercase"],
+                }
+            ],
             "vector_search_configuration": {
                 "profiles": [
                     {"name": "default-vector-config", "algorithm_configuration_name": "cosine-algorithm-config"}
@@ -129,6 +143,11 @@ def test_from_dict(monkeypatch):
 def test_from_dict_with_params(monkeypatch):
     monkeypatch.setenv("AZURE_AI_SEARCH_API_KEY", "test-api-key")
     monkeypatch.setenv("AZURE_AI_SEARCH_ENDPOINT", "test-endpoint")
+    encryption_key = SearchResourceEncryptionKey(
+        key_name="my-key",
+        key_version="my-version",
+        vault_uri="my-uri",
+    )
 
     data = {
         "type": "haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore",
@@ -146,6 +165,14 @@ def test_from_dict_with_params(monkeypatch):
                 "key_version": "my-version",
                 "vault_uri": "my-uri",
             },
+            "analyzers": [
+                {
+                    "name": "url-analyze",
+                    "odata_type": "#Microsoft.Azure.Search.CustomAnalyzer",
+                    "tokenizer_name": "uax_url_email",
+                    "token_filters": ["lowercase"],
+                }
+            ],
             "vector_search_configuration": {
                 "profiles": [
                     {"name": "default-vector-config", "algorithm_configuration_name": "cosine-algorithm-config"}
@@ -161,12 +188,15 @@ def test_from_dict_with_params(monkeypatch):
         },
     }
     document_store = AzureAISearchDocumentStore.from_dict(data)
-
     assert isinstance(document_store._api_key, EnvVarSecret)
     assert isinstance(document_store._azure_endpoint, EnvVarSecret)
     assert document_store._index_name == "my_index"
     assert document_store._embedding_dimension == 15
     assert document_store._metadata_fields == {"Title": str, "Pages": int}
+    assert document_store._index_creation_kwargs["encryption_key"] == encryption_key
+    assert document_store._index_creation_kwargs["analyzers"][0].name == "url-analyze"
+    assert document_store._index_creation_kwargs["analyzers"][0].token_filters == ["lowercase"]
+    assert "CustomAnalyzer" in document_store._index_creation_kwargs["analyzers"][0].odata_type
     assert document_store._vector_search_configuration.as_dict() == DEFAULT_VECTOR_SEARCH.as_dict()
 
 
