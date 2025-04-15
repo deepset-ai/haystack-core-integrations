@@ -7,7 +7,7 @@ name = "github-haystack"
 dynamic = ["version"]
 description = 'Haystack components for interacting with GitHub repositories'
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
 authors = [
@@ -16,42 +16,42 @@ authors = [
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = []
 
 [project.urls]
-Documentation = "https://github.com/deepset GmbH/github-haystack#readme"
-Issues = "https://github.com/deepset GmbH/github-haystack/issues"
-Source = "https://github.com/deepset GmbH/github-haystack"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/github"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/github/README.md"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 
 [tool.hatch.version]
-path = "src/github_haystack/__about__.py"
+path = "src/github/__about__.py"
 
 [tool.hatch.envs.types]
 extra-dependencies = [
   "mypy>=1.0.0",
 ]
 [tool.hatch.envs.types.scripts]
-check = "mypy --install-types --non-interactive {args:src/github_haystack tests}"
+check = "mypy --install-types --non-interactive {args:src/github tests}"
 
 [tool.coverage.run]
-source_pkgs = ["github_haystack", "tests"]
+source_pkgs = ["github", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/github_haystack/__about__.py",
+  "src/github/__about__.py",
 ]
 
 [tool.coverage.paths]
-github_haystack = ["src/github_haystack", "*/github-haystack/src/github_haystack"]
-tests = ["tests", "*/github-haystack/tests"]
+github = ["src/github", "*/github/src/github"]
+tests = ["tests", "*/github/tests"]
 
 [tool.coverage.report]
 exclude_lines = [
