@@ -97,6 +97,7 @@ class LangfuseConnector:
         )
         print(response["llm"]["replies"][0])
         print(response["tracer"]["trace_url"])
+        print(response["tracer"]["trace_id"])
     ```
 
     For advanced use cases, you can also customize how spans are created and processed by
@@ -175,6 +176,7 @@ class LangfuseConnector:
         :returns: A dictionary with the following keys:
             - `name`: The name of the tracing component.
             - `trace_url`: The URL to the tracing data.
+            - `trace_id`: The ID of the trace.
         """
         logger.debug(
             "Langfuse tracer invoked with the following context: '{invocation_context}'",

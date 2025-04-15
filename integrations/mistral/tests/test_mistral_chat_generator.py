@@ -276,9 +276,7 @@ class TestMistralChatGenerator:
 
         callback = Callback()
         component = MistralChatGenerator(streaming_callback=callback)
-        results = component.run(
-            [ChatMessage.from_user("What's the capital of France?")], generation_kwargs={"tool_choice": "any"}
-        )
+        results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]

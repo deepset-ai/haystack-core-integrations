@@ -2,7 +2,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
+
 from haystack_integrations.tools.mcp import MCPTool, SSEServerInfo
+
+# Setup targeted logging - only show debug logs from our package
+logging.basicConfig(level=logging.WARNING)  # Set root logger to WARNING
+mcp_logger = logging.getLogger("haystack_integrations.tools.mcp")
+mcp_logger.setLevel(logging.DEBUG)
+# Ensure we have at least one handler to avoid messages going to root logger
+if not mcp_logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+    mcp_logger.addHandler(handler)
+    mcp_logger.propagate = False  # Prevent propagation to root logger
 
 # run this client after running the server mcp_sse_server.py
 # it shows how easy it is to use the MCPTool with SSE transport
