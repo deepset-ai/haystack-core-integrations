@@ -103,7 +103,7 @@ class GithubIssueCommenter:
             except requests.exceptions.RequestException as e:
                 if attempt == self.retry_attempts - 1:
                     raise
-                logger.warning(f"Attempt {attempt + 1} failed: {e!s}. Retrying...")
+                logger.warning(f"Attempt {attempt + 1} failed: str(e). Retrying...")
 
         return False
 
@@ -150,6 +150,6 @@ class GithubIssueCommenter:
             if self.raise_on_failure:
                 raise
 
-            error_message = f"Error posting comment to GitHub issue {url}: {e!s}"
+            error_message = f"Error posting comment to GitHub issue {url}: str(e)"
             logger.warning(error_message)
             return {"success": False}
