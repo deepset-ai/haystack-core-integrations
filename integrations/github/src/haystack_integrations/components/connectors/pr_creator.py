@@ -118,10 +118,7 @@ class GithubPRCreator:
 
             # Create the new branch
             url = f"https://api.github.com/repos/{owner}/{repo}/git/refs"
-            data = {
-                "ref": f"refs/heads/{branch_name}",
-                "sha": base_sha
-            }
+            data = {"ref": f"refs/heads/{branch_name}", "sha": base_sha}
             response = requests.post(url, headers=self._get_headers(), json=data, timeout=10)
             response.raise_for_status()
             return True
@@ -150,10 +147,7 @@ class GithubPRCreator:
 
             # Create a blob with the file content
             url = f"https://api.github.com/repos/{owner}/{repo}/git/blobs"
-            data = {
-                "content": content,
-                "encoding": "base64"
-            }
+            data = {"content": content, "encoding": "base64"}
             response = requests.post(url, headers=self._get_headers(), json=data, timeout=10)
             response.raise_for_status()
             blob_sha = response.json()["sha"]
@@ -162,14 +156,7 @@ class GithubPRCreator:
             url = f"https://api.github.com/repos/{owner}/{repo}/git/trees"
             data = {
                 "base_tree": current_sha,
-                "tree": [
-                    {
-                        "path": file_path,
-                        "mode": "100644",
-                        "type": "blob",
-                        "sha": blob_sha
-                    }
-                ]
+                "tree": [{"path": file_path, "mode": "100644", "type": "blob", "sha": blob_sha}],
             }
             response = requests.post(url, headers=self._get_headers(), json=data, timeout=10)
             response.raise_for_status()
@@ -177,20 +164,14 @@ class GithubPRCreator:
 
             # Create the commit
             url = f"https://api.github.com/repos/{owner}/{repo}/git/commits"
-            data = {
-                "message": message,
-                "tree": tree_sha,
-                "parents": [current_sha]
-            }
+            data = {"message": message, "tree": tree_sha, "parents": [current_sha]}
             response = requests.post(url, headers=self._get_headers(), json=data, timeout=10)
             response.raise_for_status()
             commit_sha = response.json()["sha"]
 
             # Update the branch reference
             url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{branch_name}"
-            data = {
-                "sha": commit_sha
-            }
+            data = {"sha": commit_sha}
             response = requests.patch(url, headers=self._get_headers(), json=data, timeout=10)
             response.raise_for_status()
             return True
@@ -211,12 +192,7 @@ class GithubPRCreator:
     ) -> bool:
         """Create a pull request."""
         url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
-        data = {
-            "title": title,
-            "body": body,
-            "head": branch_name,
-            "base": base_branch
-        }
+        data = {"title": title, "body": body, "head": branch_name, "base": base_branch}
         try:
             response = requests.post(url, headers=self._get_headers(), json=data, timeout=10)
             response.raise_for_status()

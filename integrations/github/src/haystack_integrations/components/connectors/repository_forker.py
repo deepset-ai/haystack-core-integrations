@@ -97,7 +97,7 @@ class GithubRepoForker:
             response = requests.get(
                 url,
                 headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
-                timeout=10
+                timeout=10,
             )
             return response.status_code == 200  # noqa: PLR2004
         except requests.RequestException:
@@ -112,9 +112,7 @@ class GithubRepoForker:
         """
         url = "https://api.github.com/user"
         response = requests.get(
-            url,
-            headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
-            timeout=10
+            url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}, timeout=10
         )
         response.raise_for_status()
         return response.json()["login"]
@@ -131,7 +129,7 @@ class GithubRepoForker:
             response = requests.get(
                 url,
                 headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
-                timeout=10
+                timeout=10,
             )
             if response.status_code == 200:  # noqa: PLR2004
                 return repo_name
@@ -152,7 +150,7 @@ class GithubRepoForker:
             url,
             headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
             json={"branch": "main"},
-            timeout=10
+            timeout=10,
         )
         response.raise_for_status()
 
@@ -167,9 +165,7 @@ class GithubRepoForker:
         # First, get the default branch SHA
         url = f"https://api.github.com/repos/{fork_path}"
         response = requests.get(
-            url,
-            headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
-            timeout=10
+            url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}, timeout=10
         )
         response.raise_for_status()
         default_branch = response.json()["default_branch"]
@@ -177,9 +173,7 @@ class GithubRepoForker:
         # Get the SHA of the default branch
         url = f"https://api.github.com/repos/{fork_path}/git/ref/heads/{default_branch}"
         response = requests.get(
-            url,
-            headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
-            timeout=10
+            url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}, timeout=10
         )
         response.raise_for_status()
         sha = response.json()["object"]["sha"]
@@ -191,7 +185,7 @@ class GithubRepoForker:
             url,
             headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
             json={"ref": f"refs/heads/{branch_name}", "sha": sha},
-            timeout=10
+            timeout=10,
         )
         response.raise_for_status()
 

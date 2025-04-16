@@ -173,10 +173,7 @@ class GithubFileEditor:
 
             # Get the previous commit SHA
             commits = requests.get(
-                commits_url,
-                headers=self.headers,
-                params={"per_page": 2, "sha": branch},
-                timeout=10
+                commits_url, headers=self.headers, params={"per_page": 2, "sha": branch}, timeout=10
             ).json()
             previous_sha = commits[1]["sha"]
 
