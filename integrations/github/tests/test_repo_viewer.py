@@ -4,6 +4,7 @@
 from unittest.mock import patch
 
 import pytest
+import requests
 from haystack.utils import Secret
 
 from haystack_integrations.components.connectors.github.repo_viewer import GithubRepositoryViewer
@@ -129,7 +130,7 @@ class TestGithubRepositoryViewer:
     @patch("requests.get")
     def test_run_error_handling(self, mock_get):
         # Mock an error response
-        mock_get.side_effect = Exception("API Error")
+        mock_get.side_effect = requests.RequestException("API Error")
 
         token = Secret.from_token("test_token")
         viewer = GithubRepositoryViewer(github_token=token, raise_on_failure=False)
@@ -141,7 +142,7 @@ class TestGithubRepositoryViewer:
 
         # Test with raise_on_failure=True
         viewer = GithubRepositoryViewer(github_token=token, raise_on_failure=True)
-        with pytest.raises(Exception):
+        with pytest.raises(requests.RequestException):
             viewer.run(repo="owner/repo", path="README.md", branch="main")
 
     def test_parse_repo(self):

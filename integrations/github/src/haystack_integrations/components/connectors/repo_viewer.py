@@ -84,7 +84,8 @@ class GithubRepositoryViewer:
         :param max_file_size: Maximum file size in bytes to fetch (default: 1MB)
         """
         if github_token is not None and not isinstance(github_token, Secret):
-            raise TypeError("github_token must be a Secret")
+            msg = "github_token must be a Secret"
+            raise TypeError(msg)
 
         self.github_token = github_token
         self.raise_on_failure = raise_on_failure
@@ -125,8 +126,9 @@ class GithubRepositoryViewer:
     def _parse_repo(self, repo: str) -> tuple[str, str]:
         """Parse owner/repo string"""
         parts = repo.split("/")
-        if len(parts) != 2:
-            raise ValueError(f"Invalid repository format. Expected 'owner/repo', got '{repo}'")
+        if len(parts) != 2:  # noqa: PLR2004
+            msg = f"Invalid repository format. Expected 'owner/repo', got '{repo}'"
+            raise ValueError(msg)
         return parts[0], parts[1]
 
     def _normalize_path(self, path: str) -> str:
@@ -143,7 +145,7 @@ class GithubRepositoryViewer:
         if self.github_token:
             headers["Authorization"] = f"Bearer {self.github_token.resolve_value()}"
 
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         return response.json()
 
@@ -214,7 +216,8 @@ class GithubRepositoryViewer:
             # Handle single file response
             if not isinstance(contents, list):
                 if contents.get("size", 0) > self.max_file_size:
-                    raise ValueError(f"File size {contents['size']} exceeds limit of {self.max_file_size}")
+                    error_message = f"File size {contents['size']} exceeds limit of {self.max_file_size}"
+                    raise ValueError(error_message)
 
                 item = GitHubItem(
                     name=contents["name"],

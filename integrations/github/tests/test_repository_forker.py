@@ -4,8 +4,8 @@
 from unittest.mock import patch
 
 import pytest
-from haystack.utils import Secret
 import requests
+from haystack.utils import Secret
 
 from haystack_integrations.components.connectors.github.repository_forker import GithubRepoForker
 
@@ -143,7 +143,7 @@ class TestGithubRepoForker:
 
     @patch("requests.get")
     @patch("requests.post")
-    def test_run_error_handling(self, mock_post, mock_get):
+    def test_run_error_handling(self, mock_get):
         # Mock an error response
         mock_get.side_effect = requests.RequestException("API Error")
 

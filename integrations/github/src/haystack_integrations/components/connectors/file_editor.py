@@ -88,7 +88,8 @@ class GithubFileEditor:
         :param raise_on_failure: If True, raises exceptions on API errors
         """
         if not isinstance(github_token, Secret):
-            raise TypeError("github_token must be a Secret")
+            error_message = "github_token must be a Secret"
+            raise TypeError(error_message)
 
         self.github_token = github_token
         self.default_repo = repo
@@ -104,7 +105,7 @@ class GithubFileEditor:
     def _get_file_content(self, owner: str, repo: str, path: str, branch: str) -> tuple[str, str]:
         """Get file content and SHA from GitHub."""
         url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
-        response = requests.get(url, headers=self.headers, params={"ref": branch})
+        response = requests.get(url, headers=self.headers, params={"ref": branch}, timeout=10)
         response.raise_for_status()
         data = response.json()
         content = b64decode(data["content"]).decode("utf-8")
@@ -119,20 +120,20 @@ class GithubFileEditor:
             "sha": sha,
             "branch": branch,
         }
-        response = requests.put(url, headers=self.headers, json=payload)
+        response = requests.put(url, headers=self.headers, json=payload, timeout=10)
         response.raise_for_status()
         return True
 
     def _check_last_commit(self, owner: str, repo: str, branch: str) -> bool:
         """Check if last commit was made by the current token user."""
         url = f"https://api.github.com/repos/{owner}/{repo}/commits"
-        response = requests.get(url, headers=self.headers, params={"per_page": 1, "sha": branch})
+        response = requests.get(url, headers=self.headers, params={"per_page": 1, "sha": branch}, timeout=10)
         response.raise_for_status()
         last_commit = response.json()[0]
         commit_author = last_commit["author"]["login"]
 
         # Get current user
-        user_response = requests.get("https://api.github.com/user", headers=self.headers)
+        user_response = requests.get("https://api.github.com/user", headers=self.headers, timeout=10)
         user_response.raise_for_status()
         current_user = user_response.json()["login"]
 
@@ -171,12 +172,17 @@ class GithubFileEditor:
             commits_url = f"https://api.github.com/repos/{owner}/{repo}/commits"
 
             # Get the previous commit SHA
-            commits = requests.get(commits_url, headers=self.headers, params={"per_page": 2, "sha": branch}).json()
+            commits = requests.get(
+                commits_url,
+                headers=self.headers,
+                params={"per_page": 2, "sha": branch},
+                timeout=10
+            ).json()
             previous_sha = commits[1]["sha"]
 
             # Update branch reference to previous commit
             payload = {"sha": previous_sha, "force": True}
-            response = requests.patch(url, headers=self.headers, json=payload)
+            response = requests.patch(url, headers=self.headers, json=payload, timeout=10)
             response.raise_for_status()
 
             return "Successfully undid last change"
@@ -194,7 +200,7 @@ class GithubFileEditor:
 
             data = {"message": payload["message"], "content": content, "branch": branch}
 
-            response = requests.put(url, headers=self.headers, json=data)
+            response = requests.put(url, headers=self.headers, json=data, timeout=10)
             response.raise_for_status()
             return "File created successfully"
 
@@ -211,7 +217,7 @@ class GithubFileEditor:
 
             data = {"message": payload["message"], "sha": sha, "branch": branch}
 
-            response = requests.delete(url, headers=self.headers, json=data)
+            response = requests.delete(url, headers=self.headers, json=data, timeout=10)
             response.raise_for_status()
             return "File deleted successfully"
 

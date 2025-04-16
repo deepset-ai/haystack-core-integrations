@@ -59,6 +59,7 @@ cov-report = ["- coverage combine", "coverage report"]
 cov = ["test-cov", "cov-report"]
 cov-retry = ["test-cov-retry", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
+fix = "ruff check --fix"
 
 [tool.hatch.envs.lint]
 installer = "uv"
@@ -140,6 +141,8 @@ ban-relative-imports = "parents"
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
+# Ignore RUF001 for all files in the prompts directory
+"src/haystack_integrations/components/prompts/**/*" = ["RUF001"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]

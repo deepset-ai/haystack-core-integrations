@@ -54,8 +54,9 @@ class GithubRepoForker:
         :param auto_sync: If True, syncs fork with original repository if it already exists
         :param create_branch: If True, creates a fix branch based on the issue number
         """
+        error_message = "github_token must be a Secret"
         if not isinstance(github_token, Secret):
-            raise TypeError("github_token must be a Secret")
+            raise TypeError(error_message)
 
         self.github_token = github_token
         self.raise_on_failure = raise_on_failure
@@ -78,7 +79,8 @@ class GithubRepoForker:
         pattern = r"https?://github\.com/([^/]+)/([^/]+)/issues/(\d+)"
         match = re.match(pattern, url)
         if not match:
-            raise ValueError(f"Invalid GitHub issue URL format: {url}")
+            error_message = f"Invalid GitHub issue URL format: {url}"
+            raise ValueError(error_message)
 
         owner, repo, issue_number = match.groups()
         return owner, repo, issue_number
@@ -93,9 +95,11 @@ class GithubRepoForker:
         url = f"https://api.github.com/repos/{fork_path}"
         try:
             response = requests.get(
-                url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
+                url,
+                headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
+                timeout=10
             )
-            return response.status_code == 200
+            return response.status_code == 200  # noqa: PLR2004
         except requests.RequestException:
             return False
 
@@ -108,7 +112,9 @@ class GithubRepoForker:
         """
         url = "https://api.github.com/user"
         response = requests.get(
-            url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
+            url,
+            headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
+            timeout=10
         )
         response.raise_for_status()
         return response.json()["login"]
@@ -123,9 +129,11 @@ class GithubRepoForker:
         url = f"https://api.github.com/repos/{self._get_authenticated_user()}/{repo_name}"
         try:
             response = requests.get(
-                url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
+                url,
+                headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
+                timeout=10
             )
-            if response.status_code == 200:
+            if response.status_code == 200:  # noqa: PLR2004
                 return repo_name
             return None
         except requests.RequestException as e:
@@ -144,6 +152,7 @@ class GithubRepoForker:
             url,
             headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
             json={"branch": "main"},
+            timeout=10
         )
         response.raise_for_status()
 
@@ -158,7 +167,9 @@ class GithubRepoForker:
         # First, get the default branch SHA
         url = f"https://api.github.com/repos/{fork_path}"
         response = requests.get(
-            url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
+            url,
+            headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
+            timeout=10
         )
         response.raise_for_status()
         default_branch = response.json()["default_branch"]
@@ -166,7 +177,9 @@ class GithubRepoForker:
         # Get the SHA of the default branch
         url = f"https://api.github.com/repos/{fork_path}/git/ref/heads/{default_branch}"
         response = requests.get(
-            url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
+            url,
+            headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
+            timeout=10
         )
         response.raise_for_status()
         sha = response.json()["object"]["sha"]
@@ -178,6 +191,7 @@ class GithubRepoForker:
             url,
             headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
             json={"ref": f"refs/heads/{branch_name}", "sha": sha},
+            timeout=10
         )
         response.raise_for_status()
 
@@ -192,7 +206,7 @@ class GithubRepoForker:
         """
         url = f"https://api.github.com/repos/{owner}/{repo}/forks"
         response = requests.post(
-            url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
+            url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}, timeout=10
         )
         response.raise_for_status()
 

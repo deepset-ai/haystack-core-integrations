@@ -5,4 +5,4 @@
 from .repo_viewer_tool import repo_viewer_prompt, repo_viewer_schema
 from .system_prompt import issue_prompt
 
-_all_ = ["issue_prompt", "repo_viewer_prompt", "repo_viewer_schema"]
+__all__ = ["issue_prompt", "repo_viewer_prompt", "repo_viewer_schema"]

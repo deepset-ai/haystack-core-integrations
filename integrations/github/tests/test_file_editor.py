@@ -4,8 +4,8 @@
 from unittest.mock import patch
 
 import pytest
-from haystack.utils import Secret
 import requests
+from haystack.utils import Secret
 
 from haystack_integrations.components.connectors.github.file_editor import Command, GithubFileEditor
 

@@ -4,6 +4,7 @@
 from unittest.mock import patch
 
 import pytest
+import requests
 from haystack.utils import Secret
 
 from haystack_integrations.components.connectors.github.issue_commenter import GithubIssueCommenter
@@ -80,7 +81,7 @@ class TestGithubIssueCommenter:
     @patch("requests.post")
     def test_run_error_handling(self, mock_post):
         # Mock an error response
-        mock_post.side_effect = Exception("API Error")
+        mock_post.side_effect = requests.RequestException("API Error")
 
         token = Secret.from_token("test_token")
         commenter = GithubIssueCommenter(github_token=token, raise_on_failure=False)
@@ -91,7 +92,7 @@ class TestGithubIssueCommenter:
 
         # Test with raise_on_failure=True
         commenter = GithubIssueCommenter(github_token=token, raise_on_failure=True)
-        with pytest.raises(Exception):
+        with pytest.raises(requests.RequestException):
             commenter.run(url="https://github.com/owner/repo/issues/123", comment="Test comment")
 
     def test_parse_github_url(self):

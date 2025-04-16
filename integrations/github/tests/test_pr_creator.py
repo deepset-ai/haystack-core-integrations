@@ -4,6 +4,7 @@
 from unittest.mock import patch
 
 import pytest
+import requests
 from haystack.utils import Secret
 
 from haystack_integrations.components.connectors.github.pr_creator import GithubPRCreator
@@ -81,9 +82,9 @@ class TestGithubPRCreator:
 
     @patch("requests.get")
     @patch("requests.post")
-    def test_run_error_handling(self, mock_post, mock_get):
+    def test_run_error_handling(self, mock_get):
         # Mock an error response
-        mock_get.side_effect = Exception("API Error")
+        mock_get.side_effect = requests.RequestException("API Error")
 
         token = Secret.from_token("test_token")
         pr_creator = GithubPRCreator(github_token=token, raise_on_failure=False)
@@ -96,7 +97,7 @@ class TestGithubPRCreator:
 
         # Test with raise_on_failure=True
         pr_creator = GithubPRCreator(github_token=token, raise_on_failure=True)
-        with pytest.raises(Exception):
+        with pytest.raises(requests.RequestException):
             pr_creator.run(
                 issue_url="https://github.com/owner/repo/issues/456",
                 title="Test PR",

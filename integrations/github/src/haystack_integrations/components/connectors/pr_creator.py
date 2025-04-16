@@ -43,7 +43,8 @@ class GithubPRCreator:
         :param raise_on_failure: If True, raises exceptions on API errors
         """
         if not isinstance(github_token, Secret):
-            raise TypeError("github_token must be a Secret")
+            msg = "github_token must be a Secret"
+            raise TypeError(msg)
 
         self.github_token = github_token
         self.raise_on_failure = raise_on_failure
@@ -71,24 +72,159 @@ class GithubPRCreator:
         pattern = r"https://github\.com/([^/]+)/([^/]+)/issues/(\d+)"
         match = re.match(pattern, issue_url)
         if not match:
-            raise ValueError("Invalid GitHub issue URL format")
+            msg = "Invalid GitHub issue URL format"
+            raise ValueError(msg)
         return match.group(1), match.group(2), match.group(3)
 
     def _get_authenticated_user(self) -> str:
         """Get the username of the authenticated user (fork owner)."""
-        response = requests.get("https://api.github.com/user", headers=self._get_headers())
+        response = requests.get("https://api.github.com/user", headers=self._get_headers(), timeout=10)
         response.raise_for_status()
         return response.json()["login"]
 
-    def _check_fork_exists(self, owner: str, repo: str, fork_owner: str) -> bool:
+    def _check_fork_exists(self, repo: str, fork_owner: str) -> bool:
         """Check if the fork exists."""
         url = f"https://api.github.com/repos/{fork_owner}/{repo}"
         try:
-            response = requests.get(url, headers=self._get_headers())
+            response = requests.get(url, headers=self._get_headers(), timeout=10)
             response.raise_for_status()
             fork_data = response.json()
             return fork_data.get("fork", False)
         except requests.RequestException:
+            return False
+
+    def _create_fork(self, owner: str, repo: str) -> str:
+        """Create a fork of the repository."""
+        url = f"https://api.github.com/repos/{owner}/{repo}/forks"
+        try:
+            response = requests.post(url, headers=self._get_headers(), timeout=10)
+            response.raise_for_status()
+            fork_data = response.json()
+            return fork_data["owner"]["login"]
+        except requests.RequestException as e:
+            if self.raise_on_failure:
+                msg = f"Failed to create fork: {e!s}"
+                raise RuntimeError(msg) from e
+            return None
+
+    def _create_branch(self, owner: str, repo: str, branch_name: str, base_branch: str) -> bool:
+        """Create a new branch in the repository."""
+        # Get the SHA of the base branch
+        url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{base_branch}"
+        try:
+            response = requests.get(url, headers=self._get_headers(), timeout=10)
+            response.raise_for_status()
+            base_sha = response.json()["object"]["sha"]
+
+            # Create the new branch
+            url = f"https://api.github.com/repos/{owner}/{repo}/git/refs"
+            data = {
+                "ref": f"refs/heads/{branch_name}",
+                "sha": base_sha
+            }
+            response = requests.post(url, headers=self._get_headers(), json=data, timeout=10)
+            response.raise_for_status()
+            return True
+        except requests.RequestException as e:
+            if self.raise_on_failure:
+                msg = f"Failed to create branch: {e!s}"
+                raise RuntimeError(msg) from e
+            return False
+
+    def _create_commit(
+        self,
+        owner: str,
+        repo: str,
+        branch_name: str,
+        file_path: str,
+        content: str,
+        message: str,
+    ) -> bool:
+        """Create a commit with the file changes."""
+        # Get the current commit SHA
+        url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{branch_name}"
+        try:
+            response = requests.get(url, headers=self._get_headers(), timeout=10)
+            response.raise_for_status()
+            current_sha = response.json()["object"]["sha"]
+
+            # Create a blob with the file content
+            url = f"https://api.github.com/repos/{owner}/{repo}/git/blobs"
+            data = {
+                "content": content,
+                "encoding": "base64"
+            }
+            response = requests.post(url, headers=self._get_headers(), json=data, timeout=10)
+            response.raise_for_status()
+            blob_sha = response.json()["sha"]
+
+            # Create a tree with the new file
+            url = f"https://api.github.com/repos/{owner}/{repo}/git/trees"
+            data = {
+                "base_tree": current_sha,
+                "tree": [
+                    {
+                        "path": file_path,
+                        "mode": "100644",
+                        "type": "blob",
+                        "sha": blob_sha
+                    }
+                ]
+            }
+            response = requests.post(url, headers=self._get_headers(), json=data, timeout=10)
+            response.raise_for_status()
+            tree_sha = response.json()["sha"]
+
+            # Create the commit
+            url = f"https://api.github.com/repos/{owner}/{repo}/git/commits"
+            data = {
+                "message": message,
+                "tree": tree_sha,
+                "parents": [current_sha]
+            }
+            response = requests.post(url, headers=self._get_headers(), json=data, timeout=10)
+            response.raise_for_status()
+            commit_sha = response.json()["sha"]
+
+            # Update the branch reference
+            url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{branch_name}"
+            data = {
+                "sha": commit_sha
+            }
+            response = requests.patch(url, headers=self._get_headers(), json=data, timeout=10)
+            response.raise_for_status()
+            return True
+        except requests.RequestException as e:
+            if self.raise_on_failure:
+                msg = f"Failed to create commit: {e!s}"
+                raise RuntimeError(msg) from e
+            return False
+
+    def _create_pull_request(
+        self,
+        owner: str,
+        repo: str,
+        branch_name: str,
+        base_branch: str,
+        title: str,
+        body: str,
+    ) -> bool:
+        """Create a pull request."""
+        url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
+        data = {
+            "title": title,
+            "body": body,
+            "head": branch_name,
+            "base": base_branch
+        }
+        try:
+            response = requests.post(url, headers=self._get_headers(), json=data, timeout=10)
+            response.raise_for_status()
+            return True
+        except requests.RequestException as e:
+            if self.raise_on_failure:
+                msg = f"Failed to create pull request: {e!s}"
+                raise RuntimeError(msg) from e
             return False
 
     @component.output_types(result=str)
@@ -114,7 +250,7 @@ class GithubPRCreator:
             fork_owner = self._get_authenticated_user()
 
             # Check if the fork exists
-            if not self._check_fork_exists(owner, repo_name, fork_owner):
+            if not self._check_fork_exists(repo_name, fork_owner):
                 return {"result": f"Error: Fork not found at {fork_owner}/{repo_name}"}
 
             url = f"https://api.github.com/repos/{owner}/{repo_name}/pulls"
@@ -131,7 +267,7 @@ class GithubPRCreator:
                 "maintainer_can_modify": True,  # Allow maintainers to modify the PR
             }
 
-            response = requests.post(url, headers=self._get_headers(), json=pr_data)
+            response = requests.post(url, headers=self._get_headers(), json=pr_data, timeout=10)
             response.raise_for_status()
             pr_number = response.json()["number"]
 

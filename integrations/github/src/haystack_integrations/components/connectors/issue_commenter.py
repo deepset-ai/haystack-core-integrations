@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import requests
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -76,7 +76,8 @@ class GithubIssueCommenter:
         pattern = r"https?://github\.com/([^/]+)/([^/]+)/issues/(\d+)"
         match = re.match(pattern, url)
         if not match:
-            raise ValueError(f"Invalid GitHub issue URL format: {url}")
+            msg = f"Invalid GitHub issue URL format: {url}"
+            raise ValueError(msg)
 
         owner, repo, issue_number = match.groups()
         return owner, repo, int(issue_number)
@@ -97,13 +98,13 @@ class GithubIssueCommenter:
 
         for attempt in range(self.retry_attempts):
             try:
-                response = requests.post(url, headers=self._get_request_headers(), json=data)
+                response = requests.post(url, headers=self._get_request_headers(), json=data, timeout=10)
                 response.raise_for_status()
                 return True
             except requests.exceptions.RequestException as e:
                 if attempt == self.retry_attempts - 1:
                     raise
-                logger.warning(f"Attempt {attempt + 1} failed: str(e). Retrying...")
+                logger.warning(f"Attempt {attempt + 1} failed: {e!s}. Retrying...")
 
         return False
 
@@ -146,10 +147,10 @@ class GithubIssueCommenter:
             success = self._post_comment(owner, repo, issue_number, comment)
             return {"success": success}
 
-        except Exception as e:
+        except (requests.exceptions.RequestException, ValueError) as e:
             if self.raise_on_failure:
                 raise
 
-            error_message = f"Error posting comment to GitHub issue {url}: str(e)"
+            error_message = f"Error posting comment to GitHub issue {url}: {e!s}"
             logger.warning(error_message)
             return {"success": False}

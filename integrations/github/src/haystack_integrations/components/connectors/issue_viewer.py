@@ -77,7 +77,8 @@ class GithubIssueViewer:
         pattern = r"https?://github\.com/([^/]+)/([^/]+)/issues/(\d+)"
         match = re.match(pattern, url)
         if not match:
-            raise ValueError(f"Invalid GitHub issue URL format: {url}")
+            msg = f"Invalid GitHub issue URL format: {url}"
+            raise ValueError(msg)
 
         owner, repo, issue_number = match.groups()
         return owner, repo, int(issue_number)
@@ -92,7 +93,7 @@ class GithubIssueViewer:
         :return: Issue data dictionary
         """
         url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}"
-        response = requests.get(url, headers=self._get_request_headers())
+        response = requests.get(url, headers=self._get_request_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
 
@@ -103,7 +104,7 @@ class GithubIssueViewer:
         :param comments_url: URL for issue comments
         :return: List of comment dictionaries
         """
-        response = requests.get(comments_url, headers=self._get_request_headers())
+        response = requests.get(comments_url, headers=self._get_request_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
 

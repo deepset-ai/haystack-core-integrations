@@ -4,6 +4,7 @@
 from unittest.mock import patch
 
 import pytest
+import requests
 from haystack.utils import Secret
 
 from haystack_integrations.components.connectors.github.issue_viewer import GithubIssueViewer
@@ -113,7 +114,7 @@ class TestGithubIssueViewer:
     @patch("requests.get")
     def test_run_error_handling(self, mock_get):
         # Mock an error response
-        mock_get.side_effect = Exception("API Error")
+        mock_get.side_effect = requests.RequestException("API Error")
 
         token = Secret.from_token("test_token")
         viewer = GithubIssueViewer(github_token=token, raise_on_failure=False)
@@ -126,7 +127,7 @@ class TestGithubIssueViewer:
 
         # Test with raise_on_failure=True
         viewer = GithubIssueViewer(github_token=token, raise_on_failure=True)
-        with pytest.raises(Exception):
+        with pytest.raises(requests.RequestException):
             viewer.run(url="https://github.com/owner/repo/issues/123")
 
     def test_parse_github_url(self):
