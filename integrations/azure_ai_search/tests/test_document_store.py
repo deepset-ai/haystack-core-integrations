@@ -8,7 +8,7 @@ from typing import List
 from unittest.mock import patch
 
 import pytest
-from azure.search.documents.indexes.models import CustomAnalyzer, LexicalTokenizer, SearchResourceEncryptionKey
+from azure.search.documents.indexes.models import CustomAnalyzer, SearchResourceEncryptionKey
 from haystack.dataclasses.document import Document
 from haystack.errors import FilterError
 from haystack.testing.document_store import (

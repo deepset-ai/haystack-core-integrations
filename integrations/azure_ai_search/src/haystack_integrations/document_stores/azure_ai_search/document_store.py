@@ -18,6 +18,7 @@ from azure.search.documents.indexes.models import (
     HnswParameters,
     LexicalAnalyzer,
     LexicalTokenizer,
+    ScoringProfile,
     SearchableField,
     SearchField,
     SearchFieldDataType,
@@ -58,6 +59,7 @@ AZURE_CLASS_MAPPING = {
     "cors_options": CorsOptions,
     "similarity_algorithm": SimilarityAlgorithm,
     "encryption_key": SearchResourceEncryptionKey,
+    "scoring_profiles": ScoringProfile,
 }
 
 DEFAULT_VECTOR_SEARCH = VectorSearch(
@@ -160,7 +162,7 @@ class AzureAISearchDocumentStore:
                     "The index '{idx_name}' does not exist. A new index will be created.",
                     idx_name=self._index_name,
                 )
-                self._create_index(self._index_name)
+                self._create_index()
         except (HttpResponseError, ClientAuthenticationError) as error:
             msg = f"Failed to authenticate with Azure Search: {error}"
             raise AzureAISearchDocumentStoreConfigError(msg) from error
@@ -176,11 +178,9 @@ class AzureAISearchDocumentStore:
 
         return self._client
 
-    def _create_index(self, index_name: str) -> None:
+    def _create_index(self) -> None:
         """
-        Creates a new search index.
-        :param index_name: Name of the index to create. If None, the index name from the constructor is used.
-        :param kwargs: Optional keyword parameters.
+        Internally creates a new search index.
         """
 
         # default fields to create index based on Haystack Document (id, content, embedding)
@@ -197,25 +197,16 @@ class AzureAISearchDocumentStore:
             ),
         ]
 
-        if not index_name:
-            index_name = self._index_name
         if self._metadata_fields:
             default_fields.extend(self._create_metadata_index_fields(self._metadata_fields))
         index = SearchIndex(
-            name=index_name,
+            name=self._index_name,
             fields=default_fields,
             vector_search=self._vector_search_configuration,
             **self._index_creation_kwargs,
         )
         if self._index_client:
             self._index_client.create_index(index)
-
-    @staticmethod
-    def _serialize_metadata_fields(metadata_fields: Optional[Dict[str, type]]) -> Optional[Dict[str, str]]:
-        """Convert type objects to their string representations."""
-        if not metadata_fields:
-            return None
-        return {key: value.__name__ for key, value in metadata_fields.items()}
 
     @classmethod
     def _deserialize_metadata_fields(cls, fields: Optional[Dict[str, str]]) -> Optional[Dict[str, type]]:
@@ -232,6 +223,11 @@ class AzureAISearchDocumentStore:
 
     @staticmethod
     def _serialize_index_creation_kwargs(index_creation_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Serializes the index creation kwargs to a dictionary.
+        This is needed to handle serialization of Azure AI Search classes
+        that are passed in the index creation kwargs.
+        """
         result = {}
         for key, value in index_creation_kwargs.items():
             if hasattr(value, "as_dict"):
@@ -244,7 +240,9 @@ class AzureAISearchDocumentStore:
 
     @classmethod
     def _deserialize_index_creation_kwargs(cls, data: Dict[str, Any]) -> Any:
-
+        """
+        Deserializes the index creation kwargs to the original classes.
+        """
         result = {}
         for key, value in data.items():
             if key in AZURE_CLASS_MAPPING:
@@ -269,7 +267,11 @@ class AzureAISearchDocumentStore:
         :returns:
             Dictionary with serialized data.
         """
-        serialized_metadata = self._serialize_metadata_fields(self._metadata_fields)
+
+        if self._metadata_fields:
+            serialized_metadata = {key: value.__name__ for key, value in self._metadata_fields.items()}
+        else:
+            serialized_metadata = None
 
         return default_to_dict(
             self,
