@@ -74,7 +74,7 @@ class GithubRepositoryViewer:
         raise_on_failure: bool = True,
         max_file_size: int = 1_000_000,  # 1MB default limit
         repo: Optional[str] = None,
-        branch: Optional[str] = None
+        branch: Optional[str] = None,
     ):
         """
         Initialize the component.
@@ -126,9 +126,7 @@ class GithubRepositoryViewer:
         """Parse owner/repo string"""
         parts = repo.split("/")
         if len(parts) != 2:
-            raise ValueError(
-                f"Invalid repository format. Expected 'owner/repo', got '{repo}'"
-            )
+            raise ValueError(f"Invalid repository format. Expected 'owner/repo', got '{repo}'")
         return parts[0], parts[1]
 
     def _normalize_path(self, path: str) -> str:
@@ -193,9 +191,7 @@ class GithubRepositoryViewer:
         )
 
     @component.output_types(documents=List[Document])
-    def run(
-        self, path: str, repo: Optional[str] = None, branch: Optional[str] = None
-    ) -> Dict[str, List[Document]]:
+    def run(self, path: str, repo: Optional[str] = None, branch: Optional[str] = None) -> Dict[str, List[Document]]:
         """
         Process a GitHub repository path and return documents.
 
@@ -218,9 +214,7 @@ class GithubRepositoryViewer:
             # Handle single file response
             if not isinstance(contents, list):
                 if contents.get("size", 0) > self.max_file_size:
-                    raise ValueError(
-                        f"File size {contents['size']} exceeds limit of {self.max_file_size}"
-                    )
+                    raise ValueError(f"File size {contents['size']} exceeds limit of {self.max_file_size}")
 
                 item = GitHubItem(
                     name=contents["name"],
@@ -228,9 +222,7 @@ class GithubRepositoryViewer:
                     path=contents["path"],
                     size=contents["size"],
                     url=contents["html_url"],
-                    content=self._process_file_content(
-                        contents["content"], contents["encoding"]
-                    ),
+                    content=self._process_file_content(contents["content"], contents["encoding"]),
                 )
                 return {"documents": [self._create_file_document(item)]}
 
@@ -250,7 +242,7 @@ class GithubRepositoryViewer:
 
         except Exception as e:
             error_doc = self._create_error_document(
-                f"Error processing repository path {path}: {str(e)}. Seems like the file does not exist.", path
+                f"Error processing repository path {path}: {e!s}. Seems like the file does not exist.", path
             )
             if self.raise_on_failure:
                 raise
@@ -260,4 +252,3 @@ class GithubRepositoryViewer:
                 error=str(e),
             )
             return {"documents": [error_doc]}
-

@@ -128,9 +128,7 @@ class GithubIssueViewer:
             },
         )
 
-    def _create_comment_document(
-        self, comment_data: dict, issue_number: int
-    ) -> Document:
+    def _create_comment_document(self, comment_data: dict, issue_number: int) -> Document:
         """
         Create a Document from comment data.
 
@@ -193,10 +191,7 @@ class GithubIssueViewer:
             # Fetch and process comments if they exist
             if issue_data["comments"] > 0:
                 comments = self._fetch_comments(issue_data["comments_url"])
-                documents.extend(
-                    self._create_comment_document(comment, issue_number)
-                    for comment in comments
-                )
+                documents.extend(self._create_comment_document(comment, issue_number) for comment in comments)
 
             return {"documents": documents}
 
@@ -204,7 +199,7 @@ class GithubIssueViewer:
             if self.raise_on_failure:
                 raise
 
-            error_message = f"Error processing GitHub issue {url}: {str(e)}"
+            error_message = f"Error processing GitHub issue {url}: {e!s}"
             logger.warning(error_message)
             error_doc = Document(
                 content=error_message,
@@ -212,7 +207,6 @@ class GithubIssueViewer:
                     "error": True,
                     "type": "error",
                     "url": url,
-                }
+                },
             )
             return {"documents": [error_doc]}
-

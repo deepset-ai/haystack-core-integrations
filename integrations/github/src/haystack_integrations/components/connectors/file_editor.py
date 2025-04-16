@@ -8,6 +8,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 
 logger = logging.getLogger(__name__)
 
+
 class Command(StrEnum):
     """
     Available commands for file operations in GitHub.
@@ -18,10 +19,12 @@ class Command(StrEnum):
         CREATE: Create a new file
         DELETE: Delete an existing file
     """
+
     EDIT = "edit"
     UNDO = "undo"
     CREATE = "create"
     DELETE = "delete"
+
 
 @component
 class GithubFileEditor:
@@ -74,7 +77,7 @@ class GithubFileEditor:
         github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"),
         repo: Optional[str] = None,
         branch: str = "main",
-        raise_on_failure: bool = True
+        raise_on_failure: bool = True,
     ):
         """
         Initialize the component.
@@ -95,7 +98,7 @@ class GithubFileEditor:
         self.headers = {
             "Accept": "application/vnd.github.v3+json",
             "Authorization": f"Bearer {self.github_token.resolve_value()}",
-            "User-Agent": "Haystack/GithubFileEditor"
+            "User-Agent": "Haystack/GithubFileEditor",
         }
 
     def _get_file_content(self, owner: str, repo: str, path: str, branch: str) -> tuple[str, str]:
@@ -107,23 +110,14 @@ class GithubFileEditor:
         content = b64decode(data["content"]).decode("utf-8")
         return content, data["sha"]
 
-    def _update_file(
-        self,
-        owner: str,
-        repo: str,
-        path: str,
-        content: str,
-        message: str,
-        sha: str,
-        branch: str
-    ) -> bool:
+    def _update_file(self, owner: str, repo: str, path: str, content: str, message: str, sha: str, branch: str) -> bool:
         """Update file content on GitHub."""
         url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
         payload = {
             "message": message,
             "content": b64encode(content.encode("utf-8")).decode("utf-8"),
             "sha": sha,
-            "branch": branch
+            "branch": branch,
         }
         response = requests.put(url, headers=self.headers, json=payload)
         response.raise_for_status()
@@ -158,15 +152,13 @@ class GithubFileEditor:
 
             # Perform the replacement
             new_content = content.replace(payload["original"], payload["replacement"])
-            success = self._update_file(
-                owner, repo, payload["path"], new_content, payload["message"], sha, branch
-            )
+            success = self._update_file(owner, repo, payload["path"], new_content, payload["message"], sha, branch)
             return "Edit successful" if success else "Edit failed"
 
         except requests.RequestException as e:
             if self.raise_on_failure:
                 raise
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"
 
     def _undo_changes(self, owner: str, repo: str, payload: Dict[str, str], branch: str) -> str:
         """Handle undoing changes."""
@@ -179,11 +171,7 @@ class GithubFileEditor:
             commits_url = f"https://api.github.com/repos/{owner}/{repo}/commits"
 
             # Get the previous commit SHA
-            commits = requests.get(
-                commits_url,
-                headers=self.headers,
-                params={"per_page": 2, "sha": branch}
-            ).json()
+            commits = requests.get(commits_url, headers=self.headers, params={"per_page": 2, "sha": branch}).json()
             previous_sha = commits[1]["sha"]
 
             # Update branch reference to previous commit
@@ -196,7 +184,7 @@ class GithubFileEditor:
         except requests.RequestException as e:
             if self.raise_on_failure:
                 raise
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"
 
     def _create_file(self, owner: str, repo: str, payload: Dict[str, str], branch: str) -> str:
         """Handle file creation."""
@@ -204,11 +192,7 @@ class GithubFileEditor:
             url = f"https://api.github.com/repos/{owner}/{repo}/contents/{payload['path']}"
             content = b64encode(payload["content"].encode("utf-8")).decode("utf-8")
 
-            data = {
-                "message": payload["message"],
-                "content": content,
-                "branch": branch
-            }
+            data = {"message": payload["message"], "content": content, "branch": branch}
 
             response = requests.put(url, headers=self.headers, json=data)
             response.raise_for_status()
@@ -217,7 +201,7 @@ class GithubFileEditor:
         except requests.RequestException as e:
             if self.raise_on_failure:
                 raise
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"
 
     def _delete_file(self, owner: str, repo: str, payload: Dict[str, str], branch: str) -> str:
         """Handle file deletion."""
@@ -225,11 +209,7 @@ class GithubFileEditor:
             content, sha = self._get_file_content(owner, repo, payload["path"], branch)
             url = f"https://api.github.com/repos/{owner}/{repo}/contents/{payload['path']}"
 
-            data = {
-                "message": payload["message"],
-                "sha": sha,
-                "branch": branch
-            }
+            data = {"message": payload["message"], "sha": sha, "branch": branch}
 
             response = requests.delete(url, headers=self.headers, json=data)
             response.raise_for_status()
@@ -238,7 +218,7 @@ class GithubFileEditor:
         except requests.RequestException as e:
             if self.raise_on_failure:
                 raise
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"
 
     @component.output_types(result=str)
     def run(
@@ -246,7 +226,7 @@ class GithubFileEditor:
         command: Union[Command, str],
         payload: Dict[str, Any],
         repo: Optional[str] = None,
-        branch: Optional[str] = None
+        branch: Optional[str] = None,
     ) -> Dict[str, str]:
         """
         Process GitHub file operations.
@@ -271,7 +251,7 @@ class GithubFileEditor:
             Command.EDIT: self._edit_file,
             Command.UNDO: self._undo_changes,
             Command.CREATE: self._create_file,
-            Command.DELETE: self._delete_file
+            Command.DELETE: self._delete_file,
         }
 
         if command not in command_handlers:
@@ -287,7 +267,7 @@ class GithubFileEditor:
             github_token=self.github_token.to_dict() if self.github_token else None,
             repo=self.default_repo,
             branch=self.default_branch,
-            raise_on_failure=self.raise_on_failure
+            raise_on_failure=self.raise_on_failure,
         )
 
     @classmethod
@@ -296,4 +276,3 @@ class GithubFileEditor:
         init_params = data["init_parameters"]
         deserialize_secrets_inplace(init_params, keys=["github_token"])
         return default_from_dict(cls, data)
-

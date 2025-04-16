@@ -32,10 +32,10 @@ class GithubIssueCommenter:
     """
 
     def __init__(
-            self,
-            github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"),
-            raise_on_failure: bool = True,
-            retry_attempts: int = 2,
+        self,
+        github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"),
+        raise_on_failure: bool = True,
+        retry_attempts: int = 2,
     ):
         """
         Initialize the component.
@@ -103,7 +103,7 @@ class GithubIssueCommenter:
             except requests.exceptions.RequestException as e:
                 if attempt == self.retry_attempts - 1:
                     raise
-                logger.warning(f"Attempt {attempt + 1} failed: {str(e)}. Retrying...")
+                logger.warning(f"Attempt {attempt + 1} failed: {e!s}. Retrying...")
 
         return False
 
@@ -150,6 +150,6 @@ class GithubIssueCommenter:
             if self.raise_on_failure:
                 raise
 
-            error_message = f"Error posting comment to GitHub issue {url}: {str(e)}"
+            error_message = f"Error posting comment to GitHub issue {url}: {e!s}"
             logger.warning(error_message)
             return {"success": False}

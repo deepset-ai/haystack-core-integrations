@@ -97,34 +97,24 @@ Example:
 """
 
 file_editor_schema = {
-  "type": "object",
-  "properties": {
-    "command": {
-      "type": "string",
-      "enum": ["edit", "create", "delete", "undo"],
-      "description": "The command to execute"
+    "type": "object",
+    "properties": {
+        "command": {
+            "type": "string",
+            "enum": ["edit", "create", "delete", "undo"],
+            "description": "The command to execute",
+        },
+        "payload": {
+            "type": "object",
+            "required": ["message"],
+            "properties": {
+                "message": {"type": "string"},
+                "content": {"type": "string"},
+                "path": {"type": "string"},
+                "original": {"type": "string"},
+                "replacement": {"type": "string"},
+            },
+        },
     },
-    "payload": {
-      "type": "object",
-      "required": ["message"],
-      "properties": {
-        "message": {
-          "type": "string"
-        },
-        "content": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string"
-        },
-        "original": {
-          "type": "string"
-        },
-        "replacement": {
-          "type": "string"
-        }
-      }
-    }
-  },
-  "required": ["command", "payload"]
+    "required": ["command", "payload"],
 }

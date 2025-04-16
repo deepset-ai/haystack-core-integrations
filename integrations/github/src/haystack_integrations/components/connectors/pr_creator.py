@@ -35,11 +35,7 @@ class GithubPRCreator:
     ```
     """
 
-    def __init__(
-            self,
-            github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"),
-            raise_on_failure: bool = True
-    ):
+    def __init__(self, github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"), raise_on_failure: bool = True):
         """
         Initialize the component.
 
@@ -61,7 +57,7 @@ class GithubPRCreator:
         return {
             "Accept": "application/vnd.github.v3+json",
             "Authorization": f"Bearer {self.github_token.resolve_value()}",
-            "User-Agent": "Haystack/GithubPRCreator"
+            "User-Agent": "Haystack/GithubPRCreator",
         }
 
     def _parse_issue_url(self, issue_url: str) -> tuple[str, str, str]:
@@ -80,10 +76,7 @@ class GithubPRCreator:
 
     def _get_authenticated_user(self) -> str:
         """Get the username of the authenticated user (fork owner)."""
-        response = requests.get(
-            "https://api.github.com/user",
-            headers=self._get_headers()
-        )
+        response = requests.get("https://api.github.com/user", headers=self._get_headers())
         response.raise_for_status()
         return response.json()["login"]
 
@@ -100,13 +93,7 @@ class GithubPRCreator:
 
     @component.output_types(result=str)
     def run(
-            self,
-            issue_url: str,
-            title: str,
-            branch: str,
-            base: str,
-            body: str = "",
-            draft: bool = False
+        self, issue_url: str, title: str, branch: str, base: str, body: str = "", draft: bool = False
     ) -> Dict[str, str]:
         """
         Create a new pull request from your fork to the original repository, linked to the specified issue.
@@ -153,14 +140,14 @@ class GithubPRCreator:
         except (requests.RequestException, ValueError) as e:
             if self.raise_on_failure:
                 raise
-            return {"result": f"Error: {str(e)}"}
+            return {"result": f"Error: {e!s}"}
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize the component to a dictionary."""
         return default_to_dict(
             self,
             github_token=self.github_token.to_dict() if self.github_token else None,
-            raise_on_failure=self.raise_on_failure
+            raise_on_failure=self.raise_on_failure,
         )
 
     @classmethod

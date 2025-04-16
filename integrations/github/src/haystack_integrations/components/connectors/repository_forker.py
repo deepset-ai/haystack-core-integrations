@@ -34,14 +34,14 @@ class GithubRepoForker:
     """
 
     def __init__(
-            self,
-            github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"),
-            raise_on_failure: bool = True,
-            wait_for_completion: bool = False,
-            max_wait_seconds: int = 300,
-            poll_interval: int = 2,
-            auto_sync: bool = True,
-            create_branch: bool = True,
+        self,
+        github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"),
+        raise_on_failure: bool = True,
+        wait_for_completion: bool = False,
+        max_wait_seconds: int = 300,
+        poll_interval: int = 2,
+        auto_sync: bool = True,
+        create_branch: bool = True,
     ):
         """
         Initialize the component.
@@ -65,10 +65,7 @@ class GithubRepoForker:
         self.auto_sync = auto_sync
         self.create_branch = create_branch
 
-        self.headers = {
-            "Accept": "application/vnd.github.v3+json",
-            "User-Agent": "Haystack/GithubRepoForker"
-        }
+        self.headers = {"Accept": "application/vnd.github.v3+json", "User-Agent": "Haystack/GithubRepoForker"}
 
     def _parse_github_url(self, url: str) -> tuple[str, str, str]:
         """
@@ -96,8 +93,7 @@ class GithubRepoForker:
         url = f"https://api.github.com/repos/{fork_path}"
         try:
             response = requests.get(
-                url,
-                headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
+                url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
             )
             return response.status_code == 200
         except requests.RequestException:
@@ -112,8 +108,7 @@ class GithubRepoForker:
         """
         url = "https://api.github.com/user"
         response = requests.get(
-            url,
-            headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
+            url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
         )
         response.raise_for_status()
         return response.json()["login"]
@@ -128,14 +123,13 @@ class GithubRepoForker:
         url = f"https://api.github.com/repos/{self._get_authenticated_user()}/{repo_name}"
         try:
             response = requests.get(
-                url,
-                headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
+                url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
             )
             if response.status_code == 200:
                 return repo_name
             return None
         except requests.RequestException as e:
-            logger.warning(f"Failed to check repository existence: {str(e)}")
+            logger.warning(f"Failed to check repository existence: {e!s}")
             return None
 
     def _sync_fork(self, fork_path: str) -> None:
@@ -149,7 +143,7 @@ class GithubRepoForker:
         response = requests.post(
             url,
             headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
-            json={"branch": "main"}
+            json={"branch": "main"},
         )
         response.raise_for_status()
 
@@ -164,8 +158,7 @@ class GithubRepoForker:
         # First, get the default branch SHA
         url = f"https://api.github.com/repos/{fork_path}"
         response = requests.get(
-            url,
-            headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
+            url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
         )
         response.raise_for_status()
         default_branch = response.json()["default_branch"]
@@ -173,8 +166,7 @@ class GithubRepoForker:
         # Get the SHA of the default branch
         url = f"https://api.github.com/repos/{fork_path}/git/ref/heads/{default_branch}"
         response = requests.get(
-            url,
-            headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
+            url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
         )
         response.raise_for_status()
         sha = response.json()["object"]["sha"]
@@ -185,10 +177,7 @@ class GithubRepoForker:
         response = requests.post(
             url,
             headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
-            json={
-                "ref": f"refs/heads/{branch_name}",
-                "sha": sha
-            }
+            json={"ref": f"refs/heads/{branch_name}", "sha": sha},
         )
         response.raise_for_status()
 
@@ -203,8 +192,7 @@ class GithubRepoForker:
         """
         url = f"https://api.github.com/repos/{owner}/{repo}/forks"
         response = requests.post(
-            url,
-            headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
+            url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}
         )
         response.raise_for_status()
 
@@ -268,6 +256,7 @@ class GithubRepoForker:
             # Wait for fork completion if requested
             if self.wait_for_completion:
                 import time
+
                 start_time = time.time()
 
                 while time.time() - start_time < self.max_wait_seconds:

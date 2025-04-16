@@ -12,11 +12,8 @@ Haystack-Agent always passes the contents of the comment to the "comment" parame
 
 comment_schema = {
     "properties": {
-        "comment": {
-            "type": "string",
-            "description": "The contents of the comment that you want to create."
-        }
+        "comment": {"type": "string", "description": "The contents of the comment that you want to create."}
     },
     "required": ["comment"],
-    "type": "object"
+    "type": "object",
 }

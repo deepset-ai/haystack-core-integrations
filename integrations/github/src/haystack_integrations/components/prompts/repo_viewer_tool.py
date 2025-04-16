@@ -64,15 +64,12 @@ Haystack-Agent takes notes after viewing code:
 
 repo_viewer_schema = {
     "properties": {
-        "repo": {
-            "type": "string",
-            "description": "The owner/repository_name that you want to view."
-        },
+        "repo": {"type": "string", "description": "The owner/repository_name that you want to view."},
         "path": {
             "type": "string",
             "description": "Path to directory or file to view. Defaults to repository root.",
-        }
+        },
     },
     "required": ["repo"],
-    "type": "object"
+    "type": "object",
 }
