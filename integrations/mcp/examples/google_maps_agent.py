@@ -9,7 +9,7 @@
 
 # ### 🔧 Step 1: Start the Google Maps MCP Server
 
-# Make sure you have a valid **Google Maps API key**. 
+# Make sure you have a valid **Google Maps API key**.
 # See [Google Maps API Key](https://developers.google.com/maps/documentation/places/web-service/get-api-key) for more information.
 
 # Run the following Docker command to start the MCP Server locally on port 8000:
@@ -34,12 +34,12 @@
 
 # Connect MCP Inspector to the server at `http://localhost:8000/sse` and click on "List Tools" to display tools such as:
 
-# - `maps_geocode`: Convert address → coordinates  
-# - `maps_reverse_geocode`: Convert coordinates → address  
-# - `maps_search_places`: Search places (e.g., restaurants)  
-# - `maps_place_details`: Get details of a specific place  
-# - `maps_distance_matrix`: Calculate travel distance/time  
-# - `maps_elevation`: Get elevation info  
+# - `maps_geocode`: Convert address → coordinates
+# - `maps_reverse_geocode`: Convert coordinates → address
+# - `maps_search_places`: Search places (e.g., restaurants)
+# - `maps_place_details`: Get details of a specific place
+# - `maps_distance_matrix`: Calculate travel distance/time
+# - `maps_elevation`: Get elevation info
 # - `maps_directions`: Get route directions
 
 # ---
@@ -62,20 +62,18 @@
 # > "Find the five best Persian restaurants close to Zinnowitzer Str. 1, 10115 Berlin, Germany"
 
 from haystack.components.agents import Agent
-
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
 
+# from haystack_integrations.components.connectors.langfuse.langfuse_connector import LangfuseConnector
 from haystack_integrations.tools.mcp.mcp_tool import SSEServerInfo
 from haystack_integrations.tools.mcp.mcp_toolset import MCPToolset
-
-from haystack_integrations.components.connectors.langfuse.langfuse_connector import LangfuseConnector
 
 
 def main():
     # tracer = LangfuseConnector("Agent google maps search")
     # Optionally, you can use Langfuse to trace the agent's activity but it needs
-    # additional configuration. 
+    # additional configuration.
     # See [Langfuse integration](https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/langfuse) for more information.
     toolset = MCPToolset(
         SSEServerInfo(base_url="http://localhost:8000"), tool_names=["maps_geocode", "maps_search_places"]
