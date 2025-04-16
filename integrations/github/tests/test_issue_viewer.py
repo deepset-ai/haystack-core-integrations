@@ -4,7 +4,6 @@
 from unittest.mock import patch
 
 import pytest
-from haystack import Document
 from haystack.utils import Secret
 
 from haystack_integrations.components.connectors.github.issue_viewer import GithubIssueViewer
@@ -35,7 +34,7 @@ class TestGithubIssueViewer:
         assert result["init_parameters"]["raise_on_failure"] is False
         assert result["init_parameters"]["retry_attempts"] == 3
 
-    def test_from_dict():
+    def test_from_dict(self):
         data = {
             "type": "haystack_integrations.components.connectors.github.issue_viewer.GithubIssueViewer",
             "init_parameters": {
@@ -53,7 +52,7 @@ class TestGithubIssueViewer:
         assert viewer.retry_attempts == 3
 
     @patch("requests.get")
-    def test_run(mock_get):
+    def test_run(self, mock_get):
         """Test the run method."""
         # Mock the issue response
         mock_get.return_value.json.return_value = {
@@ -112,7 +111,7 @@ class TestGithubIssueViewer:
         assert mock_get.call_count == 2
 
     @patch("requests.get")
-    def test_run_error_handling(mock_get):
+    def test_run_error_handling(self, mock_get):
         # Mock an error response
         mock_get.side_effect = Exception("API Error")
 

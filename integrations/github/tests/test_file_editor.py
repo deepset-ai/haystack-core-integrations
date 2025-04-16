@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 from haystack.utils import Secret
+import requests
 
 from haystack_integrations.components.connectors.github.file_editor import Command, GithubFileEditor
 
@@ -220,7 +221,7 @@ class TestGithubFileEditor:
     @patch("requests.get")
     def test_run_error_handling(self, mock_get):
         # Mock an error response
-        mock_get.side_effect = Exception("API Error")
+        mock_get.side_effect = requests.RequestException("API Error")
 
         token = Secret.from_token("test_token")
         editor = GithubFileEditor(github_token=token, raise_on_failure=False)
@@ -236,7 +237,7 @@ class TestGithubFileEditor:
 
         # Test with raise_on_failure=True
         editor = GithubFileEditor(github_token=token, raise_on_failure=True)
-        with pytest.raises(Exception):
+        with pytest.raises(requests.RequestException):
             editor.run(
                 command=Command.EDIT,
                 payload={"path": "test.txt", "original": "Hello", "replacement": "Hi", "message": "Update greeting"},

@@ -4,7 +4,6 @@
 from unittest.mock import patch
 
 import pytest
-from haystack import Document
 from haystack.utils import Secret
 
 from haystack_integrations.components.connectors.github.repo_viewer import GithubRepositoryViewer

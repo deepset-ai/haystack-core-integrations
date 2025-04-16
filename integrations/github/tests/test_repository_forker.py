@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 from haystack.utils import Secret
+import requests
 
 from haystack_integrations.components.connectors.github.repository_forker import GithubRepoForker
 
@@ -144,7 +145,7 @@ class TestGithubRepoForker:
     @patch("requests.post")
     def test_run_error_handling(self, mock_post, mock_get):
         # Mock an error response
-        mock_get.side_effect = Exception("API Error")
+        mock_get.side_effect = requests.RequestException("API Error")
 
         token = Secret.from_token("test_token")
         forker = GithubRepoForker(github_token=token, raise_on_failure=False)
@@ -156,7 +157,7 @@ class TestGithubRepoForker:
 
         # Test with raise_on_failure=True
         forker = GithubRepoForker(github_token=token, raise_on_failure=True)
-        with pytest.raises(Exception):
+        with pytest.raises(requests.RequestException):
             forker.run(url="https://github.com/owner/repo/issues/123")
 
     def test_parse_github_url(self):
