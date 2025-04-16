@@ -82,6 +82,8 @@ class GithubRepositoryViewer:
         :param github_token: GitHub personal access token for API authentication
         :param raise_on_failure: If True, raises exceptions on API errors
         :param max_file_size: Maximum file size in bytes to fetch (default: 1MB)
+        :param repo: Repository in format "owner/repo"
+        :param branch: Git reference (branch, tag, commit) to use
         """
         if github_token is not None and not isinstance(github_token, Secret):
             msg = "github_token must be a Secret"
@@ -204,8 +206,14 @@ class GithubRepositoryViewer:
         """
         if repo is None:
             repo = self.repo
+            if repo is None:
+                msg = "Repository not provided in initialization or run() method"
+                raise ValueError(msg)
         if branch is None:
             branch = self.branch
+            if branch is None:
+                msg = "Branch not provided in initialization or run() method"
+                raise ValueError(msg)
 
         try:
             owner, repo_name = self._parse_repo(repo)
@@ -245,7 +253,7 @@ class GithubRepositoryViewer:
 
         except Exception as e:
             error_doc = self._create_error_document(
-                f"Error processing repository path {path}: {e!s}. Seems like the file does not exist.", path
+                Exception(f"Error processing repository path {path}: {e!s}. Seems like the file does not exist."), path
             )
             if self.raise_on_failure:
                 raise

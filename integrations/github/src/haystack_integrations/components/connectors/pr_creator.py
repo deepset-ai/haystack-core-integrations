@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import requests
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -93,7 +93,7 @@ class GithubPRCreator:
         except requests.RequestException:
             return False
 
-    def _create_fork(self, owner: str, repo: str) -> str:
+    def _create_fork(self, owner: str, repo: str) -> Optional[str]:
         """Create a fork of the repository."""
         url = f"https://api.github.com/repos/{owner}/{repo}/forks"
         try:
@@ -147,7 +147,7 @@ class GithubPRCreator:
 
             # Create a blob with the file content
             url = f"https://api.github.com/repos/{owner}/{repo}/git/blobs"
-            data = {"content": content, "encoding": "base64"}
+            data: dict[str, Any] = {"content": content, "encoding": "base64"}
             response = requests.post(url, headers=self._get_headers(), json=data, timeout=10)
             response.raise_for_status()
             blob_sha = response.json()["sha"]

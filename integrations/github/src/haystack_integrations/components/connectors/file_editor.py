@@ -127,7 +127,8 @@ class GithubFileEditor:
     def _check_last_commit(self, owner: str, repo: str, branch: str) -> bool:
         """Check if last commit was made by the current token user."""
         url = f"https://api.github.com/repos/{owner}/{repo}/commits"
-        response = requests.get(url, headers=self.headers, params={"per_page": 1, "sha": branch}, timeout=10)
+        params: Dict[str, Union[str, int]] = {"per_page": 1, "sha": branch}
+        response = requests.get(url, headers=self.headers, params=params, timeout=10)
         response.raise_for_status()
         last_commit = response.json()[0]
         commit_author = last_commit["author"]["login"]
@@ -161,7 +162,7 @@ class GithubFileEditor:
                 raise
             return f"Error: {e!s}"
 
-    def _undo_changes(self, owner: str, repo: str, payload: Dict[str, str], branch: str) -> str:
+    def _undo_changes(self, owner: str, repo: str, payload: Dict[str, Any], branch: str) -> str:
         """Handle undoing changes."""
         try:
             if not self._check_last_commit(owner, repo, branch):
@@ -172,9 +173,8 @@ class GithubFileEditor:
             commits_url = f"https://api.github.com/repos/{owner}/{repo}/commits"
 
             # Get the previous commit SHA
-            commits = requests.get(
-                commits_url, headers=self.headers, params={"per_page": 2, "sha": branch}, timeout=10
-            ).json()
+            params: Dict[str, Union[str, int]] = {"per_page": 2, "sha": branch}
+            commits = requests.get(commits_url, headers=self.headers, params=params, timeout=10).json()
             previous_sha = commits[1]["sha"]
 
             # Update branch reference to previous commit
@@ -239,6 +239,8 @@ class GithubFileEditor:
         :param repo: Repository in owner/repo format (overrides default if provided)
         :param branch: Branch to perform operations on (overrides default if provided)
         :return: Dictionary containing operation result
+
+        :raises ValueError: If command is not a valid Command enum value
         """
         if repo is None:
             if self.default_repo is None:
@@ -249,6 +251,10 @@ class GithubFileEditor:
 
         working_branch = branch if branch is not None else self.default_branch
         owner, repo_name = repo.split("/")
+
+        # Convert string command to Command enum if needed
+        if isinstance(command, str):
+            command = Command(command.lower())
 
         command_handlers = {
             Command.EDIT: self._edit_file,
