@@ -11,15 +11,9 @@
 
 ### 🐛 Bug Fixes
 
-- [**breaking**] Rename env variables for Azure AI (#1597)
-
-
-### ⚙️ CI
-
-- Review testing workflows (#1541)
+- [**breaking**] The environment variables for AzureAIDocumentStore have been renamed for clarity. (#1597)
 
 ## [integrations/azure_ai_search-v1.0.0] - 2025-03-11
-
 
 ### 🧪 Testing
 
