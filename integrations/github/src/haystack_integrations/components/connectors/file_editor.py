@@ -1,5 +1,5 @@
 from base64 import b64decode, b64encode
-from enum import StrEnum
+from enum import Enum
 from typing import Any, Dict, Optional, Union
 
 import requests
@@ -9,7 +9,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 logger = logging.getLogger(__name__)
 
 
-class Command(StrEnum):
+class Command(str, Enum):
     """
     Available commands for file operations in GitHub.
 
