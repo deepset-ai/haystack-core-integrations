@@ -97,7 +97,6 @@ class LangfuseConnector:
         )
         print(response["llm"]["replies"][0])
         print(response["tracer"]["trace_url"])
-        print(response["tracer"]["trace_id"])
     ```
 
     For advanced use cases, you can also customize how spans are created and processed by
@@ -124,10 +123,13 @@ class LangfuseConnector:
         self,
         name: str,
         public: bool = False,
-        public_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),  # noqa: B008
-        secret_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_SECRET_KEY"),  # noqa: B008
+        public_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),
+        secret_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_SECRET_KEY"),
         httpx_client: Optional[httpx.Client] = None,
         span_handler: Optional[SpanHandler] = None,
+        *,
+        host: Optional[str] = "https://cloud.langfuse.com",
+        langfuse_client_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize the LangfuseConnector component.
@@ -146,18 +148,28 @@ class LangfuseConnector:
             The span handler controls how spans are created and processed, allowing customization of span types
             based on component types and additional processing after spans are yielded. See SpanHandler class for
             details on implementing custom handlers.
+        host: Host of Langfuse API. Can be set via `LANGFUSE_HOST` environment variable.
+            Defaults to `https://cloud.langfuse.com`.
+        :param langfuse_client_kwargs: Optional custom configuration for the Langfuse client. This is a dictionary
+            containing any additional configuration options for the Langfuse client. See the Langfuse documentation
+            for more details on available configuration options.
         """
         self.name = name
         self.public = public
         self.secret_key = secret_key
         self.public_key = public_key
         self.span_handler = span_handler
+        self._host = host
+        self._langfuse_client_kwargs = langfuse_client_kwargs
+        resolved_langfuse_client_kwargs = {
+            "secret_key": secret_key.resolve_value() if secret_key else None,
+            "public_key": public_key.resolve_value() if public_key else None,
+            "httpx_client": httpx_client,
+            "host": host,
+            **(langfuse_client_kwargs or {}),
+        }
         self.tracer = LangfuseTracer(
-            tracer=Langfuse(
-                secret_key=secret_key.resolve_value() if secret_key else None,
-                public_key=public_key.resolve_value() if public_key else None,
-                httpx_client=httpx_client,
-            ),
+            tracer=Langfuse(**resolved_langfuse_client_kwargs),
             name=name,
             public=public,
             span_handler=span_handler,
@@ -199,6 +211,8 @@ class LangfuseConnector:
             public_key=self.public_key.to_dict() if self.public_key else None,
             # Note: httpx_client is not serialized as it's not serializable
             span_handler=span_handler,
+            host=self._host,
+            langfuse_client_kwargs=self._langfuse_client_kwargs,
         )
 
     @classmethod
