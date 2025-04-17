@@ -123,8 +123,8 @@ class LangfuseConnector:
         self,
         name: str,
         public: bool = False,
-        public_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),
-        secret_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_SECRET_KEY"),
+        public_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),  # noqa: B008
+        secret_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_SECRET_KEY"),  # noqa: B008
         httpx_client: Optional[httpx.Client] = None,
         span_handler: Optional[SpanHandler] = None,
         *,
