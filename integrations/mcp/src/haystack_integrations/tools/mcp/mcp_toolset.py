@@ -1,6 +1,8 @@
 import logging
 from typing import Any
 
+import httpx
+from exceptiongroup import ExceptionGroup
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.tools import Tool, Toolset
 
@@ -9,6 +11,7 @@ from .mcp_tool import (
     MCPConnectionError,
     MCPServerInfo,
     MCPToolNotFoundError,
+    SSEServerInfo,
 )
 
 logger = logging.getLogger(__name__)
@@ -160,7 +163,28 @@ class MCPToolset(Toolset):
                 self.add(tool)
 
         except Exception as e:
-            message = f"Failed to initialize MCPToolset: {e}"
+            if isinstance(self.server_info, SSEServerInfo):
+                base_message = f"Failed to connect to SSE server at {self.server_info.base_url}"
+                checks = ["1. The server is running"]
+
+                # Check for ConnectError in exception group or direct exception
+                has_connect_error = isinstance(e, httpx.ConnectError) or (
+                    isinstance(e, ExceptionGroup) and any(isinstance(exc, httpx.ConnectError) for exc in e.exceptions)
+                )
+
+                if has_connect_error:
+                    port = self.server_info.base_url.split(":")[-1]
+                    checks.append(f"2. The address and port are correct (attempted port: {port})")
+                    checks.append("3. There are no firewall or network connectivity issues")
+                    message = f"{base_message}. Please check if:\n" + "\n".join(checks)
+                else:
+                    message = f"{base_message}: {e}"
+            else:  # stdio connection
+                base_message = "Failed to start MCP server process"
+                cmd = f"{self.server_info.command} {' '.join(self.server_info.args)}"
+                checks = [f"1. The command and arguments are correct (attempted: {cmd})"]
+                message = f"{base_message}. Please check if:\n" + "\n".join(checks)
+
             raise MCPConnectionError(message=message, server_info=self.server_info, operation="initialize") from e
 
     def to_dict(self) -> dict[str, Any]:
