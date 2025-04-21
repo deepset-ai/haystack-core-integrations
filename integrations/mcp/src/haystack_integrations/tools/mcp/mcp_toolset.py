@@ -12,6 +12,7 @@ from .mcp_tool import (
     MCPServerInfo,
     MCPToolNotFoundError,
     SSEServerInfo,
+    StdioServerInfo,
 )
 
 logger = logging.getLogger(__name__)
@@ -179,11 +180,15 @@ class MCPToolset(Toolset):
                     message = f"{base_message}. Please check if:\n" + "\n".join(checks)
                 else:
                     message = f"{base_message}: {e}"
-            else:  # stdio connection
+            elif isinstance(self.server_info, StdioServerInfo):  # stdio connection
                 base_message = "Failed to start MCP server process"
-                cmd = f"{self.server_info.command} {' '.join(self.server_info.args)}"
+                stdio_info = self.server_info
+                args_str = " ".join(stdio_info.args) if stdio_info.args else ""
+                cmd = f"{stdio_info.command}{' ' + args_str if args_str else ''}"
                 checks = [f"1. The command and arguments are correct (attempted: {cmd})"]
                 message = f"{base_message}. Please check if:\n" + "\n".join(checks)
+            else:
+                message = f"Unsupported server info type: {type(self.server_info)}"
 
             raise MCPConnectionError(message=message, server_info=self.server_info, operation="initialize") from e
 
