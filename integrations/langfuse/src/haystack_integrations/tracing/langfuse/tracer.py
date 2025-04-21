@@ -263,8 +263,8 @@ class DefaultSpanHandler(SpanHandler):
 
         tracing_ctx = tracing_context_var.get({})
         if not context.parent_span:
-            _ALLOWED_SPAN_ROOTS = [_PIPELINE_RUN_KEY, _ASYNC_PIPELINE_RUN_KEY, _AGENT_RUN_KEY]
-            if context.operation_name not in _ALLOWED_SPAN_ROOTS:
+            allowed_span_roots = [_PIPELINE_RUN_KEY, _ASYNC_PIPELINE_RUN_KEY, _AGENT_RUN_KEY]
+            if context.operation_name not in allowed_span_roots:
                 logger.warning(
                     "Creating a new trace without a parent span is not recommended for operation '{operation_name}'.",
                     operation_name=context.operation_name,
