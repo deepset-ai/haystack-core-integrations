@@ -79,9 +79,7 @@ dependencies = [
     "pip",
     "black>=23.1.0",
     "mypy>=1.0.0",
-    "ruff>=0.0.243",
-    "types-httpx",
-    "types-exceptiongroup"
+    "ruff>=0.0.243"
 ]
 
 [tool.hatch.envs.lint.scripts]
