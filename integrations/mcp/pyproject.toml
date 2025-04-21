@@ -29,7 +29,8 @@ classifiers = [
 ]
 dependencies = [
     "mcp",
-    "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@main"
+    "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@main",
+    "exceptiongroup"  # Backport of ExceptionGroup for Python < 3.11
 ]
 
 [project.urls]
@@ -79,6 +80,8 @@ dependencies = [
     "black>=23.1.0",
     "mypy>=1.0.0",
     "ruff>=0.0.243",
+    "types-httpx",
+    "types-exceptiongroup"
 ]
 
 [tool.hatch.envs.lint.scripts]
