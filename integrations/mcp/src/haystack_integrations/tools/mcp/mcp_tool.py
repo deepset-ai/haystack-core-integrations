@@ -351,16 +351,31 @@ class SSEClient(MCPClient):
     MCP client that connects to servers using SSE transport.
     """
 
-    def __init__(self, base_url: str, token: str | None = None, timeout: int = 5) -> None:
+    def __init__(self, url: str | None = None, base_url: str | None = None, token: str | None = None, timeout: int = 5) -> None:
         """
         Initialize an SSE MCP client.
 
-        :param base_url: Base URL of the server
+        :param url: Full URL of the server (including /sse endpoint)
+        :param base_url: Base URL of the server (deprecated, use url instead)
         :param token: Authentication token for the server (optional)
         :param timeout: Connection timeout in seconds
         """
         super().__init__()
-        self.base_url: str = base_url.rstrip("/")  # Remove any trailing slashes
+        if url is None and base_url is None:
+            raise ValueError("Either url or base_url must be provided")
+        if url is not None and base_url is not None:
+            raise ValueError("Only one of url or base_url should be provided")
+
+        if base_url is not None:
+            import warnings
+            warnings.warn(
+                "base_url is deprecated and will be removed in a future version. Use url instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self.url = f"{base_url.rstrip('/')}/sse"  # Remove any trailing slashes and add /sse
+        else:
+            self.url = url
         self.token: str | None = token
         self.timeout: int = timeout
 
@@ -371,12 +386,11 @@ class SSEClient(MCPClient):
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
         """
-        sse_url = f"{self.base_url}/sse"
         headers = {"Authorization": f"Bearer {self.token}"} if self.token else None
         sse_transport = await self.exit_stack.enter_async_context(
-            sse_client(sse_url, headers=headers, timeout=self.timeout)
+            sse_client(self.url, headers=headers, timeout=self.timeout)
         )
-        return await self._initialize_session_with_transport(sse_transport, f"HTTP server at {self.base_url}")
+        return await self._initialize_session_with_transport(sse_transport, f"HTTP server at {self.url}")
 
 
 @dataclass
@@ -432,14 +446,23 @@ class SSEServerInfo(MCPServerInfo):
     """
     Data class that encapsulates SSE MCP server connection parameters.
 
-    :param base_url: Base URL of the MCP server
+    :param url: Full URL of the MCP server (including /sse endpoint)
+    :param base_url: Base URL of the MCP server (deprecated, use url instead)
     :param token: Authentication token for the server (optional)
     :param timeout: Connection timeout in seconds
     """
 
-    base_url: str
+    url: str | None = None
+    base_url: str | None = None  # deprecated
     token: str | None = None
     timeout: int = 30
+
+    def __post_init__(self):
+        """Validate that either url or base_url is provided."""
+        if self.url is None and self.base_url is None:
+            raise ValueError("Either url or base_url must be provided")
+        if self.url is not None and self.base_url is not None:
+            raise ValueError("Only one of url or base_url should be provided")
 
     def create_client(self) -> MCPClient:
         """
@@ -447,7 +470,15 @@ class SSEServerInfo(MCPServerInfo):
 
         :returns: Configured HttpMCPClient instance
         """
-        return SSEClient(self.base_url, self.token, self.timeout)
+        if self.base_url is not None:
+            import warnings
+            warnings.warn(
+                "base_url is deprecated and will be removed in a future version. Use url instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return SSEClient(base_url=self.base_url, token=self.token, timeout=self.timeout)
+        return SSEClient(url=self.url, token=self.token, timeout=self.timeout)
 
 
 @dataclass
