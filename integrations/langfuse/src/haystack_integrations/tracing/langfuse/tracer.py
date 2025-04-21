@@ -52,6 +52,7 @@ _PIPELINE_INPUT_KEY = "haystack.pipeline.input_data"
 _PIPELINE_OUTPUT_KEY = "haystack.pipeline.output_data"
 _ASYNC_PIPELINE_RUN_KEY = "haystack.async_pipeline.run"
 _PIPELINE_RUN_KEY = "haystack.pipeline.run"
+_AGENT_RUN_KEY = "haystack.agent.run"
 _COMPONENT_NAME_KEY = "haystack.component.name"
 _COMPONENT_TYPE_KEY = "haystack.component.type"
 _COMPONENT_OUTPUT_KEY = "haystack.component.output"
@@ -262,7 +263,8 @@ class DefaultSpanHandler(SpanHandler):
 
         tracing_ctx = tracing_context_var.get({})
         if not context.parent_span:
-            if context.operation_name not in [_PIPELINE_RUN_KEY, _ASYNC_PIPELINE_RUN_KEY]:
+            _ALLOWED_SPAN_ROOTS = [_PIPELINE_RUN_KEY, _ASYNC_PIPELINE_RUN_KEY, _AGENT_RUN_KEY]
+            if context.operation_name not in _ALLOWED_SPAN_ROOTS:
                 logger.warning(
                     "Creating a new trace without a parent span is not recommended for operation '{operation_name}'.",
                     operation_name=context.operation_name,
