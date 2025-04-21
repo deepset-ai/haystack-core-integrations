@@ -9,6 +9,8 @@ from haystack.document_stores.errors import DocumentStoreError
 
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 
+embedding_dimension = 768
+
 
 @pytest.mark.skipif(
     not os.environ.get("MONGO_CONNECTION_STRING"),
@@ -23,7 +25,7 @@ class TestEmbeddingRetrieval:
             vector_search_index="cosine_index",
             full_text_search_index="full_text_index",
         )
-        query_embedding = [0.1] * 768
+        query_embedding = [0.1] * embedding_dimension
         results = document_store._embedding_retrieval(query_embedding=query_embedding, top_k=2, filters={})
         assert len(results) == 2
         assert results[0].content == "Document C"
@@ -37,7 +39,7 @@ class TestEmbeddingRetrieval:
             vector_search_index="dotProduct_index",
             full_text_search_index="full_text_index",
         )
-        query_embedding = [0.1] * 768
+        query_embedding = [0.1] * embedding_dimension
         results = document_store._embedding_retrieval(query_embedding=query_embedding, top_k=2, filters={})
         assert len(results) == 2
         assert results[0].content == "Document A"
@@ -51,7 +53,7 @@ class TestEmbeddingRetrieval:
             vector_search_index="euclidean_index",
             full_text_search_index="full_text_index",
         )
-        query_embedding = [0.1] * 768
+        query_embedding = [0.1] * embedding_dimension
         results = document_store._embedding_retrieval(query_embedding=query_embedding, top_k=2, filters={})
         assert len(results) == 2
         assert results[0].content == "Document C"
@@ -105,7 +107,7 @@ class TestEmbeddingRetrieval:
             vector_search_index="cosine_index",
             full_text_search_index="full_text_index",
         )
-        query_embedding = [0.1] * 768
+        query_embedding = [0.1] * embedding_dimension
         filters = {"field": "content", "operator": "!=", "value": "Document A"}
         results = document_store._embedding_retrieval(query_embedding=query_embedding, top_k=2, filters=filters)
         assert len(results) == 2

@@ -42,18 +42,16 @@ class AsyncDocumentStoreContext:
             await self.store._connection_async.close()
 
 
-@pytest.mark.skipif(
-    not os.environ.get("MONGO_CONNECTION_STRING_2"), reason="No MongoDBAtlas connection string provided"
-)
+@pytest.mark.skipif(not os.environ.get("MONGO_CONNECTION_STRING"), reason="No MongoDBAtlas connection string provided")
 @pytest.mark.integration
 class TestFullTextRetrieval:
 
     @pytest.fixture
     async def document_store(self) -> MongoDBAtlasDocumentStore:
         async with AsyncDocumentStoreContext(
-            mongo_connection_string=Secret.from_env_var("MONGO_CONNECTION_STRING_2"),
-            database_name="haystack_test",
-            collection_name="test_collection",
+            mongo_connection_string=Secret.from_env_var("MONGO_CONNECTION_STRING"),
+            database_name="haystack_integration_test",
+            collection_name="test_full_text_search_collection",
             vector_search_index="cosine_index",
             full_text_search_index="full_text_index",
         ) as store:
