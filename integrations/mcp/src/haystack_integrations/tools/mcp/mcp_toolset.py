@@ -8,6 +8,7 @@ from .mcp_tool import (
     AsyncExecutor,
     MCPConnectionError,
     MCPServerInfo,
+    MCPToolNotFoundError,
 )
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,7 @@ class MCPToolset(Toolset):
                           matching names will be added to the toolset.
         :param connection_timeout: Timeout in seconds for server connection
         :param invocation_timeout: Default timeout in seconds for tool invocations
+        :raises MCPToolNotFoundError: If any of the specified tool names are not found on the server
         """
         # Initialize with empty tools list first
         super().__init__(tools=[])
@@ -115,6 +117,19 @@ class MCPToolset(Toolset):
 
             # Connect and get available tools using AsyncExecutor
             tools = AsyncExecutor.get_instance().run(client.connect(), timeout=self.connection_timeout)
+
+            # If tool_names is provided, validate that all requested tools exist
+            if self.tool_names:
+                available_tools = {tool.name for tool in tools}
+                missing_tools = set(self.tool_names) - available_tools
+                if missing_tools:
+                    message = (
+                        f"The following tools were not found: {', '.join(missing_tools)}. "
+                        f"Available tools: {', '.join(available_tools)}"
+                    )
+                    raise MCPToolNotFoundError(
+                        message=message, tool_name=next(iter(missing_tools)), available_tools=list(available_tools)
+                    )
 
             # This is the function will give Tool instance to invoke
             def create_invoke_tool(client, tool_name, invocation_timeout):
