@@ -467,20 +467,14 @@ class SSEServerInfo(MCPServerInfo):
 
     def __post_init__(self):
         """Validate that either url or base_url is provided."""
-        if self.url is None and self.base_url is None:
+        if not self.url and not self.base_url:
             message = "Either url or base_url must be provided"
             raise ValueError(message)
-        if self.url is not None and self.base_url is not None:
+        if self.url and self.base_url:
             message = "Only one of url or base_url should be provided"
             raise ValueError(message)
 
-    def create_client(self) -> MCPClient:
-        """
-        Create an SSE MCP client.
-
-        :returns: Configured HttpMCPClient instance
-        """
-        if self.base_url is not None:
+        if self.base_url:
             import warnings
 
             warnings.warn(
@@ -488,6 +482,14 @@ class SSEServerInfo(MCPServerInfo):
                 DeprecationWarning,
                 stacklevel=2,
             )
+
+    def create_client(self) -> MCPClient:
+        """
+        Create an SSE MCP client.
+
+        :returns: Configured HttpMCPClient instance
+        """
+        if self.base_url:
             return SSEClient(base_url=self.base_url, token=self.token, timeout=self.timeout)
         return SSEClient(url=self.url, token=self.token, timeout=self.timeout)
 
