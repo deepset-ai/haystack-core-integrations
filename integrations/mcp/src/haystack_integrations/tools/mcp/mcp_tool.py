@@ -382,6 +382,8 @@ class SSEClient(MCPClient):
         elif url:
             # Always true here in this branch but mypy doesn't know that
             self.url = url
+
+        self.base_url = base_url  # leave this here for backwards compatibility (and remove in future)
         self.token: str | None = token
         self.timeout: int = timeout
 
