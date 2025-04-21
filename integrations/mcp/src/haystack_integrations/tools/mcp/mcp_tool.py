@@ -351,7 +351,9 @@ class SSEClient(MCPClient):
     MCP client that connects to servers using SSE transport.
     """
 
-    def __init__(self, url: str | None = None, base_url: str | None = None, token: str | None = None, timeout: int = 5) -> None:
+    def __init__(
+        self, url: str | None = None, base_url: str | None = None, token: str | None = None, timeout: int = 5
+    ) -> None:
         """
         Initialize an SSE MCP client.
 
@@ -362,19 +364,23 @@ class SSEClient(MCPClient):
         """
         super().__init__()
         if url is None and base_url is None:
-            raise ValueError("Either url or base_url must be provided")
-        if url is not None and base_url is not None:
-            raise ValueError("Only one of url or base_url should be provided")
+            message = "Either url or base_url must be provided"
+            raise ValueError(message)
+        if url and base_url:
+            message = "Only one of url or base_url should be provided"
+            raise ValueError(message)
 
-        if base_url is not None:
+        if base_url:
             import warnings
+
             warnings.warn(
                 "base_url is deprecated and will be removed in a future version. Use url instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
             self.url = f"{base_url.rstrip('/')}/sse"  # Remove any trailing slashes and add /sse
-        else:
+        elif url:
+            # Always true here in this branch but mypy doesn't know that
             self.url = url
         self.token: str | None = token
         self.timeout: int = timeout
@@ -460,9 +466,11 @@ class SSEServerInfo(MCPServerInfo):
     def __post_init__(self):
         """Validate that either url or base_url is provided."""
         if self.url is None and self.base_url is None:
-            raise ValueError("Either url or base_url must be provided")
+            message = "Either url or base_url must be provided"
+            raise ValueError(message)
         if self.url is not None and self.base_url is not None:
-            raise ValueError("Only one of url or base_url should be provided")
+            message = "Only one of url or base_url should be provided"
+            raise ValueError(message)
 
     def create_client(self) -> MCPClient:
         """
@@ -472,6 +480,7 @@ class SSEServerInfo(MCPServerInfo):
         """
         if self.base_url is not None:
             import warnings
+
             warnings.warn(
                 "base_url is deprecated and will be removed in a future version. Use url instead.",
                 DeprecationWarning,
