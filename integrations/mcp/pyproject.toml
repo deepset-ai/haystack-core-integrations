@@ -176,6 +176,8 @@ module = [
     "anyio.*",
     "mcp.*",
     "mcp",
+    "httpx",
+    "exceptiongroup"
 ]
 ignore_missing_imports = true
 
