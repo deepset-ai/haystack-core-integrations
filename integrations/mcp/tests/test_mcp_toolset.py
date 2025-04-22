@@ -1,7 +1,7 @@
 import os
 import sys
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from haystack.tools import Tool
@@ -11,7 +11,7 @@ from haystack_integrations.tools.mcp.mcp_tool import MCPConnectionError
 
 
 @pytest.fixture
-def mock_mcp_toolset():
+async def mock_mcp_toolset():
     """Fixture to create a pre-configured MCPToolset for testing without server connection."""
     mock_tool1 = MagicMock(spec=Tool)
     mock_tool1.name = "tool1"
@@ -23,11 +23,14 @@ def mock_mcp_toolset():
     mock_tool2.description = "Test tool 2"
     mock_tool2.inputSchema = {"type": "object", "properties": {}}
 
+    mock_client = AsyncMock()
+    mock_client.connect.return_value = [mock_tool1, mock_tool2]
+    mock_client.close = AsyncMock()
+
     with (
         patch("haystack_integrations.tools.mcp.mcp_toolset.AsyncExecutor.get_instance") as mock_executor,
         patch("haystack_integrations.tools.mcp.mcp_tool.MCPServerInfo.create_client") as mock_create_client,
     ):
-        mock_client = MagicMock()
         mock_create_client.return_value = mock_client
         mock_executor.return_value.run.return_value = [mock_tool1, mock_tool2]
 
@@ -39,20 +42,26 @@ def mock_mcp_toolset():
 
         yield toolset
 
+        # Cleanup
+        await mock_client.close()
+
 
 @pytest.fixture
-def mock_mcp_toolset_with_tool_names():
+async def mock_mcp_toolset_with_tool_names():
     """Fixture to create an MCPToolset with specific tool_names filtering."""
     mock_tool2 = MagicMock(spec=Tool)
     mock_tool2.name = "tool2"
     mock_tool2.description = "Test tool 2"
     mock_tool2.inputSchema = {"type": "object", "properties": {}}
 
+    mock_client = AsyncMock()
+    mock_client.connect.return_value = [mock_tool2]
+    mock_client.close = AsyncMock()
+
     with (
         patch("haystack_integrations.tools.mcp.mcp_toolset.AsyncExecutor.get_instance") as mock_executor,
         patch("haystack_integrations.tools.mcp.mcp_tool.MCPServerInfo.create_client") as mock_create_client,
     ):
-        mock_client = MagicMock()
         mock_create_client.return_value = mock_client
         mock_executor.return_value.run.return_value = [mock_tool2]
 
@@ -65,11 +74,15 @@ def mock_mcp_toolset_with_tool_names():
 
         yield toolset
 
+        # Cleanup
+        await mock_client.close()
 
+
+@pytest.mark.asyncio
 class TestMCPToolset:
     """Tests for the MCPToolset class."""
 
-    def test_toolset_initialization(self, mock_mcp_toolset):
+    async def test_toolset_initialization(self, mock_mcp_toolset):
         """Test if the MCPToolset initializes correctly and loads tools."""
         toolset = mock_mcp_toolset
 
@@ -90,7 +103,7 @@ class TestMCPToolset:
         assert tool1.description == "Test tool 1"
         assert tool2.description == "Test tool 2"
 
-    def test_toolset_with_filtered_tools(self, mock_mcp_toolset_with_tool_names):
+    async def test_toolset_with_filtered_tools(self, mock_mcp_toolset_with_tool_names):
         """Test if the MCPToolset correctly filters tools based on tool_names parameter."""
         toolset = mock_mcp_toolset_with_tool_names
 
@@ -109,7 +122,7 @@ class TestMCPToolset:
         assert tool.name == "tool2"
         assert tool.description == "Test tool 2"
 
-    def test_toolset_serde(self, mock_mcp_toolset):
+    async def test_toolset_serde(self, mock_mcp_toolset):
         """Test serialization and deserialization of MCPToolset."""
         toolset = mock_mcp_toolset
 
@@ -131,7 +144,7 @@ class TestMCPToolset:
             assert isinstance(kwargs["server_info"], SSEServerInfo)
             assert kwargs["server_info"].base_url == "http://example.com"
 
-    def test_toolset_serde_with_tool_names(self, mock_mcp_toolset_with_tool_names):
+    async def test_toolset_serde_with_tool_names(self, mock_mcp_toolset_with_tool_names):
         """Test serialization and deserialization of MCPToolset with tool_names parameter."""
         toolset = mock_mcp_toolset_with_tool_names
 
@@ -146,7 +159,7 @@ class TestMCPToolset:
             _, kwargs = mock_init.call_args
             assert kwargs["tool_names"] == ["tool2"]
 
-    def test_toolset_combination(self, mock_mcp_toolset):
+    async def test_toolset_combination(self, mock_mcp_toolset):
         """Test combining MCPToolset with other tools."""
         toolset = mock_mcp_toolset
 
@@ -174,22 +187,14 @@ class TestMCPToolset:
         assert "tool2" in tool_names
         assert "add" in tool_names
 
-    def test_toolset_error_handling(self):
+    async def test_toolset_error_handling(self):
         """Test error handling during toolset initialization."""
-        with (
-            patch("haystack_integrations.tools.mcp.mcp_toolset.AsyncExecutor.get_instance") as mock_executor,
-            patch("haystack_integrations.tools.mcp.mcp_tool.MCPServerInfo.create_client") as mock_create_client,
-        ):
-            mock_client = MagicMock()
-            mock_create_client.return_value = mock_client
-            mock_executor.return_value.run.side_effect = Exception("Connection failed")
-
-            with pytest.raises(MCPConnectionError):
-                MCPToolset(
-                    server_info=SSEServerInfo(base_url="http://example.com"),
-                    connection_timeout=30,
-                    invocation_timeout=30,
-                )
+        with pytest.raises(MCPConnectionError):
+            MCPToolset(
+                server_info=SSEServerInfo(base_url="http://example.com"),
+                connection_timeout=30.0,
+                invocation_timeout=30.0,
+            )
 
 
 @pytest.mark.integration
@@ -197,7 +202,7 @@ class TestMCPToolsetIntegration:
     """Integration tests for MCPToolset."""
 
     @pytest.mark.skipif(sys.platform == "win32", reason="Windows fails for some reason")
-    def test_toolset_with_sse_connection(self):
+    async def test_toolset_with_sse_connection(self):
         """Test MCPToolset with an SSE connection to a simple server."""
         import socket
         import subprocess
@@ -210,14 +215,17 @@ class TestMCPToolsetIntegration:
         with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as temp_file:
             temp_file.write(
                 f"""
+import sys
+import asyncio
 from mcp.server.fastmcp import FastMCP
+
 mcp = FastMCP("MCP Calculator", host="127.0.0.1", port={port})
+
 @mcp.tool()
 def add(a: int, b: int) -> int:
     \"\"\"Add two numbers\"\"\"
     return a + b
 
-# Add a subtraction tool
 @mcp.tool()
 def subtract(a: int, b: int) -> int:
     \"\"\"Subtract b from a\"\"\"
@@ -225,44 +233,54 @@ def subtract(a: int, b: int) -> int:
 
 if __name__ == "__main__":
     try:
-        mcp.run(transport="sse")
+        asyncio.run(mcp.run_async(transport="sse"))
     except Exception as e:
         sys.exit(1)
 """.encode()
             )
             server_script_path = temp_file.name
 
-        server_process = subprocess.Popen(
-            ["python", server_script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-        )
+        server_process = None
+        toolset = None
+        try:
+            server_process = subprocess.Popen(
+                ["python", server_script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
 
-        time.sleep(2)  # Wait for server to start
+            # Wait for server to start and be ready
+            time.sleep(5)  # Increased from 2 to 5 seconds
 
-        server_info = SSEServerInfo(base_url=f"http://127.0.0.1:{port}")
-        toolset = MCPToolset(server_info=server_info)
+            server_info = SSEServerInfo(base_url=f"http://127.0.0.1:{port}")
+            toolset = MCPToolset(server_info=server_info)
 
-        assert len(toolset) == 2
+            assert len(toolset) == 2
 
-        tool_names = [tool.name for tool in toolset.tools]
-        assert "add" in tool_names
-        assert "subtract" in tool_names
+            tool_names = [tool.name for tool in toolset.tools]
+            assert "add" in tool_names
+            assert "subtract" in tool_names
 
-        add_tool = next(tool for tool in toolset.tools if tool.name == "add")
-        result = add_tool.invoke(a=5, b=3)
-        assert result.content[0].text == "8"
+            add_tool = next(tool for tool in toolset.tools if tool.name == "add")
+            result = add_tool.invoke(a=5, b=3)
+            assert result.content[0].text == "8"
 
-        subtract_tool = next(tool for tool in toolset.tools if tool.name == "subtract")
-        result = subtract_tool.invoke(a=10, b=4)
-        assert result.content[0].text == "6"
+            subtract_tool = next(tool for tool in toolset.tools if tool.name == "subtract")
+            result = subtract_tool.invoke(a=10, b=4)
+            assert result.content[0].text == "6"
 
-        # Cleanup resources
-        if server_process and server_process.poll() is None:
-            server_process.terminate()
-            try:
-                server_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                server_process.kill()
-                server_process.wait(timeout=5)
+        finally:
+            # Clean up toolset first to close connections
+            if toolset is not None:
+                del toolset
 
-        if os.path.exists(server_script_path):
-            os.remove(server_script_path)
+            # Cleanup server process
+            if server_process and server_process.poll() is None:
+                server_process.terminate()
+                try:
+                    server_process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    server_process.kill()
+                    server_process.wait(timeout=5)
+
+            # Clean up temporary file
+            if os.path.exists(server_script_path):
+                os.remove(server_script_path)
