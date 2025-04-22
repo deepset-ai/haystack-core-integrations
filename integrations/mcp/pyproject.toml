@@ -30,7 +30,8 @@ classifiers = [
 dependencies = [
     "mcp",
     "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@main",
-    "exceptiongroup"  # Backport of ExceptionGroup for Python < 3.11
+    "exceptiongroup",  # Backport of ExceptionGroup for Python < 3.11
+    "httpx"  # HTTP client library used for SSE connections
 ]
 
 [project.urls]

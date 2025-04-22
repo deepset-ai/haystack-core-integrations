@@ -1,8 +1,12 @@
-from haystack import logging
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from typing import Any
 
 import httpx
 from exceptiongroup import ExceptionGroup
+from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.tools import Tool, Toolset
 
@@ -29,6 +33,10 @@ class MCPToolset(Toolset):
 
     Example using MCPToolset in a Haystack Pipeline:
     ```python
+    # Prerequisites:
+    # 1. pip install uvx mcp-server-time  # Install required MCP server and tools
+    # 2. export OPENAI_API_KEY="your-api-key"  # Set up your OpenAI API key
+
     import os
     from haystack import Pipeline
     from haystack.components.converters import OutputAdapter
@@ -92,8 +100,8 @@ class MCPToolset(Toolset):
         self,
         server_info: MCPServerInfo,
         tool_names: list[str] | None = None,
-        connection_timeout: int = 30,
-        invocation_timeout: int = 30,
+        connection_timeout: float = 30.0,
+        invocation_timeout: float = 30.0,
     ):
         """
         Initialize the MCP toolset.
@@ -105,9 +113,6 @@ class MCPToolset(Toolset):
         :param invocation_timeout: Default timeout in seconds for tool invocations
         :raises MCPToolNotFoundError: If any of the specified tool names are not found on the server
         """
-        # Initialize with empty tools list first
-        super().__init__(tools=[])
-
         # Store configuration
         self.server_info = server_info
         self.tool_names = tool_names
@@ -136,21 +141,24 @@ class MCPToolset(Toolset):
                     )
 
             # This is a factory that creates the invocation function for the Tool
-            def create_invoke_tool(client, tool_name, invocation_timeout):
+            def create_invoke_tool(mcp_client, tool_name, tool_timeout):
                 def invoke_tool(**kwargs) -> Any:
                     """Invoke a tool using the existing client and AsyncExecutor."""
                     result = AsyncExecutor.get_instance().run(
-                        client.call_tool(tool_name, kwargs), timeout=invocation_timeout
+                        mcp_client.call_tool(tool_name, kwargs), timeout=tool_timeout
                     )
                     return result
 
                 return invoke_tool
 
-            # Create Tool instances not MCPTool for each available tool and add them
+            # Create Tool instances not MCPTool for each available tool
+            haystack_tools = []
             for tool_info in tools:
                 # Skip tools not in the tool_names list if tool_names is provided
                 if self.tool_names is not None and tool_info.name not in self.tool_names:
-                    logger.debug(f"Skipping tool '{tool_info.name}' as it's not in the requested tool_names list")
+                    logger.debug(
+                        "Skipping tool '{name}' as it's not in the requested tool_names list", name=tool_info.name
+                    )
                     continue
 
                 # Use the helper function to create the invoke_tool function
@@ -160,8 +168,10 @@ class MCPToolset(Toolset):
                     parameters=tool_info.inputSchema,
                     function=create_invoke_tool(client, tool_info.name, self.invocation_timeout),
                 )
-                # Handles duplicates and other validation
-                self.add(tool)
+                haystack_tools.append(tool)
+
+            # Initialize parent class with complete tools list
+            super().__init__(tools=haystack_tools)
 
         except Exception as e:
             if isinstance(self.server_info, SSEServerInfo):
@@ -227,6 +237,6 @@ class MCPToolset(Toolset):
         return cls(
             server_info=server_info,
             tool_names=inner_data.get("tool_names"),
-            connection_timeout=inner_data.get("connection_timeout", 30),
-            invocation_timeout=inner_data.get("invocation_timeout", 30),
+            connection_timeout=inner_data.get("connection_timeout", 30.0),
+            invocation_timeout=inner_data.get("invocation_timeout", 30.0),
         )
