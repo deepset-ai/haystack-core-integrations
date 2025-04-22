@@ -4,13 +4,14 @@ import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import pytest_asyncio
 from haystack.tools import Tool
 
 from haystack_integrations.tools.mcp import MCPToolset, SSEServerInfo
 from haystack_integrations.tools.mcp.mcp_tool import MCPConnectionError
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def mock_mcp_toolset():
     """Fixture to create a pre-configured MCPToolset for testing without server connection."""
     mock_tool1 = MagicMock(spec=Tool)
@@ -46,7 +47,7 @@ async def mock_mcp_toolset():
         await mock_client.close()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def mock_mcp_toolset_with_tool_names():
     """Fixture to create an MCPToolset with specific tool_names filtering."""
     mock_tool2 = MagicMock(spec=Tool)
@@ -84,108 +85,108 @@ class TestMCPToolset:
 
     async def test_toolset_initialization(self, mock_mcp_toolset):
         """Test if the MCPToolset initializes correctly and loads tools."""
-        async for toolset in mock_mcp_toolset:
-            assert isinstance(toolset.server_info, SSEServerInfo)
-            assert toolset.connection_timeout == 45
-            assert toolset.invocation_timeout == 60
-            assert len(toolset) == 2
+        toolset = mock_mcp_toolset
 
-            tool_names = [tool.name for tool in toolset.tools]
-            assert "tool1" in tool_names
-            assert "tool2" in tool_names
+        assert isinstance(toolset.server_info, SSEServerInfo)
+        assert toolset.connection_timeout == 45
+        assert toolset.invocation_timeout == 60
+        assert len(toolset) == 2
 
-            tool1 = next(tool for tool in toolset.tools if tool.name == "tool1")
-            tool2 = next(tool for tool in toolset.tools if tool.name == "tool2")
+        tool_names = [tool.name for tool in toolset.tools]
+        assert "tool1" in tool_names
+        assert "tool2" in tool_names
 
-            assert tool1.name == "tool1"
-            assert tool2.name == "tool2"
-            assert tool1.description == "Test tool 1"
-            assert tool2.description == "Test tool 2"
+        tool1 = next(tool for tool in toolset.tools if tool.name == "tool1")
+        tool2 = next(tool for tool in toolset.tools if tool.name == "tool2")
+
+        assert tool1.name == "tool1"
+        assert tool2.name == "tool2"
+        assert tool1.description == "Test tool 1"
+        assert tool2.description == "Test tool 2"
 
     async def test_toolset_with_filtered_tools(self, mock_mcp_toolset_with_tool_names):
         """Test if the MCPToolset correctly filters tools based on tool_names parameter."""
-        async for toolset in mock_mcp_toolset_with_tool_names:
-            # Verify tool_names parameter was stored
-            assert toolset.tool_names == ["tool2"]
+        toolset = mock_mcp_toolset_with_tool_names
 
-            # Verify only the specified tool was added
-            assert len(toolset) == 1
+        # Verify tool_names parameter was stored
+        assert toolset.tool_names == ["tool2"]
 
-            tool_names = [tool.name for tool in toolset.tools]
-            assert "tool1" not in tool_names
-            assert "tool2" in tool_names
+        # Verify only the specified tool was added
+        assert len(toolset) == 1
 
-            # Check the tool that was included
-            tool = toolset.tools[0]
-            assert tool.name == "tool2"
-            assert tool.description == "Test tool 2"
+        tool_names = [tool.name for tool in toolset.tools]
+        assert "tool1" not in tool_names
+        assert "tool2" in tool_names
+
+        # Check the tool that was included
+        tool = toolset.tools[0]
+        assert tool.name == "tool2"
+        assert tool.description == "Test tool 2"
 
     async def test_toolset_serde(self, mock_mcp_toolset):
         """Test serialization and deserialization of MCPToolset."""
-        async for toolset in mock_mcp_toolset:
-            toolset_dict = toolset.to_dict()
-            assert toolset_dict["type"] == "haystack_integrations.tools.mcp.mcp_toolset.MCPToolset"
-            assert toolset_dict["data"]["connection_timeout"] == 45
-            assert toolset_dict["data"]["invocation_timeout"] == 60
-            assert toolset_dict["data"]["server_info"]["base_url"] == "http://example.com"
-            assert toolset_dict["data"]["tool_names"] is None
+        toolset = mock_mcp_toolset
 
-            with patch(
-                "haystack_integrations.tools.mcp.mcp_toolset.MCPToolset.__init__", return_value=None
-            ) as mock_init:
-                MCPToolset.from_dict(toolset_dict)
+        toolset_dict = toolset.to_dict()
+        assert toolset_dict["type"] == "haystack_integrations.tools.mcp.mcp_toolset.MCPToolset"
+        assert toolset_dict["data"]["connection_timeout"] == 45
+        assert toolset_dict["data"]["invocation_timeout"] == 60
+        assert toolset_dict["data"]["server_info"]["base_url"] == "http://example.com"
+        assert toolset_dict["data"]["tool_names"] is None
 
-                mock_init.assert_called_once()
-                _, kwargs = mock_init.call_args
-                assert kwargs["connection_timeout"] == 45
-                assert kwargs["invocation_timeout"] == 60
-                assert kwargs["tool_names"] is None
-                assert isinstance(kwargs["server_info"], SSEServerInfo)
-                assert kwargs["server_info"].base_url == "http://example.com"
+        with patch("haystack_integrations.tools.mcp.mcp_toolset.MCPToolset.__init__", return_value=None) as mock_init:
+            MCPToolset.from_dict(toolset_dict)
+
+            mock_init.assert_called_once()
+            _, kwargs = mock_init.call_args
+            assert kwargs["connection_timeout"] == 45
+            assert kwargs["invocation_timeout"] == 60
+            assert kwargs["tool_names"] is None
+            assert isinstance(kwargs["server_info"], SSEServerInfo)
+            assert kwargs["server_info"].base_url == "http://example.com"
 
     async def test_toolset_serde_with_tool_names(self, mock_mcp_toolset_with_tool_names):
         """Test serialization and deserialization of MCPToolset with tool_names parameter."""
-        async for toolset in mock_mcp_toolset_with_tool_names:
-            toolset_dict = toolset.to_dict()
-            assert toolset_dict["type"] == "haystack_integrations.tools.mcp.mcp_toolset.MCPToolset"
-            assert toolset_dict["data"]["tool_names"] == ["tool2"]
+        toolset = mock_mcp_toolset_with_tool_names
 
-            with patch(
-                "haystack_integrations.tools.mcp.mcp_toolset.MCPToolset.__init__", return_value=None
-            ) as mock_init:
-                MCPToolset.from_dict(toolset_dict)
+        toolset_dict = toolset.to_dict()
+        assert toolset_dict["type"] == "haystack_integrations.tools.mcp.mcp_toolset.MCPToolset"
+        assert toolset_dict["data"]["tool_names"] == ["tool2"]
 
-                mock_init.assert_called_once()
-                _, kwargs = mock_init.call_args
-                assert kwargs["tool_names"] == ["tool2"]
+        with patch("haystack_integrations.tools.mcp.mcp_toolset.MCPToolset.__init__", return_value=None) as mock_init:
+            MCPToolset.from_dict(toolset_dict)
+
+            mock_init.assert_called_once()
+            _, kwargs = mock_init.call_args
+            assert kwargs["tool_names"] == ["tool2"]
 
     async def test_toolset_combination(self, mock_mcp_toolset):
         """Test combining MCPToolset with other tools."""
-        async for toolset in mock_mcp_toolset:
+        toolset = mock_mcp_toolset
 
-            def add(a: int, b: int) -> int:
-                """Add two numbers"""
-                return a + b
+        def add(a: int, b: int) -> int:
+            """Add two numbers"""
+            return a + b
 
-            add_tool = Tool(
-                name="add",
-                description="Add two numbers",
-                function=add,
-                parameters={
-                    "type": "object",
-                    "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
-                    "required": ["a", "b"],
-                },
-            )
+        add_tool = Tool(
+            name="add",
+            description="Add two numbers",
+            function=add,
+            parameters={
+                "type": "object",
+                "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
+                "required": ["a", "b"],
+            },
+        )
 
-            combined_tools = toolset + [add_tool]
+        combined_tools = toolset + [add_tool]
 
-            assert len(combined_tools) == 3
+        assert len(combined_tools) == 3
 
-            tool_names = [tool.name for tool in combined_tools.tools]
-            assert "tool1" in tool_names
-            assert "tool2" in tool_names
-            assert "add" in tool_names
+        tool_names = [tool.name for tool in combined_tools.tools]
+        assert "tool1" in tool_names
+        assert "tool2" in tool_names
+        assert "add" in tool_names
 
     async def test_toolset_error_handling(self):
         """Test error handling during toolset initialization."""
