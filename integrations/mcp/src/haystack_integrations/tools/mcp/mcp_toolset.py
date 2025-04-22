@@ -135,7 +135,7 @@ class MCPToolset(Toolset):
                         message=message, tool_name=next(iter(missing_tools)), available_tools=list(available_tools)
                     )
 
-            # This is the function will give Tool instance to invoke
+            # This is a factory that creates the invocation function for the Tool
             def create_invoke_tool(client, tool_name, invocation_timeout):
                 def invoke_tool(**kwargs) -> Any:
                     """Invoke a tool using the existing client and AsyncExecutor."""
