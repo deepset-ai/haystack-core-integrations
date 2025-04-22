@@ -1,10 +1,21 @@
 # Changelog
 
+## [integrations/mcp-v0.1.0] - 2025-04-22
+
+### 🚀 Features
+
+- Add MCPToolset (#1626)
+
+
 ## [integrations/mcp-v0.0.2] - 2025-04-11
 
 ### 📚 Documentation
 
 - Fix MCPTool import in code example (#1578)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
 
 ### 🌀 Miscellaneous
 
