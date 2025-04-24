@@ -11,9 +11,12 @@ from haystack_integrations.components.connectors.github.file_editor import Comma
 
 
 class TestGithubFileEditor:
-    def test_init_default(self):
+    def test_init_default(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        
         editor = GithubFileEditor()
-        assert editor.github_token is None
+        assert editor.github_token is not None
+        assert editor.github_token.resolve_value() == "test-token"
         assert editor.default_repo is None
         assert editor.default_branch == "main"
         assert editor.raise_on_failure is True
@@ -26,33 +29,48 @@ class TestGithubFileEditor:
         assert editor.default_branch == "feature"
         assert editor.raise_on_failure is False
 
-        # Test with invalid token type
         with pytest.raises(TypeError):
             GithubFileEditor(github_token="not_a_secret")
 
-    def test_to_dict(self):
-        token = Secret.from_token("test_token")
-        editor = GithubFileEditor(github_token=token, repo="owner/repo", branch="feature", raise_on_failure=False)
+    def test_to_dict(self, monkeypatch):
+        monkeypatch.setenv("ENV_VAR", "test_token")
+        
+        token = Secret.from_env_var("ENV_VAR")
+        
+        editor = GithubFileEditor(
+            github_token=token,
+            repo="owner/repo",
+            branch="feature",
+            raise_on_failure=False
+        )
+        
+        data = editor.to_dict()
+        
+        assert data == {
+            "type": "haystack_integrations.components.connectors.github.file_editor.GithubFileEditor",
+            "init_parameters": {
+                "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
+                "repo": "owner/repo",
+                "branch": "feature",
+                "raise_on_failure": False
+            }
+        }
 
-        result = editor.to_dict()
-
-        assert result["github_token"]["type"] == "haystack.utils.Secret"
-        assert result["repo"] == "owner/repo"
-        assert result["branch"] == "feature"
-        assert result["raise_on_failure"] is False
-
-    def test_from_dict(self):
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("ENV_VAR", "test_token")
         data = {
-            "github_token": {"type": "haystack.utils.Secret", "token": "test_token"},
-            "repo": "owner/repo",
-            "branch": "feature",
-            "raise_on_failure": False,
+            "type": "haystack_integrations.components.connectors.github.file_editor.GithubFileEditor",
+            "init_parameters": {
+                "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
+                "repo": "owner/repo",
+                "branch": "feature",
+                "raise_on_failure": False
+            }
         }
 
         editor = GithubFileEditor.from_dict(data)
 
-        assert isinstance(editor.github_token, Secret)
-        assert editor.github_token.resolve_value() == "test_token"
+        assert editor.github_token == Secret.from_env_var("ENV_VAR")
         assert editor.default_repo == "owner/repo"
         assert editor.default_branch == "feature"
         assert editor.raise_on_failure is False
@@ -60,14 +78,11 @@ class TestGithubFileEditor:
     @patch("requests.get")
     @patch("requests.put")
     def test_run_edit(self, mock_put, mock_get):
-        # Mock the file content response
         mock_get.return_value.json.return_value = {
             "content": "SGVsbG8gV29ybGQ=",  # Base64 encoded "Hello World"
             "sha": "abc123",
         }
         mock_get.return_value.raise_for_status.return_value = None
-
-        # Mock the update response
         mock_put.return_value.raise_for_status.return_value = None
 
         token = Secret.from_token("test_token")
@@ -82,7 +97,6 @@ class TestGithubFileEditor:
 
         assert result["result"] == "Edit successful"
 
-        # Verify the API calls
         mock_get.assert_called_once_with(
             "https://api.github.com/repos/owner/repo/contents/test.txt",
             headers={
@@ -91,6 +105,7 @@ class TestGithubFileEditor:
                 "Authorization": "Bearer test_token",
             },
             params={"ref": "main"},
+            timeout=10,
         )
 
         mock_put.assert_called_once()
@@ -103,23 +118,35 @@ class TestGithubFileEditor:
     @patch("requests.get")
     @patch("requests.patch")
     def test_run_undo(self, mock_patch, mock_get):
-        # Mock the user check response
-        mock_get.return_value.json.return_value = {"login": "testuser"}
-        mock_get.return_value.raise_for_status.return_value = None
+        def create_mock_response(json_data, status_code=200):
+            class MockResponse:
+                def __init__(self, data, code):
+                    self._data = data
+                    self.status_code = code
 
-        # Mock the commits response
-        mock_get.side_effect = [
-            type(
-                "Response", (), {"json": lambda: [{"author": {"login": "testuser"}}], "raise_for_status": lambda: None}
-            ),
-            type(
-                "Response",
-                (),
-                {"json": lambda: [{"sha": "abc123"}, {"sha": "def456"}], "raise_for_status": lambda: None},
-            ),
-        ]
+                def json(self):
+                    return self._data
 
-        # Mock the update response
+                def raise_for_status(self):
+                    if self.status_code >= 400:
+                        raise requests.RequestException(f"HTTP {self.status_code}")
+                    return None
+
+            return MockResponse(json_data, status_code)
+
+        get_responses = {
+            "https://api.github.com/user": create_mock_response({"login": "testuser"}),
+            "https://api.github.com/repos/owner/repo/commits": create_mock_response([
+                {"author": {"login": "testuser"}, "sha": "abc123"},
+                {"author": {"login": "testuser"}, "sha": "def456"}
+            ]),
+        }
+
+        def get_side_effect(url, **kwargs):
+            return get_responses.get(url, create_mock_response({}))
+
+        mock_get.side_effect = get_side_effect
+
         mock_patch.return_value.raise_for_status.return_value = None
 
         token = Secret.from_token("test_token")
@@ -131,8 +158,7 @@ class TestGithubFileEditor:
 
         assert result["result"] == "Successfully undid last change"
 
-        # Verify the API calls
-        assert mock_get.call_count == 3
+        assert mock_get.call_count == 3  # One for commits, one for user info, one for last commit check
         mock_patch.assert_called_once_with(
             "https://api.github.com/repos/owner/repo/git/refs/heads/main",
             headers={
@@ -141,11 +167,11 @@ class TestGithubFileEditor:
                 "Authorization": "Bearer test_token",
             },
             json={"sha": "def456", "force": True},
+            timeout=10
         )
 
     @patch("requests.put")
     def test_run_create(self, mock_put):
-        # Mock the create response
         mock_put.return_value.raise_for_status.return_value = None
 
         token = Secret.from_token("test_token")
@@ -160,7 +186,6 @@ class TestGithubFileEditor:
 
         assert result["result"] == "File created successfully"
 
-        # Verify the API call
         mock_put.assert_called_once_with(
             "https://api.github.com/repos/owner/repo/contents/new.txt",
             headers={
@@ -173,16 +198,18 @@ class TestGithubFileEditor:
                 "content": "TmV3IGZpbGUgY29udGVudA==",  # Base64 encoded "New file content"
                 "branch": "main",
             },
+            timeout=10
         )
 
     @patch("requests.get")
     @patch("requests.delete")
     def test_run_delete(self, mock_delete, mock_get):
-        # Mock the file content response
-        mock_get.return_value.json.return_value = {"sha": "abc123"}
+        mock_get.return_value.json.return_value = {
+            "content": "SGVsbG8gV29ybGQ=",  # Base64 encoded "Hello World"
+            "sha": "abc123"
+        }
         mock_get.return_value.raise_for_status.return_value = None
 
-        # Mock the delete response
         mock_delete.return_value.raise_for_status.return_value = None
 
         token = Secret.from_token("test_token")
@@ -197,7 +224,6 @@ class TestGithubFileEditor:
 
         assert result["result"] == "File deleted successfully"
 
-        # Verify the API calls
         mock_get.assert_called_once_with(
             "https://api.github.com/repos/owner/repo/contents/test.txt",
             headers={
@@ -206,6 +232,7 @@ class TestGithubFileEditor:
                 "Authorization": "Bearer test_token",
             },
             params={"ref": "main"},
+            timeout=10
         )
 
         mock_delete.assert_called_once_with(
@@ -216,11 +243,11 @@ class TestGithubFileEditor:
                 "Authorization": "Bearer test_token",
             },
             json={"message": "Delete file", "sha": "abc123", "branch": "main"},
+            timeout=10
         )
 
     @patch("requests.get")
     def test_run_error_handling(self, mock_get):
-        # Mock an error response
         mock_get.side_effect = requests.RequestException("API Error")
 
         token = Secret.from_token("test_token")
@@ -235,7 +262,6 @@ class TestGithubFileEditor:
 
         assert "Error: API Error" in result["result"]
 
-        # Test with raise_on_failure=True
         editor = GithubFileEditor(github_token=token, raise_on_failure=True)
         with pytest.raises(requests.RequestException):
             editor.run(

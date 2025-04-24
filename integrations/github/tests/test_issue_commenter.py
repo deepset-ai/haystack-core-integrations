@@ -11,9 +11,12 @@ from haystack_integrations.components.connectors.github.issue_commenter import G
 
 
 class TestGithubIssueCommenter:
-    def test_init_default(self):
+    def test_init_default(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        
         commenter = GithubIssueCommenter()
         assert commenter.github_token is not None
+        assert commenter.github_token.resolve_value() == "test-token"
         assert commenter.raise_on_failure is True
         assert commenter.retry_attempts == 2
 
@@ -24,40 +27,48 @@ class TestGithubIssueCommenter:
         assert commenter.raise_on_failure is False
         assert commenter.retry_attempts == 3
 
-    def test_to_dict(self):
-        token = Secret.from_token("test_token")
-        commenter = GithubIssueCommenter(github_token=token, raise_on_failure=False, retry_attempts=3)
-
-        result = commenter.to_dict()
-
-        assert (
-            result["type"] == "haystack_integrations.components.connectors.github.issue_commenter.GithubIssueCommenter"
+    def test_to_dict(self, monkeypatch):
+        monkeypatch.setenv("ENV_VAR", "test_token")
+        
+        token = Secret.from_env_var("ENV_VAR")
+        
+        commenter = GithubIssueCommenter(
+            github_token=token,
+            raise_on_failure=False,
+            retry_attempts=3
         )
-        assert result["init_parameters"]["github_token"]["type"] == "haystack.utils.Secret"
-        assert result["init_parameters"]["raise_on_failure"] is False
-        assert result["init_parameters"]["retry_attempts"] == 3
+        
+        data = commenter.to_dict()
+        
+        assert data == {
+            "type": "haystack_integrations.components.connectors.github.issue_commenter.GithubIssueCommenter",
+            "init_parameters": {
+                "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
+                "raise_on_failure": False,
+                "retry_attempts": 3
+            }
+        }
 
-    def test_from_dict(self):
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("ENV_VAR", "test_token")
+        
         data = {
             "type": "haystack_integrations.components.connectors.github.issue_commenter.GithubIssueCommenter",
             "init_parameters": {
-                "github_token": {"type": "haystack.utils.Secret", "token": "test_token"},
+                "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
                 "raise_on_failure": False,
-                "retry_attempts": 3,
-            },
+                "retry_attempts": 3
+            }
         }
 
         commenter = GithubIssueCommenter.from_dict(data)
 
-        assert isinstance(commenter.github_token, Secret)
-        assert commenter.github_token.resolve_value() == "test_token"
+        assert commenter.github_token == Secret.from_env_var("ENV_VAR")
         assert commenter.raise_on_failure is False
         assert commenter.retry_attempts == 3
 
     @patch("requests.post")
     def test_run(self, mock_post):
-        """Test the run method."""
-        # Mock the successful response
         mock_post.return_value.raise_for_status.return_value = None
 
         token = Secret.from_token("test_token")
@@ -67,7 +78,6 @@ class TestGithubIssueCommenter:
 
         assert result["success"] is True
 
-        # Verify the API call
         mock_post.assert_called_once_with(
             "https://api.github.com/repos/owner/repo/issues/123/comments",
             headers={
@@ -76,11 +86,11 @@ class TestGithubIssueCommenter:
                 "Authorization": "Bearer test_token",
             },
             json={"body": "Test comment"},
+            timeout=10,
         )
 
     @patch("requests.post")
     def test_run_error_handling(self, mock_post):
-        # Mock an error response
         mock_post.side_effect = requests.RequestException("API Error")
 
         token = Secret.from_token("test_token")
@@ -90,7 +100,6 @@ class TestGithubIssueCommenter:
 
         assert result["success"] is False
 
-        # Test with raise_on_failure=True
         commenter = GithubIssueCommenter(github_token=token, raise_on_failure=True)
         with pytest.raises(requests.RequestException):
             commenter.run(url="https://github.com/owner/repo/issues/123", comment="Test comment")
@@ -104,6 +113,5 @@ class TestGithubIssueCommenter:
         assert repo == "repo"
         assert issue_number == 123
 
-        # Test with invalid URL
         with pytest.raises(ValueError):
             commenter._parse_github_url("https://github.com/invalid/url")

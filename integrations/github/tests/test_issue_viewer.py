@@ -17,45 +17,57 @@ class TestGithubIssueViewer:
         assert viewer.raise_on_failure is True
         assert viewer.retry_attempts == 2
 
-    def test_init_with_parameters(self):
-        token = Secret.from_token("test_token")
+    def test_init_with_parameters(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        
+        token = Secret.from_env_var("GITHUB_TOKEN")
         viewer = GithubIssueViewer(github_token=token, raise_on_failure=False, retry_attempts=3)
         assert viewer.github_token == token
         assert viewer.raise_on_failure is False
         assert viewer.retry_attempts == 3
 
-    def test_to_dict(self):
-        token = Secret.from_token("test_token")
-        viewer = GithubIssueViewer(github_token=token, raise_on_failure=False, retry_attempts=3)
+    def test_to_dict(self, monkeypatch):
+        monkeypatch.setenv("ENV_VAR", "test_token")
+        
+        token = Secret.from_env_var("ENV_VAR")
+        
+        viewer = GithubIssueViewer(
+            github_token=token,
+            raise_on_failure=False,
+            retry_attempts=3
+        )
+        
+        data = viewer.to_dict()
+        
+        assert data == {
+            "type": "haystack_integrations.components.connectors.github.issue_viewer.GithubIssueViewer",
+            "init_parameters": {
+                "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
+                "raise_on_failure": False,
+                "retry_attempts": 3
+            }
+        }
 
-        result = viewer.to_dict()
-
-        assert result["type"] == "haystack_integrations.components.connectors.github.issue_viewer.GithubIssueViewer"
-        assert result["init_parameters"]["github_token"]["type"] == "haystack.utils.Secret"
-        assert result["init_parameters"]["raise_on_failure"] is False
-        assert result["init_parameters"]["retry_attempts"] == 3
-
-    def test_from_dict(self):
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("ENV_VAR", "test_token")
+        
         data = {
             "type": "haystack_integrations.components.connectors.github.issue_viewer.GithubIssueViewer",
             "init_parameters": {
-                "github_token": {"type": "haystack.utils.Secret", "token": "test_token"},
+                "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
                 "raise_on_failure": False,
-                "retry_attempts": 3,
-            },
+                "retry_attempts": 3
+            }
         }
 
         viewer = GithubIssueViewer.from_dict(data)
 
-        assert isinstance(viewer.github_token, Secret)
-        assert viewer.github_token.resolve_value() == "test_token"
+        assert viewer.github_token == Secret.from_env_var("ENV_VAR")
         assert viewer.raise_on_failure is False
         assert viewer.retry_attempts == 3
 
     @patch("requests.get")
     def test_run(self, mock_get):
-        """Test the run method."""
-        # Mock the issue response
         mock_get.return_value.json.return_value = {
             "body": "Issue body",
             "title": "Issue title",
@@ -70,7 +82,6 @@ class TestGithubIssueViewer:
         }
         mock_get.return_value.raise_for_status.return_value = None
 
-        # Mock the comments response
         mock_get.side_effect = [
             mock_get.return_value,  # First call for issue
             type(
@@ -108,12 +119,10 @@ class TestGithubIssueViewer:
         assert result["documents"][1].meta["type"] == "comment"
         assert result["documents"][2].meta["type"] == "comment"
 
-        # Verify the API calls
         assert mock_get.call_count == 2
 
     @patch("requests.get")
     def test_run_error_handling(self, mock_get):
-        # Mock an error response
         mock_get.side_effect = requests.RequestException("API Error")
 
         token = Secret.from_token("test_token")
@@ -125,7 +134,6 @@ class TestGithubIssueViewer:
         assert result["documents"][0].meta["type"] == "error"
         assert result["documents"][0].meta["error"] is True
 
-        # Test with raise_on_failure=True
         viewer = GithubIssueViewer(github_token=token, raise_on_failure=True)
         with pytest.raises(requests.RequestException):
             viewer.run(url="https://github.com/owner/repo/issues/123")
@@ -139,6 +147,5 @@ class TestGithubIssueViewer:
         assert repo == "repo"
         assert issue_number == 123
 
-        # Test with invalid URL
         with pytest.raises(ValueError):
             viewer._parse_github_url("https://github.com/invalid/url")

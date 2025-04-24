@@ -3,8 +3,8 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import requests
-from haystack import Document, component, logging
-from haystack.utils import Secret
+from haystack import Document, component, default_from_dict, logging, default_to_dict
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 logger = logging.getLogger(__name__)
 
@@ -106,11 +106,14 @@ class GithubRepositoryViewer:
 
         :returns: Dictionary with serialized data.
         """
-        return {
-            "github_token": self.github_token.to_dict() if self.github_token else None,
-            "raise_on_failure": self.raise_on_failure,
-            "max_file_size": self.max_file_size,
-        }
+        return default_to_dict(
+            self,
+            github_token=self.github_token.to_dict() if self.github_token else None,
+            raise_on_failure=self.raise_on_failure,
+            max_file_size=self.max_file_size,
+            repo=self.repo,
+            branch=self.branch,
+        )
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GithubRepositoryViewer":
@@ -120,10 +123,9 @@ class GithubRepositoryViewer:
         :param data: Dictionary to deserialize from.
         :returns: Deserialized component.
         """
-        init_params = data.copy()
-        if init_params["github_token"]:
-            init_params["github_token"] = Secret.from_dict(init_params["github_token"])
-        return cls(**init_params)
+        init_params = data["init_parameters"]
+        deserialize_secrets_inplace(init_params, keys=["github_token"])
+        return default_from_dict(cls, data)
 
     def _parse_repo(self, repo: str) -> tuple[str, str]:
         """Parse owner/repo string"""

@@ -11,7 +11,9 @@ from haystack_integrations.components.connectors.github.repo_viewer import Githu
 
 
 class TestGithubRepositoryViewer:
-    def test_init_default(self):
+    def test_init_default(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        
         viewer = GithubRepositoryViewer()
         assert viewer.github_token is None
         assert viewer.raise_on_failure is True
@@ -30,37 +32,59 @@ class TestGithubRepositoryViewer:
         assert viewer.repo == "owner/repo"
         assert viewer.branch == "main"
 
-        # Test with invalid token type
         with pytest.raises(TypeError):
             GithubRepositoryViewer(github_token="not_a_secret")
 
-    def test_to_dict(self):
-        token = Secret.from_token("test_token")
-        viewer = GithubRepositoryViewer(github_token=token, raise_on_failure=False, max_file_size=500_000)
+    def test_to_dict(self, monkeypatch):
+        monkeypatch.setenv("ENV_VAR", "test_token")
+        
+        token = Secret.from_env_var("ENV_VAR")
+        
+        viewer = GithubRepositoryViewer(
+            github_token=token,
+            raise_on_failure=False,
+            max_file_size=500_000,
+            repo="owner/repo",
+            branch="main"
+        )
+        
+        data = viewer.to_dict()
+        
+        assert data == {
+            "type": "haystack_integrations.components.connectors.github.repo_viewer.GithubRepositoryViewer",
+            "init_parameters": {
+                "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
+                "raise_on_failure": False,
+                "max_file_size": 500_000,
+                "repo": "owner/repo",
+                "branch": "main"
+            }
+        }
 
-        result = viewer.to_dict()
-
-        assert result["github_token"]["type"] == "haystack.utils.Secret"
-        assert result["raise_on_failure"] is False
-        assert result["max_file_size"] == 500_000
-
-    def test_from_dict(self):
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("ENV_VAR", "test_token")
+        
         data = {
-            "github_token": {"type": "haystack.utils.Secret", "token": "test_token"},
-            "raise_on_failure": False,
-            "max_file_size": 500_000,
+            "type": "haystack_integrations.components.connectors.github.repo_viewer.GithubRepositoryViewer",
+            "init_parameters": {
+                "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
+                "raise_on_failure": False,
+                "max_file_size": 500_000,
+                "repo": "owner/repo",
+                "branch": "main"
+            }
         }
 
         viewer = GithubRepositoryViewer.from_dict(data)
 
-        assert isinstance(viewer.github_token, Secret)
-        assert viewer.github_token.resolve_value() == "test_token"
+        assert viewer.github_token == Secret.from_env_var("ENV_VAR")
         assert viewer.raise_on_failure is False
         assert viewer.max_file_size == 500_000
+        assert viewer.repo == "owner/repo"
+        assert viewer.branch == "main"
 
     @patch("requests.get")
     def test_run_file(self, mock_get):
-        # Mock the file response
         mock_get.return_value.json.return_value = {
             "name": "README.md",
             "path": "README.md",
@@ -81,7 +105,6 @@ class TestGithubRepositoryViewer:
         assert result["documents"][0].meta["type"] == "file_content"
         assert result["documents"][0].meta["path"] == "README.md"
 
-        # Verify the API call
         mock_get.assert_called_once_with(
             "https://api.github.com/repos/owner/repo/contents/README.md?ref=main",
             headers={
@@ -89,11 +112,11 @@ class TestGithubRepositoryViewer:
                 "User-Agent": "Haystack/GithubRepositoryViewer",
                 "Authorization": "Bearer test_token",
             },
+            timeout=10,
         )
 
     @patch("requests.get")
     def test_run_directory(self, mock_get):
-        # Mock the directory response
         mock_get.return_value.json.return_value = [
             {"name": "docs", "path": "docs", "type": "dir", "html_url": "https://github.com/owner/repo/tree/main/docs"},
             {
@@ -117,7 +140,6 @@ class TestGithubRepositoryViewer:
         assert result["documents"][1].content == "README.md"
         assert result["documents"][1].meta["type"] == "file"
 
-        # Verify the API call
         mock_get.assert_called_once_with(
             "https://api.github.com/repos/owner/repo/contents/?ref=main",
             headers={
@@ -125,11 +147,11 @@ class TestGithubRepositoryViewer:
                 "User-Agent": "Haystack/GithubRepositoryViewer",
                 "Authorization": "Bearer test_token",
             },
+            timeout=10,
         )
 
     @patch("requests.get")
     def test_run_error_handling(self, mock_get):
-        # Mock an error response
         mock_get.side_effect = requests.RequestException("API Error")
 
         token = Secret.from_token("test_token")
@@ -140,7 +162,6 @@ class TestGithubRepositoryViewer:
         assert len(result["documents"]) == 1
         assert result["documents"][0].meta["type"] == "error"
 
-        # Test with raise_on_failure=True
         viewer = GithubRepositoryViewer(github_token=token, raise_on_failure=True)
         with pytest.raises(requests.RequestException):
             viewer.run(repo="owner/repo", path="README.md", branch="main")
@@ -153,6 +174,5 @@ class TestGithubRepositoryViewer:
         assert owner == "owner"
         assert repo == "repo"
 
-        # Test with invalid format
         with pytest.raises(ValueError):
             viewer._parse_repo("invalid_format")
