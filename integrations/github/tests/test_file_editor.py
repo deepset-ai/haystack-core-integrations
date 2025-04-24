@@ -13,7 +13,7 @@ from haystack_integrations.components.connectors.github.file_editor import Comma
 class TestGithubFileEditor:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
-        
+
         editor = GithubFileEditor()
         assert editor.github_token is not None
         assert editor.github_token.resolve_value() == "test-token"
@@ -34,26 +34,21 @@ class TestGithubFileEditor:
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test_token")
-        
+
         token = Secret.from_env_var("ENV_VAR")
-        
-        editor = GithubFileEditor(
-            github_token=token,
-            repo="owner/repo",
-            branch="feature",
-            raise_on_failure=False
-        )
-        
+
+        editor = GithubFileEditor(github_token=token, repo="owner/repo", branch="feature", raise_on_failure=False)
+
         data = editor.to_dict()
-        
+
         assert data == {
             "type": "haystack_integrations.components.connectors.github.file_editor.GithubFileEditor",
             "init_parameters": {
                 "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
                 "repo": "owner/repo",
                 "branch": "feature",
-                "raise_on_failure": False
-            }
+                "raise_on_failure": False,
+            },
         }
 
     def test_from_dict(self, monkeypatch):
@@ -64,8 +59,8 @@ class TestGithubFileEditor:
                 "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
                 "repo": "owner/repo",
                 "branch": "feature",
-                "raise_on_failure": False
-            }
+                "raise_on_failure": False,
+            },
         }
 
         editor = GithubFileEditor.from_dict(data)
@@ -129,20 +124,19 @@ class TestGithubFileEditor:
 
                 def raise_for_status(self):
                     if self.status_code >= 400:
-                        raise requests.RequestException(f"HTTP {self.status_code}")
-                    return None
+                        error_message = f"HTTP {self.status_code}"
+                        raise requests.RequestException(error_message)
 
             return MockResponse(json_data, status_code)
 
         get_responses = {
             "https://api.github.com/user": create_mock_response({"login": "testuser"}),
-            "https://api.github.com/repos/owner/repo/commits": create_mock_response([
-                {"author": {"login": "testuser"}, "sha": "abc123"},
-                {"author": {"login": "testuser"}, "sha": "def456"}
-            ]),
+            "https://api.github.com/repos/owner/repo/commits": create_mock_response(
+                [{"author": {"login": "testuser"}, "sha": "abc123"}, {"author": {"login": "testuser"}, "sha": "def456"}]
+            ),
         }
 
-        def get_side_effect(url, **kwargs):
+        def get_side_effect(url, **_):
             return get_responses.get(url, create_mock_response({}))
 
         mock_get.side_effect = get_side_effect
@@ -167,7 +161,7 @@ class TestGithubFileEditor:
                 "Authorization": "Bearer test_token",
             },
             json={"sha": "def456", "force": True},
-            timeout=10
+            timeout=10,
         )
 
     @patch("requests.put")
@@ -198,7 +192,7 @@ class TestGithubFileEditor:
                 "content": "TmV3IGZpbGUgY29udGVudA==",  # Base64 encoded "New file content"
                 "branch": "main",
             },
-            timeout=10
+            timeout=10,
         )
 
     @patch("requests.get")
@@ -206,7 +200,7 @@ class TestGithubFileEditor:
     def test_run_delete(self, mock_delete, mock_get):
         mock_get.return_value.json.return_value = {
             "content": "SGVsbG8gV29ybGQ=",  # Base64 encoded "Hello World"
-            "sha": "abc123"
+            "sha": "abc123",
         }
         mock_get.return_value.raise_for_status.return_value = None
 
@@ -232,7 +226,7 @@ class TestGithubFileEditor:
                 "Authorization": "Bearer test_token",
             },
             params={"ref": "main"},
-            timeout=10
+            timeout=10,
         )
 
         mock_delete.assert_called_once_with(
@@ -243,7 +237,7 @@ class TestGithubFileEditor:
                 "Authorization": "Bearer test_token",
             },
             json={"message": "Delete file", "sha": "abc123", "branch": "main"},
-            timeout=10
+            timeout=10,
         )
 
     @patch("requests.get")

@@ -19,7 +19,7 @@ class TestGithubIssueViewer:
 
     def test_init_with_parameters(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
-        
+
         token = Secret.from_env_var("GITHUB_TOKEN")
         viewer = GithubIssueViewer(github_token=token, raise_on_failure=False, retry_attempts=3)
         assert viewer.github_token == token
@@ -28,36 +28,32 @@ class TestGithubIssueViewer:
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test_token")
-        
+
         token = Secret.from_env_var("ENV_VAR")
-        
-        viewer = GithubIssueViewer(
-            github_token=token,
-            raise_on_failure=False,
-            retry_attempts=3
-        )
-        
+
+        viewer = GithubIssueViewer(github_token=token, raise_on_failure=False, retry_attempts=3)
+
         data = viewer.to_dict()
-        
+
         assert data == {
             "type": "haystack_integrations.components.connectors.github.issue_viewer.GithubIssueViewer",
             "init_parameters": {
                 "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
                 "raise_on_failure": False,
-                "retry_attempts": 3
-            }
+                "retry_attempts": 3,
+            },
         }
 
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test_token")
-        
+
         data = {
             "type": "haystack_integrations.components.connectors.github.issue_viewer.GithubIssueViewer",
             "init_parameters": {
                 "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
                 "raise_on_failure": False,
-                "retry_attempts": 3
-            }
+                "retry_attempts": 3,
+            },
         }
 
         viewer = GithubIssueViewer.from_dict(data)

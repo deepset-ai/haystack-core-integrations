@@ -13,7 +13,7 @@ from haystack_integrations.components.connectors.github.issue_commenter import G
 class TestGithubIssueCommenter:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
-        
+
         commenter = GithubIssueCommenter()
         assert commenter.github_token is not None
         assert commenter.github_token.resolve_value() == "test-token"
@@ -29,36 +29,32 @@ class TestGithubIssueCommenter:
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test_token")
-        
+
         token = Secret.from_env_var("ENV_VAR")
-        
-        commenter = GithubIssueCommenter(
-            github_token=token,
-            raise_on_failure=False,
-            retry_attempts=3
-        )
-        
+
+        commenter = GithubIssueCommenter(github_token=token, raise_on_failure=False, retry_attempts=3)
+
         data = commenter.to_dict()
-        
+
         assert data == {
             "type": "haystack_integrations.components.connectors.github.issue_commenter.GithubIssueCommenter",
             "init_parameters": {
                 "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
                 "raise_on_failure": False,
-                "retry_attempts": 3
-            }
+                "retry_attempts": 3,
+            },
         }
 
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test_token")
-        
+
         data = {
             "type": "haystack_integrations.components.connectors.github.issue_commenter.GithubIssueCommenter",
             "init_parameters": {
                 "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
                 "raise_on_failure": False,
-                "retry_attempts": 3
-            }
+                "retry_attempts": 3,
+            },
         }
 
         commenter = GithubIssueCommenter.from_dict(data)

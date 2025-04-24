@@ -31,7 +31,7 @@ Here are the requirements for all custom components:
 
 - `@component`: This decorator marks a class as a component, allowing it to be used in a pipeline.
 - `run()`: This is a required method in every component. It accepts input arguments and returns a `dict`. The inputs can
-either come from the pipeline when it’s executed, or from the output of another component when connected using
+either come from the pipeline when it's executed, or from the output of another component when connected using
 `connect()`. The `run()` method should be compatible with the input/output definitions declared for the component.
 See an [Extended Example](#extended-example) below to check how it works.
 
@@ -43,13 +43,13 @@ Next, define the inputs and outputs for your component.
 
 You can choose between three input options:
 
-- `set_input_type`: This method defines or updates a single input socket for a component instance. It’s ideal for adding
+- `set_input_type`: This method defines or updates a single input socket for a component instance. It's ideal for adding
 or modifying a specific input at runtime without affecting others. Use this when you need to dynamically set or modify
 a single input based on specific conditions.
 - `set_input_types`: This method allows you to define multiple input sockets at once, replacing any existing inputs.
-It’s useful when you know all the inputs the component will need and want to configure them in bulk. Use this when you
+It's useful when you know all the inputs the component will need and want to configure them in bulk. Use this when you
 want to define multiple inputs during initialization.
-- Declaring arguments directly in the `run()` method. Use this method when the component’s inputs are static and known
+- Declaring arguments directly in the `run()` method. Use this method when the component's inputs are static and known
 at the time of class definition.
 
 ### Outputs
@@ -60,7 +60,7 @@ You can choose between two output options:
 output names and types must match the `dict` returned by the `run()` method. Use this when the output types are static
 and known in advance. This decorator is cleaner and more readable for static components.
 - `set_output_types`: This method defines or updates multiple output sockets for a component instance at runtime.
-It’s useful when you need flexibility in configuring outputs dynamically. Use this when the output types need to be set
+It's useful when you need flexibility in configuring outputs dynamically. Use this when the output types need to be set
 at runtime for greater flexibility.
 
 # Short Example

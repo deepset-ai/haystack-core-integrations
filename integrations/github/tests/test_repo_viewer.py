@@ -13,7 +13,7 @@ from haystack_integrations.components.connectors.github.repo_viewer import Githu
 class TestGithubRepositoryViewer:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
-        
+
         viewer = GithubRepositoryViewer()
         assert viewer.github_token is None
         assert viewer.raise_on_failure is True
@@ -37,19 +37,15 @@ class TestGithubRepositoryViewer:
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test_token")
-        
+
         token = Secret.from_env_var("ENV_VAR")
-        
+
         viewer = GithubRepositoryViewer(
-            github_token=token,
-            raise_on_failure=False,
-            max_file_size=500_000,
-            repo="owner/repo",
-            branch="main"
+            github_token=token, raise_on_failure=False, max_file_size=500_000, repo="owner/repo", branch="main"
         )
-        
+
         data = viewer.to_dict()
-        
+
         assert data == {
             "type": "haystack_integrations.components.connectors.github.repo_viewer.GithubRepositoryViewer",
             "init_parameters": {
@@ -57,13 +53,13 @@ class TestGithubRepositoryViewer:
                 "raise_on_failure": False,
                 "max_file_size": 500_000,
                 "repo": "owner/repo",
-                "branch": "main"
-            }
+                "branch": "main",
+            },
         }
 
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test_token")
-        
+
         data = {
             "type": "haystack_integrations.components.connectors.github.repo_viewer.GithubRepositoryViewer",
             "init_parameters": {
@@ -71,8 +67,8 @@ class TestGithubRepositoryViewer:
                 "raise_on_failure": False,
                 "max_file_size": 500_000,
                 "repo": "owner/repo",
-                "branch": "main"
-            }
+                "branch": "main",
+            },
         }
 
         viewer = GithubRepositoryViewer.from_dict(data)

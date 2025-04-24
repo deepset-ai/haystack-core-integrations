@@ -13,7 +13,7 @@ from haystack_integrations.components.connectors.github.repository_forker import
 class TestGithubRepoForker:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
-        
+
         forker = GithubRepoForker()
         assert forker.github_token is not None
         assert forker.github_token.resolve_value() == "test-token"
@@ -49,9 +49,9 @@ class TestGithubRepoForker:
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test_token")
-        
+
         token = Secret.from_env_var("ENV_VAR")
-        
+
         forker = GithubRepoForker(
             github_token=token,
             raise_on_failure=False,
@@ -59,11 +59,11 @@ class TestGithubRepoForker:
             max_wait_seconds=60,
             poll_interval=1,
             auto_sync=False,
-            create_branch=False
+            create_branch=False,
         )
-        
+
         data = forker.to_dict()
-        
+
         assert data == {
             "type": "haystack_integrations.components.connectors.github.repository_forker.GithubRepoForker",
             "init_parameters": {
@@ -73,13 +73,13 @@ class TestGithubRepoForker:
                 "max_wait_seconds": 60,
                 "poll_interval": 1,
                 "auto_sync": False,
-                "create_branch": False
-            }
+                "create_branch": False,
+            },
         }
 
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test_token")
-        
+
         data = {
             "type": "haystack_integrations.components.connectors.github.repository_forker.GithubRepoForker",
             "init_parameters": {
@@ -89,8 +89,8 @@ class TestGithubRepoForker:
                 "max_wait_seconds": 60,
                 "poll_interval": 1,
                 "auto_sync": False,
-                "create_branch": False
-            }
+                "create_branch": False,
+            },
         }
 
         forker = GithubRepoForker.from_dict(data)
@@ -117,31 +117,33 @@ class TestGithubRepoForker:
 
                 def raise_for_status(self):
                     if self.status_code >= 400:
-                        raise requests.RequestException(f"HTTP {self.status_code}")
-                    return None
+                        error_message = f"HTTP {self.status_code}"
+                        raise requests.RequestException(error_message)
 
             return MockResponse(json_data, status_code)
 
         get_responses = {
             "https://api.github.com/user": create_mock_response({"login": "test_user"}),
-            "https://api.github.com/repos/test_user/repo": create_mock_response({}, status_code=404),  # Fork doesn't exist
-            "https://api.github.com/repos/test_user/repo/git/ref/heads/main": create_mock_response({"object": {"sha": "abc123"}}),
+            "https://api.github.com/repos/test_user/repo": create_mock_response(
+                {}, status_code=404
+            ),  # Fork doesn't exist
+            "https://api.github.com/repos/test_user/repo/git/ref/heads/main": create_mock_response(
+                {"object": {"sha": "abc123"}}
+            ),
         }
 
-        def get_side_effect(url, **kwargs):
+        def get_side_effect(url, **_):
             if url == "https://api.github.com/repos/test_user/repo":
                 if mock_get.call_count == 2:
-                    return create_mock_response({}, status_code=404)
+                    return create_mock_response({}, status_code=404)  # Fork doesn't exist
                 return create_mock_response({"default_branch": "main"})
             return get_responses.get(url, create_mock_response({"default_branch": "main"}))
 
         mock_get.side_effect = get_side_effect
 
-        def post_side_effect(url, **kwargs):
+        def post_side_effect(url, **_):
             if "forks" in url:
                 return create_mock_response({"owner": {"login": "test_user"}, "name": "repo"})
-            elif "git/refs" in url:
-                return create_mock_response({"ref": "refs/heads/fix-123"})
             return create_mock_response({})
 
         mock_post.side_effect = post_side_effect
@@ -155,12 +157,12 @@ class TestGithubRepoForker:
         assert result["issue_branch"] == "fix-123"
 
         assert mock_get.call_count == 5  # user (2x), check fork status, get default branch, get SHA
-        
+
         get_calls = [call[0][0] for call in mock_get.call_args_list]
         assert get_calls.count("https://api.github.com/user") == 2  # get user, check fork
         assert get_calls.count("https://api.github.com/repos/test_user/repo") == 2  # check status, get default branch
         assert "https://api.github.com/repos/test_user/repo/git/ref/heads/main" in get_calls
-        
+
         post_calls = [call[0][0] for call in mock_post.call_args_list]
         assert "https://api.github.com/repos/owner/repo/forks" in post_calls
         assert "https://api.github.com/repos/test_user/repo/git/refs" in post_calls
@@ -180,27 +182,29 @@ class TestGithubRepoForker:
 
                 def raise_for_status(self):
                     if self.status_code >= 400:
-                        raise requests.RequestException(f"HTTP {self.status_code}")
-                    return None
+                        error_message = f"HTTP {self.status_code}"
+                        raise requests.RequestException(error_message)
 
             return MockResponse(json_data, status_code)
 
         get_responses = {
             "https://api.github.com/user": create_mock_response({"login": "test_user"}),
-            "https://api.github.com/repos/test_user/repo": create_mock_response({"name": "repo", "default_branch": "main"}),
-            "https://api.github.com/repos/test_user/repo/git/ref/heads/main": create_mock_response({"object": {"sha": "abc123"}}),
+            "https://api.github.com/repos/test_user/repo": create_mock_response(
+                {"name": "repo", "default_branch": "main"}
+            ),
+            "https://api.github.com/repos/test_user/repo/git/ref/heads/main": create_mock_response(
+                {"object": {"sha": "abc123"}}
+            ),
         }
 
-        def get_side_effect(url, **kwargs):
+        def get_side_effect(url, **_):
             return get_responses.get(url, create_mock_response({"default_branch": "main"}))
 
         mock_get.side_effect = get_side_effect
 
-        def post_side_effect(url, **kwargs):
+        def post_side_effect(url, **_):
             if "merge-upstream" in url:
                 return create_mock_response({})
-            elif "git/refs" in url:
-                return create_mock_response({"ref": "refs/heads/fix-123"})
             return create_mock_response({})
 
         mock_post.side_effect = post_side_effect
@@ -214,12 +218,12 @@ class TestGithubRepoForker:
         assert result["issue_branch"] == "fix-123"
 
         assert mock_get.call_count == 5  # user, check fork, check fork status, get default branch, get SHA
-        
+
         get_calls = [call[0][0] for call in mock_get.call_args_list]
         assert "https://api.github.com/user" in get_calls
         assert "https://api.github.com/repos/test_user/repo" in get_calls
         assert "https://api.github.com/repos/test_user/repo/git/ref/heads/main" in get_calls
-        
+
         post_calls = [call[0][0] for call in mock_post.call_args_list]
         assert "https://api.github.com/repos/test_user/repo/merge-upstream" in post_calls
         assert "https://api.github.com/repos/test_user/repo/git/refs" in post_calls
@@ -227,7 +231,7 @@ class TestGithubRepoForker:
 
     @patch("requests.get")
     @patch("requests.post")
-    def test_run_error_handling(self, mock_post, mock_get):
+    def test_run_error_handling(self, _, mock_get):
         mock_get.side_effect = requests.RequestException("API Error")
 
         token = Secret.from_token("test_token")
