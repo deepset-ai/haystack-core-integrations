@@ -3,6 +3,7 @@ loaders:
     search_path: [../src]
     modules: [
       "haystack_integrations.tools.mcp.mcp_tool",
+      "haystack_integrations.tools.mcp.mcp_toolset",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
@@ -17,7 +18,7 @@ renderer:
   type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
   excerpt: MCP integration for Haystack
   category_slug: integrations-api
-  title: mcp
+  title: MCP
   slug: integrations-mcp
   order: 145
   markdown:
