@@ -2,12 +2,12 @@ loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
     modules: [
-      "haystack_integrations.components.connectors.file_editor",
-      "haystack_integrations.components.connectors.issue_commenter",
-      "haystack_integrations.components.connectors.issue_viewer",
-      "haystack_integrations.components.connectors.pr_creator",
-      "haystack_integrations.components.connectors.repo_viewer",
-      "haystack_integrations.components.connectors.repository_forker",
+      "haystack_integrations.components.connectors.github.file_editor",
+      "haystack_integrations.components.connectors.github.issue_commenter",
+      "haystack_integrations.components.connectors.github.issue_viewer",
+      "haystack_integrations.components.connectors.github.pr_creator",
+      "haystack_integrations.components.connectors.github.repo_viewer",
+      "haystack_integrations.components.connectors.github.repository_forker",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
