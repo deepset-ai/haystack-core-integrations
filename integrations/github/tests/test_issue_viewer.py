@@ -11,7 +11,9 @@ from haystack_integrations.components.connectors.github.issue_viewer import Gith
 
 
 class TestGithubIssueViewer:
-    def test_init_default(self):
+    def test_init_default(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
         viewer = GithubIssueViewer()
         assert viewer.github_token is None
         assert viewer.raise_on_failure is True
@@ -27,7 +29,7 @@ class TestGithubIssueViewer:
         assert viewer.retry_attempts == 3
 
     def test_to_dict(self, monkeypatch):
-        monkeypatch.setenv("ENV_VAR", "test_token")
+        monkeypatch.setenv("ENV_VAR", "test-token")
 
         token = Secret.from_env_var("ENV_VAR")
 
@@ -45,7 +47,7 @@ class TestGithubIssueViewer:
         }
 
     def test_from_dict(self, monkeypatch):
-        monkeypatch.setenv("ENV_VAR", "test_token")
+        monkeypatch.setenv("ENV_VAR", "test-token")
 
         data = {
             "type": "haystack_integrations.components.connectors.github.issue_viewer.GithubIssueViewer",
@@ -63,7 +65,9 @@ class TestGithubIssueViewer:
         assert viewer.retry_attempts == 3
 
     @patch("requests.get")
-    def test_run(self, mock_get):
+    def test_run(self, mock_get, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
         mock_get.return_value.json.return_value = {
             "body": "Issue body",
             "title": "Issue title",
@@ -105,8 +109,7 @@ class TestGithubIssueViewer:
             ),
         ]
 
-        token = Secret.from_token("test_token")
-        viewer = GithubIssueViewer(github_token=token)
+        viewer = GithubIssueViewer()
 
         result = viewer.run(url="https://github.com/owner/repo/issues/123")
 
@@ -118,11 +121,12 @@ class TestGithubIssueViewer:
         assert mock_get.call_count == 2
 
     @patch("requests.get")
-    def test_run_error_handling(self, mock_get):
+    def test_run_error_handling(self, mock_get, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
         mock_get.side_effect = requests.RequestException("API Error")
 
-        token = Secret.from_token("test_token")
-        viewer = GithubIssueViewer(github_token=token, raise_on_failure=False)
+        viewer = GithubIssueViewer(raise_on_failure=False)
 
         result = viewer.run(url="https://github.com/owner/repo/issues/123")
 
@@ -130,13 +134,14 @@ class TestGithubIssueViewer:
         assert result["documents"][0].meta["type"] == "error"
         assert result["documents"][0].meta["error"] is True
 
-        viewer = GithubIssueViewer(github_token=token, raise_on_failure=True)
+        viewer = GithubIssueViewer(raise_on_failure=True)
         with pytest.raises(requests.RequestException):
             viewer.run(url="https://github.com/owner/repo/issues/123")
 
-    def test_parse_github_url(self):
-        token = Secret.from_token("test_token")
-        viewer = GithubIssueViewer(github_token=token)
+    def test_parse_github_url(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+        viewer = GithubIssueViewer()
 
         owner, repo, issue_number = viewer._parse_github_url("https://github.com/owner/repo/issues/123")
         assert owner == "owner"

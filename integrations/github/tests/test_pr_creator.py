@@ -20,7 +20,7 @@ class TestGithubPRCreator:
         assert pr_creator.raise_on_failure is True
 
     def test_init_with_parameters(self):
-        token = Secret.from_token("test_token")
+        token = Secret.from_token("test-token")
         pr_creator = GithubPRCreator(github_token=token, raise_on_failure=False)
         assert pr_creator.github_token == token
         assert pr_creator.raise_on_failure is False
@@ -29,7 +29,7 @@ class TestGithubPRCreator:
             GithubPRCreator(github_token="not_a_secret")
 
     def test_to_dict(self, monkeypatch):
-        monkeypatch.setenv("ENV_VAR", "test_token")
+        monkeypatch.setenv("ENV_VAR", "test-token")
 
         token = Secret.from_env_var("ENV_VAR")
 
@@ -46,7 +46,7 @@ class TestGithubPRCreator:
         }
 
     def test_from_dict(self, monkeypatch):
-        monkeypatch.setenv("ENV_VAR", "test_token")
+        monkeypatch.setenv("ENV_VAR", "test-token")
 
         data = {
             "type": "haystack_integrations.components.connectors.github.pr_creator.GithubPRCreator",
@@ -63,15 +63,16 @@ class TestGithubPRCreator:
 
     @patch("requests.get")
     @patch("requests.post")
-    def test_run(self, mock_post, mock_get):
+    def test_run(self, mock_post, mock_get, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
         mock_get.return_value.json.return_value = {"login": "test_user"}
         mock_get.return_value.raise_for_status.return_value = None
 
         mock_post.return_value.json.return_value = {"number": 123}
         mock_post.return_value.raise_for_status.return_value = None
 
-        token = Secret.from_token("test_token")
-        pr_creator = GithubPRCreator(github_token=token)
+        pr_creator = GithubPRCreator()
 
         with patch.object(pr_creator, "_check_fork_exists", return_value=True):
             result = pr_creator.run(
@@ -91,7 +92,7 @@ class TestGithubPRCreator:
                 headers={
                     "Accept": "application/vnd.github.v3+json",
                     "User-Agent": "Haystack/GithubPRCreator",
-                    "Authorization": "Bearer test_token",
+                    "Authorization": "Bearer test-token",
                 },
                 json={
                     "title": "Test PR",
@@ -106,11 +107,12 @@ class TestGithubPRCreator:
 
     @patch("requests.get")
     @patch("requests.post")
-    def test_run_error_handling(self, _, mock_get):
+    def test_run_error_handling(self, _, mock_get, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
         mock_get.side_effect = requests.RequestException("API Error")
 
-        token = Secret.from_token("test_token")
-        pr_creator = GithubPRCreator(github_token=token, raise_on_failure=False)
+        pr_creator = GithubPRCreator(raise_on_failure=False)
 
         with patch.object(pr_creator, "_check_fork_exists", return_value=True):
             result = pr_creator.run(
@@ -122,7 +124,7 @@ class TestGithubPRCreator:
 
             assert "Error" in result["result"]
 
-        pr_creator = GithubPRCreator(github_token=token, raise_on_failure=True)
+        pr_creator = GithubPRCreator(raise_on_failure=True)
         with pytest.raises(requests.RequestException):
             pr_creator.run(
                 issue_url="https://github.com/owner/repo/issues/456",

@@ -25,7 +25,7 @@ class TestGithubRepoForker:
         assert forker.create_branch is True
 
     def test_init_with_parameters(self):
-        token = Secret.from_token("test_token")
+        token = Secret.from_token("test-token")
         forker = GithubRepoForker(
             github_token=token,
             raise_on_failure=False,
@@ -48,7 +48,7 @@ class TestGithubRepoForker:
             GithubRepoForker(github_token="not_a_secret")
 
     def test_to_dict(self, monkeypatch):
-        monkeypatch.setenv("ENV_VAR", "test_token")
+        monkeypatch.setenv("ENV_VAR", "test-token")
 
         token = Secret.from_env_var("ENV_VAR")
 
@@ -78,7 +78,7 @@ class TestGithubRepoForker:
         }
 
     def test_from_dict(self, monkeypatch):
-        monkeypatch.setenv("ENV_VAR", "test_token")
+        monkeypatch.setenv("ENV_VAR", "test-token")
 
         data = {
             "type": "haystack_integrations.components.connectors.github.repository_forker.GithubRepoForker",
@@ -105,7 +105,9 @@ class TestGithubRepoForker:
 
     @patch("requests.get")
     @patch("requests.post")
-    def test_run_create_fork(self, mock_post, mock_get):
+    def test_run_create_fork(self, mock_post, mock_get, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
         def create_mock_response(json_data, status_code=200):
             class MockResponse:
                 def __init__(self, data, code):
@@ -148,8 +150,7 @@ class TestGithubRepoForker:
 
         mock_post.side_effect = post_side_effect
 
-        token = Secret.from_token("test_token")
-        forker = GithubRepoForker(github_token=token, create_branch=True, auto_sync=False)
+        forker = GithubRepoForker(create_branch=True, auto_sync=False)
 
         result = forker.run(url="https://github.com/owner/repo/issues/123")
 
@@ -170,7 +171,9 @@ class TestGithubRepoForker:
 
     @patch("requests.get")
     @patch("requests.post")
-    def test_run_sync_existing_fork(self, mock_post, mock_get):
+    def test_run_sync_existing_fork(self, mock_post, mock_get, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
         def create_mock_response(json_data, status_code=200):
             class MockResponse:
                 def __init__(self, data, code):
@@ -209,8 +212,7 @@ class TestGithubRepoForker:
 
         mock_post.side_effect = post_side_effect
 
-        token = Secret.from_token("test_token")
-        forker = GithubRepoForker(github_token=token, create_branch=True, auto_sync=True)
+        forker = GithubRepoForker(create_branch=True, auto_sync=True)
 
         result = forker.run(url="https://github.com/owner/repo/issues/123")
 
@@ -231,24 +233,26 @@ class TestGithubRepoForker:
 
     @patch("requests.get")
     @patch("requests.post")
-    def test_run_error_handling(self, _, mock_get):
+    def test_run_error_handling(self, _, mock_get, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
         mock_get.side_effect = requests.RequestException("API Error")
 
-        token = Secret.from_token("test_token")
-        forker = GithubRepoForker(github_token=token, raise_on_failure=False)
+        forker = GithubRepoForker(raise_on_failure=False)
 
         result = forker.run(url="https://github.com/owner/repo/issues/123")
 
         assert result["repo"] == ""
         assert result["issue_branch"] is None
 
-        forker = GithubRepoForker(github_token=token, raise_on_failure=True)
+        forker = GithubRepoForker(raise_on_failure=True)
         with pytest.raises(requests.RequestException):
             forker.run(url="https://github.com/owner/repo/issues/123")
 
-    def test_parse_github_url(self):
-        token = Secret.from_token("test_token")
-        forker = GithubRepoForker(github_token=token)
+    def test_parse_github_url(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+        forker = GithubRepoForker()
 
         owner, repo, issue_number = forker._parse_github_url("https://github.com/owner/repo/issues/123")
         assert owner == "owner"

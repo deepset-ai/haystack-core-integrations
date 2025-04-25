@@ -22,7 +22,7 @@ class TestGithubRepositoryViewer:
         assert viewer.branch is None
 
     def test_init_with_parameters(self):
-        token = Secret.from_token("test_token")
+        token = Secret.from_token("test-token")
         viewer = GithubRepositoryViewer(
             github_token=token, raise_on_failure=False, max_file_size=500_000, repo="owner/repo", branch="main"
         )
@@ -36,7 +36,7 @@ class TestGithubRepositoryViewer:
             GithubRepositoryViewer(github_token="not_a_secret")
 
     def test_to_dict(self, monkeypatch):
-        monkeypatch.setenv("ENV_VAR", "test_token")
+        monkeypatch.setenv("ENV_VAR", "test-token")
 
         token = Secret.from_env_var("ENV_VAR")
 
@@ -58,7 +58,7 @@ class TestGithubRepositoryViewer:
         }
 
     def test_from_dict(self, monkeypatch):
-        monkeypatch.setenv("ENV_VAR", "test_token")
+        monkeypatch.setenv("ENV_VAR", "test-token")
 
         data = {
             "type": "haystack_integrations.components.connectors.github.repo_viewer.GithubRepositoryViewer",
@@ -80,7 +80,9 @@ class TestGithubRepositoryViewer:
         assert viewer.branch == "main"
 
     @patch("requests.get")
-    def test_run_file(self, mock_get):
+    def test_run_file(self, mock_get, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
         mock_get.return_value.json.return_value = {
             "name": "README.md",
             "path": "README.md",
@@ -91,8 +93,7 @@ class TestGithubRepositoryViewer:
         }
         mock_get.return_value.raise_for_status.return_value = None
 
-        token = Secret.from_token("test_token")
-        viewer = GithubRepositoryViewer(github_token=token)
+        viewer = GithubRepositoryViewer()
 
         result = viewer.run(repo="owner/repo", path="README.md", branch="main")
 
@@ -106,13 +107,14 @@ class TestGithubRepositoryViewer:
             headers={
                 "Accept": "application/vnd.github.v3+json",
                 "User-Agent": "Haystack/GithubRepositoryViewer",
-                "Authorization": "Bearer test_token",
             },
             timeout=10,
         )
 
     @patch("requests.get")
-    def test_run_directory(self, mock_get):
+    def test_run_directory(self, mock_get, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
         mock_get.return_value.json.return_value = [
             {"name": "docs", "path": "docs", "type": "dir", "html_url": "https://github.com/owner/repo/tree/main/docs"},
             {
@@ -125,8 +127,7 @@ class TestGithubRepositoryViewer:
         ]
         mock_get.return_value.raise_for_status.return_value = None
 
-        token = Secret.from_token("test_token")
-        viewer = GithubRepositoryViewer(github_token=token)
+        viewer = GithubRepositoryViewer()
 
         result = viewer.run(repo="owner/repo", path="", branch="main")
 
@@ -141,30 +142,31 @@ class TestGithubRepositoryViewer:
             headers={
                 "Accept": "application/vnd.github.v3+json",
                 "User-Agent": "Haystack/GithubRepositoryViewer",
-                "Authorization": "Bearer test_token",
             },
             timeout=10,
         )
 
     @patch("requests.get")
-    def test_run_error_handling(self, mock_get):
+    def test_run_error_handling(self, mock_get, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
         mock_get.side_effect = requests.RequestException("API Error")
 
-        token = Secret.from_token("test_token")
-        viewer = GithubRepositoryViewer(github_token=token, raise_on_failure=False)
+        viewer = GithubRepositoryViewer(raise_on_failure=False)
 
         result = viewer.run(repo="owner/repo", path="README.md", branch="main")
 
         assert len(result["documents"]) == 1
         assert result["documents"][0].meta["type"] == "error"
 
-        viewer = GithubRepositoryViewer(github_token=token, raise_on_failure=True)
+        viewer = GithubRepositoryViewer(raise_on_failure=True)
         with pytest.raises(requests.RequestException):
             viewer.run(repo="owner/repo", path="README.md", branch="main")
 
-    def test_parse_repo(self):
-        token = Secret.from_token("test_token")
-        viewer = GithubRepositoryViewer(github_token=token)
+    def test_parse_repo(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+        viewer = GithubRepositoryViewer()
 
         owner, repo = viewer._parse_repo("owner/repo")
         assert owner == "owner"
