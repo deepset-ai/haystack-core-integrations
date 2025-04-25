@@ -19,7 +19,8 @@ class GithubIssueCommenter:
 
     ### Usage example
     ```python
-    from haystack.components.writers import GithubIssueCommenter
+    from haystack_integrations.components.connectors.github import GithubIssueCommenter
+    from haystack.utils import Secret
 
     commenter = GithubIssueCommenter(github_token=Secret.from_env_var("GITHUB_TOKEN"))
     result = commenter.run(
@@ -27,7 +28,7 @@ class GithubIssueCommenter:
         comment="Thanks for reporting this issue! We'll look into it."
     )
 
-    assert result["success"] is True
+    print(result["success"])
     ```
     """
 

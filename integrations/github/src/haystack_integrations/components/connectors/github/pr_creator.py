@@ -17,7 +17,7 @@ class GithubPRCreator:
 
     ### Usage example
     ```python
-    from haystack.components.actions import GithubPRCreator
+    from haystack_integrations.components.connectors.github import GithubPRCreator
     from haystack.utils import Secret
 
     pr_creator = GithubPRCreator(

@@ -20,15 +20,14 @@ class GithubIssueViewer:
 
     ### Usage example
     ```python
-    from haystack.components.fetchers import GithubIssueViewer
+    from haystack_integrations.components.connectors.github import GithubIssueViewer
 
-    viewer = GithubIssueViewer(github_token=Secret.from_env_var("GITHUB_TOKEN"))
+    viewer = GithubIssueViewer()
     docs = viewer.run(
         url="https://github.com/owner/repo/issues/123"
     )["documents"]
 
-    assert len(docs) >= 1  # At least the main issue
-    assert docs[0].meta["type"] == "issue"
+    print(docs)
     ```
     """
 

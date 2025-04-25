@@ -36,7 +36,7 @@ class GithubFileEditor:
 
     ### Usage example
     ```python
-    from haystack.components.actions import GithubFileEditor
+    from haystack_integrations.components.connectors.github import Command, GithubFileEditor
     from haystack.utils import Secret
 
     # Initialize with default repo and branch

@@ -43,28 +43,25 @@ class GithubRepositoryViewer:
 
     ### Usage example
     ```python
-    from haystack.components.fetchers import GithubRepositoryViewer
-    from haystack.utils import Secret
+    from haystack_integrations.components.connectors.github import GithubRepositoryViewer
 
-    # Using token directly
-    viewer = GithubRepositoryViewer(github_token=Secret.from_token("your_token"))
-
-    # Using environment variable
-    viewer = GithubRepositoryViewer(github_token=Secret.from_env_var("GITHUB_TOKEN"))
+    viewer = GithubRepositoryViewer()
 
     # List directory contents - returns multiple documents
     result = viewer.run(
         repo="owner/repository",
         path="docs/",
-        ref="main"
+        branch="main"
     )
+    print(result)
 
     # Get specific file - returns single document
     result = viewer.run(
         repo="owner/repository",
         path="README.md",
-        ref="main"
+        branch="main"
     )
+    print(result)
     ```
     """
 
@@ -203,7 +200,7 @@ class GithubRepositoryViewer:
 
         :param repo: Repository in format "owner/repo"
         :param path: Path within repository (default: root)
-        :param ref: Git reference (branch, tag, commit) to use
+        :param branch: Git reference (branch, tag, commit) to use
         :return: Dictionary containing list of documents
         """
         if repo is None:

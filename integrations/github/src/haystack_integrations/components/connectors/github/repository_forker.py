@@ -18,17 +18,18 @@ class GithubRepoForker:
 
     ### Usage example
     ```python
-    from haystack.components.actions import GithubRepoForker
+    from haystack_integrations.components.connectors.github import GithubRepoForker
     from haystack.utils import Secret
 
     # Using direct token with auto-sync and branch creation
     forker = GithubRepoForker(
-        github_token=Secret.from_token("your_token"),
+        github_token=Secret.from_env_var("GITHUB_TOKEN"),
         auto_sync=True,
         create_branch=True
     )
 
     result = forker.run(url="https://github.com/owner/repo/issues/123")
+    print(result)
     # Will create or sync fork and create branch "fix-123"
     ```
     """
