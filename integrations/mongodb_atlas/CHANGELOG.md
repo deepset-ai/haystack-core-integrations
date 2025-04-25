@@ -1,6 +1,22 @@
 # Changelog
 
+## [integrations/mongodb_atlas-v3.1.1] - 2025-04-11
+
+### 🚀 Features
+
+- Mongodb async (#1590)
+
+### 🐛 Bug Fixes
+
+- Async failing in mongodb-integrations (#1633)
+
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
 ## [integrations/mongodb_atlas-v3.0.0] - 2025-03-11
+
 
 ### 🧪 Testing
 
@@ -34,9 +50,6 @@
 - Pass empty dict to filter instead of None (#775)
 - `Mongo` - Fallback to default filter policy when deserializing retrievers without the init parameter (#899)
 
-### 📚 Documentation
-
-- Update changelog for integrations/mongodb_atlas (#1363)
 
 ### 🧪 Testing
 

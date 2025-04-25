@@ -66,6 +66,7 @@ class TestSTACKITDocumentEmbedder:
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
+                "http_client_kwargs": None,
             },
         }
 
@@ -97,6 +98,7 @@ class TestSTACKITDocumentEmbedder:
                 "progress_bar": False,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": "-",
+                "http_client_kwargs": None,
             },
         }
 
