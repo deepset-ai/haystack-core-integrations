@@ -1,12 +1,16 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from typing import Any, Dict, Optional
 
 import httpx
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.base_serialization import deserialize_class_instance, serialize_class_instance
+from langfuse import Langfuse
 
 from haystack_integrations.tracing.langfuse import LangfuseTracer, SpanHandler
-from langfuse import Langfuse
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +97,7 @@ class LangfuseConnector:
         )
         print(response["llm"]["replies"][0])
         print(response["tracer"]["trace_url"])
+        print(response["tracer"]["trace_id"])
     ```
 
     For advanced use cases, you can also customize how spans are created and processed by
@@ -159,7 +164,7 @@ class LangfuseConnector:
         )
         tracing.enable_tracing(self.tracer)
 
-    @component.output_types(name=str, trace_url=str)
+    @component.output_types(name=str, trace_url=str, trace_id=str)
     def run(self, invocation_context: Optional[Dict[str, Any]] = None):
         """
         Runs the LangfuseConnector component.
@@ -171,12 +176,13 @@ class LangfuseConnector:
         :returns: A dictionary with the following keys:
             - `name`: The name of the tracing component.
             - `trace_url`: The URL to the tracing data.
+            - `trace_id`: The ID of the trace.
         """
         logger.debug(
             "Langfuse tracer invoked with the following context: '{invocation_context}'",
             invocation_context=invocation_context,
         )
-        return {"name": self.name, "trace_url": self.tracer.get_trace_url()}
+        return {"name": self.name, "trace_url": self.tracer.get_trace_url(), "trace_id": self.tracer.get_trace_id()}
 
     def to_dict(self) -> Dict[str, Any]:
         """

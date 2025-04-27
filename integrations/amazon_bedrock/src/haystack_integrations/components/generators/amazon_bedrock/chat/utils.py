@@ -2,7 +2,7 @@ import json
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from botocore.eventstream import EventStream
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, StreamingCallbackT, StreamingChunk, ToolCall
 from haystack.tools import Tool
 
 
@@ -217,7 +217,7 @@ def _parse_streaming_response(
 
 async def _parse_streaming_response_async(
     response_stream: EventStream,
-    streaming_callback: Callable[[StreamingChunk], None],
+    streaming_callback: StreamingCallbackT,
     model: str,
 ) -> List[ChatMessage]:
     """
@@ -256,7 +256,7 @@ async def _parse_streaming_response_async(
                 delta_text = delta["text"]
                 current_content += delta_text
                 streaming_chunk = StreamingChunk(content=delta_text, meta=None)
-                streaming_callback(streaming_chunk)
+                await streaming_callback(streaming_chunk)
             elif "toolUse" in delta and current_tool_call:
                 # Accumulate tool use input deltas
                 current_tool_call["arguments"] += delta["toolUse"].get("input", "")

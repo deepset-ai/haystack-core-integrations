@@ -1,5 +1,42 @@
 # Changelog
 
+## [integrations/google_vertex-v5.1.0] - 2025-04-08
+
+### 🚀 Features
+
+- Add run_async for VertexAIGeminiChatGenerator (#1574)
+
+### 🐛 Bug Fixes
+
+- Update serialization/deserialization tests to add new parameter `connection_type_validation` (#1464)
+
+### 🧪 Testing
+
+- Update tool serialization in tests to include `inputs_from_state` and `outputs_to_state` (#1581)
+- Upgrade gemini models (#1617)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+- Use Haystack logging across integrations (#1484)
+- Update ChatGenerators with `deserialize_tools_or_toolset_inplace` (#1623)
+
+### 🌀 Miscellaneous
+
+- Chore: remove `jsonschema` dependency from `default` environment (#1368)
+- Test: Update tests to check for `outputs_to_string` in Tool when running haystack-ai>=2.12 (#1585)
+
+## [integrations/google_vertex-v5.0.2] - 2025-01-30
+
+### 🐛 Bug Fixes
+
+- VertexAIGeminiChatGenerator - do not create messages with empty text (#1337)
+
+
 ## [integrations/google_vertex-v5.0.0] - 2025-01-29
 
 ### 🚀 Features

@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
@@ -138,6 +139,56 @@ class MongoDBAtlasFullTextRetriever:
         top_k = top_k or self.top_k
 
         docs = self.document_store._fulltext_retrieval(
+            query=query,
+            fuzzy=fuzzy,
+            match_criteria=match_criteria,
+            score=score,
+            synonyms=synonyms,
+            filters=filters,
+            top_k=top_k,
+        )
+
+        return {"documents": docs}
+
+    @component.output_types(documents=List[Document])
+    async def run_async(
+        self,
+        query: Union[str, List[str]],
+        fuzzy: Optional[Dict[str, int]] = None,
+        match_criteria: Optional[Literal["any", "all"]] = None,
+        score: Optional[Dict[str, Dict]] = None,
+        synonyms: Optional[str] = None,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+    ) -> Dict[str, List[Document]]:
+        """
+        Asynchronously retrieve documents from the MongoDBAtlasDocumentStore by full-text search.
+
+        :param query: The query string or a list of query strings to search for.
+            If the query contains multiple terms, Atlas Search evaluates each term separately for matches.
+        :param fuzzy: Enables finding strings similar to the search term(s).
+            Note, `fuzzy` cannot be used with `synonyms`. Configurable options include `maxEdits`, `prefixLength`,
+            and `maxExpansions`. For more details refer to MongoDB Atlas
+            [documentation](https://www.mongodb.com/docs/atlas/atlas-search/text/#fields).
+        :param match_criteria: Defines how terms in the query are matched. Supported options are `"any"` and `"all"`.
+            For more details refer to MongoDB Atlas
+            [documentation](https://www.mongodb.com/docs/atlas/atlas-search/text/#fields).
+        :param score: Specifies the scoring method for matching results. Supported options include `boost`, `constant`,
+            and `function`. For more details refer to MongoDB Atlas
+            [documentation](https://www.mongodb.com/docs/atlas/atlas-search/text/#fields).
+        :param synonyms: The name of the synonym mapping definition in the index. This value cannot be an empty string.
+            Note, `synonyms` can not be used with `fuzzy`.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
+                        details.
+        :param top_k: Maximum number of Documents to return. Overrides the value specified at initialization.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of Documents most similar to the given `query`
+        """
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
+        top_k = top_k or self.top_k
+
+        docs = await self.document_store._fulltext_retrieval_async(
             query=query,
             fuzzy=fuzzy,
             match_criteria=match_criteria,

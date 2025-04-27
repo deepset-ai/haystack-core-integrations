@@ -46,6 +46,7 @@ installer = "uv"
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "pytest-asyncio",
   "pytest-rerunfailures",
   "haystack-pydoc-tools",
 ]

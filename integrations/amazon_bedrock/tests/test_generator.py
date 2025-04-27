@@ -1697,3 +1697,30 @@ class TestMetaLlamaAdapter:
         assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_not_called()
+
+    def test_run_with_metadata(self, mock_boto3_session) -> None:
+        generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
+        mock_client = mock_boto3_session.return_value.client.return_value
+
+        # Create a proper mock for the response body
+        mock_body = MagicMock()
+        mock_body.read.return_value = b'{"content": [{"type": "text", "text": "test response"}]}'
+
+        mock_response = {
+            "body": mock_body,
+            "ResponseMetadata": {
+                "RequestId": "test-request-id",
+                "HTTPStatusCode": 200,
+                "HTTPHeaders": {"x-amzn-requestid": "test-request-id", "content-type": "application/json"},
+            },
+        }
+        mock_client.invoke_model.return_value = mock_response
+
+        result = generator.run("Hello, how are you?")
+
+        assert isinstance(result, dict)
+        assert "meta" in result
+        assert result["meta"] == mock_response["ResponseMetadata"]
+        assert result["meta"]["RequestId"] == "test-request-id"
+        assert result["meta"]["HTTPStatusCode"] == 200
+        assert result["meta"]["HTTPHeaders"]["content-type"] == "application/json"

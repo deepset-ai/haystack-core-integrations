@@ -214,6 +214,42 @@ class TestEmbeddingRetriever:
 
         assert res == {"documents": [doc]}
 
+    @pytest.mark.asyncio
+    async def test_run_async(self):
+        mock_store = Mock(spec=MongoDBAtlasDocumentStore)
+        doc = Document(content="Test doc", embedding=[0.1, 0.2])
+        mock_store._embedding_retrieval_async.return_value = [doc]
+
+        retriever = MongoDBAtlasEmbeddingRetriever(document_store=mock_store)
+        res = await retriever.run_async(query_embedding=[0.3, 0.5])
+
+        mock_store._embedding_retrieval_async.assert_called_once_with(query_embedding=[0.3, 0.5], filters={}, top_k=10)
+
+        assert res == {"documents": [doc]}
+
+    @pytest.mark.asyncio
+    async def test_run_merge_policy_filter_async(self):
+        mock_store = Mock(spec=MongoDBAtlasDocumentStore)
+        doc = Document(content="Test doc", embedding=[0.1, 0.2])
+        mock_store._embedding_retrieval_async.return_value = [doc]
+
+        retriever = MongoDBAtlasEmbeddingRetriever(
+            document_store=mock_store,
+            filters={"field": "meta.some_field", "operator": "==", "value": "SomeValue"},
+            filter_policy=FilterPolicy.MERGE,
+        )
+        res = await retriever.run_async(
+            query_embedding=[0.3, 0.5], filters={"field": "meta.some_field", "operator": "==", "value": "Test"}
+        )
+        # as the both init and run filters are filtering the same field, the run filter takes precedence
+        mock_store._embedding_retrieval_async.assert_called_once_with(
+            query_embedding=[0.3, 0.5],
+            filters={"field": "meta.some_field", "operator": "==", "value": "Test"},
+            top_k=10,
+        )
+
+        assert res == {"documents": [doc]}
+
 
 class TestFullTextRetriever:
     @pytest.fixture
@@ -409,6 +445,48 @@ class TestFullTextRetriever:
         )
         # as the both init and run filters are filtering the same field, the run filter takes precedence
         mock_store._fulltext_retrieval.assert_called_once_with(
+            query="Lorem ipsum",
+            fuzzy=None,
+            match_criteria=None,
+            score=None,
+            synonyms=None,
+            filters={"field": "meta.some_field", "operator": "==", "value": "Test"},
+            top_k=10,
+        )
+
+        assert res == {"documents": [doc]}
+
+    @pytest.mark.asyncio
+    async def test_run_async(self):
+        mock_store = Mock(spec=MongoDBAtlasDocumentStore)
+        doc = Document(content="Lorem ipsum")
+        mock_store._fulltext_retrieval_async.return_value = [doc]
+
+        retriever = MongoDBAtlasFullTextRetriever(document_store=mock_store)
+        res = await retriever.run_async(query="Lorem ipsum")
+
+        mock_store._fulltext_retrieval_async.assert_called_once_with(
+            query="Lorem ipsum", fuzzy=None, match_criteria=None, score=None, synonyms=None, filters={}, top_k=10
+        )
+
+        assert res == {"documents": [doc]}
+
+    @pytest.mark.asyncio
+    async def test_run_merge_policy_filter_async(self):
+        mock_store = Mock(spec=MongoDBAtlasDocumentStore)
+        doc = Document(content="Lorem ipsum")
+        mock_store._fulltext_retrieval_async.return_value = [doc]
+
+        retriever = MongoDBAtlasFullTextRetriever(
+            document_store=mock_store,
+            filters={"field": "meta.some_field", "operator": "==", "value": "SomeValue"},
+            filter_policy=FilterPolicy.MERGE,
+        )
+        res = await retriever.run_async(
+            query="Lorem ipsum", filters={"field": "meta.some_field", "operator": "==", "value": "Test"}
+        )
+        # as the both init and run filters are filtering the same field, the run filter takes precedence
+        mock_store._fulltext_retrieval_async.assert_called_once_with(
             query="Lorem ipsum",
             fuzzy=None,
             match_criteria=None,

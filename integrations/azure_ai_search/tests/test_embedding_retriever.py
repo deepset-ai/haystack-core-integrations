@@ -44,10 +44,10 @@ def test_to_dict():
                 "init_parameters": {
                     "azure_endpoint": {
                         "type": "env_var",
-                        "env_vars": ["AZURE_SEARCH_SERVICE_ENDPOINT"],
+                        "env_vars": ["AZURE_AI_SEARCH_ENDPOINT"],
                         "strict": True,
                     },
-                    "api_key": {"type": "env_var", "env_vars": ["AZURE_SEARCH_API_KEY"], "strict": False},
+                    "api_key": {"type": "env_var", "env_vars": ["AZURE_AI_SEARCH_API_KEY"], "strict": False},
                     "index_name": "default",
                     "embedding_dimension": 768,
                     "metadata_fields": None,
@@ -82,10 +82,10 @@ def test_from_dict():
                 "init_parameters": {
                     "azure_endpoint": {
                         "type": "env_var",
-                        "env_vars": ["AZURE_SEARCH_SERVICE_ENDPOINT"],
+                        "env_vars": ["AZURE_AI_SEARCH_ENDPOINT"],
                         "strict": True,
                     },
-                    "api_key": {"type": "env_var", "env_vars": ["AZURE_SEARCH_API_KEY"], "strict": False},
+                    "api_key": {"type": "env_var", "env_vars": ["AZURE_AI_SEARCH_API_KEY"], "strict": False},
                     "index_name": "default",
                     "embedding_dimension": 768,
                     "metadata_fields": None,
@@ -164,8 +164,8 @@ def test_run_time_params():
 
 
 @pytest.mark.skipif(
-    not os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT", None) and not os.environ.get("AZURE_SEARCH_API_KEY", None),
-    reason="Missing AZURE_SEARCH_SERVICE_ENDPOINT or AZURE_SEARCH_API_KEY.",
+    not os.environ.get("AZURE_AI_SEARCH_ENDPOINT", None) and not os.environ.get("AZURE_AI_SEARCH_API_KEY", None),
+    reason="Missing AZURE_AI_SEARCH_ENDPOINT or AZURE_AI_SEARCH_API_KEY.",
 )
 @pytest.mark.integration
 class TestRetriever:

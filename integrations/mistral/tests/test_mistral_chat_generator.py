@@ -276,9 +276,7 @@ class TestMistralChatGenerator:
 
         callback = Callback()
         component = MistralChatGenerator(streaming_callback=callback)
-        results = component.run(
-            [ChatMessage.from_user("What's the capital of France?")], generation_kwargs={"tool_choice": "any"}
-        )
+        results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
@@ -497,6 +495,21 @@ class TestMistralChatGenerator:
 
         if not hasattr(pipeline, "_connection_type_validation"):
             expected_dict.pop("connection_type_validation")
+
+        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
+        # haystack-ai>=2.12.0
+        if hasattr(tool, "outputs_to_string"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
+                "outputs_to_string"
+            ] = tool.outputs_to_string
+        if hasattr(tool, "inputs_from_state"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
+                "inputs_from_state"
+            ] = tool.inputs_from_state
+        if hasattr(tool, "outputs_to_state"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
+                "outputs_to_state"
+            ] = tool.outputs_to_state
 
         assert pipeline_dict == expected_dict
 

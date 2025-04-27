@@ -37,7 +37,9 @@ class UnstructuredFileConverter:
     # docker run -p 8000:8000 -d --rm --name unstructured-api quay.io/unstructured-io/unstructured-api:latest
     # --port 8000 --host 0.0.0.0
 
-    converter = UnstructuredFileConverter()
+    converter = UnstructuredFileConverter(
+        # api_url="http://localhost:8000/general/v0/general"  # <-- Uncomment this if running Unstructured locally
+    )
     documents = converter.run(paths = ["a/file/path.pdf", "a/directory/path"])["documents"]
     ```
     """

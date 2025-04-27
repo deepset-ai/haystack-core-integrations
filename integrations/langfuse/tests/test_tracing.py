@@ -1,23 +1,23 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 import time
+from typing import Any, Dict, List
 from urllib.parse import urlparse
-from typing import Optional
 
 import pytest
 import requests
-from haystack import Pipeline
+from haystack import Pipeline, component
 from haystack.components.builders import ChatPromptBuilder
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
-from haystack.utils import Secret
 from requests.auth import HTTPBasicAuth
-import httpx
 
 from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
 from haystack_integrations.components.generators.cohere import CohereChatGenerator
-from haystack_integrations.tracing.langfuse import LangfuseSpan, DefaultSpanHandler
-from haystack_integrations.tracing.langfuse.tracer import _COMPONENT_OUTPUT_KEY
 
 # don't remove (or move) this env var setting from here, it's needed to turn tracing on
 os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
@@ -33,6 +33,7 @@ def poll_langfuse(url: str):
     attempts = 5
     delay = 1
 
+    res = None
     while attempts > 0:
         res = requests.get(url, auth=auth)
         if res.status_code == 200:
@@ -47,50 +48,9 @@ def poll_langfuse(url: str):
 
 
 @pytest.fixture
-def pipeline_with_env_vars(llm_class, expected_trace):
-    """Pipeline factory using environment variables for Langfuse authentication"""
+def basic_pipeline(llm_class, expected_trace):
     pipe = Pipeline()
     pipe.add_component("tracer", LangfuseConnector(name=f"Chat example - {expected_trace}", public=True))
-    pipe.add_component("prompt_builder", ChatPromptBuilder())
-    pipe.add_component("llm", llm_class())
-    pipe.connect("prompt_builder.prompt", "llm.messages")
-    return pipe
-
-
-@pytest.fixture
-def pipeline_with_secrets(llm_class, expected_trace):
-    """Pipeline factory using Secret objects for Langfuse authentication"""
-    pipe = Pipeline()
-    pipe.add_component(
-        "tracer",
-        LangfuseConnector(
-            name=f"Chat example - {expected_trace}",
-            public=True,
-            secret_key=Secret.from_env_var("LANGFUSE_SECRET_KEY"),
-            public_key=Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),
-        ),
-    )
-    pipe.add_component("prompt_builder", ChatPromptBuilder())
-    pipe.add_component("llm", llm_class())
-    pipe.connect("prompt_builder.prompt", "llm.messages")
-    return pipe
-
-
-@pytest.fixture
-def pipeline_with_custom_client(llm_class, expected_trace):
-    """Pipeline factory using custom httpx client for Langfuse"""
-    pipe = Pipeline()
-    custom_client = httpx.Client(timeout=30.0)  # Custom timeout of 30 seconds
-    pipe.add_component(
-        "tracer",
-        LangfuseConnector(
-            name=f"Chat example - {expected_trace}",
-            public=True,
-            secret_key=Secret.from_env_var("LANGFUSE_SECRET_KEY"),
-            public_key=Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),
-            httpx_client=custom_client,
-        ),
-    )
     pipe.add_component("prompt_builder", ChatPromptBuilder())
     pipe.add_component("llm", llm_class())
     pipe.connect("prompt_builder.prompt", "llm.messages")
@@ -106,20 +66,16 @@ def pipeline_with_custom_client(llm_class, expected_trace):
         (CohereChatGenerator, "COHERE_API_KEY", "Cohere"),
     ],
 )
-@pytest.mark.parametrize(
-    "pipeline_fixture", ["pipeline_with_env_vars", "pipeline_with_secrets", "pipeline_with_custom_client"]
-)
-def test_tracing_integration(llm_class, env_var, expected_trace, pipeline_fixture, request):
+def test_tracing_integration(llm_class, env_var, expected_trace, basic_pipeline):
     if not all([os.environ.get("LANGFUSE_SECRET_KEY"), os.environ.get("LANGFUSE_PUBLIC_KEY"), os.environ.get(env_var)]):
         pytest.skip(f"Missing required environment variables: LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, or {env_var}")
 
-    pipe = request.getfixturevalue(pipeline_fixture)
     messages = [
         ChatMessage.from_system("Always respond in German even if some input data is in other languages."),
         ChatMessage.from_user("Tell me about {{location}}"),
     ]
 
-    response = pipe.run(
+    response = basic_pipeline.run(
         data={
             "prompt_builder": {"template_variables": {"location": "Berlin"}, "template": messages},
             "tracer": {"invocation_context": {"user_id": "user_42"}},
@@ -127,6 +83,7 @@ def test_tracing_integration(llm_class, env_var, expected_trace, pipeline_fixtur
     )
     assert "Berlin" in response["llm"]["replies"][0].text
     assert response["tracer"]["trace_url"]
+    assert response["tracer"]["trace_id"]
 
     trace_url = response["tracer"]["trace_url"]
     uuid = os.path.basename(urlparse(trace_url).path)
@@ -135,114 +92,67 @@ def test_tracing_integration(llm_class, env_var, expected_trace, pipeline_fixtur
     res = poll_langfuse(url)
     assert res.status_code == 200, f"Failed to retrieve data from Langfuse API: {res.status_code}"
 
-    # check if the trace contains the expected LLM name
-    assert expected_trace in str(res.content)
-    # check if the trace contains the expected generation span
-    assert "GENERATION" in str(res.content)
-    # check if the trace contains the expected user_id
-    assert "user_42" in str(res.content)
-
-
-def test_pipeline_serialization(monkeypatch):
-    """Test that a pipeline with secrets can be properly serialized and deserialized"""
-
-    # Set test env vars
-    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
-    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "public")
-    monkeypatch.setenv("OPENAI_API_KEY", "openai_api_key")
-
-    # Create pipeline with OpenAI LLM
-    pipe = Pipeline()
-    pipe.add_component(
-        "tracer",
-        LangfuseConnector(
-            name="Chat example - OpenAI",
-            public=True,
-            secret_key=Secret.from_env_var("LANGFUSE_SECRET_KEY"),
-            public_key=Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),
-        ),
-    )
-    pipe.add_component("prompt_builder", ChatPromptBuilder())
-    pipe.add_component("llm", OpenAIChatGenerator())
-    pipe.connect("prompt_builder.prompt", "llm.messages")
-
-    # Serialize
-    serialized = pipe.to_dict()
-
-    # Check serialized secrets
-    tracer_params = serialized["components"]["tracer"]["init_parameters"]
-    assert isinstance(tracer_params["secret_key"], dict)
-    assert tracer_params["secret_key"]["type"] == "env_var"
-    assert tracer_params["secret_key"]["env_vars"] == ["LANGFUSE_SECRET_KEY"]
-    assert isinstance(tracer_params["public_key"], dict)
-    assert tracer_params["public_key"]["type"] == "env_var"
-    assert tracer_params["public_key"]["env_vars"] == ["LANGFUSE_PUBLIC_KEY"]
-
-    # Deserialize
-    new_pipe = Pipeline.from_dict(serialized)
-
-    # Verify pipeline is the same
-    assert new_pipe == pipe
-
-
-class QualityCheckSpanHandler(DefaultSpanHandler):
-    """Extends default handler to add quality checks with warning levels."""
-
-    def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
-        # First do the default handling (model, usage, etc.)
-        super().handle(span, component_type)
-
-        # Then add our custom quality checks
-        if component_type == "OpenAIChatGenerator":
-            output = span._data.get(_COMPONENT_OUTPUT_KEY, {})
-            replies = output.get("replies", [])
-
-            if not replies:
-                span._span.update(level="ERROR", status_message="No response received")
-                return
-
-            reply = replies[0]
-            if "error" in reply.meta:
-                span._span.update(level="ERROR", status_message=f"OpenAI error: {reply.meta['error']}")
-            elif len(reply.text) > 10:
-                span._span.update(level="WARNING", status_message="Response too long (> 10 chars)")
-            else:
-                span._span.update(level="DEFAULT", status_message="Success")
+    res_json = res.json()
+    assert res_json["name"] == f"Chat example - {expected_trace}"
+    assert isinstance(res_json["input"], dict)
+    assert res_json["input"]["tracer"]["invocation_context"]["user_id"] == "user_42"
+    assert isinstance(res_json["output"], dict)
+    assert isinstance(res_json["metadata"], dict)
+    assert isinstance(res_json["observations"], list)
+    assert res_json["observations"][0]["type"] == "GENERATION"
 
 
 @pytest.mark.integration
-def test_custom_span_handler():
-    """Test that custom span handler properly sets Langfuse levels."""
+def test_tracing_with_sub_pipelines():
     if not all(
         [os.environ.get("LANGFUSE_SECRET_KEY"), os.environ.get("LANGFUSE_PUBLIC_KEY"), os.environ.get("OPENAI_API_KEY")]
     ):
-        pytest.skip("Missing required environment variables")
+        pytest.skip(
+            f"Missing required environment variables: LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, or OPENAI_API_KEY"
+        )
 
+    @component
+    class SubGenerator:
+        def __init__(self):
+            self.sub_pipeline = Pipeline()
+            self.sub_pipeline.add_component("llm", OpenAIChatGenerator())
+
+        @component.output_types(replies=List[ChatMessage])
+        def run(self, messages: List[ChatMessage]) -> Dict[str, Any]:
+            return {"replies": self.sub_pipeline.run(data={"llm": {"messages": messages}})["llm"]["replies"]}
+
+    @component
+    class SubPipeline:
+        def __init__(self):
+            self.sub_pipeline = Pipeline()
+            self.sub_pipeline.add_component("prompt_builder", ChatPromptBuilder())
+            self.sub_pipeline.add_component("sub_llm", SubGenerator())
+            self.sub_pipeline.connect("prompt_builder.prompt", "sub_llm.messages")
+
+        @component.output_types(replies=List[ChatMessage])
+        def run(self, messages: List[ChatMessage]) -> Dict[str, Any]:
+            return {
+                "replies": self.sub_pipeline.run(
+                    data={"prompt_builder": {"template": messages, "template_variables": {"location": "Berlin"}}}
+                )["sub_llm"]["replies"]
+            }
+
+    # Create the main pipeline
     pipe = Pipeline()
-    pipe.add_component(
-        "tracer",
-        LangfuseConnector(
-            name="Quality Check Example",
-            public=True,
-            span_handler=QualityCheckSpanHandler(),
-        ),
-    )
-    pipe.add_component("prompt_builder", ChatPromptBuilder())
-    pipe.add_component("llm", OpenAIChatGenerator())
-    pipe.connect("prompt_builder.prompt", "llm.messages")
+    pipe.add_component("tracer", LangfuseConnector(name="Sub-pipeline example"))
+    pipe.add_component("sub_pipeline", SubPipeline())
 
-    # Test short response
-    messages = [
-        ChatMessage.from_system("Respond with exactly 3 words."),
-        ChatMessage.from_user("What is Berlin?"),
+    msgs = [
+        ChatMessage.from_system("Always respond in German even if some input data is in other languages."),
+        ChatMessage.from_user("Tell me about {{location}}"),
     ]
-
     response = pipe.run(
-        data={
-            "prompt_builder": {"template_variables": {}, "template": messages},
-            "tracer": {"invocation_context": {"user_id": "test_user"}},
-        }
+        data={"sub_pipeline": {"messages": msgs}, "tracer": {"invocation_context": {"user_id": "user_42"}}}
     )
+
+    assert "Berlin" in response["sub_pipeline"]["replies"][0].text
+    assert response["tracer"]["trace_url"]
+    assert response["tracer"]["trace_id"]
 
     trace_url = response["tracer"]["trace_url"]
     uuid = os.path.basename(urlparse(trace_url).path)
@@ -251,6 +161,21 @@ def test_custom_span_handler():
     res = poll_langfuse(url)
     assert res.status_code == 200, f"Failed to retrieve data from Langfuse API: {res.status_code}"
 
-    content = str(res.content)
-    assert "WARNING" in content
-    assert "Response too long" in content
+    res_json = res.json()
+    assert res_json["name"] == "Sub-pipeline example"
+    assert isinstance(res_json["input"], dict)
+    assert "sub_pipeline" in res_json["input"]
+    assert "messages" in res_json["input"]["sub_pipeline"]
+    assert res_json["input"]["tracer"]["invocation_context"]["user_id"] == "user_42"
+    assert isinstance(res_json["output"], dict)
+    assert isinstance(res_json["metadata"], dict)
+    assert isinstance(res_json["observations"], list)
+
+    observations = res_json["observations"]
+
+    haystack_pipeline_run_observations = [obs for obs in observations if obs["name"] == "haystack.pipeline.run"]
+    # There should be two observations for the haystack.pipeline.run span: one for each sub pipeline
+    # Main pipeline is stored under the name "Sub-pipeline example"
+    assert len(haystack_pipeline_run_observations) == 2
+    assert "prompt_builder" in haystack_pipeline_run_observations[0]["input"]
+    assert "llm" in haystack_pipeline_run_observations[1]["input"]

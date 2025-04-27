@@ -50,6 +50,7 @@ class TestMistralTextEmbedder:
                 "organization": None,
                 "prefix": "",
                 "suffix": "",
+                "http_client_kwargs": None,
             },
         }
 
@@ -73,6 +74,7 @@ class TestMistralTextEmbedder:
                 "organization": None,
                 "prefix": "START",
                 "suffix": "END",
+                "http_client_kwargs": None,
             },
         }
 

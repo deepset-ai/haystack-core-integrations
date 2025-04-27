@@ -133,3 +133,32 @@ class MongoDBAtlasEmbeddingRetriever:
             top_k=top_k,
         )
         return {"documents": docs}
+
+    @component.output_types(documents=List[Document])
+    async def run_async(
+        self,
+        query_embedding: List[float],
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: Optional[int] = None,
+    ) -> Dict[str, List[Document]]:
+        """
+        Asynchronously retrieve documents from the MongoDBAtlasDocumentStore, based on the provided embedding
+        similarity.
+
+        :param query_embedding: Embedding of the query.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
+                        details.
+        :param top_k: Maximum number of Documents to return. Overrides the value specified at initialization.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of Documents most similar to the given `query_embedding`
+        """
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
+        top_k = top_k or self.top_k
+
+        docs = await self.document_store._embedding_retrieval_async(
+            query_embedding=query_embedding,
+            filters=filters,
+            top_k=top_k,
+        )
+        return {"documents": docs}

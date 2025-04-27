@@ -468,6 +468,7 @@ class TestLlamaCppChatGeneratorFunctionary:
         assert tool_calls[0].tool_name == "get_user_info"
         assert tool_calls[0].arguments == {"username": "john_doe"}
 
+    @pytest.mark.integration
     def test_function_call_and_execute(self, generator):
         temperature_tool = create_tool_from_function(self.get_current_temperature)
 
