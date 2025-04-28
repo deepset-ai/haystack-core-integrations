@@ -16,6 +16,7 @@ from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.tools import Tool
 from haystack.tools.errors import ToolInvocationError
+from haystack.utils.url_validation import is_valid_http_url
 
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.sse import sse_client
@@ -475,6 +476,10 @@ class SSEServerInfo(MCPServerInfo):
             raise ValueError(message)
 
         if self.base_url:
+            if not is_valid_http_url(self.base_url):
+                message = f"Invalid base_url: {self.base_url}"
+                raise ValueError(message)
+
             import warnings
 
             warnings.warn(
@@ -482,6 +487,11 @@ class SSEServerInfo(MCPServerInfo):
                 DeprecationWarning,
                 stacklevel=2,
             )
+
+        if self.url:
+            if not is_valid_http_url(self.url):
+                message = f"Invalid url: {self.url}"
+                raise ValueError(message)
 
     def create_client(self) -> MCPClient:
         """
