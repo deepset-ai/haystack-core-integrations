@@ -177,7 +177,7 @@ class TestMCPServerInfo:
         http_client = http_info.create_client()
         stdio_client = stdio_info.create_client()
 
-        assert http_client.base_url == "http://example.com"
+        assert http_client.url == "http://example.com/sse"
         assert stdio_client.command == "python"
 
 

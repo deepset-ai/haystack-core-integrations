@@ -352,41 +352,16 @@ class SSEClient(MCPClient):
     MCP client that connects to servers using SSE transport.
     """
 
-    def __init__(
-        self, url: str | None = None, base_url: str | None = None, token: str | None = None, timeout: int = 5
-    ) -> None:
+    def __init__(self, server_info: "SSEServerInfo") -> None:
         """
-        Initialize an SSE MCP client.
+        Initialize an SSE MCP client using server configuration.
 
-        :param url: Full URL of the server (including /sse endpoint)
-        :param base_url: Base URL of the server (deprecated, use url instead)
-        :param token: Authentication token for the server (optional)
-        :param timeout: Connection timeout in seconds
+        :param server_info: Configuration object containing URL, token, timeout, etc.
         """
         super().__init__()
-        if url is None and base_url is None:
-            message = "Either url or base_url must be provided"
-            raise ValueError(message)
-        if url and base_url:
-            message = "Only one of url or base_url should be provided"
-            raise ValueError(message)
-
-        if base_url:
-            import warnings
-
-            warnings.warn(
-                "base_url is deprecated and will be removed in a future version. Use url instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            self.url = f"{base_url.rstrip('/')}/sse"  # Remove any trailing slashes and add /sse
-        elif url:
-            # Always true here in this branch but mypy doesn't know that
-            self.url = url
-
-        self.base_url = base_url  # leave this here for backwards compatibility (and remove in future)
-        self.token: str | None = token
-        self.timeout: int = timeout
+        self.url: str = server_info.url or f"{server_info.base_url}/sse"
+        self.token: str | None = server_info.token
+        self.timeout: int = server_info.timeout
 
     async def connect(self) -> list[Tool]:
         """
@@ -497,11 +472,10 @@ class SSEServerInfo(MCPServerInfo):
         """
         Create an SSE MCP client.
 
-        :returns: Configured HttpMCPClient instance
+        :returns: Configured SSEClient instance
         """
-        if self.base_url:
-            return SSEClient(base_url=self.base_url, token=self.token, timeout=self.timeout)
-        return SSEClient(url=self.url, token=self.token, timeout=self.timeout)
+        # Pass the validated SSEServerInfo instance directly
+        return SSEClient(server_info=self)
 
 
 @dataclass
