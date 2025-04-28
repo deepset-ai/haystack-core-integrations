@@ -139,7 +139,7 @@ class TestMCPServerInfo:
             SSEServerInfo()
 
         # Test with both url and base_url
-        with pytest.raises(ValueError, match="Only one of url or base_url should be provided"):
+        with pytest.warns(DeprecationWarning, match="base_url is deprecated"):
             SSEServerInfo(url="http://example.com/sse", base_url="http://example.com")
 
         # Test with only url
