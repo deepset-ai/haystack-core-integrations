@@ -535,7 +535,7 @@ class MCPTool(Tool):
     # Create tool instance
     tool = MCPTool(
         name="add",
-        server_info=SSEServerInfo(base_url="http://localhost:8000")
+        server_info=SSEServerInfo(url="http://localhost:8000/sse")
     )
 
     # Use the tool
