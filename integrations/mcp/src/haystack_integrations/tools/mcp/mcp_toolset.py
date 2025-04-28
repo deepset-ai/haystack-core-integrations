@@ -176,8 +176,7 @@ class MCPToolset(Toolset):
 
         except Exception as e:
             if isinstance(self.server_info, SSEServerInfo):
-                url = self.server_info.url or self.server_info.base_url
-                base_message = f"Failed to connect to SSE server at {url}"
+                base_message = f"Failed to connect to SSE server at {self.server_info.url}"
                 checks = ["1. The server is running"]
 
                 # Check for ConnectError in exception group or direct exception
@@ -187,7 +186,7 @@ class MCPToolset(Toolset):
 
                 if has_connect_error:
                     # Use urlparse to reliably get scheme, hostname, and port
-                    parsed_url = urlparse(url)
+                    parsed_url = urlparse(self.server_info.url)
                     port_str = ""
                     if parsed_url.port:
                         port_str = str(parsed_url.port)

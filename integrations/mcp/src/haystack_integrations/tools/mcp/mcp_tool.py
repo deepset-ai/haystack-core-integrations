@@ -5,6 +5,7 @@
 import asyncio
 import concurrent.futures
 import threading
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Coroutine
 from contextlib import AsyncExitStack
@@ -359,7 +360,10 @@ class SSEClient(MCPClient):
         :param server_info: Configuration object containing URL, token, timeout, etc.
         """
         super().__init__()
-        self.url: str = server_info.url or f"{server_info.base_url}/sse"
+
+        # in post_init we validate the url and set the url field so it is guaranteed to be valid
+        # safely ignore the mypy warning here
+        self.url: str = server_info.url  # type: ignore[assignment]
         self.token: str | None = server_info.token
         self.timeout: int = server_info.timeout
 
@@ -447,26 +451,25 @@ class SSEServerInfo(MCPServerInfo):
             message = "Either url or base_url must be provided"
             raise ValueError(message)
         if self.url and self.base_url:
-            message = "Only one of url or base_url should be provided"
-            raise ValueError(message)
+            message = "Only one of url or base_url should be provided, if both are provided, base_url will be ignored"
+            warnings.warn(message, DeprecationWarning, stacklevel=2)
 
         if self.base_url:
             if not is_valid_http_url(self.base_url):
                 message = f"Invalid base_url: {self.base_url}"
                 raise ValueError(message)
 
-            import warnings
-
             warnings.warn(
                 "base_url is deprecated and will be removed in a future version. Use url instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
+            # from now on only use url for the lifetime of the SSEServerInfo instance, never base_url
+            self.url = f"{self.base_url.rstrip('/')}/sse"
 
-        if self.url:
-            if not is_valid_http_url(self.url):
-                message = f"Invalid url: {self.url}"
-                raise ValueError(message)
+        elif not is_valid_http_url(self.url):
+            message = f"Invalid url: {self.url}"
+            raise ValueError(message)
 
     def create_client(self) -> MCPClient:
         """
