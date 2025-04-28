@@ -95,6 +95,7 @@ def test_to_dict(monkeypatch):
         create_extension=False,
         table_name="my_table",
         embedding_dimension=512,
+        vector_type="halfvec",
         vector_function="l2_distance",
         recreate_table=True,
         search_strategy="hnsw",
@@ -113,6 +114,7 @@ def test_to_dict(monkeypatch):
             "table_name": "my_table",
             "schema_name": "public",
             "embedding_dimension": 512,
+            "vector_type": "halfvec",
             "vector_function": "l2_distance",
             "recreate_table": True,
             "search_strategy": "hnsw",
@@ -124,6 +126,26 @@ def test_to_dict(monkeypatch):
             "keyword_index_name": "my_keyword_index",
         },
     }
+
+
+@pytest.mark.integration
+def test_halfvec_hnsw_write_documents(document_store_w_halfvec_hnsw_index: PgvectorDocumentStore):
+    documents = [
+        Document(id="1", content="Hello, world!", embedding=[0.1] * 2500),
+        Document(id="2", content="Hello, mum!", embedding=[0.3] * 2500),
+        Document(id="3", content="Hello, dad!", embedding=[0.2] * 2500),
+    ]
+    document_store_w_halfvec_hnsw_index.write_documents(documents)
+
+    retrieved_docs = document_store_w_halfvec_hnsw_index.filter_documents()
+    retrieved_docs.sort(key=lambda x: x.id)
+
+    for original_doc, retrieved_doc in zip(documents, retrieved_docs):
+        assert original_doc.id == retrieved_doc.id
+        assert original_doc.content == retrieved_doc.content
+        assert len(original_doc.embedding) == len(retrieved_doc.embedding)
+        # these embeddings are in half precision, so we increase the tolerance
+        assert original_doc.embedding == pytest.approx(retrieved_doc.embedding, abs=5e-5)
 
 
 @pytest.mark.integration

@@ -89,8 +89,8 @@ def cleanup_indexes():
     Only runs if Azure credentials are available.
     Automatically runs after all tests.
     """
-    azure_endpoint = os.getenv("AZURE_SEARCH_SERVICE_ENDPOINT")
-    api_key = os.getenv("AZURE_SEARCH_API_KEY")
+    azure_endpoint = os.getenv("AZURE_AI_SEARCH_ENDPOINT")
+    api_key = os.getenv("AZURE_AI_SEARCH_API_KEY")
 
     # Skip cleanup if credentials aren't available
     if not azure_endpoint or not api_key:

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import contextlib
 import os
 from abc import ABC, abstractmethod
@@ -38,11 +42,15 @@ _SUPPORTED_CHAT_GENERATORS = [
     "HuggingFaceAPIChatGenerator",
     "HuggingFaceLocalChatGenerator",
     "CohereChatGenerator",
+    "OllamaChatGenerator",
 ]
 _ALL_SUPPORTED_GENERATORS = _SUPPORTED_GENERATORS + _SUPPORTED_CHAT_GENERATORS
 
 # These are the keys used by Haystack for traces and span.
 # We keep them here to avoid making typos when using them.
+_PIPELINE_INPUT_KEY = "haystack.pipeline.input_data"
+_PIPELINE_OUTPUT_KEY = "haystack.pipeline.output_data"
+_ASYNC_PIPELINE_RUN_KEY = "haystack.async_pipeline.run"
 _PIPELINE_RUN_KEY = "haystack.pipeline.run"
 _COMPONENT_NAME_KEY = "haystack.component.name"
 _COMPONENT_TYPE_KEY = "haystack.component.type"
@@ -93,7 +101,8 @@ class LangfuseSpan(Span):
                 messages = [m.to_openai_dict_format() for m in value["messages"]]
                 self._span.update(input=messages)
             else:
-                self._span.update(input=value)
+                coerced_value = tracing_utils.coerce_tag_value(value)
+                self._span.update(input=coerced_value)
         elif key.endswith(".output"):
             if "replies" in value:
                 if all(isinstance(r, ChatMessage) for r in value["replies"]):
@@ -102,7 +111,8 @@ class LangfuseSpan(Span):
                     replies = value["replies"]
                 self._span.update(output=replies)
             else:
-                self._span.update(output=value)
+                coerced_value = tracing_utils.coerce_tag_value(value)
+                self._span.update(output=coerced_value)
 
         self._data[key] = value
 
@@ -113,6 +123,14 @@ class LangfuseSpan(Span):
         :return: The Langfuse span instance.
         """
         return self._span
+
+    def get_data(self) -> Dict[str, Any]:
+        """
+        Return the data associated with the span.
+
+        :return: The data associated with the span.
+        """
+        return self._data
 
     def get_correlation_data_for_logs(self) -> Dict[str, Any]:
         return {}
@@ -209,7 +227,7 @@ class SpanHandler(ABC):
         """
         Process a span after component execution by attaching metadata and metrics.
 
-        This method is called after the component yields its span, allowing you to:
+        This method is called after the component or pipeline yields its span, allowing you to:
         - Extract and attach token usage statistics
         - Add model information
         - Record timing data (e.g., time-to-first-token)
@@ -234,12 +252,17 @@ class DefaultSpanHandler(SpanHandler):
     """DefaultSpanHandler provides the default Langfuse tracing behavior for Haystack."""
 
     def create_span(self, context: SpanContext) -> LangfuseSpan:
-        message = "Tracer is not initialized"
         if self.tracer is None:
+            message = (
+                "Tracer is not initialized. "
+                "Make sure the environment variable HAYSTACK_CONTENT_TRACING_ENABLED is set to true before "
+                "importing Haystack."
+            )
             raise RuntimeError(message)
+
         tracing_ctx = tracing_context_var.get({})
         if not context.parent_span:
-            if context.operation_name != _PIPELINE_RUN_KEY:
+            if context.operation_name not in [_PIPELINE_RUN_KEY, _ASYNC_PIPELINE_RUN_KEY]:
                 logger.warning(
                     "Creating a new trace without a parent span is not recommended for operation '{operation_name}'.",
                     operation_name=context.operation_name,
@@ -262,13 +285,20 @@ class DefaultSpanHandler(SpanHandler):
             return LangfuseSpan(context.parent_span.raw_span().span(name=context.name))
 
     def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
+        # If the span is at the pipeline level, we add input and output keys to the span
+        at_pipeline_level = span.get_data().get(_PIPELINE_INPUT_KEY) is not None
+        if at_pipeline_level:
+            coerced_input = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_INPUT_KEY))
+            coerced_output = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_OUTPUT_KEY))
+            span.raw_span().update(input=coerced_input, output=coerced_output)
+
         if component_type in _SUPPORTED_GENERATORS:
-            meta = span._data.get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
+            meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
             if meta:
-                m = meta[0]
-                span._span.update(usage=m.get("usage") or None, model=m.get("model"))
-        elif component_type in _SUPPORTED_CHAT_GENERATORS:
-            replies = span._data.get(_COMPONENT_OUTPUT_KEY, {}).get("replies")
+                span.raw_span().update(usage=meta[0].get("usage") or None, model=meta[0].get("model"))
+
+        if component_type in _SUPPORTED_CHAT_GENERATORS:
+            replies = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("replies")
             if replies:
                 meta = replies[0].meta
                 completion_start_time = meta.get("completion_start_time")
@@ -278,7 +308,7 @@ class DefaultSpanHandler(SpanHandler):
                     except ValueError:
                         logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
                         completion_start_time = None
-                span._span.update(
+                span.raw_span().update(
                     usage=meta.get("usage") or None,
                     model=meta.get("model"),
                     completion_start_time=completion_start_time,
@@ -330,18 +360,21 @@ class LangfuseTracer(Tracer):
         span_name = tags.get(_COMPONENT_NAME_KEY, operation_name)
         component_type = tags.get(_COMPONENT_TYPE_KEY)
 
-        # Create span using the handler
-        span = self._span_handler.create_span(
-            SpanContext(
-                name=span_name,
-                operation_name=operation_name,
-                component_type=component_type,
-                tags=tags,
-                parent_span=parent_span,
-                trace_name=self._name,
-                public=self._public,
-            )
+        # Create a new span context
+        span_context = SpanContext(
+            name=span_name,
+            operation_name=operation_name,
+            component_type=component_type,
+            tags=tags,
+            # We use the current active span as the parent span if not provided to handle nested pipelines
+            # The nested pipeline (or sub-pipeline) will be a child of the current active span
+            parent_span=parent_span or self.current_span(),
+            trace_name=self._name,
+            public=self._public,
         )
+
+        # Create span using the handler
+        span = self._span_handler.create_span(span_context)
 
         self._context.append(span)
         span.set_tags(tags)
@@ -351,11 +384,11 @@ class LangfuseTracer(Tracer):
         # Let the span handler process the span
         self._span_handler.handle(span, component_type)
 
-        raw_span = span.raw_span()
-
         # In this section, we finalize both regular spans and generation spans created using the LangfuseSpan class.
         # It's important to end() these spans to ensure they are properly closed and all relevant data is recorded.
-        # Note that we do not call end() on the main trace span itself, as its lifecycle is managed differently.
+        # Note that we do not call end() on the main trace span itself (StatefulTraceClient), as its lifecycle is
+        # managed differently.
+        raw_span = span.raw_span()
         if isinstance(raw_span, (StatefulSpanClient, StatefulGenerationClient)):
             raw_span.end()
         self._context.pop()
@@ -380,3 +413,10 @@ class LangfuseTracer(Tracer):
         :return: The URL to the tracing data.
         """
         return self._tracer.get_trace_url()
+
+    def get_trace_id(self) -> str:
+        """
+        Return the trace ID.
+        :return: The trace ID.
+        """
+        return self._tracer.get_trace_id()

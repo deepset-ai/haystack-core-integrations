@@ -97,13 +97,12 @@ def test_convert_chatmessage_to_ollama_invalid():
 
 
 def test_convert_ollama_response_to_chatmessage():
-    model = "some_model"
-
     ollama_response = ChatResponse(
-        model=model,
+        model="some_model",
         created_at="2023-12-12T14:13:43.416799Z",
         message={"role": "assistant", "content": "Hello! How are you today?"},
         done=True,
+        done_reason="stop",
         total_duration=5191566416,
         load_duration=2154458,
         prompt_eval_count=26,
@@ -116,6 +115,22 @@ def test_convert_ollama_response_to_chatmessage():
 
     assert observed.role == "assistant"
     assert observed.text == "Hello! How are you today?"
+
+    assert observed.meta == {
+        "finish_reason": "stop",
+        "usage": {
+            "completion_tokens": 298,
+            "prompt_tokens": 26,
+            "total_tokens": 324,
+        },
+        "completion_start_time": "2023-12-12T14:13:43.416799Z",
+        "load_duration": 2154458,
+        "total_duration": 5191566416,
+        "eval_duration": 4799921000,
+        "prompt_eval_duration": 383809000,
+        "done": True,
+        "model": "some_model",
+    }
 
 
 def test_convert_ollama_response_to_chatmessage_with_tools():
@@ -215,7 +230,8 @@ class TestOllamaChatGenerator:
             response_format={"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "number"}}},
         )
         data = component.to_dict()
-        assert data == {
+
+        expected_dict = {
             "type": "haystack_integrations.components.generators.ollama.chat.chat_generator.OllamaChatGenerator",
             "init_parameters": {
                 "timeout": 120,
@@ -248,6 +264,17 @@ class TestOllamaChatGenerator:
                 },
             },
         }
+
+        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
+        # haystack-ai>=2.12.0
+        if hasattr(tool, "outputs_to_string"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_string"] = tool.outputs_to_string
+        if hasattr(tool, "inputs_from_state"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = tool.inputs_from_state
+        if hasattr(tool, "outputs_to_state"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = tool.outputs_to_state
+
+        assert data == expected_dict
 
     def test_from_dict(self):
         tool = Tool(
@@ -391,6 +418,51 @@ class TestOllamaChatGenerator:
         assert result["replies"][0].text == "first chunk second chunk"
         assert result["replies"][0].role == "assistant"
 
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
+    def test_run_streaming_at_runtime(self, mock_client):
+        streaming_callback_called = False
+
+        def streaming_callback(_: StreamingChunk) -> None:
+            nonlocal streaming_callback_called
+            streaming_callback_called = True
+
+        generator = OllamaChatGenerator(streaming_callback=None)
+
+        mock_response = iter(
+            [
+                ChatResponse(
+                    model="llama3.2",
+                    created_at="2023-12-12T14:13:43.416799Z",
+                    message={"role": "assistant", "content": "first chunk "},
+                    done=False,
+                ),
+                ChatResponse(
+                    model="llama3.2",
+                    created_at="2023-12-12T14:13:43.416799Z",
+                    message={"role": "assistant", "content": "second chunk"},
+                    done=True,
+                    total_duration=4883583458,
+                    load_duration=1334875,
+                    prompt_eval_count=26,
+                    prompt_eval_duration=342546000,
+                    eval_count=282,
+                    eval_duration=4535599000,
+                ),
+            ]
+        )
+
+        mock_client_instance = mock_client.return_value
+        mock_client_instance.chat.return_value = mock_response
+
+        result = generator.run(messages=[ChatMessage.from_user("irrelevant")], streaming_callback=streaming_callback)
+
+        assert streaming_callback_called
+
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+        assert result["replies"][0].text == "first chunk second chunk"
+        assert result["replies"][0].role == "assistant"
+
     def test_run_fail_with_tools_and_streaming(self, tools):
         component = OllamaChatGenerator(tools=tools, streaming_callback=print_streaming_chunk)
 
@@ -432,7 +504,9 @@ class TestOllamaChatGenerator:
         assert isinstance(response, dict)
         assert isinstance(response["replies"], list)
 
-        assert any(city in response["replies"][-1].text for city in ["Manchester", "Birmingham", "Glasgow"])
+        assert any(
+            city.lower() in response["replies"][-1].text.lower() for city in ["Manchester", "Birmingham", "Glasgow"]
+        )
 
     @pytest.mark.integration
     def test_run_model_unavailable(self):
@@ -459,7 +533,9 @@ class TestOllamaChatGenerator:
 
         assert isinstance(response, dict)
         assert isinstance(response["replies"], list)
-        assert any(city in response["replies"][-1].text for city in ["Manchester", "Birmingham", "Glasgow"])
+        assert any(
+            city.lower() in response["replies"][-1].text.lower() for city in ["Manchester", "Birmingham", "Glasgow"]
+        )
 
     @pytest.mark.integration
     def test_run_with_tools(self, tools):
@@ -498,7 +574,7 @@ class TestOllamaChatGenerator:
         assert isinstance(response_data["capital"], str)
         assert "population" in response_data
         assert isinstance(response_data["population"], (int, float))
-        assert response_data["capital"] == "Paris"
+        assert response_data["capital"].lower() == "paris"
 
     def test_run_with_streaming_and_format(self):
         response_format = {

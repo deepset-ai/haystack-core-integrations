@@ -25,7 +25,7 @@ class GoogleAIGeminiGenerator:
     from haystack.utils import Secret
     from haystack_integrations.components.generators.google_ai import GoogleAIGeminiGenerator
 
-    gemini = GoogleAIGeminiGenerator(model="gemini-1.5-pro", api_key=Secret.from_token("<MY_API_KEY>"))
+    gemini = GoogleAIGeminiGenerator(model="gemini-2.0-flash", api_key=Secret.from_token("<MY_API_KEY>"))
     res = gemini.run(parts = ["What is the most interesting thing you know?"])
     for answer in res["replies"]:
         print(answer)
@@ -55,7 +55,7 @@ class GoogleAIGeminiGenerator:
         for url in URLS
     ]
 
-    gemini = GoogleAIGeminiGenerator(model="gemini-1.5-flash", api_key=Secret.from_token("<MY_API_KEY>"))
+    gemini = GoogleAIGeminiGenerator(model="gemini-2.0-flash", api_key=Secret.from_token("<MY_API_KEY>"))
     result = gemini.run(parts = ["What can you tell me about this robots?", *images])
     for answer in result["replies"]:
         print(answer)
@@ -76,7 +76,7 @@ class GoogleAIGeminiGenerator:
         self,
         *,
         api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),  # noqa: B008
-        model: str = "gemini-1.5-flash",
+        model: str = "gemini-2.0-flash",
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,

@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 import pytest
 from haystack import Pipeline, component
 from haystack.components.builders import PromptBuilder
+from haystack.core.errors import PipelineRuntimeError
 from haystack.tracing import tracer as haystack_configured_tracer
 from weave.trace.autopatch import AutopatchSettings
 
@@ -20,7 +21,7 @@ class FailingComponent:
     def run(self) -> dict[str, Any]:
         """Execute the component's logic - always raises an exception."""
         msg = "Test error"
-        raise ValueError(msg)
+        raise PipelineRuntimeError(msg)
 
 
 @pytest.fixture
@@ -113,7 +114,7 @@ class TestWeaveConnector:
         pp.add_component("weave", WeaveConnector(pipeline_name="test_pipeline"))
 
         # Run pipeline and expect exception
-        with pytest.raises(ValueError):
+        with pytest.raises(PipelineRuntimeError):
             pp.run(data={})
 
         # Verify error was traced

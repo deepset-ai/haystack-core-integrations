@@ -649,6 +649,21 @@ class TestAmazonBedrockChatGeneratorInference:
         if not hasattr(pipeline, "_connection_type_validation"):
             expected_dict.pop("connection_type_validation")
 
+        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
+        # haystack-ai>=2.12.0
+        if hasattr(tool, "outputs_to_string"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
+                "outputs_to_string"
+            ] = tool.outputs_to_string
+        if hasattr(tool, "inputs_from_state"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
+                "inputs_from_state"
+            ] = tool.inputs_from_state
+        if hasattr(tool, "outputs_to_state"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
+                "outputs_to_state"
+            ] = tool.outputs_to_state
+
         assert pipeline_dict == expected_dict
 
         # Test YAML serialization/deserialization
@@ -801,7 +816,7 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         streaming_callback_called = False
         paris_found_in_response = False
 
-        def streaming_callback(chunk: StreamingChunk):
+        async def streaming_callback(chunk: StreamingChunk):
             nonlocal streaming_callback_called, paris_found_in_response
             streaming_callback_called = True
             assert isinstance(chunk, StreamingChunk)
@@ -809,8 +824,8 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
             if not paris_found_in_response:
                 paris_found_in_response = "paris" in chunk.content.lower()
 
-        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
-        response = await client.run_async(chat_messages)
+        client = AmazonBedrockChatGenerator(model=model_name)
+        response = await client.run_async(chat_messages, streaming_callback=streaming_callback)
 
         assert streaming_callback_called, "Streaming callback was not called"
         assert paris_found_in_response, "The streaming callback response did not contain 'paris'"
@@ -858,8 +873,11 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
             "toolChoice": {"auto": {}},
         }
 
+        async def streaming_callback(chunk: StreamingChunk):
+            print(chunk, flush=True, end="")  # noqa: T201
+
         messages = [ChatMessage.from_user("What is the most popular song on WZPZ?")]
-        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=print_streaming_chunk)
+        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
         response = await client.run_async(messages=messages, generation_kwargs={"toolConfig": tool_config})
         replies = response["replies"]
         assert isinstance(replies, list), "Replies is not a list"
@@ -884,8 +902,12 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         """
         Integration test that the AmazonBedrockChatGenerator component can run asynchronously with tools and streaming
         """
+
+        async def streaming_callback(chunk: StreamingChunk):
+            print(chunk, flush=True, end="")  # noqa: T201
+
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = AmazonBedrockChatGenerator(model=model_name, tools=tools, streaming_callback=print_streaming_chunk)
+        component = AmazonBedrockChatGenerator(model=model_name, tools=tools, streaming_callback=streaming_callback)
         results = await component.run_async(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"

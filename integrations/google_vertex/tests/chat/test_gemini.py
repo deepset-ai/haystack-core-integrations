@@ -1,6 +1,6 @@
 import json
 from typing import Annotated, Literal
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from haystack import Pipeline
@@ -171,7 +171,7 @@ class TestVertexAIGeminiChatGenerator:
             tool_config=tool_config,
         )
 
-        assert gemini.to_dict() == {
+        expected_dict = {
             "type": "haystack_integrations.components.generators.google_vertex.chat.gemini.VertexAIGeminiChatGenerator",
             "init_parameters": {
                 "model": "gemini-1.5-flash",
@@ -207,14 +207,24 @@ class TestVertexAIGeminiChatGenerator:
             },
         }
 
+        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
+        # haystack-ai>=2.12.0
+        if hasattr(tools[0], "outputs_to_string"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_string"] = tools[0].outputs_to_string
+        if hasattr(tools[0], "inputs_from_state"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = tools[0].inputs_from_state
+        if hasattr(tools[0], "outputs_to_state"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = tools[0].outputs_to_state
+
+        assert gemini.to_dict() == expected_dict
+
     @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.vertexai_init")
     @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
     def test_from_dict(self, _mock_vertexai_init, _mock_generative_model):
         gemini = VertexAIGeminiChatGenerator.from_dict(
             {
                 "type": (
-                    "haystack_integrations.components.generators.google_vertex.chat.gemini."
-                    "VertexAIGeminiChatGenerator"
+                    "haystack_integrations.components.generators.google_vertex.chat.gemini.VertexAIGeminiChatGenerator"
                 ),
                 "init_parameters": {
                     "project_id": None,
@@ -242,8 +252,7 @@ class TestVertexAIGeminiChatGenerator:
         gemini = VertexAIGeminiChatGenerator.from_dict(
             {
                 "type": (
-                    "haystack_integrations.components.generators.google_vertex.chat.gemini."
-                    "VertexAIGeminiChatGenerator"
+                    "haystack_integrations.components.generators.google_vertex.chat.gemini.VertexAIGeminiChatGenerator"
                 ),
                 "init_parameters": {
                     "project_id": "TestID123",
@@ -502,6 +511,159 @@ class TestVertexAIGeminiChatGenerator:
         assert reply.tool_calls[1].arguments == {"city": "Munich"}
         assert reply.meta["usage"] == {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
 
+    @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
+    @pytest.mark.asyncio
+    async def test_run_async(self, mock_generative_model):
+        mock_model = Mock()
+        mock_candidate = MagicMock(
+            content=Content(parts=[Part.from_text("This is a generated response.")], role="model")
+        )
+        mock_response = MagicMock(spec=GenerationResponse, candidates=[mock_candidate])
+
+        mock_model.send_message_async = AsyncMock(return_value=mock_response)
+        mock_model.start_chat.return_value = mock_model
+        mock_generative_model.return_value = mock_model
+
+        messages = [
+            ChatMessage.from_system("You are a helpful assistant"),
+            ChatMessage.from_user("What's the capital of France?"),
+        ]
+        gemini = VertexAIGeminiChatGenerator()
+        response = await gemini.run_async(messages=messages)
+
+        mock_model.send_message_async.assert_called_once()
+        assert "replies" in response
+        reply = response["replies"][0]
+        assert reply.role == ChatRole.ASSISTANT
+        assert reply.text == "This is a generated response."
+
+    @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
+    @pytest.mark.asyncio
+    async def test_run_with_tools_async(self, mock_generative_model, tools):
+        mock_model = Mock()
+        mock_candidate = MagicMock(
+            content=Content(
+                parts=[
+                    Part.from_dict(
+                        {"function_call": {"name": "get_current_weather", "args": {"city": "Paris", "unit": "Celsius"}}}
+                    ),
+                ],
+                role="model",
+            )
+        )
+        mock_response = MagicMock(spec=GenerationResponse, candidates=[mock_candidate])
+
+        mock_model.send_message_async = AsyncMock(return_value=mock_response)
+        mock_model.start_chat.return_value = mock_model
+        mock_generative_model.return_value = mock_model
+
+        messages = [
+            ChatMessage.from_user("What's the weather in Paris?"),
+        ]
+
+        gemini = VertexAIGeminiChatGenerator(tools=tools)
+        response = await gemini.run_async(messages=messages)
+
+        mock_model.send_message_async.assert_called_once()
+        call_kwargs = mock_model.send_message_async.call_args.kwargs
+        assert "tools" in call_kwargs
+
+        assert "replies" in response
+        reply = response["replies"][0]
+        assert reply.role == ChatRole.ASSISTANT
+        assert not reply.texts
+        assert not reply.text
+        assert len(reply.tool_calls) == 1
+        assert reply.tool_calls[0].tool_name == "get_current_weather"
+        assert reply.tool_calls[0].arguments == {"city": "Paris", "unit": "Celsius"}
+
+    @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
+    @pytest.mark.asyncio
+    async def test_run_with_muliple_tools_and_streaming_async(self, mock_generative_model, tools):
+        """
+        Test that the generator can handle multiple tools and streaming.
+        Note: this test case is made up because in practice I have always seen multiple function calls in a single
+        streaming chunk.
+        """
+
+        def population(city: Annotated[str, "the city for which to get the population, e.g. 'Munich'"] = "Munich"):
+            """A simple function to get the population for a location."""
+            return f"Population of {city}: 1,000,000"
+
+        multiple_tools = [tools[0], create_tool_from_function(population)]
+
+        mock_model = Mock()
+
+        mock_responses = [
+            MagicMock(
+                spec=GenerationResponse,
+                to_dict=lambda: {
+                    "candidates": [
+                        {
+                            "content": {
+                                "parts": [
+                                    {
+                                        "function_call": {
+                                            "name": "get_current_weather",
+                                            "args": {"city": "Munich", "unit": "Farenheit"},
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+            ),
+            MagicMock(
+                spec=GenerationResponse,
+                to_dict=lambda: {
+                    "candidates": [
+                        {"content": {"parts": [{"function_call": {"name": "population", "args": {"city": "Munich"}}}]}}
+                    ],
+                    "usage_metadata": {"prompt_token_count": 10, "candidates_token_count": 5, "total_token_count": 15},
+                },
+            ),
+        ]
+
+        async def async_response_generator():
+            for response in mock_responses:
+                yield response
+
+        mock_model.send_message_async = AsyncMock(return_value=async_response_generator())
+        mock_model.start_chat.return_value = mock_model
+        mock_generative_model.return_value = mock_model
+
+        received_chunks = []
+
+        async def async_streaming_callback(chunk: StreamingChunk) -> None:
+            received_chunks.append(chunk)
+
+        messages = [
+            ChatMessage.from_user("What's the weather in Munich (in Farenheit) and how many people live there?"),
+        ]
+
+        gemini = VertexAIGeminiChatGenerator(tools=multiple_tools, streaming_callback=async_streaming_callback)
+        response = await gemini.run_async(messages=messages)
+
+        assert len(received_chunks) == 2
+        assert json.loads(received_chunks[0].content) == {
+            "name": "get_current_weather",
+            "args": {"city": "Munich", "unit": "Farenheit"},
+        }
+        assert json.loads(received_chunks[1].content) == {"name": "population", "args": {"city": "Munich"}}
+
+        assert "replies" in response
+        reply = response["replies"][0]
+        assert reply.role == ChatRole.ASSISTANT
+        assert not reply.texts
+        assert not reply.text
+        assert len(reply.tool_calls) == 2
+        assert reply.tool_calls[0].tool_name == "get_current_weather"
+        assert reply.tool_calls[0].arguments == {"city": "Munich", "unit": "Farenheit"}
+        assert reply.tool_calls[1].tool_name == "population"
+        assert reply.tool_calls[1].arguments == {"city": "Munich"}
+        assert reply.meta["usage"] == {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+
     def test_serde_in_pipeline(self):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
 
@@ -527,8 +689,7 @@ class TestVertexAIGeminiChatGenerator:
             "components": {
                 "generator": {
                     "type": (
-                        "haystack_integrations.components.generators.google_vertex.chat.gemini."
-                        "VertexAIGeminiChatGenerator"
+                        "haystack_integrations.components.generators.google_vertex.chat.gemini.VertexAIGeminiChatGenerator"
                     ),
                     "init_parameters": {
                         "project_id": "TestID123",
@@ -560,6 +721,21 @@ class TestVertexAIGeminiChatGenerator:
 
         if not hasattr(pipeline, "_connection_type_validation"):
             expected_dict.pop("connection_type_validation")
+
+        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
+        # haystack-ai>=2.12.0
+        if hasattr(tool, "outputs_to_string"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
+                "outputs_to_string"
+            ] = tool.outputs_to_string
+        if hasattr(tool, "inputs_from_state"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
+                "inputs_from_state"
+            ] = tool.inputs_from_state
+        if hasattr(tool, "outputs_to_state"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
+                "outputs_to_state"
+            ] = tool.outputs_to_state
 
         assert pipeline_dict == expected_dict
 

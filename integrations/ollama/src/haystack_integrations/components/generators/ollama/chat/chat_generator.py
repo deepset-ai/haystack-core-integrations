@@ -2,8 +2,15 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
-from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
+from haystack.tools import Tool, _check_duplicate_tool_names
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
+
+# Compatibility with Haystack 2.12.0 and 2.13.0 - remove after 2.13.0 is released
+try:
+    from haystack.tools import deserialize_tools_or_toolset_inplace
+except ImportError:
+    from haystack.tools import deserialize_tools_inplace as deserialize_tools_or_toolset_inplace
+
 from pydantic.json_schema import JsonSchemaValue
 
 from ollama import ChatResponse, Client
@@ -41,6 +48,60 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any
     return ollama_msg
 
 
+def _convert_ollama_meta_to_openai_format(intput_response_dict: Dict) -> Dict:
+    """
+    Internal function to convert Ollama metadata to OpenAI format.
+
+    All fields that are not part of the OpenAI metadata are left unchanged in the returned dict.
+
+    Example Ollama metadata:
+    {
+        'model': 'phi4:14b-q4_K_M',
+        'created_at': '2025-03-09T18:38:33.004185821Z',
+        'done': True,
+        'done_reason': 'stop',
+        'total_duration': 86627206961,
+        'load_duration': 23585622554,
+        'prompt_eval_count': 26,
+        'prompt_eval_duration': 3426000000,
+        'eval_count': 298,
+        'eval_duration': 4799921000
+    }
+
+    Example OpenAI metadata:
+    {
+        'model': 'phi4:14b-q4_K_M',
+        'finish_reason': 'stop',
+        'usage': {
+            'completion_tokens': 298,
+            'prompt_tokens': 26,
+            'total_tokens': 324,
+        }
+        'completion_start_time': '2025-03-09T18:38:33.004185821Z',
+        'done': True,
+        'total_duration': 86627206961,
+        'load_duration': 23585622554,
+        'prompt_eval_duration': 3426000000,
+        'eval_duration': 4799921000,
+    }
+    """
+    meta = {key: value for key, value in intput_response_dict.items() if key != "message"}
+
+    if "done_reason" in meta:
+        meta["finish_reason"] = meta.pop("done_reason")
+    if "created_at" in meta:
+        meta["completion_start_time"] = meta.pop("created_at")
+    if "eval_count" in meta and "prompt_eval_count" in meta:
+        eval_count = meta.pop("eval_count")
+        prompt_eval_count = meta.pop("prompt_eval_count")
+        meta["usage"] = {
+            "completion_tokens": eval_count,
+            "prompt_tokens": prompt_eval_count,
+            "total_tokens": eval_count + prompt_eval_count,
+        }
+    return meta
+
+
 def _convert_ollama_response_to_chatmessage(ollama_response: "ChatResponse") -> ChatMessage:
     """
     Converts the non-streaming response from the Ollama API to a ChatMessage with assistant role.
@@ -60,7 +121,7 @@ def _convert_ollama_response_to_chatmessage(ollama_response: "ChatResponse") -> 
 
     message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls)
 
-    message.meta.update({key: value for key, value in response_dict.items() if key != "message"})
+    message._meta = _convert_ollama_meta_to_openai_format(response_dict)
     return message
 
 
@@ -176,7 +237,7 @@ class OllamaChatGenerator:
         :returns:
             Deserialized component.
         """
-        deserialize_tools_inplace(data["init_parameters"], key="tools")
+        deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
 
         init_params = data.get("init_parameters", {})
 
@@ -197,7 +258,9 @@ class OllamaChatGenerator:
         chunk_message = StreamingChunk(content, meta)
         return chunk_message
 
-    def _handle_streaming_response(self, response) -> Dict[str, List[Any]]:
+    def _handle_streaming_response(
+        self, response: Any, streaming_callback: Optional[Callable[[StreamingChunk], None]]
+    ) -> Dict[str, List[Any]]:
         """
         Handles streaming response and converts it to Haystack format
         """
@@ -205,8 +268,8 @@ class OllamaChatGenerator:
         for chunk in response:
             chunk_delta = self._build_chunk(chunk)
             chunks.append(chunk_delta)
-            if self.streaming_callback is not None:
-                self.streaming_callback(chunk_delta)
+            if streaming_callback is not None:
+                streaming_callback(chunk_delta)
 
         replies = [ChatMessage.from_assistant("".join([c.content for c in chunks]))]
         meta = {key: value for key, value in chunks[0].meta.items() if key != "message"}
@@ -219,6 +282,8 @@ class OllamaChatGenerator:
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[List[Tool]] = None,
+        *,
+        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
         """
         Runs an Ollama Model on a given chat history.
@@ -232,12 +297,15 @@ class OllamaChatGenerator:
         :param tools:
             A list of tools for which the model can prepare calls. If set, it will override the `tools` parameter set
             during component initialization.
+        :param streaming_callback:
+            A callback function that is called when a new token is received from the stream.
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
         """
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
+        resolved_streaming_callback = streaming_callback or self.streaming_callback
 
-        stream = self.streaming_callback is not None
+        stream = resolved_streaming_callback is not None
         tools = tools or self.tools
         _check_duplicate_tool_names(tools)
 
@@ -267,6 +335,6 @@ class OllamaChatGenerator:
         )
 
         if stream:
-            return self._handle_streaming_response(response)
+            return self._handle_streaming_response(response, resolved_streaming_callback)
 
         return {"replies": [_convert_ollama_response_to_chatmessage(response)]}

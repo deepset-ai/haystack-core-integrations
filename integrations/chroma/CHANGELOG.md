@@ -1,6 +1,26 @@
 # Changelog
 
+## [integrations/chroma-v3.1.0] - 2025-04-14
+
+### 🐛 Bug Fixes
+
+- Update test and unpin chroma (#1618)
+- Make chroma backwards compatible (#1619)
+
+
+## [integrations/chroma-v2.0.2] - 2025-04-04
+
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🌀 Miscellaneous
+
+- Fix: Pin chroma (#1608)
+
 ## [integrations/chroma-v3.0.0] - 2025-03-11
+
 
 ### 🧹 Chores
 

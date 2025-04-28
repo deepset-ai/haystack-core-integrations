@@ -8,6 +8,7 @@ from typing import List
 from unittest.mock import patch
 
 import pytest
+from azure.search.documents.indexes.models import CustomAnalyzer, SearchResourceEncryptionKey
 from haystack.dataclasses.document import Document
 from haystack.errors import FilterError
 from haystack.testing.document_store import (
@@ -18,20 +19,22 @@ from haystack.testing.document_store import (
 )
 from haystack.utils.auth import EnvVarSecret, Secret
 
-from haystack_integrations.document_stores.azure_ai_search import DEFAULT_VECTOR_SEARCH, AzureAISearchDocumentStore
+from haystack_integrations.document_stores.azure_ai_search import (
+    DEFAULT_VECTOR_SEARCH,
+    AzureAISearchDocumentStore,
+)
 
 
-@patch("haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore")
 def test_to_dict(monkeypatch):
-    monkeypatch.setenv("AZURE_SEARCH_API_KEY", "test-api-key")
-    monkeypatch.setenv("AZURE_SEARCH_SERVICE_ENDPOINT", "test-endpoint")
+    monkeypatch.setenv("AZURE_AI_SEARCH_API_KEY", "test-api-key")
+    monkeypatch.setenv("AZURE_AI_SEARCH_ENDPOINT", "test-endpoint")
     document_store = AzureAISearchDocumentStore()
     res = document_store.to_dict()
     assert res == {
         "type": "haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore",
         "init_parameters": {
-            "azure_endpoint": {"env_vars": ["AZURE_SEARCH_SERVICE_ENDPOINT"], "strict": True, "type": "env_var"},
-            "api_key": {"env_vars": ["AZURE_SEARCH_API_KEY"], "strict": False, "type": "env_var"},
+            "azure_endpoint": {"env_vars": ["AZURE_AI_SEARCH_ENDPOINT"], "strict": True, "type": "env_var"},
+            "api_key": {"env_vars": ["AZURE_AI_SEARCH_API_KEY"], "strict": False, "type": "env_var"},
             "index_name": "default",
             "embedding_dimension": 768,
             "metadata_fields": None,
@@ -51,16 +54,77 @@ def test_to_dict(monkeypatch):
     }
 
 
-@patch("haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore")
+def test_to_dict_with_params(monkeypatch):
+    monkeypatch.setenv("AZURE_AI_SEARCH_API_KEY", "test-api-key")
+    monkeypatch.setenv("AZURE_AI_SEARCH_ENDPOINT", "test-endpoint")
+    encryption_key = SearchResourceEncryptionKey(
+        key_name="my-key",
+        key_version="my-version",
+        vault_uri="my-uri",
+    )
+    analyzer = CustomAnalyzer(
+        name="url-analyze",
+        tokenizer_name="uax_url_email",
+        token_filters=["lowercase"],  # Using token filter name directly as string
+    )
+    document_store = AzureAISearchDocumentStore(
+        index_name="my_index",
+        embedding_dimension=15,
+        metadata_fields={"Title": str, "Pages": int},
+        encryption_key=encryption_key,
+        analyzers=[analyzer],
+    )
+
+    res = document_store.to_dict()
+    assert res == {
+        "type": "haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore",
+        "init_parameters": {
+            "azure_endpoint": {"env_vars": ["AZURE_AI_SEARCH_ENDPOINT"], "strict": True, "type": "env_var"},
+            "api_key": {"env_vars": ["AZURE_AI_SEARCH_API_KEY"], "strict": False, "type": "env_var"},
+            "index_name": "my_index",
+            "embedding_dimension": 15,
+            "metadata_fields": {
+                "Title": "str",
+                "Pages": "int",
+            },
+            "encryption_key": {
+                "key_name": "my-key",
+                "key_version": "my-version",
+                "vault_uri": "my-uri",
+            },
+            "analyzers": [
+                {
+                    "name": "url-analyze",
+                    "odata_type": "#Microsoft.Azure.Search.CustomAnalyzer",
+                    "tokenizer_name": "uax_url_email",
+                    "token_filters": ["lowercase"],
+                }
+            ],
+            "vector_search_configuration": {
+                "profiles": [
+                    {"name": "default-vector-config", "algorithm_configuration_name": "cosine-algorithm-config"}
+                ],
+                "algorithms": [
+                    {
+                        "name": "cosine-algorithm-config",
+                        "kind": "hnsw",
+                        "parameters": {"m": 4, "ef_construction": 400, "ef_search": 500, "metric": "cosine"},
+                    }
+                ],
+            },
+        },
+    }
+
+
 def test_from_dict(monkeypatch):
-    monkeypatch.setenv("AZURE_SEARCH_API_KEY", "test-api-key")
-    monkeypatch.setenv("AZURE_SEARCH_SERVICE_ENDPOINT", "test-endpoint")
+    monkeypatch.setenv("AZURE_AI_SEARCH_API_KEY", "test-api-key")
+    monkeypatch.setenv("AZURE_AI_SEARCH_ENDPOINT", "test-endpoint")
 
     data = {
         "type": "haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore",
         "init_parameters": {
-            "azure_endpoint": {"env_vars": ["AZURE_SEARCH_SERVICE_ENDPOINT"], "strict": True, "type": "env_var"},
-            "api_key": {"env_vars": ["AZURE_SEARCH_API_KEY"], "strict": False, "type": "env_var"},
+            "azure_endpoint": {"env_vars": ["AZURE_AI_SEARCH_ENDPOINT"], "strict": True, "type": "env_var"},
+            "api_key": {"env_vars": ["AZURE_AI_SEARCH_API_KEY"], "strict": False, "type": "env_var"},
             "embedding_dimension": 768,
             "index_name": "default",
             "metadata_fields": None,
@@ -76,6 +140,66 @@ def test_from_dict(monkeypatch):
     assert document_store._vector_search_configuration == DEFAULT_VECTOR_SEARCH
 
 
+def test_from_dict_with_params(monkeypatch):
+    monkeypatch.setenv("AZURE_AI_SEARCH_API_KEY", "test-api-key")
+    monkeypatch.setenv("AZURE_AI_SEARCH_ENDPOINT", "test-endpoint")
+    encryption_key = SearchResourceEncryptionKey(
+        key_name="my-key",
+        key_version="my-version",
+        vault_uri="my-uri",
+    )
+
+    data = {
+        "type": "haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore",
+        "init_parameters": {
+            "azure_endpoint": {"env_vars": ["AZURE_AI_SEARCH_ENDPOINT"], "strict": True, "type": "env_var"},
+            "api_key": {"env_vars": ["AZURE_AI_SEARCH_API_KEY"], "strict": False, "type": "env_var"},
+            "index_name": "my_index",
+            "embedding_dimension": 15,
+            "metadata_fields": {
+                "Title": "str",
+                "Pages": "int",
+            },
+            "encryption_key": {
+                "key_name": "my-key",
+                "key_version": "my-version",
+                "vault_uri": "my-uri",
+            },
+            "analyzers": [
+                {
+                    "name": "url-analyze",
+                    "odata_type": "#Microsoft.Azure.Search.CustomAnalyzer",
+                    "tokenizer_name": "uax_url_email",
+                    "token_filters": ["lowercase"],
+                }
+            ],
+            "vector_search_configuration": {
+                "profiles": [
+                    {"name": "default-vector-config", "algorithm_configuration_name": "cosine-algorithm-config"}
+                ],
+                "algorithms": [
+                    {
+                        "name": "cosine-algorithm-config",
+                        "kind": "hnsw",
+                        "parameters": {"m": 4, "ef_construction": 400, "ef_search": 500, "metric": "cosine"},
+                    }
+                ],
+            },
+        },
+    }
+    document_store = AzureAISearchDocumentStore.from_dict(data)
+    assert isinstance(document_store._api_key, EnvVarSecret)
+    assert isinstance(document_store._azure_endpoint, EnvVarSecret)
+    assert document_store._index_name == "my_index"
+    assert document_store._embedding_dimension == 15
+    assert document_store._metadata_fields == {"Title": str, "Pages": int}
+    assert document_store._index_creation_kwargs["encryption_key"] == encryption_key
+    assert document_store._index_creation_kwargs["analyzers"][0].name == "url-analyze"
+    assert document_store._index_creation_kwargs["analyzers"][0].token_filters == ["lowercase"]
+    assert "CustomAnalyzer" in document_store._index_creation_kwargs["analyzers"][0].odata_type
+    assert document_store._vector_search_configuration.as_dict() == DEFAULT_VECTOR_SEARCH.as_dict()
+
+
 @patch("haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore")
 def test_init_is_lazy(_mock_azure_search_client):
     AzureAISearchDocumentStore(azure_endpoint=Secret.from_token("test_endpoint"))
@@ -84,7 +208,6 @@ def test_init_is_lazy(_mock_azure_search_client):
 
 @patch("haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore")
 def test_init(_mock_azure_search_client):
-
     document_store = AzureAISearchDocumentStore(
         api_key=Secret.from_token("fake-api-key"),
         azure_endpoint=Secret.from_token("fake_endpoint"),
@@ -101,8 +224,8 @@ def test_init(_mock_azure_search_client):
 
 @pytest.mark.integration
 @pytest.mark.skipif(
-    not os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT", None) and not os.environ.get("AZURE_SEARCH_API_KEY", None),
-    reason="Missing AZURE_SEARCH_SERVICE_ENDPOINT or AZURE_SEARCH_API_KEY.",
+    not os.environ.get("AZURE_AI_SEARCH_ENDPOINT", None) and not os.environ.get("AZURE_AI_SEARCH_API_KEY", None),
+    reason="Missing AZURE_AI_SEARCH_ENDPOINT or AZURE_AI_SEARCH_API_KEY.",
 )
 class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
 
@@ -147,8 +270,8 @@ TEST_EMBEDDING_2 = _random_embeddings(768)
 
 @pytest.mark.integration
 @pytest.mark.skipif(
-    not os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT", None) and not os.environ.get("AZURE_SEARCH_API_KEY", None),
-    reason="Missing AZURE_SEARCH_SERVICE_ENDPOINT or AZURE_SEARCH_API_KEY.",
+    not os.environ.get("AZURE_AI_SEARCH_ENDPOINT", None) and not os.environ.get("AZURE_AI_SEARCH_API_KEY", None),
+    reason="Missing AZURE_AI_SEARCH_ENDPOINT or AZURE_AI_SEARCH_API_KEY.",
 )
 @pytest.mark.parametrize(
     "document_store",

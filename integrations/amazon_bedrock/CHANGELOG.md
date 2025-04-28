@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.5.0] - 2025-04-03
+
+### 🌀 Miscellaneous
+
+- Test: Update tests to check for `outputs_to_string` in Tool when running haystack-ai>=2.12 (#1585)
+- Fix: amazon-bedrock-haystack remove init files to make them namespace packages (#1593)
+
+## [integrations/amazon_bedrock-v3.4.0] - 2025-04-02
+
+### 🚀 Features
+
+- AmazonBedrockGenerator - return response metadata (#1584)
+
+
+### 🧪 Testing
+
+- Update tool serialization in tests to include `inputs_from_state` and `outputs_to_state` (#1581)
+
+### 🌀 Miscellaneous
+
+- Improve streaming_callback type and use async version in run_async (#1582)
+
 ## [integrations/amazon_bedrock-v3.3.0] - 2025-03-18
 
 ### 🚀 Features
@@ -10,9 +32,6 @@
 
 - Review testing workflows (#1541)
 
-### 🌀 Miscellaneous
-
-- Docs: update changelog for integrations/amazon_bedrock (#1536)
 
 ## [integrations/amazon_bedrock-v3.2.1] - 2025-03-13
 
@@ -38,9 +57,6 @@
 
 - Adding async to `AmazonChatGenerator` (#1445)
 
-### 📚 Documentation
-
-- Update changelog for integrations/amazon_bedrock (#1443)
 
 ## [integrations/amazon_bedrock-v3.1.1] - 2025-02-26
 
@@ -48,9 +64,6 @@
 
 - Avoid thinking end tag on first content block (#1442)
 
-### 📚 Documentation
-
-- Update changelog for integrations/amazon_bedrock (#1441)
 
 ## [integrations/amazon_bedrock-v3.1.0] - 2025-02-26
 
@@ -64,7 +77,6 @@
 
 ### 🌀 Miscellaneous
 
-- Docs: update changelog for integrations/amazon_bedrock (#1336)
 - Chore: remove `jsonschema` dependency from `default` environment (#1368)
 
 ## [integrations/amazon_bedrock-v3.0.1] - 2025-01-30
