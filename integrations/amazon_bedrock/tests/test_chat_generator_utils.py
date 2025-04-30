@@ -1,21 +1,13 @@
 import pytest
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
+from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool
 
 from haystack_integrations.components.generators.amazon_bedrock.chat.utils import (
+    _format_messages,
     _format_tools,
     _parse_completion_response,
     _parse_streaming_response,
 )
-
-
-@pytest.fixture
-def chat_messages():
-    messages = [
-        ChatMessage.from_system("\\nYou are a helpful assistant, be super brief in your responses."),
-        ChatMessage.from_user("What's the capital of France?"),
-    ]
-    return messages
 
 
 def weather(city: str):
@@ -23,21 +15,35 @@ def weather(city: str):
     return f"The weather in {city} is sunny and 32°C"
 
 
+def addition(a: int, b: int):
+    """Add two numbers."""
+    return a + b
+
+
 @pytest.fixture
 def tools():
-    tool_parameters = {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
-    tool = Tool(
+    weather_tool = Tool(
         name="weather",
         description="useful to determine the weather in a given location",
-        parameters=tool_parameters,
+        parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
         function=weather,
     )
-    return [tool]
+    addition_tool = Tool(
+        name="addition",
+        description="useful to add two numbers",
+        parameters={
+            "type": "object",
+            "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
+            "required": ["a", "b"],
+        },
+        function=addition,
+    )
+    return [weather_tool, addition_tool]
 
 
 class TestAmazonBedrockChatGeneratorUtils:
     def test_format_tools(self, tools):
-        formatted_tool = _format_tools(tools[:1])
+        formatted_tool = _format_tools(tools)
         assert formatted_tool == {
             "tools": [
                 {
@@ -45,16 +51,59 @@ class TestAmazonBedrockChatGeneratorUtils:
                         "name": "weather",
                         "description": "useful to determine the weather in a given location",
                         "inputSchema": {
+                            "json": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
+                        },
+                    }
+                },
+                {
+                    "toolSpec": {
+                        "name": "addition",
+                        "description": "useful to add two numbers",
+                        "inputSchema": {
                             "json": {
                                 "type": "object",
-                                "properties": {"city": {"type": "string"}},
-                                "required": ["city"],
+                                "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
+                                "required": ["a", "b"],
                             }
                         },
                     }
-                }
-            ],
+                },
+            ]
         }
+
+    def test_format_messages(self):
+        messages = [
+            ChatMessage.from_system("\\nYou are a helpful assistant, be super brief in your responses."),
+            ChatMessage.from_user("What's the capital of France?"),
+            ChatMessage.from_assistant("The capital of France is Paris."),
+            ChatMessage.from_user("What is the weather in Paris?"),
+            ChatMessage.from_assistant(
+                tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})]
+            ),
+            ChatMessage.from_tool(
+                tool_result="Sunny and 25°C",
+                origin=ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"}),
+            ),
+            ChatMessage.from_assistant("The weather in Paris is sunny and 25°C."),
+        ]
+        formatted_system_prompts, formatted_messages = _format_messages(messages)
+        assert formatted_system_prompts == [
+            {"text": "\\nYou are a helpful assistant, be super brief in your responses."}
+        ]
+        assert formatted_messages == [
+            {"role": "user", "content": [{"text": "What's the capital of France?"}]},
+            {"role": "assistant", "content": [{"text": "The capital of France is Paris."}]},
+            {"role": "user", "content": [{"text": "What is the weather in Paris?"}]},
+            {
+                "role": "assistant",
+                "content": [{"toolUse": {"toolUseId": "123", "name": "weather", "input": {"city": "Paris"}}}],
+            },
+            {
+                "role": "user",
+                "content": [{"toolResult": {"toolUseId": "123", "content": [{"text": "Sunny and 25°C"}]}}],
+            },
+            {"role": "assistant", "content": [{"text": "The weather in Paris is sunny and 25°C."}]},
+        ]
 
     def test_extract_replies_from_text_response(self, mock_boto3_session):
         model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
@@ -138,7 +187,6 @@ class TestAmazonBedrockChatGeneratorUtils:
         Test that process_streaming_response correctly handles streaming events and accumulates responses
         """
         model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
-
         streaming_chunks = []
 
         def test_callback(chunk: StreamingChunk):

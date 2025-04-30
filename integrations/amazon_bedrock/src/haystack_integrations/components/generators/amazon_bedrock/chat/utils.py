@@ -146,10 +146,7 @@ def _parse_streaming_response(
     replies = []
     current_content = ""
     current_tool_call: Optional[Dict[str, Any]] = None
-    base_meta = {
-        "model": model,
-        "index": 0,
-    }
+    base_meta = {"model": model, "index": 0}
 
     for event in response_stream:
         if "contentBlockStart" in event:
@@ -231,10 +228,7 @@ async def _parse_streaming_response_async(
     replies = []
     current_content = ""
     current_tool_call: Optional[Dict[str, Any]] = None
-    base_meta = {
-        "model": model,
-        "index": 0,
-    }
+    base_meta = {"model": model, "index": 0}
 
     async for event in response_stream:
         if "contentBlockStart" in event:
