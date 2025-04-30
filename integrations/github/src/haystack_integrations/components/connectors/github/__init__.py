@@ -2,19 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .file_editor import Command, GithubFileEditor
-from .issue_commenter import GithubIssueCommenter
-from .issue_viewer import GithubIssueViewer
-from .pr_creator import GithubPRCreator
-from .repo_viewer import GithubRepositoryViewer
-from .repository_forker import GithubRepoForker
+from .file_editor import Command, GitHubFileEditor
+from .issue_commenter import GitHubIssueCommenter
+from .issue_viewer import GitHubIssueViewer
+from .pr_creator import GitHubPRCreator
+from .repo_viewer import GitHubRepositoryViewer
+from .repository_forker import GitHubRepoForker
 
 __all__ = [
     "Command",
-    "GithubFileEditor",
-    "GithubIssueCommenter",
-    "GithubIssueViewer",
-    "GithubPRCreator",
-    "GithubRepoForker",
-    "GithubRepositoryViewer",
+    "GitHubFileEditor",
+    "GitHubIssueCommenter",
+    "GitHubIssueViewer",
+    "GitHubPRCreator",
+    "GitHubRepoForker",
+    "GitHubRepositoryViewer",
 ]

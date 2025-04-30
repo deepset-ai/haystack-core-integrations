@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 @component
-class GithubIssueCommenter:
+class GitHubIssueCommenter:
     """
     Posts comments to GitHub issues.
 
@@ -19,10 +19,10 @@ class GithubIssueCommenter:
 
     ### Usage example
     ```python
-    from haystack_integrations.components.connectors.github import GithubIssueCommenter
+    from haystack_integrations.components.connectors.github import GitHubIssueCommenter
     from haystack.utils import Secret
 
-    commenter = GithubIssueCommenter(github_token=Secret.from_env_var("GITHUB_TOKEN"))
+    commenter = GitHubIssueCommenter(github_token=Secret.from_env_var("GITHUB_TOKEN"))
     result = commenter.run(
         url="https://github.com/owner/repo/issues/123",
         comment="Thanks for reporting this issue! We'll look into it."
@@ -52,7 +52,7 @@ class GithubIssueCommenter:
         # Set base headers during initialization
         self.headers = {
             "Accept": "application/vnd.github.v3+json",
-            "User-Agent": "Haystack/GithubIssueCommenter",
+            "User-Agent": "Haystack/GitHubIssueCommenter",
         }
 
     def _get_request_headers(self) -> dict:
@@ -123,7 +123,7 @@ class GithubIssueCommenter:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GithubIssueCommenter":
+    def from_dict(cls, data: Dict[str, Any]) -> "GitHubIssueCommenter":
         """
         Deserialize the component from a dictionary.
 

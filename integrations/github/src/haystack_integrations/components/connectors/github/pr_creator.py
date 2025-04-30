@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 @component
-class GithubPRCreator:
+class GitHubPRCreator:
     """
     A Haystack component for creating pull requests from a fork back to the original repository.
 
@@ -17,10 +17,10 @@ class GithubPRCreator:
 
     ### Usage example
     ```python
-    from haystack_integrations.components.connectors.github import GithubPRCreator
+    from haystack_integrations.components.connectors.github import GitHubPRCreator
     from haystack.utils import Secret
 
-    pr_creator = GithubPRCreator(
+    pr_creator = GitHubPRCreator(
         github_token=Secret.from_env_var("GITHUB_TOKEN")  # Token from the fork owner
     )
 
@@ -58,7 +58,7 @@ class GithubPRCreator:
         return {
             "Accept": "application/vnd.github.v3+json",
             "Authorization": f"Bearer {self.github_token.resolve_value()}",
-            "User-Agent": "Haystack/GithubPRCreator",
+            "User-Agent": "Haystack/GitHubPRCreator",
         }
 
     def _parse_issue_url(self, issue_url: str) -> tuple[str, str, str]:
@@ -263,7 +263,7 @@ class GithubPRCreator:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GithubPRCreator":
+    def from_dict(cls, data: Dict[str, Any]) -> "GitHubPRCreator":
         """Deserialize the component from a dictionary."""
         init_params = data["init_parameters"]
         deserialize_secrets_inplace(init_params, keys=["github_token"])

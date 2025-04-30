@@ -27,7 +27,7 @@ class Command(str, Enum):
 
 
 @component
-class GithubFileEditor:
+class GitHubFileEditor:
     """
     A Haystack component for editing files in GitHub repositories.
 
@@ -36,11 +36,11 @@ class GithubFileEditor:
 
     ### Usage example
     ```python
-    from haystack_integrations.components.connectors.github import Command, GithubFileEditor
+    from haystack_integrations.components.connectors.github import Command, GitHubFileEditor
     from haystack.utils import Secret
 
     # Initialize with default repo and branch
-    editor = GithubFileEditor(
+    editor = GitHubFileEditor(
         github_token=Secret.from_env_var("GITHUB_TOKEN"),
         repo="owner/repo",
         branch="main"
@@ -99,7 +99,7 @@ class GithubFileEditor:
         self.headers = {
             "Accept": "application/vnd.github.v3+json",
             "Authorization": f"Bearer {self.github_token.resolve_value()}",
-            "User-Agent": "Haystack/GithubFileEditor",
+            "User-Agent": "Haystack/GitHubFileEditor",
         }
 
     def _get_file_content(self, owner: str, repo: str, path: str, branch: str) -> tuple[str, str]:
@@ -280,7 +280,7 @@ class GithubFileEditor:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GithubFileEditor":
+    def from_dict(cls, data: Dict[str, Any]) -> "GitHubFileEditor":
         """Deserialize the component from a dictionary."""
         init_params = data["init_parameters"]
         deserialize_secrets_inplace(init_params, keys=["github_token"])

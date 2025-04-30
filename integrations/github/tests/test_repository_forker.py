@@ -7,14 +7,14 @@ import pytest
 import requests
 from haystack.utils import Secret
 
-from haystack_integrations.components.connectors.github.repository_forker import GithubRepoForker
+from haystack_integrations.components.connectors.github.repository_forker import GitHubRepoForker
 
 
-class TestGithubRepoForker:
+class TestGitHubRepoForker:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
-        forker = GithubRepoForker()
+        forker = GitHubRepoForker()
         assert forker.github_token is not None
         assert forker.github_token.resolve_value() == "test-token"
         assert forker.raise_on_failure is True
@@ -26,7 +26,7 @@ class TestGithubRepoForker:
 
     def test_init_with_parameters(self):
         token = Secret.from_token("test-token")
-        forker = GithubRepoForker(
+        forker = GitHubRepoForker(
             github_token=token,
             raise_on_failure=False,
             wait_for_completion=True,
@@ -45,14 +45,14 @@ class TestGithubRepoForker:
 
         # Test with invalid token type
         with pytest.raises(TypeError):
-            GithubRepoForker(github_token="not_a_secret")
+            GitHubRepoForker(github_token="not_a_secret")
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test-token")
 
         token = Secret.from_env_var("ENV_VAR")
 
-        forker = GithubRepoForker(
+        forker = GitHubRepoForker(
             github_token=token,
             raise_on_failure=False,
             wait_for_completion=True,
@@ -65,7 +65,7 @@ class TestGithubRepoForker:
         data = forker.to_dict()
 
         assert data == {
-            "type": "haystack_integrations.components.connectors.github.repository_forker.GithubRepoForker",
+            "type": "haystack_integrations.components.connectors.github.repository_forker.GitHubRepoForker",
             "init_parameters": {
                 "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
                 "raise_on_failure": False,
@@ -81,7 +81,7 @@ class TestGithubRepoForker:
         monkeypatch.setenv("ENV_VAR", "test-token")
 
         data = {
-            "type": "haystack_integrations.components.connectors.github.repository_forker.GithubRepoForker",
+            "type": "haystack_integrations.components.connectors.github.repository_forker.GitHubRepoForker",
             "init_parameters": {
                 "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
                 "raise_on_failure": False,
@@ -93,7 +93,7 @@ class TestGithubRepoForker:
             },
         }
 
-        forker = GithubRepoForker.from_dict(data)
+        forker = GitHubRepoForker.from_dict(data)
 
         assert forker.github_token == Secret.from_env_var("ENV_VAR")
         assert forker.raise_on_failure is False
@@ -150,7 +150,7 @@ class TestGithubRepoForker:
 
         mock_post.side_effect = post_side_effect
 
-        forker = GithubRepoForker(create_branch=True, auto_sync=False)
+        forker = GitHubRepoForker(create_branch=True, auto_sync=False)
 
         result = forker.run(url="https://github.com/owner/repo/issues/123")
 
@@ -212,7 +212,7 @@ class TestGithubRepoForker:
 
         mock_post.side_effect = post_side_effect
 
-        forker = GithubRepoForker(create_branch=True, auto_sync=True)
+        forker = GitHubRepoForker(create_branch=True, auto_sync=True)
 
         result = forker.run(url="https://github.com/owner/repo/issues/123")
 
@@ -238,21 +238,21 @@ class TestGithubRepoForker:
 
         mock_get.side_effect = requests.RequestException("API Error")
 
-        forker = GithubRepoForker(raise_on_failure=False)
+        forker = GitHubRepoForker(raise_on_failure=False)
 
         result = forker.run(url="https://github.com/owner/repo/issues/123")
 
         assert result["repo"] == ""
         assert result["issue_branch"] is None
 
-        forker = GithubRepoForker(raise_on_failure=True)
+        forker = GitHubRepoForker(raise_on_failure=True)
         with pytest.raises(requests.RequestException):
             forker.run(url="https://github.com/owner/repo/issues/123")
 
     def test_parse_github_url(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
-        forker = GithubRepoForker()
+        forker = GitHubRepoForker()
 
         owner, repo, issue_number = forker._parse_github_url("https://github.com/owner/repo/issues/123")
         assert owner == "owner"

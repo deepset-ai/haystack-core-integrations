@@ -22,7 +22,7 @@ class GitHubItem:
 
 
 @component
-class GithubRepositoryViewer:
+class GitHubRepositoryViewer:
     """
     Navigates and fetches content from GitHub repositories.
 
@@ -43,9 +43,9 @@ class GithubRepositoryViewer:
 
     ### Usage example
     ```python
-    from haystack_integrations.components.connectors.github import GithubRepositoryViewer
+    from haystack_integrations.components.connectors.github import GitHubRepositoryViewer
 
-    viewer = GithubRepositoryViewer()
+    viewer = GitHubRepositoryViewer()
 
     # List directory contents - returns multiple documents
     result = viewer.run(
@@ -94,7 +94,7 @@ class GithubRepositoryViewer:
 
         self.headers = {
             "Accept": "application/vnd.github.v3+json",
-            "User-Agent": "Haystack/GithubRepositoryViewer",
+            "User-Agent": "Haystack/GitHubRepositoryViewer",
         }
 
     def to_dict(self) -> Dict[str, Any]:
@@ -113,7 +113,7 @@ class GithubRepositoryViewer:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GithubRepositoryViewer":
+    def from_dict(cls, data: Dict[str, Any]) -> "GitHubRepositoryViewer":
         """
         Deserialize the component from a dictionary.
 

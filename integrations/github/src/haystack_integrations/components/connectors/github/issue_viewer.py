@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 @component
-class GithubIssueViewer:
+class GitHubIssueViewer:
     """
     Fetches and parses GitHub issues into Haystack documents.
 
@@ -20,9 +20,9 @@ class GithubIssueViewer:
 
     ### Usage example
     ```python
-    from haystack_integrations.components.connectors.github import GithubIssueViewer
+    from haystack_integrations.components.connectors.github import GitHubIssueViewer
 
-    viewer = GithubIssueViewer()
+    viewer = GitHubIssueViewer()
     docs = viewer.run(
         url="https://github.com/owner/repo/issues/123"
     )["documents"]
@@ -51,7 +51,7 @@ class GithubIssueViewer:
         # Only set the basic headers during initialization
         self.headers = {
             "Accept": "application/vnd.github.v3+json",
-            "User-Agent": "Haystack/GithubIssueViewer",
+            "User-Agent": "Haystack/GitHubIssueViewer",
         }
 
     def _get_request_headers(self) -> dict:
@@ -162,7 +162,7 @@ class GithubIssueViewer:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GithubIssueViewer":
+    def from_dict(cls, data: Dict[str, Any]) -> "GitHubIssueViewer":
         """
         Deserialize the component from a dictionary.
 

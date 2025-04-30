@@ -7,38 +7,38 @@ import pytest
 import requests
 from haystack.utils import Secret
 
-from haystack_integrations.components.connectors.github.pr_creator import GithubPRCreator
+from haystack_integrations.components.connectors.github.pr_creator import GitHubPRCreator
 
 
-class TestGithubPRCreator:
+class TestGitHubPRCreator:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
-        pr_creator = GithubPRCreator()
+        pr_creator = GitHubPRCreator()
         assert pr_creator.github_token is not None
         assert pr_creator.github_token.resolve_value() == "test-token"
         assert pr_creator.raise_on_failure is True
 
     def test_init_with_parameters(self):
         token = Secret.from_token("test-token")
-        pr_creator = GithubPRCreator(github_token=token, raise_on_failure=False)
+        pr_creator = GitHubPRCreator(github_token=token, raise_on_failure=False)
         assert pr_creator.github_token == token
         assert pr_creator.raise_on_failure is False
 
         with pytest.raises(TypeError):
-            GithubPRCreator(github_token="not_a_secret")
+            GitHubPRCreator(github_token="not_a_secret")
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test-token")
 
         token = Secret.from_env_var("ENV_VAR")
 
-        pr_creator = GithubPRCreator(github_token=token, raise_on_failure=False)
+        pr_creator = GitHubPRCreator(github_token=token, raise_on_failure=False)
 
         data = pr_creator.to_dict()
 
         assert data == {
-            "type": "haystack_integrations.components.connectors.github.pr_creator.GithubPRCreator",
+            "type": "haystack_integrations.components.connectors.github.pr_creator.GitHubPRCreator",
             "init_parameters": {
                 "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
                 "raise_on_failure": False,
@@ -49,14 +49,14 @@ class TestGithubPRCreator:
         monkeypatch.setenv("ENV_VAR", "test-token")
 
         data = {
-            "type": "haystack_integrations.components.connectors.github.pr_creator.GithubPRCreator",
+            "type": "haystack_integrations.components.connectors.github.pr_creator.GitHubPRCreator",
             "init_parameters": {
                 "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
                 "raise_on_failure": False,
             },
         }
 
-        pr_creator = GithubPRCreator.from_dict(data)
+        pr_creator = GitHubPRCreator.from_dict(data)
 
         assert pr_creator.github_token == Secret.from_env_var("ENV_VAR")
         assert pr_creator.raise_on_failure is False
@@ -72,7 +72,7 @@ class TestGithubPRCreator:
         mock_post.return_value.json.return_value = {"number": 123}
         mock_post.return_value.raise_for_status.return_value = None
 
-        pr_creator = GithubPRCreator()
+        pr_creator = GitHubPRCreator()
 
         with patch.object(pr_creator, "_check_fork_exists", return_value=True):
             result = pr_creator.run(
@@ -91,7 +91,7 @@ class TestGithubPRCreator:
                 "https://api.github.com/repos/owner/repo/pulls",
                 headers={
                     "Accept": "application/vnd.github.v3+json",
-                    "User-Agent": "Haystack/GithubPRCreator",
+                    "User-Agent": "Haystack/GitHubPRCreator",
                     "Authorization": "Bearer test-token",
                 },
                 json={
@@ -112,7 +112,7 @@ class TestGithubPRCreator:
 
         mock_get.side_effect = requests.RequestException("API Error")
 
-        pr_creator = GithubPRCreator(raise_on_failure=False)
+        pr_creator = GitHubPRCreator(raise_on_failure=False)
 
         with patch.object(pr_creator, "_check_fork_exists", return_value=True):
             result = pr_creator.run(
@@ -124,7 +124,7 @@ class TestGithubPRCreator:
 
             assert "Error" in result["result"]
 
-        pr_creator = GithubPRCreator(raise_on_failure=True)
+        pr_creator = GitHubPRCreator(raise_on_failure=True)
         with pytest.raises(requests.RequestException):
             pr_creator.run(
                 issue_url="https://github.com/owner/repo/issues/456",

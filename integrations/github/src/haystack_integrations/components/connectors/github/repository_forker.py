@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 @component
-class GithubRepoForker:
+class GitHubRepoForker:
     """
     Forks a GitHub repository from an issue URL.
 
@@ -18,11 +18,11 @@ class GithubRepoForker:
 
     ### Usage example
     ```python
-    from haystack_integrations.components.connectors.github import GithubRepoForker
+    from haystack_integrations.components.connectors.github import GitHubRepoForker
     from haystack.utils import Secret
 
     # Using direct token with auto-sync and branch creation
-    forker = GithubRepoForker(
+    forker = GitHubRepoForker(
         github_token=Secret.from_env_var("GITHUB_TOKEN"),
         auto_sync=True,
         create_branch=True
@@ -67,7 +67,7 @@ class GithubRepoForker:
         self.auto_sync = auto_sync
         self.create_branch = create_branch
 
-        self.headers = {"Accept": "application/vnd.github.v3+json", "User-Agent": "Haystack/GithubRepoForker"}
+        self.headers = {"Accept": "application/vnd.github.v3+json", "User-Agent": "Haystack/GitHubRepoForker"}
 
     def _parse_github_url(self, url: str) -> tuple[str, str, str]:
         """
@@ -226,7 +226,7 @@ class GithubRepoForker:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GithubRepoForker":
+    def from_dict(cls, data: Dict[str, Any]) -> "GitHubRepoForker":
         """
         Deserialize the component from a dictionary.
 

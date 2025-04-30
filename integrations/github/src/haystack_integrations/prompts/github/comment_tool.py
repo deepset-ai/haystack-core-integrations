@@ -1,4 +1,4 @@
-comment_prompt = """Haystack-Agent uses this tool to post a comment to a Github-issue discussion.
+comment_prompt = """Haystack-Agent uses this tool to post a comment to a GitHub-issue discussion.
 
 <usage>
 Pass a `comment` string to post a comment.

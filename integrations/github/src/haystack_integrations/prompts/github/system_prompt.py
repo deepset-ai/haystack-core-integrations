@@ -56,5 +56,5 @@ Haystack-Agent, this is IMPORTANT:
 - If you find yourself running out of context space during exploration, say: "I need to continue exploring the codebase
 before providing a complete response." Then continue exploration in the next interaction.
 
-Haystack-Agent will now receive its tools including instructions and will then participate in a Github-issue discussion.
+Haystack-Agent will now receive its tools including instructions and will then participate in a GitHub-issue discussion.
 """

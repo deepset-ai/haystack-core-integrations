@@ -7,14 +7,14 @@ import pytest
 import requests
 from haystack.utils import Secret
 
-from haystack_integrations.components.connectors.github.issue_viewer import GithubIssueViewer
+from haystack_integrations.components.connectors.github.issue_viewer import GitHubIssueViewer
 
 
-class TestGithubIssueViewer:
+class TestGitHubIssueViewer:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
-        viewer = GithubIssueViewer()
+        viewer = GitHubIssueViewer()
         assert viewer.github_token is None
         assert viewer.raise_on_failure is True
         assert viewer.retry_attempts == 2
@@ -23,7 +23,7 @@ class TestGithubIssueViewer:
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
         token = Secret.from_env_var("GITHUB_TOKEN")
-        viewer = GithubIssueViewer(github_token=token, raise_on_failure=False, retry_attempts=3)
+        viewer = GitHubIssueViewer(github_token=token, raise_on_failure=False, retry_attempts=3)
         assert viewer.github_token == token
         assert viewer.raise_on_failure is False
         assert viewer.retry_attempts == 3
@@ -33,12 +33,12 @@ class TestGithubIssueViewer:
 
         token = Secret.from_env_var("ENV_VAR")
 
-        viewer = GithubIssueViewer(github_token=token, raise_on_failure=False, retry_attempts=3)
+        viewer = GitHubIssueViewer(github_token=token, raise_on_failure=False, retry_attempts=3)
 
         data = viewer.to_dict()
 
         assert data == {
-            "type": "haystack_integrations.components.connectors.github.issue_viewer.GithubIssueViewer",
+            "type": "haystack_integrations.components.connectors.github.issue_viewer.GitHubIssueViewer",
             "init_parameters": {
                 "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
                 "raise_on_failure": False,
@@ -50,7 +50,7 @@ class TestGithubIssueViewer:
         monkeypatch.setenv("ENV_VAR", "test-token")
 
         data = {
-            "type": "haystack_integrations.components.connectors.github.issue_viewer.GithubIssueViewer",
+            "type": "haystack_integrations.components.connectors.github.issue_viewer.GitHubIssueViewer",
             "init_parameters": {
                 "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
                 "raise_on_failure": False,
@@ -58,7 +58,7 @@ class TestGithubIssueViewer:
             },
         }
 
-        viewer = GithubIssueViewer.from_dict(data)
+        viewer = GitHubIssueViewer.from_dict(data)
 
         assert viewer.github_token == Secret.from_env_var("ENV_VAR")
         assert viewer.raise_on_failure is False
@@ -109,7 +109,7 @@ class TestGithubIssueViewer:
             ),
         ]
 
-        viewer = GithubIssueViewer()
+        viewer = GitHubIssueViewer()
 
         result = viewer.run(url="https://github.com/owner/repo/issues/123")
 
@@ -126,7 +126,7 @@ class TestGithubIssueViewer:
 
         mock_get.side_effect = requests.RequestException("API Error")
 
-        viewer = GithubIssueViewer(raise_on_failure=False)
+        viewer = GitHubIssueViewer(raise_on_failure=False)
 
         result = viewer.run(url="https://github.com/owner/repo/issues/123")
 
@@ -134,14 +134,14 @@ class TestGithubIssueViewer:
         assert result["documents"][0].meta["type"] == "error"
         assert result["documents"][0].meta["error"] is True
 
-        viewer = GithubIssueViewer(raise_on_failure=True)
+        viewer = GitHubIssueViewer(raise_on_failure=True)
         with pytest.raises(requests.RequestException):
             viewer.run(url="https://github.com/owner/repo/issues/123")
 
     def test_parse_github_url(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
-        viewer = GithubIssueViewer()
+        viewer = GitHubIssueViewer()
 
         owner, repo, issue_number = viewer._parse_github_url("https://github.com/owner/repo/issues/123")
         assert owner == "owner"
