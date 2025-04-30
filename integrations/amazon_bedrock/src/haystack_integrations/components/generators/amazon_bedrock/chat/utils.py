@@ -114,8 +114,7 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
             for content_block in content_blocks:
                 if "text" in content_block:
                     text_content.append(content_block["text"])
-
-                if "toolUse" in content_block:
+                elif "toolUse" in content_block:
                     # Convert tool use to ToolCall
                     tool_use = content_block["toolUse"]
                     tool_call = ToolCall(
@@ -173,8 +172,7 @@ def _parse_streaming_response(
                 current_content += delta_text
                 streaming_chunk = StreamingChunk(content=delta_text, meta={})
                 streaming_callback(streaming_chunk)
-
-            if "toolUse" in delta and current_tool_call:
+            elif "toolUse" in delta and current_tool_call:
                 # Accumulate tool use input deltas
                 current_tool_call["arguments"] += delta["toolUse"].get("input", "")
 
@@ -194,8 +192,7 @@ def _parse_streaming_response(
                     arguments=current_tool_call["arguments"],
                 )
                 replies.append(ChatMessage.from_assistant("", tool_calls=[tool_call], meta=base_meta.copy()))
-
-            if current_content:
+            elif current_content:
                 replies.append(ChatMessage.from_assistant(current_content, meta=base_meta.copy()))
 
         elif "messageStop" in event:
@@ -260,8 +257,7 @@ async def _parse_streaming_response_async(
                 current_content += delta_text
                 streaming_chunk = StreamingChunk(content=delta_text, meta={})
                 await streaming_callback(streaming_chunk)
-
-            if "toolUse" in delta and current_tool_call:
+            elif "toolUse" in delta and current_tool_call:
                 # Accumulate tool use input deltas
                 current_tool_call["arguments"] += delta["toolUse"].get("input", "")
 
@@ -281,8 +277,7 @@ async def _parse_streaming_response_async(
                     arguments=current_tool_call["arguments"],
                 )
                 replies.append(ChatMessage.from_assistant("", tool_calls=[tool_call], meta=base_meta.copy()))
-
-            if current_content:
+            elif current_content:
                 replies.append(ChatMessage.from_assistant(current_content, meta=base_meta.copy()))
 
         elif "messageStop" in event:
