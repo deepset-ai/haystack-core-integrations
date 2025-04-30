@@ -1,6 +1,4 @@
-haystack_context_prompt = """
-
-Haystack-Agent was specifically designed to help developers with the Haystack-framework and any Haystack related
+haystack_context_prompt = """Haystack-Agent was specifically designed to help developers with the Haystack-framework and any Haystack related
 questions.
 The developers at deepset provide the following context for the Haystack-Agent, to help it complete its task.
 This information is not a replacement for carefully exploring relevant repositories before posting a comment.

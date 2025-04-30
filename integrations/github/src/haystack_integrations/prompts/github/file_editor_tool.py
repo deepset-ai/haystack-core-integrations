@@ -1,5 +1,4 @@
-file_editor_prompt = """
-Use the file editor to edit an existing file in the repository.
+file_editor_prompt = """Use the file editor to edit an existing file in the repository.
 
 You must provide a 'command' for the action that you want to perform:
 - edit
