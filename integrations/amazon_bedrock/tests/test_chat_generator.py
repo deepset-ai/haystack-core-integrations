@@ -712,6 +712,13 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
     @pytest.mark.asyncio
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
     @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
+        reason=(
+            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
+            "This test requires AWS credentials to run."
+        ),
+    )
     async def test_async_default_inference_params(self, model_name, chat_messages):
         """
         Test basic async chat completion without streaming
@@ -738,6 +745,13 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
     @pytest.mark.asyncio
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
     @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
+        reason=(
+            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
+            "This test requires AWS credentials to run."
+        ),
+    )
     async def test_async_tools_use(self, model_name):
         """
         Test async tools use with passing the generation_kwargs={"toolConfig": tool_config}
@@ -792,6 +806,13 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
     @pytest.mark.asyncio
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
     @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
+        reason=(
+            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
+            "This test requires AWS credentials to run."
+        ),
+    )
     async def test_async_live_run_with_tools(self, model_name, tools):
         """
         Integration test that the AmazonBedrockChatGenerator component can run asynchronously with tools
@@ -831,6 +852,13 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
     @pytest.mark.asyncio
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
     @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
+        reason=(
+            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
+            "This test requires AWS credentials to run."
+        ),
+    )
     async def test_async_inference_with_streaming(self, model_name, chat_messages):
         """
         Test async chat completion with streaming
@@ -865,6 +893,13 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
     @pytest.mark.asyncio
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
     @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
+        reason=(
+            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
+            "This test requires AWS credentials to run."
+        ),
+    )
     async def test_async_tools_use_with_streaming(self, model_name):
         """
         Test async tools use with streaming
@@ -920,6 +955,13 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
     @pytest.mark.asyncio
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
     @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
+        reason=(
+            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
+            "This test requires AWS credentials to run."
+        ),
+    )
     async def test_async_live_run_with_tools_streaming(self, model_name, tools):
         """
         Integration test that the AmazonBedrockChatGenerator component can run asynchronously with tools and streaming
