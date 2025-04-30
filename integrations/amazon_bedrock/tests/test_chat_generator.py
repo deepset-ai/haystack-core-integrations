@@ -237,6 +237,9 @@ class TestAmazonBedrockChatGenerator:
                                     "description": "useful to determine the weather in a given location",
                                     "parameters": {"city": {"type": "string"}},
                                     "function": "tests.test_chat_generator.weather",
+                                    "outputs_to_string": None,
+                                    "inputs_from_state": None,
+                                    "outputs_to_state": None,
                                 },
                             }
                         ],
@@ -248,21 +251,6 @@ class TestAmazonBedrockChatGenerator:
 
         if not hasattr(pipeline, "_connection_type_validation"):
             expected_dict.pop("connection_type_validation")
-
-        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
-        # haystack-ai>=2.12.0
-        if hasattr(tool, "outputs_to_string"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "outputs_to_string"
-            ] = tool.outputs_to_string
-        if hasattr(tool, "inputs_from_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "inputs_from_state"
-            ] = tool.inputs_from_state
-        if hasattr(tool, "outputs_to_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "outputs_to_state"
-            ] = tool.outputs_to_state
 
         assert pipeline_dict == expected_dict
 
@@ -277,17 +265,16 @@ class TestAmazonBedrockChatGenerator:
         assert request_params["toolConfig"] == top_song_tool_config
 
 
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
+    reason=(
+        "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
+        "This test requires AWS credentials to run."
+    ),
+)
 class TestAmazonBedrockChatGeneratorInference:
-
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
-        reason=(
-            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
-            "This test requires AWS credentials to run."
-        ),
-    )
     def test_default_inference_params(self, model_name, chat_messages):
         client = AmazonBedrockChatGenerator(model=model_name)
         response = client.run(chat_messages)
@@ -309,14 +296,6 @@ class TestAmazonBedrockChatGeneratorInference:
             assert "completion_tokens" in first_reply.meta["usage"]
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
-        reason=(
-            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
-            "This test requires AWS credentials to run."
-        ),
-    )
     def test_default_inference_with_streaming(self, model_name, chat_messages):
         streaming_callback_called = False
         paris_found_in_response = False
@@ -346,14 +325,6 @@ class TestAmazonBedrockChatGeneratorInference:
         assert first_reply.meta, "First reply has no metadata"
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
-        reason=(
-            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
-            "This test requires AWS credentials to run."
-        ),
-    )
     def test_live_run_with_tools(self, model_name, tools):
         """
         Integration test that the AmazonBedrockChatGenerator component can run with tools. Here we are using the
@@ -397,14 +368,6 @@ class TestAmazonBedrockChatGeneratorInference:
         assert "paris" in final_message.text.lower()
 
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
-        reason=(
-            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
-            "This test requires AWS credentials to run."
-        ),
-    )
     def test_live_run_with_tools_streaming(self, model_name, tools):
         """
         Integration test that the AmazonBedrockChatGenerator component can run with the Haystack tools parameter.
@@ -448,14 +411,6 @@ class TestAmazonBedrockChatGeneratorInference:
         assert "paris" in final_message.text.lower()
 
     @pytest.mark.parametrize("model_name", [MODELS_TO_TEST_WITH_TOOLS[0]])  # just one model is enough
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
-        reason=(
-            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
-            "This test requires AWS credentials to run."
-        ),
-    )
     def test_pipeline_with_amazon_bedrock_chat_generator(self, model_name, tools):
         """
         Test that the AmazonBedrockChatGenerator component can be used in a pipeline
@@ -477,6 +432,14 @@ class TestAmazonBedrockChatGeneratorInference:
         )
 
 
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
+    reason=(
+        "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
+        "This test requires AWS credentials to run."
+    ),
+)
 class TestAmazonBedrockChatGeneratorAsyncInference:
     """
     Test class for async inference functionality of AmazonBedrockChatGenerator
@@ -484,14 +447,6 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
-        reason=(
-            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
-            "This test requires AWS credentials to run."
-        ),
-    )
     async def test_async_default_inference_params(self, model_name, chat_messages):
         """
         Test basic async chat completion without streaming
@@ -517,14 +472,6 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
-        reason=(
-            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
-            "This test requires AWS credentials to run."
-        ),
-    )
     async def test_async_live_run_with_tools(self, model_name, tools):
         """
         Integration test that the AmazonBedrockChatGenerator component can run asynchronously with tools
@@ -563,14 +510,6 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
-        reason=(
-            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
-            "This test requires AWS credentials to run."
-        ),
-    )
     async def test_async_inference_with_streaming(self, model_name, chat_messages):
         """
         Test async chat completion with streaming
@@ -604,14 +543,6 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
-        reason=(
-            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
-            "This test requires AWS credentials to run."
-        ),
-    )
     async def test_async_live_run_with_tools_streaming(self, model_name, tools):
         """
         Integration test that the AmazonBedrockChatGenerator component can run asynchronously with tools and streaming
