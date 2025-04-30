@@ -56,12 +56,8 @@ class TestAmazonBedrockChatGeneratorUtils:
             ],
         }
 
-    def test_extract_replies_from_response(self, mock_boto3_session):
-        """
-        Test that extract_replies_from_response correctly processes both text and tool use responses
-        """
+    def test_extract_replies_from_text_response(self, mock_boto3_session):
         model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
-        # Test case 1: Simple text response
         text_response = {
             "output": {"message": {"role": "assistant", "content": [{"text": "This is a test response"}]}},
             "stopReason": "complete",
@@ -72,11 +68,15 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert len(replies) == 1
         assert replies[0].text == "This is a test response"
         assert replies[0].role == ChatRole.ASSISTANT
-        assert replies[0].meta["model"] == model
-        assert replies[0].meta["finish_reason"] == "complete"
-        assert replies[0].meta["usage"] == {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
+        assert replies[0].meta == {
+            "model": model,
+            "finish_reason": "complete",
+            "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+            "index": 0,
+        }
 
-        # Test case 2: Tool use response
+    def test_extract_replies_from_tool_response(self, mock_boto3_session):
+        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
         tool_response = {
             "output": {
                 "message": {
@@ -94,10 +94,16 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert tool_content.id == "123"
         assert tool_content.tool_name == "test_tool"
         assert tool_content.arguments == {"key": "value"}
-        assert replies[0].meta["finish_reason"] == "tool_call"
-        assert replies[0].meta["usage"] == {"prompt_tokens": 15, "completion_tokens": 25, "total_tokens": 40}
+        assert replies[0].role == ChatRole.ASSISTANT
+        assert replies[0].meta == {
+            "model": model,
+            "finish_reason": "tool_call",
+            "usage": {"prompt_tokens": 15, "completion_tokens": 25, "total_tokens": 40},
+            "index": 0,
+        }
 
-        # Test case 3: Mixed content response
+    def test_extract_replies_from_text_mixed_response(self, mock_boto3_session):
+        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
         mixed_response = {
             "output": {
                 "message": {
@@ -119,6 +125,13 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert tool_content.id == "456"
         assert tool_content.tool_name == "search_tool"
         assert tool_content.arguments == {"query": "test"}
+        assert replies[0].role == ChatRole.ASSISTANT
+        assert replies[0].meta == {
+            "model": model,
+            "finish_reason": "complete",
+            "usage": {"prompt_tokens": 25, "completion_tokens": 35, "total_tokens": 60},
+            "index": 0,
+        }
 
     def test_process_streaming_response(self, mock_boto3_session):
         """
