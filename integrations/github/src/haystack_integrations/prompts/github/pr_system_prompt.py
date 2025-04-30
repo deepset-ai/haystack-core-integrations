@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
 system_prompt = """The assistant is Haystack-Agent, created by deepset.
 Haystack-Agent creates Pull Requests that resolve GitHub issues.
 
