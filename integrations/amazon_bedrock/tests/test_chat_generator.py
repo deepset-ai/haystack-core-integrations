@@ -266,6 +266,16 @@ class TestAmazonBedrockChatGenerator:
 
         assert pipeline_dict == expected_dict
 
+    def test_prepare_request_params_tool_config(self, top_song_tool_config, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+        request_params, callback = generator._prepare_request_params(
+            messages=[ChatMessage.from_user("What's the capital of France?")],
+            generation_kwargs={"toolConfig": top_song_tool_config},
+            tools=None,
+        )
+        assert request_params["messages"] == [{"content": [{"text": "What's the capital of France?"}], "role": "user"}]
+        assert request_params["toolConfig"] == top_song_tool_config
+
 
 class TestAmazonBedrockChatGeneratorInference:
 
@@ -334,85 +344,6 @@ class TestAmazonBedrockChatGeneratorInference:
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
         assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
-
-    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
-        reason=(
-            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
-            "This test requires AWS credentials to run."
-        ),
-    )
-    def test_tools_use(self, model_name, top_song_tool_config):
-        """
-        Test tools use with passing the generation_kwargs={"toolConfig": tool_config}
-        and not the tools parameter. We support this because some users might want to use the toolConfig
-        parameter to pass the tool configuration to the model.
-        """
-
-        messages = [ChatMessage.from_user("What is the most popular song on WZPZ?")]
-        client = AmazonBedrockChatGenerator(model=model_name)
-        response = client.run(messages=messages, generation_kwargs={"toolConfig": top_song_tool_config})
-        replies = response["replies"]
-        assert isinstance(replies, list), "Replies is not a list"
-        assert len(replies) > 0, "No replies received"
-
-        # Find the message with tool calls as in some models it is the first message, in some second
-        tool_message = replies[0]
-
-        assert tool_message is not None, "No message with tool call found"
-        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
-        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
-
-        tool_call = tool_message.tool_call
-        assert tool_call.id, "Tool call does not contain value for 'id' key"
-        assert tool_call.tool_name == "top_song", f"{tool_call} does not contain the correct 'tool_name' value"
-        assert tool_call.arguments, f"Tool call {tool_call} does not contain 'arguments' value"
-        assert (
-            tool_call.arguments["sign"] == "WZPZ"
-        ), f"Tool call {tool_call} does not contain the correct 'arguments' value"
-
-    @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
-        reason=(
-            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
-            "This test requires AWS credentials to run."
-        ),
-    )
-    def test_tools_use_with_streaming(self, model_name, top_song_tool_config):
-        """
-        Test tools use with streaming but with passing the generation_kwargs={"toolConfig": tool_config}
-        and not the tools parameter. We support this because some users might want to use the toolConfig
-        parameter to pass the tool configuration to the model.
-        """
-
-        messages = [ChatMessage.from_user("What is the most popular song on WZPZ?")]
-        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=print_streaming_chunk)
-        response = client.run(messages=messages, generation_kwargs={"toolConfig": top_song_tool_config})
-        replies = response["replies"]
-        assert isinstance(replies, list), "Replies is not a list"
-        assert len(replies) > 0, "No replies received"
-
-        first_reply = replies[0]
-        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
-        assert first_reply.text, "First reply has no content"
-        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
-        assert first_reply.meta, "First reply has no metadata"
-
-        # Find the message containing the tool call
-        tool_message = replies[0]
-        assert tool_message is not None, "No message with tool call found"
-        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
-        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
-
-        tool_call = tool_message.tool_call
-        assert tool_call.id, "Tool call does not contain value for 'id' key"
-        assert tool_call.tool_name == "top_song", f"{tool_call} does not contain the correct 'tool_name' value"
-        assert tool_call.arguments, f"{tool_call} does not contain 'arguments' value"
-        assert tool_call.arguments["sign"] == "WZPZ", f"{tool_call} does not contain the correct 'input' value"
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
     @pytest.mark.integration
@@ -594,38 +525,6 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
             "This test requires AWS credentials to run."
         ),
     )
-    async def test_async_tools_use(self, model_name, top_song_tool_config):
-        messages = [ChatMessage.from_user("What is the most popular song on WZPZ?")]
-        client = AmazonBedrockChatGenerator(model=model_name)
-        response = await client.run_async(messages=messages, generation_kwargs={"toolConfig": top_song_tool_config})
-        replies = response["replies"]
-        assert isinstance(replies, list), "Replies is not a list"
-        assert len(replies) > 0, "No replies received"
-
-        # Find the message with tool calls
-        tool_message = next((msg for msg in replies if msg.tool_call), None)
-        assert tool_message is not None, "No message with tool call found"
-        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
-        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
-
-        tool_call = tool_message.tool_call
-        assert tool_call.id, "Tool call does not contain value for 'id' key"
-        assert tool_call.tool_name == "top_song", f"{tool_call} does not contain the correct 'tool_name' value"
-        assert tool_call.arguments, f"Tool call {tool_call} does not contain 'arguments' value"
-        assert (
-            tool_call.arguments["sign"] == "WZPZ"
-        ), f"Tool call {tool_call} does not contain the correct 'arguments' value"
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
-        reason=(
-            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
-            "This test requires AWS credentials to run."
-        ),
-    )
     async def test_async_live_run_with_tools(self, model_name, tools):
         """
         Integration test that the AmazonBedrockChatGenerator component can run asynchronously with tools
@@ -702,43 +601,6 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
         assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
-        reason=(
-            "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
-            "This test requires AWS credentials to run."
-        ),
-    )
-    async def test_async_tools_use_with_streaming(self, model_name, top_song_tool_config):
-        """
-        Test async tools use with streaming
-        """
-
-        async def streaming_callback(chunk: StreamingChunk):
-            print(chunk, flush=True, end="")  # noqa: T201
-
-        messages = [ChatMessage.from_user("What is the most popular song on WZPZ?")]
-        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
-        response = await client.run_async(messages=messages, generation_kwargs={"toolConfig": top_song_tool_config})
-        replies = response["replies"]
-        assert isinstance(replies, list), "Replies is not a list"
-        assert len(replies) > 0, "No replies received"
-
-        # Find the message containing the tool call
-        tool_message = next((msg for msg in replies if msg.tool_call), None)
-        assert tool_message is not None, "No message with tool call found"
-        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
-        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
-
-        tool_call = tool_message.tool_call
-        assert tool_call.id, "Tool call does not contain value for 'id' key"
-        assert tool_call.tool_name == "top_song", f"{tool_call} does not contain the correct 'tool_name' value"
-        assert tool_call.arguments, f"{tool_call} does not contain 'arguments' value"
-        assert tool_call.arguments["sign"] == "WZPZ", f"{tool_call} does not contain the correct 'input' value"
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
