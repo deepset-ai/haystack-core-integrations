@@ -10,12 +10,10 @@ from haystack.tools import Tool
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 from haystack_integrations.components.generators.amazon_bedrock.chat.utils import (
-    _format_messages,
     _format_tools,
     _parse_completion_response,
     _parse_streaming_response,
 )
-
 
 CLASS_TYPE = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
 MODELS_TO_TEST = [
@@ -57,6 +55,38 @@ def tools():
         function=weather,
     )
     return [tool]
+
+
+# See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolConfiguration.html
+@pytest.fixture
+def top_song_tool_config():
+    tool_config = {
+        "tools": [
+            {
+                "toolSpec": {
+                    "name": "top_song",
+                    "description": "Get the most popular song played on a radio station.",
+                    "inputSchema": {
+                        "json": {
+                            "type": "object",
+                            "properties": {
+                                "sign": {
+                                    "type": "string",
+                                    "description": "The call sign for the radio station "
+                                    "for which you want the most popular song. Example "
+                                    "calls signs are WZPZ and WKRP.",
+                                }
+                            },
+                            "required": ["sign"],
+                        }
+                    },
+                }
+            }
+        ],
+        # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolChoice.html
+        "toolChoice": {"auto": {}},
+    }
+    return tool_config
 
 
 class TestAmazonBedrockChatGenerator:
@@ -259,7 +289,6 @@ class TestAmazonBedrockChatGenerator:
                     }
                 }
             ],
-            "toolChoice": {"auto": {}},
         }
 
     def test_extract_replies_from_response(self, mock_boto3_session):
@@ -450,43 +479,16 @@ class TestAmazonBedrockChatGeneratorInference:
             "This test requires AWS credentials to run."
         ),
     )
-    def test_tools_use(self, model_name):
+    def test_tools_use(self, model_name, top_song_tool_config):
         """
         Test tools use with passing the generation_kwargs={"toolConfig": tool_config}
         and not the tools parameter. We support this because some users might want to use the toolConfig
         parameter to pass the tool configuration to the model.
         """
-        # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolConfiguration.html
-        tool_config = {
-            "tools": [
-                {
-                    "toolSpec": {
-                        "name": "top_song",
-                        "description": "Get the most popular song played on a radio station.",
-                        "inputSchema": {
-                            "json": {
-                                "type": "object",
-                                "properties": {
-                                    "sign": {
-                                        "type": "string",
-                                        "description": "The call sign for the radio station "
-                                        "for which you want the most popular song. "
-                                        "Example calls signs are WZPZ and WKRP.",
-                                    }
-                                },
-                                "required": ["sign"],
-                            }
-                        },
-                    }
-                }
-            ],
-            # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolChoice.html
-            "toolChoice": {"auto": {}},
-        }
 
         messages = [ChatMessage.from_user("What is the most popular song on WZPZ?")]
         client = AmazonBedrockChatGenerator(model=model_name)
-        response = client.run(messages=messages, generation_kwargs={"toolConfig": tool_config})
+        response = client.run(messages=messages, generation_kwargs={"toolConfig": top_song_tool_config})
         replies = response["replies"]
         assert isinstance(replies, list), "Replies is not a list"
         assert len(replies) > 0, "No replies received"
@@ -515,41 +517,16 @@ class TestAmazonBedrockChatGeneratorInference:
             "This test requires AWS credentials to run."
         ),
     )
-    def test_tools_use_with_streaming(self, model_name):
+    def test_tools_use_with_streaming(self, model_name, top_song_tool_config):
         """
         Test tools use with streaming but with passing the generation_kwargs={"toolConfig": tool_config}
         and not the tools parameter. We support this because some users might want to use the toolConfig
         parameter to pass the tool configuration to the model.
         """
-        tool_config = {
-            "tools": [
-                {
-                    "toolSpec": {
-                        "name": "top_song",
-                        "description": "Get the most popular song played on a radio station.",
-                        "inputSchema": {
-                            "json": {
-                                "type": "object",
-                                "properties": {
-                                    "sign": {
-                                        "type": "string",
-                                        "description": "The call sign for the radio station "
-                                        "for which you want the most popular song. Example "
-                                        "calls signs are WZPZ and WKRP.",
-                                    }
-                                },
-                                "required": ["sign"],
-                            }
-                        },
-                    }
-                }
-            ],
-            "toolChoice": {"auto": {}},
-        }
 
         messages = [ChatMessage.from_user("What is the most popular song on WZPZ?")]
         client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=print_streaming_chunk)
-        response = client.run(messages=messages, generation_kwargs={"toolConfig": tool_config})
+        response = client.run(messages=messages, generation_kwargs={"toolConfig": top_song_tool_config})
         replies = response["replies"]
         assert isinstance(replies, list), "Replies is not a list"
         assert len(replies) > 0, "No replies received"
@@ -752,39 +729,10 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
             "This test requires AWS credentials to run."
         ),
     )
-    async def test_async_tools_use(self, model_name):
-        """
-        Test async tools use with passing the generation_kwargs={"toolConfig": tool_config}
-        """
-        tool_config = {
-            "tools": [
-                {
-                    "toolSpec": {
-                        "name": "top_song",
-                        "description": "Get the most popular song played on a radio station.",
-                        "inputSchema": {
-                            "json": {
-                                "type": "object",
-                                "properties": {
-                                    "sign": {
-                                        "type": "string",
-                                        "description": "The call sign for the radio station "
-                                        "for which you want the most popular song. "
-                                        "Example calls signs are WZPZ and WKRP.",
-                                    }
-                                },
-                                "required": ["sign"],
-                            }
-                        },
-                    }
-                }
-            ],
-            "toolChoice": {"auto": {}},
-        }
-
+    async def test_async_tools_use(self, model_name, top_song_tool_config):
         messages = [ChatMessage.from_user("What is the most popular song on WZPZ?")]
         client = AmazonBedrockChatGenerator(model=model_name)
-        response = await client.run_async(messages=messages, generation_kwargs={"toolConfig": tool_config})
+        response = await client.run_async(messages=messages, generation_kwargs={"toolConfig": top_song_tool_config})
         replies = response["replies"]
         assert isinstance(replies, list), "Replies is not a list"
         assert len(replies) > 0, "No replies received"
@@ -900,42 +848,16 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
             "This test requires AWS credentials to run."
         ),
     )
-    async def test_async_tools_use_with_streaming(self, model_name):
+    async def test_async_tools_use_with_streaming(self, model_name, top_song_tool_config):
         """
         Test async tools use with streaming
         """
-        tool_config = {
-            "tools": [
-                {
-                    "toolSpec": {
-                        "name": "top_song",
-                        "description": "Get the most popular song played on a radio station.",
-                        "inputSchema": {
-                            "json": {
-                                "type": "object",
-                                "properties": {
-                                    "sign": {
-                                        "type": "string",
-                                        "description": "The call sign for the radio station "
-                                        "for which you want the most popular song. Example "
-                                        "calls signs are WZPZ and WKRP.",
-                                    }
-                                },
-                                "required": ["sign"],
-                            }
-                        },
-                    }
-                }
-            ],
-            "toolChoice": {"auto": {}},
-        }
-
         async def streaming_callback(chunk: StreamingChunk):
             print(chunk, flush=True, end="")  # noqa: T201
 
         messages = [ChatMessage.from_user("What is the most popular song on WZPZ?")]
         client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
-        response = await client.run_async(messages=messages, generation_kwargs={"toolConfig": tool_config})
+        response = await client.run_async(messages=messages, generation_kwargs={"toolConfig": top_song_tool_config})
         replies = response["replies"]
         assert isinstance(replies, list), "Replies is not a list"
         assert len(replies) > 0, "No replies received"
