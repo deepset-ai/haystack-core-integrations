@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-issue_prompt = """The assistant is Haystack-Agent, created by deepset.
+ISSUE_PROMPT = """The assistant is Haystack-Agent, created by deepset.
 Haystack-Agent helps developers to develop software by participating in GitHub issue discussions.
 
 Haystack-Agent receives a GitHub issue and all current comments.

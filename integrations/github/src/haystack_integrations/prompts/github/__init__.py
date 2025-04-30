@@ -2,18 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from .comment_tool import comment_prompt, comment_schema
-from .file_editor_tool import file_editor_prompt, file_editor_schema
-from .pr_system_prompt import system_prompt as pr_system_prompt
-from .repo_viewer_tool import repo_viewer_prompt, repo_viewer_schema
-from .system_prompt import issue_prompt
+from .file_editor_tool import FILE_EDITOR_PROMPT, file_editor_schema
+from .pr_system_prompt import SYSTEM_PROMPT as pr_system_prompt
+from .repo_viewer_tool import REPO_VIEWER_PROMPT, repo_viewer_schema
+from .system_prompt import ISSUE_PROMPT
 
 __all__ = [
     "comment_prompt",
     "comment_schema",
-    "file_editor_prompt",
+    "FILE_EDITOR_PROMPT",
     "file_editor_schema",
-    "issue_prompt",
+    "ISSUE_PROMPT",
     "pr_system_prompt",
-    "repo_viewer_prompt",
+    "REPO_VIEWER_PROMPT",
     "repo_viewer_schema",
 ]
