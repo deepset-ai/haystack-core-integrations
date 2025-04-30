@@ -852,6 +852,7 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         """
         Test async tools use with streaming
         """
+
         async def streaming_callback(chunk: StreamingChunk):
             print(chunk, flush=True, end="")  # noqa: T201
 
