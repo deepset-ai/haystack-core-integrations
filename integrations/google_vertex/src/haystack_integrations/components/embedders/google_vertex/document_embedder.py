@@ -57,7 +57,7 @@ class VertexAIDocumentEmbedder:
         retries: int = 3,
         progress_bar: bool = True,
         truncate_dim: Optional[int] = None,
-        meta_fields_to_embed: Optional[List[str]] = [],
+        meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
     ) -> None:
         """
@@ -83,6 +83,8 @@ class VertexAIDocumentEmbedder:
         :raises ValueError: If the provided model is not in the list of supported models.
         """
 
+        if meta_fields_to_embed is None:
+            meta_fields_to_embed = []
         if not model or model not in SUPPORTED_EMBEDDING_MODELS:
             msg = "Please provide a valid model from the list of supported models: " + ", ".join(
                 SUPPORTED_EMBEDDING_MODELS
@@ -272,9 +274,9 @@ class VertexAIDocumentEmbedder:
             truncate_dim=self.truncate_dim,
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
-            max_tokens_total = self.max_tokens_total,
-            task_type = self.task_type,
-            time_sleep= self.time_sleep,
+            max_tokens_total=self.max_tokens_total,
+            task_type=self.task_type,
+            time_sleep=self.time_sleep,
             retries=self.retries,
         )
 

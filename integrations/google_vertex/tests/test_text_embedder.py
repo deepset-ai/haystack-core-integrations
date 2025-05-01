@@ -1,7 +1,6 @@
-import pytest
 from unittest.mock import MagicMock, patch
 
-import vertexai
+import pytest
 from haystack import Document
 from haystack.utils.auth import Secret
 from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
@@ -112,7 +111,7 @@ def test_run_with_string(mock_vertex_init_and_model):
     assert inputs[0].task_type == VALID_TASK_TYPE
 
 
-def test_run_with_list_document_raises_error(mock_vertex_init_and_model):
+def test_run_with_list_document_raises_error():
     """Test that running with List[Document] raises TypeError."""
     embedder = VertexAITextEmbedder(model=VALID_MODEL, task_type=VALID_TASK_TYPE)
     docs = [Document(content="doc1"), Document(content="doc2")]
@@ -121,7 +120,7 @@ def test_run_with_list_document_raises_error(mock_vertex_init_and_model):
         embedder.run(text=docs)
 
 
-def test_run_with_list_string_raises_error(mock_vertex_init_and_model):
+def test_run_with_list_string_raises_error():
     """Test that running with List[str] raises TypeError."""
     embedder = VertexAITextEmbedder(model=VALID_MODEL, task_type=VALID_TASK_TYPE)
     texts = ["text1", "text2"]
@@ -130,7 +129,7 @@ def test_run_with_list_string_raises_error(mock_vertex_init_and_model):
         embedder.run(text=texts)
 
 
-def test_to_dict(mock_vertex_init_and_model):
+def test_to_dict():
     """Test serialization to dictionary."""
     project_id = Secret.from_env_var("GCP_PROJECT_ID", strict=False)
     region = Secret.from_env_var("GCP_DEFAULT_REGION", strict=False)
@@ -188,7 +187,7 @@ def test_from_dict(mock_vertex_init_and_model):
     assert embedder.truncate_dim is None
 
     # Check that vertexai.init and from_pretrained were called again
-    mock_init.assert_called_once() # Called once during deserialization
+    mock_init.assert_called_once()  # Called once during deserialization
     mock_from_pretrained.assert_called_once_with("text-multilingual-embedding-002")
 
 
@@ -200,8 +199,8 @@ def test_from_dict_no_secrets(mock_vertex_init_and_model):
         "init_parameters": {
             "model": VALID_MODEL,
             "task_type": VALID_TASK_TYPE,
-            "gcp_project_id": None, # Explicitly None
-            "gcp_region_name": None, # Explicitly None
+            "gcp_project_id": None,  # Explicitly None
+            "gcp_region_name": None,  # Explicitly None
             "progress_bar": True,
             "truncate_dim": None,
         },
@@ -211,4 +210,3 @@ def test_from_dict_no_secrets(mock_vertex_init_and_model):
     assert embedder.gcp_region_name is None
     mock_init.assert_called_once_with(project=None, location=None)
     mock_from_pretrained.assert_called_once_with(VALID_MODEL)
-

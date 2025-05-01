@@ -1,17 +1,12 @@
-import math
-import time
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-import vertexai
-from haystack import Document
 from haystack.dataclasses.document import Document
 from haystack.utils.auth import Secret
 from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
 
 # Assume the classes are in this path for the tests
 from haystack_integrations.components.embedders.google_vertex.document_embedder import (
-    SUPPORTED_EMBEDDING_MODELS,
     VertexAIDocumentEmbedder,
 )
 
@@ -148,7 +143,7 @@ def test_prepare_texts_to_embed_custom_separator():
     assert texts == ["value --- doc text"]
 
 
-def test_get_text_embedding_input(mock_vertex_init_and_model):
+def test_get_text_embedding_input():
     """Test conversion of Documents to TextEmbeddingInput."""
     embedder = VertexAIDocumentEmbedder(model=VALID_MODEL, task_type="CLASSIFICATION")
     docs = [Document(content="text1"), Document(content="text2")]
@@ -193,7 +188,8 @@ def test_embed_batch(mock_vertex_init_and_model):
     assert inputs[1].text == "text2"
     assert inputs[1].task_type == VALID_TASK_TYPE
 
-def test_to_dict(mock_vertex_init_and_model):
+
+def test_to_dict():
     """Test serialization to dictionary."""
     project_id = Secret.from_env_var("GCP_PROJECT_ID", strict=False)
     region = Secret.from_env_var("GCP_DEFAULT_REGION", strict=False)
@@ -218,9 +214,9 @@ def test_to_dict(mock_vertex_init_and_model):
             "gcp_project_id": project_id.to_dict(),
             "gcp_region_name": region.to_dict(),
             "batch_size": 64,
-            "max_tokens_total": 20000, # Default value was not overridden
-            "time_sleep": 30, # Default value was not overridden
-            "retries": 3, # Default value was not overridden
+            "max_tokens_total": 20000,  # Default value was not overridden
+            "time_sleep": 30,  # Default value was not overridden
+            "retries": 3,  # Default value was not overridden
             "progress_bar": False,
             "truncate_dim": 128,
             "meta_fields_to_embed": ["meta1"],
@@ -263,7 +259,7 @@ def test_from_dict(mock_vertex_init_and_model):
     assert embedder.batch_size == 16
     assert embedder.progress_bar is True
     assert embedder.truncate_dim is None
-    assert embedder.meta_fields_to_embed is None
+    assert embedder.meta_fields_to_embed == []
     assert embedder.embedding_separator == "\n"
     assert embedder.max_tokens_total == 20000
     assert embedder.time_sleep == 30
@@ -282,8 +278,8 @@ def test_from_dict_no_secrets(mock_vertex_init_and_model):
         "init_parameters": {
             "model": VALID_MODEL,
             "task_type": VALID_TASK_TYPE,
-            "gcp_project_id": None, # Explicitly None
-            "gcp_region_name": None, # Explicitly None
+            "gcp_project_id": None,  # Explicitly None
+            "gcp_region_name": None,  # Explicitly None
             "batch_size": 32,
             "progress_bar": True,
             "truncate_dim": None,
