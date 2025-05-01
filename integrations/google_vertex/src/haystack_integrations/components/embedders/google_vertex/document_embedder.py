@@ -272,6 +272,10 @@ class VertexAIDocumentEmbedder:
             truncate_dim=self.truncate_dim,
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
+            max_tokens_total = self.max_tokens_total,
+            task_type = self.task_type,
+            time_sleep= self.time_sleep,
+            retries=self.retries,
         )
 
     @classmethod
