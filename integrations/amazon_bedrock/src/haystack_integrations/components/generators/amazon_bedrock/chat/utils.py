@@ -146,10 +146,7 @@ def _parse_streaming_response(
     replies = []
     current_content = ""
     current_tool_call: Optional[Dict[str, Any]] = None
-    base_meta = {
-        "model": model,
-        "index": 0,
-    }
+    base_meta = {"model": model, "index": 0}
 
     for event in response_stream:
         if "contentBlockStart" in event:
@@ -170,7 +167,7 @@ def _parse_streaming_response(
             if "text" in delta:
                 delta_text = delta["text"]
                 current_content += delta_text
-                streaming_chunk = StreamingChunk(content=delta_text, meta=None)
+                streaming_chunk = StreamingChunk(content=delta_text, meta={})
                 streaming_callback(streaming_chunk)
             elif "toolUse" in delta and current_tool_call:
                 # Accumulate tool use input deltas
@@ -231,10 +228,7 @@ async def _parse_streaming_response_async(
     replies = []
     current_content = ""
     current_tool_call: Optional[Dict[str, Any]] = None
-    base_meta = {
-        "model": model,
-        "index": 0,
-    }
+    base_meta = {"model": model, "index": 0}
 
     async for event in response_stream:
         if "contentBlockStart" in event:
@@ -255,7 +249,7 @@ async def _parse_streaming_response_async(
             if "text" in delta:
                 delta_text = delta["text"]
                 current_content += delta_text
-                streaming_chunk = StreamingChunk(content=delta_text, meta=None)
+                streaming_chunk = StreamingChunk(content=delta_text, meta={})
                 await streaming_callback(streaming_chunk)
             elif "toolUse" in delta and current_tool_call:
                 # Accumulate tool use input deltas

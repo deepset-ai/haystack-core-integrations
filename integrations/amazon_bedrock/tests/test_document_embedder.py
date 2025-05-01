@@ -17,10 +17,7 @@ TYPE = "haystack_integrations.components.embedders.amazon_bedrock.document_embed
 
 class TestAmazonBedrockDocumentEmbedder:
     def test_init(self, mock_boto3_session, set_env_variables):
-        embedder = AmazonBedrockDocumentEmbedder(
-            model="cohere.embed-english-v3",
-            input_type="fake_input_type",
-        )
+        embedder = AmazonBedrockDocumentEmbedder(model="cohere.embed-english-v3", input_type="fake_input_type")
 
         assert embedder.model == "cohere.embed-english-v3"
         assert embedder.kwargs == {"input_type": "fake_input_type"}
@@ -67,15 +64,7 @@ class TestAmazonBedrockDocumentEmbedder:
                 input_type="fake_input_type",
             )
 
-    @pytest.mark.parametrize(
-        "boto3_config",
-        [
-            None,
-            {
-                "read_timeout": 1000,
-            },
-        ],
-    )
+    @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
     def test_to_dict(self, mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]):
         embedder = AmazonBedrockDocumentEmbedder(
             model="cohere.embed-english-v3",
@@ -103,15 +92,7 @@ class TestAmazonBedrockDocumentEmbedder:
 
         assert embedder.to_dict() == expected_dict
 
-    @pytest.mark.parametrize(
-        "boto3_config",
-        [
-            None,
-            {
-                "read_timeout": 1000,
-            },
-        ],
-    )
+    @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
     def test_from_dict(self, mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]):
         data = {
             "type": TYPE,

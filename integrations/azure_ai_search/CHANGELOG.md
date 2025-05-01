@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/azure_ai_search-v2.0.1] - 2025-04-16
+
+### 🚀 Features
+
+- Fix serialization errors in `AzureAIDocumentStore` (#1647)
+
+
 ## [integrations/azure_ai_search-v2.0.0] - 2025-04-03
 
 ### 🐛 Bug Fixes
@@ -20,6 +27,7 @@
 - Azure AI - pin haystack and remove dataframe checks (#1500)
 
 ## [integrations/azure_ai_search-v0.1.3] - 2025-02-17
+
 
 ### 🧹 Chores
 
