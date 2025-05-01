@@ -57,7 +57,7 @@ class VertexAIDocumentEmbedder:
         retries: int = 3,
         progress_bar: bool = True,
         truncate_dim: Optional[int] = None,
-        meta_fields_to_embed: Optional[List[str]] = None,
+        meta_fields_to_embed: Optional[List[str]] = [],
         embedding_separator: str = "\n",
     ) -> None:
         """
