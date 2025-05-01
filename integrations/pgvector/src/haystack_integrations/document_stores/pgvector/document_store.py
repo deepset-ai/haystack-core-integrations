@@ -276,7 +276,7 @@ class PgvectorDocumentStore:
             result = cursor.execute(sql_query, params)
         except Error as e:
             self._connection.rollback()
-            detailed_error_msg = f"{error_msg}.\nYou can find the SQL query and the parameters in the debug logs."
+            detailed_error_msg = f"{error_msg}: {e}.\nYou can find the SQL query and the parameters in the debug logs."
             raise DocumentStoreError(detailed_error_msg) from e
 
         return result
@@ -314,7 +314,7 @@ class PgvectorDocumentStore:
             result = await cursor.execute(sql_query, params)
         except Error as e:
             await self._async_connection.rollback()
-            detailed_error_msg = f"{error_msg}.\nYou can find the SQL query and the parameters in the debug logs."
+            detailed_error_msg = f"{error_msg}: {e}.\nYou can find the SQL query and the parameters in the debug logs."
             raise DocumentStoreError(detailed_error_msg) from e
 
         return result
@@ -795,7 +795,7 @@ class PgvectorDocumentStore:
         except Error as e:
             self._connection.rollback()
             error_msg = (
-                "Could not write documents to PgvectorDocumentStore. \n"
+                "Could not write documents to PgvectorDocumentStore: {e}. \n"
                 "You can find the SQL query and the parameters in the debug logs."
             )
             raise DocumentStoreError(error_msg) from e
@@ -852,7 +852,7 @@ class PgvectorDocumentStore:
         except Error as e:
             await self._async_connection.rollback()
             error_msg = (
-                "Could not write documents to PgvectorDocumentStore. \n"
+                "Could not write documents to PgvectorDocumentStore: {e}. \n"
                 "You can find the SQL query and the parameters in the debug logs."
             )
             raise DocumentStoreError(error_msg) from e
