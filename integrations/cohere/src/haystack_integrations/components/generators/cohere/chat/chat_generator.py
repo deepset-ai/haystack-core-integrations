@@ -236,7 +236,7 @@ class CohereChatGenerator:
     from haystack.utils import Secret
     from haystack_integrations.components.generators.cohere import CohereChatGenerator
 
-    client = CohereChatGenerator(model="command-r", api_key=Secret.from_env_var("COHERE_API_KEY"))
+    client = CohereChatGenerator(model="command-r-plus", api_key=Secret.from_env_var("COHERE_API_KEY"))
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
     client.run(messages)
 
@@ -296,7 +296,7 @@ class CohereChatGenerator:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
-        model: str = "command-r",
+        model: str = "command-r-plus",
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         api_base_url: Optional[str] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
