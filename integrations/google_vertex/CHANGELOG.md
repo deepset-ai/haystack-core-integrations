@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_vertex-v5.2.0] - 2025-05-02
+
+### 🚀 Features
+
+- Add vertexai document and text embedders (#1683)
+
+
 ## [integrations/google_vertex-v5.1.0] - 2025-04-08
 
 ### 🚀 Features
