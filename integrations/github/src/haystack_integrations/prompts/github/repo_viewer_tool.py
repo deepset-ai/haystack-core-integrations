@@ -64,7 +64,7 @@ Haystack-Agent takes notes after viewing code:
 </scratchpad>
 """
 
-repo_viewer_schema = {
+REPO_VIEWER_SCHEMA = {
     "properties": {
         "repo": {"type": "string", "description": "The owner/repository_name that you want to view."},
         "path": {

@@ -1,19 +1,19 @@
 # SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from .comment_tool import comment_prompt, comment_schema
-from .file_editor_tool import FILE_EDITOR_PROMPT, file_editor_schema
-from .pr_system_prompt import SYSTEM_PROMPT as pr_system_prompt
-from .repo_viewer_tool import REPO_VIEWER_PROMPT, repo_viewer_schema
+from .comment_tool import COMMENT_PROMPT, COMMENT_SCHEMA
+from .file_editor_tool import FILE_EDITOR_PROMPT, FILE_EDITOR_SCHEMA
+from .pr_system_prompt import PR_SYSTEM_PROMPT
+from .repo_viewer_tool import REPO_VIEWER_PROMPT, REPO_VIEWER_SCHEMA
 from .system_prompt import ISSUE_PROMPT
 
 __all__ = [
-    "comment_prompt",
-    "comment_schema",
+    "COMMENT_PROMPT",
+    "COMMENT_SCHEMA",
     "FILE_EDITOR_PROMPT",
-    "file_editor_schema",
+    "FILE_EDITOR_SCHEMA",
     "ISSUE_PROMPT",
-    "pr_system_prompt",
+    "PR_SYSTEM_PROMPT",
     "REPO_VIEWER_PROMPT",
-    "repo_viewer_schema",
+    "REPO_VIEWER_SCHEMA",
 ]

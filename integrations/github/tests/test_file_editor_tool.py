@@ -1,0 +1,57 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+from haystack.utils import Secret
+
+from haystack_integrations.prompts.github.file_editor_tool import FILE_EDITOR_PROMPT, FILE_EDITOR_SCHEMA
+from haystack_integrations.tools.github.file_editor_tool import GitHubFileEditorTool
+
+
+class TestGitHubFileEditorTool:
+    def test_init(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        tool = GitHubFileEditorTool()
+        assert tool.name == "file_editor"
+        assert tool.description == FILE_EDITOR_PROMPT
+        assert tool.parameters == FILE_EDITOR_SCHEMA
+
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        tool_dict = {
+            "type": "haystack_integrations.tools.github.file_editor_tool.GitHubFileEditorTool",
+            "init_parameters": {
+                "name": "file_editor",
+                "description": FILE_EDITOR_PROMPT,
+                "parameters": FILE_EDITOR_SCHEMA,
+                "github_token": {"env_vars": ["GITHUB_TOKEN"], "strict": True, "type": "env_var"},
+                "repo": None,
+                "branch": "main",
+                "raise_on_failure": True,
+            },
+        }
+        tool = GitHubFileEditorTool.from_dict(tool_dict)
+        assert tool.name == "file_editor"
+        assert tool.description == FILE_EDITOR_PROMPT
+        assert tool.parameters == FILE_EDITOR_SCHEMA
+        assert tool.github_token == Secret.from_env_var("GITHUB_TOKEN")
+        assert tool.repo is None
+        assert tool.branch == "main"
+        assert tool.raise_on_failure
+
+    def test_to_dict(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        tool = GitHubFileEditorTool()
+        tool_dict = tool.to_dict()
+        assert tool_dict["type"] == "haystack_integrations.tools.github.file_editor_tool.GitHubFileEditorTool"
+        assert tool_dict["init_parameters"]["name"] == "file_editor"
+        assert tool_dict["init_parameters"]["description"] == FILE_EDITOR_PROMPT
+        assert tool_dict["init_parameters"]["parameters"] == FILE_EDITOR_SCHEMA
+        assert tool_dict["init_parameters"]["github_token"] == {
+            "env_vars": ["GITHUB_TOKEN"],
+            "strict": True,
+            "type": "env_var",
+        }
+        assert tool_dict["init_parameters"]["repo"] is None
+        assert tool_dict["init_parameters"]["branch"] == "main"
+        assert tool_dict["init_parameters"]["raise_on_failure"]

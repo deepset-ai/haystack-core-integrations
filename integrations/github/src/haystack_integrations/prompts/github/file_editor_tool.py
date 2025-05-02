@@ -98,7 +98,7 @@ Example:
 }
 """
 
-file_editor_schema = {
+FILE_EDITOR_SCHEMA = {
     "type": "object",
     "properties": {
         "command": {
