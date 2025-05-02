@@ -43,8 +43,12 @@ VALID_MODEL = "text-embedding-005"
 VALID_TASK_TYPE = "RETRIEVAL_DOCUMENT"
 
 
-def test_init_defaults():
+@patch("vertexai.init")
+@patch("vertexai.language_models.TextEmbeddingModel.from_pretrained")
+def test_init_defaults(mock_from_pretrained, mock_init):
     """Test default initialization."""
+    mock_embedder = MagicMock(spec=TextEmbeddingModel)
+    mock_from_pretrained.return_value = mock_embedder
 
     embedder = VertexAIDocumentEmbedder(model=VALID_MODEL, task_type=VALID_TASK_TYPE)
     assert embedder.model == VALID_MODEL
@@ -59,6 +63,9 @@ def test_init_defaults():
     assert embedder.embedding_separator == "\n"
     assert isinstance(embedder.gcp_project_id, Secret)
     assert isinstance(embedder.gcp_region_name, Secret)
+
+    mock_init.assert_called_once()
+    mock_from_pretrained.assert_called_once_with(VALID_MODEL)
 
 
 def test_init_custom_params(mock_vertex_init_and_model):
@@ -105,16 +112,26 @@ def test_init_invalid_model():
         VertexAIDocumentEmbedder(model="invalid-model", task_type=VALID_TASK_TYPE)
 
 
-def test_prepare_texts_to_embed_no_meta():
+@patch("vertexai.init")
+@patch("vertexai.language_models.TextEmbeddingModel.from_pretrained")
+def test_prepare_texts_to_embed_no_meta(mock_from_pretrained, _mock_init):
     """Test _prepare_texts_to_embed without meta fields."""
+    mock_embedder = MagicMock(spec=TextEmbeddingModel)
+    mock_from_pretrained.return_value = mock_embedder
+
     embedder = VertexAIDocumentEmbedder(model=VALID_MODEL, task_type=VALID_TASK_TYPE)
     docs = [Document(content="doc1 text"), Document(content="doc2 text")]
     texts = embedder._prepare_texts_to_embed(docs)
     assert texts == ["doc1 text", "doc2 text"]
 
 
-def test_prepare_texts_to_embed_with_meta():
+@patch("vertexai.init")
+@patch("vertexai.language_models.TextEmbeddingModel.from_pretrained")
+def test_prepare_texts_to_embed_with_meta(mock_from_pretrained, _mock_init):
     """Test _prepare_texts_to_embed with meta fields."""
+    mock_embedder = MagicMock(spec=TextEmbeddingModel)
+    mock_from_pretrained.return_value = mock_embedder
+
     embedder = VertexAIDocumentEmbedder(
         model=VALID_MODEL, task_type=VALID_TASK_TYPE, meta_fields_to_embed=["meta_key1", "meta_key2"]
     )
@@ -133,8 +150,13 @@ def test_prepare_texts_to_embed_with_meta():
     ]
 
 
-def test_prepare_texts_to_embed_custom_separator():
+@patch("vertexai.init")
+@patch("vertexai.language_models.TextEmbeddingModel.from_pretrained")
+def test_prepare_texts_to_embed_custom_separator(mock_from_pretrained, _mock_init):
     """Test _prepare_texts_to_embed with a custom separator."""
+    mock_embedder = MagicMock(spec=TextEmbeddingModel)
+    mock_from_pretrained.return_value = mock_embedder
+
     embedder = VertexAIDocumentEmbedder(
         model=VALID_MODEL, task_type=VALID_TASK_TYPE, meta_fields_to_embed=["meta_key"], embedding_separator=" --- "
     )
@@ -143,8 +165,13 @@ def test_prepare_texts_to_embed_custom_separator():
     assert texts == ["value --- doc text"]
 
 
-def test_get_text_embedding_input():
+@patch("vertexai.init")
+@patch("vertexai.language_models.TextEmbeddingModel.from_pretrained")
+def test_get_text_embedding_input(mock_from_pretrained, _mock_init):
     """Test conversion of Documents to TextEmbeddingInput."""
+    mock_embedder = MagicMock(spec=TextEmbeddingModel)
+    mock_from_pretrained.return_value = mock_embedder
+
     embedder = VertexAIDocumentEmbedder(model=VALID_MODEL, task_type="CLASSIFICATION")
     docs = [Document(content="text1"), Document(content="text2")]
 
@@ -189,8 +216,13 @@ def test_embed_batch(mock_vertex_init_and_model):
     assert inputs[1].task_type == VALID_TASK_TYPE
 
 
-def test_to_dict():
+@patch("vertexai.init")
+@patch("vertexai.language_models.TextEmbeddingModel.from_pretrained")
+def test_to_dict(mock_from_pretrained, _mock_init):
     """Test serialization to dictionary."""
+    mock_embedder = MagicMock(spec=TextEmbeddingModel)
+    mock_from_pretrained.return_value = mock_embedder
+
     project_id = Secret.from_env_var("GCP_PROJECT_ID", strict=False)
     region = Secret.from_env_var("GCP_DEFAULT_REGION", strict=False)
     embedder = VertexAIDocumentEmbedder(

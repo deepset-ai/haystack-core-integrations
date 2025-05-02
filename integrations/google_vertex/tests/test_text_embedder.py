@@ -111,8 +111,13 @@ def test_run_with_string(mock_vertex_init_and_model):
     assert inputs[0].task_type == VALID_TASK_TYPE
 
 
-def test_run_with_list_document_raises_error():
+@patch("vertexai.init")
+@patch("vertexai.language_models.TextEmbeddingModel.from_pretrained")
+def test_run_with_list_document_raises_error(mock_from_pretrained, _mock_init):
     """Test that running with List[Document] raises TypeError."""
+    mock_embedder = MagicMock(spec=TextEmbeddingModel)
+    mock_from_pretrained.return_value = mock_embedder
+
     embedder = VertexAITextEmbedder(model=VALID_MODEL, task_type=VALID_TASK_TYPE)
     docs = [Document(content="doc1"), Document(content="doc2")]
 
@@ -120,8 +125,13 @@ def test_run_with_list_document_raises_error():
         embedder.run(text=docs)
 
 
-def test_run_with_list_string_raises_error():
+@patch("vertexai.init")
+@patch("vertexai.language_models.TextEmbeddingModel.from_pretrained")
+def test_run_with_list_string_raises_error(mock_from_pretrained, _mock_init):
     """Test that running with List[str] raises TypeError."""
+    mock_embedder = MagicMock(spec=TextEmbeddingModel)
+    mock_from_pretrained.return_value = mock_embedder
+
     embedder = VertexAITextEmbedder(model=VALID_MODEL, task_type=VALID_TASK_TYPE)
     texts = ["text1", "text2"]
 
@@ -129,8 +139,13 @@ def test_run_with_list_string_raises_error():
         embedder.run(text=texts)
 
 
-def test_to_dict():
+@patch("vertexai.init")
+@patch("vertexai.language_models.TextEmbeddingModel.from_pretrained")
+def test_to_dict(mock_from_pretrained, _mock_init):
     """Test serialization to dictionary."""
+    mock_embedder = MagicMock(spec=TextEmbeddingModel)
+    mock_from_pretrained.return_value = mock_embedder
+
     project_id = Secret.from_env_var("GCP_PROJECT_ID", strict=False)
     region = Secret.from_env_var("GCP_DEFAULT_REGION", strict=False)
     embedder = VertexAITextEmbedder(
