@@ -41,11 +41,10 @@ class TestCohereRanker:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
         component = CohereRanker()
-        assert component.model_name == "rerank-english-v2.0"
+        assert component.model_name == "rerank-v3.5"
         assert component.top_k == 10
         assert component.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
         assert component.api_base_url == COHERE_API_URL
-        assert component.max_chunks_per_doc is None
         assert component.meta_fields_to_embed == []
         assert component.meta_data_separator == "\n"
         assert component.max_tokens_per_doc == 4096
@@ -59,20 +58,18 @@ class TestCohereRanker:
     def test_init_with_parameters(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
         component = CohereRanker(
-            model="rerank-multilingual-v2.0",
+            model="rerank-multilingual-v3.0",
             top_k=5,
             api_key=Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
             api_base_url="test-base-url",
-            max_chunks_per_doc=40,
             meta_fields_to_embed=["meta_field_1", "meta_field_2"],
             meta_data_separator=",",
             max_tokens_per_doc=100,
         )
-        assert component.model_name == "rerank-multilingual-v2.0"
+        assert component.model_name == "rerank-multilingual-v3.0"
         assert component.top_k == 5
         assert component.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
         assert component.api_base_url == "test-base-url"
-        assert component.max_chunks_per_doc == 40
         assert component.meta_fields_to_embed == ["meta_field_1", "meta_field_2"]
         assert component.meta_data_separator == ","
         assert component.max_tokens_per_doc == 100
@@ -84,11 +81,10 @@ class TestCohereRanker:
         assert data == {
             "type": "haystack_integrations.components.rankers.cohere.ranker.CohereRanker",
             "init_parameters": {
-                "model": "rerank-english-v2.0",
+                "model": "rerank-v3.5",
                 "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
                 "api_base_url": COHERE_API_URL,
                 "top_k": 10,
-                "max_chunks_per_doc": None,
                 "meta_fields_to_embed": [],
                 "meta_data_separator": "\n",
                 "max_tokens_per_doc": 4096,
@@ -98,11 +94,10 @@ class TestCohereRanker:
     def test_to_dict_with_parameters(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
         component = CohereRanker(
-            model="rerank-multilingual-v2.0",
+            model="rerank-multilingual-v3.0",
             top_k=2,
             api_key=Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
             api_base_url="test-base-url",
-            max_chunks_per_doc=50,
             meta_fields_to_embed=["meta_field_1", "meta_field_2"],
             meta_data_separator=",",
             max_tokens_per_doc=100,
@@ -111,11 +106,10 @@ class TestCohereRanker:
         assert data == {
             "type": "haystack_integrations.components.rankers.cohere.ranker.CohereRanker",
             "init_parameters": {
-                "model": "rerank-multilingual-v2.0",
+                "model": "rerank-multilingual-v3.0",
                 "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
                 "api_base_url": "test-base-url",
                 "top_k": 2,
-                "max_chunks_per_doc": 50,
                 "meta_fields_to_embed": ["meta_field_1", "meta_field_2"],
                 "meta_data_separator": ",",
                 "max_tokens_per_doc": 100,
@@ -127,22 +121,20 @@ class TestCohereRanker:
         data = {
             "type": "haystack_integrations.components.rankers.cohere.ranker.CohereRanker",
             "init_parameters": {
-                "model": "rerank-multilingual-v2.0",
+                "model": "rerank-multilingual-v3.0",
                 "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
                 "api_base_url": "test-base-url",
                 "top_k": 2,
-                "max_chunks_per_doc": 50,
                 "meta_fields_to_embed": ["meta_field_1", "meta_field_2"],
                 "meta_data_separator": ",",
                 "max_tokens_per_doc": 100,
             },
         }
         component = CohereRanker.from_dict(data)
-        assert component.model_name == "rerank-multilingual-v2.0"
+        assert component.model_name == "rerank-multilingual-v3.0"
         assert component.top_k == 2
         assert component.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
         assert component.api_base_url == "test-base-url"
-        assert component.max_chunks_per_doc == 50
         assert component.meta_fields_to_embed == ["meta_field_1", "meta_field_2"]
         assert component.meta_data_separator == ","
         assert component.max_tokens_per_doc == 100
@@ -153,10 +145,9 @@ class TestCohereRanker:
         data = {
             "type": "haystack_integrations.components.rankers.cohere.ranker.CohereRanker",
             "init_parameters": {
-                "model": "rerank-multilingual-v2.0",
+                "model": "rerank-multilingual-v3.0",
                 "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
                 "top_k": 2,
-                "max_chunks_per_doc": 50,
                 "max_tokens_per_doc": 100,
             },
         }
