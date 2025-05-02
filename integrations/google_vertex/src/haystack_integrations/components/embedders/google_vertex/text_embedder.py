@@ -22,7 +22,7 @@ class VertexAITextEmbedder:
 
     text_to_embed = "I love pizza!"
 
-    text_embedder = VertexAITextEmbedder(model="text-embedding-005", task_type="RETRIEVAL_QUERY")
+    text_embedder = VertexAITextEmbedder(model="text-embedding-005")
 
     print(text_embedder.run(text_to_embed))
     # {'embedding': [-0.08127457648515701, 0.03399784862995148, -0.05116401985287666, ...]
@@ -47,7 +47,7 @@ class VertexAITextEmbedder:
             "QUESTION_ANSWERING",
             "FACT_VERIFICATION",
             "CODE_RETRIEVAL_QUERY",
-        ],
+        ] = "RETRIEVAL_QUERY",
         gcp_region_name: Optional[Secret] = Secret.from_env_var("GCP_DEFAULT_REGION", strict=False),  # noqa: B008
         gcp_project_id: Optional[Secret] = Secret.from_env_var("GCP_PROJECT_ID", strict=False),  # noqa: B008
         progress_bar: bool = True,

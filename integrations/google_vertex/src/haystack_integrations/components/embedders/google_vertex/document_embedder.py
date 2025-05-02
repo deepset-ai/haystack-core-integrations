@@ -36,7 +36,7 @@ class VertexAIDocumentEmbedder:
 
     doc = Document(content="I love pizza!")
 
-    document_embedder = VertexAIDocumentEmbedder(model="text-embedding-005", task_type="RETRIEVAL_DOCUMENT")
+    document_embedder = VertexAIDocumentEmbedder(model="text-embedding-005")
 
     result = document_embedder.run([doc])
     print(result['documents'][0].embedding)
@@ -62,7 +62,7 @@ class VertexAIDocumentEmbedder:
             "QUESTION_ANSWERING",
             "FACT_VERIFICATION",
             "CODE_RETRIEVAL_QUERY",
-        ],
+        ] = "RETRIEVAL_DOCUMENT",
         gcp_region_name: Optional[Secret] = Secret.from_env_var("GCP_DEFAULT_REGION", strict=False),  # noqa: B008
         gcp_project_id: Optional[Secret] = Secret.from_env_var("GCP_PROJECT_ID", strict=False),  # noqa: B008
         batch_size: int = 32,
