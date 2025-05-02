@@ -36,6 +36,30 @@ DEFAULT_MAX_CHUNK_BYTES = 100 * 1024 * 1024
 class OpenSearchDocumentStore:
     """
     An instance of an OpenSearch database you can use to store all types of data.
+
+    This document store is a thin wrapper around the OpenSearch client.
+    It allows you to store and retrieve documents from an OpenSearch index.
+
+    Usage example:
+    ```python
+    from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
+    from haystack import Document
+
+    document_store = OpenSearchDocumentStore(hosts="localhost:9200")
+
+    document_store.write_documents(
+        [
+            Document(content="My first document", id="1"),
+            Document(content="My second document", id="2"),
+        ]
+    )
+
+    print(document_store.count_documents())
+    # 2
+
+    print(document_store.filter_documents())
+    # [Document(id='1', content='My first document', ...), Document(id='2', content='My second document', ...)]
+    ```
     """
 
     def __init__(

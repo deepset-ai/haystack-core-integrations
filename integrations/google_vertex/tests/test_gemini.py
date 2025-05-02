@@ -4,11 +4,7 @@ import pytest
 from haystack import Pipeline
 from haystack.components.builders import PromptBuilder
 from haystack.dataclasses import StreamingChunk
-from vertexai.generative_models import (
-    GenerationConfig,
-    HarmBlockThreshold,
-    HarmCategory,
-)
+from vertexai.generative_models import GenerationConfig, HarmBlockThreshold, HarmCategory
 
 from haystack_integrations.components.generators.google_vertex import VertexAIGeminiGenerator
 
