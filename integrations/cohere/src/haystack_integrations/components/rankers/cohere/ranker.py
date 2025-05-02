@@ -94,6 +94,11 @@ class CohereRanker:
         :returns:
             The deserialized component.
         """
+
+        # max_chunks_per_doc parameter was removed and we want to avoid deserialization errors if component
+        # was serialized with the old version
+        data["init_parameters"].pop("max_chunks_per_doc", None)
+
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
