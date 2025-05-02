@@ -35,7 +35,7 @@ DEFAULT_MAX_CHUNK_BYTES = 100 * 1024 * 1024
 
 class OpenSearchDocumentStore:
     """
-    An OpenSearch Document Store.
+    An instance of an OpenSearch database you can use to store all types of data.
 
     This document store is a thin wrapper around the OpenSearch client.
     It allows you to store and retrieve documents from an OpenSearch index.
@@ -43,7 +43,7 @@ class OpenSearchDocumentStore:
     Usage example:
     ```python
     from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
-    from haystack.dataclasses import Document
+    from haystack import Document
 
     document_store = OpenSearchDocumentStore(hosts="localhost:9200")
 
