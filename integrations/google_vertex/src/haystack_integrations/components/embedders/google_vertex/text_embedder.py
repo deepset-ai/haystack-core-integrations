@@ -15,6 +15,18 @@ class VertexAITextEmbedder:
 
     Available models found here:
     https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/text-embeddings-api#syntax
+
+    Usage example:
+    ```python
+    from haystack_integrations.components.embedders.google_vertex import VertexAITextEmbedder
+
+    text_to_embed = "I love pizza!"
+
+    text_embedder = VertexAITextEmbedder(model="text-embedding-005", task_type="RETRIEVAL_QUERY")
+
+    print(text_embedder.run(text_to_embed))
+    # {'embedding': [-0.08127457648515701, 0.03399784862995148, -0.05116401985287666, ...]
+    ```
     """
 
     def __init__(
