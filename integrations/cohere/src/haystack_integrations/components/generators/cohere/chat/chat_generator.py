@@ -278,7 +278,7 @@ class CohereChatGenerator:
 
     # Create and set up the pipeline
     pipeline = Pipeline()
-    pipeline.add_component("generator", CohereChatGenerator(model="command-r", tools=[weather_tool]))
+    pipeline.add_component("generator", CohereChatGenerator(model="command-r-plus", tools=[weather_tool]))
     pipeline.add_component("tool_invoker", ToolInvoker(tools=[weather_tool]))
     pipeline.connect("generator", "tool_invoker")
 
