@@ -22,7 +22,7 @@ class CohereRanker:
     from haystack import Document
     from haystack.components.rankers import CohereRanker
 
-    ranker = CohereRanker(model="rerank-english-v2.0", top_k=2)
+    ranker = CohereRanker(model="rerank-v3.5", top_k=2)
 
     docs = [Document(content="Paris"), Document(content="Berlin")]
     query = "What is the capital of germany?"
@@ -33,11 +33,10 @@ class CohereRanker:
 
     def __init__(
         self,
-        model: str = "rerank-english-v2.0",
+        model: str = "rerank-v3.5",
         top_k: int = 10,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
         api_base_url: str = "https://api.cohere.com",
-        max_chunks_per_doc: Optional[int] = None,
         meta_fields_to_embed: Optional[List[str]] = None,
         meta_data_separator: str = "\n",
         max_tokens_per_doc: int = 4096,
@@ -49,11 +48,6 @@ class CohereRanker:
         :param top_k: The maximum number of documents to return.
         :param api_key: Cohere API key.
         :param api_base_url: the base URL of the Cohere API.
-        :param max_chunks_per_doc: If your document exceeds 512 tokens, this determines the maximum number of
-            chunks a document can be split into. If `None`, the default of 10 is used.
-            For example, if your document is 6000 tokens, with the default of 10, the document will be split into 10
-            chunks each of 512 tokens and the last 880 tokens will be disregarded.
-            Check [Cohere docs](https://docs.cohere.com/docs/reranking-best-practices) for more information.
         :param meta_fields_to_embed: List of meta fields that should be concatenated
             with the document content for reranking.
         :param meta_data_separator: Separator used to concatenate the meta fields
@@ -64,20 +58,10 @@ class CohereRanker:
         self.api_key = api_key
         self.api_base_url = api_base_url
         self.top_k = top_k
-        self.max_chunks_per_doc = max_chunks_per_doc
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.meta_data_separator = meta_data_separator
         self.max_tokens_per_doc = max_tokens_per_doc
-        if max_chunks_per_doc is not None:
-            # Note: max_chunks_per_doc is currently not supported by the Cohere V2 API
-            # See: https://docs.cohere.com/reference/rerank
-            import warnings
 
-            warnings.warn(
-                "The max_chunks_per_doc parameter currently has no effect as it is not supported by the Cohere V2 API.",
-                UserWarning,
-                stacklevel=2,
-            )
         self._cohere_client = cohere.ClientV2(
             api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
         )
@@ -95,7 +79,6 @@ class CohereRanker:
             api_key=self.api_key.to_dict() if self.api_key else None,
             api_base_url=self.api_base_url,
             top_k=self.top_k,
-            max_chunks_per_doc=self.max_chunks_per_doc,
             meta_fields_to_embed=self.meta_fields_to_embed,
             meta_data_separator=self.meta_data_separator,
             max_tokens_per_doc=self.max_tokens_per_doc,
