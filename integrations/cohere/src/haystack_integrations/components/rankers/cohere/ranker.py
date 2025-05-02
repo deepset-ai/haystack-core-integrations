@@ -20,7 +20,7 @@ class CohereRanker:
     Usage example:
     ```python
     from haystack import Document
-    from haystack.components.rankers import CohereRanker
+    from haystack_integrations.components.rankers.cohere import CohereRanker
 
     ranker = CohereRanker(model="rerank-v3.5", top_k=2)
 
