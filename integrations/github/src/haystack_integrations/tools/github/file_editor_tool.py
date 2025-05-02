@@ -18,6 +18,7 @@ class GitHubFileEditorTool(ComponentTool):
 
     def __init__(
         self,
+        *,
         name: Optional[str] = "file_editor",
         description: Optional[str] = FILE_EDITOR_PROMPT,
         parameters: Optional[Dict[str, Any]] = FILE_EDITOR_SCHEMA,

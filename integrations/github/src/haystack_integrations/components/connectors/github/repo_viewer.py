@@ -70,6 +70,7 @@ class GitHubRepositoryViewer:
 
     def __init__(
         self,
+        *,
         github_token: Optional[Secret] = None,
         raise_on_failure: bool = True,
         max_file_size: int = 1_000_000,  # 1MB default limit

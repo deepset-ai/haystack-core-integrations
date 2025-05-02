@@ -77,6 +77,7 @@ class GitHubFileEditor:
 
     def __init__(
         self,
+        *,
         github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"),
         repo: Optional[str] = None,
         branch: str = "main",

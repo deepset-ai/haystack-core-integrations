@@ -37,6 +37,7 @@ class GitHubIssueCommenter:
 
     def __init__(
         self,
+        *,
         github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"),
         raise_on_failure: bool = True,
         retry_attempts: int = 2,
