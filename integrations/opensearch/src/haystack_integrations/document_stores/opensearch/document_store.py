@@ -34,7 +34,6 @@ DEFAULT_MAX_CHUNK_BYTES = 100 * 1024 * 1024
 
 
 class OpenSearchDocumentStore:
-    # Add documentation of open search document store 
     """
     An OpenSearch Document Store.
 
@@ -62,7 +61,7 @@ class OpenSearchDocumentStore:
     # [Document(id='1', content='My first document', ...), Document(id='2', content='My second document', ...)]
     ```
     """
-    
+
     def __init__(
         self,
         *,
