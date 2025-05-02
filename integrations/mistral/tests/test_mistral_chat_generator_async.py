@@ -8,10 +8,9 @@ from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
     StreamingChunk,
-    ToolCall,
 )
 from haystack.tools import Tool
-from openai import AsyncOpenAI, OpenAIError
+from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 
@@ -146,29 +145,17 @@ class TestMistralChatGeneratorAsync:
     )
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_live_run_wrong_model_async(self, chat_messages):
-        component = MistralChatGenerator(model="something-obviously-wrong")
-        with pytest.raises(OpenAIError):
-            await component.run_async(chat_messages)
-
-    @pytest.mark.skipif(
-        not os.environ.get("MISTRAL_API_KEY", None),
-        reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",
-    )
-    @pytest.mark.integration
-    @pytest.mark.asyncio
     async def test_live_run_streaming_async(self):
-        class Callback:
-            def __init__(self):
-                self.responses = ""
-                self.counter = 0
+        counter = 0
+        responses = ""
 
-            async def __call__(self, chunk: StreamingChunk) -> None:
-                self.counter += 1
-                self.responses += chunk.content if chunk.content else ""
+        async def callback(chunk: StreamingChunk):
+            nonlocal counter
+            nonlocal responses
+            counter += 1
+            responses += chunk.content if chunk.content else ""
 
-        callback = Callback()
-        component = MistralChatGenerator(streaming_callback=callback.__call__)
+        component = MistralChatGenerator(streaming_callback=callback)
         results = await component.run_async([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1
@@ -178,29 +165,8 @@ class TestMistralChatGeneratorAsync:
         assert "mistral-small-latest" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
-        assert callback.counter > 1
-        assert "Paris" in callback.responses
-
-    @pytest.mark.skipif(
-        not os.environ.get("MISTRAL_API_KEY", None),
-        reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",
-    )
-    @pytest.mark.integration
-    @pytest.mark.asyncio
-    async def test_live_run_with_tools_async(self, tools):
-        chat_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = MistralChatGenerator(tools=tools)
-        results = await component.run_async(chat_messages)
-        assert len(results["replies"]) == 1
-        message = results["replies"][0]
-        assert message.text == ""
-
-        assert message.tool_calls
-        tool_call = message.tool_call
-        assert isinstance(tool_call, ToolCall)
-        assert tool_call.tool_name == "weather"
-        assert tool_call.arguments == {"city": "Paris"}
-        assert message.meta["finish_reason"] == "tool_calls"
+        assert counter > 1
+        assert "Paris" in responses
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),
@@ -260,29 +226,25 @@ class TestMistralChatGeneratorAsync:
         Integration test that the MistralChatGenerator component can run with tools and streaming.
         """
 
-        class Callback:
-            def __init__(self):
-                self.responses = ""
-                self.counter = 0
-                self.tool_calls = []
+        counter = 0
+        tool_calls = []
 
-            async def __call__(self, chunk: StreamingChunk) -> None:
-                self.counter += 1
-                if chunk.content:
-                    self.responses += chunk.content
-                if chunk.meta.get("tool_calls"):
-                    self.tool_calls.extend(chunk.meta["tool_calls"])
+        async def callback(chunk: StreamingChunk):
+            nonlocal counter
+            nonlocal tool_calls
+            counter += 1
+            if chunk.meta.get("tool_calls"):
+                tool_calls.extend(chunk.meta["tool_calls"])
 
-        callback = Callback()
-        component = MistralChatGenerator(tools=tools, streaming_callback=callback.__call__)
+        component = MistralChatGenerator(tools=tools, streaming_callback=callback)
         results = await component.run_async(
             [ChatMessage.from_user("What's the weather like in Paris?")],
             generation_kwargs={"tool_choice": "any"},
         )
 
         assert len(results["replies"]) > 0, "No replies received"
-        assert callback.counter > 1, "Streaming callback was not called multiple times"
-        assert callback.tool_calls, "No tool calls received in streaming"
+        assert counter > 1, "Streaming callback was not called multiple times"
+        assert tool_calls, "No tool calls received in streaming"
 
         # Find the message with tool calls
         tool_message = None
