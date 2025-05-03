@@ -146,7 +146,7 @@ class ChromaDocumentStore:
                 raise ValueError(error_message)
 
             # Remote connection via async HTTP client
-            client = chromadb.AsyncHttpClient(
+            client = await chromadb.AsyncHttpClient(
                 host=self._host,
                 port=self._port,
             )
@@ -155,7 +155,8 @@ class ChromaDocumentStore:
             if "hnsw:space" not in self._metadata:
                 self._metadata["hnsw:space"] = self._distance_function
 
-            existing_collection_names = [c.name async for c in await client.list_collections()]
+            collection = await client.list_collections()
+            existing_collection_names = [c.name for c in collection]
             if self._collection_name in existing_collection_names:
                 self._collection = await client.get_collection(
                     self._collection_name,
