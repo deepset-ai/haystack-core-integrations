@@ -103,7 +103,9 @@ class OpenSearchHybridRetriever:
         self.pipeline = self._create_pipeline()
 
     def _create_pipeline(self) -> Pipeline:
-
+        """
+        Create the pipeline for the OpenSearchHybridRetriever.
+        """
         text_embedder = SentenceTransformersTextEmbedder(**self.text_embedder_kwargs)
         embedding_retriever = OpenSearchEmbeddingRetriever(**self.embedding_retriever_kwargs)
         bm25_retriever = OpenSearchBM25Retriever(**self.bm25_retriever_kwargs)
@@ -111,7 +113,7 @@ class OpenSearchHybridRetriever:
         generator = OpenAIChatGenerator(**self.generator_kwargs)
         answer_builder = AnswerBuilder(**self.answer_builder_kwargs)
 
-        # if no args for the ChatPromptBuilder are provided or if not template is provided, use the default template
+        # if no args for the ChatPromptBuilder are provided or if no template is provided, use the default template
         self.chat_prompt_builder_kwargs = self.chat_prompt_builder_kwargs or {}
         if not self.chat_prompt_builder_kwargs or "template" not in self.chat_prompt_builder_kwargs:
             default_template = [
@@ -131,6 +133,16 @@ class OpenSearchHybridRetriever:
                 )
             ]
             self.chat_prompt_builder_kwargs["template"] = default_template
+
+        # check if we are passing a serialised template
+        if isinstance(self.chat_prompt_builder_kwargs["template"], list):
+            template = []
+            for item in self.chat_prompt_builder_kwargs["template"]:
+                if isinstance(item, dict):
+                    template.append(ChatMessage.from_dict(item))
+                else:
+                    template.append(item)
+            self.chat_prompt_builder_kwargs["template"] = template
 
         chat_prompt_builder = ChatPromptBuilder(
             **self.chat_prompt_builder_kwargs,
@@ -156,29 +168,48 @@ class OpenSearchHybridRetriever:
         return hybrid_retrieval
 
     def to_dict(self):
-        # Convert the OpenSearchHybridRetriever to a dictionary representation.
-        return {
-            "document_store": self.document_store.to_dict(),
-            "text_embedder_kwargs": self.text_embedder_kwargs,
-            "bm25_retriever_kwargs": self.bm25_retriever_kwargs,
-            "embedding_retriever_kwargs": self.embedding_retriever_kwargs,
-            "document_joiner_kwargs": self.document_joiner_kwargs,
-            "chat_prompt_builder_kwargs": self.chat_prompt_builder_kwargs,
-            "generator_kwargs": self.generator_kwargs,
-            "answer_builder_kwargs": self.answer_builder_kwargs
+
+        serialised = {
+            "init_parameters": {
+                "document_store": self.document_store.to_dict(),
+                "text_embedder_kwargs": self.text_embedder_kwargs,
+                "bm25_retriever_kwargs": self.bm25_retriever_kwargs,
+                "embedding_retriever_kwargs": self.embedding_retriever_kwargs,
+                "document_joiner_kwargs": self.document_joiner_kwargs,
+                "chat_prompt_builder_kwargs": self.chat_prompt_builder_kwargs,
+                "generator_kwargs": self.generator_kwargs,
+                "answer_builder_kwargs": self.answer_builder_kwargs
+            },
+            "type": "haystack_integrations.components.retrievers.open_search_hybrid_retriever",
         }
+
+        # serialise the template
+        if isinstance(self.chat_prompt_builder_kwargs['template'], list):
+            template = []
+            for item in self.chat_prompt_builder_kwargs['template']:
+                if isinstance(item, ChatMessage):
+                    template.append(item.to_dict())
+                else:
+                    template.append(item)
+            serialised["init_parameters"]["chat_prompt_builder_kwargs"]["template"] = template
+
+        # connected the serialise the document store to the retrievers kwargs
+        doc_store = serialised["init_parameters"]["document_store"]
+        serialised["init_parameters"]["bm25_retriever_kwargs"]['document_store'] = doc_store
+        serialised["init_parameters"]["embedding_retriever_kwargs"]['document_store'] = doc_store
+
+        return serialised
 
     @classmethod
     def from_dict(cls, data):
-        # Create an OpenSearchHybridRetriever from a dictionary representation.
-        document_store = OpenSearchDocumentStore.from_dict(data["document_store"])
+        document_store = OpenSearchDocumentStore.from_dict(data['init_parameters']["document_store"])
         return cls(
             document_store=document_store,
-            text_embedder_kwargs=data["text_embedder_kwargs"],
-            bm25_retriever_kwargs=data["bm25_retriever_kwargs"],
-            embedding_retriever_kwargs=data["embedding_retriever_kwargs"],
-            document_joiner_kwargs=data["document_joiner_kwargs"],
-            chat_prompt_builder_kwargs=data["chat_prompt_builder_kwargs"],
-            generator_kwargs=data["generator_kwargs"],
-            answer_builder_kwargs=data["answer_builder_kwargs"]
+            text_embedder_kwargs=data["init_parameters"]["text_embedder_kwargs"],
+            bm25_retriever_kwargs=data["init_parameters"]["bm25_retriever_kwargs"],
+            embedding_retriever_kwargs=data["init_parameters"]["embedding_retriever_kwargs"],
+            document_joiner_kwargs=data["init_parameters"]["document_joiner_kwargs"],
+            chat_prompt_builder_kwargs=data["init_parameters"]["chat_prompt_builder_kwargs"],
+            generator_kwargs=data["init_parameters"]["generator_kwargs"],
+            answer_builder_kwargs=data["init_parameters"]["answer_builder_kwargs"]
         )
