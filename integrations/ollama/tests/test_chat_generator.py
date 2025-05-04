@@ -419,12 +419,12 @@ class TestOllamaChatGenerator:
         assert result["replies"][0].role == "assistant"
 
         # Verify metadata is properly processed and includes usage information
-        assert "meta" in result
-        assert result["meta"][0]["done"] is True
-        assert "usage" in result["meta"][0]
-        assert result["meta"][0]["usage"]["prompt_tokens"] == 26
-        assert result["meta"][0]["usage"]["completion_tokens"] == 282
-        assert result["meta"][0]["usage"]["total_tokens"] == 308
+        assert hasattr(result["replies"][0], "_meta")
+        assert result["replies"][0]._meta["done"] is True
+        assert "usage" in result["replies"][0]._meta
+        assert result["replies"][0]._meta["usage"]["prompt_tokens"] == 26
+        assert result["replies"][0]._meta["usage"]["completion_tokens"] == 282
+        assert result["replies"][0]._meta["usage"]["total_tokens"] == 308
 
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run_streaming_at_runtime(self, mock_client):
@@ -472,12 +472,12 @@ class TestOllamaChatGenerator:
         assert result["replies"][0].role == "assistant"
 
         # Verify metadata is properly processed and includes usage information
-        assert "meta" in result
-        assert result["meta"][0]["done"] is True
-        assert "usage" in result["meta"][0]
-        assert result["meta"][0]["usage"]["prompt_tokens"] == 26
-        assert result["meta"][0]["usage"]["completion_tokens"] == 282
-        assert result["meta"][0]["usage"]["total_tokens"] == 308
+        assert hasattr(result["replies"][0], "_meta")
+        assert result["replies"][0]._meta["done"] is True
+        assert "usage" in result["replies"][0]._meta
+        assert result["replies"][0]._meta["usage"]["prompt_tokens"] == 26
+        assert result["replies"][0]._meta["usage"]["completion_tokens"] == 282
+        assert result["replies"][0]._meta["usage"]["total_tokens"] == 308
 
     def test_run_fail_with_tools_and_streaming(self, tools):
         component = OllamaChatGenerator(tools=tools, streaming_callback=print_streaming_chunk)
