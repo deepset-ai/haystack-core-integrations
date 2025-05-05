@@ -7,12 +7,7 @@ from haystack.lazy_imports import LazyImport
 from haystack.tools import Tool, Toolset, _check_duplicate_tool_names
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
-
-# Compatibility with Haystack 2.12.0 and 2.13.0 - remove after 2.13.0 is released
-try:
-    from haystack.tools import deserialize_tools_or_toolset_inplace
-except ImportError:
-    from haystack.tools import deserialize_tools_inplace as deserialize_tools_or_toolset_inplace
+from haystack.tools import deserialize_tools_or_toolset_inplace, serialize_tools_or_toolset
 
 from cohere import ChatResponse
 
@@ -358,7 +353,6 @@ class CohereChatGenerator:
                 Dictionary with serialized data.
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
-        serialized_tools = [tool.to_dict() for tool in self.tools] if self.tools else None
         return default_to_dict(
             self,
             model=self.model,
@@ -366,7 +360,7 @@ class CohereChatGenerator:
             api_base_url=self.api_base_url,
             api_key=self.api_key.to_dict(),
             generation_kwargs=self.generation_kwargs,
-            tools=serialized_tools,
+            tools=serialize_tools_or_toolset(self.tools),
         )
 
     @classmethod
