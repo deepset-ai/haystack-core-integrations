@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/amazon_bedrock-v3.5.2] - 2025-05-05
 
 ### 🚜 Refactor
 
