@@ -130,9 +130,7 @@ class GitHubRepoForker:
         :raises requests.RequestException: If API call fails
         """
         url = "https://api.github.com/user"
-        response = requests.get(
-            url, headers=self._get_request_headers(), timeout=10
-        )
+        response = requests.get(url, headers=self._get_request_headers(), timeout=10)
         response.raise_for_status()
         return response.json()["login"]
 
@@ -183,17 +181,13 @@ class GitHubRepoForker:
         """
         # First, get the default branch SHA
         url = f"https://api.github.com/repos/{fork_path}"
-        response = requests.get(
-            url, headers=self._get_request_headers(), timeout=10
-        )
+        response = requests.get(url, headers=self._get_request_headers(), timeout=10)
         response.raise_for_status()
         default_branch = response.json()["default_branch"]
 
         # Get the SHA of the default branch
         url = f"https://api.github.com/repos/{fork_path}/git/ref/heads/{default_branch}"
-        response = requests.get(
-            url, headers=self._get_request_headers(), timeout=10
-        )
+        response = requests.get(url, headers=self._get_request_headers(), timeout=10)
         response.raise_for_status()
         sha = response.json()["object"]["sha"]
 
@@ -218,9 +212,7 @@ class GitHubRepoForker:
         :raises requests.RequestException: If fork creation fails
         """
         url = f"https://api.github.com/repos/{owner}/{repo}/forks"
-        response = requests.post(
-            url, headers=self._get_request_headers(), timeout=10
-        )
+        response = requests.post(url, headers=self._get_request_headers(), timeout=10)
         response.raise_for_status()
 
         fork_data = response.json()
