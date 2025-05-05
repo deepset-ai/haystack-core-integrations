@@ -236,7 +236,7 @@ class CohereChatGenerator:
     from haystack.utils import Secret
     from haystack_integrations.components.generators.cohere import CohereChatGenerator
 
-    client = CohereChatGenerator(model="command-r-plus", api_key=Secret.from_env_var("COHERE_API_KEY"))
+    client = CohereChatGenerator(model="command-r-08-2024", api_key=Secret.from_env_var("COHERE_API_KEY"))
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
     client.run(messages)
 
@@ -278,7 +278,7 @@ class CohereChatGenerator:
 
     # Create and set up the pipeline
     pipeline = Pipeline()
-    pipeline.add_component("generator", CohereChatGenerator(model="command-r-plus", tools=[weather_tool]))
+    pipeline.add_component("generator", CohereChatGenerator(model="command-r-08-2024", tools=[weather_tool]))
     pipeline.add_component("tool_invoker", ToolInvoker(tools=[weather_tool]))
     pipeline.connect("generator", "tool_invoker")
 
@@ -296,7 +296,7 @@ class CohereChatGenerator:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
-        model: str = "command-r-plus",
+        model: str = "command-r-08-2024",
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         api_base_url: Optional[str] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
