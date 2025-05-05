@@ -20,15 +20,7 @@ from haystack_integrations.components.generators.amazon_bedrock.adapters import 
 )
 
 
-@pytest.mark.parametrize(
-    "boto3_config",
-    [
-        None,
-        {
-            "read_timeout": 1000,
-        },
-    ],
-)
+@pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
 def test_to_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]):
     """
     Test that the to_dict method returns the correct dictionary without aws credentials
@@ -57,15 +49,7 @@ def test_to_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]
     assert generator.to_dict() == expected_dict
 
 
-@pytest.mark.parametrize(
-    "boto3_config",
-    [
-        None,
-        {
-            "read_timeout": 1000,
-        },
-    ],
-)
+@pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
 def test_from_dict(mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]):
     """
     Test that the from_dict method returns the correct object
