@@ -68,15 +68,6 @@ class TestOpenSearchHybridRetriever:
                 "weights": None,
                 "top_k": None,
                 "sort_by_score": True,
-                "template": None,
-                "generator_model": "gpt-4o-mini",
-                "streaming_callback": None,
-                "api_base_url": None,
-                "organization": None,
-                "generation_kwargs": {},
-                "http_client_kwargs": {},
-                "pattern": None,
-                "reference_pattern": None,
             },
         }
         assert expected == result
@@ -134,15 +125,6 @@ class TestOpenSearchHybridRetriever:
                 "weights": None,
                 "top_k": None,
                 "sort_by_score": True,
-                "template": None,
-                "generator_model": "gpt-4o-mini",
-                "streaming_callback": None,
-                "api_base_url": None,
-                "organization": None,
-                "generation_kwargs": {},
-                "http_client_kwargs": {},
-                "pattern": None,
-                "reference_pattern": None,
             },
         }
         super_component = OpenSearchHybridRetriever.from_dict(data)

@@ -5,12 +5,9 @@
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from haystack import Pipeline, default_from_dict, default_to_dict, logging
-from haystack.components.builders import AnswerBuilder, ChatPromptBuilder
 from haystack.components.embedders import SentenceTransformersTextEmbedder
-from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.joiners.document_joiner import JoinMode
-from haystack.dataclasses import ChatMessage, StreamingCallbackT
 from haystack.document_stores.types import FilterPolicy
 from haystack.lazy_imports import LazyImport
 from haystack.utils import ComponentDevice
@@ -69,18 +66,6 @@ class OpenSearchHybridRetriever:
         weights: Optional[List[float]] = None,
         top_k: Optional[int] = None,
         sort_by_score: bool = True,
-        # ChatPromptBuilder
-        template: Optional[List[ChatMessage]] = None,
-        # OpenAIChatGenerator
-        generator_model: str = "gpt-4o-mini",
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        api_base_url: Optional[str] = None,
-        organization: Optional[str] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        http_client_kwargs: Optional[Dict[str, Any]] = None,
-        # AnswerBuilder
-        pattern: Optional[str] = None,
-        reference_pattern: Optional[str] = None,
         # extra kwargs
         **kwargs,
     ):
@@ -101,9 +86,6 @@ class OpenSearchHybridRetriever:
         bm25_retriever -> OpenSearchBM25Retriever
         embedding_retriever -> OpenSearchEmbeddingRetriever
         document_joiner -> DocumentJoiner
-        chat_prompt_builder -> ChatPromptBuilder
-        generator -> OpenAIChatGenerator
-        answer_builder -> AnswerBuilder
 
         :param document_store:
             The OpenSearchDocumentStore to use for retrieval.
@@ -205,7 +187,7 @@ class OpenSearchHybridRetriever:
             The reference pattern for the AnswerBuilder.
 
         :param **kwargs:
-            Additional keyword arguments.            
+            Additional keyword arguments.
         """
         self.document_store = document_store
 
@@ -239,21 +221,6 @@ class OpenSearchHybridRetriever:
         self.weights = weights
         self.top_k = top_k
         self.sort_by_score = sort_by_score
-
-        # ChatPromptBuilder
-        self.template = template
-
-        # OpenAIChatGenerator
-        self.generator_model = generator_model
-        self.streaming_callback = streaming_callback
-        self.api_base_url = api_base_url
-        self.organization = organization
-        self.generation_kwargs = generation_kwargs or {}
-        self.http_client_kwargs = http_client_kwargs or {}
-
-        # AnswerBuilder
-        self.pattern = pattern
-        self.reference_pattern = reference_pattern
 
         init_args = {
             "text_embedder": {
@@ -289,23 +256,9 @@ class OpenSearchHybridRetriever:
                 "top_k": self.top_k,
                 "sort_by_score": self.sort_by_score,
             },
-            "chat_prompt_builder": {
-                "template": self.template,
-            },
-            "generator": {
-                "model": self.generator_model,
-                "streaming_callback": self.streaming_callback,
-                "api_base_url": self.api_base_url,
-                "organization": self.organization,
-                "generation_kwargs": self.generation_kwargs,
-                "http_client_kwargs": self.http_client_kwargs,
-            },
-            "answer_builder": {"pattern": self.pattern, "reference_pattern": self.reference_pattern},
         }
 
         # look for extra kwargs for each component and add the document store as init param for the retrievers
-        # the DocumentJoiner and the AnswerBuilder have no extra kwargs since all the params are already
-        # exposed in the constructor
         if "text_embedder" in kwargs:
             init_args["text_embedder"].update(kwargs["text_embedder"])
         if "bm25_retriever" in kwargs:
@@ -314,10 +267,6 @@ class OpenSearchHybridRetriever:
         if "embedding_retriever" in kwargs:
             init_args["embedding_retriever"].update(kwargs["embedding_retriever"])
             init_args["embedding_retriever"]["document_store"] = self.document_store
-        if "chat_prompt_builder" in kwargs:
-            init_args["chat_prompt_builder"].update(kwargs["chat_prompt_builder"])
-        if "generator" in kwargs:
-            init_args["generator"].update(kwargs["generator"])
 
         self.pipeline = self._create_pipeline(init_args)
 
@@ -331,53 +280,21 @@ class OpenSearchHybridRetriever:
         embedding_retriever = OpenSearchEmbeddingRetriever(**data["embedding_retriever"])
         bm25_retriever = OpenSearchBM25Retriever(**data["bm25_retriever"])
         document_joiner = DocumentJoiner(**data["document_joiner"])
-        generator = OpenAIChatGenerator(**data["generator"])
-        answer_builder = AnswerBuilder(**data["answer_builder"])
-
-        # if no args for the ChatPromptBuilder are provided or if not template is provided, use the default template
-        if not data["chat_prompt_builder"]["template"]:
-            default_template = [
-                ChatMessage.from_system(
-                    "You are a helpful AI assistant. Answer the following question based on the given context information "  # noqa: E501
-                    "only. If the context is empty or just a '\n' answer with None, example: 'None'."
-                ),
-                ChatMessage.from_user(
-                    """
-                    Context:
-                    {% for document in documents %}
-                        {{ document.content }}
-                    {% endfor %}
-
-                    Question: {{question}}
-                    """
-                ),
-            ]
-            data["chat_prompt_builder"]["template"] = default_template
-
-        chat_prompt_builder = ChatPromptBuilder(
-            **data["chat_prompt_builder"], required_variables=["question", "documents"]
-        )
 
         hybrid_retrieval = Pipeline()
         hybrid_retrieval.add_component("text_embedder", text_embedder)
         hybrid_retrieval.add_component("embedding_retriever", embedding_retriever)
         hybrid_retrieval.add_component("bm25_retriever", bm25_retriever)
         hybrid_retrieval.add_component("document_joiner", document_joiner)
-        hybrid_retrieval.add_component("prompt_builder", chat_prompt_builder)
-        hybrid_retrieval.add_component("llm", generator)
-        hybrid_retrieval.add_component("answer_builder", answer_builder)
 
         hybrid_retrieval.connect("text_embedder", "embedding_retriever")
         hybrid_retrieval.connect("bm25_retriever", "document_joiner")
         hybrid_retrieval.connect("embedding_retriever", "document_joiner")
-        hybrid_retrieval.connect("document_joiner.documents", "prompt_builder.documents")
-        hybrid_retrieval.connect("prompt_builder", "llm")
-        hybrid_retrieval.connect("llm.replies", "answer_builder.replies")
 
         # Define how pipeline inputs/outputs map to subcomponent inputs/outputs
         self.input_mapping = {
-            # The pipeline input "query" feeds into each of the retrievers, the prompt builder, and the answer builder
-            "query": ["text_embedder.text", "bm25_retriever.query", "prompt_builder.question", "answer_builder.query"],
+            # The pipeline input "query" feeds into each of the retrievers
+            "query": ["text_embedder.text", "bm25_retriever.query"],
         }
         # The pipeline output "answers" comes from "answer_builder.answers"
         self.output_mapping = {"answer_builder.answers": "answers"}
@@ -422,18 +339,6 @@ class OpenSearchHybridRetriever:
             weights=self.weights,
             top_k=self.top_k,
             sort_by_score=self.sort_by_score,
-            # ChatPromptBuilder
-            template=self.template,
-            # OpenAIChatGenerator
-            generator_model=self.generator_model,
-            streaming_callback=self.streaming_callback,
-            api_base_url=self.api_base_url,
-            organization=self.organization,
-            generation_kwargs=self.generation_kwargs,
-            http_client_kwargs=self.http_client_kwargs,
-            # AnswerBuilder
-            pattern=self.pattern,
-            reference_pattern=self.reference_pattern,
         )
 
     @classmethod
