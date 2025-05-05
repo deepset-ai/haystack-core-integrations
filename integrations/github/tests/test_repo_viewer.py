@@ -7,14 +7,14 @@ import pytest
 import requests
 from haystack.utils import Secret
 
-from haystack_integrations.components.connectors.github.repo_viewer import GitHubRepositoryViewer
+from haystack_integrations.components.connectors.github.repo_viewer import GitHubRepoViewer
 
 
-class TestGitHubRepositoryViewer:
+class TestGitHubRepoViewer:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
-        viewer = GitHubRepositoryViewer()
+        viewer = GitHubRepoViewer()
         assert viewer.github_token is None
         assert viewer.raise_on_failure is True
         assert viewer.max_file_size == 1_000_000
@@ -23,7 +23,7 @@ class TestGitHubRepositoryViewer:
 
     def test_init_with_parameters(self):
         token = Secret.from_token("test-token")
-        viewer = GitHubRepositoryViewer(
+        viewer = GitHubRepoViewer(
             github_token=token, raise_on_failure=False, max_file_size=500_000, repo="owner/repo", branch="main"
         )
         assert viewer.github_token == token
@@ -33,21 +33,21 @@ class TestGitHubRepositoryViewer:
         assert viewer.branch == "main"
 
         with pytest.raises(TypeError):
-            GitHubRepositoryViewer(github_token="not_a_secret")
+            GitHubRepoViewer(github_token="not_a_secret")
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test-token")
 
         token = Secret.from_env_var("ENV_VAR")
 
-        viewer = GitHubRepositoryViewer(
+        viewer = GitHubRepoViewer(
             github_token=token, raise_on_failure=False, max_file_size=500_000, repo="owner/repo", branch="main"
         )
 
         data = viewer.to_dict()
 
         assert data == {
-            "type": "haystack_integrations.components.connectors.github.repo_viewer.GitHubRepositoryViewer",
+            "type": "haystack_integrations.components.connectors.github.repo_viewer.GitHubRepoViewer",
             "init_parameters": {
                 "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
                 "raise_on_failure": False,
@@ -61,7 +61,7 @@ class TestGitHubRepositoryViewer:
         monkeypatch.setenv("ENV_VAR", "test-token")
 
         data = {
-            "type": "haystack_integrations.components.connectors.github.repo_viewer.GitHubRepositoryViewer",
+            "type": "haystack_integrations.components.connectors.github.repo_viewer.GitHubRepoViewer",
             "init_parameters": {
                 "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
                 "raise_on_failure": False,
@@ -71,7 +71,7 @@ class TestGitHubRepositoryViewer:
             },
         }
 
-        viewer = GitHubRepositoryViewer.from_dict(data)
+        viewer = GitHubRepoViewer.from_dict(data)
 
         assert viewer.github_token == Secret.from_env_var("ENV_VAR")
         assert viewer.raise_on_failure is False
@@ -93,7 +93,7 @@ class TestGitHubRepositoryViewer:
         }
         mock_get.return_value.raise_for_status.return_value = None
 
-        viewer = GitHubRepositoryViewer()
+        viewer = GitHubRepoViewer()
 
         result = viewer.run(repo="owner/repo", path="README.md", branch="main")
 
@@ -106,7 +106,7 @@ class TestGitHubRepositoryViewer:
             "https://api.github.com/repos/owner/repo/contents/README.md?ref=main",
             headers={
                 "Accept": "application/vnd.github.v3+json",
-                "User-Agent": "Haystack/GitHubRepositoryViewer",
+                "User-Agent": "Haystack/GitHubRepoViewer",
             },
             timeout=10,
         )
@@ -127,7 +127,7 @@ class TestGitHubRepositoryViewer:
         ]
         mock_get.return_value.raise_for_status.return_value = None
 
-        viewer = GitHubRepositoryViewer()
+        viewer = GitHubRepoViewer()
 
         result = viewer.run(repo="owner/repo", path="", branch="main")
 
@@ -141,7 +141,7 @@ class TestGitHubRepositoryViewer:
             "https://api.github.com/repos/owner/repo/contents/?ref=main",
             headers={
                 "Accept": "application/vnd.github.v3+json",
-                "User-Agent": "Haystack/GitHubRepositoryViewer",
+                "User-Agent": "Haystack/GitHubRepoViewer",
             },
             timeout=10,
         )
@@ -152,21 +152,21 @@ class TestGitHubRepositoryViewer:
 
         mock_get.side_effect = requests.RequestException("API Error")
 
-        viewer = GitHubRepositoryViewer(raise_on_failure=False)
+        viewer = GitHubRepoViewer(raise_on_failure=False)
 
         result = viewer.run(repo="owner/repo", path="README.md", branch="main")
 
         assert len(result["documents"]) == 1
         assert result["documents"][0].meta["type"] == "error"
 
-        viewer = GitHubRepositoryViewer(raise_on_failure=True)
+        viewer = GitHubRepoViewer(raise_on_failure=True)
         with pytest.raises(requests.RequestException):
             viewer.run(repo="owner/repo", path="README.md", branch="main")
 
     def test_parse_repo(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
-        viewer = GitHubRepositoryViewer()
+        viewer = GitHubRepoViewer()
 
         owner, repo = viewer._parse_repo("owner/repo")
         assert owner == "owner"

@@ -5,8 +5,8 @@ from .file_editor import Command, GitHubFileEditor
 from .issue_commenter import GitHubIssueCommenter
 from .issue_viewer import GitHubIssueViewer
 from .pr_creator import GitHubPRCreator
-from .repo_viewer import GitHubRepositoryViewer
-from .repository_forker import GitHubRepoForker
+from .repo_viewer import GitHubRepoViewer
+from .repo_forker import GitHubRepoForker
 
 __all__ = [
     "Command",
@@ -15,5 +15,5 @@ __all__ = [
     "GitHubIssueViewer",
     "GitHubPRCreator",
     "GitHubRepoForker",
-    "GitHubRepositoryViewer",
+    "GitHubRepoViewer",
 ]
