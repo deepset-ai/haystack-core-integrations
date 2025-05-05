@@ -1,10 +1,10 @@
 import json
-from typing import Any, Callable, Dict, Generator, List, Optional
+from typing import Any, Callable, Dict, Generator, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
 from haystack.lazy_imports import LazyImport
-from haystack.tools import Tool, _check_duplicate_tool_names
+from haystack.tools import Tool, Toolset, _check_duplicate_tool_names
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
@@ -300,7 +300,7 @@ class CohereChatGenerator:
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         api_base_url: Optional[str] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
         **kwargs,
     ):
         """
@@ -323,10 +323,11 @@ class CohereChatGenerator:
               `accurate` results or `fast` results.
             - 'temperature': A non-negative float that tunes the degree of randomness in generation. Lower temperatures
               mean less random generations.
-        :param tools: A list of Tool objects that the model can use. Each tool should have a unique name.
+        :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
+
         """
         cohere_import.check()
-        _check_duplicate_tool_names(tools)
+        _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
 
         if not api_base_url:
             api_base_url = "https://api.cohere.com"
@@ -391,7 +392,7 @@ class CohereChatGenerator:
         self,
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
     ):
         """
         Invoke the chat endpoint based on the provided messages and generation parameters.
@@ -401,7 +402,7 @@ class CohereChatGenerator:
             potentially override the parameters passed in the __init__ method.
             For more details on the parameters supported by the Cohere API, refer to the
             Cohere [documentation](https://docs.cohere.com/reference/chat).
-        :param tools: A list of tools for which the model can prepare calls. If set, it will override
+        :param tools: A list of tools or a Toolset for which the model can prepare calls. If set, it will override
             the `tools` parameter set during component initialization.
         :returns: A dictionary with the following keys:
             - `replies`: a list of `ChatMessage` instances representing the generated responses.
@@ -411,6 +412,8 @@ class CohereChatGenerator:
 
         # Handle tools
         tools = tools or self.tools
+        if isinstance(tools, Toolset):
+            tools = list(tools)
         if tools:
             _check_duplicate_tool_names(tools)
             generation_kwargs["tools"] = [_format_tool(tool) for tool in tools]
