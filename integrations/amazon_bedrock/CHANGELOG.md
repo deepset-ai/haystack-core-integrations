@@ -1,5 +1,16 @@
 # Changelog
 
+## [unreleased]
+
+### 🚜 Refactor
+
+- Refactor tests of AmazonBedrock Integration (#1671)
+
+### 🧹 Chores
+
+- Update ChatGenerators with `deserialize_tools_or_toolset_inplace` (#1623)
+
+
 ## [integrations/amazon_bedrock-v3.5.0] - 2025-04-03
 
 ### 🌀 Miscellaneous
@@ -43,9 +54,6 @@
 
 - Update AWS Bedrock with improved docstrings and warning message (#1532)
 
-### 📚 Documentation
-
-- Update changelog for integrations/amazon_bedrock (#1449)
 
 ### 🧹 Chores
 
