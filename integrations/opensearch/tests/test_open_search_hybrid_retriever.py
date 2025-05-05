@@ -1,7 +1,4 @@
-from unittest.mock import MagicMock, patch
-
 import pytest
-from haystack.dataclasses import Document
 
 from haystack_integrations.components.retrievers.open_search_hybrid_retriever import OpenSearchHybridRetriever
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
@@ -17,7 +14,7 @@ class TestOpenSearchHybridRetriever:
     def test_to_dict(self, hybrid_retriever: OpenSearchHybridRetriever) -> None:
         result = hybrid_retriever.to_dict()
         expected = {
-            "type": "haystack_integrations.components.retrievers.open_search_hybrid_retriever.OpenSearchHybridRetriever",
+            "type": "haystack_integrations.components.retrievers.open_search_hybrid_retriever.OpenSearchHybridRetriever",  # noqa: E501
             "init_parameters": {
                 "document_store": {
                     "init_parameters": {
@@ -83,7 +80,7 @@ class TestOpenSearchHybridRetriever:
 
     def test_from_dict(self):
         data = {
-            "type": "haystack_integrations.components.retrievers.open_search_hybrid_retriever.OpenSearchHybridRetriever",
+            "type": "haystack_integrations.components.retrievers.open_search_hybrid_retriever.OpenSearchHybridRetriever",  # noqa: E501
             "init_parameters": {
                 "document_store": {
                     "init_parameters": {
