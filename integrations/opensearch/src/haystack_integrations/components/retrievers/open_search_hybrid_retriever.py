@@ -93,8 +93,120 @@ class OpenSearchHybridRetriever:
         We don't explicitly define all the init parameters of the components in the constructor, for each
         of the components, since that would be around 50 parameters. Instead, we define the most important ones
         and pass the rest as kwargs. This is to keep the constructor clean and easy to read.
-        """
 
+        If you need to pass extra parameters to the components, you can do so by passing them as kwargs. It expects
+        a dictionary with the component name as the key and the parameters as the value.
+
+        text_embedder -> SentenceTransformersTextEmbedder
+        bm25_retriever -> OpenSearchBM25Retriever
+        embedding_retriever -> OpenSearchEmbeddingRetriever
+        document_joiner -> DocumentJoiner
+        chat_prompt_builder -> ChatPromptBuilder
+        generator -> OpenAIChatGenerator
+        answer_builder -> AnswerBuilder
+
+        :param document_store:
+            The OpenSearchDocumentStore to use for retrieval.
+
+        :param text_embedder_model:
+            The model to use for computing the query embedding, e.g. "sentence-transformers/all-mpnet-base-v2".
+
+        :param device:
+            The device to use for the text embedder.
+
+        :param normalize_embeddings:
+            Whether to normalize the embeddings.
+
+        :param model_kwargs:
+            Keyword arguments for the text embedder model.
+
+        :param tokenizer_kwargs:
+            Keyword arguments for the tokenizer.
+
+        :param config_kwargs:
+            Keyword arguments for the model configuration.
+
+        :param encode_kwargs:
+            Keyword arguments for the text embedder.
+
+        :param backend:
+            The backend to use for the text embedder.
+
+        :param filters_bm25:
+            Filters for the BM25 retriever.
+
+        :param fuzziness:
+            The fuzziness for the BM25 retriever.
+
+        :param top_k_bm25:
+            The number of results to return from the BM25 retriever.
+
+        :param scale_score:
+            Whether to scale the score for the BM25 retriever.
+
+        :param all_terms_must_match:
+            Whether all terms must match for the BM25 retriever.
+
+        :param filter_policy_bm25:
+            The filter policy for the BM25 retriever.
+
+        :param custom_query_bm25:
+            A custom query for the BM25 retriever.
+
+        :param filters_embedding:
+            Filters for the embedding retriever.
+
+        :param top_k_embedding:
+            The number of results to return from the embedding retriever.
+
+        :param filter_policy_embedding:
+            The filter policy for the embedding retriever.
+
+        :param custom_query_embedding:
+            A custom query for the embedding retriever.
+
+        :param join_mode:
+            The mode to use for joining the results from the BM25 and embedding retrievers.
+
+        :param weights:
+            The weights for the joiner.
+
+        :param top_k:
+            The number of results to return from the joiner.
+
+        :param sort_by_score:
+            Whether to sort the results by score.
+
+        :param template:
+            The template for the ChatPromptBuilder.
+
+        :param generator_model:
+            The model to use for the generator.
+
+        :param streaming_callback:
+            The streaming callback for the generator.
+
+        :param api_base_url:
+            The base URL for the API.
+
+        :param organization:
+            The organization for the generator.
+
+        :param generation_kwargs:
+            Keyword arguments for the generator.
+
+        :param http_client_kwargs:
+            Keyword arguments for the HTTP client.
+
+        :param pattern:
+            The pattern for the AnswerBuilder.
+
+        :param reference_pattern:
+            The reference pattern for the AnswerBuilder.
+
+        :param **kwargs:
+            Additional keyword arguments.            
+        """
         self.document_store = document_store
 
         # SentenceTransformersTextEmbedder
