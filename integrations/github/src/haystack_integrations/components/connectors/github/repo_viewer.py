@@ -96,10 +96,21 @@ class GitHubRepositoryViewer:
         self.repo = repo
         self.branch = branch
 
-        self.headers = {
+        self.base_headers = {
             "Accept": "application/vnd.github.v3+json",
             "User-Agent": "Haystack/GitHubRepositoryViewer",
         }
+
+    def _get_request_headers(self) -> dict:
+        """
+        Get headers with resolved token for the request.
+
+        :return: Dictionary of headers including authorization if token is present
+        """
+        headers = self.base_headers.copy()
+        if self.github_token is not None:
+            headers["Authorization"] = f"Bearer {self.github_token.resolve_value()}"
+        return headers
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -146,11 +157,7 @@ class GitHubRepositoryViewer:
         if ref:
             url += f"?ref={ref}"
 
-        headers = self.headers.copy()
-        if self.github_token:
-            headers["Authorization"] = f"Bearer {self.github_token.resolve_value()}"
-
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=self._get_request_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
 

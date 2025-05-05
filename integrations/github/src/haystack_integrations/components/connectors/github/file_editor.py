@@ -100,16 +100,26 @@ class GitHubFileEditor:
         self.default_branch = branch
         self.raise_on_failure = raise_on_failure
 
-        self.headers = {
+        self.base_headers = {
             "Accept": "application/vnd.github.v3+json",
-            "Authorization": f"Bearer {self.github_token.resolve_value()}",
             "User-Agent": "Haystack/GitHubFileEditor",
         }
+
+    def _get_request_headers(self) -> dict:
+        """
+        Get headers with resolved token for the request.
+
+        :return: Dictionary of headers including authorization if token is present
+        """
+        headers = self.base_headers.copy()
+        if self.github_token is not None:
+            headers["Authorization"] = f"Bearer {self.github_token.resolve_value()}"
+        return headers
 
     def _get_file_content(self, owner: str, repo: str, path: str, branch: str) -> tuple[str, str]:
         """Get file content and SHA from GitHub."""
         url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
-        response = requests.get(url, headers=self.headers, params={"ref": branch}, timeout=10)
+        response = requests.get(url, headers=self._get_request_headers(), params={"ref": branch}, timeout=10)
         response.raise_for_status()
         data = response.json()
         content = b64decode(data["content"]).decode("utf-8")
@@ -124,7 +134,7 @@ class GitHubFileEditor:
             "sha": sha,
             "branch": branch,
         }
-        response = requests.put(url, headers=self.headers, json=payload, timeout=10)
+        response = requests.put(url, headers=self._get_request_headers(), json=payload, timeout=10)
         response.raise_for_status()
         return True
 
@@ -132,13 +142,13 @@ class GitHubFileEditor:
         """Check if last commit was made by the current token user."""
         url = f"https://api.github.com/repos/{owner}/{repo}/commits"
         params: Dict[str, Union[str, int]] = {"per_page": 1, "sha": branch}
-        response = requests.get(url, headers=self.headers, params=params, timeout=10)
+        response = requests.get(url, headers=self._get_request_headers(), params=params, timeout=10)
         response.raise_for_status()
         last_commit = response.json()[0]
         commit_author = last_commit["author"]["login"]
 
         # Get current user
-        user_response = requests.get("https://api.github.com/user", headers=self.headers, timeout=10)
+        user_response = requests.get("https://api.github.com/user", headers=self._get_request_headers(), timeout=10)
         user_response.raise_for_status()
         current_user = user_response.json()["login"]
 
@@ -178,12 +188,12 @@ class GitHubFileEditor:
 
             # Get the previous commit SHA
             params: Dict[str, Union[str, int]] = {"per_page": 2, "sha": branch}
-            commits = requests.get(commits_url, headers=self.headers, params=params, timeout=10).json()
+            commits = requests.get(commits_url, headers=self._get_request_headers(), params=params, timeout=10).json()
             previous_sha = commits[1]["sha"]
 
             # Update branch reference to previous commit
             payload = {"sha": previous_sha, "force": True}
-            response = requests.patch(url, headers=self.headers, json=payload, timeout=10)
+            response = requests.patch(url, headers=self._get_request_headers(), json=payload, timeout=10)
             response.raise_for_status()
 
             return "Successfully undid last change"
@@ -201,7 +211,7 @@ class GitHubFileEditor:
 
             data = {"message": payload["message"], "content": content, "branch": branch}
 
-            response = requests.put(url, headers=self.headers, json=data, timeout=10)
+            response = requests.put(url, headers=self._get_request_headers(), json=data, timeout=10)
             response.raise_for_status()
             return "File created successfully"
 
@@ -218,7 +228,7 @@ class GitHubFileEditor:
 
             data = {"message": payload["message"], "sha": sha, "branch": branch}
 
-            response = requests.delete(url, headers=self.headers, json=data, timeout=10)
+            response = requests.delete(url, headers=self._get_request_headers(), json=data, timeout=10)
             response.raise_for_status()
             return "File deleted successfully"
 

@@ -52,17 +52,21 @@ class GitHubPRCreator:
         self.github_token = github_token
         self.raise_on_failure = raise_on_failure
 
-    def _get_headers(self) -> Dict[str, str]:
-        """
-        Get headers for GitHub API requests with resolved token.
-
-        :return: Dictionary of request headers
-        """
-        return {
+        self.base_headers = {
             "Accept": "application/vnd.github.v3+json",
-            "Authorization": f"Bearer {self.github_token.resolve_value()}",
             "User-Agent": "Haystack/GitHubPRCreator",
         }
+
+    def _get_request_headers(self) -> dict:
+        """
+        Get headers with resolved token for the request.
+
+        :return: Dictionary of headers including authorization if token is present
+        """
+        headers = self.base_headers.copy()
+        if self.github_token is not None:
+            headers["Authorization"] = f"Bearer {self.github_token.resolve_value()}"
+        return headers
 
     def _parse_issue_url(self, issue_url: str) -> tuple[str, str, str]:
         """
@@ -81,7 +85,7 @@ class GitHubPRCreator:
 
     def _get_authenticated_user(self) -> str:
         """Get the username of the authenticated user (fork owner)."""
-        response = requests.get("https://api.github.com/user", headers=self._get_headers(), timeout=10)
+        response = requests.get("https://api.github.com/user", headers=self._get_request_headers(), timeout=10)
         response.raise_for_status()
         return response.json()["login"]
 
@@ -89,7 +93,7 @@ class GitHubPRCreator:
         """Check if the fork exists."""
         url = f"https://api.github.com/repos/{fork_owner}/{repo}"
         try:
-            response = requests.get(url, headers=self._get_headers(), timeout=10)
+            response = requests.get(url, headers=self._get_request_headers(), timeout=10)
             response.raise_for_status()
             fork_data = response.json()
             return fork_data.get("fork", False)
@@ -100,7 +104,7 @@ class GitHubPRCreator:
         """Create a fork of the repository."""
         url = f"https://api.github.com/repos/{owner}/{repo}/forks"
         try:
-            response = requests.post(url, headers=self._get_headers(), timeout=10)
+            response = requests.post(url, headers=self._get_request_headers(), timeout=10)
             response.raise_for_status()
             fork_data = response.json()
             return fork_data["owner"]["login"]
@@ -115,14 +119,14 @@ class GitHubPRCreator:
         # Get the SHA of the base branch
         url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{base_branch}"
         try:
-            response = requests.get(url, headers=self._get_headers(), timeout=10)
+            response = requests.get(url, headers=self._get_request_headers(), timeout=10)
             response.raise_for_status()
             base_sha = response.json()["object"]["sha"]
 
             # Create the new branch
             url = f"https://api.github.com/repos/{owner}/{repo}/git/refs"
             data = {"ref": f"refs/heads/{branch_name}", "sha": base_sha}
-            response = requests.post(url, headers=self._get_headers(), json=data, timeout=10)
+            response = requests.post(url, headers=self._get_request_headers(), json=data, timeout=10)
             response.raise_for_status()
             return True
         except requests.RequestException as e:
@@ -144,14 +148,14 @@ class GitHubPRCreator:
         # Get the current commit SHA
         url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{branch_name}"
         try:
-            response = requests.get(url, headers=self._get_headers(), timeout=10)
+            response = requests.get(url, headers=self._get_request_headers(), timeout=10)
             response.raise_for_status()
             current_sha = response.json()["object"]["sha"]
 
             # Create a blob with the file content
             url = f"https://api.github.com/repos/{owner}/{repo}/git/blobs"
             data: dict[str, Any] = {"content": content, "encoding": "base64"}
-            response = requests.post(url, headers=self._get_headers(), json=data, timeout=10)
+            response = requests.post(url, headers=self._get_request_headers(), json=data, timeout=10)
             response.raise_for_status()
             blob_sha = response.json()["sha"]
 
@@ -161,21 +165,21 @@ class GitHubPRCreator:
                 "base_tree": current_sha,
                 "tree": [{"path": file_path, "mode": "100644", "type": "blob", "sha": blob_sha}],
             }
-            response = requests.post(url, headers=self._get_headers(), json=data, timeout=10)
+            response = requests.post(url, headers=self._get_request_headers(), json=data, timeout=10)
             response.raise_for_status()
             tree_sha = response.json()["sha"]
 
             # Create the commit
             url = f"https://api.github.com/repos/{owner}/{repo}/git/commits"
             data = {"message": message, "tree": tree_sha, "parents": [current_sha]}
-            response = requests.post(url, headers=self._get_headers(), json=data, timeout=10)
+            response = requests.post(url, headers=self._get_request_headers(), json=data, timeout=10)
             response.raise_for_status()
             commit_sha = response.json()["sha"]
 
             # Update the branch reference
             url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{branch_name}"
             data = {"sha": commit_sha}
-            response = requests.patch(url, headers=self._get_headers(), json=data, timeout=10)
+            response = requests.patch(url, headers=self._get_request_headers(), json=data, timeout=10)
             response.raise_for_status()
             return True
         except requests.RequestException as e:
@@ -197,7 +201,7 @@ class GitHubPRCreator:
         url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
         data = {"title": title, "body": body, "head": branch_name, "base": base_branch}
         try:
-            response = requests.post(url, headers=self._get_headers(), json=data, timeout=10)
+            response = requests.post(url, headers=self._get_request_headers(), json=data, timeout=10)
             response.raise_for_status()
             return True
         except requests.RequestException as e:
@@ -246,7 +250,7 @@ class GitHubPRCreator:
                 "maintainer_can_modify": True,  # Allow maintainers to modify the PR
             }
 
-            response = requests.post(url, headers=self._get_headers(), json=pr_data, timeout=10)
+            response = requests.post(url, headers=self._get_request_headers(), json=pr_data, timeout=10)
             response.raise_for_status()
             pr_number = response.json()["number"]
 

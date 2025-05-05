@@ -54,7 +54,7 @@ class GitHubIssueCommenter:
         self.retry_attempts = retry_attempts
 
         # Set base headers during initialization
-        self.headers = {
+        self.base_headers = {
             "Accept": "application/vnd.github.v3+json",
             "User-Agent": "Haystack/GitHubIssueCommenter",
         }
@@ -65,7 +65,7 @@ class GitHubIssueCommenter:
 
         :return: Dictionary of headers including authorization if token is present
         """
-        headers = self.headers.copy()
+        headers = self.base_headers.copy()
         if self.github_token is not None:
             headers["Authorization"] = f"Bearer {self.github_token.resolve_value()}"
         return headers

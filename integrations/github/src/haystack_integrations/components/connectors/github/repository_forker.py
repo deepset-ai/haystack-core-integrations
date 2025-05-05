@@ -71,7 +71,21 @@ class GitHubRepoForker:
         self.auto_sync = auto_sync
         self.create_branch = create_branch
 
-        self.headers = {"Accept": "application/vnd.github.v3+json", "User-Agent": "Haystack/GitHubRepoForker"}
+        self.base_headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "Haystack/GitHubRepoForker",
+        }
+
+    def _get_request_headers(self) -> dict:
+        """
+        Get headers with resolved token for the request.
+
+        :return: Dictionary of headers including authorization if token is present
+        """
+        headers = self.base_headers.copy()
+        if self.github_token is not None:
+            headers["Authorization"] = f"Bearer {self.github_token.resolve_value()}"
+        return headers
 
     def _parse_github_url(self, url: str) -> tuple[str, str, str]:
         """
@@ -101,7 +115,7 @@ class GitHubRepoForker:
         try:
             response = requests.get(
                 url,
-                headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
+                headers=self._get_request_headers(),
                 timeout=10,
             )
             return response.status_code == 200  # noqa: PLR2004
@@ -117,7 +131,7 @@ class GitHubRepoForker:
         """
         url = "https://api.github.com/user"
         response = requests.get(
-            url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}, timeout=10
+            url, headers=self._get_request_headers(), timeout=10
         )
         response.raise_for_status()
         return response.json()["login"]
@@ -133,7 +147,7 @@ class GitHubRepoForker:
         try:
             response = requests.get(
                 url,
-                headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
+                headers=self._get_request_headers(),
                 timeout=10,
             )
             if response.status_code == 200:  # noqa: PLR2004
@@ -153,7 +167,7 @@ class GitHubRepoForker:
         url = f"https://api.github.com/repos/{fork_path}/merge-upstream"
         response = requests.post(
             url,
-            headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
+            headers=self._get_request_headers(),
             json={"branch": "main"},
             timeout=10,
         )
@@ -170,7 +184,7 @@ class GitHubRepoForker:
         # First, get the default branch SHA
         url = f"https://api.github.com/repos/{fork_path}"
         response = requests.get(
-            url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}, timeout=10
+            url, headers=self._get_request_headers(), timeout=10
         )
         response.raise_for_status()
         default_branch = response.json()["default_branch"]
@@ -178,7 +192,7 @@ class GitHubRepoForker:
         # Get the SHA of the default branch
         url = f"https://api.github.com/repos/{fork_path}/git/ref/heads/{default_branch}"
         response = requests.get(
-            url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}, timeout=10
+            url, headers=self._get_request_headers(), timeout=10
         )
         response.raise_for_status()
         sha = response.json()["object"]["sha"]
@@ -188,7 +202,7 @@ class GitHubRepoForker:
         url = f"https://api.github.com/repos/{fork_path}/git/refs"
         response = requests.post(
             url,
-            headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"},
+            headers=self._get_request_headers(),
             json={"ref": f"refs/heads/{branch_name}", "sha": sha},
             timeout=10,
         )
@@ -205,7 +219,7 @@ class GitHubRepoForker:
         """
         url = f"https://api.github.com/repos/{owner}/{repo}/forks"
         response = requests.post(
-            url, headers={**self.headers, "Authorization": f"Bearer {self.github_token.resolve_value()}"}, timeout=10
+            url, headers=self._get_request_headers(), timeout=10
         )
         response.raise_for_status()
 
