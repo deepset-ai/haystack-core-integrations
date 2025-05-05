@@ -1,4 +1,7 @@
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
+from haystack import Document
 
 from haystack_integrations.components.retrievers.open_search_hybrid_retriever import OpenSearchHybridRetriever
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
@@ -127,3 +130,47 @@ class TestOpenSearchHybridRetriever:
         }
         super_component = OpenSearchHybridRetriever.from_dict(data)
         assert isinstance(super_component, OpenSearchHybridRetriever)
+
+    def test_run(self):
+        # mocked document store
+        mock_store = Mock(spec=OpenSearchDocumentStore)
+        mock_store._bm25_retrieval.return_value = [Document(content="Test doc BM25")]
+        mock_store._embedding_retrieval.return_value = [Document(content="Test doc Embedding")]
+
+        # mock the LazyImport check for sentence_transformers
+        with patch("haystack.lazy_imports.LazyImport.check") as mock_lazy_check:
+            mock_lazy_check.return_value = None
+
+            # mock the sentence_transformers module and SentenceTransformer class
+            with patch.dict("sys.modules", {"sentence_transformers": MagicMock()}):
+                with patch("sentence_transformers.SentenceTransformer") as mock_sentence_transformer:
+
+                    # mocked SentenceTransformer
+                    mock_transformer_instance = mock_sentence_transformer.return_value
+                    mock_transformer_instance.encode.return_value = [0.1, 0.2, 0.3]
+
+                    # mock the _SentenceTransformersEmbeddingBackend
+                    with patch(
+                        "haystack.components.embedders.backends.sentence_transformers_backend._SentenceTransformersEmbeddingBackend"
+                    ) as mock_backend:
+
+                        # mocked backend
+                        mock_backend_instance = mock_backend.return_value
+                        mock_backend_instance.embed.return_value = [0.1, 0.2, 0.3]
+
+                        # mock the SentenceTransformersTextEmbedder
+                        with patch(
+                            "haystack.components.embedders.sentence_transformers_text_embedder.SentenceTransformersTextEmbedder"
+                        ) as mock_embedder:
+
+                            # mocked embedder
+                            mock_embedder_instance = mock_embedder.return_value
+                            mock_embedder_instance.run.return_value = {"embedding": [0.1, 0.2, 0.3]}
+
+                            retriever = OpenSearchHybridRetriever(document_store=mock_store)
+                            result = retriever.run(query="test query")
+
+                            assert len(result) == 1
+                            assert len(result["documents"]) == 2
+                            assert any(doc.content == "Test doc BM25" for doc in result["documents"])
+                            assert any(doc.content == "Test doc Embedding" for doc in result["documents"])
