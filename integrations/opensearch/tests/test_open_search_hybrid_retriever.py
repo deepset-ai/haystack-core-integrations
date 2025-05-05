@@ -144,10 +144,16 @@ class TestOpenSearchHybridRetriever:
         assert isinstance(super_component, OpenSearchHybridRetriever)
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-    def test_run(self, mock_opensearch, hybrid_retriever: OpenSearchHybridRetriever):
+    @patch("haystack.components.embedders.SentenceTransformersTextEmbedder")
+    def test_run(self, mock_embedder, mock_opensearch, hybrid_retriever: OpenSearchHybridRetriever):
         # mock document store
         mock_client = MagicMock()
         mock_opensearch.return_value = mock_client
+        
+        # mock text embedder
+        mock_embedder_instance = MagicMock()
+        mock_embedder.return_value = mock_embedder_instance
+        mock_embedder_instance.run.return_value = {"embedding": [0.1, 0.2, 0.3]}  # mock embedding
         
         # test documents
         test_documents = [
@@ -169,7 +175,7 @@ class TestOpenSearchHybridRetriever:
 
         query = "What are functional programming languages?"
         result = hybrid_retriever.run(query=query)
-
+        
         assert "answers" in result
         assert isinstance(result["answers"], list)
         assert len(result["answers"]) > 0
