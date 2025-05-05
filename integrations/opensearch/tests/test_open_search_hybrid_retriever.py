@@ -2,9 +2,8 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from haystack import Document
-import sys
-
 from haystack.utils import DeviceType
+
 from haystack_integrations.components.retrievers.open_search_hybrid_retriever import OpenSearchHybridRetriever
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
