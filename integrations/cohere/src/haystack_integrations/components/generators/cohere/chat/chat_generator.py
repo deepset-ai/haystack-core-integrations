@@ -4,10 +4,15 @@ from typing import Any, Callable, Dict, Generator, List, Optional, Union
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
 from haystack.lazy_imports import LazyImport
-from haystack.tools import Tool, Toolset, _check_duplicate_tool_names
+from haystack.tools import (
+    Tool,
+    Toolset,
+    _check_duplicate_tool_names,
+    deserialize_tools_or_toolset_inplace,
+    serialize_tools_or_toolset,
+)
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
-from haystack.tools import deserialize_tools_or_toolset_inplace, serialize_tools_or_toolset
 
 from cohere import ChatResponse
 
