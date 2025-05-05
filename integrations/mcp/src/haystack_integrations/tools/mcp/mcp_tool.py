@@ -475,7 +475,7 @@ class SSEServerInfo(MCPServerInfo):
         """
         Create an SSE MCP client.
 
-        :returns: Configured SSEClient instance
+        :returns: Configured MCPClient instance
         """
         # Pass the validated SSEServerInfo instance directly
         return SSEClient(server_info=self)
