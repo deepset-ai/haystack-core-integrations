@@ -6,11 +6,10 @@ from haystack_integrations.document_stores.opensearch import OpenSearchDocumentS
 
 class TestOpenSearchHybridRetriever:
 
-    def __init__(self, monkeypatch):
-        monkeypatch.setenv("OPENAI_API_KEY", "dummy-api-key")
 
     @pytest.fixture
-    def hybrid_retriever(self) -> OpenSearchHybridRetriever:
+    def hybrid_retriever(self, monkeypatch) -> OpenSearchHybridRetriever:
+        monkeypatch.setenv("OPENAI_API_KEY", "dummy-api-key")
         doc_store = OpenSearchDocumentStore()
         return OpenSearchHybridRetriever(document_store=doc_store)
 

@@ -73,10 +73,10 @@ class OpenSearchHybridRetriever:
         Initialize the OpenSearchHybridRetriever, a super component to retrieve documents from OpenSearch using
         both embedding-based and keyword-based retrieval methods.
 
-        This super component is tied to a SentenceTransformersTextEmbedder and an OpenAIChatGenerator.
+        This super component is tied to a SentenceTransformersTextEmbedder.
 
         We don't explicitly define all the init parameters of the components in the constructor, for each
-        of the components, since that would be around 50 parameters. Instead, we define the most important ones
+        of the components, since that would be around 20+ parameters. Instead, we define the most important ones
         and pass the rest as kwargs. This is to keep the constructor clean and easy to read.
 
         If you need to pass extra parameters to the components, you can do so by passing them as kwargs. It expects
@@ -158,33 +158,6 @@ class OpenSearchHybridRetriever:
 
         :param sort_by_score:
             Whether to sort the results by score.
-
-        :param template:
-            The template for the ChatPromptBuilder.
-
-        :param generator_model:
-            The model to use for the generator.
-
-        :param streaming_callback:
-            The streaming callback for the generator.
-
-        :param api_base_url:
-            The base URL for the API.
-
-        :param organization:
-            The organization for the generator.
-
-        :param generation_kwargs:
-            Keyword arguments for the generator.
-
-        :param http_client_kwargs:
-            Keyword arguments for the HTTP client.
-
-        :param pattern:
-            The pattern for the AnswerBuilder.
-
-        :param reference_pattern:
-            The reference pattern for the AnswerBuilder.
 
         :param **kwargs:
             Additional keyword arguments.
@@ -297,7 +270,7 @@ class OpenSearchHybridRetriever:
             "query": ["text_embedder.text", "bm25_retriever.query"],
         }
         # The pipeline output "answers" comes from "answer_builder.answers"
-        self.output_mapping = {"answer_builder.answers": "answers"}
+        self.output_mapping = {"document_joiner.documents": "documents"}
 
         return hybrid_retrieval
 
