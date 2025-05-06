@@ -84,15 +84,19 @@ def determine_model(name: str) -> Optional[Model]:
 
 def validate_hosted_model(
     model_name: str,
-    client: Optional[Literal["NvidiaGenerator", "NvidiaTextEmbedder", "NvidiaDocumentEmbedder", "NvidiaRanker"]] = None,
+    client: Optional[
+        Literal[
+            "NvidiaGenerator", "NvidiaTextEmbedder", "NvidiaDocumentEmbedder", "NvidiaRanker", "NvidiaChatGenerator"
+        ]
+    ] = None,
 ) -> Any:
     """
     Checks if a given model is compatible with given client.
 
     Args:
         model_name (str): The name of the model.
-        client (str): client name, e.g. NvidiaGenerator, NVIDIAEmbeddings,
-                        NVIDIARerank, NvidiaTextEmbedder, NvidiaDocumentEmbedder
+        client (str): client name, e.g. NvidiaGenerator, NvidiaChatGenerator,
+                        NvidiaRanker, NvidiaTextEmbedder, NvidiaDocumentEmbedder
 
     Raises:
         ValueError: If the model is incompatible with the client or if the model is unknown.
@@ -100,6 +104,7 @@ def validate_hosted_model(
     """
     supported = {
         "NvidiaGenerator": ("chat",),
+        "NvidiaChatGenerator": ("chat",),
         "NvidiaTextEmbedder": ("embedding",),
         "NvidiaDocumentEmbedder": ("embedding",),
         "NvidiaRanker": ("ranking",),
