@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import Optional, Union
 
-import aioboto3  # type: ignore
+import aioboto3
 import boto3
 from botocore.exceptions import BotoCoreError
 
@@ -23,7 +23,7 @@ def get_aws_session(
     aws_profile_name: Optional[str] = None,
     async_mode: bool = False,
     **kwargs,
-):
+) -> Union[boto3.Session, aioboto3.Session]:
     """
     Creates an AWS Session with the given parameters.
     Checks if the provided AWS credentials are valid and can be used to connect to AWS.

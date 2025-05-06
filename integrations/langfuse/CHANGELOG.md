@@ -1,10 +1,18 @@
 # Changelog
 
+## [integrations/langfuse-v1.1.0] - 2025-05-06
+
+### 🚀 Features
+
+- Enhance Langfuse ToolInvoker span naming (#1682)
+
+
 ## [integrations/langfuse-v1.0.1] - 2025-04-28
 
-### Bug Fixes
+### 🐛 Bug Fixes
 
 - Langfuse - remove warning "Creating a new trace without a parent span is not recommended"
+
 
 ## [integrations/langfuse-v1.0.0] - 2025-04-11
 
