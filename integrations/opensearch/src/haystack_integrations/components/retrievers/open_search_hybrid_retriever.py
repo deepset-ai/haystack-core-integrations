@@ -39,7 +39,7 @@ class OpenSearchHybridRetriever:
         self,
         document_store: OpenSearchDocumentStore,
         *,
-        # SentenceTransformer
+        # SentenceTransformersTextEmbedder
         text_embedder_model: str = "sentence-transformers/all-mpnet-base-v2",
         device: Optional[ComponentDevice] = None,
         normalize_embeddings: bool = False,
