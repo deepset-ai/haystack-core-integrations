@@ -66,7 +66,7 @@ class BedrockRanker:
         max_chunks_per_doc: Optional[int] = None,
         meta_fields_to_embed: Optional[List[str]] = None,
         meta_data_separator: str = "\n",
-    ):
+    ) -> None:
         if not model:
             msg = "'model' cannot be None or empty string"
             raise ValueError(msg)
@@ -173,7 +173,7 @@ class BedrockRanker:
         return concatenated_input_list
 
     @component.output_types(documents=List[Document])
-    def run(self, query: str, documents: List[Document], top_k: Optional[int] = None):
+    def run(self, query: str, documents: List[Document], top_k: Optional[int] = None) -> Dict[str, List[Document]]:
         """
         Use the Amazon Bedrock Reranker to re-rank the list of documents based on the query.
 
