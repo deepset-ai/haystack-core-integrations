@@ -198,7 +198,7 @@ class SpanHandler(ABC):
     - Pass your handler to LangfuseConnector init method
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.tracer: Optional[langfuse.Langfuse] = None
 
     def init_tracer(self, tracer: langfuse.Langfuse) -> None:
@@ -408,7 +408,7 @@ class LangfuseTracer(Tracer):
         if self.enforce_flush:
             self.flush()
 
-    def flush(self):
+    def flush(self) -> None:
         self._tracer.flush()
 
     def current_span(self) -> Optional[Span]:
