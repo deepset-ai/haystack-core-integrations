@@ -5,7 +5,13 @@ from botocore.eventstream import EventStream
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, StreamingCallbackT, select_streaming_callback
-from haystack.tools import Tool, Toolset, _check_duplicate_tool_names, deserialize_tools_or_toolset_inplace, serialize_tools_or_toolset
+from haystack.tools import (
+    Tool,
+    Toolset,
+    _check_duplicate_tool_names,
+    deserialize_tools_or_toolset_inplace,
+    serialize_tools_or_toolset,
+)
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
@@ -184,7 +190,7 @@ class AmazonBedrockChatGenerator:
         self.stop_words = stop_words or []
         self.streaming_callback = streaming_callback
         self.boto3_config = boto3_config
-        _check_duplicate_tool_names(list(tools or [])) # handles Toolset as well
+        _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
         self.tools = tools
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
