@@ -8,7 +8,7 @@ from haystack.tools import ComponentTool
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.connectors.github.pr_creator import GitHubPRCreator
-from haystack_integrations.prompts.github.pr_system_prompt import PR_SYSTEM_PROMPT, PR_SCHEMA
+from haystack_integrations.prompts.github.pr_system_prompt import PR_SCHEMA, PR_SYSTEM_PROMPT
 
 
 class GitHubPRCreatorTool(ComponentTool):
