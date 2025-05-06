@@ -145,6 +145,12 @@ class TestOpenSearchHybridRetriever:
         self.expected['init_parameters'].update(added_extra_args)
         assert result == self.expected
 
+    def test_from_dict_with_extra_args(self):
+        added_extra_args = {"extra_arg": {"text_embedder": {"progress_bar": False}}}
+        hybrid = OpenSearchHybridRetriever.from_dict(self.expected['init_parameters'].update(added_extra_args))
+        print(hybrid.to_dict())
+
+
     def test_run(self):
         # mocked document store
         mock_store = Mock(spec=OpenSearchDocumentStore)
