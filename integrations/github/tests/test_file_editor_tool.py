@@ -89,17 +89,13 @@ class TestGitHubFileEditorTool:
                                 "api_base_url": None,
                                 "organization": None,
                                 "generation_kwargs": {},
-                                "api_key": {
-                                    "env_vars": ["OPENAI_API_KEY"],
-                                    "strict": True,
-                                    "type": "env_var"
-                                },
+                                "api_key": {"env_vars": ["OPENAI_API_KEY"], "strict": True, "type": "env_var"},
                                 "timeout": None,
                                 "max_retries": None,
                                 "tools": None,
                                 "tools_strict": False,
-                                "http_client_kwargs": None
-                            }
+                                "http_client_kwargs": None,
+                            },
                         },
                         "tools": [
                             {
@@ -108,15 +104,11 @@ class TestGitHubFileEditorTool:
                                     "name": "file_editor",
                                     "description": FILE_EDITOR_PROMPT,
                                     "parameters": FILE_EDITOR_SCHEMA,
-                                    "github_token": {
-                                        "env_vars": ["GITHUB_TOKEN"],
-                                        "strict": True,
-                                        "type": "env_var"
-                                    },
+                                    "github_token": {"env_vars": ["GITHUB_TOKEN"], "strict": True, "type": "env_var"},
                                     "repo": None,
                                     "branch": "main",
                                     "raise_on_failure": True,
-                                }
+                                },
                             }
                         ],
                         "system_prompt": None,
@@ -124,12 +116,12 @@ class TestGitHubFileEditorTool:
                         "state_schema": {},
                         "max_agent_steps": 100,
                         "raise_on_tool_invocation_failure": False,
-                        "streaming_callback": None
-                    }
+                        "streaming_callback": None,
+                    },
                 }
             },
             "connections": [],
-            "connection_type_validation": True
+            "connection_type_validation": True,
         }
 
         deserialized_pipeline = Pipeline.from_dict(pipeline_dict)
