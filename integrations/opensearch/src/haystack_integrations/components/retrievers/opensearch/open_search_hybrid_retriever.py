@@ -41,6 +41,7 @@ class OpenSearchHybridRetriever:
         *,
         # SentenceTransformersTextEmbedder
         model: str = "sentence-transformers/all-mpnet-base-v2",
+        token: Optional[Secret] = Secret.from_env_var(["HF_API_TOKEN", "HF_TOKEN"], strict=False),
         device: Optional[ComponentDevice] = None,
         normalize_embeddings: bool = False,
         model_kwargs: Optional[Dict[str, Any]] = None,
@@ -91,6 +92,9 @@ class OpenSearchHybridRetriever:
 
         :param model:
             The model to use for computing the query embedding, e.g. "sentence-transformers/all-mpnet-base-v2".
+
+        :param token:
+            The token to use for the model. This can be a string or a Secret object.
 
         :param device:
             The device to use for the text embedder.
@@ -165,7 +169,7 @@ class OpenSearchHybridRetriever:
 
         # SentenceTransformersTextEmbedder
         self.model = model
-        self.token: Optional[Secret] = Secret.from_env_var(["HF_API_TOKEN", "HF_TOKEN"], strict=False)
+        self.token = token
         self.device = device
         self.normalize_embeddings = normalize_embeddings
         self.model_kwargs = model_kwargs or {}
@@ -249,7 +253,6 @@ class OpenSearchHybridRetriever:
     def _create_pipeline(self, data: dict[str, Any]) -> Pipeline:
         """
         Create the pipeline for the OpenSearchHybridRetriever.
-
         """
         text_embedder = SentenceTransformersTextEmbedder(**data["text_embedder"])
         embedding_retriever = OpenSearchEmbeddingRetriever(**data["embedding_retriever"])
