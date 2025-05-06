@@ -75,7 +75,7 @@ class GitHubRepoViewer:
         raise_on_failure: bool = True,
         max_file_size: int = 1_000_000,  # 1MB default limit
         repo: Optional[str] = None,
-        branch: Optional[str] = None,
+        branch: str = "main",
     ):
         """
         Initialize the component.
@@ -221,9 +221,6 @@ class GitHubRepoViewer:
                 raise ValueError(msg)
         if branch is None:
             branch = self.branch
-            if branch is None:
-                msg = "Branch not provided in initialization or run() method"
-                raise ValueError(msg)
 
         try:
             owner, repo_name = self._parse_repo(repo)

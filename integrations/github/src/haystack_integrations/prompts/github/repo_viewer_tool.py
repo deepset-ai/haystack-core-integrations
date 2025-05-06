@@ -71,6 +71,10 @@ REPO_VIEWER_SCHEMA = {
             "type": "string",
             "description": "Path to directory or file to view. Defaults to repository root.",
         },
+        "branch": {
+            "type": "string",
+            "description": "Branch to view. Defaults to 'main'.",
+        },
     },
     "required": ["repo"],
     "type": "object",

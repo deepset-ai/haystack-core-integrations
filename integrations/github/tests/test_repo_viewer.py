@@ -19,18 +19,18 @@ class TestGitHubRepoViewer:
         assert viewer.raise_on_failure is True
         assert viewer.max_file_size == 1_000_000
         assert viewer.repo is None
-        assert viewer.branch is None
+        assert viewer.branch == "main"
 
     def test_init_with_parameters(self):
         token = Secret.from_token("test-token")
         viewer = GitHubRepoViewer(
-            github_token=token, raise_on_failure=False, max_file_size=500_000, repo="owner/repo", branch="main"
+            github_token=token, raise_on_failure=False, max_file_size=500_000, repo="owner/repo", branch="test-branch"
         )
         assert viewer.github_token == token
         assert viewer.raise_on_failure is False
         assert viewer.max_file_size == 500_000
         assert viewer.repo == "owner/repo"
-        assert viewer.branch == "main"
+        assert viewer.branch == "test-branch"
 
         with pytest.raises(TypeError):
             GitHubRepoViewer(github_token="not_a_secret")
@@ -41,7 +41,7 @@ class TestGitHubRepoViewer:
         token = Secret.from_env_var("ENV_VAR")
 
         viewer = GitHubRepoViewer(
-            github_token=token, raise_on_failure=False, max_file_size=500_000, repo="owner/repo", branch="main"
+            github_token=token, raise_on_failure=False, max_file_size=500_000, repo="owner/repo", branch="test-branch"
         )
 
         data = viewer.to_dict()
@@ -53,7 +53,7 @@ class TestGitHubRepoViewer:
                 "raise_on_failure": False,
                 "max_file_size": 500_000,
                 "repo": "owner/repo",
-                "branch": "main",
+                "branch": "test-branch",
             },
         }
 
@@ -67,7 +67,7 @@ class TestGitHubRepoViewer:
                 "raise_on_failure": False,
                 "max_file_size": 500_000,
                 "repo": "owner/repo",
-                "branch": "main",
+                "branch": "test-branch",
             },
         }
 
@@ -77,7 +77,7 @@ class TestGitHubRepoViewer:
         assert viewer.raise_on_failure is False
         assert viewer.max_file_size == 500_000
         assert viewer.repo == "owner/repo"
-        assert viewer.branch == "main"
+        assert viewer.branch == "test-branch"
 
     @patch("requests.get")
     def test_run_file(self, mock_get, monkeypatch):
