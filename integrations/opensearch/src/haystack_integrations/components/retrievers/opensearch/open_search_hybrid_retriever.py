@@ -41,7 +41,7 @@ class OpenSearchHybridRetriever:
         *,
         # SentenceTransformersTextEmbedder
         model: str = "sentence-transformers/all-mpnet-base-v2",
-        token: Optional[Secret] = Secret.from_env_var(["HF_API_TOKEN", "HF_TOKEN"], strict=False),
+        token: Optional[Secret] = None,
         device: Optional[ComponentDevice] = None,
         normalize_embeddings: bool = False,
         model_kwargs: Optional[Dict[str, Any]] = None,
@@ -169,7 +169,7 @@ class OpenSearchHybridRetriever:
 
         # SentenceTransformersTextEmbedder
         self.model = model
-        self.token = token
+        self.token = token if token is not None else Secret.from_env_var(["HF_API_TOKEN", "HF_TOKEN"], strict=False)
         self.device = device
         self.normalize_embeddings = normalize_embeddings
         self.model_kwargs = model_kwargs or {}
@@ -323,7 +323,25 @@ class OpenSearchHybridRetriever:
 
     @classmethod
     def from_dict(cls, data):
+
         # deserialize the document store
         doc_store = OpenSearchDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = doc_store
+
+        # deserialize the token
+        token = Secret.from_dict(data["init_parameters"]["token"]) if data["init_parameters"].get("token") else None
+        data["init_parameters"]["token"] = token
+
+        if "filter_policy_bm25" in data["init_parameters"]:
+            filter_policy_bm25 = FilterPolicy.from_str(data["init_parameters"]["filter_policy_bm25"])
+            data["init_parameters"]["filter_policy_bm25"] = filter_policy_bm25
+
+        if "filter_policy_embedding" in data["init_parameters"]:
+            filter_policy_embedding = FilterPolicy.from_str(data["init_parameters"]["filter_policy_embedding"])
+            data["init_parameters"]["filter_policy_embedding"] = filter_policy_embedding
+
+        if "join_mode" in data["init_parameters"]:
+            join_mode = JoinMode.from_str(data["init_parameters"]["join_mode"])
+            data["init_parameters"]["join_mode"] = join_mode
+
         return default_from_dict(cls, data)
