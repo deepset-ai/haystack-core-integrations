@@ -25,6 +25,7 @@ def test_init_is_lazy(_mock_client):
         collection_name="collection_name",
         vector_search_index="cosine_index",
         full_text_search_index="full_text_index",
+        embedding_field="embedding",
     )
     _mock_client.assert_not_called()
 
@@ -54,6 +55,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             collection_name=collection_name,
             vector_search_index="cosine_index",
             full_text_search_index="full_text_index",
+            embedding_field="embedding",
         )
         yield store
         database[collection_name].drop()
@@ -87,6 +89,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
                 "database_name": "haystack_integration_test",
                 "vector_search_index": "cosine_index",
                 "full_text_search_index": "full_text_index",
+                "embedding_field": "embedding",
             },
         }
 
@@ -106,6 +109,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
                     "collection_name": "test_embeddings_collection",
                     "vector_search_index": "cosine_index",
                     "full_text_search_index": "full_text_index",
+                    "embedding_field": "custom_embedding",
                 },
             }
         )
@@ -114,6 +118,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert docstore.collection_name == "test_embeddings_collection"
         assert docstore.vector_search_index == "cosine_index"
         assert docstore.full_text_search_index == "full_text_index"
+        assert docstore.embedding_field == "custom_embedding"
 
     def test_complex_filter(self, document_store, filterable_docs):
         document_store.write_documents(filterable_docs)
@@ -148,3 +153,47 @@ class TestDocumentStore(DocumentStoreBaseTests):
                 or (d.meta.get("page") == "90" and d.meta.get("chapter") == "conclusion")
             ],
         )
+
+    @pytest.mark.integration
+    def test_custom_embedding_field(self):
+        """Test that the custom embedding field is correctly used in the document store."""
+        # Create a document store with a custom embedding field
+        database_name = "haystack_integration_test"
+        collection_name = "test_custom_embeddings_" + str(uuid4())
+
+        connection: MongoClient = MongoClient(
+            os.environ["MONGO_CONNECTION_STRING"], driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
+        )
+        database = connection[database_name]
+        if collection_name in database.list_collection_names():
+            database[collection_name].drop()
+        database.create_collection(collection_name)
+        database[collection_name].create_index("id", unique=True)
+
+        try:
+            custom_field_store = MongoDBAtlasDocumentStore(
+                database_name=database_name,
+                collection_name=collection_name,
+                vector_search_index="cosine_index",
+                full_text_search_index="full_text_index",
+                embedding_field="custom_vector",
+            )
+
+            # Check that the embedding field is correctly set
+            assert custom_field_store.embedding_field == "custom_vector"
+
+            # This is a mock test since we can't execute vector search without a real vector index
+            with patch.object(custom_field_store, "_collection") as mock_collection:
+                # Setup the mock
+                mock_collection.aggregate.return_value = []
+
+                # Execute the method
+                custom_field_store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3])
+
+                # Verify that the correct embedding field was used in the pipeline
+                args = mock_collection.aggregate.call_args[0][0]
+                assert args[0]["$vectorSearch"]["path"] == "custom_vector"
+                assert args[1]["$project"]["custom_vector"] == 1
+
+        finally:
+            database[collection_name].drop()
