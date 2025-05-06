@@ -56,6 +56,7 @@ _PIPELINE_RUN_KEY = "haystack.pipeline.run"
 _COMPONENT_NAME_KEY = "haystack.component.name"
 _COMPONENT_TYPE_KEY = "haystack.component.type"
 _COMPONENT_OUTPUT_KEY = "haystack.component.output"
+_COMPONENT_INPUT_KEY = "haystack.component.input"
 
 # Context var used to keep track of tracing related info.
 # This mainly useful for parents spans.
@@ -290,37 +291,18 @@ class DefaultSpanHandler(SpanHandler):
 
         # special case for ToolInvoker (to update the span name to be: `original_component_name - [tool_names]`)
         if component_type == "ToolInvoker":
-            tool_input_data = span.get_data().get("haystack.component.input")
-
-            tool_names = []
-            if tool_input_data and isinstance(tool_input_data.get("messages"), list):
-                for message in tool_input_data["messages"]:
-                    # should be true for all tool calls
-                    if isinstance(message, ChatMessage) and message.tool_calls:
-                        for tool_call in message.tool_calls:
-                            tool_names.append(tool_call.tool_name)
+            tool_names: List[str] = []
+            messages = span.get_data().get(_COMPONENT_INPUT_KEY, {}).get("messages", [])
+            for message in messages:
+                if isinstance(message, ChatMessage) and message.tool_calls:
+                    tool_names.extend(call.tool_name for call in message.tool_calls)
 
             if tool_names:
-                try:
-                    original_name = span.get_data().get(_COMPONENT_NAME_KEY)
-                    if original_name:
-                        tool_counts = Counter(tool_names)
-                        formatted_tool_names = []
-                        for name, count in tool_counts.items():
-                            if count > 1:
-                                formatted_tool_names.append(f"{name} (x{count})")
-                            else:
-                                formatted_tool_names.append(name)
-
-                        new_name = f"{original_name} - {sorted(formatted_tool_names)}"
-                        span.raw_span().update(name=new_name)
-                    else:
-                        logger.warning(
-                            f"Could not retrieve original component "
-                            f"name ({_COMPONENT_NAME_KEY}) from span data to update ToolInvoker span name."
-                        )
-                except Exception as e:
-                    logger.error(f"Failed to update ToolInvoker span name: {e}")
+                # Fallback to "ToolInvoker" if we can't retrieve component name
+                tool_invoker_name = span.get_data().get(_COMPONENT_NAME_KEY, "ToolInvoker")
+                tool_counts = Counter(tool_names)  # how many times each tool was called
+                formatted_names = [f"{name} (x{count})" if count > 1 else name for name, count in tool_counts.items()]
+                span.raw_span().update(name=f"{tool_invoker_name} - {sorted(formatted_names)}")
 
         if component_type in _SUPPORTED_GENERATORS:
             meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
