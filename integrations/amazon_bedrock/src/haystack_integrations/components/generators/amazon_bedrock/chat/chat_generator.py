@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import aioboto3
 from botocore.config import Config
@@ -6,7 +6,13 @@ from botocore.eventstream import EventStream
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, StreamingCallbackT, select_streaming_callback
-from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_or_toolset_inplace
+from haystack.tools import (
+    Tool,
+    Toolset,
+    _check_duplicate_tool_names,
+    deserialize_tools_or_toolset_inplace,
+    serialize_tools_or_toolset,
+)
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
@@ -135,7 +141,7 @@ class AmazonBedrockChatGenerator:
         stop_words: Optional[List[str]] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
         boto3_config: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
     ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
@@ -167,7 +173,7 @@ class AmazonBedrockChatGenerator:
             [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk) object and switches
             the streaming mode on.
         :param boto3_config: The configuration for the boto3 client.
-        :param tools: A list of Tool objects that the model can use. Each tool should have a unique name.
+        :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
 
         :raises ValueError: If the model name is empty or None.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
@@ -185,7 +191,7 @@ class AmazonBedrockChatGenerator:
         self.stop_words = stop_words or []
         self.streaming_callback = streaming_callback
         self.boto3_config = boto3_config
-        _check_duplicate_tool_names(tools)
+        _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
         self.tools = tools
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
@@ -266,7 +272,6 @@ class AmazonBedrockChatGenerator:
             Dictionary with serialized data.
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
-        serialized_tools = [tool.to_dict() for tool in self.tools] if self.tools else None
         return default_to_dict(
             self,
             aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
@@ -279,7 +284,7 @@ class AmazonBedrockChatGenerator:
             generation_kwargs=self.generation_kwargs,
             streaming_callback=callback_name,
             boto3_config=self.boto3_config,
-            tools=serialized_tools,
+            tools=serialize_tools_or_toolset(self.tools),
         )
 
     @classmethod
@@ -307,7 +312,7 @@ class AmazonBedrockChatGenerator:
         messages: List[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
         requires_async: bool = False,
     ) -> Tuple[Dict[str, Any], Optional[StreamingCallbackT]]:
         """
@@ -323,7 +328,7 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
-        :param tools: Optional list of Tools that the model may call during execution.
+        :param tools: Optional list of Tool objects or a Toolset that the model can use.
         :param requires_async: Boolean flag to indicate if an async-compatible streaming callback function is needed.
 
         :returns:
@@ -345,9 +350,12 @@ class AmazonBedrockChatGenerator:
 
         # Handle tools - either toolConfig or Haystack Tool objects but not both
         tools = tools or self.tools
-        _check_duplicate_tool_names(tools)
+        _check_duplicate_tool_names(list(tools or []))
         tool_config = merged_kwargs.pop("toolConfig", None)
         if tools:
+            # Convert Toolset to list if needed
+            if isinstance(tools, Toolset):
+                tools = list(tools)
             # Format Haystack tools to Bedrock format
             tool_config = _format_tools(tools)
 
@@ -383,7 +391,7 @@ class AmazonBedrockChatGenerator:
         messages: List[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
     ) -> Dict[str, List[ChatMessage]]:
         """
         Executes a synchronous inference call to the Amazon Bedrock model using the Converse API.
@@ -435,7 +443,7 @@ class AmazonBedrockChatGenerator:
         messages: List[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
     ) -> Dict[str, List[ChatMessage]]:
         """
         Executes an asynchronous inference call to the Amazon Bedrock model using the Converse API.
@@ -449,7 +457,7 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
-        :param tools: Optional list of Tools that the model may call during execution.
+        :param tools: Optional list of Tool objects or a Toolset that the model can use.
 
         :returns:
             A dictionary containing the model-generated replies under the `"replies"` key.
