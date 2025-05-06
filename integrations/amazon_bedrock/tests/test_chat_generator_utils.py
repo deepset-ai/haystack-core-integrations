@@ -105,6 +105,94 @@ class TestAmazonBedrockChatGeneratorUtils:
             {"role": "assistant", "content": [{"text": "The weather in Paris is sunny and 25°C."}]},
         ]
 
+    def test_formate_messages_multi_tool(self):
+        messages = [
+            ChatMessage.from_user("What is the weather in Berlin and Paris?"),
+            ChatMessage.from_assistant(
+                text="To provide you with the weather information for both Berlin and Paris, I'll need to use the "
+                "weather tool for each city. I'll make two separate calls to the weather_tool function to get "
+                "this information for you.",
+                tool_calls=[
+                    ToolCall(
+                        tool_name="weather_tool", arguments={"location": "Berlin"}, id="tooluse_evFtOFYeSiG_TQ0cAAgy4Q"
+                    ),
+                    ToolCall(
+                        tool_name="weather_tool", arguments={"location": "Paris"}, id="tooluse_Oc0n2we2RvquHwuPEflaQA"
+                    ),
+                ],
+                name=None,
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "finish_reason": "tool_use",
+                    "usage": {"prompt_tokens": 366, "completion_tokens": 134, "total_tokens": 500},
+                },
+            ),
+            ChatMessage.from_tool(
+                tool_result="Mostly sunny",
+                origin=ToolCall(
+                    tool_name="weather_tool", arguments={"location": "Berlin"}, id="tooluse_evFtOFYeSiG_TQ0cAAgy4Q"
+                ),
+            ),
+            ChatMessage.from_tool(
+                tool_result="Mostly cloudy",
+                origin=ToolCall(
+                    tool_name="weather_tool", arguments={"location": "Paris"}, id="tooluse_Oc0n2we2RvquHwuPEflaQA"
+                ),
+            ),
+        ]
+        formatted_system_prompts, formatted_messages = _format_messages(messages)
+        assert formatted_system_prompts == []
+        assert formatted_messages == [
+            {"role": "user", "content": [{"text": "What is the weather in Berlin and Paris?"}]},
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "text": "To provide you with the weather information for both Berlin and Paris, I'll need to "
+                        "use the weather tool for each city. I'll make two separate calls to the weather_tool "
+                        "function to get this information for you."
+                    },
+                    {
+                        "toolUse": {
+                            "toolUseId": "tooluse_evFtOFYeSiG_TQ0cAAgy4Q",
+                            "name": "weather_tool",
+                            "input": {"location": "Berlin"},
+                        }
+                    },
+                    {
+                        "toolUse": {
+                            "toolUseId": "tooluse_Oc0n2we2RvquHwuPEflaQA",
+                            "name": "weather_tool",
+                            "input": {"location": "Paris"},
+                        }
+                    },
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "toolResult": {
+                            "toolUseId": "tooluse_evFtOFYeSiG_TQ0cAAgy4Q",
+                            "content": [{"text": "Mostly sunny"}],
+                        }
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "toolResult": {
+                            "toolUseId": "tooluse_Oc0n2we2RvquHwuPEflaQA",
+                            "content": [{"text": "Mostly cloudy"}],
+                        }
+                    }
+                ],
+            },
+        ]
+
     def test_extract_replies_from_text_response(self, mock_boto3_session):
         model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
         text_response = {
@@ -181,6 +269,75 @@ class TestAmazonBedrockChatGeneratorUtils:
             "usage": {"prompt_tokens": 25, "completion_tokens": 35, "total_tokens": 60},
             "index": 0,
         }
+
+    def test_extract_replies_from_multi_tool_response(self, mock_boto3_session):
+        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        response_body = {
+            "ResponseMetadata": {
+                "RequestId": "0ba58797-2194-4779-9a53-597c24ce337a",
+                "HTTPStatusCode": 200,
+                "HTTPHeaders": {
+                    "date": "Tue, 06 May 2025 20:47:24 GMT",
+                    "content-type": "application/json",
+                    "content-length": "616",
+                    "connection": "keep-alive",
+                    "x-amzn-requestid": "0ba58797-2194-4779-9a53-597c24ce337a",
+                },
+                "RetryAttempts": 0,
+            },
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "text": "To provide you with the weather information for both Berlin and Paris, I'll need "
+                            "to use the weather tool for each city. I'll make two separate calls to the "
+                            "weather_tool function to get this information for you."
+                        },
+                        {
+                            "toolUse": {
+                                "toolUseId": "tooluse_evFtOFYeSiG_TQ0cAAgy4Q",
+                                "name": "weather_tool",
+                                "input": {"location": "Berlin"},
+                            }
+                        },
+                        {
+                            "toolUse": {
+                                "toolUseId": "tooluse_Oc0n2we2RvquHwuPEflaQA",
+                                "name": "weather_tool",
+                                "input": {"location": "Paris"},
+                            }
+                        },
+                    ],
+                }
+            },
+            "stopReason": "tool_use",
+            "usage": {"inputTokens": 366, "outputTokens": 134, "totalTokens": 500},
+            "metrics": {"latencyMs": 3726},
+        }
+        replies = _parse_completion_response(response_body, model)
+
+        expected_message = ChatMessage.from_assistant(
+            text="To provide you with the weather information for both Berlin and Paris, I'll need to use the weather "
+            "tool for each city. I'll make two separate calls to the weather_tool function to get this "
+            "information for you.",
+            tool_calls=[
+                ToolCall(
+                    tool_name="weather_tool", arguments={"location": "Berlin"}, id="tooluse_evFtOFYeSiG_TQ0cAAgy4Q"
+                ),
+                ToolCall(
+                    tool_name="weather_tool", arguments={"location": "Paris"}, id="tooluse_Oc0n2we2RvquHwuPEflaQA"
+                ),
+            ],
+            name=None,
+            meta={
+                "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                "index": 0,
+                "finish_reason": "tool_use",
+                "usage": {"prompt_tokens": 366, "completion_tokens": 134, "total_tokens": 500},
+            },
+        )
+        assert replies[0] == expected_message
 
     def test_process_streaming_response(self, mock_boto3_session):
         """
