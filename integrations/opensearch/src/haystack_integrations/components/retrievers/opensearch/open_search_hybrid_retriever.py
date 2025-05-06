@@ -10,7 +10,7 @@ from haystack.components.joiners import DocumentJoiner
 from haystack.components.joiners.document_joiner import JoinMode
 from haystack.document_stores.types import FilterPolicy
 from haystack.lazy_imports import LazyImport
-from haystack.utils import ComponentDevice
+from haystack.utils import ComponentDevice, Secret
 
 from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever, OpenSearchEmbeddingRetriever
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
@@ -40,7 +40,7 @@ class OpenSearchHybridRetriever:
         document_store: OpenSearchDocumentStore,
         *,
         # SentenceTransformersTextEmbedder
-        text_embedder_model: str = "sentence-transformers/all-mpnet-base-v2",
+        model: str = "sentence-transformers/all-mpnet-base-v2",
         device: Optional[ComponentDevice] = None,
         normalize_embeddings: bool = False,
         model_kwargs: Optional[Dict[str, Any]] = None,
@@ -85,12 +85,11 @@ class OpenSearchHybridRetriever:
         text_embedder -> SentenceTransformersTextEmbedder
         bm25_retriever -> OpenSearchBM25Retriever
         embedding_retriever -> OpenSearchEmbeddingRetriever
-        document_joiner -> DocumentJoiner
 
         :param document_store:
             The OpenSearchDocumentStore to use for retrieval.
 
-        :param text_embedder_model:
+        :param model:
             The model to use for computing the query embedding, e.g. "sentence-transformers/all-mpnet-base-v2".
 
         :param device:
@@ -165,7 +164,8 @@ class OpenSearchHybridRetriever:
         self.document_store = document_store
 
         # SentenceTransformersTextEmbedder
-        self.text_embedder_model = text_embedder_model
+        self.model = model
+        self.token: Optional[Secret] = Secret.from_env_var(["HF_API_TOKEN", "HF_TOKEN"], strict=False)
         self.device = device
         self.normalize_embeddings = normalize_embeddings
         self.model_kwargs = model_kwargs or {}
@@ -197,7 +197,8 @@ class OpenSearchHybridRetriever:
 
         init_args = {
             "text_embedder": {
-                "model": self.text_embedder_model,
+                "model": self.model,
+                "token": self.token,
                 "device": self.device,
                 "normalize_embeddings": self.normalize_embeddings,
                 "model_kwargs": self.model_kwargs,
@@ -230,6 +231,8 @@ class OpenSearchHybridRetriever:
                 "sort_by_score": self.sort_by_score,
             },
         }
+
+        self.extra_args = kwargs
 
         # look for extra kwargs for each component and add the document store as init param for the retrievers
         if "text_embedder" in kwargs:
@@ -284,7 +287,8 @@ class OpenSearchHybridRetriever:
             # DocumentStore
             document_store=self.document_store.to_dict(),
             # SentenceTransformer
-            text_embedder_model=self.text_embedder_model,
+            model=self.model,
+            token=self.token.to_dict() if self.token is not None else None,
             device=self.device,
             normalize_embeddings=self.normalize_embeddings,
             model_kwargs=self.model_kwargs,
@@ -310,6 +314,8 @@ class OpenSearchHybridRetriever:
             weights=self.weights,
             top_k=self.top_k,
             sort_by_score=self.sort_by_score,
+            # extra kwargs
+            **self.extra_args,
         )
 
     @classmethod
