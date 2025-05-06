@@ -247,7 +247,6 @@ class OpenSearchHybridRetriever:
         """
         Create the pipeline for the OpenSearchHybridRetriever.
 
-        If the template for the ChatPromptBuilder is not provided, a default template is used.
         """
         text_embedder = SentenceTransformersTextEmbedder(**data["text_embedder"])
         embedding_retriever = OpenSearchEmbeddingRetriever(**data["embedding_retriever"])
