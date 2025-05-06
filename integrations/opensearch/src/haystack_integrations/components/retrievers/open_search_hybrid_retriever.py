@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Use LazyImport to conditionally import haystack super_component, which is only available in newer versions
 with LazyImport(
-    "To use the OpenSearchHybridRetriever you need more recent version of haystack. Run 'pip install haystack-ai>=2.13.0'"  # noqa: E501
+    "To use the OpenSearchHybridRetriever you need a more recent version of haystack. Run 'pip install haystack-ai>=2.13.0'"  # noqa: E501
 ) as haystack_imports:
     from haystack import super_component
 
