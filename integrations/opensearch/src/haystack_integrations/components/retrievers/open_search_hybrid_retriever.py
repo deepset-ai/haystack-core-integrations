@@ -269,7 +269,6 @@ class OpenSearchHybridRetriever:
             # The pipeline input "query" feeds into each of the retrievers
             "query": ["text_embedder.text", "bm25_retriever.query"],
         }
-        # The pipeline output "answers" comes from "answer_builder.answers"
         self.output_mapping = {"document_joiner.documents": "documents"}
 
         return hybrid_retrieval
