@@ -11,7 +11,7 @@ from haystack_integrations.document_stores.opensearch import OpenSearchDocumentS
 class TestOpenSearchHybridRetriever:
 
     expected = {
-        "type": 'haystack_integrations.components.retrievers.opensearch.open_search_hybrid_retriever.OpenSearchHybridRetriever',    # noqa: E501
+        "type": "haystack_integrations.components.retrievers.opensearch.open_search_hybrid_retriever.OpenSearchHybridRetriever",  # noqa: E501
         "init_parameters": {
             "document_store": {
                 "init_parameters": {
@@ -40,7 +40,7 @@ class TestOpenSearchHybridRetriever:
                 "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
             },
             "model": "sentence-transformers/all-mpnet-base-v2",
-            'token': {'type': 'env_var', 'env_vars': ['HF_API_TOKEN', 'HF_TOKEN'], 'strict': False},
+            "token": {"type": "env_var", "env_vars": ["HF_API_TOKEN", "HF_TOKEN"], "strict": False},
             "device": None,
             "normalize_embeddings": False,
             "model_kwargs": {},
@@ -137,12 +137,13 @@ class TestOpenSearchHybridRetriever:
     def test_to_dict_with_extra_args(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "dummy-api-key")
         doc_store = OpenSearchDocumentStore()
-        hybrid = OpenSearchHybridRetriever(document_store=doc_store, extra_arg={"text_embedder": {'progress_bar': False}})
-        result = hybrid.to_dict()
-        expected_extra_args = self.expected.update(
-            {'extra_arg': {'text_embedder': {'progress_bar': 'False'}}}
+        hybrid = OpenSearchHybridRetriever(
+            document_store=doc_store, extra_arg={"text_embedder": {"progress_bar": False}}
         )
-
+        result = hybrid.to_dict()
+        added_extra_args = {"extra_arg": {"text_embedder": {"progress_bar": False}}}
+        self.expected['init_parameters'].update(added_extra_args)
+        assert result == self.expected
 
     def test_run(self):
         # mocked document store
