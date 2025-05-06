@@ -7,42 +7,39 @@ from haystack import default_from_dict, default_to_dict
 from haystack.tools import ComponentTool
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.components.connectors.github.file_editor import GitHubFileEditor
-from haystack_integrations.prompts.github.file_editor_tool import FILE_EDITOR_PROMPT, FILE_EDITOR_SCHEMA
+from haystack_integrations.components.connectors.github.issue_commenter import GitHubIssueCommenter
+from haystack_integrations.prompts.github.comment_tool import COMMENT_PROMPT, COMMENT_SCHEMA
 
 
-class GitHubFileEditorTool(ComponentTool):
+class GitHubIssueCommenterTool(ComponentTool):
     """
-    A tool for editing files in GitHub repositories.
+    A tool for commenting on GitHub issues.
     """
 
     def __init__(
         self,
         *,
-        name: Optional[str] = "file_editor",
-        description: Optional[str] = FILE_EDITOR_PROMPT,
-        parameters: Optional[Dict[str, Any]] = FILE_EDITOR_SCHEMA,
+        name: Optional[str] = "issue_commenter",
+        description: Optional[str] = COMMENT_PROMPT,
+        parameters: Optional[Dict[str, Any]] = COMMENT_SCHEMA,
         github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"),
-        repo: Optional[str] = None,
-        branch: str = "main",
         raise_on_failure: bool = True,
+        retry_attempts: int = 2,
     ):
         self.name = name
         self.description = description
         self.parameters = parameters
         self.github_token = github_token
-        self.repo = repo
-        self.branch = branch
         self.raise_on_failure = raise_on_failure
+        self.retry_attempts = retry_attempts
 
-        file_editor = GitHubFileEditor(
+        issue_commenter = GitHubIssueCommenter(
             github_token=github_token,
-            repo=repo,
-            branch=branch,
             raise_on_failure=raise_on_failure,
+            retry_attempts=retry_attempts,
         )
         super().__init__(
-            component=file_editor,
+            component=issue_commenter,
             name=name,
             description=description,
             parameters=parameters,
@@ -60,14 +57,13 @@ class GitHubFileEditorTool(ComponentTool):
             name=self.name,
             description=self.description,
             parameters=self.parameters,
-            github_token=self.github_token.to_dict(),
-            repo=self.repo,
-            branch=self.branch,
+            github_token=self.github_token.to_dict() if self.github_token else None,
             raise_on_failure=self.raise_on_failure,
+            retry_attempts=self.retry_attempts,
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GitHubFileEditorTool":
+    def from_dict(cls, data: Dict[str, Any]) -> "GitHubIssueCommenterTool":
         """
         Deserializes the tool from a dictionary.
 

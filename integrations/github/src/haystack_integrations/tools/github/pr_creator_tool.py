@@ -7,42 +7,36 @@ from haystack import default_from_dict, default_to_dict
 from haystack.tools import ComponentTool
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.components.connectors.github.file_editor import GitHubFileEditor
-from haystack_integrations.prompts.github.file_editor_tool import FILE_EDITOR_PROMPT, FILE_EDITOR_SCHEMA
+from haystack_integrations.components.connectors.github.pr_creator import GitHubPRCreator
+from haystack_integrations.prompts.github.pr_system_prompt import PR_SYSTEM_PROMPT, PR_SCHEMA
 
 
-class GitHubFileEditorTool(ComponentTool):
+class GitHubPRCreatorTool(ComponentTool):
     """
-    A tool for editing files in GitHub repositories.
+    A tool for creating pull requests in GitHub repositories.
     """
 
     def __init__(
         self,
         *,
-        name: Optional[str] = "file_editor",
-        description: Optional[str] = FILE_EDITOR_PROMPT,
-        parameters: Optional[Dict[str, Any]] = FILE_EDITOR_SCHEMA,
+        name: Optional[str] = "pr_creator",
+        description: Optional[str] = PR_SYSTEM_PROMPT,
+        parameters: Optional[Dict[str, Any]] = PR_SCHEMA,
         github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"),
-        repo: Optional[str] = None,
-        branch: str = "main",
         raise_on_failure: bool = True,
     ):
         self.name = name
         self.description = description
         self.parameters = parameters
         self.github_token = github_token
-        self.repo = repo
-        self.branch = branch
         self.raise_on_failure = raise_on_failure
 
-        file_editor = GitHubFileEditor(
+        pr_creator = GitHubPRCreator(
             github_token=github_token,
-            repo=repo,
-            branch=branch,
             raise_on_failure=raise_on_failure,
         )
         super().__init__(
-            component=file_editor,
+            component=pr_creator,
             name=name,
             description=description,
             parameters=parameters,
@@ -60,14 +54,12 @@ class GitHubFileEditorTool(ComponentTool):
             name=self.name,
             description=self.description,
             parameters=self.parameters,
-            github_token=self.github_token.to_dict(),
-            repo=self.repo,
-            branch=self.branch,
+            github_token=self.github_token.to_dict() if self.github_token else None,
             raise_on_failure=self.raise_on_failure,
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GitHubFileEditorTool":
+    def from_dict(cls, data: Dict[str, Any]) -> "GitHubPRCreatorTool":
         """
         Deserializes the tool from a dictionary.
 

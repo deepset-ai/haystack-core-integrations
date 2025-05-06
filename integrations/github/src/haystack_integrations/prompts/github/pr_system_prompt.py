@@ -53,3 +53,31 @@ Haystack-Agent writes clear Pull Request descriptions.
 Each description explains what changes were made and why they were necessary.
 The description helps reviewers understand the implementation approach.
 """
+
+PR_SCHEMA = {
+    "properties": {
+        "issue_url": {"type": "string", "description": "URL of the GitHub issue to link the PR to."},
+        "title": {
+            "type": "string",
+            "description": "Title of the pull request.",
+        },
+        "branch": {
+            "type": "string",
+            "description": "Name of the branch in your fork where changes are implemented.",
+        },
+        "base": {
+            "type": "string",
+            "description": "Name of the branch in the original repo you want to merge into.",
+        },
+        "body": {
+            "type": "string",
+            "description": "Additional content for the pull request description.",
+        },
+        "draft": {
+            "type": "boolean",
+            "description": "Whether to create a draft pull request.",
+        },
+    },
+    "required": ["issue_url", "title", "branch", "base"],
+    "type": "object",
+}
