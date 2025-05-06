@@ -62,7 +62,7 @@ class OpenSearchHybridRetriever:
         filter_policy_embedding: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
         custom_query_embedding: Optional[Dict[str, Any]] = None,
         # DocumentJoiner
-        join_mode: Union[str, JoinMode] = JoinMode.CONCATENATE,
+        join_mode: Union[str, JoinMode] = JoinMode.RECIPROCAL_RANK_FUSION,
         weights: Optional[List[float]] = None,
         top_k: Optional[int] = None,
         sort_by_score: bool = True,
