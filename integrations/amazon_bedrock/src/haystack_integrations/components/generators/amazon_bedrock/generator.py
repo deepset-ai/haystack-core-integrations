@@ -1,7 +1,7 @@
 import json
 import re
 import warnings
-from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Type, get_args
+from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Type, Union, get_args
 
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -108,7 +108,7 @@ class AmazonBedrockGenerator:
         boto3_config: Optional[Dict[str, Any]] = None,
         model_family: Optional[MODEL_FAMILIES] = None,
         **kwargs,
-    ):
+    ) -> None:
         """
         Create a new `AmazonBedrockGenerator` instance.
 
@@ -189,7 +189,7 @@ class AmazonBedrockGenerator:
         prompt: str,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> Dict[str, Union[List[str], Dict[str, Any]]]:
         """
         Generates a list of string response to the given prompt.
 

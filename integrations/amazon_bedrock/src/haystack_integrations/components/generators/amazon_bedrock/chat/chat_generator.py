@@ -1,19 +1,20 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+import aioboto3
 from botocore.config import Config
 from botocore.eventstream import EventStream
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, StreamingCallbackT, select_streaming_callback
-from haystack.tools import Tool, _check_duplicate_tool_names
+from haystack.tools import (
+    Tool,
+    Toolset,
+    _check_duplicate_tool_names,
+    deserialize_tools_or_toolset_inplace,
+    serialize_tools_or_toolset,
+)
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
-
-# Compatibility with Haystack 2.12.0 and 2.13.0 - remove after 2.13.0 is released
-try:
-    from haystack.tools import deserialize_tools_or_toolset_inplace
-except ImportError:
-    from haystack.tools import deserialize_tools_inplace as deserialize_tools_or_toolset_inplace
 
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
@@ -140,8 +141,8 @@ class AmazonBedrockChatGenerator:
         stop_words: Optional[List[str]] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
         boto3_config: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
-    ):
+        tools: Optional[Union[List[Tool], Toolset]] = None,
+    ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
         Amazon Bedrock client.
@@ -172,7 +173,7 @@ class AmazonBedrockChatGenerator:
             [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk) object and switches
             the streaming mode on.
         :param boto3_config: The configuration for the boto3 client.
-        :param tools: A list of Tool objects that the model can use. Each tool should have a unique name.
+        :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
 
         :raises ValueError: If the model name is empty or None.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
@@ -190,7 +191,7 @@ class AmazonBedrockChatGenerator:
         self.stop_words = stop_words or []
         self.streaming_callback = streaming_callback
         self.boto3_config = boto3_config
-        _check_duplicate_tool_names(tools)
+        _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
         self.tools = tools
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
@@ -228,7 +229,18 @@ class AmazonBedrockChatGenerator:
         self.stop_words = stop_words or []
         self.async_session = None
 
-    def _get_async_session(self):
+    def _get_async_session(self) -> aioboto3.Session:
+        """
+        Initializes and returns an asynchronous AWS session for accessing Amazon Bedrock.
+
+        If the session is already created, it is reused. Otherwise, a new session is created using the provided AWS
+        credentials and configuration.
+
+        :returns:
+            An async-compatible boto3 session configured for use with Amazon Bedrock.
+        :raises AmazonBedrockConfigurationError:
+            If unable to establish an async session due to misconfiguration.
+        """
         if self.async_session:
             return self.async_session
 
@@ -260,7 +272,6 @@ class AmazonBedrockChatGenerator:
             Dictionary with serialized data.
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
-        serialized_tools = [tool.to_dict() for tool in self.tools] if self.tools else None
         return default_to_dict(
             self,
             aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
@@ -273,7 +284,7 @@ class AmazonBedrockChatGenerator:
             generation_kwargs=self.generation_kwargs,
             streaming_callback=callback_name,
             boto3_config=self.boto3_config,
-            tools=serialized_tools,
+            tools=serialize_tools_or_toolset(self.tools),
         )
 
     @classmethod
@@ -301,19 +312,27 @@ class AmazonBedrockChatGenerator:
         messages: List[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
         requires_async: bool = False,
     ) -> Tuple[Dict[str, Any], Optional[StreamingCallbackT]]:
         """
-        Prepares the request parameters for both sync and async run methods.
+        Prepares and formats parameters required to call the Amazon Bedrock Converse API.
 
-        :param messages: List of ChatMessage objects representing the conversation history.
-        :param streaming_callback: Optional callback function for handling streaming responses.
-        :param generation_kwargs: Optional dictionary of generation parameters.
-        :param tools: Optional list of Tool objects that the model can use.
-        :param requires_async: Boolean indicating whether the request is for async execution.
-            This affects how the streaming callback is selected.
-        :return: Tuple of (request parameters dict, callback function)
+        This includes merging default and runtime generation parameters, formatting messages and tools, and
+        selecting the appropriate streaming callback.
+
+        :param messages: List of `ChatMessage` objects representing the conversation history.
+        :param streaming_callback: Optional streaming callback provided at runtime.
+        :param generation_kwargs: Optional dictionary of generation parameters. Some common parameters are:
+            - `maxTokens`: Maximum number of tokens to generate.
+            - `stopSequences`: List of stop sequences to stop generation.
+            - `temperature`: Sampling temperature.
+            - `topP`: Nucleus sampling parameter.
+        :param tools: Optional list of Tool objects or a Toolset that the model can use.
+        :param requires_async: Boolean flag to indicate if an async-compatible streaming callback function is needed.
+
+        :returns:
+            A tuple of (API-ready parameter dictionary, streaming callback function).
         """
         generation_kwargs = generation_kwargs or {}
 
@@ -331,9 +350,12 @@ class AmazonBedrockChatGenerator:
 
         # Handle tools - either toolConfig or Haystack Tool objects but not both
         tools = tools or self.tools
-        _check_duplicate_tool_names(tools)
+        _check_duplicate_tool_names(list(tools or []))
         tool_config = merged_kwargs.pop("toolConfig", None)
         if tools:
+            # Convert Toolset to list if needed
+            if isinstance(tools, Toolset):
+                tools = list(tools)
             # Format Haystack tools to Bedrock format
             tool_config = _format_tools(tools)
 
@@ -369,8 +391,27 @@ class AmazonBedrockChatGenerator:
         messages: List[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
-    ):
+        tools: Optional[Union[List[Tool], Toolset]] = None,
+    ) -> Dict[str, List[ChatMessage]]:
+        """
+        Executes a synchronous inference call to the Amazon Bedrock model using the Converse API.
+
+        Supports both standard and streaming responses depending on whether a streaming callback is provided.
+
+        :param messages: A list of `ChatMessage` objects forming the chat history.
+        :param streaming_callback: Optional callback for handling streaming outputs.
+        :param generation_kwargs: Optional dictionary of generation parameters. Some common parameters are:
+            - `maxTokens`: Maximum number of tokens to generate.
+            - `stopSequences`: List of stop sequences to stop generation.
+            - `temperature`: Sampling temperature.
+            - `topP`: Nucleus sampling parameter.
+        :param tools: Optional list of Tools that the model may call during execution.
+
+        :returns:
+            A dictionary containing the model-generated replies under the `"replies"` key.
+        :raises AmazonBedrockInferenceError:
+            If the Bedrock inference API call fails.
+        """
         params, callback = self._prepare_request_params(
             messages=messages,
             streaming_callback=streaming_callback,
@@ -402,16 +443,26 @@ class AmazonBedrockChatGenerator:
         messages: List[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
-    ):
+        tools: Optional[Union[List[Tool], Toolset]] = None,
+    ) -> Dict[str, List[ChatMessage]]:
         """
-        Async version of the run method. Completes chats using LLMs hosted on Amazon Bedrock.
+        Executes an asynchronous inference call to the Amazon Bedrock model using the Converse API.
 
-        :param messages: List of ChatMessage objects representing the conversation history.
-        :param streaming_callback: Optional callback function for handling streaming responses.
-        :param generation_kwargs: Optional dictionary of generation parameters.
-        :param tools: Optional list of Tool objects that the model can use.
-        :return: Dictionary containing the model's replies as a list of ChatMessage objects.
+        Designed for use cases where non-blocking or concurrent execution is desired.
+
+        :param messages: A list of `ChatMessage` objects forming the chat history.
+        :param streaming_callback: Optional async-compatible callback for handling streaming outputs.
+        :param generation_kwargs: Optional dictionary of generation parameters. Some common parameters are:
+            - `maxTokens`: Maximum number of tokens to generate.
+            - `stopSequences`: List of stop sequences to stop generation.
+            - `temperature`: Sampling temperature.
+            - `topP`: Nucleus sampling parameter.
+        :param tools: Optional list of Tool objects or a Toolset that the model can use.
+
+        :returns:
+            A dictionary containing the model-generated replies under the `"replies"` key.
+        :raises AmazonBedrockInferenceError:
+            If the Bedrock inference API call fails.
         """
         params, callback = self._prepare_request_params(
             messages=messages,
