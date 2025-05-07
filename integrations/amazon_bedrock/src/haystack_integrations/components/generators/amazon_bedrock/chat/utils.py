@@ -126,7 +126,7 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
 
             # Create separate ChatMessage objects for text and tool calls
             if text_content:
-                replies.append(ChatMessage.from_assistant(" ".join(text_content), tool_calls=tool_calls, meta=base_meta))
+                replies.append(ChatMessage.from_assistant(" ".join(text_content), meta=base_meta))
             if tool_calls:
                 replies.append(ChatMessage.from_assistant("", tool_calls=tool_calls, meta=base_meta))
 
