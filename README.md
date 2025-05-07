@@ -89,6 +89,7 @@ GitHub. The GitHub Actions workflow will take care of the rest.
     ```
 3. Wait for the CI to do its magic
 4. Review the changelog PR
+
     If the release is successful, the HaystackBot will open a pull request to generate the changelog. 
     Add yourself as the reviewer. If there are any issues, edit the changelog manually.
 
