@@ -43,7 +43,6 @@ def _format_tool_result_message(tool_call_result_message: ChatMessage) -> Dict[s
     tool_results = []
     for result in tool_call_result_message.tool_call_results:
         try:
-            # TODO Interesting, double check if Bedrock can accept a dict
             json_result = json.loads(result.result)
             content = [{"json": json_result}]
         except json.JSONDecodeError:
@@ -62,35 +61,20 @@ def _format_tool_result_message(tool_call_result_message: ChatMessage) -> Dict[s
     return {"role": "user", "content": tool_results}
 
 
-def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    """
-    Format a list of ChatMessages to the format expected by Bedrock API.
-    Separates system messages and handles tool results and tool calls.
+def _repair_tool_result_messages(bedrock_formatted_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    tool_call_messages = []
+    tool_result_messages = []
+    for idx, msg in enumerate(bedrock_formatted_messages):
+        content = msg.get("content", None)
+        if content:
+            if any("toolUse" in c for c in content):
+                tool_call_messages.append((idx, msg))
+            elif any("toolResult" in c for c in content):
+                tool_result_messages.append((idx, msg))
 
-    :param messages: List of ChatMessages to format
-    :return: Tuple of (system_prompts, non_system_messages) in Bedrock format
-    """
-    # Separate system messages, tool calls, and tool results
-    system_prompts = []
-    tool_call_prompts = []
-    tool_result_prompts = []
-    remaining_prompts = []
-    for idx, msg in enumerate(messages):
-        if msg.is_from(ChatRole.SYSTEM):
-            # Assuming system messages can only contain text
-            # Don't need to track idx since system_messages are handled separately
-            system_prompts.append({"text": msg.text})
-        elif msg.tool_calls:
-            tool_call_prompts.append((idx, _format_tool_call_message(msg)))
-        elif msg.tool_call_results:
-            tool_result_prompts.append((idx, _format_tool_result_message(msg)))
-        else:
-            # regular user or assistant messages with only text content
-            remaining_prompts.append((idx, {"role": msg.role.value, "content": [{"text": msg.text}]}))
-
-    # Repair the tool_result_prompts to be grouped in the same way as the tool_call_prompts
-    group_to_tool_call_ids = {idx: [] for idx, _ in tool_call_prompts}
-    for idx, tool_call in tool_call_prompts:
+    # Determine the tool call IDs for each tool call message
+    group_to_tool_call_ids = {idx: [] for idx, _ in tool_call_messages}
+    for idx, tool_call in tool_call_messages:
         tool_use_contents = [c for c in tool_call["content"] if "toolUse" in c]
         for content in tool_use_contents:
             group_to_tool_call_ids[idx].append(content["toolUse"]["toolUseId"])
@@ -105,7 +89,7 @@ def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]],
         regrouped_tool_result = []
         original_idx = None
         for tool_call_id in tool_call_ids:
-            for idx, tool_result in tool_result_prompts:
+            for idx, tool_result in tool_result_messages:
                 tool_result_contents = [c for c in tool_result["content"] if "toolResult" in c]
                 for content in tool_result_contents:
                     if content["toolResult"]["toolUseId"] == tool_call_id:
@@ -114,11 +98,47 @@ def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]],
                         original_idx = idx
         repaired_tool_result_prompts.append((original_idx, {"role": "user", "content": regrouped_tool_result}))
 
-    non_system_prompts = tool_call_prompts + repaired_tool_result_prompts + remaining_prompts
-    # Sort by original index to maintain order
-    non_system_prompts.sort(key=lambda x: x[0])
-    non_system_messages = [msg for _, msg in non_system_prompts]
-    return system_prompts, non_system_messages
+    # Remove the tool result messages from bedrock_formatted_messages
+    bedrock_formatted_messages_minus_tool_results = []
+    for idx, msg in enumerate(bedrock_formatted_messages):
+        # Assumes the content of tool result messages only contains 'toolResult': {...} objects (e.g. no 'text')
+        if msg.get("content") and "toolResult" not in msg["content"][0]:
+            bedrock_formatted_messages_minus_tool_results.append((idx, msg))
+
+    # Add the repaired tool result messages and sort to maintain the correct order
+    repaired_bedrock_formatted_messages = bedrock_formatted_messages_minus_tool_results + repaired_tool_result_prompts
+    repaired_bedrock_formatted_messages.sort(key=lambda x: x[0])
+
+    # Drop the index and return only the messages
+    return [msg for _, msg in repaired_bedrock_formatted_messages]
+
+
+def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """
+    Format a list of ChatMessages to the format expected by Bedrock API.
+    Separates system messages and handles tool results and tool calls.
+
+    :param messages: List of ChatMessages to format
+    :return: Tuple of (system_prompts, non_system_messages) in Bedrock format
+    """
+    # Separate system messages, tool calls, and tool results
+    system_prompts = []
+    bedrock_formatted_messages = []
+    for idx, msg in enumerate(messages):
+        if msg.is_from(ChatRole.SYSTEM):
+            # Assuming system messages can only contain text
+            # Don't need to track idx since system_messages are handled separately
+            system_prompts.append({"text": msg.text})
+        elif msg.tool_calls:
+            bedrock_formatted_messages.append(_format_tool_call_message(msg))
+        elif msg.tool_call_results:
+            bedrock_formatted_messages.append(_format_tool_result_message(msg))
+        else:
+            # regular user or assistant messages with only text content
+            bedrock_formatted_messages.append({"role": msg.role.value, "content": [{"text": msg.text}]})
+
+    repaired_bedrock_formatted_messages = _repair_tool_result_messages(bedrock_formatted_messages)
+    return system_prompts, repaired_bedrock_formatted_messages
 
 
 def _parse_completion_response(response_body: Dict[str, Any], model: str) -> List[ChatMessage]:
