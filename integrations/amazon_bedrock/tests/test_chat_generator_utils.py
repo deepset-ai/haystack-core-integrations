@@ -177,18 +177,13 @@ class TestAmazonBedrockChatGeneratorUtils:
                             "toolUseId": "tooluse_evFtOFYeSiG_TQ0cAAgy4Q",
                             "content": [{"text": "Mostly sunny"}],
                         }
-                    }
-                ],
-            },
-            {
-                "role": "user",
-                "content": [
+                    },
                     {
                         "toolResult": {
                             "toolUseId": "tooluse_Oc0n2we2RvquHwuPEflaQA",
                             "content": [{"text": "Mostly cloudy"}],
                         }
-                    }
+                    },
                 ],
             },
         ]

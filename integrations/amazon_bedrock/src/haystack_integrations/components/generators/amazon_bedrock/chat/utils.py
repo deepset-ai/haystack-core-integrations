@@ -25,6 +25,43 @@ def _format_tools(tools: Optional[List[Tool]] = None) -> Optional[Dict[str, Any]
     return {"tools": tool_specs} if tool_specs else None
 
 
+def _format_tool_call_message(tool_call_message: ChatMessage) -> Dict[str, Any]:
+    content = []
+    # Tool call message can contain text
+    if tool_call_message.text:
+        content.append({"text": tool_call_message.text})
+
+    for tool_call in tool_call_message.tool_calls:
+        content.append(
+            {"toolUse": {"toolUseId": tool_call.id, "name": tool_call.tool_name, "input": tool_call.arguments}}
+        )
+    return {"role": tool_call_message.role.value, "content": content}
+
+
+def _format_tool_result_message(tool_call_result_message: ChatMessage) -> Dict[str, Any]:
+    # Assuming tool call result messages will only contain tool results
+    tool_results = []
+    for result in tool_call_result_message.tool_call_results:
+        try:
+            # TODO Interesting, double check if Bedrock can accept a dict
+            json_result = json.loads(result.result)
+            content = [{"json": json_result}]
+        except json.JSONDecodeError:
+            content = [{"text": result.result}]
+
+        tool_results.append(
+            {
+                "toolResult": {
+                    "toolUseId": result.origin.id,
+                    "content": content,
+                    **({"status": "error"} if result.error else {}),
+                }
+            }
+        )
+    # role must be user
+    return {"role": "user", "content": tool_results}
+
+
 def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Format a list of ChatMessages to the format expected by Bedrock API.
@@ -33,51 +70,54 @@ def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]],
     :param messages: List of ChatMessages to format
     :return: Tuple of (system_prompts, non_system_messages) in Bedrock format
     """
+    # Separate system messages, tool calls, and tool results
     system_prompts = []
-    non_system_messages = []
-
-    for msg in messages:
+    tool_call_prompts = []
+    tool_result_prompts = []
+    remaining_prompts = []
+    for idx, msg in enumerate(messages):
         if msg.is_from(ChatRole.SYSTEM):
+            # Assuming system messages can only contain text
+            # Don't need to track idx since system_messages are handled separately
             system_prompts.append({"text": msg.text})
-            continue
+        elif msg.tool_calls:
+            tool_call_prompts.append((idx, _format_tool_call_message(msg)))
+        elif msg.tool_call_results:
+            tool_result_prompts.append((idx, _format_tool_result_message(msg)))
+        else:
+            # regular user or assistant messages with only text content
+            remaining_prompts.append((idx, {"role": msg.role.value, "content": [{"text": msg.text}]}))
 
-        # Handle tool results - must role these as user messages
-        if msg.tool_call_results:
-            tool_results = []
-            for result in msg.tool_call_results:
-                try:
-                    json_result = json.loads(result.result)
-                    content = [{"json": json_result}]
-                except json.JSONDecodeError:
-                    content = [{"text": result.result}]
+    # Repair the tool_result_prompts to be grouped in the same way as the tool_call_prompts
+    group_to_tool_call_ids = {idx: [] for idx, _ in tool_call_prompts}
+    for idx, tool_call in tool_call_prompts:
+        tool_use_contents = [c for c in tool_call["content"] if "toolUse" in c]
+        for content in tool_use_contents:
+            group_to_tool_call_ids[idx].append(content["toolUse"]["toolUseId"])
 
-                tool_results.append(
-                    {
-                        "toolResult": {
-                            "toolUseId": result.origin.id,
-                            "content": content,
-                            **({"status": "error"} if result.error else {}),
-                        }
-                    }
-                )
-            non_system_messages.append({"role": "user", "content": tool_results})
-            continue
+    # Regroups the tool_result_prompts based on the tool_call_prompts
+    # Makes sure to:
+    # - Within the new group the tool call IDs of the tool result messages are in the same order as the tool call
+    #   messages
+    # - The tool result messages are in the same order as the original message list
+    repaired_tool_result_prompts = []
+    for group_idx, tool_call_ids in group_to_tool_call_ids.items():
+        regrouped_tool_result = []
+        original_idx = None
+        for tool_call_id in tool_call_ids:
+            for idx, tool_result in tool_result_prompts:
+                tool_result_contents = [c for c in tool_result["content"] if "toolResult" in c]
+                for content in tool_result_contents:
+                    if content["toolResult"]["toolUseId"] == tool_call_id:
+                        regrouped_tool_result.append(content)
+                        # Keep track of the original index of the last tool result message
+                        original_idx = idx
+        repaired_tool_result_prompts.append((original_idx, {"role": "user", "content": regrouped_tool_result}))
 
-        content = []
-        # Handle text content
-        if msg.text:
-            content.append({"text": msg.text})
-
-        # Handle tool calls
-        if msg.tool_calls:
-            for tool_call in msg.tool_calls:
-                content.append(
-                    {"toolUse": {"toolUseId": tool_call.id, "name": tool_call.tool_name, "input": tool_call.arguments}}
-                )
-
-        if content:  # Only add message if it has content
-            non_system_messages.append({"role": msg.role.value, "content": content})
-
+    non_system_prompts = tool_call_prompts + repaired_tool_result_prompts + remaining_prompts
+    # Sort by original index to maintain order
+    non_system_prompts.sort(key=lambda x: x[0])
+    non_system_messages = [msg for _, msg in non_system_prompts]
     return system_prompts, non_system_messages
 
 
