@@ -178,8 +178,9 @@ def _parse_streaming_response(
             elif "toolUse" in delta and current_tool_call:
                 # Accumulate tool use input deltas
                 current_tool_call["arguments"] += delta["toolUse"].get("input", "")
-                streaming_chunk = StreamingChunk(content="", meta=
-                                                 {"tool_calls": {"arguments": delta["toolUse"].get("input", "")}})
+                streaming_chunk = StreamingChunk(
+                    content="", meta={"tool_calls": {"arguments": delta["toolUse"].get("input", "")}}
+                )
                 streaming_callback(streaming_chunk)
 
         elif "contentBlockStop" in event:
