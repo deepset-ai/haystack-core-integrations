@@ -8,7 +8,7 @@ from haystack.tools import ComponentTool
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.connectors.github.repo_viewer import GitHubRepoViewer
-from haystack_integrations.prompts.github.repo_viewer_tool import REPO_VIEWER_PROMPT, REPO_VIEWER_SCHEMA
+from haystack_integrations.prompts.github.repo_viewer_prompt import REPO_VIEWER_PROMPT, REPO_VIEWER_SCHEMA
 
 
 class GitHubRepoViewerTool(ComponentTool):

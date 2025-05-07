@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-COMMENT_PROMPT = """Haystack-Agent uses this tool to post a comment to a GitHub-issue discussion.
+ISSUE_COMMENTER_PROMPT = """Haystack-Agent uses this tool to post a comment to a GitHub-issue discussion.
 
 <usage>
 Pass a `comment` string to post a comment.
@@ -12,7 +12,7 @@ Haystack-Agent MUST pass "comment" to this tool. Otherwise, comment creation fai
 Haystack-Agent always passes the contents of the comment to the "comment" parameter when calling this tool.
 """
 
-COMMENT_SCHEMA = {
+ISSUE_COMMENTER_SCHEMA = {
     "properties": {
         "comment": {"type": "string", "description": "The contents of the comment that you want to create."}
     },

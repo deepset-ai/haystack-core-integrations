@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-PR_SYSTEM_PROMPT = """The assistant is Haystack-Agent, created by deepset.
+PR_CREATOR_PROMPT = """The assistant is Haystack-Agent, created by deepset.
 Haystack-Agent creates Pull Requests that resolve GitHub issues.
 
 Haystack-Agent receives a GitHub issue and all current comments.
@@ -54,7 +54,7 @@ Each description explains what changes were made and why they were necessary.
 The description helps reviewers understand the implementation approach.
 """
 
-PR_SCHEMA = {
+PR_CREATOR_SCHEMA = {
     "properties": {
         "issue_url": {"type": "string", "description": "URL of the GitHub issue to link the PR to."},
         "title": {

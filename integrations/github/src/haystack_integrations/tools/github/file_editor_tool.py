@@ -8,7 +8,7 @@ from haystack.tools import ComponentTool
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.connectors.github.file_editor import GitHubFileEditor
-from haystack_integrations.prompts.github.file_editor_tool import FILE_EDITOR_PROMPT, FILE_EDITOR_SCHEMA
+from haystack_integrations.prompts.github.file_editor_prompt import FILE_EDITOR_PROMPT, FILE_EDITOR_SCHEMA
 
 
 class GitHubFileEditorTool(ComponentTool):

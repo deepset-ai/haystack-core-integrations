@@ -8,7 +8,7 @@ from haystack.tools import ComponentTool
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.connectors.github.issue_viewer import GitHubIssueViewer
-from haystack_integrations.prompts.github.issue_viewer import ISSUE_VIEWER_PROMPT, ISSUE_VIEWER_SCHEMA
+from haystack_integrations.prompts.github.issue_viewer_prompt import ISSUE_VIEWER_PROMPT, ISSUE_VIEWER_SCHEMA
 
 
 class GitHubIssueViewerTool(ComponentTool):

@@ -8,7 +8,7 @@ from haystack.tools import ComponentTool
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.connectors.github.issue_commenter import GitHubIssueCommenter
-from haystack_integrations.prompts.github.comment_tool import COMMENT_PROMPT, COMMENT_SCHEMA
+from haystack_integrations.prompts.github.issue_commenter_prompt import ISSUE_COMMENTER_PROMPT, ISSUE_COMMENTER_SCHEMA
 
 
 class GitHubIssueCommenterTool(ComponentTool):
@@ -20,8 +20,8 @@ class GitHubIssueCommenterTool(ComponentTool):
         self,
         *,
         name: Optional[str] = "issue_commenter",
-        description: Optional[str] = COMMENT_PROMPT,
-        parameters: Optional[Dict[str, Any]] = COMMENT_SCHEMA,
+        description: Optional[str] = ISSUE_COMMENTER_PROMPT,
+        parameters: Optional[Dict[str, Any]] = ISSUE_COMMENTER_SCHEMA,
         github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"),
         raise_on_failure: bool = True,
         retry_attempts: int = 2,
