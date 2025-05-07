@@ -271,10 +271,16 @@ class OllamaChatGenerator:
             if streaming_callback is not None:
                 streaming_callback(chunk_delta)
 
-        replies = [ChatMessage.from_assistant("".join([c.content for c in chunks]))]
-        meta = {key: value for key, value in chunks[0].meta.items() if key != "message"}
+        # Create the ChatMessage with the combined content
+        combined_text = "".join([c.content for c in chunks])
+        reply = ChatMessage.from_assistant(combined_text)
 
-        return {"replies": replies, "meta": [meta]}
+        # Convert the last chunk's metadata to OpenAI format and attach it to the ChatMessage
+        if chunks:
+            meta = _convert_ollama_meta_to_openai_format(chunks[-1].meta)
+            reply._meta = meta
+
+        return {"replies": [reply]}
 
     @component.output_types(replies=List[ChatMessage])
     def run(
