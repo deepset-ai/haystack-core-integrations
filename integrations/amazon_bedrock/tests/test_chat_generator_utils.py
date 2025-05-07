@@ -168,12 +168,8 @@ class TestAmazonBedrockChatGeneratorUtils:
         }
 
         replies = _parse_completion_response(mixed_response, model)
-        assert len(replies) == 1
+        assert len(replies) == 2
         assert replies[0].text == "Let me help you with that. I'll use the search tool to find the answer."
-        tool_content = replies[0].tool_call
-        assert tool_content.id == "456"
-        assert tool_content.tool_name == "search_tool"
-        assert tool_content.arguments == {"query": "test"}
         assert replies[0].role == ChatRole.ASSISTANT
         assert replies[0].meta == {
             "model": model,
@@ -181,6 +177,18 @@ class TestAmazonBedrockChatGeneratorUtils:
             "usage": {"prompt_tokens": 25, "completion_tokens": 35, "total_tokens": 60},
             "index": 0,
         }
+        assert replies[1].text == ""
+        assert replies[1].role == ChatRole.ASSISTANT
+        assert replies[1].meta == {
+            "model": model,
+            "finish_reason": "complete",
+            "usage": {"prompt_tokens": 25, "completion_tokens": 35, "total_tokens": 60},
+            "index": 0,
+        }
+        tool_content = replies[1].tool_call
+        assert tool_content.id == "456"
+        assert tool_content.tool_name == "search_tool"
+        assert tool_content.arguments == {"query": "test"}
 
     def test_process_streaming_response(self, mock_boto3_session):
         """
