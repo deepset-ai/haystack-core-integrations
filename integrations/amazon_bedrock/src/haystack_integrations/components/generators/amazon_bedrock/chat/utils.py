@@ -73,7 +73,7 @@ def _repair_tool_result_messages(bedrock_formatted_messages: List[Dict[str, Any]
                 tool_result_messages.append((idx, msg))
 
     # Determine the tool call IDs for each tool call message
-    group_to_tool_call_ids = {idx: [] for idx, _ in tool_call_messages}
+    group_to_tool_call_ids: Dict[int, Any] = {idx: [] for idx, _ in tool_call_messages}
     for idx, tool_call in tool_call_messages:
         tool_use_contents = [c for c in tool_call["content"] if "toolUse" in c]
         for content in tool_use_contents:
@@ -85,7 +85,7 @@ def _repair_tool_result_messages(bedrock_formatted_messages: List[Dict[str, Any]
     #   messages
     # - The tool result messages are in the same order as the original message list
     repaired_tool_result_prompts = []
-    for group_idx, tool_call_ids in group_to_tool_call_ids.items():
+    for tool_call_ids in group_to_tool_call_ids.values():
         regrouped_tool_result = []
         original_idx = None
         for tool_call_id in tool_call_ids:
@@ -96,10 +96,11 @@ def _repair_tool_result_messages(bedrock_formatted_messages: List[Dict[str, Any]
                         regrouped_tool_result.append(content)
                         # Keep track of the original index of the last tool result message
                         original_idx = idx
-        repaired_tool_result_prompts.append((original_idx, {"role": "user", "content": regrouped_tool_result}))
+        if regrouped_tool_result and original_idx is not None:
+            repaired_tool_result_prompts.append((original_idx, {"role": "user", "content": regrouped_tool_result}))
 
     # Remove the tool result messages from bedrock_formatted_messages
-    bedrock_formatted_messages_minus_tool_results = []
+    bedrock_formatted_messages_minus_tool_results: List[Tuple[int, Any]] = []
     for idx, msg in enumerate(bedrock_formatted_messages):
         # Assumes the content of tool result messages only contains 'toolResult': {...} objects (e.g. no 'text')
         if msg.get("content") and "toolResult" not in msg["content"][0]:
@@ -124,7 +125,7 @@ def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]],
     # Separate system messages, tool calls, and tool results
     system_prompts = []
     bedrock_formatted_messages = []
-    for idx, msg in enumerate(messages):
+    for msg in messages:
         if msg.is_from(ChatRole.SYSTEM):
             # Assuming system messages can only contain text
             # Don't need to track idx since system_messages are handled separately

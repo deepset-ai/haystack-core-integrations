@@ -359,7 +359,7 @@ class TestAmazonBedrockChatGeneratorInference:
             ChatMessage.from_tool(tool_result="22° C", origin=tool_call) for tool_call in tool_calls
         ]
 
-        new_messages = initial_messages + [tool_call_message] + tool_result_messages
+        new_messages = [*initial_messages, tool_call_message, *tool_result_messages]
         results = component.run(new_messages)
 
         assert len(results["replies"]) == 1
