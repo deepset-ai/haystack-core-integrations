@@ -1,9 +1,14 @@
 import json
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from botocore.eventstream import EventStream
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingCallbackT, StreamingChunk, ToolCall
+from haystack import logging
+from haystack.dataclasses import (
+    ChatMessage, ChatRole, SyncStreamingCallbackT, AsyncStreamingCallbackT, StreamingChunk, ToolCall
+)
 from haystack.tools import Tool
+
+logger = logging.getLogger(__name__)
 
 
 def _format_tools(tools: Optional[List[Tool]] = None) -> Optional[Dict[str, Any]]:
@@ -191,9 +196,94 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
     return replies
 
 
+def _convert_content_blocks_to_chat_messages(
+    content_blocks: Dict[str, Any],
+    model: str,
+    finish_reason: Optional[str],
+    usage: Optional[Dict[str, Any]],
+) -> List[ChatMessage]:
+    ordered_content_blocks = sorted(content_blocks.items(), key=lambda x: x[0])
+    tool_calls = []
+    for _, tool_call in ordered_content_blocks:
+        if isinstance(tool_call, dict):
+            try:
+                arguments = json.loads(tool_call["arguments"])
+                tool_calls.append(ToolCall(id=tool_call["id"], tool_name=tool_call["name"], arguments=arguments))
+            except json.JSONDecodeError:
+                logger.warning(
+                    "Amazon Bedrock returned a malformed JSON string for tool call arguments. This tool call will be "
+                    "skipped. Tool call ID: {tool_id}, Tool name: {tool_name}, Arguments: {tool_arguments}",
+                    tool_id=tool_call["id"],
+                    tool_name=tool_call["name"],
+                    tool_arguments=tool_call["arguments"],
+                )
+    replies = [
+        ChatMessage.from_assistant(
+            text="".join([content for _, content in ordered_content_blocks if isinstance(content, str)]),
+            tool_calls=tool_calls,
+            meta={
+                "model": model,
+                "index": 0,
+                "finish_reason": finish_reason,
+                "usage": usage,
+            },
+        )
+    ]
+    return replies
+
+
+def _convert_response_stream_to_content_blocks(
+    response_stream: EventStream,
+    streaming_callback: SyncStreamingCallbackT,
+) -> Tuple[Dict[str, Any], Optional[str], Optional[Dict[str, Any]]]:
+    # TODO Convert each event into the corresponding StreamingChunk
+    #      Match the same format as OpenAIChatGenerator
+    usage = None
+    finish_reason = None
+    content_blocks = {}
+    for event in response_stream:
+        # We ignore messageStart and contentBlockStop events for now
+        if "contentBlockStart" in event:
+            block_start = event["contentBlockStart"]
+            if "start" in block_start and "toolUse" in block_start["start"]:
+                tool_start = block_start["start"]["toolUse"]
+                content_blocks[block_start["contentBlockIndex"]] = {
+                    "id": tool_start["toolUseId"],
+                    "name": tool_start["name"],
+                    "arguments": "",  # Will accumulate deltas as string
+                }
+
+        elif "contentBlockDelta" in event:
+            block_idx = event["contentBlockDelta"]["contentBlockIndex"]
+            delta = event["contentBlockDelta"]["delta"]
+            # This is for accumulating text deltas
+            if "text" in delta:
+                if block_idx not in content_blocks:
+                    content_blocks[block_idx] = delta["text"]
+                else:
+                    content_blocks[block_idx] += delta["text"]
+            # This only occurs when accumulating the arguments for a toolUse
+            # The content_block for this tool should already exist at this point
+            elif "toolUse" in delta:
+                content_blocks[block_idx]["arguments"] += delta["toolUse"].get("input", "")
+
+        elif "messageStop" in event:
+            finish_reason = event["messageStop"].get("stopReason")
+
+        elif "metadata" in event and "usage" in event["metadata"]:
+            metadata = event["metadata"]
+            usage = {
+                "prompt_tokens": metadata["usage"].get("inputTokens", 0),
+                "completion_tokens": metadata["usage"].get("outputTokens", 0),
+                "total_tokens": metadata["usage"].get("totalTokens", 0),
+            }
+
+    return content_blocks, finish_reason, usage
+
+
 def _parse_streaming_response(
     response_stream: EventStream,
-    streaming_callback: Callable[[StreamingChunk], None],
+    streaming_callback: SyncStreamingCallbackT,
     model: str,
 ) -> List[ChatMessage]:
     """
@@ -204,78 +294,71 @@ def _parse_streaming_response(
     :param model: The model ID used for generation
     :return: List of ChatMessage objects
     """
-    replies = []
-    current_content = ""
-    current_tool_call: Optional[Dict[str, Any]] = None
-    base_meta = {"model": model, "index": 0}
+    content_blocks, finish_reason, usage = _convert_response_stream_to_content_blocks(
+        response_stream=response_stream,
+        streaming_callback=streaming_callback,
+    )
+    replies = _convert_content_blocks_to_chat_messages(
+        content_blocks=content_blocks,
+        model=model,
+        finish_reason=finish_reason,
+        usage=usage,
+    )
+    return replies
 
-    for event in response_stream:
+
+async def _convert_response_stream_to_content_blocks_async(
+    response_stream: EventStream,
+    streaming_callback: AsyncStreamingCallbackT,
+) -> Tuple[Dict[str, Any], Optional[str], Optional[Dict[str, Any]]]:
+    # TODO Convert each event into the corresponding StreamingChunk
+    #      Match the same format as OpenAIChatGenerator
+    usage = None
+    finish_reason = None
+    content_blocks = {}
+    async for event in response_stream:
+        # We ignore messageStart and contentBlockStop events for now
         if "contentBlockStart" in event:
-            # Reset accumulators for new message
-            current_content = ""
-            current_tool_call = None
             block_start = event["contentBlockStart"]
             if "start" in block_start and "toolUse" in block_start["start"]:
                 tool_start = block_start["start"]["toolUse"]
-                current_tool_call = {
+                content_blocks[block_start["contentBlockIndex"]] = {
                     "id": tool_start["toolUseId"],
                     "name": tool_start["name"],
                     "arguments": "",  # Will accumulate deltas as string
                 }
 
         elif "contentBlockDelta" in event:
+            block_idx = event["contentBlockDelta"]["contentBlockIndex"]
             delta = event["contentBlockDelta"]["delta"]
+            # This is for accumulating text deltas
             if "text" in delta:
-                delta_text = delta["text"]
-                current_content += delta_text
-                streaming_chunk = StreamingChunk(content=delta_text, meta={})
-                streaming_callback(streaming_chunk)
-            elif "toolUse" in delta and current_tool_call:
-                # Accumulate tool use input deltas
-                current_tool_call["arguments"] += delta["toolUse"].get("input", "")
-
-        elif "contentBlockStop" in event:
-            if current_tool_call:
-                # Parse accumulated input if it's a JSON string
-                try:
-                    input_json = json.loads(current_tool_call["arguments"])
-                    current_tool_call["arguments"] = input_json
-                except json.JSONDecodeError:
-                    # Keep as string if not valid JSON
-                    pass
-
-                tool_call = ToolCall(
-                    id=current_tool_call["id"],
-                    tool_name=current_tool_call["name"],
-                    arguments=current_tool_call["arguments"],
-                )
-                replies.append(ChatMessage.from_assistant("", tool_calls=[tool_call], meta=base_meta.copy()))
-            elif current_content:
-                replies.append(ChatMessage.from_assistant(current_content, meta=base_meta.copy()))
+                if block_idx not in content_blocks:
+                    content_blocks[block_idx] = delta["text"]
+                else:
+                    content_blocks[block_idx] += delta["text"]
+            # This only occurs when accumulating the arguments for a toolUse
+            # The content_block for this tool should already exist at this point
+            elif "toolUse" in delta:
+                content_blocks[block_idx]["arguments"] += delta["toolUse"].get("input", "")
 
         elif "messageStop" in event:
-            # Update finish reason for all replies
-            for reply in replies:
-                reply.meta["finish_reason"] = event["messageStop"].get("stopReason")
+            finish_reason = event["messageStop"].get("stopReason")
 
-        elif "metadata" in event:
+        elif "metadata" in event and "usage" in event["metadata"]:
             metadata = event["metadata"]
-            # Update usage stats for all replies
-            for reply in replies:
-                if "usage" in metadata:
-                    usage = metadata["usage"]
-                    reply.meta["usage"] = {
-                        "prompt_tokens": usage.get("inputTokens", 0),
-                        "completion_tokens": usage.get("outputTokens", 0),
-                        "total_tokens": usage.get("totalTokens", 0),
-                    }
+            usage = {
+                "prompt_tokens": metadata["usage"].get("inputTokens", 0),
+                "completion_tokens": metadata["usage"].get("outputTokens", 0),
+                "total_tokens": metadata["usage"].get("totalTokens", 0),
+            }
 
-    return replies
+    return content_blocks, finish_reason, usage
 
 
 async def _parse_streaming_response_async(
     response_stream: EventStream,
-    streaming_callback: StreamingCallbackT,
+    streaming_callback: AsyncStreamingCallbackT,
     model: str,
 ) -> List[ChatMessage]:
     """
@@ -286,70 +369,15 @@ async def _parse_streaming_response_async(
     :param model: The model ID used for generation
     :return: List of ChatMessage objects
     """
-    replies = []
-    current_content = ""
-    current_tool_call: Optional[Dict[str, Any]] = None
-    base_meta = {"model": model, "index": 0}
+    content_blocks, finish_reason, usage = await _convert_response_stream_to_content_blocks_async(
+        response_stream=response_stream,
+        streaming_callback=streaming_callback,
+    )
 
-    async for event in response_stream:
-        if "contentBlockStart" in event:
-            # Reset accumulators for new message
-            current_content = ""
-            current_tool_call = None
-            block_start = event["contentBlockStart"]
-            if "start" in block_start and "toolUse" in block_start["start"]:
-                tool_start = block_start["start"]["toolUse"]
-                current_tool_call = {
-                    "id": tool_start["toolUseId"],
-                    "name": tool_start["name"],
-                    "arguments": "",  # Will accumulate deltas as string
-                }
-
-        elif "contentBlockDelta" in event:
-            delta = event["contentBlockDelta"]["delta"]
-            if "text" in delta:
-                delta_text = delta["text"]
-                current_content += delta_text
-                streaming_chunk = StreamingChunk(content=delta_text, meta={})
-                await streaming_callback(streaming_chunk)
-            elif "toolUse" in delta and current_tool_call:
-                # Accumulate tool use input deltas
-                current_tool_call["arguments"] += delta["toolUse"].get("input", "")
-
-        elif "contentBlockStop" in event:
-            if current_tool_call:
-                # Parse accumulated input if it's a JSON string
-                try:
-                    input_json = json.loads(current_tool_call["arguments"])
-                    current_tool_call["arguments"] = input_json
-                except json.JSONDecodeError:
-                    # Keep as string if not valid JSON
-                    pass
-
-                tool_call = ToolCall(
-                    id=current_tool_call["id"],
-                    tool_name=current_tool_call["name"],
-                    arguments=current_tool_call["arguments"],
-                )
-                replies.append(ChatMessage.from_assistant("", tool_calls=[tool_call], meta=base_meta.copy()))
-            elif current_content:
-                replies.append(ChatMessage.from_assistant(current_content, meta=base_meta.copy()))
-
-        elif "messageStop" in event:
-            # Update finish reason for all replies
-            for reply in replies:
-                reply.meta["finish_reason"] = event["messageStop"].get("stopReason")
-
-        elif "metadata" in event:
-            metadata = event["metadata"]
-            # Update usage stats for all replies
-            for reply in replies:
-                if "usage" in metadata:
-                    usage = metadata["usage"]
-                    reply.meta["usage"] = {
-                        "prompt_tokens": usage.get("inputTokens", 0),
-                        "completion_tokens": usage.get("outputTokens", 0),
-                        "total_tokens": usage.get("totalTokens", 0),
-                    }
-
+    replies = _convert_content_blocks_to_chat_messages(
+        content_blocks=content_blocks,
+        model=model,
+        finish_reason=finish_reason,
+        usage=usage,
+    )
     return replies
