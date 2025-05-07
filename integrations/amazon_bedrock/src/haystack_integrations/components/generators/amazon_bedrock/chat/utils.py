@@ -1,6 +1,7 @@
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
+from datetime import datetime
 from botocore.eventstream import EventStream
 from haystack import logging
 from haystack.dataclasses import (
@@ -230,6 +231,109 @@ def _convert_content_blocks_to_chat_messages(
         )
     ]
     return replies
+
+
+def _convert_event_to_streaming_chunk(event: Dict[str, Any], model: str) -> StreamingChunk:
+    # We ignore messageStart and contentBlockStop events for now
+    streaming_chunk = StreamingChunk(
+        content="",
+        meta={
+            "model": model,
+            "index": 0,
+            "tool_calls": [],
+            "finish_reason": None,
+            "received_at": datetime.now().isoformat(),
+        }
+    )
+
+    if "contentBlockStart" in event:
+        block_start = event["contentBlockStart"]
+        if "start" in block_start and "toolUse" in block_start["start"]:
+            tool_start = block_start["start"]["toolUse"]
+            streaming_chunk = StreamingChunk(
+                content="",
+                meta={
+                    "model": model,
+                    "index": 0,
+                    # TODO Check what the expected format of the tool calls is
+                    # "tool_calls": choice.delta.tool_calls,
+                    "tool_calls": {
+                        "id": tool_start["toolUseId"],
+                        "name": tool_start["name"],
+                        "arguments": "",  # Will accumulate deltas as string
+                    },
+                    "finish_reason": None,
+                    "received_at": datetime.now().isoformat(),
+                }
+            )
+
+    elif "contentBlockDelta" in event:
+        block_idx = event["contentBlockDelta"]["contentBlockIndex"]
+        delta = event["contentBlockDelta"]["delta"]
+        # This is for accumulating text deltas
+        if "text" in delta:
+            streaming_chunk = StreamingChunk(
+                content=delta["text"],
+                meta={
+                    "model": model,
+                    "index": block_idx,
+                    # TODO Check what empty tool_calls should be
+                    "tool_calls": [],
+                    "finish_reason": None,
+                    "received_at": datetime.now().isoformat(),
+                }
+            )
+        # This only occurs when accumulating the arguments for a toolUse
+        # The content_block for this tool should already exist at this point
+        elif "toolUse" in delta:
+            streaming_chunk = StreamingChunk(
+                # TODO This shouldn't be put into content but into tool_calls meta of the StreamingChunk
+                content=delta["toolUse"].get("input", ""),
+                meta={
+                    "model": model,
+                    "index": block_idx,
+                    # TODO Check what empty tool_calls should be
+                    "tool_calls": [],
+                    "finish_reason": None,
+                    "received_at": datetime.now().isoformat(),
+                }
+            )
+
+    elif "messageStop" in event:
+        finish_reason = event["messageStop"].get("stopReason")
+        streaming_chunk = StreamingChunk(
+            content="",
+            meta={
+                "model": model,
+                "index": 0,
+                # TODO Check what empty tool_calls should be
+                "tool_calls": [],
+                "finish_reason": finish_reason,
+                "received_at": datetime.now().isoformat(),
+            }
+        )
+
+    elif "metadata" in event and "usage" in event["metadata"]:
+        # TODO Do I need this one to be in the StreamingChunk?
+        metadata = event["metadata"]
+        usage = {
+            "prompt_tokens": metadata["usage"].get("inputTokens", 0),
+            "completion_tokens": metadata["usage"].get("outputTokens", 0),
+            "total_tokens": metadata["usage"].get("totalTokens", 0),
+        }
+        streaming_chunk = StreamingChunk(
+            content="",
+            meta={
+                "model": model,
+                "index": 0,
+                # TODO Check what empty tool_calls should be
+                "tool_calls": [],
+                "finish_reason": None,
+                "received_at": datetime.now().isoformat(),
+            }
+        )
+
+    return streaming_chunk
 
 
 def _convert_response_stream_to_content_blocks(
