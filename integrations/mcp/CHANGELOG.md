@@ -1,10 +1,31 @@
 # Changelog
 
+## [integrations/mcp-v0.2.0] - 2025-05-06
+
+### 🚀 Features
+
+- [**breaking**] Deprecate SSEServerInfo base_url in favour of url (#1662)
+
+### 📚 Documentation
+
+- Add_mcptoolset_docs (#1668)
+
+## [integrations/mcp-v0.1.0] - 2025-04-22
+
+### 🚀 Features
+
+- Add MCPToolset (#1626)
+
+
 ## [integrations/mcp-v0.0.2] - 2025-04-11
 
 ### 📚 Documentation
 
 - Fix MCPTool import in code example (#1578)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
 
 ### 🌀 Miscellaneous
 

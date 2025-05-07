@@ -27,7 +27,12 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: Implementation :: CPython",
 ]
-dependencies = ["mcp", "haystack-ai>=2.9.0"]
+dependencies = [
+    "mcp",
+    "haystack-ai>=2.13.0",
+    "exceptiongroup",  # Backport of ExceptionGroup for Python < 3.11
+    "httpx"  # HTTP client library used for SSE connections
+]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/mcp#readme"
@@ -75,7 +80,7 @@ dependencies = [
     "pip",
     "black>=23.1.0",
     "mypy>=1.0.0",
-    "ruff>=0.0.243",
+    "ruff>=0.0.243"
 ]
 
 [tool.hatch.envs.lint.scripts]
@@ -133,6 +138,10 @@ ignore = [
     "PLR0912",
     "PLR0913",
     "PLR0915",
+    # Ignore the errors for process open we're seeing in tests
+    "RUF005",
+    "S603",
+    "S607",
 ]
 unfixable = [
     # Don't touch unused imports
@@ -165,9 +174,12 @@ module = [
     "haystack.*",
     "haystack_integrations.*",
     "pytest.*",
+    "pytest_asyncio",
     "anyio.*",
     "mcp.*",
     "mcp",
+    "httpx",
+    "exceptiongroup"
 ]
 ignore_missing_imports = true
 

@@ -75,7 +75,7 @@ class AmazonBedrockDocumentEmbedder:
         embedding_separator: str = "\n",
         boto3_config: Optional[Dict[str, Any]] = None,
         **kwargs,
-    ):
+    ) -> None:
         """
         Initializes the AmazonBedrockDocumentEmbedder with the provided parameters. The parameters are passed to the
         Amazon Bedrock client.
@@ -234,7 +234,7 @@ class AmazonBedrockDocumentEmbedder:
         return documents
 
     @component.output_types(documents=List[Document])
-    def run(self, documents: List[Document]):
+    def run(self, documents: List[Document]) -> Dict[str, List[Document]]:
         """Embed the provided `Document`s using the specified model.
 
         :param documents: The `Document`s to embed.
@@ -253,6 +253,9 @@ class AmazonBedrockDocumentEmbedder:
             documents_with_embeddings = self._embed_cohere(documents=documents)
         elif "titan" in self.model:
             documents_with_embeddings = self._embed_titan(documents=documents)
+        else:
+            msg = f"Model {self.model} is not supported. Supported models are: {', '.join(SUPPORTED_EMBEDDING_MODELS)}."
+            raise ValueError(msg)
 
         return {"documents": documents_with_embeddings}
 

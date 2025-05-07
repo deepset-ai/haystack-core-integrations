@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/pgvector-v3.3.0] - 2025-05-06
+
+### 🚀 Features
+
+- Pgvector - make error messages more informative (#1684)
+
+
 ## [integrations/pgvector-v3.2.0] - 2025-04-11
 
 ### 🚀 Features

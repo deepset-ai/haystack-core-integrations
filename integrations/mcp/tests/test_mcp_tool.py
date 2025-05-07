@@ -132,6 +132,26 @@ class TestMCPServerInfo:
         assert new_info.token == "test-token"
         assert new_info.timeout == 45
 
+    def test_url_base_url_validation(self):
+        """Test validation of url and base_url parameters."""
+        # Test with neither url nor base_url
+        with pytest.raises(ValueError, match="Either url or base_url must be provided"):
+            SSEServerInfo()
+
+        # Test with both url and base_url
+        with pytest.warns(DeprecationWarning, match="base_url is deprecated"):
+            SSEServerInfo(url="http://example.com/sse", base_url="http://example.com")
+
+        # Test with only url
+        server_info = SSEServerInfo(url="http://example.com/sse")
+        assert server_info.url == "http://example.com/sse"
+        assert server_info.base_url is None
+
+        # Test with only base_url (deprecated but supported)
+        with pytest.warns(DeprecationWarning, match="base_url is deprecated"):
+            server_info = SSEServerInfo(base_url="http://example.com")
+            assert server_info.base_url == "http://example.com"  # Should preserve original base_url
+
     def test_stdio_server_info_serde(self):
         """Test serialization/deserialization of StdioServerInfo."""
         server_info = StdioServerInfo(command="python", args=["-m", "mcp_server_time"], env={"TEST_ENV": "value"})
@@ -157,7 +177,7 @@ class TestMCPServerInfo:
         http_client = http_info.create_client()
         stdio_client = stdio_info.create_client()
 
-        assert http_client.base_url == "http://example.com"
+        assert http_client.url == "http://example.com/sse"
         assert stdio_client.command == "python"
 
 
@@ -345,8 +365,8 @@ if __name__ == "__main__":
         server_process = None
         try:
             # Start the server in a separate process
-            server_process = subprocess.Popen(  # noqa: S603
-                ["python", server_script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True  # noqa: S607
+            server_process = subprocess.Popen(
+                ["python", server_script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
 
             # Give the server a moment to start
