@@ -164,6 +164,9 @@ def _parse_streaming_response(
                     "name": tool_start["name"],
                     "arguments": "",  # Will accumulate deltas as string
                 }
+                name_tool = {"name": tool_start["name"]}
+                streaming_chunk = StreamingChunk(content="", meta={"tool_calls": name_tool})
+                streaming_callback(streaming_chunk)
 
         elif "contentBlockDelta" in event:
             delta = event["contentBlockDelta"]["delta"]
@@ -175,6 +178,9 @@ def _parse_streaming_response(
             elif "toolUse" in delta and current_tool_call:
                 # Accumulate tool use input deltas
                 current_tool_call["arguments"] += delta["toolUse"].get("input", "")
+                streaming_chunk = StreamingChunk(content="", meta=
+                                                 {"tool_calls": {"arguments": delta["toolUse"].get("input", "")}})
+                streaming_callback(streaming_chunk)
 
         elif "contentBlockStop" in event:
             if current_tool_call:

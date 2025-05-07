@@ -217,10 +217,12 @@ class TestAmazonBedrockChatGeneratorUtils:
         replies = _parse_streaming_response(events, test_callback, model)
 
         # Verify streaming chunks were received for text content
-        assert len(streaming_chunks) == 2
+        assert len(streaming_chunks) == 5
         assert streaming_chunks[0].content == "Let me "
         assert streaming_chunks[1].content == "help you."
-
+        assert streaming_chunks[2].meta["tool_calls"] == {"name": "search_tool"}
+        assert streaming_chunks[3].meta["tool_calls"] == {"arguments": '{"query":'}
+        assert streaming_chunks[4].meta["tool_calls"] == {"arguments": '"test"}'}
         # Verify final replies
         assert len(replies) == 2
         # Check text reply
