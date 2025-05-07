@@ -124,6 +124,8 @@ ignore = [
   "ARG001",
   "ARG002",
   "ARG005",
+  # Ignore print statements
+  "T201",
 ]
 unfixable = [
   # Don't touch unused imports

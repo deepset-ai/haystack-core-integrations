@@ -549,7 +549,7 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         """
 
         async def streaming_callback(chunk: StreamingChunk):
-            print(chunk, flush=True, end="")  # noqa: T201
+            print(chunk, flush=True, end="")
 
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
         component = AmazonBedrockChatGenerator(model=model_name, tools=tools, streaming_callback=streaming_callback)
