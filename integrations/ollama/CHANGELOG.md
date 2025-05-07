@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/ollama-v2.4.2] - 2025-05-07
+
+### 🐛 Bug Fixes
+
+- Ollama streaming metadata 1686 (#1698)
+
+
 ## [integrations/ollama-v2.4.1] - 2025-04-10
 
 ### 🚀 Features
