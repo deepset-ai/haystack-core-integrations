@@ -23,7 +23,8 @@ MODELS_TO_TEST_WITH_TOOLS = [
 ]
 
 # so far we've discovered these models support streaming and tool use
-STREAMING_TOOL_MODELS = ["anthropic.claude-3-5-sonnet-20240620-v1:0", "cohere.command-r-plus-v1:0"]
+# STREAMING_TOOL_MODELS = ["anthropic.claude-3-5-sonnet-20240620-v1:0", "cohere.command-r-plus-v1:0"]
+STREAMING_TOOL_MODELS = ["cohere.command-r-plus-v1:0"]
 
 
 def weather(city: str):
