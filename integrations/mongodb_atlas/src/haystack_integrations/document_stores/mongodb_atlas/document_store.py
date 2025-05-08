@@ -65,6 +65,7 @@ class MongoDBAtlasDocumentStore:
         collection_name: str,
         vector_search_index: str,
         full_text_search_index: str,
+        embedding_field: str = "embedding",
     ):
         """
         Creates a new MongoDBAtlasDocumentStore instance.
@@ -84,7 +85,7 @@ class MongoDBAtlasDocumentStore:
             Create a full_text_search_index in the Atlas web UI and specify the init params of
             MongoDBAtlasDocumentStore. For more details refer to MongoDB Atlas
             [documentation](https://www.mongodb.com/docs/atlas/atlas-search/create-index/).
-
+        :param embedding_field: The name of the field containing document embeddings. Default is "embedding".
         :raises ValueError: If the collection name contains invalid characters.
         """
         if collection_name and not bool(re.match(r"^[a-zA-Z0-9\-_]+$", collection_name)):
@@ -97,6 +98,7 @@ class MongoDBAtlasDocumentStore:
         self.collection_name = collection_name
         self.vector_search_index = vector_search_index
         self.full_text_search_index = full_text_search_index
+        self.embedding_field = embedding_field
         self._connection: Optional[MongoClient] = None
         self._connection_async: Optional[AsyncMongoClient] = None
         self._collection: Optional[Collection] = None
@@ -479,7 +481,7 @@ class MongoDBAtlasDocumentStore:
             {
                 "$vectorSearch": {
                     "index": self.vector_search_index,
-                    "path": "embedding",
+                    "path": self.embedding_field,
                     "queryVector": query_embedding,
                     "numCandidates": 100,
                     "limit": top_k,
@@ -492,7 +494,7 @@ class MongoDBAtlasDocumentStore:
                     "content": 1,
                     "blob": 1,
                     "meta": 1,
-                    "embedding": 1,
+                    self.embedding_field: 1,
                     "score": {"$meta": "vectorSearchScore"},
                 }
             },
@@ -536,7 +538,7 @@ class MongoDBAtlasDocumentStore:
             {
                 "$vectorSearch": {
                     "index": self.vector_search_index,
-                    "path": "embedding",
+                    "path": self.embedding_field,
                     "queryVector": query_embedding,
                     "numCandidates": 100,
                     "limit": top_k,
@@ -549,7 +551,7 @@ class MongoDBAtlasDocumentStore:
                     "content": 1,
                     "blob": 1,
                     "meta": 1,
-                    "embedding": 1,
+                    self.embedding_field: 1,
                     "score": {"$meta": "vectorSearchScore"},
                 }
             },
@@ -651,7 +653,7 @@ class MongoDBAtlasDocumentStore:
                     "content": 1,
                     "blob": 1,
                     "meta": 1,
-                    "embedding": 1,
+                    self.embedding_field: 1,
                     "score": {"$meta": "searchScore"},
                 }
             },
@@ -751,7 +753,7 @@ class MongoDBAtlasDocumentStore:
                     "content": 1,
                     "blob": 1,
                     "meta": 1,
-                    "embedding": 1,
+                    self.embedding_field: 1,
                     "score": {"$meta": "searchScore"},
                 }
             },
