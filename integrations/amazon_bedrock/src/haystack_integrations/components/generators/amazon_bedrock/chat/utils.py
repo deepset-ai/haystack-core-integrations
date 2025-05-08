@@ -12,6 +12,7 @@ from haystack.tools import Tool
 logger = logging.getLogger(__name__)
 
 
+# Haystack to Bedrock util methods
 def _format_tools(tools: Optional[List[Tool]] = None) -> Optional[Dict[str, Any]]:
     """
     Format Haystack Tool(s) to Amazon Bedrock toolConfig format.
@@ -148,6 +149,7 @@ def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]],
     return system_prompts, repaired_bedrock_formatted_messages
 
 
+# Bedrock to Haystack util method
 def _parse_completion_response(response_body: Dict[str, Any], model: str) -> List[ChatMessage]:
     """
     Parse a Bedrock response to a list of ChatMessage objects.
@@ -197,6 +199,7 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
     return replies
 
 
+# Bedrock streaming to Haystack util methods
 def _convert_content_blocks_to_chat_messages(
     content_blocks: Dict[str, Any],
     model: str,
@@ -382,27 +385,6 @@ def _convert_event_to_content_blocks(
     return current_content_blocks, finish_reason, usage
 
 
-def _convert_response_stream_to_content_blocks(
-    response_stream: EventStream,
-    streaming_callback: SyncStreamingCallbackT,
-) -> Tuple[Dict[str, Any], Optional[str], Optional[Dict[str, Any]]]:
-    # TODO Convert each event into the corresponding StreamingChunk
-    #      Match the same format as OpenAIChatGenerator
-    final_usage = None
-    final_finish_reason = None
-    content_blocks = {}
-    for event in response_stream:
-        content_blocks, finish_reason, usage = _convert_event_to_content_blocks(
-            event=event, current_content_blocks=content_blocks
-        )
-        if finish_reason is not None:
-            final_finish_reason = finish_reason
-        if usage is not None:
-            final_usage = usage
-
-    return content_blocks, final_finish_reason, final_usage
-
-
 def _parse_streaming_response(
     response_stream: EventStream,
     streaming_callback: SyncStreamingCallbackT,
@@ -416,34 +398,25 @@ def _parse_streaming_response(
     :param model: The model ID used for generation
     :return: List of ChatMessage objects
     """
-    content_blocks, finish_reason, usage = _convert_response_stream_to_content_blocks(
-        response_stream=response_stream,
-        streaming_callback=streaming_callback,
-    )
-    replies = _convert_content_blocks_to_chat_messages(
-        content_blocks=content_blocks,
-        model=model,
-        finish_reason=finish_reason,
-        usage=usage,
-    )
-    return replies
-
-
-async def _convert_response_stream_to_content_blocks_async(
-    response_stream: EventStream,
-    streaming_callback: AsyncStreamingCallbackT,
-) -> Tuple[Dict[str, Any], Optional[str], Optional[Dict[str, Any]]]:
-    # TODO Convert each event into the corresponding StreamingChunk
-    #      Match the same format as OpenAIChatGenerator
-    usage = None
-    finish_reason = None
+    final_usage = None
+    final_finish_reason = None
     content_blocks = {}
-    async for event in response_stream:
+    for event in response_stream:
         content_blocks, finish_reason, usage = _convert_event_to_content_blocks(
             event=event, current_content_blocks=content_blocks
         )
+        if finish_reason is not None:
+            final_finish_reason = finish_reason
+        if usage is not None:
+            final_usage = usage
 
-    return content_blocks, finish_reason, usage
+    replies = _convert_content_blocks_to_chat_messages(
+        content_blocks=content_blocks,
+        model=model,
+        finish_reason=final_finish_reason,
+        usage=final_usage,
+    )
+    return replies
 
 
 async def _parse_streaming_response_async(
@@ -459,15 +432,22 @@ async def _parse_streaming_response_async(
     :param model: The model ID used for generation
     :return: List of ChatMessage objects
     """
-    content_blocks, finish_reason, usage = await _convert_response_stream_to_content_blocks_async(
-        response_stream=response_stream,
-        streaming_callback=streaming_callback,
-    )
+    final_usage = None
+    final_finish_reason = None
+    content_blocks = {}
+    async for event in response_stream:
+        content_blocks, finish_reason, usage = _convert_event_to_content_blocks(
+            event=event, current_content_blocks=content_blocks
+        )
+        if finish_reason is not None:
+            final_finish_reason = finish_reason
+        if usage is not None:
+            final_usage = usage
 
     replies = _convert_content_blocks_to_chat_messages(
         content_blocks=content_blocks,
         model=model,
-        finish_reason=finish_reason,
-        usage=usage,
+        finish_reason=final_finish_reason,
+        usage=final_usage,
     )
     return replies
