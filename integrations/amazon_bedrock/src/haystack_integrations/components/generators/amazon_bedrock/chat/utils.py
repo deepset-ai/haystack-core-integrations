@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from datetime import datetime
 from botocore.eventstream import EventStream
@@ -336,53 +336,71 @@ def _convert_event_to_streaming_chunk(event: Dict[str, Any], model: str) -> Stre
     return streaming_chunk
 
 
+def _convert_event_to_content_blocks(
+    event: Dict[str, Any],
+    current_content_blocks: Dict[str, Any]
+) -> Tuple[Dict[str, Any], Optional[str], Optional[Dict[str, Any]]]:
+    finish_reason = None
+    usage = None
+
+    # We ignore messageStart and contentBlockStop events for now
+    if "contentBlockStart" in event:
+        block_start = event["contentBlockStart"]
+        if "start" in block_start and "toolUse" in block_start["start"]:
+            tool_start = block_start["start"]["toolUse"]
+            current_content_blocks[block_start["contentBlockIndex"]] = {
+                "id": tool_start["toolUseId"],
+                "name": tool_start["name"],
+                "arguments": "",  # Will accumulate deltas as string
+            }
+
+    elif "contentBlockDelta" in event:
+        block_idx = event["contentBlockDelta"]["contentBlockIndex"]
+        delta = event["contentBlockDelta"]["delta"]
+        # This is for accumulating text deltas
+        if "text" in delta:
+            if block_idx not in current_content_blocks:
+                current_content_blocks[block_idx] = delta["text"]
+            else:
+                current_content_blocks[block_idx] += delta["text"]
+        # This only occurs when accumulating the arguments for a toolUse
+        # The content_block for this tool should already exist at this point
+        elif "toolUse" in delta:
+            current_content_blocks[block_idx]["arguments"] += delta["toolUse"].get("input", "")
+
+    elif "messageStop" in event:
+        finish_reason = event["messageStop"].get("stopReason")
+
+    elif "metadata" in event and "usage" in event["metadata"]:
+        metadata = event["metadata"]
+        usage = {
+            "prompt_tokens": metadata["usage"].get("inputTokens", 0),
+            "completion_tokens": metadata["usage"].get("outputTokens", 0),
+            "total_tokens": metadata["usage"].get("totalTokens", 0),
+        }
+
+    return current_content_blocks, finish_reason, usage
+
+
 def _convert_response_stream_to_content_blocks(
     response_stream: EventStream,
     streaming_callback: SyncStreamingCallbackT,
 ) -> Tuple[Dict[str, Any], Optional[str], Optional[Dict[str, Any]]]:
     # TODO Convert each event into the corresponding StreamingChunk
     #      Match the same format as OpenAIChatGenerator
-    usage = None
-    finish_reason = None
+    final_usage = None
+    final_finish_reason = None
     content_blocks = {}
     for event in response_stream:
-        # We ignore messageStart and contentBlockStop events for now
-        if "contentBlockStart" in event:
-            block_start = event["contentBlockStart"]
-            if "start" in block_start and "toolUse" in block_start["start"]:
-                tool_start = block_start["start"]["toolUse"]
-                content_blocks[block_start["contentBlockIndex"]] = {
-                    "id": tool_start["toolUseId"],
-                    "name": tool_start["name"],
-                    "arguments": "",  # Will accumulate deltas as string
-                }
+        content_blocks, finish_reason, usage = _convert_event_to_content_blocks(
+            event=event, current_content_blocks=content_blocks
+        )
+        if finish_reason is not None:
+            final_finish_reason = finish_reason
+        if usage is not None:
+            final_usage = usage
 
-        elif "contentBlockDelta" in event:
-            block_idx = event["contentBlockDelta"]["contentBlockIndex"]
-            delta = event["contentBlockDelta"]["delta"]
-            # This is for accumulating text deltas
-            if "text" in delta:
-                if block_idx not in content_blocks:
-                    content_blocks[block_idx] = delta["text"]
-                else:
-                    content_blocks[block_idx] += delta["text"]
-            # This only occurs when accumulating the arguments for a toolUse
-            # The content_block for this tool should already exist at this point
-            elif "toolUse" in delta:
-                content_blocks[block_idx]["arguments"] += delta["toolUse"].get("input", "")
-
-        elif "messageStop" in event:
-            finish_reason = event["messageStop"].get("stopReason")
-
-        elif "metadata" in event and "usage" in event["metadata"]:
-            metadata = event["metadata"]
-            usage = {
-                "prompt_tokens": metadata["usage"].get("inputTokens", 0),
-                "completion_tokens": metadata["usage"].get("outputTokens", 0),
-                "total_tokens": metadata["usage"].get("totalTokens", 0),
-            }
-
-    return content_blocks, finish_reason, usage
+    return content_blocks, final_finish_reason, final_usage
 
 
 def _parse_streaming_response(
@@ -421,41 +439,9 @@ async def _convert_response_stream_to_content_blocks_async(
     finish_reason = None
     content_blocks = {}
     async for event in response_stream:
-        # We ignore messageStart and contentBlockStop events for now
-        if "contentBlockStart" in event:
-            block_start = event["contentBlockStart"]
-            if "start" in block_start and "toolUse" in block_start["start"]:
-                tool_start = block_start["start"]["toolUse"]
-                content_blocks[block_start["contentBlockIndex"]] = {
-                    "id": tool_start["toolUseId"],
-                    "name": tool_start["name"],
-                    "arguments": "",  # Will accumulate deltas as string
-                }
-
-        elif "contentBlockDelta" in event:
-            block_idx = event["contentBlockDelta"]["contentBlockIndex"]
-            delta = event["contentBlockDelta"]["delta"]
-            # This is for accumulating text deltas
-            if "text" in delta:
-                if block_idx not in content_blocks:
-                    content_blocks[block_idx] = delta["text"]
-                else:
-                    content_blocks[block_idx] += delta["text"]
-            # This only occurs when accumulating the arguments for a toolUse
-            # The content_block for this tool should already exist at this point
-            elif "toolUse" in delta:
-                content_blocks[block_idx]["arguments"] += delta["toolUse"].get("input", "")
-
-        elif "messageStop" in event:
-            finish_reason = event["messageStop"].get("stopReason")
-
-        elif "metadata" in event and "usage" in event["metadata"]:
-            metadata = event["metadata"]
-            usage = {
-                "prompt_tokens": metadata["usage"].get("inputTokens", 0),
-                "completion_tokens": metadata["usage"].get("outputTokens", 0),
-                "total_tokens": metadata["usage"].get("totalTokens", 0),
-            }
+        content_blocks, finish_reason, usage = _convert_event_to_content_blocks(
+            event=event, current_content_blocks=content_blocks
+        )
 
     return content_blocks, finish_reason, usage
 
