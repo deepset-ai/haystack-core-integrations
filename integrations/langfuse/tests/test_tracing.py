@@ -177,5 +177,7 @@ def test_tracing_with_sub_pipelines():
     # There should be two observations for the haystack.pipeline.run span: one for each sub pipeline
     # Main pipeline is stored under the name "Sub-pipeline example"
     assert len(haystack_pipeline_run_observations) == 2
-    assert "prompt_builder" in haystack_pipeline_run_observations[0]["input"]
-    assert "llm" in haystack_pipeline_run_observations[1]["input"]
+    # Apparently the order of haystack_pipeline_run_observations isn't deterministic
+    component_names = [key for obs in haystack_pipeline_run_observations for key in obs["input"].keys()]
+    assert "prompt_builder" in component_names
+    assert "llm" in component_names

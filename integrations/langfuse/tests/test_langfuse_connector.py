@@ -67,6 +67,8 @@ class TestLangfuseConnector:
                     "strict": True,
                 },
                 "span_handler": None,
+                "host": None,
+                "langfuse_client_kwargs": None,
             },
         }
 
@@ -80,6 +82,8 @@ class TestLangfuseConnector:
             secret_key=Secret.from_env_var("LANGFUSE_SECRET_KEY"),
             public_key=Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),
             span_handler=CustomSpanHandler(),
+            host="https://example.com",
+            langfuse_client_kwargs={"timeout": 30.0},
         )
 
         serialized = langfuse_connector.to_dict()
@@ -105,6 +109,8 @@ class TestLangfuseConnector:
                         "init_parameters": {},
                     },
                 },
+                "host": "https://example.com",
+                "langfuse_client_kwargs": {"timeout": 30.0},
             },
         }
 
@@ -128,6 +134,8 @@ class TestLangfuseConnector:
                     "strict": True,
                 },
                 "span_handler": None,
+                "host": None,
+                "langfuse_client_kwargs": None,
             },
         }
         langfuse_connector = LangfuseConnector.from_dict(data)
@@ -136,6 +144,8 @@ class TestLangfuseConnector:
         assert langfuse_connector.secret_key == Secret.from_env_var("LANGFUSE_SECRET_KEY")
         assert langfuse_connector.public_key == Secret.from_env_var("LANGFUSE_PUBLIC_KEY")
         assert langfuse_connector.span_handler is None
+        assert langfuse_connector.host is None
+        assert langfuse_connector.langfuse_client_kwargs is None
 
     def test_from_dict_with_params(self, monkeypatch):
         monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
@@ -163,6 +173,8 @@ class TestLangfuseConnector:
                         "init_parameters": {},
                     },
                 },
+                "host": "https://example.com",
+                "langfuse_client_kwargs": {"timeout": 30.0},
             },
         }
 
@@ -172,6 +184,8 @@ class TestLangfuseConnector:
         assert langfuse_connector.secret_key == Secret.from_env_var("LANGFUSE_SECRET_KEY")
         assert langfuse_connector.public_key == Secret.from_env_var("LANGFUSE_PUBLIC_KEY")
         assert isinstance(langfuse_connector.span_handler, CustomSpanHandler)
+        assert langfuse_connector.host == "https://example.com"
+        assert langfuse_connector.langfuse_client_kwargs == {"timeout": 30.0}
 
     def test_pipeline_serialization(self, monkeypatch):
         # Set test env vars
