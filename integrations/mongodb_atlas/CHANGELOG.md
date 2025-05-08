@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/mongodb_atlas-v3.1.2] - 2025-05-07
+
+### 🐛 Bug Fixes
+
+- Hard coded embedding field for mongodb (#1708)
+
+
+### 🌀 Miscellaneous
+
+- Docs: add MongoDBAtlasFullTextRetriever to API Reference (#1669)
+
 ## [integrations/mongodb_atlas-v3.1.1] - 2025-04-11
 
 ### 🚀 Features
