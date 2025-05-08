@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/langfuse-v1.1.1] - 2025-05-08
+
+### 🚀 Features
+
+- Add more options to LangfuseConnector (#1657)
+
+
 ## [integrations/langfuse-v1.1.0] - 2025-05-06
 
 ### 🚀 Features
