@@ -354,6 +354,7 @@ class TestAnthropicChatGenerator:
                     "output_tokens": 1,
                     "cache_creation_input_tokens": None,
                     "cache_read_input_tokens": None,
+                    "server_tool_use_tokens": None,
                 },
             },
         }
