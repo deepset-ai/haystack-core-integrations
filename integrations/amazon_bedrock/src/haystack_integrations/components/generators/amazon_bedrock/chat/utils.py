@@ -23,7 +23,8 @@ def _format_tools(tools: Optional[List[Tool]] = None) -> Optional[Dict[str, Any]
     Format Haystack Tool(s) to Amazon Bedrock toolConfig format.
 
     :param tools: List of Tool objects to format
-    :return: Dictionary in Bedrock toolConfig format or None if no tools
+    :returns:
+        Dictionary in Bedrock toolConfig format or None if no tools are provided
     """
     if not tools:
         return None
@@ -38,6 +39,13 @@ def _format_tools(tools: Optional[List[Tool]] = None) -> Optional[Dict[str, Any]
 
 
 def _format_tool_call_message(tool_call_message: ChatMessage) -> Dict[str, Any]:
+    """
+    Format a Haystack ChatMessage containing tool calls into Bedrock format.
+
+    :param tool_call_message: ChatMessage object containing tool calls to be formatted.
+    :returns:
+        Dictionary representing the tool call message in Bedrock's expected format
+    """
     content = []
     # Tool call message can contain text
     if tool_call_message.text:
@@ -51,6 +59,12 @@ def _format_tool_call_message(tool_call_message: ChatMessage) -> Dict[str, Any]:
 
 
 def _format_tool_result_message(tool_call_result_message: ChatMessage) -> Dict[str, Any]:
+    """
+    Format a Haystack ChatMessage containing tool call results into Bedrock format.
+
+    :param tool_call_result_message: ChatMessage object containing tool call results to be formatted.
+    :returns: Dictionary representing the tool result message in Bedrock's expected format
+    """
     # Assuming tool call result messages will only contain tool results
     tool_results = []
     for result in tool_call_result_message.tool_call_results:
@@ -74,10 +88,19 @@ def _format_tool_result_message(tool_call_result_message: ChatMessage) -> Dict[s
 
 
 def _repair_tool_result_messages(bedrock_formatted_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Repair and reorganize tool result messages to maintain proper ordering and grouping.
+
+    Ensures tool result messages are properly grouped in the same way as their corresponding tool call messages
+    and maintains the original message ordering.
+
+    :param bedrock_formatted_messages: List of Bedrock-formatted messages that may need repair.
+    :returns: List of properly organized Bedrock-formatted messages with correctly grouped tool results.
+    """
     tool_call_messages = []
     tool_result_messages = []
     for idx, msg in enumerate(bedrock_formatted_messages):
-        content = msg.get("content", None)
+        content = msg.get("content", [])
         if content:
             if any("toolUse" in c for c in content):
                 tool_call_messages.append((idx, msg))
@@ -128,11 +151,15 @@ def _repair_tool_result_messages(bedrock_formatted_messages: List[Dict[str, Any]
 
 def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
-    Format a list of ChatMessages to the format expected by Bedrock API.
-    Separates system messages and handles tool results and tool calls.
+    Format a list of Haystack ChatMessages to the format expected by Bedrock API.
 
-    :param messages: List of ChatMessages to format
-    :return: Tuple of (system_prompts, non_system_messages) in Bedrock format
+    Processes and separates system messages from other message types and handles special formatting for tool calls
+    and tool results.
+
+    :param messages: List of ChatMessage objects to format for Bedrock API.
+    :returns: Tuple containing (system_prompts, non_system_messages) in Bedrock format,
+              where system_prompts is a list of system message dictionaries and
+              non_system_messages is a list of properly formatted message dictionaries.
     """
     # Separate system messages, tool calls, and tool results
     system_prompts = []
@@ -157,11 +184,14 @@ def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]],
 # Bedrock to Haystack util method
 def _parse_completion_response(response_body: Dict[str, Any], model: str) -> List[ChatMessage]:
     """
-    Parse a Bedrock response to a list of ChatMessage objects.
+    Parse a Bedrock API response into Haystack ChatMessage objects.
 
-    :param response_body: Raw response from Bedrock API
-    :param model: The model ID used for generation
-    :return: List of ChatMessage objects
+    Extracts text content, tool calls, and metadata from the Bedrock response and converts them into the appropriate
+    Haystack format.
+
+    :param response_body: Raw JSON response from Bedrock API.
+    :param model: The model ID used for generation, included in message metadata.
+    :returns: List of ChatMessage objects containing the assistant's response(s) with appropriate metadata.
     """
     replies = []
     if "output" in response_body and "message" in response_body["output"]:
@@ -207,9 +237,14 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
 # Bedrock streaming to Haystack util methods
 def _convert_event_to_streaming_chunk(event: Dict[str, Any], model: str) -> StreamingChunk:
     """
-    Convert event to a StreamingChunk.
+    Convert a Bedrock streaming event to a Haystack StreamingChunk.
 
-    Following same format as used in Haystack's OpenAIChatGenerator.
+    Handles different event types (contentBlockStart, contentBlockDelta, messageStop, metadata) and extracts relevant
+    information to create StreamingChunk objects in the same format used by Haystack's OpenAIChatGenerator.
+
+    :param event: Dictionary containing a Bedrock streaming event.
+    :param model: The model ID used for generation, included in chunk metadata.
+    :returns: StreamingChunk object containing the content and metadata extracted from the event.
     """
     # Initialize an empty StreamingChunk to return if no relevant event is found
     # (e.g. for messageStart and contentBlockStop)
@@ -326,11 +361,18 @@ def _convert_event_to_streaming_chunk(event: Dict[str, Any], model: str) -> Stre
 
 def _convert_streaming_chunks_to_chat_message(chunks: List[StreamingChunk]) -> ChatMessage:
     """
-    Connects the streaming chunks into a single ChatMessage.
+    Converts a list of streaming chunks into a ChatMessage object.
 
-    :param chunks: The list of all `StreamingChunk` objects.
+    The function processes streaming chunks to build a ChatMessage object, including extracting and constructing
+    tool calls, managing metadata such as model type, finish reason, and usage information.
+    The tool call processing handles accumulating data across the chunks and attempts to parse JSON-formatted
+    arguments for tool calls.
 
-    :returns: The ChatMessage.
+    :param chunks: A list of StreamingChunk objects representing parts of the assistant's response.
+
+    :returns:
+        A ChatMessage object constructed from the streaming chunks, containing the aggregated text, processed tool
+        calls, and metadata.
     """
     text = "".join([chunk.content for chunk in chunks])
 
