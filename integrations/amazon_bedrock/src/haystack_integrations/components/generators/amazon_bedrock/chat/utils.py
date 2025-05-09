@@ -422,7 +422,7 @@ def _parse_streaming_response(
 
     final_usage = None
     final_finish_reason = None
-    content_blocks = {}
+    content_blocks: Dict[str, Any] = {}
     for event in response_stream:
         content_blocks, finish_reason, usage = _convert_event_to_content_blocks(
             event=event, current_content_blocks=content_blocks
@@ -462,7 +462,7 @@ async def _parse_streaming_response_async(
 
     final_usage = None
     final_finish_reason = None
-    content_blocks = {}
+    content_blocks: Dict[str, Any] = {}
     async for event in response_stream:
         content_blocks, finish_reason, usage = _convert_event_to_content_blocks(
             event=event, current_content_blocks=content_blocks
