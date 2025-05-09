@@ -1,11 +1,16 @@
 import json
-from typing import Any, Dict, List, Optional, Tuple, Union
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
-from datetime import datetime
 from botocore.eventstream import EventStream
 from haystack import logging
 from haystack.dataclasses import (
-    ChatMessage, ChatRole, SyncStreamingCallbackT, AsyncStreamingCallbackT, StreamingChunk, ToolCall
+    AsyncStreamingCallbackT,
+    ChatMessage,
+    ChatRole,
+    StreamingChunk,
+    SyncStreamingCallbackT,
+    ToolCall,
 )
 from haystack.tools import Tool
 
@@ -237,37 +242,45 @@ def _convert_content_blocks_to_chat_messages(
 
 
 def _convert_event_to_streaming_chunk(event: Dict[str, Any], model: str) -> StreamingChunk:
+    """
+    Convert event to a StreamingChunk.
+
+    Following same format as used in Haystack's OpenAIChatGenerator.
+    """
     # We ignore messageStart and contentBlockStop events for now
+
+    # Initialize an empty StreamingChunk to return if no relevant event is found
     streaming_chunk = StreamingChunk(
-        content="",
-        meta={
-            "model": model,
-            "index": 0,
-            "tool_calls": [],
-            "finish_reason": None,
-            "received_at": datetime.now().isoformat(),
-        }
+        content="", meta={"model": model, "received_at": datetime.now(timezone.utc).isoformat()}
     )
 
     if "contentBlockStart" in event:
         block_start = event["contentBlockStart"]
+        block_idx = block_start["contentBlockIndex"]
         if "start" in block_start and "toolUse" in block_start["start"]:
             tool_start = block_start["start"]["toolUse"]
             streaming_chunk = StreamingChunk(
                 content="",
                 meta={
                     "model": model,
+                    # This is always 0 b/c it represents the choice index
                     "index": 0,
-                    # TODO Check what the expected format of the tool calls is
-                    # "tool_calls": choice.delta.tool_calls,
-                    "tool_calls": {
-                        "id": tool_start["toolUseId"],
-                        "name": tool_start["name"],
-                        "arguments": "",  # Will accumulate deltas as string
-                    },
+                    # We follow the same format used in the OpenAIChatGenerator
+                    "tool_calls": [  # Optional[List[ChoiceDeltaToolCall]]
+                        {
+                            "index": block_idx,  # int
+                            "id": tool_start["toolUseId"],  # Optional[str]
+                            "function": {  # Optional[ChoiceDeltaToolCallFunction]
+                                # Will accumulate deltas as string
+                                "arguments": "",  # Optional[str]
+                                "name": tool_start["name"],  # Optional[str]
+                            },
+                            "type": "function",  # Optional[Literal["function"]]
+                        }
+                    ],
                     "finish_reason": None,
-                    "received_at": datetime.now().isoformat(),
-                }
+                    "received_at": datetime.now(timezone.utc).isoformat(),
+                },
             )
 
     elif "contentBlockDelta" in event:
@@ -279,27 +292,37 @@ def _convert_event_to_streaming_chunk(event: Dict[str, Any], model: str) -> Stre
                 content=delta["text"],
                 meta={
                     "model": model,
-                    "index": block_idx,
-                    # TODO Check what empty tool_calls should be
-                    "tool_calls": [],
+                    # This is always 0 b/c it represents the choice index
+                    "index": 0,
+                    "tool_calls": None,
                     "finish_reason": None,
-                    "received_at": datetime.now().isoformat(),
-                }
+                    "received_at": datetime.now(timezone.utc).isoformat(),
+                },
             )
         # This only occurs when accumulating the arguments for a toolUse
         # The content_block for this tool should already exist at this point
         elif "toolUse" in delta:
             streaming_chunk = StreamingChunk(
-                # TODO This shouldn't be put into content but into tool_calls meta of the StreamingChunk
-                content=delta["toolUse"].get("input", ""),
+                content="",
                 meta={
                     "model": model,
-                    "index": block_idx,
-                    # TODO Check what empty tool_calls should be
-                    "tool_calls": [],
+                    # This is always 0 b/c it represents the choice index
+                    "index": 0,
+                    "tool_calls": [  # Optional[List[ChoiceDeltaToolCall]]
+                        {
+                            "index": block_idx,  # int
+                            "id": None,  # Optional[str]
+                            "function": {  # Optional[ChoiceDeltaToolCallFunction]
+                                # Will accumulate deltas as string
+                                "arguments": delta["toolUse"].get("input", ""),  # Optional[str]
+                                "name": None,  # Optional[str]
+                            },
+                            "type": "function",  # Optional[Literal["function"]]
+                        }
+                    ],
                     "finish_reason": None,
-                    "received_at": datetime.now().isoformat(),
-                }
+                    "received_at": datetime.now(timezone.utc).isoformat(),
+                },
             )
 
     elif "messageStop" in event:
@@ -308,40 +331,38 @@ def _convert_event_to_streaming_chunk(event: Dict[str, Any], model: str) -> Stre
             content="",
             meta={
                 "model": model,
+                # This is always 0 b/c it represents the choice index
                 "index": 0,
-                # TODO Check what empty tool_calls should be
-                "tool_calls": [],
+                "tool_calls": None,
                 "finish_reason": finish_reason,
-                "received_at": datetime.now().isoformat(),
-            }
+                "received_at": datetime.now(timezone.utc).isoformat(),
+            },
         )
 
     elif "metadata" in event and "usage" in event["metadata"]:
-        # TODO Do I need this one to be in the StreamingChunk?
         metadata = event["metadata"]
-        usage = {
-            "prompt_tokens": metadata["usage"].get("inputTokens", 0),
-            "completion_tokens": metadata["usage"].get("outputTokens", 0),
-            "total_tokens": metadata["usage"].get("totalTokens", 0),
-        }
         streaming_chunk = StreamingChunk(
             content="",
             meta={
                 "model": model,
+                # This is always 0 b/c it represents the choice index
                 "index": 0,
-                # TODO Check what empty tool_calls should be
-                "tool_calls": [],
+                "tool_calls": None,
                 "finish_reason": None,
-                "received_at": datetime.now().isoformat(),
-            }
+                "received_at": datetime.now(timezone.utc).isoformat(),
+                "usage": {
+                    "prompt_tokens": metadata["usage"].get("inputTokens", 0),
+                    "completion_tokens": metadata["usage"].get("outputTokens", 0),
+                    "total_tokens": metadata["usage"].get("totalTokens", 0),
+                },
+            },
         )
 
     return streaming_chunk
 
 
 def _convert_event_to_content_blocks(
-    event: Dict[str, Any],
-    current_content_blocks: Dict[str, Any]
+    event: Dict[str, Any], current_content_blocks: Dict[str, Any]
 ) -> Tuple[Dict[str, Any], Optional[str], Optional[Dict[str, Any]]]:
     finish_reason = None
     usage = None
@@ -398,6 +419,8 @@ def _parse_streaming_response(
     :param model: The model ID used for generation
     :return: List of ChatMessage objects
     """
+    chunks: List[StreamingChunk] = []
+
     final_usage = None
     final_finish_reason = None
     content_blocks = {}
@@ -409,6 +432,10 @@ def _parse_streaming_response(
             final_finish_reason = finish_reason
         if usage is not None:
             final_usage = usage
+
+        streaming_chunk = _convert_event_to_streaming_chunk(event=event, model=model)
+        streaming_callback(streaming_chunk)
+        chunks.append(streaming_chunk)
 
     replies = _convert_content_blocks_to_chat_messages(
         content_blocks=content_blocks,
@@ -432,6 +459,8 @@ async def _parse_streaming_response_async(
     :param model: The model ID used for generation
     :return: List of ChatMessage objects
     """
+    chunks: List[StreamingChunk] = []
+
     final_usage = None
     final_finish_reason = None
     content_blocks = {}
@@ -443,6 +472,10 @@ async def _parse_streaming_response_async(
             final_finish_reason = finish_reason
         if usage is not None:
             final_usage = usage
+
+        streaming_chunk = _convert_event_to_streaming_chunk(event=event, model=model)
+        await streaming_callback(streaming_chunk)
+        chunks.append(streaming_chunk)
 
     replies = _convert_content_blocks_to_chat_messages(
         content_blocks=content_blocks,
