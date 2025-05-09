@@ -205,42 +205,6 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
 
 
 # Bedrock streaming to Haystack util methods
-def _convert_content_blocks_to_chat_messages(
-    content_blocks: Dict[str, Any],
-    model: str,
-    finish_reason: Optional[str],
-    usage: Optional[Dict[str, Any]],
-) -> List[ChatMessage]:
-    ordered_content_blocks = sorted(content_blocks.items(), key=lambda x: x[0])
-    tool_calls = []
-    for _, tool_call in ordered_content_blocks:
-        if isinstance(tool_call, dict):
-            try:
-                arguments = json.loads(tool_call["arguments"])
-                tool_calls.append(ToolCall(id=tool_call["id"], tool_name=tool_call["name"], arguments=arguments))
-            except json.JSONDecodeError:
-                logger.warning(
-                    "Amazon Bedrock returned a malformed JSON string for tool call arguments. This tool call will be "
-                    "skipped. Tool call ID: {tool_id}, Tool name: {tool_name}, Arguments: {tool_arguments}",
-                    tool_id=tool_call["id"],
-                    tool_name=tool_call["name"],
-                    tool_arguments=tool_call["arguments"],
-                )
-    replies = [
-        ChatMessage.from_assistant(
-            text="".join([content for _, content in ordered_content_blocks if isinstance(content, str)]),
-            tool_calls=tool_calls,
-            meta={
-                "model": model,
-                "index": 0,
-                "finish_reason": finish_reason,
-                "usage": usage,
-            },
-        )
-    ]
-    return replies
-
-
 def _convert_event_to_streaming_chunk(event: Dict[str, Any], model: str) -> StreamingChunk:
     """
     Convert event to a StreamingChunk.
@@ -360,49 +324,72 @@ def _convert_event_to_streaming_chunk(event: Dict[str, Any], model: str) -> Stre
     return streaming_chunk
 
 
-def _convert_event_to_content_blocks(
-    event: Dict[str, Any], current_content_blocks: Dict[str, Any]
-) -> Tuple[Dict[str, Any], Optional[str], Optional[Dict[str, Any]]]:
-    finish_reason = None
-    usage = None
+def _convert_streaming_chunks_to_chat_message(chunks: List[StreamingChunk]) -> ChatMessage:
+    """
+    Connects the streaming chunks into a single ChatMessage.
 
-    # We ignore messageStart and contentBlockStop events for now
-    if "contentBlockStart" in event:
-        block_start = event["contentBlockStart"]
-        if "start" in block_start and "toolUse" in block_start["start"]:
-            tool_start = block_start["start"]["toolUse"]
-            current_content_blocks[block_start["contentBlockIndex"]] = {
-                "id": tool_start["toolUseId"],
-                "name": tool_start["name"],
-                "arguments": "",  # Will accumulate deltas as string
-            }
+    :param chunks: The list of all `StreamingChunk` objects.
 
-    elif "contentBlockDelta" in event:
-        block_idx = event["contentBlockDelta"]["contentBlockIndex"]
-        delta = event["contentBlockDelta"]["delta"]
-        # This is for accumulating text deltas
-        if "text" in delta:
-            if block_idx not in current_content_blocks:
-                current_content_blocks[block_idx] = delta["text"]
-            else:
-                current_content_blocks[block_idx] += delta["text"]
-        # This only occurs when accumulating the arguments for a toolUse
-        # The content_block for this tool should already exist at this point
-        elif "toolUse" in delta:
-            current_content_blocks[block_idx]["arguments"] += delta["toolUse"].get("input", "")
+    :returns: The ChatMessage.
+    """
+    text = "".join([chunk.content for chunk in chunks])
 
-    elif "messageStop" in event:
-        finish_reason = event["messageStop"].get("stopReason")
+    # Process tool calls if present in any chunk
+    tool_calls = []
+    tool_call_data: Dict[int, Dict[str, str]] = {}  # Track tool calls by index
+    for chunk_payload in chunks:
+        tool_calls_meta = chunk_payload.meta.get("tool_calls")
+        if tool_calls_meta is not None:
+            for delta in tool_calls_meta:
+                # We use the index of the tool call to track it across chunks since the ID is not always provided
+                if delta["index"] not in tool_call_data:
+                    tool_call_data[delta["index"]] = {"id": "", "name": "", "arguments": ""}
 
-    elif "metadata" in event and "usage" in event["metadata"]:
-        metadata = event["metadata"]
-        usage = {
-            "prompt_tokens": metadata["usage"].get("inputTokens", 0),
-            "completion_tokens": metadata["usage"].get("outputTokens", 0),
-            "total_tokens": metadata["usage"].get("totalTokens", 0),
-        }
+                # Save the ID if present
+                if delta.get("id"):
+                    tool_call_data[delta["index"]]["id"] = delta["id"]
 
-    return current_content_blocks, finish_reason, usage
+                if delta.get("function"):
+                    if delta["function"].get("name"):
+                        tool_call_data[delta["index"]]["name"] += delta["function"]["name"]
+                    if delta["function"].get("arguments"):
+                        tool_call_data[delta["index"]]["arguments"] += delta["function"]["arguments"]
+
+    # Convert accumulated tool call data into ToolCall objects
+    for call_data in tool_call_data.values():
+        try:
+            arguments = json.loads(call_data["arguments"])
+            tool_calls.append(ToolCall(id=call_data["id"], tool_name=call_data["name"], arguments=arguments))
+        except json.JSONDecodeError:
+            logger.warning(
+                "Amazon Bedrock returned a malformed JSON string for tool call arguments. This tool call will be "
+                "skipped. Tool call ID: {tool_id}, Tool name: {tool_name}, Arguments: {tool_arguments}",
+                tool_id=call_data["id"],
+                tool_name=call_data["name"],
+                tool_arguments=call_data["arguments"],
+            )
+
+    # finish_reason can appear in different places so we look for the last one
+    finish_reasons = [
+        chunk.meta.get("finish_reason") for chunk in chunks if chunk.meta.get("finish_reason") is not None
+    ]
+    finish_reason = finish_reasons[-1] if finish_reasons else None
+
+    # usage is usually last but we look for it as well
+    usages = [
+        chunk.meta.get("usage") for chunk in chunks if chunk.meta.get("usage") is not None
+    ]
+    usage = usages[-1] if usages else None
+
+    meta = {
+        "model": chunks[-1].meta["model"],
+        "index": 0,
+        "finish_reason": finish_reason,
+        "completion_start_time": chunks[0].meta.get("received_at"),  # first chunk received
+        "usage": usage,
+    }
+
+    return ChatMessage.from_assistant(text=text or None, tool_calls=tool_calls, meta=meta)
 
 
 def _parse_streaming_response(
@@ -419,29 +406,11 @@ def _parse_streaming_response(
     :return: List of ChatMessage objects
     """
     chunks: List[StreamingChunk] = []
-
-    final_usage = None
-    final_finish_reason = None
-    content_blocks: Dict[str, Any] = {}
     for event in response_stream:
-        content_blocks, finish_reason, usage = _convert_event_to_content_blocks(
-            event=event, current_content_blocks=content_blocks
-        )
-        if finish_reason is not None:
-            final_finish_reason = finish_reason
-        if usage is not None:
-            final_usage = usage
-
         streaming_chunk = _convert_event_to_streaming_chunk(event=event, model=model)
         streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
-
-    replies = _convert_content_blocks_to_chat_messages(
-        content_blocks=content_blocks,
-        model=model,
-        finish_reason=final_finish_reason,
-        usage=final_usage,
-    )
+    replies = [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
     return replies
 
 
@@ -459,27 +428,9 @@ async def _parse_streaming_response_async(
     :return: List of ChatMessage objects
     """
     chunks: List[StreamingChunk] = []
-
-    final_usage = None
-    final_finish_reason = None
-    content_blocks: Dict[str, Any] = {}
     async for event in response_stream:
-        content_blocks, finish_reason, usage = _convert_event_to_content_blocks(
-            event=event, current_content_blocks=content_blocks
-        )
-        if finish_reason is not None:
-            final_finish_reason = finish_reason
-        if usage is not None:
-            final_usage = usage
-
         streaming_chunk = _convert_event_to_streaming_chunk(event=event, model=model)
         await streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
-
-    replies = _convert_content_blocks_to_chat_messages(
-        content_blocks=content_blocks,
-        model=model,
-        finish_reason=final_finish_reason,
-        usage=final_usage,
-    )
+    replies = [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
     return replies

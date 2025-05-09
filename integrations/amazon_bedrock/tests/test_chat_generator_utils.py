@@ -380,6 +380,8 @@ class TestAmazonBedrockChatGeneratorUtils:
         ]
 
         replies = _parse_streaming_response(events, test_callback, model)
+        # Pop completion_start_time since it will always change
+        replies[0].meta.pop("completion_start_time")
         expected_messages = [
             ChatMessage.from_assistant(
                 text="Certainly! I can help you find out the weather in Berlin. To get this information, I'll use the "
@@ -467,6 +469,8 @@ class TestAmazonBedrockChatGeneratorUtils:
         ]
 
         replies = _parse_streaming_response(events, test_callback, model)
+        # Pop completion_start_time since it will always change
+        replies[0].meta.pop("completion_start_time")
         expected_messages = [
             ChatMessage.from_assistant(
                 text="To answer your question about the weather in Berlin and Paris, I'll need to use the "
