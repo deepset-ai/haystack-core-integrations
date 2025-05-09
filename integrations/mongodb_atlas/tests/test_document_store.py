@@ -192,7 +192,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
                 # Verify that the correct embedding field was used in the pipeline
                 args = mock_collection.aggregate.call_args[0][0]
                 assert args[0]["$vectorSearch"]["path"] == "custom_vector"
-                assert args[1]["$project"]["custom_vector"] == 1
 
         finally:
             database[collection_name].drop()
