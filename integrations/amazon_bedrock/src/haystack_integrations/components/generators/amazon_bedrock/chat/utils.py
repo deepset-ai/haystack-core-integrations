@@ -376,9 +376,7 @@ def _convert_streaming_chunks_to_chat_message(chunks: List[StreamingChunk]) -> C
     finish_reason = finish_reasons[-1] if finish_reasons else None
 
     # usage is usually last but we look for it as well
-    usages = [
-        chunk.meta.get("usage") for chunk in chunks if chunk.meta.get("usage") is not None
-    ]
+    usages = [chunk.meta.get("usage") for chunk in chunks if chunk.meta.get("usage") is not None]
     usage = usages[-1] if usages else None
 
     meta = {
