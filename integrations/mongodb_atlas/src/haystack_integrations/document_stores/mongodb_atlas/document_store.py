@@ -464,6 +464,7 @@ class MongoDBAtlasDocumentStore:
                     "content": 1,
                     "blob": 1,
                     "meta": 1,
+                    self.content_field: 1,
                     self.embedding_field: 1,
                     "score": {"$meta": "vectorSearchScore"},
                 }
@@ -521,6 +522,7 @@ class MongoDBAtlasDocumentStore:
                     "content": 1,
                     "blob": 1,
                     "meta": 1,
+                    self.content_field: 1,
                     self.embedding_field: 1,
                     "score": {"$meta": "vectorSearchScore"},
                 }
