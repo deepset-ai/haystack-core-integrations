@@ -748,5 +748,5 @@ class MongoDBAtlasDocumentStore:
                     "The `dataframe` field will soon be removed from Haystack Document.",
                     id=haystack_doc.id,
                 )
-        mongo_doc.pop("_id")
+        mongo_doc.pop("_id", None)
         return mongo_doc
