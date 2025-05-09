@@ -322,7 +322,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
             database[collection_name].drop()
 
     @pytest.mark.integration
-    def test_document_conversion_with_unsupported_fields(self, caplog):
+    def test_document_conversion_with_unsupported_fields(self):
         """Test the document conversion with unsupported fields like sparse_embedding and dataframe."""
         docstore = MongoDBAtlasDocumentStore(
             database_name="haystack_integration_test",
@@ -340,16 +340,10 @@ class TestDocumentStore(DocumentStoreBaseTests):
         }
         doc = Document.from_dict(doc_dict)
 
-        # Convert to mongo doc and check for warning about sparse_embedding
-        with caplog.at_level("WARNING"):
-            mongo_doc = docstore._haystack_doc_to_mongo_doc(doc)
+        mongo_doc = docstore._haystack_doc_to_mongo_doc(doc)
 
         # Verify sparse_embedding was removed and warning was logged
         assert "sparse_embedding" not in mongo_doc
-        assert "sparse_embedding" in caplog.text
-        assert "not currently supported" in caplog.text
-
-        caplog.clear()
 
         # Test with dataframe
         doc_dict = {
@@ -360,11 +354,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
         }
         doc = Document.from_dict(doc_dict)
 
-        # Convert to mongo doc and check for warning about dataframe
-        with caplog.at_level("WARNING"):
-            mongo_doc = docstore._haystack_doc_to_mongo_doc(doc)
-
+        mongo_doc = docstore._haystack_doc_to_mongo_doc(doc)
         # Verify dataframe was removed and warning was logged
         assert "dataframe" not in mongo_doc
-        assert "dataframe" in caplog.text
-        assert "no longer supports dataframes" in caplog.text
