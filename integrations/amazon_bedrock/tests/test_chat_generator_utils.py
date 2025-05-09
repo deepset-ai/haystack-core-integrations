@@ -399,11 +399,18 @@ class TestAmazonBedrockChatGeneratorUtils:
             )
         ]
 
-        # TODO Reactivate
-        # Verify streaming chunks were received for text content
-        # assert len(streaming_chunks) == 2
-        # assert streaming_chunks[0].content == "Let me "
-        # assert streaming_chunks[1].content == "help you."
+        # Verify streaming chunks were received for all content
+        assert len(streaming_chunks) == 21
+        assert streaming_chunks[1].content == "Certainly! I can"
+        assert streaming_chunks[2].content == " help you find out"
+        assert streaming_chunks[12].meta["tool_calls"] == [
+            {
+                "index": 1,
+                "id": "tooluse_pLGRAmK7TNKoZQ_rntVN_Q",
+                "function": {"arguments": "", "name": "weather_tool"},
+                "type": "function",
+            }
+        ]
 
         # Verify final replies
         assert len(replies) == 1

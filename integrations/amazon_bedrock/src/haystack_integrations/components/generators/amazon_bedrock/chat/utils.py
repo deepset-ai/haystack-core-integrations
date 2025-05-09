@@ -247,9 +247,8 @@ def _convert_event_to_streaming_chunk(event: Dict[str, Any], model: str) -> Stre
 
     Following same format as used in Haystack's OpenAIChatGenerator.
     """
-    # We ignore messageStart and contentBlockStop events for now
-
     # Initialize an empty StreamingChunk to return if no relevant event is found
+    # (e.g. for messageStart and contentBlockStop)
     streaming_chunk = StreamingChunk(
         content="", meta={"model": model, "received_at": datetime.now(timezone.utc).isoformat()}
     )
