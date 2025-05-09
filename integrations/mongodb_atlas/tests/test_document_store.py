@@ -195,3 +195,176 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         finally:
             database[collection_name].drop()
+
+    @pytest.mark.integration
+    def test_custom_content_field(self):
+        """Test that the custom content field is correctly used in the document store."""
+        # Create a document store with a custom content field
+        database_name = "haystack_integration_test"
+        collection_name = "test_custom_content_" + str(uuid4())
+
+        connection: MongoClient = MongoClient(
+            os.environ["MONGO_CONNECTION_STRING"], driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
+        )
+        database = connection[database_name]
+        if collection_name in database.list_collection_names():
+            database[collection_name].drop()
+        database.create_collection(collection_name)
+        database[collection_name].create_index("id", unique=True)
+
+        try:
+            custom_field_store = MongoDBAtlasDocumentStore(
+                database_name=database_name,
+                collection_name=collection_name,
+                vector_search_index="cosine_index",
+                full_text_search_index="full_text_index",
+                content_field="custom_text",
+            )
+
+            # Check that the content field is correctly set
+            assert custom_field_store.content_field == "custom_text"
+
+            # Write a document with standard content field
+            doc = Document(content="test content")
+            custom_field_store.write_documents([doc])
+
+            # Verify it's stored with the custom field name in MongoDB
+            database_doc = database[collection_name].find_one({"id": doc.id})
+            assert "custom_text" in database_doc
+            assert database_doc["custom_text"] == "test content"
+            assert "content" not in database_doc
+
+            # Retrieve the document and verify it has the standard content field
+            retrieved_docs = custom_field_store.filter_documents()
+            assert len(retrieved_docs) == 1
+            assert retrieved_docs[0].content == "test content"
+
+            # This is a mock test for text search
+            with patch.object(custom_field_store, "_collection") as mock_collection:
+                # Setup the mock
+                mock_collection.aggregate.return_value = []
+
+                # Execute the method
+                custom_field_store._fulltext_retrieval(query="test query")
+
+                # Verify that the text search is using the standard content path
+                # Note: The content path in _fulltext_retrieval is hardcoded to "content"
+                args = mock_collection.aggregate.call_args[0][0]
+                assert args[0]["$search"]["compound"]["must"][0]["text"]["path"] == "content"
+
+        finally:
+            database[collection_name].drop()
+
+    @pytest.mark.integration
+    def test_document_conversion_methods(self):
+        """Test the document conversion helper methods with custom field mappings."""
+        database_name = "haystack_integration_test"
+        collection_name = "test_document_conversion_" + str(uuid4())
+
+        connection: MongoClient = MongoClient(
+            os.environ["MONGO_CONNECTION_STRING"], driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
+        )
+        database = connection[database_name]
+        if collection_name in database.list_collection_names():
+            database[collection_name].drop()
+        database.create_collection(collection_name)
+        database[collection_name].create_index("id", unique=True)
+
+        try:
+            # Create a document store with custom field names
+            custom_store = MongoDBAtlasDocumentStore(
+                database_name=database_name,
+                collection_name=collection_name,
+                vector_search_index="cosine_index",
+                full_text_search_index="full_text_index",
+                embedding_field="custom_vector",
+                content_field="custom_text",
+            )
+
+            # Test haystack_doc_to_mongo_doc
+            haystack_doc = Document(content="test content", embedding=[0.1, 0.2, 0.3], meta={"test_meta": "test_value"})
+
+            mongo_doc = custom_store._haystack_doc_to_mongo_doc(haystack_doc)
+
+            # Check field mapping
+            assert "custom_text" in mongo_doc
+            assert mongo_doc["custom_text"] == "test content"
+            assert "content" not in mongo_doc
+
+            assert "custom_vector" in mongo_doc
+            assert mongo_doc["custom_vector"] == [0.1, 0.2, 0.3]
+            assert "embedding" not in mongo_doc
+
+            assert "meta" in mongo_doc
+            assert mongo_doc["meta"] == {"test_meta": "test_value"}
+
+            # Test mongo_doc_to_haystack_doc
+            converted_doc = {
+                "id": "test_id",
+                "custom_text": "test content from mongo",
+                "custom_vector": [0.4, 0.5, 0.6],
+                "meta": {"mongo_meta": "mongo_value"},
+                "_id": "mongodb_internal_id",  # This should be removed
+            }
+
+            haystack_doc = custom_store._mongo_doc_to_haystack_doc(converted_doc)
+
+            # Check field mapping back to haystack format
+            assert haystack_doc.content == "test content from mongo"
+            assert haystack_doc.embedding == [0.4, 0.5, 0.6]
+            assert haystack_doc.meta == {"mongo_meta": "mongo_value"}
+            assert haystack_doc.id == "test_id"
+
+            # Make sure MongoDB's internal _id is removed
+            assert not hasattr(haystack_doc, "_id")
+
+        finally:
+            database[collection_name].drop()
+
+    @pytest.mark.integration
+    def test_document_conversion_with_unsupported_fields(self, caplog):
+        """Test the document conversion with unsupported fields like sparse_embedding and dataframe."""
+        docstore = MongoDBAtlasDocumentStore(
+            database_name="haystack_integration_test",
+            collection_name="test_collection",
+            vector_search_index="cosine_index",
+            full_text_search_index="full_text_index",
+        )
+
+        # Create a document with sparse_embedding
+        doc_dict = {
+            "id": "test_id",
+            "content": "test content",
+            "embedding": [0.1, 0.2, 0.3],
+            "sparse_embedding": {"indices": [1, 2, 3], "values": [0.1, 0.2, 0.3]},
+        }
+        doc = Document.from_dict(doc_dict)
+
+        # Convert to mongo doc and check for warning about sparse_embedding
+        with caplog.at_level("WARNING"):
+            mongo_doc = docstore._haystack_doc_to_mongo_doc(doc)
+
+        # Verify sparse_embedding was removed and warning was logged
+        assert "sparse_embedding" not in mongo_doc
+        assert "sparse_embedding" in caplog.text
+        assert "not currently supported" in caplog.text
+
+        caplog.clear()
+
+        # Test with dataframe
+        doc_dict = {
+            "id": "test_id2",
+            "content": "test content",
+            "embedding": [0.1, 0.2, 0.3],
+            "dataframe": {"some": "dataframe"},
+        }
+        doc = Document.from_dict(doc_dict)
+
+        # Convert to mongo doc and check for warning about dataframe
+        with caplog.at_level("WARNING"):
+            mongo_doc = docstore._haystack_doc_to_mongo_doc(doc)
+
+        # Verify dataframe was removed and warning was logged
+        assert "dataframe" not in mongo_doc
+        assert "dataframe" in caplog.text
+        assert "no longer supports dataframes" in caplog.text
