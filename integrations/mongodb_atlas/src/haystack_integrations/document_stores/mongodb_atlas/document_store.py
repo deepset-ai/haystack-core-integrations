@@ -447,7 +447,7 @@ class MongoDBAtlasDocumentStore:
 
         filters = _normalize_filters(filters) if filters else {}
 
-        pipeline = [
+        pipeline: List[Dict[str, Any]] = [
             {
                 "$vectorSearch": {
                     "index": self.vector_search_index,
@@ -458,17 +458,7 @@ class MongoDBAtlasDocumentStore:
                     "filter": filters,
                 }
             },
-            {
-                "$project": {
-                    "_id": 0,
-                    "content": 1,
-                    "blob": 1,
-                    "meta": 1,
-                    self.content_field: 1,
-                    self.embedding_field: 1,
-                    "score": {"$meta": "vectorSearchScore"},
-                }
-            },
+            {"$addFields": {"score": {"$meta": "vectorSearchScore"}}},
         ]
         try:
             documents = list(self._collection.aggregate(pipeline))  # type: ignore[union-attr]
@@ -505,7 +495,7 @@ class MongoDBAtlasDocumentStore:
 
         filters = _normalize_filters(filters) if filters else {}
 
-        pipeline = [
+        pipeline: List[Dict[str, Any]] = [
             {
                 "$vectorSearch": {
                     "index": self.vector_search_index,
@@ -516,17 +506,7 @@ class MongoDBAtlasDocumentStore:
                     "filter": filters,
                 }
             },
-            {
-                "$project": {
-                    "_id": 0,
-                    "content": 1,
-                    "blob": 1,
-                    "meta": 1,
-                    self.content_field: 1,
-                    self.embedding_field: 1,
-                    "score": {"$meta": "vectorSearchScore"},
-                }
-            },
+            {"$addFields": {"score": {"$meta": "vectorSearchScore"}}},
         ]
         try:
             documents = await self._collection_async.aggregate(pipeline).to_list()  # type: ignore[union-attr]
@@ -609,7 +589,7 @@ class MongoDBAtlasDocumentStore:
             text_search["score"] = score
 
         # Define the pipeline for MongoDB aggregation
-        pipeline = [
+        pipeline: List[Dict[str, Any]] = [
             {
                 "$search": {
                     "index": self.full_text_search_index,
@@ -619,16 +599,7 @@ class MongoDBAtlasDocumentStore:
             # TODO: Use compound filter. See: (https://www.mongodb.com/docs/atlas/atlas-search/performance/query-performance/#avoid--match-after--search)
             {"$match": filters},
             {"$limit": top_k},
-            {
-                "$project": {
-                    "_id": 0,
-                    "content": 1,
-                    "blob": 1,
-                    "meta": 1,
-                    self.embedding_field: 1,
-                    "score": {"$meta": "searchScore"},
-                }
-            },
+            {"$addFields": {"score": {"$meta": "searchScore"}}},
         ]
 
         self._ensure_connection_setup()
@@ -709,7 +680,7 @@ class MongoDBAtlasDocumentStore:
             text_search["score"] = score
 
         # Define the pipeline for MongoDB aggregation
-        pipeline = [
+        pipeline: List[Dict[str, Any]] = [
             {
                 "$search": {
                     "index": self.full_text_search_index,
@@ -719,16 +690,7 @@ class MongoDBAtlasDocumentStore:
             # TODO: Use compound filter. See: (https://www.mongodb.com/docs/atlas/atlas-search/performance/query-performance/#avoid--match-after--search)
             {"$match": filters},
             {"$limit": top_k},
-            {
-                "$project": {
-                    "_id": 0,
-                    "content": 1,
-                    "blob": 1,
-                    "meta": 1,
-                    self.embedding_field: 1,
-                    "score": {"$meta": "searchScore"},
-                }
-            },
+            {"$addFields": {"score": {"$meta": "searchScore"}}},
         ]
 
         await self._ensure_connection_setup_async()
