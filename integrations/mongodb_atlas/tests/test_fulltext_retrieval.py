@@ -120,7 +120,7 @@ class TestFullTextRetrieval:
         assert actual_pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == "content"
 
         # Verify the pipeline structure
-        assert len(actual_pipeline) == 4
+        assert len(actual_pipeline) == 5
         assert "$addFields" in actual_pipeline[2]
         assert "$project" in actual_pipeline[3]
 
