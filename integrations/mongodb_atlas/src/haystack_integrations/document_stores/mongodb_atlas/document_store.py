@@ -726,7 +726,6 @@ class MongoDBAtlasDocumentStore:
         Parses a Haystack Document to a MongoDB document.
         """
         mongo_doc = haystack_doc.to_dict(flatten=False)
-        mongo_doc["_id"] = mongo_doc.pop("_id", None)
         if self.content_field != "content":
             mongo_doc[self.content_field] = mongo_doc.pop("content", None)
         if self.embedding_field != "embedding":
@@ -749,4 +748,5 @@ class MongoDBAtlasDocumentStore:
                     "The `dataframe` field will soon be removed from Haystack Document.",
                     id=haystack_doc.id,
                 )
+        mongo_doc.pop("_id")
         return mongo_doc
