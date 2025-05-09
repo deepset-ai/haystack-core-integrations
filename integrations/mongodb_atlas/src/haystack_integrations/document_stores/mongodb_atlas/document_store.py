@@ -298,7 +298,7 @@ class MongoDBAtlasDocumentStore:
         self._ensure_connection_setup()
         filters = _normalize_filters(filters) if filters else None
         documents = list(self._collection.find(filters))  # type: ignore[union-attr]
-        return [Document.from_dict(doc) for doc in documents]
+        return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
 
     async def filter_documents_async(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
