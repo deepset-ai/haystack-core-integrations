@@ -459,6 +459,7 @@ class MongoDBAtlasDocumentStore:
                 }
             },
             {"$addFields": {"score": {"$meta": "vectorSearchScore"}}},
+            {"$project": {"_id": 0}},
         ]
         try:
             documents = list(self._collection.aggregate(pipeline))  # type: ignore[union-attr]
@@ -507,6 +508,7 @@ class MongoDBAtlasDocumentStore:
                 }
             },
             {"$addFields": {"score": {"$meta": "vectorSearchScore"}}},
+            {"$project": {"_id": 0}},
         ]
         try:
             documents = await self._collection_async.aggregate(pipeline).to_list()  # type: ignore[union-attr]
@@ -600,6 +602,7 @@ class MongoDBAtlasDocumentStore:
             {"$match": filters},
             {"$limit": top_k},
             {"$addFields": {"score": {"$meta": "searchScore"}}},
+            {"$project": {"_id": 0}},
         ]
 
         self._ensure_connection_setup()
@@ -691,6 +694,7 @@ class MongoDBAtlasDocumentStore:
             {"$match": filters},
             {"$limit": top_k},
             {"$addFields": {"score": {"$meta": "searchScore"}}},
+            {"$project": {"_id": 0}},
         ]
 
         await self._ensure_connection_setup_async()
