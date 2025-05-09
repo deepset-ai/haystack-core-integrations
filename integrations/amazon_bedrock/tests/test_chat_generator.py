@@ -348,6 +348,7 @@ class TestAmazonBedrockChatGeneratorInference:
         assert ChatMessage.is_from(tool_call_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
 
         tool_calls = tool_call_message.tool_calls
+        assert len(tool_calls) == 2
         for tool_call in tool_calls:
             assert tool_call.id, "Tool call does not contain value for 'id' key"
             assert tool_call.tool_name == "weather"
