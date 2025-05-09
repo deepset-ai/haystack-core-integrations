@@ -253,6 +253,7 @@ def _convert_event_to_streaming_chunk(event: Dict[str, Any], model: str) -> Stre
     )
 
     if "contentBlockStart" in event:
+        # contentBlockStart always has the key "contentBlockIndex"
         block_start = event["contentBlockStart"]
         block_idx = block_start["contentBlockIndex"]
         if "start" in block_start and "toolUse" in block_start["start"]:
@@ -282,6 +283,7 @@ def _convert_event_to_streaming_chunk(event: Dict[str, Any], model: str) -> Stre
             )
 
     elif "contentBlockDelta" in event:
+        # contentBlockDelta always has the key "contentBlockIndex" and "delta"
         block_idx = event["contentBlockDelta"]["contentBlockIndex"]
         delta = event["contentBlockDelta"]["delta"]
         # This is for accumulating text deltas
