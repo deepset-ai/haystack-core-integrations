@@ -2,18 +2,21 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
-from haystack import Pipeline, default_from_dict, default_to_dict, logging
-from haystack.components.embedders import SentenceTransformersTextEmbedder
+from haystack import Pipeline, default_from_dict, default_to_dict, logging, DeserializationError
+from haystack.components.embedders.types import TextEmbedder
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.joiners.document_joiner import JoinMode
+from haystack.core.serialization import import_class_by_name, component_from_dict
 from haystack.document_stores.types import FilterPolicy
 from haystack.lazy_imports import LazyImport
-from haystack.utils import ComponentDevice, Secret
+
 
 from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever, OpenSearchEmbeddingRetriever
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
+
+from haystack.utils import deserialize_chatgenerator_inplace
 
 logger = logging.getLogger(__name__)
 
@@ -39,16 +42,8 @@ class OpenSearchHybridRetriever:
         self,
         document_store: OpenSearchDocumentStore,
         *,
-        # SentenceTransformersTextEmbedder
-        model: str = "sentence-transformers/all-mpnet-base-v2",
-        token: Optional[Secret] = None,
-        device: Optional[ComponentDevice] = None,
-        normalize_embeddings: bool = False,
-        model_kwargs: Optional[Dict[str, Any]] = None,
-        tokenizer_kwargs: Optional[Dict[str, Any]] = None,
-        config_kwargs: Optional[Dict[str, Any]] = None,
-        encode_kwargs: Optional[Dict[str, Any]] = None,
-        backend: Literal["torch", "onnx", "openvino"] = "torch",
+        embedder: TextEmbedder = None,
+
         # OpenSearchBM25Retriever
         filters_bm25: Optional[Dict[str, Any]] = None,
         fuzziness: Union[int, str] = "AUTO",
@@ -57,16 +52,19 @@ class OpenSearchHybridRetriever:
         all_terms_must_match: bool = False,
         filter_policy_bm25: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
         custom_query_bm25: Optional[Dict[str, Any]] = None,
+
         # OpenSearchEmbeddingRetriever
         filters_embedding: Optional[Dict[str, Any]] = None,
         top_k_embedding: int = 10,
         filter_policy_embedding: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
         custom_query_embedding: Optional[Dict[str, Any]] = None,
+
         # DocumentJoiner
         join_mode: Union[str, JoinMode] = JoinMode.RECIPROCAL_RANK_FUSION,
         weights: Optional[List[float]] = None,
         top_k: Optional[int] = None,
         sort_by_score: bool = True,
+
         # extra kwargs
         **kwargs,
     ):
@@ -81,41 +79,13 @@ class OpenSearchHybridRetriever:
         and pass the rest as kwargs. This is to keep the constructor clean and easy to read.
 
         If you need to pass extra parameters to the components, you can do so by passing them as kwargs. It expects
-        a dictionary with the component name as the key and the parameters as the value.
+        a dictionary with the component name as the key and the parameters as the value. The component name should be:
 
-        text_embedder -> SentenceTransformersTextEmbedder
-        bm25_retriever -> OpenSearchBM25Retriever
-        embedding_retriever -> OpenSearchEmbeddingRetriever
+            - "bm25_retriever" -> OpenSearchBM25Retriever
+            - "embedding_retriever" -> OpenSearchEmbeddingRetriever
 
         :param document_store:
             The OpenSearchDocumentStore to use for retrieval.
-
-        :param model:
-            The model to use for computing the query embedding, e.g. "sentence-transformers/all-mpnet-base-v2".
-
-        :param token:
-            The token to use for the model. This can be a string or a Secret object.
-
-        :param device:
-            The device to use for the text embedder.
-
-        :param normalize_embeddings:
-            Whether to normalize the embeddings.
-
-        :param model_kwargs:
-            Keyword arguments for the text embedder model.
-
-        :param tokenizer_kwargs:
-            Keyword arguments for the tokenizer.
-
-        :param config_kwargs:
-            Keyword arguments for the model configuration.
-
-        :param encode_kwargs:
-            Keyword arguments for the text embedder.
-
-        :param backend:
-            The backend to use for the text embedder.
 
         :param filters_bm25:
             Filters for the BM25 retriever.
@@ -166,17 +136,7 @@ class OpenSearchHybridRetriever:
             Additional keyword arguments.
         """
         self.document_store = document_store
-
-        # SentenceTransformersTextEmbedder
-        self.model = model
-        self.token = token if token is not None else Secret.from_env_var(["HF_API_TOKEN", "HF_TOKEN"], strict=False)
-        self.device = device
-        self.normalize_embeddings = normalize_embeddings
-        self.model_kwargs = model_kwargs or {}
-        self.tokenizer_kwargs = tokenizer_kwargs or {}
-        self.config_kwargs = config_kwargs or {}
-        self.encode_kwargs = encode_kwargs or {}
-        self.backend = backend
+        self.embedder = embedder
 
         # OpenSearchBM25Retriever
         self.filters_bm25 = filters_bm25
@@ -200,17 +160,6 @@ class OpenSearchHybridRetriever:
         self.sort_by_score = sort_by_score
 
         init_args = {
-            "text_embedder": {
-                "model": self.model,
-                "token": self.token,
-                "device": self.device,
-                "normalize_embeddings": self.normalize_embeddings,
-                "model_kwargs": self.model_kwargs,
-                "tokenizer_kwargs": self.tokenizer_kwargs,
-                "config_kwargs": self.config_kwargs,
-                "encode_kwargs": self.encode_kwargs,
-                "backend": self.backend,
-            },
             "bm25_retriever": {
                 "document_store": self.document_store,
                 "filters": self.filters_bm25,
@@ -238,9 +187,7 @@ class OpenSearchHybridRetriever:
 
         self.extra_args = kwargs
 
-        # look for extra kwargs for each component and add the document store as init param for the retrievers
-        if "text_embedder" in kwargs:
-            init_args["text_embedder"].update(kwargs["text_embedder"])
+        # handle extra kwargs for the bm25 and embedding retrievers and the doc store as init param
         if "bm25_retriever" in kwargs:
             init_args["bm25_retriever"].update(kwargs["bm25_retriever"])
             init_args["bm25_retriever"]["document_store"] = self.document_store
@@ -254,18 +201,18 @@ class OpenSearchHybridRetriever:
         """
         Create the pipeline for the OpenSearchHybridRetriever.
         """
-        text_embedder = SentenceTransformersTextEmbedder(**data["text_embedder"])
+        # text_embedder = SentenceTransformersTextEmbedder(**data["text_embedder"])
         embedding_retriever = OpenSearchEmbeddingRetriever(**data["embedding_retriever"])
         bm25_retriever = OpenSearchBM25Retriever(**data["bm25_retriever"])
         document_joiner = DocumentJoiner(**data["document_joiner"])
 
         hybrid_retrieval = Pipeline()
-        hybrid_retrieval.add_component("text_embedder", text_embedder)
+        hybrid_retrieval.add_component("text_embedder", self.embedder)
         hybrid_retrieval.add_component("embedding_retriever", embedding_retriever)
         hybrid_retrieval.add_component("bm25_retriever", bm25_retriever)
         hybrid_retrieval.add_component("document_joiner", document_joiner)
 
-        hybrid_retrieval.connect("text_embedder", "embedding_retriever")
+        hybrid_retrieval.connect("text_embedder.embedding", "embedding_retriever.query_embedding")
         hybrid_retrieval.connect("bm25_retriever", "document_joiner")
         hybrid_retrieval.connect("embedding_retriever", "document_joiner")
 
@@ -289,16 +236,19 @@ class OpenSearchHybridRetriever:
             self,
             # DocumentStore
             document_store=self.document_store.to_dict(),
+            embedder=self.embedder.to_dict(),
+
             # SentenceTransformer
-            model=self.model,
-            token=self.token.to_dict() if self.token is not None else None,
-            device=self.device,
-            normalize_embeddings=self.normalize_embeddings,
-            model_kwargs=self.model_kwargs,
-            tokenizer_kwargs=self.tokenizer_kwargs,
-            config_kwargs=self.config_kwargs,
-            encode_kwargs=self.encode_kwargs,
-            backend=self.backend,
+            # model=self.model,
+            # token=self.token.to_dict() if self.token is not None else None,
+            # device=self.device,
+            # normalize_embeddings=self.normalize_embeddings,
+            # model_kwargs=self.model_kwargs,
+            # tokenizer_kwargs=self.tokenizer_kwargs,
+            # config_kwargs=self.config_kwargs,
+            # encode_kwargs=self.encode_kwargs,
+            # backend=self.backend,
+
             # OpenSearchBM25Retriever
             filters_bm25=self.filters_bm25,
             fuzziness=self.fuzziness,
@@ -328,10 +278,18 @@ class OpenSearchHybridRetriever:
         doc_store = OpenSearchDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = doc_store
 
-        # deserialize the token
-        token = Secret.from_dict(data["init_parameters"]["token"]) if data["init_parameters"].get("token") else None
-        data["init_parameters"]["token"] = token
+        # deserialize the embedder
+        try:
+            text_embedder_class = import_class_by_name(data["init_parameters"]["embedder"]["type"])
+        except ImportError as e:
+            raise DeserializationError(f"Class '{data["embedder"]["type"]}' not correctly imported") from e
 
+        data["init_parameters"]["embedder"] = component_from_dict(
+            cls=text_embedder_class, data=data["init_parameters"]["embedder"],
+            name="embedder"
+        )
+
+        # deserialize the embedders filtering policy
         if "filter_policy_bm25" in data["init_parameters"]:
             filter_policy_bm25 = FilterPolicy.from_str(data["init_parameters"]["filter_policy_bm25"])
             data["init_parameters"]["filter_policy_bm25"] = filter_policy_bm25
