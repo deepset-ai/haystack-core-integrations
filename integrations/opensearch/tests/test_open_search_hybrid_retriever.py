@@ -1,5 +1,4 @@
 from copy import deepcopy
-
 from typing import Any, Dict
 from unittest.mock import Mock
 
@@ -21,8 +20,8 @@ class MockedTextEmbedder:
 
 class TestOpenSearchHybridRetriever:
 
-    serialised = {
-        "type": "haystack_integrations.components.retrievers.opensearch.open_search_hybrid_retriever.OpenSearchHybridRetriever",
+    serialised = {  # noqa: RUF012
+        "type": "haystack_integrations.components.retrievers.opensearch.open_search_hybrid_retriever.OpenSearchHybridRetriever",  # noqa: E501
         "init_parameters": {
             "document_store": {
                 "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
@@ -51,7 +50,7 @@ class TestOpenSearchHybridRetriever:
                 },
             },
             "embedder": {
-                "type": "haystack.components.embedders.sentence_transformers_text_embedder.SentenceTransformersTextEmbedder",
+                "type": "haystack.components.embedders.sentence_transformers_text_embedder.SentenceTransformersTextEmbedder",  # noqa: E501
                 "init_parameters": {
                     "model": "sentence-transformers/all-mpnet-base-v2",
                     "device": {"type": "single", "device": "mps"},

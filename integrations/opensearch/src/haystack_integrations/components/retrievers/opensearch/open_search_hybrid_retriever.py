@@ -262,7 +262,8 @@ class OpenSearchHybridRetriever:
         try:
             text_embedder_class = import_class_by_name(data["init_parameters"]["embedder"]["type"])
         except ImportError as e:
-            raise DeserializationError(f"Class '{data["embedder"]["type"]}' not correctly imported") from e
+            msg = f"Class '{data['init_parameters']['embedder']['type']}' not correctly imported"
+            raise DeserializationError(msg) from e
 
         data["init_parameters"]["embedder"] = component_from_dict(
             cls=text_embedder_class, data=data["init_parameters"]["embedder"], name="embedder"
