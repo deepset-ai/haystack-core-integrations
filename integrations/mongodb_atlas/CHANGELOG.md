@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/mongodb_atlas-v3.2.0] - 2025-05-12
+
+### 🚀 Features
+
+- Support custom content field (#1721)
+
+
 ## [integrations/mongodb_atlas-v3.1.2] - 2025-05-07
 
 ### 🐛 Bug Fixes
