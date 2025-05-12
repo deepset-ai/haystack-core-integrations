@@ -25,10 +25,10 @@ def get_document_store(**kwargs):
     )
 
 
-# @pytest.mark.skipif(
-#     not os.environ.get("MONGO_CONNECTION_STRING_2"),
-#     reason="No MongoDB Atlas connection string provided",
-# )
+@pytest.mark.skipif(
+    not os.environ.get("MONGO_CONNECTION_STRING_2"),
+    reason="No MongoDB Atlas connection string provided",
+)
 @pytest.mark.integration
 class TestFullTextRetrieval:
     @pytest.fixture(scope="class")
