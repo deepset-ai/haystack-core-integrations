@@ -80,6 +80,10 @@ class OpenSearchHybridRetriever:
         :param document_store:
             The OpenSearchDocumentStore to use for retrieval.
 
+        :param embedder:
+            A TextEmbedder to use for embedding the query. See `haystack.components.embedders.types.protocol.TextEmbedder`
+            for more information.
+
         :param filters_bm25:
             Filters for the BM25 retriever.
 
@@ -194,7 +198,6 @@ class OpenSearchHybridRetriever:
         """
         Create the pipeline for the OpenSearchHybridRetriever.
         """
-        # text_embedder = SentenceTransformersTextEmbedder(**data["text_embedder"])
         embedding_retriever = OpenSearchEmbeddingRetriever(**data["embedding_retriever"])
         bm25_retriever = OpenSearchBM25Retriever(**data["bm25_retriever"])
         document_joiner = DocumentJoiner(**data["document_joiner"])
