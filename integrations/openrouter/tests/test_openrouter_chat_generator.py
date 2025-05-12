@@ -101,7 +101,6 @@ class TestOpenRouterChatGenerator:
         monkeypatch.setenv("OPENROUTER_API_KEY", "test-api-key")
         component = OpenRouterChatGenerator()
         data = component.to_dict()
-        print(data)
 
         assert (
             data["type"]
@@ -155,7 +154,9 @@ class TestOpenRouterChatGenerator:
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
         data = {
-            "type": "haystack_integrations.components.generators.openrouter.chat.chat_generator.OpenRouterChatGenerator",
+            "type": (
+                "haystack_integrations.components.generators.openrouter.chat.chat_generator.OpenRouterChatGenerator"
+            ),
             "init_parameters": {
                 "api_key": {"env_vars": ["OPENROUTER_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "openai/gpt-4o-mini",
@@ -176,7 +177,9 @@ class TestOpenRouterChatGenerator:
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
         monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
         data = {
-            "type": "haystack_integrations.components.generators.openrouter.chat.chat_generator.OpenRouterChatGenerator",
+            "type": (
+                "haystack_integrations.components.generators.openrouter.chat.chat_generator.OpenRouterChatGenerator"
+            ),
             "init_parameters": {
                 "api_key": {"env_vars": ["OPENROUTER_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "openai/gpt-4o-mini",
@@ -210,7 +213,7 @@ class TestOpenRouterChatGenerator:
         # check that the component calls the OpenAI API with the correct parameters
         # for OpenRouter, these are passed in the extra_body parameter
         _, kwargs = mock_chat_completion.call_args
-        assert kwargs["extra_body"]["max_tokens"] == 10 
+        assert kwargs["extra_body"]["max_tokens"] == 10
         assert kwargs["extra_body"]["temperature"] == 0.5
 
         # check that the component returns the correct response

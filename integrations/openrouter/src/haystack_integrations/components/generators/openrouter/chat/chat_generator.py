@@ -6,16 +6,15 @@ from typing import Any, Callable, Dict, List, Optional
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import StreamingChunk
-from haystack.tools import Tool
+from haystack.dataclasses import ChatMessage, StreamingChunk
+from haystack.tools.tool import Tool, _check_duplicate_tool_names
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
-from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
-from haystack.tools.tool import Tool, _check_duplicate_tool_names, deserialize_tools_inplace
 
 logger = logging.getLogger(__name__)
 
 StreamingCallbackT = Callable[[StreamingChunk], None]
+
 
 @component
 class OpenRouterChatGenerator(OpenAIChatGenerator):
@@ -71,8 +70,8 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         extra_headers: Optional[Dict[str, Any]] = None,
     ):
         """
-        Creates an instance of OpenRouterChatGenerator. Unless specified otherwise in the `model`, this is for OpenRouter's
-        `openai/gpt-4o-mini` model.
+        Creates an instance of OpenRouterChatGenerator. Unless specified otherwise
+        the default model is `openai/gpt-4o-mini`.
 
         :param api_key:
             The OpenRouter API key.
@@ -143,46 +142,46 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             timeout=self.timeout,
         )
 
-    def _prepare_api_call(  # noqa: PLR0913
-            self,
-            *,
-            messages: List[ChatMessage],
-            streaming_callback: Optional[StreamingCallbackT] = None,
-            generation_kwargs: Optional[Dict[str, Any]] = None,
-            tools: Optional[List[Tool]] = None,
-            tools_strict: Optional[bool] = None,
-        ) -> Dict[str, Any]:
-            # update generation kwargs by merging with the generation kwargs passed to the run method
-            generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-            extra_headers = {**(self.extra_headers or {})}
+    def _prepare_api_call(
+        self,
+        *,
+        messages: List[ChatMessage],
+        streaming_callback: Optional[StreamingCallbackT] = None,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        tools: Optional[List[Tool]] = None,
+        tools_strict: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        # update generation kwargs by merging with the generation kwargs passed to the run method
+        generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
+        extra_headers = {**(self.extra_headers or {})}
 
-            # adapt ChatMessage(s) to the format expected by the OpenAI API
-            openai_formatted_messages = [message.to_openai_dict_format() for message in messages]
+        # adapt ChatMessage(s) to the format expected by the OpenAI API
+        openai_formatted_messages = [message.to_openai_dict_format() for message in messages]
 
-            tools = tools or self.tools
-            tools_strict = tools_strict if tools_strict is not None else self.tools_strict
-            _check_duplicate_tool_names(tools)
+        tools = tools or self.tools
+        tools_strict = tools_strict if tools_strict is not None else self.tools_strict
+        _check_duplicate_tool_names(tools)
 
-            openai_tools = {}
-            if tools:
-                tool_definitions = [
-                    {"type": "function", "function": {**t.tool_spec, **({"strict": tools_strict} if tools_strict else {})}}
-                    for t in tools
-                ]
-                openai_tools = {"tools": tool_definitions}
+        openai_tools = {}
+        if tools:
+            tool_definitions = [
+                {"type": "function", "function": {**t.tool_spec, **({"strict": tools_strict} if tools_strict else {})}}
+                for t in tools
+            ]
+            openai_tools = {"tools": tool_definitions}
 
-            is_streaming = streaming_callback is not None
-            num_responses = generation_kwargs.pop("n", 1)
-            if is_streaming and num_responses > 1:
-                raise ValueError("Cannot stream multiple responses, please set n=1.")
+        is_streaming = streaming_callback is not None
+        num_responses = generation_kwargs.pop("n", 1)
+        if is_streaming and num_responses > 1:
+            msg = "Cannot stream multiple responses, please set n=1."
+            raise ValueError(msg)
 
-            return {
-                "model": self.model,
-                "messages": openai_formatted_messages,  # type: ignore[arg-type] # openai expects list of specific message types
-                "stream": streaming_callback is not None,
-                "n": num_responses,
-                **openai_tools,
-                "extra_body": {**generation_kwargs},
-                "extra_headers": {**extra_headers},
-            }
-    
+        return {
+            "model": self.model,
+            "messages": openai_formatted_messages,  # type: ignore[arg-type] # openai expects list of specific message types
+            "stream": streaming_callback is not None,
+            "n": num_responses,
+            **openai_tools,
+            "extra_body": {**generation_kwargs},
+            "extra_headers": {**extra_headers},
+        }
