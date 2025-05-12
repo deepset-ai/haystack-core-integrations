@@ -1,6 +1,7 @@
-from unittest.mock import Mock
+from copy import deepcopy
 
 from typing import Any, Dict
+from unittest.mock import Mock
 
 import pytest
 from haystack import Document
@@ -10,52 +11,66 @@ from haystack.core.component import component
 from haystack_integrations.components.retrievers.opensearch import OpenSearchHybridRetriever
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
+
 @component
 class MockedTextEmbedder:
     @component.output_types(embedding=list[float])
     def run(self, text: str, param_a: str = "default", param_b: str = "another_default") -> Dict[str, Any]:
         return {"embedding": [0.1, 0.2, 0.3], "metadata": {"text": text, "param_a": param_a, "param_b": param_b}}
 
+
 class TestOpenSearchHybridRetriever:
 
-    serialised_default = {
-        "type": "haystack_integrations.components.retrievers.opensearch.open_search_hybrid_retriever.OpenSearchHybridRetriever",  # noqa: E501
+    serialised = {
+        "type": "haystack_integrations.components.retrievers.opensearch.open_search_hybrid_retriever.OpenSearchHybridRetriever",
         "init_parameters": {
             "document_store": {
+                "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
                 "init_parameters": {
-                    "create_index": True,
-                    "embedding_dim": 768,
                     "hosts": None,
-                    "http_auth": None,
                     "index": "default",
-                    "mappings": {
-                        "dynamic_templates": [
-                            {"strings": {"mapping": {"type": "keyword"}, "match_mapping_type": "string"}}
-                        ],
-                        "properties": {
-                            "content": {"type": "text"},
-                            "embedding": {"dimension": 768, "index": True, "type": "knn_vector"},
-                        },
-                    },
                     "max_chunk_bytes": 104857600,
+                    "embedding_dim": 768,
                     "method": None,
-                    "return_embedding": False,
+                    "mappings": {
+                        "properties": {
+                            "embedding": {"type": "knn_vector", "index": True, "dimension": 768},
+                            "content": {"type": "text"},
+                        },
+                        "dynamic_templates": [
+                            {"strings": {"match_mapping_type": "string", "mapping": {"type": "keyword"}}}
+                        ],
+                    },
                     "settings": {"index.knn": True},
-                    "timeout": None,
+                    "create_index": True,
+                    "return_embedding": False,
+                    "http_auth": None,
                     "use_ssl": None,
                     "verify_certs": None,
+                    "timeout": None,
                 },
-                "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
             },
-            "model": "sentence-transformers/all-mpnet-base-v2",
-            "token": {"type": "env_var", "env_vars": ["HF_API_TOKEN", "HF_TOKEN"], "strict": False},
-            "device": None,
-            "normalize_embeddings": False,
-            "model_kwargs": {},
-            "tokenizer_kwargs": {},
-            "config_kwargs": {},
-            "encode_kwargs": {},
-            "backend": "torch",
+            "embedder": {
+                "type": "haystack.components.embedders.sentence_transformers_text_embedder.SentenceTransformersTextEmbedder",
+                "init_parameters": {
+                    "model": "sentence-transformers/all-mpnet-base-v2",
+                    "device": {"type": "single", "device": "mps"},
+                    "token": {"type": "env_var", "env_vars": ["HF_API_TOKEN", "HF_TOKEN"], "strict": False},
+                    "prefix": "",
+                    "suffix": "",
+                    "batch_size": 32,
+                    "progress_bar": True,
+                    "normalize_embeddings": False,
+                    "trust_remote_code": False,
+                    "truncate_dim": None,
+                    "model_kwargs": None,
+                    "tokenizer_kwargs": None,
+                    "config_kwargs": None,
+                    "precision": "float32",
+                    "encode_kwargs": None,
+                    "backend": "torch",
+                },
+            },
             "filters_bm25": None,
             "fuzziness": "AUTO",
             "top_k_bm25": 10,
@@ -80,89 +95,32 @@ class TestOpenSearchHybridRetriever:
 
     def test_to_dict(self) -> None:
         doc_store = OpenSearchDocumentStore()
-        embedder = SentenceTransformersTextEmbedder()   # we use actual embedder here for the de/serialization
+        embedder = SentenceTransformersTextEmbedder()  # we use actual embedder here for the de/serialization
         hybrid_retriever = OpenSearchHybridRetriever(document_store=doc_store, embedder=embedder)
         result = hybrid_retriever.to_dict()
-        expected = {'type': 'haystack_integrations.components.retrievers.opensearch.open_search_hybrid_retriever.OpenSearchHybridRetriever', 'init_parameters': {'document_store': {'type': 'haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore', 'init_parameters': {'hosts': None, 'index': 'default', 'max_chunk_bytes': 104857600, 'embedding_dim': 768, 'method': None, 'mappings': {'properties': {'embedding': {'type': 'knn_vector', 'index': True, 'dimension': 768}, 'content': {'type': 'text'}}, 'dynamic_templates': [{'strings': {'match_mapping_type': 'string', 'mapping': {'type': 'keyword'}}}]}, 'settings': {'index.knn': True}, 'create_index': True, 'return_embedding': False, 'http_auth': None, 'use_ssl': None, 'verify_certs': None, 'timeout': None}}, 'embedder': {'type': 'haystack.components.embedders.sentence_transformers_text_embedder.SentenceTransformersTextEmbedder', 'init_parameters': {'model': 'sentence-transformers/all-mpnet-base-v2', 'device': {'type': 'single', 'device': 'mps'}, 'token': {'type': 'env_var', 'env_vars': ['HF_API_TOKEN', 'HF_TOKEN'], 'strict': False}, 'prefix': '', 'suffix': '', 'batch_size': 32, 'progress_bar': True, 'normalize_embeddings': False, 'trust_remote_code': False, 'truncate_dim': None, 'model_kwargs': None, 'tokenizer_kwargs': None, 'config_kwargs': None, 'precision': 'float32', 'encode_kwargs': None, 'backend': 'torch'}}, 'filters_bm25': None, 'fuzziness': 'AUTO', 'top_k_bm25': 10, 'scale_score': False, 'all_terms_must_match': False, 'filter_policy_bm25': 'replace', 'custom_query_bm25': None, 'filters_embedding': None, 'top_k_embedding': 10, 'filter_policy_embedding': 'replace', 'custom_query_embedding': None, 'join_mode': 'reciprocal_rank_fusion', 'weights': None, 'top_k': None, 'sort_by_score': True}}
-        assert result == expected
+        assert result == self.serialised
 
     def test_from_dict(self):
-        serialised = {'type': 'haystack_integrations.components.retrievers.opensearch.open_search_hybrid_retriever.OpenSearchHybridRetriever', 'init_parameters': {'document_store': {'type': 'haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore', 'init_parameters': {'hosts': None, 'index': 'default', 'max_chunk_bytes': 104857600, 'embedding_dim': 768, 'method': None, 'mappings': {'properties': {'embedding': {'type': 'knn_vector', 'index': True, 'dimension': 768}, 'content': {'type': 'text'}}, 'dynamic_templates': [{'strings': {'match_mapping_type': 'string', 'mapping': {'type': 'keyword'}}}]}, 'settings': {'index.knn': True}, 'create_index': True, 'return_embedding': False, 'http_auth': None, 'use_ssl': None, 'verify_certs': None, 'timeout': None}}, 'embedder': {'type': 'haystack.components.embedders.sentence_transformers_text_embedder.SentenceTransformersTextEmbedder', 'init_parameters': {'model': 'sentence-transformers/all-mpnet-base-v2', 'device': {'type': 'single', 'device': 'mps'}, 'token': {'type': 'env_var', 'env_vars': ['HF_API_TOKEN', 'HF_TOKEN'], 'strict': False}, 'prefix': '', 'suffix': '', 'batch_size': 32, 'progress_bar': True, 'normalize_embeddings': False, 'trust_remote_code': False, 'truncate_dim': None, 'model_kwargs': None, 'tokenizer_kwargs': None, 'config_kwargs': None, 'precision': 'float32', 'encode_kwargs': None, 'backend': 'torch'}}, 'filters_bm25': None, 'fuzziness': 'AUTO', 'top_k_bm25': 10, 'scale_score': False, 'all_terms_must_match': False, 'filter_policy_bm25': 'replace', 'custom_query_bm25': None, 'filters_embedding': None, 'top_k_embedding': 10, 'filter_policy_embedding': 'replace', 'custom_query_embedding': None, 'join_mode': 'reciprocal_rank_fusion', 'weights': None, 'top_k': None, 'sort_by_score': True}}
-        super_component = OpenSearchHybridRetriever.from_dict(serialised)
+        data = deepcopy(self.serialised)
+        super_component = OpenSearchHybridRetriever.from_dict(data)
         assert isinstance(super_component, OpenSearchHybridRetriever)
         assert super_component.to_dict()
 
     def test_to_dict_with_extra_args(self):
         doc_store = OpenSearchDocumentStore()
-        embedder = SentenceTransformersTextEmbedder()   # we use actual embedder here for the de/serialization
+        embedder = SentenceTransformersTextEmbedder()  # an actual embedder here for the de/serialization
         hybrid_retriever = OpenSearchHybridRetriever(
             document_store=doc_store, embedder=embedder, extra_arg={"embedding_retriever": {"raise_on_failure": True}}
         )
         result = hybrid_retriever.to_dict()
-        expected = {
-            'type': 'haystack_integrations.components.retrievers.opensearch.open_search_hybrid_retriever.OpenSearchHybridRetriever',
-            'init_parameters': {'document_store': {
-                'type': 'haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore',
-                'init_parameters': {'hosts': None, 'index': 'default', 'max_chunk_bytes': 104857600,
-                                    'embedding_dim': 768, 'method': None, 'mappings': {
-                        'properties': {'embedding': {'type': 'knn_vector', 'index': True, 'dimension': 768},
-                                       'content': {'type': 'text'}}, 'dynamic_templates': [
-                            {'strings': {'match_mapping_type': 'string', 'mapping': {'type': 'keyword'}}}]},
-                                    'settings': {'index.knn': True}, 'create_index': True, 'return_embedding': False,
-                                    'http_auth': None, 'use_ssl': None, 'verify_certs': None, 'timeout': None}},
-                                'embedder': {
-                                    'type': 'haystack.components.embedders.sentence_transformers_text_embedder.SentenceTransformersTextEmbedder',
-                                    'init_parameters': {'model': 'sentence-transformers/all-mpnet-base-v2',
-                                                        'device': {'type': 'single', 'device': 'mps'},
-                                                        'token': {'type': 'env_var',
-                                                                  'env_vars': ['HF_API_TOKEN', 'HF_TOKEN'],
-                                                                  'strict': False}, 'prefix': '', 'suffix': '',
-                                                        'batch_size': 32, 'progress_bar': True,
-                                                        'normalize_embeddings': False, 'trust_remote_code': False,
-                                                        'truncate_dim': None, 'model_kwargs': None,
-                                                        'tokenizer_kwargs': None, 'config_kwargs': None,
-                                                        'precision': 'float32', 'encode_kwargs': None,
-                                                        'backend': 'torch'}}, 'filters_bm25': None, 'fuzziness': 'AUTO',
-                                'top_k_bm25': 10, 'scale_score': False, 'all_terms_must_match': False,
-                                'filter_policy_bm25': 'replace', 'custom_query_bm25': None, 'filters_embedding': None,
-                                'top_k_embedding': 10, 'filter_policy_embedding': 'replace',
-                                'custom_query_embedding': None, 'join_mode': 'reciprocal_rank_fusion', 'weights': None,
-                                'top_k': None, 'sort_by_score': True,
-                                'extra_arg': {'embedding_retriever': {'raise_on_failure': True}}}}
+        expected = deepcopy(self.serialised)
+        expected["init_parameters"]["extra_arg"] = {"embedding_retriever": {"raise_on_failure": True}}
         assert result == expected
 
     def test_from_dict_with_extra_args(self):
-        expected = {
-            'type': 'haystack_integrations.components.retrievers.opensearch.open_search_hybrid_retriever.OpenSearchHybridRetriever',
-            'init_parameters': {'document_store': {
-                'type': 'haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore',
-                'init_parameters': {'hosts': None, 'index': 'default', 'max_chunk_bytes': 104857600,
-                                    'embedding_dim': 768, 'method': None, 'mappings': {
-                        'properties': {'embedding': {'type': 'knn_vector', 'index': True, 'dimension': 768},
-                                       'content': {'type': 'text'}}, 'dynamic_templates': [
-                            {'strings': {'match_mapping_type': 'string', 'mapping': {'type': 'keyword'}}}]},
-                                    'settings': {'index.knn': True}, 'create_index': True, 'return_embedding': False,
-                                    'http_auth': None, 'use_ssl': None, 'verify_certs': None, 'timeout': None}},
-                'embedder': {
-                    'type': 'haystack.components.embedders.sentence_transformers_text_embedder.SentenceTransformersTextEmbedder',
-                    'init_parameters': {'model': 'sentence-transformers/all-mpnet-base-v2',
-                                        'device': {'type': 'single', 'device': 'mps'},
-                                        'token': {'type': 'env_var',
-                                                  'env_vars': ['HF_API_TOKEN', 'HF_TOKEN'],
-                                                  'strict': False}, 'prefix': '', 'suffix': '',
-                                        'batch_size': 32, 'progress_bar': True,
-                                        'normalize_embeddings': False, 'trust_remote_code': False,
-                                        'truncate_dim': None, 'model_kwargs': None,
-                                        'tokenizer_kwargs': None, 'config_kwargs': None,
-                                        'precision': 'float32', 'encode_kwargs': None,
-                                        'backend': 'torch'}}, 'filters_bm25': None, 'fuzziness': 'AUTO',
-                'top_k_bm25': 10, 'scale_score': False, 'all_terms_must_match': False,
-                'filter_policy_bm25': 'replace', 'custom_query_bm25': None, 'filters_embedding': None,
-                'top_k_embedding': 10, 'filter_policy_embedding': 'replace',
-                'custom_query_embedding': None, 'join_mode': 'reciprocal_rank_fusion', 'weights': None,
-                'top_k': None, 'sort_by_score': True,
-                'extra_arg': {'embedding_retriever': {'raise_on_failure': True}}}}
-        hybrid = OpenSearchHybridRetriever.from_dict(expected)
+        data = deepcopy(self.serialised)
+        data["init_parameters"]["extra_arg"] = {"embedding_retriever": {"raise_on_failure": True}}
+        hybrid = OpenSearchHybridRetriever.from_dict(data)
         assert isinstance(hybrid, OpenSearchHybridRetriever)
         assert hybrid.to_dict()
 

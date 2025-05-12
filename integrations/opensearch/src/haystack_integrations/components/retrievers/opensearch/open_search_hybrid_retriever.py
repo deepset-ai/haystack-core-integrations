@@ -4,19 +4,16 @@
 
 from typing import Any, Dict, List, Optional, Union
 
-from haystack import Pipeline, default_from_dict, default_to_dict, logging, DeserializationError
+from haystack import DeserializationError, Pipeline, default_from_dict, default_to_dict, logging
 from haystack.components.embedders.types import TextEmbedder
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.joiners.document_joiner import JoinMode
-from haystack.core.serialization import import_class_by_name, component_from_dict
+from haystack.core.serialization import component_from_dict, import_class_by_name
 from haystack.document_stores.types import FilterPolicy
 from haystack.lazy_imports import LazyImport
 
-
 from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever, OpenSearchEmbeddingRetriever
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
-
-from haystack.utils import deserialize_chatgenerator_inplace
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +40,6 @@ class OpenSearchHybridRetriever:
         document_store: OpenSearchDocumentStore,
         *,
         embedder: TextEmbedder = None,
-
         # OpenSearchBM25Retriever
         filters_bm25: Optional[Dict[str, Any]] = None,
         fuzziness: Union[int, str] = "AUTO",
@@ -52,19 +48,16 @@ class OpenSearchHybridRetriever:
         all_terms_must_match: bool = False,
         filter_policy_bm25: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
         custom_query_bm25: Optional[Dict[str, Any]] = None,
-
         # OpenSearchEmbeddingRetriever
         filters_embedding: Optional[Dict[str, Any]] = None,
         top_k_embedding: int = 10,
         filter_policy_embedding: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
         custom_query_embedding: Optional[Dict[str, Any]] = None,
-
         # DocumentJoiner
         join_mode: Union[str, JoinMode] = JoinMode.RECIPROCAL_RANK_FUSION,
         weights: Optional[List[float]] = None,
         top_k: Optional[int] = None,
         sort_by_score: bool = True,
-
         # extra kwargs
         **kwargs,
     ):
@@ -237,19 +230,6 @@ class OpenSearchHybridRetriever:
             # DocumentStore
             document_store=self.document_store.to_dict(),
             embedder=self.embedder.to_dict(),
-
-            # SentenceTransformer
-            # model=self.model,
-            # token=self.token.to_dict() if self.token is not None else None,
-            # device=self.device,
-            # normalize_embeddings=self.normalize_embeddings,
-            # model_kwargs=self.model_kwargs,
-            # tokenizer_kwargs=self.tokenizer_kwargs,
-            # config_kwargs=self.config_kwargs,
-            # encode_kwargs=self.encode_kwargs,
-            # backend=self.backend,
-
-            # OpenSearchBM25Retriever
             filters_bm25=self.filters_bm25,
             fuzziness=self.fuzziness,
             top_k_bm25=self.top_k_bm25,
@@ -285,8 +265,7 @@ class OpenSearchHybridRetriever:
             raise DeserializationError(f"Class '{data["embedder"]["type"]}' not correctly imported") from e
 
         data["init_parameters"]["embedder"] = component_from_dict(
-            cls=text_embedder_class, data=data["init_parameters"]["embedder"],
-            name="embedder"
+            cls=text_embedder_class, data=data["init_parameters"]["embedder"], name="embedder"
         )
 
         # deserialize the embedders filtering policy
