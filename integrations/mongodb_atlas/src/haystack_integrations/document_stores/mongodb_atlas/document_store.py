@@ -65,6 +65,8 @@ class MongoDBAtlasDocumentStore:
         collection_name: str,
         vector_search_index: str,
         full_text_search_index: str,
+        embedding_field: str = "embedding",
+        content_field: str = "content",
     ):
         """
         Creates a new MongoDBAtlasDocumentStore instance.
@@ -84,7 +86,11 @@ class MongoDBAtlasDocumentStore:
             Create a full_text_search_index in the Atlas web UI and specify the init params of
             MongoDBAtlasDocumentStore. For more details refer to MongoDB Atlas
             [documentation](https://www.mongodb.com/docs/atlas/atlas-search/create-index/).
-
+        :param embedding_field: The name of the field containing document embeddings. Default is "embedding".
+        :param content_field: The name of the field containing the document content. Default is "content".
+            This field is allows defining which field to load into the Haystack Document object as content.
+            It can be particularly useful when integrating with an existing collection for retrieval. We discourage
+            using this parameter when working with collections created by Haystack.
         :raises ValueError: If the collection name contains invalid characters.
         """
         if collection_name and not bool(re.match(r"^[a-zA-Z0-9\-_]+$", collection_name)):
@@ -97,6 +103,8 @@ class MongoDBAtlasDocumentStore:
         self.collection_name = collection_name
         self.vector_search_index = vector_search_index
         self.full_text_search_index = full_text_search_index
+        self.embedding_field = embedding_field
+        self.content_field = content_field
         self._connection: Optional[MongoClient] = None
         self._connection_async: Optional[AsyncMongoClient] = None
         self._collection: Optional[Collection] = None
@@ -290,9 +298,7 @@ class MongoDBAtlasDocumentStore:
         self._ensure_connection_setup()
         filters = _normalize_filters(filters) if filters else None
         documents = list(self._collection.find(filters))  # type: ignore[union-attr]
-        for doc in documents:
-            doc.pop("_id", None)  # MongoDB's internal id doesn't belong into a Haystack document, so we remove it.
-        return [Document.from_dict(doc) for doc in documents]
+        return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
 
     async def filter_documents_async(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
@@ -307,9 +313,7 @@ class MongoDBAtlasDocumentStore:
         await self._ensure_connection_setup_async()
         filters = _normalize_filters(filters) if filters else None
         documents = await self._collection_async.find(filters).to_list()  # type: ignore[union-attr]
-        for doc in documents:
-            doc.pop("_id", None)
-        return [Document.from_dict(doc) for doc in documents]
+        return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
@@ -332,19 +336,7 @@ class MongoDBAtlasDocumentStore:
         if policy == DuplicatePolicy.NONE:
             policy = DuplicatePolicy.FAIL
 
-        mongo_documents = []
-        for doc in documents:
-            doc_dict = doc.to_dict(flatten=False)
-            if "sparse_embedding" in doc_dict:
-                sparse_embedding = doc_dict.pop("sparse_embedding", None)
-                if sparse_embedding:
-                    logger.warning(
-                        "Document {id} has the `sparse_embedding` field set,"
-                        "but storing sparse embeddings in MongoDB Atlas is not currently supported."
-                        "The `sparse_embedding` field will be ignored.",
-                        id=doc.id,
-                    )
-            mongo_documents.append(doc_dict)
+        mongo_documents = [self._haystack_doc_to_mongo_doc(doc) for doc in documents]
         operations: List[Union[UpdateOne, InsertOne, ReplaceOne]]
         written_docs = len(documents)
 
@@ -388,28 +380,8 @@ class MongoDBAtlasDocumentStore:
         if policy == DuplicatePolicy.NONE:
             policy = DuplicatePolicy.FAIL
 
-        mongo_documents = []
-        for doc in documents:
-            doc_dict = doc.to_dict(flatten=False)
-            if "sparse_embedding" in doc_dict:
-                sparse_embedding = doc_dict.pop("sparse_embedding", None)
-                if sparse_embedding:
-                    logger.warning(
-                        "Document {id} has the `sparse_embedding` field set,"
-                        "but storing sparse embeddings in MongoDB Atlas is not currently supported."
-                        "The `sparse_embedding` field will be ignored.",
-                        id=doc.id,
-                    )
-            if "dataframe" in doc_dict:
-                dataframe = doc_dict.pop("dataframe", None)
-                if dataframe:
-                    logger.warning(
-                        "Document {id} has the `dataframe` field set,"
-                        "MongoDBAtlasDocumentStore no longer supports dataframes and this field will be ignored. "
-                        "The `dataframe` field will soon be removed from Haystack Document.",
-                        id=doc.id,
-                    )
-            mongo_documents.append(doc_dict)
+        mongo_documents = [self._haystack_doc_to_mongo_doc(doc) for doc in documents]
+
         operations: List[Union[UpdateOne, InsertOne, ReplaceOne]]
         written_docs = len(documents)
 
@@ -475,27 +447,19 @@ class MongoDBAtlasDocumentStore:
 
         filters = _normalize_filters(filters) if filters else {}
 
-        pipeline = [
+        pipeline: List[Dict[str, Any]] = [
             {
                 "$vectorSearch": {
                     "index": self.vector_search_index,
-                    "path": "embedding",
+                    "path": self.embedding_field,
                     "queryVector": query_embedding,
                     "numCandidates": 100,
                     "limit": top_k,
                     "filter": filters,
                 }
             },
-            {
-                "$project": {
-                    "_id": 0,
-                    "content": 1,
-                    "blob": 1,
-                    "meta": 1,
-                    "embedding": 1,
-                    "score": {"$meta": "vectorSearchScore"},
-                }
-            },
+            {"$addFields": {"score": {"$meta": "vectorSearchScore"}}},
+            {"$project": {"_id": 0}},
         ]
         try:
             documents = list(self._collection.aggregate(pipeline))  # type: ignore[union-attr]
@@ -532,27 +496,19 @@ class MongoDBAtlasDocumentStore:
 
         filters = _normalize_filters(filters) if filters else {}
 
-        pipeline = [
+        pipeline: List[Dict[str, Any]] = [
             {
                 "$vectorSearch": {
                     "index": self.vector_search_index,
-                    "path": "embedding",
+                    "path": self.embedding_field,
                     "queryVector": query_embedding,
                     "numCandidates": 100,
                     "limit": top_k,
                     "filter": filters,
                 }
             },
-            {
-                "$project": {
-                    "_id": 0,
-                    "content": 1,
-                    "blob": 1,
-                    "meta": 1,
-                    "embedding": 1,
-                    "score": {"$meta": "vectorSearchScore"},
-                }
-            },
+            {"$addFields": {"score": {"$meta": "vectorSearchScore"}}},
+            {"$project": {"_id": 0}},
         ]
         try:
             documents = await self._collection_async.aggregate(pipeline).to_list()  # type: ignore[union-attr]
@@ -635,7 +591,7 @@ class MongoDBAtlasDocumentStore:
             text_search["score"] = score
 
         # Define the pipeline for MongoDB aggregation
-        pipeline = [
+        pipeline: List[Dict[str, Any]] = [
             {
                 "$search": {
                     "index": self.full_text_search_index,
@@ -645,16 +601,8 @@ class MongoDBAtlasDocumentStore:
             # TODO: Use compound filter. See: (https://www.mongodb.com/docs/atlas/atlas-search/performance/query-performance/#avoid--match-after--search)
             {"$match": filters},
             {"$limit": top_k},
-            {
-                "$project": {
-                    "_id": 0,
-                    "content": 1,
-                    "blob": 1,
-                    "meta": 1,
-                    "embedding": 1,
-                    "score": {"$meta": "searchScore"},
-                }
-            },
+            {"$addFields": {"score": {"$meta": "searchScore"}}},
+            {"$project": {"_id": 0}},
         ]
 
         self._ensure_connection_setup()
@@ -735,7 +683,7 @@ class MongoDBAtlasDocumentStore:
             text_search["score"] = score
 
         # Define the pipeline for MongoDB aggregation
-        pipeline = [
+        pipeline: List[Dict[str, Any]] = [
             {
                 "$search": {
                     "index": self.full_text_search_index,
@@ -745,16 +693,8 @@ class MongoDBAtlasDocumentStore:
             # TODO: Use compound filter. See: (https://www.mongodb.com/docs/atlas/atlas-search/performance/query-performance/#avoid--match-after--search)
             {"$match": filters},
             {"$limit": top_k},
-            {
-                "$project": {
-                    "_id": 0,
-                    "content": 1,
-                    "blob": 1,
-                    "meta": 1,
-                    "embedding": 1,
-                    "score": {"$meta": "searchScore"},
-                }
-            },
+            {"$addFields": {"score": {"$meta": "searchScore"}}},
+            {"$project": {"_id": 0}},
         ]
 
         await self._ensure_connection_setup_async()
@@ -770,13 +710,40 @@ class MongoDBAtlasDocumentStore:
 
         return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
 
-    @staticmethod
-    def _mongo_doc_to_haystack_doc(mongo_doc: Dict[str, Any]) -> Document:
+    def _mongo_doc_to_haystack_doc(self, mongo_doc: Dict[str, Any]) -> Document:
         """
         Converts the dictionary coming out of MongoDB into a Haystack document
 
         :param mongo_doc: A dictionary representing a document as stored in MongoDB
         :returns: A Haystack Document object
         """
-        mongo_doc.pop("_id", None)
+        mongo_doc.pop("_id", None)  # MongoDB's internal id doesn't belong into a Haystack document, so we remove it.
+        if self.content_field != "content":
+            mongo_doc["content"] = mongo_doc.pop(self.content_field, None)
+        if self.embedding_field != "embedding":
+            mongo_doc["embedding"] = mongo_doc.pop(self.embedding_field, None)
         return Document.from_dict(mongo_doc)
+
+    def _haystack_doc_to_mongo_doc(self, haystack_doc: Document) -> Dict[str, Any]:
+        """
+        Parses a Haystack Document to a MongoDB document.
+
+        :param haystack_doc: the Haystack Document to convert
+        :returns: the MongoDB document in a dictionary representation
+        """
+        mongo_doc = haystack_doc.to_dict(flatten=False)
+        if self.content_field != "content":
+            mongo_doc[self.content_field] = mongo_doc.pop("content", None)
+        if self.embedding_field != "embedding":
+            mongo_doc[self.embedding_field] = mongo_doc.pop("embedding", None)
+        if "sparse_embedding" in mongo_doc:
+            sparse_embedding = mongo_doc.pop("sparse_embedding", None)
+            if sparse_embedding:
+                logger.warning(
+                    "Document {id} has the `sparse_embedding` field set,"
+                    "but storing sparse embeddings in MongoDB Atlas is not currently supported."
+                    "The `sparse_embedding` field will be ignored.",
+                    id=haystack_doc.id,
+                )
+        mongo_doc.pop("_id", None)
+        return mongo_doc
