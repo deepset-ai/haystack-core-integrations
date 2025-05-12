@@ -13,7 +13,6 @@ Briefly explain how the change is breaking and why is needed.
 
 ## Checklist
 
-```[tasklist]
 ### Tasks
 - [ ] The changes are merged in the `main` branch (Code + Docstrings)
 - [ ] New package version declares the breaking change
@@ -23,4 +22,4 @@ Briefly explain how the change is breaking and why is needed.
 - [ ] Notebooks on https://github.com/deepset-ai/haystack-cookbook were updated (if needed)
 - [ ] Tutorials on https://github.com/deepset-ai/haystack-tutorials were updated (if needed)
 - [ ] Articles on https://github.com/deepset-ai/haystack-home/tree/main/content were updated (if needed)
-```
+
