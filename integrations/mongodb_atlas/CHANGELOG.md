@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/mongodb_atlas-v3.2.0] - 2025-05-12
 
 ### 🚀 Features
 
@@ -51,6 +51,12 @@
 - Chore: Mongo - pin haystack and remove dataframe checks (#1512)
 
 ## [integrations/mongodb_atlas-v2.0.0] - 2025-02-14
+
+### 🧹 Chores
+
+- [**breaking**] Mongodb - remove dataframe support (#1398)
+
+## [integrations/mongodb_atlas-v1.1.0] - 2025-02-10
 
 ### 🚀 Features
 
