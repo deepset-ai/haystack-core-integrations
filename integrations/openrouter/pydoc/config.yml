@@ -2,8 +2,6 @@ loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
     modules: [
-      "haystack_integrations.components.embedders.openrouter.document_embedder",
-      "haystack_integrations.components.embedders.openrouter.text_embedder",
       "haystack_integrations.components.generators.openrouter.chat.chat_generator",
     ]
     ignore_when_discovered: ["__init__"]
@@ -21,7 +19,7 @@ renderer:
   category_slug: integrations-api
   title: OpenRouter
   slug: integrations-openrouter
-  order: 150
+  order: 200
   markdown:
     descriptive_class_title: false
     classdef_code_block: false

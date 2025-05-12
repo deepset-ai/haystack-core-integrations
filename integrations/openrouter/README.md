@@ -1,7 +1,7 @@
 # mistral-haystack
 
-[![PyPI - Version](https://img.shields.io/pypi/v/mistral-haystack.svg)](https://pypi.org/project/mistral-haystack)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/mistral-haystack.svg)](https://pypi.org/project/mistral-haystack)
+[![PyPI - Version](https://img.shields.io/pypi/v/openrouter-haystack.svg)](https://pypi.org/project/openrouter-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/openrouter-haystack.svg)](https://pypi.org/project/openrouterhaystack)
 
 -----
 
@@ -13,7 +13,7 @@
 ## Installation
 
 ```console
-pip install mistral-haystack
+pip install openrouter-haystack
 ```
 
 ## License

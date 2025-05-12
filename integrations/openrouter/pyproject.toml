@@ -155,7 +155,6 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [[tool.mypy.overrides]]
 module = [
-  "mistral.*",
   "haystack.*",
   "haystack_integrations.*",
   "openai.*",
@@ -169,7 +168,6 @@ addopts = "--strict-markers"
 markers = [
   "integration: integration tests",
   "unit: unit tests",
-  "embedders: embedders tests",
   "chat_generators: chat_generators tests",
 ]
 log_cli = true
