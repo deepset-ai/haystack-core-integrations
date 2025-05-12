@@ -68,6 +68,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         tools: Optional[List[Tool]] = None,
         timeout: Optional[int] = None,
         extra_headers: Optional[Dict[str, Any]] = None,
+        max_retries: Optional[int] = None,
     ):
         """
         Creates an instance of OpenRouterChatGenerator. Unless specified otherwise
@@ -104,6 +105,9 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         :param extra_headers:
             Extra headers for the OpenRouter API call.
             For more details, see OpenRouter [docs](https://openrouter.ai/docs/quickstart).
+        :param max_retries:
+            Maximum number of retries to contact OpenAI after an internal error.
+            If not set, it defaults to either the `OPENAI_MAX_RETRIES` environment variable, or set to 5.
 
         """
         super(OpenRouterChatGenerator, self).__init__(  # noqa: UP008
@@ -114,6 +118,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             generation_kwargs=generation_kwargs,
             tools=tools,
             timeout=timeout,
+            max_retries=max_retries,
         )
         self.extra_headers = extra_headers
 
@@ -140,6 +145,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             tools=[tool.to_dict() for tool in self.tools] if self.tools else None,
             extra_headers=self.extra_headers,
             timeout=self.timeout,
+            max_retries=self.max_retries,
         )
 
     def _prepare_api_call(

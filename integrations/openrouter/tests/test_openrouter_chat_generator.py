@@ -115,6 +115,7 @@ class TestOpenRouterChatGenerator:
             "generation_kwargs": {},
             "extra_headers": None,
             "timeout": None,
+            "max_retries": None,
         }
 
         for key, value in expected_params.items():
@@ -130,6 +131,7 @@ class TestOpenRouterChatGenerator:
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
             extra_headers={"test-header": "test-value"},
             timeout=10,
+            max_retries=10,
         )
         data = component.to_dict()
 
@@ -165,6 +167,7 @@ class TestOpenRouterChatGenerator:
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "extra_headers": {"test-header": "test-value"},
                 "timeout": 10,
+                "max_retries": 10,
             },
         }
         component = OpenRouterChatGenerator.from_dict(data)
@@ -188,6 +191,7 @@ class TestOpenRouterChatGenerator:
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "extra_headers": {"test-header": "test-value"},
                 "timeout": 10,
+                "max_retries": 10,
             },
         }
         with pytest.raises(ValueError, match="None of the .* environment variables are set"):
@@ -215,7 +219,6 @@ class TestOpenRouterChatGenerator:
         _, kwargs = mock_chat_completion.call_args
         assert kwargs["extra_body"]["max_tokens"] == 10
         assert kwargs["extra_body"]["temperature"] == 0.5
-
         # check that the component returns the correct response
         assert isinstance(response, dict)
         assert "replies" in response
@@ -504,6 +507,7 @@ class TestOpenRouterChatGenerator:
                         ],
                         "extra_headers": None,
                         "timeout": None,
+                        "max_retries": None,
                     },
                 }
             },

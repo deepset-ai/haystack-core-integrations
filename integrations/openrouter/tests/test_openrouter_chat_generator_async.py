@@ -82,7 +82,7 @@ def mock_async_chat_completion():
         yield mock_chat_completion_create
 
 
-class TestMistralChatGeneratorAsync:
+class TestOpenRouterChatGeneratorAsync:
     def test_init_default_async(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "test-api-key")
         component = OpenRouterChatGenerator()
