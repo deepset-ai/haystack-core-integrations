@@ -67,7 +67,8 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         api_base_url: Optional[str] = "https://openrouter.ai/api/v1",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[List[Tool]] = None,
-        
+        timeout: Optional[int] = None,
+        extra_headers: Optional[Dict[str, Any]] = None,
     ):
         """
         Creates an instance of OpenRouterChatGenerator. Unless specified otherwise in the `model`, this is for OpenRouter's
@@ -99,6 +100,11 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             - `random_seed`: The seed to use for random sampling.
         :param tools:
             A list of tools for which the model can prepare calls.
+        :param timeout:
+            The timeout for the OpenRouter API call.
+        :param extra_headers:
+            Extra headers for the OpenRouter API call.
+            For more details, see OpenRouter [docs](https://openrouter.ai/docs/quickstart).
 
         """
         super(OpenRouterChatGenerator, self).__init__(  # noqa: UP008
@@ -106,10 +112,11 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             model=model,
             streaming_callback=streaming_callback,
             api_base_url=api_base_url,
-            organization=None,
             generation_kwargs=generation_kwargs,
             tools=tools,
+            timeout=timeout,
         )
+        self.extra_headers = extra_headers
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -132,6 +139,8 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             generation_kwargs=self.generation_kwargs,
             api_key=self.api_key.to_dict(),
             tools=[tool.to_dict() for tool in self.tools] if self.tools else None,
+            extra_headers=self.extra_headers,
+            timeout=self.timeout,
         )
 
     def _prepare_api_call(  # noqa: PLR0913
@@ -145,6 +154,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         ) -> Dict[str, Any]:
             # update generation kwargs by merging with the generation kwargs passed to the run method
             generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
+            extra_headers = {**(self.extra_headers or {})}
 
             # adapt ChatMessage(s) to the format expected by the OpenAI API
             openai_formatted_messages = [message.to_openai_dict_format() for message in messages]
@@ -172,5 +182,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
                 "stream": streaming_callback is not None,
                 "n": num_responses,
                 **openai_tools,
-                "extra_body": {**generation_kwargs} # 
+                "extra_body": {**generation_kwargs},
+                "extra_headers": {**extra_headers},
             }
+    
