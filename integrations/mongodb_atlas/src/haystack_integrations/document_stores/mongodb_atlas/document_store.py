@@ -89,8 +89,8 @@ class MongoDBAtlasDocumentStore:
         :param embedding_field: The name of the field containing document embeddings. Default is "embedding".
         :param content_field: The name of the field containing the document content. Default is "content".
             This field is allows defining which field to load into the Haystack Document object as content.
-            It can be particularly when integrating with an existing database for retrieval. We discourage
-            using this parameter when working with indexes created by Haystack.
+            It can be particularly useful when integrating with an existing collection for retrieval. We discourage
+            using this parameter when working with collections created by Haystack.
         :raises ValueError: If the collection name contains invalid characters.
         """
         if collection_name and not bool(re.match(r"^[a-zA-Z0-9\-_]+$", collection_name)):
