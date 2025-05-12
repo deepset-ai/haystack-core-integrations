@@ -30,6 +30,86 @@ def test_init_is_lazy(_mock_client):
     _mock_client.assert_not_called()
 
 
+@patch("haystack_integrations.document_stores.mongodb_atlas.document_store.MongoClient")
+class TestMongoDBDocumentStoreConversion:
+    def test_haystack_doc_to_mongo_doc_with_unsupported_fields(self, _mock_client):
+        """Test the document conversion with unsupported fields like sparse_embedding and dataframe."""
+        docstore = MongoDBAtlasDocumentStore(
+            database_name="haystack_integration_test",
+            collection_name="test_collection",
+            vector_search_index="cosine_index",
+            full_text_search_index="full_text_index",
+        )
+
+        doc_dict = {
+            "id": "test_id",
+            "content": "test content",
+            "embedding": [0.1, 0.2, 0.3],
+            "sparse_embedding": {"indices": [1, 2, 3], "values": [0.1, 0.2, 0.3]},
+        }
+        doc = Document.from_dict(doc_dict)
+
+        mongo_doc = docstore._haystack_doc_to_mongo_doc(doc)
+
+        assert "sparse_embedding" not in mongo_doc
+
+        doc_dict = {
+            "id": "test_id2",
+            "content": "test content",
+            "embedding": [0.1, 0.2, 0.3],
+            "dataframe": {"some": "dataframe"},
+        }
+        doc = Document.from_dict(doc_dict)
+
+        mongo_doc = docstore._haystack_doc_to_mongo_doc(doc)
+        assert "dataframe" not in mongo_doc
+
+    def test_document_conversion_methods_with_custom_field_names(self, _mock_client):
+        """Test the document conversion helper methods with custom field mappings."""
+        custom_store = MongoDBAtlasDocumentStore(
+            database_name="test_db",
+            collection_name="test_collection",
+            vector_search_index="test_index",
+            full_text_search_index="test_index",
+            embedding_field="custom_vector",
+            content_field="custom_text",
+        )
+
+        haystack_doc = Document(content="test content", embedding=[0.1, 0.2, 0.3], meta={"test_meta": "test_value"})
+
+        mongo_doc = custom_store._haystack_doc_to_mongo_doc(haystack_doc)
+
+        # Check field mapping
+        assert "custom_text" in mongo_doc
+        assert mongo_doc["custom_text"] == "test content"
+        assert "content" not in mongo_doc
+
+        assert "custom_vector" in mongo_doc
+        assert mongo_doc["custom_vector"] == [0.1, 0.2, 0.3]
+        assert "embedding" not in mongo_doc
+
+        assert "meta" in mongo_doc
+        assert mongo_doc["meta"] == {"test_meta": "test_value"}
+
+        # Test mongo_doc_to_haystack_doc
+        converted_doc = {
+            "id": "test_id",
+            "custom_text": "test content from mongo",
+            "custom_vector": [0.4, 0.5, 0.6],
+            "meta": {"mongo_meta": "mongo_value"},
+            "_id": "mongodb_internal_id",  # This should be removed
+        }
+
+        haystack_doc = custom_store._mongo_doc_to_haystack_doc(converted_doc)
+
+        assert haystack_doc.content == "test content from mongo"
+        assert haystack_doc.embedding == [0.4, 0.5, 0.6]
+        assert haystack_doc.meta == {"mongo_meta": "mongo_value"}
+        assert haystack_doc.id == "test_id"
+
+        assert not hasattr(haystack_doc, "_id")
+
+
 @pytest.mark.skipif(
     not os.environ.get("MONGO_CONNECTION_STRING"),
     reason="No MongoDB Atlas connection string provided",
@@ -254,90 +334,3 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         finally:
             database[collection_name].drop()
-
-
-class TestMongoDBDocumentStoreConversion:
-    def test_document_conversion_with_unsupported_fields(self):
-        """Test the document conversion with unsupported fields like sparse_embedding and dataframe."""
-        docstore = MongoDBAtlasDocumentStore(
-            database_name="haystack_integration_test",
-            collection_name="test_collection",
-            vector_search_index="cosine_index",
-            full_text_search_index="full_text_index",
-        )
-
-        # Create a document with sparse_embedding
-        doc_dict = {
-            "id": "test_id",
-            "content": "test content",
-            "embedding": [0.1, 0.2, 0.3],
-            "sparse_embedding": {"indices": [1, 2, 3], "values": [0.1, 0.2, 0.3]},
-        }
-        doc = Document.from_dict(doc_dict)
-
-        mongo_doc = docstore._haystack_doc_to_mongo_doc(doc)
-
-        # Verify sparse_embedding was removed and warning was logged
-        assert "sparse_embedding" not in mongo_doc
-
-        # Test with dataframe
-        doc_dict = {
-            "id": "test_id2",
-            "content": "test content",
-            "embedding": [0.1, 0.2, 0.3],
-            "dataframe": {"some": "dataframe"},
-        }
-        doc = Document.from_dict(doc_dict)
-
-        mongo_doc = docstore._haystack_doc_to_mongo_doc(doc)
-        # Verify dataframe was removed and warning was logged
-        assert "dataframe" not in mongo_doc
-
-    def test_document_conversion_methods(self):
-        """Test the document conversion helper methods with custom field mappings."""
-        # Create a document store with custom field names - no need for real DB connection in unit test
-        custom_store = MongoDBAtlasDocumentStore(
-            database_name="test_db",
-            collection_name="test_collection",
-            vector_search_index="test_index",
-            full_text_search_index="test_index",
-            embedding_field="custom_vector",
-            content_field="custom_text",
-        )
-
-        # Test haystack_doc_to_mongo_doc
-        haystack_doc = Document(content="test content", embedding=[0.1, 0.2, 0.3], meta={"test_meta": "test_value"})
-
-        mongo_doc = custom_store._haystack_doc_to_mongo_doc(haystack_doc)
-
-        # Check field mapping
-        assert "custom_text" in mongo_doc
-        assert mongo_doc["custom_text"] == "test content"
-        assert "content" not in mongo_doc
-
-        assert "custom_vector" in mongo_doc
-        assert mongo_doc["custom_vector"] == [0.1, 0.2, 0.3]
-        assert "embedding" not in mongo_doc
-
-        assert "meta" in mongo_doc
-        assert mongo_doc["meta"] == {"test_meta": "test_value"}
-
-        # Test mongo_doc_to_haystack_doc
-        converted_doc = {
-            "id": "test_id",
-            "custom_text": "test content from mongo",
-            "custom_vector": [0.4, 0.5, 0.6],
-            "meta": {"mongo_meta": "mongo_value"},
-            "_id": "mongodb_internal_id",  # This should be removed
-        }
-
-        haystack_doc = custom_store._mongo_doc_to_haystack_doc(converted_doc)
-
-        # Check field mapping back to haystack format
-        assert haystack_doc.content == "test content from mongo"
-        assert haystack_doc.embedding == [0.4, 0.5, 0.6]
-        assert haystack_doc.meta == {"mongo_meta": "mongo_value"}
-        assert haystack_doc.id == "test_id"
-
-        # Make sure MongoDB's internal _id is removed
-        assert not hasattr(haystack_doc, "_id")
