@@ -739,14 +739,5 @@ class MongoDBAtlasDocumentStore:
                     "The `sparse_embedding` field will be ignored.",
                     id=haystack_doc.id,
                 )
-        if "dataframe" in mongo_doc:
-            dataframe = mongo_doc.pop("dataframe", None)
-            if dataframe:
-                logger.warning(
-                    "Document {id} has the `dataframe` field set,"
-                    "MongoDBAtlasDocumentStore no longer supports dataframes and this field will be ignored. "
-                    "The `dataframe` field will soon be removed from Haystack Document.",
-                    id=haystack_doc.id,
-                )
         mongo_doc.pop("_id", None)
         return mongo_doc
