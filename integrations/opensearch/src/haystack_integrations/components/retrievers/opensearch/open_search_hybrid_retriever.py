@@ -81,8 +81,8 @@ class OpenSearchHybridRetriever:
             The OpenSearchDocumentStore to use for retrieval.
 
         :param embedder:
-            A TextEmbedder to use for embedding the query. See `haystack.components.embedders.types.protocol.TextEmbedder`
-            for more information.
+            A TextEmbedder to use for embedding the query.
+            See `haystack.components.embedders.types.protocol.TextEmbedder` for more information.
 
         :param filters_bm25:
             Filters for the BM25 retriever.
