@@ -724,6 +724,9 @@ class MongoDBAtlasDocumentStore:
     def _haystack_doc_to_mongo_doc(self, haystack_doc: Document) -> Dict[str, Any]:
         """
         Parses a Haystack Document to a MongoDB document.
+        
+        :param haystack_doc: the Haystack Document to convert
+        :returns: the MongoDB document in a dictionary representation
         """
         mongo_doc = haystack_doc.to_dict(flatten=False)
         if self.content_field != "content":
