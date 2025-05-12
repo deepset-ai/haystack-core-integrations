@@ -25,10 +25,10 @@ def get_document_store(**kwargs):
     )
 
 
-@pytest.mark.skipif(
-    not os.environ.get("MONGO_CONNECTION_STRING_2"),
-    reason="No MongoDB Atlas connection string provided",
-)
+# @pytest.mark.skipif(
+#     not os.environ.get("MONGO_CONNECTION_STRING_2"),
+#     reason="No MongoDB Atlas connection string provided",
+# )
 @pytest.mark.integration
 class TestFullTextRetrieval:
     @pytest.fixture(scope="class")
@@ -119,7 +119,7 @@ class TestFullTextRetrieval:
         # in the text search, regardless of the content_field parameter
         assert actual_pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == "content"
 
-        # Verify the pipeline structurefasdf
+        # Verify the pipeline structure
         assert len(actual_pipeline) == 5
         assert "$limit" in actual_pipeline[2]
         assert "$project" in actual_pipeline[3]
