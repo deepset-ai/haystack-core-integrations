@@ -712,7 +712,10 @@ class MongoDBAtlasDocumentStore:
 
     def _mongo_doc_to_haystack_doc(self, mongo_doc: Dict[str, Any]) -> Document:
         """
-        Parses a MongoDB document to a Haystack Document.
+        Converts the dictionary coming out of MongoDB into a Haystack document
+
+        :param mongo_doc: A dictionary representing a document as stored in MongoDB
+        :returns: A Haystack Document object
         """
         mongo_doc.pop("_id", None)  # MongoDB's internal id doesn't belong into a Haystack document, so we remove it.
         if self.content_field != "content":
