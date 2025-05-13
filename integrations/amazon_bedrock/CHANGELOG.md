@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.6.1] - 2025-05-13
+
+### 🚜 Refactor
+
+- Add AmazonBedrockRanker and keep BedrockRanker as alias (#1732)
+
+
 ## [integrations/amazon_bedrock-v3.6.0] - 2025-05-09
 
 ### 🚀 Features
