@@ -1,4 +1,5 @@
 import os
+import warnings
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,7 +9,7 @@ from haystack.utils import Secret
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockInferenceError,
 )
-from haystack_integrations.components.rankers.amazon_bedrock import BedrockRanker
+from haystack_integrations.components.rankers.amazon_bedrock import AmazonBedrockRanker, BedrockRanker
 
 
 @pytest.fixture
@@ -19,8 +20,8 @@ def mock_aws_session():
         yield mock_client
 
 
-def test_bedrock_ranker_initialization(mock_aws_session):
-    ranker = BedrockRanker(
+def test_amazon_bedrock_ranker_initialization(mock_aws_session):
+    ranker = AmazonBedrockRanker(
         model="cohere.rerank-v3-5:0",
         top_k=2,
         aws_access_key_id=Secret.from_token("test_access_key"),
@@ -60,8 +61,8 @@ def test_bedrock_ranker_run(mock_aws_session):
         "This test requires AWS credentials to run."
     ),
 )
-def test_bedrock_ranker_live_run():
-    ranker = BedrockRanker(
+def test_amazon_bedrock_ranker_live_run():
+    ranker = AmazonBedrockRanker(
         model="cohere.rerank-v3-5:0",
         top_k=2,
         aws_region_name=Secret.from_token("eu-central-1"),
@@ -73,8 +74,8 @@ def test_bedrock_ranker_live_run():
     assert isinstance(result["documents"][0].score, float)
 
 
-def test_bedrock_ranker_run_inference_error(mock_aws_session):
-    ranker = BedrockRanker(
+def test_amazon_bedrock_ranker_run_inference_error(mock_aws_session):
+    ranker = AmazonBedrockRanker(
         model="cohere.rerank-v3-5:0",
         top_k=2,
         aws_access_key_id=Secret.from_token("test_access_key"),
@@ -89,21 +90,21 @@ def test_bedrock_ranker_run_inference_error(mock_aws_session):
         ranker.run(query="test query", documents=docs)
 
 
-def test_bedrock_ranker_serialization(mock_aws_session):
-    ranker = BedrockRanker(model="cohere.rerank-v3-5:0", top_k=2)
+def test_amazon_bedrock_ranker_serialization(mock_aws_session):
+    ranker = AmazonBedrockRanker(model="cohere.rerank-v3-5:0", top_k=2)
 
     serialized = ranker.to_dict()
     assert serialized["init_parameters"]["model"] == "cohere.rerank-v3-5:0"
     assert serialized["init_parameters"]["top_k"] == 2
 
-    deserialized = BedrockRanker.from_dict(serialized)
-    assert isinstance(deserialized, BedrockRanker)
+    deserialized = AmazonBedrockRanker.from_dict(serialized)
+    assert isinstance(deserialized, AmazonBedrockRanker)
     assert deserialized.model_name == "cohere.rerank-v3-5:0"
     assert deserialized.top_k == 2
 
 
-def test_bedrock_ranker_empty_documents(mock_aws_session):
-    ranker = BedrockRanker(
+def test_amazon_bedrock_ranker_empty_documents(mock_aws_session):
+    ranker = AmazonBedrockRanker(
         model="cohere.rerank-v3-5:0",
         top_k=2,
         aws_access_key_id=Secret.from_token("test_access_key"),

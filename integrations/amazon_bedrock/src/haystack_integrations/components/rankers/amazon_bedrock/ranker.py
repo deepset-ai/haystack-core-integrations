@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Optional
+import warnings
 
 from botocore.exceptions import ClientError
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -16,7 +17,7 @@ MAX_NUM_DOCS_FOR_BEDROCK_RANKER = 1000
 
 
 @component
-class BedrockRanker:
+class AmazonBedrockRanker:
     """
     Ranks Documents based on their similarity to the query using Amazon Bedrock's Cohere Rerank model.
 
@@ -30,9 +31,9 @@ class BedrockRanker:
     ```python
     from haystack import Document
     from haystack.utils import Secret
-    from haystack_integrations.components.rankers.amazon_bedrock import BedrockRanker
+    from haystack_integrations.components.rankers.amazon_bedrock import AmazonBedrockRanker
 
-    ranker = BedrockRanker(model="cohere.rerank-v3-5:0", top_k=2, aws_region_name=Secret.from_token("eu-central-1"))
+    ranker = AmazonBedrockRanker(model="cohere.rerank-v3-5:0", top_k=2, aws_region_name=Secret.from_token("eu-central-1"))
 
     docs = [Document(content="Paris"), Document(content="Berlin")]
     query = "What is the capital of germany?"
@@ -40,7 +41,7 @@ class BedrockRanker:
     docs = output["documents"]
     ```
 
-    BedrockRanker uses AWS for authentication. You can use the AWS CLI to authenticate through your IAM.
+    AmazonBedrockRanker uses AWS for authentication. You can use the AWS CLI to authenticate through your IAM.
     For more information on setting up an IAM identity-based policy, see [Amazon Bedrock documentation]
     (https://docs.aws.amazon.com/bedrock/latest/userguide/security_iam_id-based-policy-examples.html).
 
@@ -71,7 +72,7 @@ class BedrockRanker:
             msg = "'model' cannot be None or empty string"
             raise ValueError(msg)
         """
-        Creates an instance of the 'BedrockRanker'.
+        Creates an instance of the 'AmazonBedrockRanker'.
 
         :param model: Amazon Bedrock model name for Cohere Rerank. Default is "cohere.rerank-v3-5:0".
         :param top_k: The maximum number of documents to return.
@@ -140,7 +141,7 @@ class BedrockRanker:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "BedrockRanker":
+    def from_dict(cls, data: Dict[str, Any]) -> "AmazonBedrockRanker":
         """
         Deserializes the component from a dictionary.
 
@@ -260,3 +261,20 @@ class BedrockRanker:
         except Exception as e:
             msg = f"Error during Amazon Bedrock API call: {e!s}"
             raise AmazonBedrockInferenceError(msg) from e
+
+
+class BedrockRanker(AmazonBedrockRanker):
+    """
+    Deprecated alias for AmazonBedrockRanker.
+    This class will be removed in a future version.
+    Please use AmazonBedrockRanker instead.
+    """
+
+    def __init__(self, *args, **kwargs):
+        warnings.warn(
+            "BedrockRanker is deprecated and will be removed in a future version. "
+            "Please use AmazonBedrockRanker instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(*args, **kwargs)
