@@ -79,7 +79,7 @@ def _in(field: str, value: Any) -> str:
     if not isinstance(value, list) or any(not isinstance(v, str) for v in value):
         msg = "Azure AI Search only supports a list of strings for 'in' comparators"
         raise AzureAISearchDocumentStoreFilterError(msg)
-    values = ", ".join(map(str, value))
+    values = ",".join(map(str, value))
     return f"search.in({field},'{values}',',')"
 
 
