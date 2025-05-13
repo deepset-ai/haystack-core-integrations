@@ -80,7 +80,7 @@ def _in(field: str, value: Any) -> str:
         msg = "Azure AI Search only supports a list of strings for 'in' comparators"
         raise AzureAISearchDocumentStoreFilterError(msg)
     values = ", ".join(map(str, value))
-    return f"search.in({field},'{values}')"
+    return f"search.in({field},'{values}',',')"
 
 
 def _comparison_operator(field: str, value: Any, operator: str) -> str:
