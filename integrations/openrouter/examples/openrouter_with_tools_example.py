@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # This example demonstrates how to use the OpenRouterChatGenerator component
 # with tools and model routing.
 # To run this example, you will need to
