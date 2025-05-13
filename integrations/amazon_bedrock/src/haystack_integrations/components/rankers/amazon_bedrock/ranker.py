@@ -1,5 +1,5 @@
-from typing import Any, Dict, List, Optional
 import warnings
+from typing import Any, Dict, List, Optional
 
 from botocore.exceptions import ClientError
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -33,7 +33,11 @@ class AmazonBedrockRanker:
     from haystack.utils import Secret
     from haystack_integrations.components.rankers.amazon_bedrock import AmazonBedrockRanker
 
-    ranker = AmazonBedrockRanker(model="cohere.rerank-v3-5:0", top_k=2, aws_region_name=Secret.from_token("eu-central-1"))
+    ranker = AmazonBedrockRanker(
+        model="cohere.rerank-v3-5:0",
+        top_k=2,
+        aws_region_name=Secret.from_token("eu-central-1")
+    )
 
     docs = [Document(content="Paris"), Document(content="Berlin")]
     query = "What is the capital of germany?"
