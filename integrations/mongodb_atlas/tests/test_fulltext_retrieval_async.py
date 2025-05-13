@@ -5,7 +5,7 @@
 import os
 from time import sleep
 from typing import List, Union
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from haystack import Document
