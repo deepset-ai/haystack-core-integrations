@@ -141,7 +141,10 @@ class TestFullTextRetrieval:
             content_field="custom_text",
         ) as custom_store:
             # Mock the collection to avoid actual DB calls
-            custom_store._collection_async.aggregate = AsyncMock(return_value=[])
+            mock_aggregate_return = AsyncMock()
+            mock_aggregate_return.to_list.return_value = []
+
+            custom_store._collection_async.aggregate = mock_aggregate_return
 
             # Execute the fulltext retrieval with the custom content field
             await custom_store._fulltext_retrieval_async(query="test query", top_k=3)
