@@ -580,7 +580,7 @@ class MongoDBAtlasDocumentStore:
         filters = _normalize_filters(filters) if filters else {}
 
         # Build the text search options
-        text_search: Dict[str, Any] = {"path": self.content_field, "query": query}
+        text_search: Dict[str, Any] = {"path": self.content_field or "content", "query": query}
         if match_criteria:
             text_search["matchCriteria"] = match_criteria
         if synonyms:
@@ -672,7 +672,7 @@ class MongoDBAtlasDocumentStore:
         filters = _normalize_filters(filters) if filters else {}
 
         # Build the text search options
-        text_search: Dict[str, Any] = {"path": self.content_field, "query": query}
+        text_search: Dict[str, Any] = {"path": self.content_field or "content", "query": query}
         if match_criteria:
             text_search["matchCriteria"] = match_criteria
         if synonyms:
