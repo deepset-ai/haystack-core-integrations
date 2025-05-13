@@ -85,7 +85,9 @@ class VertexAITextEmbedder:
 
         :param text: The text to embed.
 
-        :returns: The embeddings of the text.
+        :returns:
+            A dictionary with the following keys:
+            - `embedding`: The embedding of the input text.
         """
         if not isinstance(text, str):
             msg = (

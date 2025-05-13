@@ -207,7 +207,9 @@ class VertexAIDocumentEmbedder:
 
         :param documents: A list of documents to embed.
 
-        :returns: A list of processed documents with embeddings.
+        :returns:
+            A dictionary with the following keys:
+            - `documents`: A list of documents with embeddings.
         """
         # Initial batch size
         all_embeddings = []
