@@ -24,10 +24,10 @@ logger = logging.getLogger(__name__)
 @component
 class VertexAIDocumentEmbedder:
     """
-    Embed text using Vertex AI Embedder API
+    Embed text using Vertex AI Embeddings API.
 
-    Available models found here:
-    https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/text-embeddings-api#syntax
+    See available models in the official
+    [Google documentation](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/text-embeddings-api#syntax).
 
     Usage example:
     ```python
@@ -205,11 +205,9 @@ class VertexAIDocumentEmbedder:
         """
         Processes all documents in batches while adhering to the API's token limit per request.
 
-        Args:
-        - documents: List of documents (strings) to be processed.
+        :param documents: A list of documents to embed.
 
-        Returns:
-        - List of dictionaries containing processing results for each document.
+        :returns: A list of processed documents with embeddings.
         """
         # Initial batch size
         all_embeddings = []

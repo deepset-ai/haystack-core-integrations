@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 @component
 class VertexAITextEmbedder:
     """
-    Embed text using VertexAI Text Embedder API
+    Embed text using VertexAI Text Embeddings API.
 
-    Available models found here:
-    https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/text-embeddings-api#syntax
+    See available models in the official
+    [Google documentation](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/text-embeddings-api#syntax).
 
     Usage example:
     ```python
@@ -56,28 +56,13 @@ class VertexAITextEmbedder:
         """
         Initializes the TextEmbedder with the specified model, task type, and GCP configuration.
 
-        Args:
-            model (Literal["text-embedding-004", "text-embedding-005", "textembedding-gecko-multilingual@001",
-                           "text-multilingual-embedding-002", "text-embedding-large-exp-03-07"]):
-                The model to be used for text embedding.
-            task_type (Literal["RETRIEVAL_DOCUMENT", "RETRIEVAL_QUERY", "SEMANTIC_SIMILARITY", "CLASSIFICATION",
-                               "CLUSTERING", "QUESTION_ANSWERING", "FACT_VERIFICATION", "CODE_RETRIEVAL_QUERY"]):
-                The type of task for which the embedding model will be used.
-                Please refer to the VertexAI documentation for more details here:
-                https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/text-embeddings-api#tasktype
-            gcp_region_name (Optional[Secret], optional):
-                The GCP region name, fetched from environment variable "GCP_DEFAULT_REGION" if not provided.
-                Defaults to None.
-            gcp_project_id (Optional[Secret], optional):
-                The GCP project ID, fetched from environment variable "GCP_PROJECT_ID" if not provided.
-                Defaults to None.
-            progress_bar (bool, optional):
-                Whether to display a progress bar during operations. Defaults to True.
-            truncate_dim (Optional[int], optional):
-                The dimension to which embeddings should be truncated. Defaults to None.
-
-        Returns:
-            None
+        :param model: Name of the model to use.
+        :param task_type: The type of task for which the embeddings are being generated.
+                        For more information see the official [Google documentation](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/text-embeddings-api#tasktype).
+        :param gcp_region_name: The default location to use when making API calls, if not set uses us-central-1.
+        :param gcp_project_id: ID of the GCP project to use. By default, it is set during Google Cloud authentication.
+        :param progress_bar: Whether to display a progress bar during processing.
+        :param truncate_dim: The dimension to truncate the embeddings to, if specified.
         """
         self.model = model
         self.progress_bar = progress_bar
@@ -95,6 +80,13 @@ class VertexAITextEmbedder:
 
     @component.output_types(embedding=List[float])
     def run(self, text: Union[List[Document], List[str], str]):
+        """
+        Processes text in batches while adhering to the API's token limit per request.
+
+        :param text: The text to embed.
+
+        :returns: The embeddings of the text.
+        """
         if not isinstance(text, str):
             msg = (
                 "FastembedTextEmbedder expects a string as input. "
