@@ -330,7 +330,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
                 # Verify that the text search is using the standard content path
                 # Note: The content path in _fulltext_retrieval is hardcoded to "content"
                 args = mock_collection.aggregate.call_args[0][0]
-                assert args[0]["$search"]["compound"]["must"][0]["text"]["path"] == "content"
+                assert args[0]["$search"]["compound"]["must"][0]["text"]["path"] == "custom_text"
 
         finally:
             database[collection_name].drop()
