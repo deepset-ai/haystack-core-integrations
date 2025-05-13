@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.6.2] - 2025-05-13
+
+### 🧹 Chores
+
+- Extend error message for unknown model family in AmazonBedrockGenerator (#1733)
+
+
 ## [integrations/amazon_bedrock-v3.6.1] - 2025-05-13
 
 ### 🚜 Refactor
