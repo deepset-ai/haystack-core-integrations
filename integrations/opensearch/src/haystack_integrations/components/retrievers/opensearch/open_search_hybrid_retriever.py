@@ -10,18 +10,11 @@ from haystack.components.joiners import DocumentJoiner
 from haystack.components.joiners.document_joiner import JoinMode
 from haystack.core.serialization import component_from_dict, import_class_by_name
 from haystack.document_stores.types import FilterPolicy
-from haystack.lazy_imports import LazyImport
 
 from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever, OpenSearchEmbeddingRetriever
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
 logger = logging.getLogger(__name__)
-
-# Use LazyImport to conditionally import haystack super_component, which is only available in newer versions
-with LazyImport(
-    "To use the OpenSearchHybridRetriever you need a more recent version of haystack. Run 'pip install haystack-ai>=2.13.0'"  # noqa: E501
-) as haystack_imports:
-    from haystack import super_component
 
 # Trigger an error message when the OpenSearchHybridRetriever is imported without haystack-ai>=2.13.0
 haystack_imports.check()
@@ -39,7 +32,7 @@ class OpenSearchHybridRetriever:
         self,
         document_store: OpenSearchDocumentStore,
         *,
-        embedder: TextEmbedder = None,
+        embedder: TextEmbedder,
         # OpenSearchBM25Retriever
         filters_bm25: Optional[Dict[str, Any]] = None,
         fuzziness: Union[int, str] = "AUTO",
@@ -64,8 +57,6 @@ class OpenSearchHybridRetriever:
         """
         Initialize the OpenSearchHybridRetriever, a super component to retrieve documents from OpenSearch using
         both embedding-based and keyword-based retrieval methods.
-
-        This super component is tied to a SentenceTransformersTextEmbedder.
 
         We don't explicitly define all the init parameters of the components in the constructor, for each
         of the components, since that would be around 20+ parameters. Instead, we define the most important ones
@@ -130,7 +121,13 @@ class OpenSearchHybridRetriever:
             Whether to sort the results by score.
 
         :param **kwargs:
-            Additional keyword arguments.
+
+            Additional keyword arguments. Use the following keys to pass extra parameters to the retrievers:
+
+            - "bm25_retriever" -> OpenSearchBM25Retriever
+            - "embedding_retriever" -> OpenSearchEmbeddingRetriever
+
+
         """
         self.document_store = document_store
         self.embedder = embedder
@@ -181,6 +178,12 @@ class OpenSearchHybridRetriever:
                 "sort_by_score": self.sort_by_score,
             },
         }
+
+        # kwargs must contain 'bm25_retriever' and 'embedding_retriever' as top-level keys
+        if kwargs and not all(key in kwargs for key in ["bm25_retriever", "embedding_retriever"]):
+            raise ValueError(
+                "kwargs can only contain 'bm25_retriever', 'embedding_retriever' as top-level keys."
+            )
 
         self.extra_args = kwargs
 
