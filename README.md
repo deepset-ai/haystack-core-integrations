@@ -88,8 +88,12 @@ GitHub. The GitHub Actions workflow will take care of the rest.
     git push --tags origin
     ```
 3. Wait for the CI to do its magic
+4. Review the changelog PR
+
+    If the release is successful, the HaystackBot will open a pull request to generate the changelog. 
+    Add yourself as the reviewer. If there are any issues, edit the changelog manually.
 
 > [!IMPORTANT]  
-> When releasing a new integration version, always tag a commit that includes the changes for that integration 
-> (usually the PR merge commit). If you tag a commit that doesn't include changes for the integration being released, 
-> the generated changelog will be incorrect.
+> To ensure the changelog is accurate, it's recommended to tag a commit that includes the actual changes for the 
+> integration (usually the PR merge commit). Tagging a commit that doesn't contain those changes can lead to an 
+> incorrect changelog.

@@ -1,5 +1,42 @@
 # Changelog
 
+## [integrations/cohere-v4.1.0] - 2025-05-05
+
+### 🚀 Features
+
+- Add Toolset support to CohereChatGenerator (#1700)
+
+### 🧹 Chores
+
+- Upgrade default model to command-r-08-2024 (#1691)
+
+
+## [integrations/cohere-v4.0.0] - 2025-05-02
+
+### 🐛 Bug Fixes
+
+- Update serialization/deserialization tests to add new parameter `connection_type_validation` (#1464)
+
+### 🧪 Testing
+
+- Update tool serialization in tests to include `inputs_from_state` and `outputs_to_state` (#1581)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+- Use Haystack logging across integrations (#1484)
+- Update ChatGenerators with `deserialize_tools_or_toolset_inplace` (#1623)
+- [**breaking**] `CohereRanker` - change default model and remove `max_chunks_per_doc parameter` (#1687)
+
+### 🌀 Miscellaneous
+
+- Chore: remove `jsonschema` dependency from `default` environment (#1368)
+- Test: Update tests to check for `outputs_to_string` in Tool when running haystack-ai>=2.12 (#1585)
+
 ## [integrations/cohere-v3.0.0] - 2025-01-28
 
 ### 🚀 Features

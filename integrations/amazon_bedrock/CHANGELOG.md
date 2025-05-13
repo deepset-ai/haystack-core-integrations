@@ -1,5 +1,42 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.6.2] - 2025-05-13
+
+### 🧹 Chores
+
+- Extend error message for unknown model family in AmazonBedrockGenerator (#1733)
+
+
+## [integrations/amazon_bedrock-v3.6.1] - 2025-05-13
+
+### 🚜 Refactor
+
+- Add AmazonBedrockRanker and keep BedrockRanker as alias (#1732)
+
+
+## [integrations/amazon_bedrock-v3.6.0] - 2025-05-09
+
+### 🚀 Features
+
+- Add Toolset support to AmazonBedrockChatGenerator (#1707)
+
+### 🐛 Bug Fixes
+
+- Fix BedrockChatGenerator to be able to handle multiple tool calls from one response (#1711)
+
+### 🚜 Refactor
+
+- Refactor tests of AmazonBedrock Integration (#1671)
+
+
+### 🧹 Chores
+
+- Update ChatGenerators with `deserialize_tools_or_toolset_inplace` (#1623)
+
+### 🌀 Miscellaneous
+
+- Chore: Update docstrings, add more types, remove haystack 2.12 check and pin >=2.13.1 (#1706)
+
 ## [integrations/amazon_bedrock-v3.5.0] - 2025-04-03
 
 ### 🌀 Miscellaneous
@@ -43,9 +80,6 @@
 
 - Update AWS Bedrock with improved docstrings and warning message (#1532)
 
-### 📚 Documentation
-
-- Update changelog for integrations/amazon_bedrock (#1449)
 
 ### 🧹 Chores
 

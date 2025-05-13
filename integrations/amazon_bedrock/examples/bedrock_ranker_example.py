@@ -3,14 +3,14 @@ import os
 from haystack import Document
 from haystack.utils import Secret
 
-from haystack_integrations.components.rankers.amazon_bedrock import BedrockRanker
+from haystack_integrations.components.rankers.amazon_bedrock import AmazonBedrockRanker
 
 # Set up AWS credentials
 # You can also set these as environment variables
 aws_profile_name = os.environ.get("AWS_PROFILE") or "default"
 aws_region_name = os.environ.get("AWS_DEFAULT_REGION") or "eu-central-1"
-# Initialize the BedrockRanker with AWS credentials
-ranker = BedrockRanker(
+# Initialize the AmazonBedrockRanker with AWS credentials
+ranker = AmazonBedrockRanker(
     model="cohere.rerank-v3-5:0",
     top_k=2,
     aws_profile_name=Secret.from_token(aws_profile_name),
