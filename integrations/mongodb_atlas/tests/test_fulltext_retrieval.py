@@ -121,9 +121,10 @@ class TestFullTextRetrieval:
         assert actual_pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == "custom_text"
 
         # Verify the pipeline structure
-        assert len(actual_pipeline) == 4
-        assert "$addFields" in actual_pipeline[2]
-        assert "$project" in actual_pipeline[3]
+        assert len(actual_pipeline) == 5
+        assert "$limit" in actual_pipeline[2]
+        assert "$addFields" in actual_pipeline[3]
+        assert "$project" in actual_pipeline[4]
 
     def test_query_retrieval(self, document_store: MongoDBAtlasDocumentStore):
         results = document_store._fulltext_retrieval(query="fox", top_k=2)
