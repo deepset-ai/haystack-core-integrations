@@ -21,7 +21,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
     For supported models, see [OpenRouter docs](https://openrouter.ai/models).
 
     Users can pass any text generation parameters valid for the OpenRouter chat completion API
-    directly to this component via the `generation_kwargs` parameter in `__init__` or the `generation_kwargs`
+    directly to this component using the `generation_kwargs` parameter in `__init__` or the `generation_kwargs`
     parameter in `run` method.
 
     Key Features and Compatibility:
@@ -32,7 +32,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
     This component uses the ChatMessage format for structuring both input and output,
     ensuring coherent and contextually relevant responses in chat-based text generation scenarios.
     Details on the ChatMessage format can be found in the
-    [Haystack docs](https://docs.haystack.deepset.ai/v2.0/docs/data-classes#chatmessage)
+    [Haystack docs](https://docs.haystack.deepset.ai/docs/chatmessage)
 
     For more details on the parameters supported by the OpenRouter API, refer to the
     [OpenRouter API Docs](https://openrouter.ai/docs/quickstart).
@@ -71,7 +71,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         http_client_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
-        Creates an instance of OpenRouterChatGenerator. Unless specified otherwise
+        Creates an instance of OpenRouterChatGenerator. Unless specified otherwise,
         the default model is `openai/gpt-4o-mini`.
 
         :param api_key:
