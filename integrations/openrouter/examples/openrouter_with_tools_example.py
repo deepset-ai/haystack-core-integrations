@@ -24,8 +24,9 @@ weather_tool = Tool(
     parameters=tool_parameters,
     function=weather,
 )
-tool_invoker = ToolInvoker(tools=[weather_tool])
 
+# Create a tool invoker with the weather tool
+tool_invoker = ToolInvoker(tools=[weather_tool])
 
 # We can setup model routing by setting the `model` parameter to `openrouter/auto`
 # and providing a list of models to route to.
@@ -37,9 +38,9 @@ client = OpenRouterChatGenerator(
 )
 messages = [ChatMessage.from_user("What's the weather in Tokyo?")]
 
-response = client.run(messages=messages, tools=[weather_tool], generation_kwargs={"tool_choice": "auto"})["replies"]
+response = client.run(messages=messages, tools=[weather_tool])["replies"]
 
-print(f"assistant messages: {response[0]}")  # noqa: T201
+print(f"assistant messages: {response[0]}\n")  # noqa: T201
 
 # If the assistant message contains a tool call, run the tool invoker
 if response[0].tool_calls:

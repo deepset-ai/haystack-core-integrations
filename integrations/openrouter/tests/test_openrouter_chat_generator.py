@@ -116,6 +116,8 @@ class TestOpenRouterChatGenerator:
             "extra_headers": None,
             "timeout": None,
             "max_retries": None,
+            "tools": None,
+            "http_client_kwargs": None,
         }
 
         for key, value in expected_params.items():
@@ -132,6 +134,8 @@ class TestOpenRouterChatGenerator:
             extra_headers={"test-header": "test-value"},
             timeout=10,
             max_retries=10,
+            tools=None,
+            http_client_kwargs={"proxy": "http://localhost:8080"},
         )
         data = component.to_dict()
 
@@ -148,6 +152,9 @@ class TestOpenRouterChatGenerator:
             "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             "extra_headers": {"test-header": "test-value"},
             "timeout": 10,
+            "max_retries": 10,
+            "tools": None,
+            "http_client_kwargs": {"proxy": "http://localhost:8080"},
         }
 
         for key, value in expected_params.items():
@@ -168,6 +175,8 @@ class TestOpenRouterChatGenerator:
                 "extra_headers": {"test-header": "test-value"},
                 "timeout": 10,
                 "max_retries": 10,
+                "tools": None,
+                "http_client_kwargs": {"proxy": "http://localhost:8080"},
             },
         }
         component = OpenRouterChatGenerator.from_dict(data)
@@ -176,6 +185,11 @@ class TestOpenRouterChatGenerator:
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
         assert component.api_key == Secret.from_env_var("OPENROUTER_API_KEY")
+        assert component.http_client_kwargs == {"proxy": "http://localhost:8080"}
+        assert component.tools is None
+        assert component.extra_headers == {"test-header": "test-value"}
+        assert component.timeout == 10
+        assert component.max_retries == 10
 
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
         monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
@@ -505,6 +519,7 @@ class TestOpenRouterChatGenerator:
                                 },
                             }
                         ],
+                        "http_client_kwargs": None,
                         "extra_headers": None,
                         "timeout": None,
                         "max_retries": None,
