@@ -5,7 +5,7 @@
 import os
 from time import sleep
 from typing import List, Union
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
 from haystack import Document
@@ -129,31 +129,61 @@ class TestFullTextRetrieval:
         with pytest.raises(ValueError):
             await document_store._fulltext_retrieval_async(query="fox", synonyms="wolf", fuzzy={"maxEdits": 1})
 
-    async def test_pipeline_with_custom_content_field_async(self):
+
+class TestFullTextRetrievalUnitTests:
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.document_stores.mongodb_atlas.document_store.AsyncMongoClient")
+    async def test_pipeline_with_custom_content_field_async(self, mock_client, monkeypatch):
         """Test that custom content_field is correctly used in text search path for async fulltext retrieval."""
-        # Create a document store with a custom content field
-        async with AsyncDocumentStoreContext(
-            mongo_connection_string=Secret.from_env_var("MONGO_CONNECTION_STRING_2"),
-            database_name="haystack_test",
+        # Set up the mock client
+        mock_db = MagicMock()
+        mock_collection = MagicMock()
+        mock_db.__getitem__.return_value = mock_collection
+        mock_client.return_value.__getitem__.return_value = mock_db
+        mock_client.return_value.admin.command.return_value = True
+
+        # Mock the collection names for the _collection_exists_async check
+        mock_db.list_collection_names = AsyncMock(return_value=["test_collection"])
+
+        # Setup the collection's aggregate method
+        mock_cursor = AsyncMock()
+        mock_cursor.to_list = AsyncMock(return_value=[])
+        mock_collection.aggregate = AsyncMock(return_value=mock_cursor)
+
+        # Create document store with custom content field
+        document_store = MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_token("dummy_token"),
+            database_name="test_db",
             collection_name="test_collection",
             vector_search_index="cosine_index",
             full_text_search_index="full_text_index",
             content_field="custom_text",
-        ) as custom_store:
-            # Mock the collection to avoid actual DB calls
-            mock_aggregate_return = AsyncMock()
-            mock_aggregate_return.to_list.return_value = []
+        )
 
-            custom_store._collection_async.aggregate = mock_aggregate_return
+        # Use monkeypatch to replace the _ensure_connection_setup_async method
+        monkeypatch.setattr(document_store, "_ensure_connection_setup_async", AsyncMock())
 
-            # Execute the fulltext retrieval with the custom content field
-            await custom_store._fulltext_retrieval_async(query="test query", top_k=3)
+        # Set the mocked collection
+        document_store._connection_async = mock_client.return_value
+        document_store._collection_async = mock_collection
 
-            # Assert aggregate was called with the correct pipeline
-            assert custom_store._collection_async.aggregate.called
-            call_args = custom_store._collection_async.aggregate.call_args
-            actual_pipeline = call_args[0][0]
+        # Execute the fulltext retrieval with the custom content field
+        await document_store._fulltext_retrieval_async(query="test query", top_k=3)
 
-            # Verify the text search path is set to the custom content field
-            assert actual_pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == "custom_text"
-            assert actual_pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == custom_store.content_field
+        # Assert aggregate was called
+        assert mock_collection.aggregate.called
+
+        # Get the pipeline that was passed to aggregate
+        call_args = mock_collection.aggregate.call_args
+        actual_pipeline = call_args[0][0]
+
+        # Verify the text search path is set to the custom content field
+        assert actual_pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == "custom_text"
+        assert actual_pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == document_store.content_field
+
+        # Verify the pipeline structure
+        assert len(actual_pipeline) == 5
+        assert "$match" in actual_pipeline[1]
+        assert "$limit" in actual_pipeline[2]
+        assert "$addFields" in actual_pipeline[3]
+        assert "$project" in actual_pipeline[4]
