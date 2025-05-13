@@ -96,6 +96,8 @@ class TestFullTextRetrieval:
         ]
 
         assert actual_pipeline == expected_pipeline
+        # Explicitly verify that the path in the text search is using the content_field
+        assert actual_pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == document_store.content_field
 
     def test_pipeline_with_custom_content_field(self, document_store):
         # Create a document store with a custom content field
@@ -114,16 +116,14 @@ class TestFullTextRetrieval:
         assert mock_collection.aggregate.called
         actual_pipeline = mock_collection.aggregate.call_args[0][0]
 
-        # Verify the text search path is still "content" in the search pipeline
-        # This is important because the current implementation hardcodes "content" as the path
-        # in the text search, regardless of the content_field parameter
-        assert actual_pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == "content"
+        # Verify the text search path is set to the custom content field
+        # This is crucial - the path should use self.content_field, not be hardcoded to "content"
+        assert actual_pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == "custom_text"
 
         # Verify the pipeline structure
-        assert len(actual_pipeline) == 5
-        assert "$limit" in actual_pipeline[2]
-        assert "$addFields" in actual_pipeline[3]
-        assert "$project" in actual_pipeline[4]
+        assert len(actual_pipeline) == 4
+        assert "$addFields" in actual_pipeline[2]
+        assert "$project" in actual_pipeline[3]
 
     def test_query_retrieval(self, document_store: MongoDBAtlasDocumentStore):
         results = document_store._fulltext_retrieval(query="fox", top_k=2)

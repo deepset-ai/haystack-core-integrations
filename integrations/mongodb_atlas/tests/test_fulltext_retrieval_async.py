@@ -5,6 +5,7 @@
 import os
 from time import sleep
 from typing import List, Union
+from unittest.mock import AsyncMock
 
 import pytest
 from haystack import Document
@@ -17,13 +18,20 @@ class AsyncDocumentStoreContext:
     """Context manager for MongoDB Atlas document store with async support."""
 
     def __init__(
-        self, mongo_connection_string, database_name, collection_name, vector_search_index, full_text_search_index
+        self,
+        mongo_connection_string,
+        database_name,
+        collection_name,
+        vector_search_index,
+        full_text_search_index,
+        **kwargs,
     ):
         self.mongo_connection_string = mongo_connection_string
         self.database_name = database_name
         self.collection_name = collection_name
         self.vector_search_index = vector_search_index
         self.full_text_search_index = full_text_search_index
+        self.kwargs = kwargs
         self.store = None
 
     async def __aenter__(self):
@@ -33,6 +41,7 @@ class AsyncDocumentStoreContext:
             collection_name=self.collection_name,
             vector_search_index=self.vector_search_index,
             full_text_search_index=self.full_text_search_index,
+            **self.kwargs,
         )
         await self.store._ensure_connection_setup_async()
         return self.store
@@ -47,7 +56,6 @@ class AsyncDocumentStoreContext:
 )
 @pytest.mark.integration
 class TestFullTextRetrieval:
-
     @pytest.fixture
     async def document_store(self) -> MongoDBAtlasDocumentStore:
         async with AsyncDocumentStoreContext(
@@ -120,3 +128,29 @@ class TestFullTextRetrieval:
     async def test_synonyms_and_fuzzy_raises_value_error_async(self, document_store: MongoDBAtlasDocumentStore):
         with pytest.raises(ValueError):
             await document_store._fulltext_retrieval_async(query="fox", synonyms="wolf", fuzzy={"maxEdits": 1})
+
+    async def test_pipeline_with_custom_content_field_async(self):
+        """Test that custom content_field is correctly used in text search path for async fulltext retrieval."""
+        # Create a document store with a custom content field
+        async with AsyncDocumentStoreContext(
+            mongo_connection_string=Secret.from_env_var("MONGO_CONNECTION_STRING_2"),
+            database_name="haystack_test",
+            collection_name="test_collection",
+            vector_search_index="cosine_index",
+            full_text_search_index="full_text_index",
+            content_field="custom_text",
+        ) as custom_store:
+            # Mock the collection to avoid actual DB calls
+            custom_store._collection_async.aggregate = AsyncMock(return_value=[])
+
+            # Execute the fulltext retrieval with the custom content field
+            await custom_store._fulltext_retrieval_async(query="test query", top_k=3)
+
+            # Assert aggregate was called with the correct pipeline
+            assert custom_store._collection_async.aggregate.called
+            call_args = custom_store._collection_async.aggregate.call_args
+            actual_pipeline = call_args[0][0]
+
+            # Verify the text search path is set to the custom content field
+            assert actual_pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == "custom_text"
+            assert actual_pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == custom_store.content_field
