@@ -271,8 +271,8 @@ class AmazonBedrockGenerator:
             f"Could not auto-detect model family of {model}. "
             f"`model_family` parameter must be one of {get_args(cls.MODEL_FAMILIES)}. "
             "We highly recommend using the `AmazonBedrockChatGenerator` instead. "
-            "It has support additional support for Amazon's Nova Canvas, Nova Lite, "
-            "Nova Pro models, DeepSeek's DeepSeek-R1, and more. "
+            "It has additional support for Amazon's Nova Canvas, Nova Lite, "
+            "Nova Pro, DeepSeek's DeepSeek-R1, and more models. "
             "See https://haystack.deepset.ai/integrations/amazon-bedrock"
         )
         raise AmazonBedrockConfigurationError(msg)
