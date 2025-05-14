@@ -53,6 +53,7 @@ class LlamaChatGenerator(OpenAIChatGenerator):
 
     def __init__(
         self,
+        *,
         api_key: Secret = Secret.from_env_var("LLAMA_API_KEY"),
         model: str = "Llama-4-Scout-17B-16E-Instruct-FP8",
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
