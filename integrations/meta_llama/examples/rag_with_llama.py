@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates
 from haystack import Document, Pipeline
 from haystack.components.builders.chat_prompt_builder import ChatPromptBuilder
 from haystack.components.generators.utils import print_streaming_chunk
