@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever, OpenSearchEmbeddingRetriever
-from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 from typing import Any, Dict, List, Optional, Union
 
 from haystack import DeserializationError, Pipeline, default_from_dict, default_to_dict, logging
@@ -13,6 +11,9 @@ from haystack.components.joiners.document_joiner import JoinMode
 from haystack.core.serialization import component_from_dict, import_class_by_name
 from haystack.document_stores.types import FilterPolicy
 from haystack.lazy_imports import LazyImport
+
+from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever, OpenSearchEmbeddingRetriever
+from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
 logger = logging.getLogger(__name__)
 
