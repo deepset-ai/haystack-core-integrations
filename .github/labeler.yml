@@ -94,6 +94,11 @@ integration:ollama:
       - any-glob-to-any-file: "integrations/ollama/**/*"
       - any-glob-to-any-file: ".github/workflows/ollama.yml"
 
+integration:openrouter:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/openrouter/**/*"
+      - any-glob-to-any-file: ".github/workflows/openrouter.yml"
+
 integration:opensearch:
   - changed-files:
       - any-glob-to-any-file: "integrations/opensearch/**/*"

@@ -2,9 +2,7 @@ loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
     modules: [
-      "haystack_integrations.components.generators.stackit.chat.chat_generator",
-      "haystack_integrations.components.embedders.stackit.document_embedder",
-      "haystack_integrations.components.embedders.stackit.text_embedder",
+      "haystack_integrations.components.generators.openrouter.chat.chat_generator",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
@@ -17,15 +15,15 @@ processors:
   - type: crossref
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
-  excerpt: STACKIT integration for Haystack
+  excerpt: OpenRouter integration for Haystack
   category_slug: integrations-api
-  title: STACKIT
-  slug: integrations-stackit
-  order: 150
+  title: OpenRouter
+  slug: integrations-openrouter
+  order: 200
   markdown:
     descriptive_class_title: false
     classdef_code_block: false
     descriptive_module_title: true
     add_method_class_prefix: true
     add_member_class_prefix: false
-    filename: _readme_stackit.md
+    filename: _readme_openrouter.md
