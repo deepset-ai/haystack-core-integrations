@@ -8,6 +8,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Union
 
 from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import ClientAuthenticationError, HttpResponseError, ResourceNotFoundError
+from azure.core.pipeline.policies import UserAgentPolicy
 from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
@@ -40,6 +41,8 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 
 from .errors import AzureAISearchDocumentStoreConfigError
 from .filters import _normalize_filters
+
+USER_AGENT = "haystack-integrations/azure-ai-search"
 
 type_mapping = {
     str: "Edm.String",
@@ -161,11 +164,15 @@ class AzureAISearchDocumentStore:
         resolved_key = self._api_key.resolve_value() if isinstance(self._api_key, Secret) else self._api_key
 
         credential = AzureKeyCredential(resolved_key) if resolved_key else DefaultAzureCredential()
+
+        # build a UserAgentPolicy to be used for the request
+        ua_policy = UserAgentPolicy(user_agent=USER_AGENT)
         try:
             if not self._index_client:
                 self._index_client = SearchIndexClient(
                     resolved_endpoint,
                     credential,
+                    user_agent=ua_policy,
                 )
             if not self._index_exists(self._index_name):
                 # Create a new index if it does not exist
@@ -182,7 +189,7 @@ class AzureAISearchDocumentStore:
             # Get the search client, if index client is initialized
             index_fields = self._index_client.get_index(self._index_name).fields
             self._index_fields = [field.name for field in index_fields]
-            self._client = self._index_client.get_search_client(self._index_name)
+            self._client = self._index_client.get_search_client(self._index_name, user_agent=ua_policy)
         else:
             msg = "Search Index Client is not initialized."
             raise AzureAISearchDocumentStoreConfigError(msg)
