@@ -14,7 +14,15 @@ from haystack.document_stores.types import FilterPolicy
 from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever, OpenSearchEmbeddingRetriever
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
+from haystack.lazy_imports import LazyImport
+
 logger = logging.getLogger(__name__)
+
+# Use LazyImport to conditionally import haystack super_component, which is only available in haystack-ai>=2.14.0
+with LazyImport(
+    "To use the OpenSearchHybridRetriever you need a more recent version of haystack. Run 'pip install haystack-ai>=2.14.0'"  # noqa: E501
+) as haystack_imports:
+    from haystack import super_component
 
 # Trigger an error message when the OpenSearchHybridRetriever is imported without haystack-ai>=2.13.0
 haystack_imports.check()
