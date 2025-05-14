@@ -48,7 +48,7 @@ def tools():
 @pytest.fixture
 def mock_async_chat_completion():
     """
-    Mock the Async OpenAI API completion response and reuse it for async tests
+    Mock the Async Llama API completion response and reuse it for async tests
     """
     with patch(
         "openai.resources.chat.completions.AsyncCompletions.create",
@@ -107,7 +107,7 @@ class TestLlamaChatGeneratorAsync:
         component = LlamaChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
         response = await component.run_async(chat_messages)
 
-        # check that the component calls the OpenAI API with the correct parameters
+        # check that the component calls the Llama API with the correct parameters
         _, kwargs = mock_async_chat_completion.call_args
         assert kwargs["max_tokens"] == 10
         assert kwargs["temperature"] == 0.5
@@ -121,7 +121,7 @@ class TestLlamaChatGeneratorAsync:
 
     @pytest.mark.skipif(
         not os.environ.get("LLAMA_API_KEY", None),
-        reason="Export an env var called LLAMA_API_KEY containing the OpenAI API key to run this test.",
+        reason="Export an env var called LLAMA_API_KEY containing the Llama API key to run this test.",
     )
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -137,7 +137,7 @@ class TestLlamaChatGeneratorAsync:
 
     @pytest.mark.skipif(
         not os.environ.get("LLAMA_API_KEY", None),
-        reason="Export an env var called LLAMA_API_KEY containing the OpenAI API key to run this test.",
+        reason="Export an env var called LLAMA_API_KEY containing the Llama API key to run this test.",
     )
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -166,7 +166,7 @@ class TestLlamaChatGeneratorAsync:
 
     @pytest.mark.skipif(
         not os.environ.get("LLAMA_API_KEY", None),
-        reason="Export an env var called LLAMA_API_KEY containing the OpenAI API key to run this test.",
+        reason="Export an env var called LLAMA_API_KEY containing the Llama API key to run this test.",
     )
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -213,7 +213,7 @@ class TestLlamaChatGeneratorAsync:
 
     @pytest.mark.skipif(
         not os.environ.get("LLAMA_API_KEY", None),
-        reason="Export an env var called LLAMA_API_KEY containing the OpenAI API key to run this test.",
+        reason="Export an env var called LLAMA_API_KEY containing the Llama API key to run this test.",
     )
     @pytest.mark.integration
     @pytest.mark.asyncio
