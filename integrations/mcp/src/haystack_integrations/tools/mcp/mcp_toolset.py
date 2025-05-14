@@ -119,11 +119,13 @@ class MCPToolset(Toolset):
         self.tool_names = tool_names
         self.connection_timeout = connection_timeout
         self.invocation_timeout = invocation_timeout
+        self._client = None  # Store client reference for proper cleanup
 
         # Connect and load tools
         try:
             # Create the appropriate client using the factory method
             client = self.server_info.create_client()
+            self._client = client  # Store reference for cleanup
 
             # Connect and get available tools using AsyncExecutor
             tools = AsyncExecutor.get_instance().run(client.connect(), timeout=self.connection_timeout)
@@ -175,6 +177,10 @@ class MCPToolset(Toolset):
             super().__init__(tools=haystack_tools)
 
         except Exception as e:
+            # Clean up if we created a client but failed later
+            # No explicit client cleanup needed here anymore as clients are stateless
+            # and manage their own resources per call. The self._client reference
+            # will just be garbage collected if initialization fails before super().__init__.
             if isinstance(self.server_info, SSEServerInfo):
                 base_message = f"Failed to connect to SSE server at {self.server_info.url}"
                 checks = ["1. The server is running"]

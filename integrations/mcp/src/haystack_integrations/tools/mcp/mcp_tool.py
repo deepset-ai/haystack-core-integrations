@@ -8,11 +8,9 @@ import threading
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Coroutine
-from contextlib import AsyncExitStack
 from dataclasses import dataclass, fields
-from typing import Any, cast
+from typing import Any
 
-from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.tools import Tool
@@ -174,10 +172,7 @@ class MCPClient(ABC):
     """
 
     def __init__(self) -> None:
-        self.session: ClientSession | None = None
-        self.exit_stack: AsyncExitStack = AsyncExitStack()
-        self.stdio: MemoryObjectReceiveStream[types.JSONRPCMessage | Exception] | None = None
-        self.write: MemoryObjectSendStream[types.JSONRPCMessage] | None = None
+        pass
 
     @abstractmethod
     async def connect(self) -> list[Tool]:
@@ -189,32 +184,9 @@ class MCPClient(ABC):
         """
         pass
 
+    @abstractmethod
     async def call_tool(self, tool_name: str, tool_args: dict[str, Any]) -> Any:
-        """
-        Call a tool on the connected MCP server.
-
-        :param tool_name: Name of the tool to call
-        :param tool_args: Arguments to pass to the tool
-        :returns: Result of the tool invocation
-        :raises MCPConnectionError: If not connected to an MCP server
-        :raises MCPInvocationError: If the tool invocation fails
-        :raises MCPResponseTypeError: If response type is not TextContent
-        """
-        if not self.session:
-            message = "Not connected to an MCP server"
-            raise MCPConnectionError(message=message, operation="call_tool")
-
-        try:
-            result = await self.session.call_tool(tool_name, tool_args)
-            validated_result = self._validate_response(tool_name, result)
-            return validated_result
-        except MCPError:
-            # Re-raise specific MCP errors directly
-            raise
-        except Exception as e:
-            # Wrap other exceptions with context about which tool failed
-            message = f"Failed to invoke tool '{tool_name}'"
-            raise MCPInvocationError(message, tool_name, tool_args) from e
+        pass
 
     def _validate_response(self, tool_name: str, result: types.CallToolResult) -> types.CallToolResult:
         """
@@ -254,66 +226,6 @@ class MCPClient(ABC):
         # Return the original result object
         return result
 
-    async def close(self) -> None:
-        """
-        Close the connection and clean up resources.
-
-        This method ensures all resources are properly released, even if errors occur.
-        """
-        if not self.exit_stack:
-            return
-
-        try:
-            await self.exit_stack.aclose()
-        except Exception as e:
-            logger.warning(f"Error during MCP client cleanup: {e}")
-        finally:
-            # Ensure all references are cleared even if cleanup fails
-            self.session = None
-            self.stdio = None
-            self.write = None
-
-    def close_sync(self) -> None:
-        """Synchronous version of close for use in __del__ - ensures resources are cleaned up."""
-        logger.debug("PROCESS: Closing StdioClient (sync)")
-
-        try:
-            AsyncExecutor.get_instance().run(self.close(), timeout=2)
-        except Exception as e:
-            logger.debug(f"PROCESS: Error during async cleanup in sync close: {e!s}")
-
-    async def _initialize_session_with_transport(
-        self,
-        transport_tuple: tuple[
-            MemoryObjectReceiveStream[types.JSONRPCMessage | Exception], MemoryObjectSendStream[types.JSONRPCMessage]
-        ],
-        connection_type: str,
-    ) -> list[Tool]:
-        """
-        Common session initialization logic for all transports.
-
-        :param transport_tuple: Tuple containing (stdio, write) from the transport
-        :param connection_type: String describing the connection type for error messages
-        :returns: List of available tools on the server
-        :raises MCPConnectionError: If connection to the server fails
-        """
-        try:
-            self.stdio, self.write = transport_tuple
-            self.session = await self.exit_stack.enter_async_context(ClientSession(self.stdio, self.write))
-
-            # Now session is guaranteed to be a ClientSession, not None
-            session = cast(ClientSession, self.session)  # Tell mypy the type is now known
-            await session.initialize()
-
-            # List available tools
-            response = await session.list_tools()
-            return response.tools
-
-        except Exception as e:
-            await self.close()
-            message = f"Failed to connect to {connection_type}: {e}"
-            raise MCPConnectionError(message=message, operation="connect") from e
-
 
 class StdioClient(MCPClient):
     """
@@ -328,7 +240,6 @@ class StdioClient(MCPClient):
         :param args: Arguments to pass to the command
         :param env: Environment variables for the command
         """
-        super().__init__()
         self.command: str = command
         self.args: list[str] = args or []
         self.env: dict[str, str] | None = env
@@ -342,10 +253,52 @@ class StdioClient(MCPClient):
         :raises MCPConnectionError: If connection to the server fails
         """
         logger.debug(f"PROCESS: Connecting to stdio server with command: {self.command}")
-
         server_params = StdioServerParameters(command=self.command, args=self.args, env=self.env)
-        stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
-        return await self._initialize_session_with_transport(stdio_transport, f"stdio server (command: {self.command})")
+        try:
+            async with stdio_client(server_params) as transport_tuple:
+                stdio, write = transport_tuple
+                async with ClientSession(stdio, write) as session:  # type: ignore[arg-type]
+                    await session.initialize()
+                    response = await session.list_tools()
+                    return response.tools
+        except Exception as e:
+            message = f"Failed to connect to stdio server (command: {self.command}): {e}"
+            raise MCPConnectionError(message=message, operation="connect") from e
+
+    async def call_tool(self, tool_name: str, tool_args: dict[str, Any]) -> Any:
+        """
+        Call a tool on the connected MCP server using stdio transport.
+
+        :param tool_name: Name of the tool to call
+        :param tool_args: Arguments to pass to the tool
+        :returns: Result of the tool invocation
+        :raises MCPConnectionError: If connection or invocation fails
+        :raises MCPInvocationError: If the tool invocation specifically fails
+        :raises MCPResponseTypeError: If response type is not TextContent
+        """
+        logger.debug(f"PROCESS: Calling tool '{tool_name}' via stdio with command: {self.command}")
+        server_params = StdioServerParameters(command=self.command, args=self.args, env=self.env)
+        try:
+            async with stdio_client(server_params) as transport_tuple:
+                stdio, write = transport_tuple
+                async with ClientSession(stdio, write) as session:  # type: ignore[arg-type]
+                    await session.initialize()
+                    try:
+                        raw_result = await session.call_tool(tool_name, tool_args)
+                        return self._validate_response(tool_name, raw_result)
+                    except MCPError:
+                        raise
+                    except Exception as tool_e:  # Non-MCPError from session.call_tool or _validate_response
+                        logger.warning(f"Tool '{tool_name}' raised an unexpected error: {tool_e!s}")
+                        message = f"Tool '{tool_name}' failed during execution: {tool_e!s}"
+                        raise MCPInvocationError(message, tool_name, tool_args) from tool_e
+        except MCPInvocationError:  # Re-raise if it was already one
+            raise
+        except MCPError:  # Other MCPErrors during connection setup (less likely here)
+            raise
+        except Exception as conn_e:  # Connection/setup related errors
+            message = f"Failed to call tool '{tool_name}' via stdio (command: {self.command}): {conn_e}"
+            raise MCPConnectionError(message=message, operation="call_tool") from conn_e
 
 
 class SSEClient(MCPClient):
@@ -359,8 +312,6 @@ class SSEClient(MCPClient):
 
         :param server_info: Configuration object containing URL, token, timeout, etc.
         """
-        super().__init__()
-
         # in post_init we validate the url and set the url field so it is guaranteed to be valid
         # safely ignore the mypy warning here
         self.url: str = server_info.url  # type: ignore[assignment]
@@ -375,10 +326,54 @@ class SSEClient(MCPClient):
         :raises MCPConnectionError: If connection to the server fails
         """
         headers = {"Authorization": f"Bearer {self.token}"} if self.token else None
-        sse_transport = await self.exit_stack.enter_async_context(
-            sse_client(self.url, headers=headers, timeout=self.timeout)
-        )
-        return await self._initialize_session_with_transport(sse_transport, f"HTTP server at {self.url}")
+        logger.debug(f"HTTP: Connecting to SSE server at {self.url}")
+        try:
+            async with sse_client(self.url, headers=headers, timeout=self.timeout) as transport_tuple:
+                stdio, write = transport_tuple
+                async with ClientSession(stdio, write) as session:  # type: ignore[arg-type]
+                    await session.initialize()
+                    response = await session.list_tools()
+                    return response.tools
+        except Exception as e:
+            message = f"Failed to connect to HTTP server at {self.url}: {e}"
+            raise MCPConnectionError(message=message, operation="connect") from e
+
+    async def call_tool(self, tool_name: str, tool_args: dict[str, Any]) -> Any:
+        """
+        Call a tool on the connected MCP server using SSE transport.
+
+        :param tool_name: Name of the tool to call
+        :param tool_args: Arguments to pass to the tool
+        :returns: Result of the tool invocation
+        :raises MCPConnectionError: If connection or invocation fails
+        :raises MCPInvocationError: If the tool invocation specifically fails
+        :raises MCPResponseTypeError: If response type is not TextContent
+        """
+        headers = {"Authorization": f"Bearer {self.token}"} if self.token else None
+        logger.debug(f"HTTP: Calling tool '{tool_name}' via SSE server at {self.url}")
+        try:
+            async with sse_client(self.url, headers=headers, timeout=self.timeout) as transport_tuple:
+                stdio, write = transport_tuple
+                async with ClientSession(stdio, write) as session:  # type: ignore[arg-type]
+                    await session.initialize()
+                    try:
+                        raw_result = await session.call_tool(tool_name, tool_args)
+                        return self._validate_response(tool_name, raw_result)
+                    except (
+                        MCPError
+                    ):  # Handles MCPInvocationError from _validate_response or if session.call_tool returns MCPError
+                        raise
+                    except Exception as tool_e:  # Non-MCPError from session.call_tool or _validate_response
+                        logger.warning(f"Tool '{tool_name}' raised an unexpected error: {tool_e!s}")
+                        message = f"Tool '{tool_name}' failed during execution: {tool_e!s}"
+                        raise MCPInvocationError(message, tool_name, tool_args) from tool_e
+        except MCPInvocationError:  # Re-raise if it was already one
+            raise
+        except MCPError:  # Other MCPErrors during connection setup (less likely here)
+            raise
+        except Exception as conn_e:  # Connection/setup related errors
+            message = f"Failed to call tool '{tool_name}' via HTTP server at {self.url}: {conn_e}"
+            raise MCPConnectionError(message=message, operation="call_tool") from conn_e
 
 
 @dataclass
@@ -619,14 +614,8 @@ class MCPTool(Tool):
         except Exception as e:
             # Clean up resources on error
             logger.debug(f"TOOL: Error during initialization of '{name}': {e!s}")
-            if self._client:
-                try:
-                    logger.debug(f"TOOL: Attempting cleanup after initialization failure for '{name}'")
-                    AsyncExecutor.get_instance().run(self._client.close(), timeout=5)
-                    logger.debug(f"TOOL: Cleanup successful for '{name}'")
-                except Exception as cleanup_error:
-                    logger.debug(f"TOOL: Error during cleanup after initialization failure: {cleanup_error!s}")
-
+            # No explicit client cleanup needed here anymore as clients are stateless
+            # and manage their own resources per call.
             message = f"Failed to initialize MCPTool '{name}': {e}"
             raise MCPConnectionError(message=message, server_info=server_info, operation="initialize") from e
 
@@ -742,14 +731,3 @@ class MCPTool(Tool):
             connection_timeout=connection_timeout,
             invocation_timeout=invocation_timeout,
         )
-
-    def __del__(self):
-        """Cleanup resources when the tool is garbage collected."""
-        logger.debug(f"TOOL: __del__ called for MCPTool '{self.name if hasattr(self, 'name') else 'unknown'}'")
-
-        # Call synchronous close on the client
-        if hasattr(self, "_client") and self._client:
-            try:
-                self._client.close_sync()
-            except Exception as e:
-                logger.debug(f"TOOL: Error during synchronous client close: {e!s}")
