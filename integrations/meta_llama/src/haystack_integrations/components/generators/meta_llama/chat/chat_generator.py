@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 @component
-class LlamaChatGenerator(OpenAIChatGenerator):
+class MetaLlamaChatGenerator(OpenAIChatGenerator):
     """
     Enables text generation using Llama generative models.
     For supported models, see [Llama API Docs](https://llama.developer.meta.com/docs/).
@@ -94,7 +94,7 @@ class LlamaChatGenerator(OpenAIChatGenerator):
         :param tools:
             A list of tools for which the model can prepare calls.
         """
-        super(LlamaChatGenerator, self).__init__(  # noqa: UP008
+        super(MetaLlamaChatGenerator, self).__init__(  # noqa: UP008
             api_key=api_key,
             model=model,
             streaming_callback=streaming_callback,
@@ -111,7 +111,11 @@ class LlamaChatGenerator(OpenAIChatGenerator):
         :returns:
             The serialized component as a dictionary.
         """
-        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+        callback_name = (
+            serialize_callable(self.streaming_callback)
+            if self.streaming_callback
+            else None
+        )
 
         return default_to_dict(
             self,

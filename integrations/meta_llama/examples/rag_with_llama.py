@@ -6,7 +6,7 @@ from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.utils import Secret
 
-from haystack_integrations.components.generators.llama import LlamaChatGenerator
+from haystack_integrations.components.generators.meta_llama import MetaLlamaChatGenerator
 
 # Write documents to InMemoryDocumentStore
 document_store = InMemoryDocumentStore()
@@ -32,7 +32,7 @@ prompt_template = [
 prompt_builder = ChatPromptBuilder(template=prompt_template, required_variables={"question", "documents"})
 
 retriever = InMemoryBM25Retriever(document_store=document_store)
-llm = LlamaChatGenerator(
+llm = MetaLlamaChatGenerator(
     api_key=Secret.from_env_var("LLAMA_API_KEY"),
     streaming_callback=print_streaming_chunk,
 )

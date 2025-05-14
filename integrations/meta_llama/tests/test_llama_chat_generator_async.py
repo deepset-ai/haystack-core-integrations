@@ -12,8 +12,8 @@ from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 
-from haystack_integrations.components.generators.llama.chat.chat_generator import (
-    LlamaChatGenerator,
+from haystack_integrations.components.generators.meta_llama.chat.chat_generator import (
+    MetaLlamaChatGenerator,
 )
 
 
@@ -83,7 +83,7 @@ def mock_async_chat_completion():
 class TestLlamaChatGeneratorAsync:
     def test_init_default_async(self, monkeypatch):
         monkeypatch.setenv("LLAMA_API_KEY", "test-api-key")
-        component = LlamaChatGenerator()
+        component = MetaLlamaChatGenerator()
 
         assert isinstance(component.async_client, AsyncOpenAI)
         assert component.async_client.api_key == "test-api-key"
@@ -93,7 +93,7 @@ class TestLlamaChatGeneratorAsync:
     @pytest.mark.asyncio
     async def test_run_async(self, chat_messages, mock_async_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("LLAMA_API_KEY", "fake-api-key")
-        component = LlamaChatGenerator()
+        component = MetaLlamaChatGenerator()
         response = await component.run_async(chat_messages)
 
         # check that the component returns the correct ChatMessage response
@@ -106,7 +106,7 @@ class TestLlamaChatGeneratorAsync:
     @pytest.mark.asyncio
     async def test_run_async_with_params(self, chat_messages, mock_async_chat_completion, monkeypatch):
         monkeypatch.setenv("LLAMA_API_KEY", "fake-api-key")
-        component = LlamaChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
+        component = MetaLlamaChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
         response = await component.run_async(chat_messages)
 
         # check that the component calls the Llama API with the correct parameters
@@ -129,7 +129,7 @@ class TestLlamaChatGeneratorAsync:
     @pytest.mark.asyncio
     async def test_live_run_async(self):
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = LlamaChatGenerator()
+        component = MetaLlamaChatGenerator()
         results = await component.run_async(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
@@ -153,7 +153,7 @@ class TestLlamaChatGeneratorAsync:
             counter += 1
             responses += chunk.content if chunk.content else ""
 
-        component = LlamaChatGenerator(streaming_callback=callback)
+        component = MetaLlamaChatGenerator(streaming_callback=callback)
         results = await component.run_async([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1
@@ -174,10 +174,10 @@ class TestLlamaChatGeneratorAsync:
     @pytest.mark.asyncio
     async def test_live_run_with_tools_and_response_async(self, tools):
         """
-        Integration test that the LlamaChatGenerator component can run with tools and get a response.
+        Integration test that the MetaLlamaChatGenerator component can run with tools and get a response.
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = LlamaChatGenerator(tools=tools)
+        component = MetaLlamaChatGenerator(tools=tools)
         results = await component.run_async(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"
@@ -221,7 +221,7 @@ class TestLlamaChatGeneratorAsync:
     @pytest.mark.asyncio
     async def test_live_run_with_tools_streaming_async(self, tools):
         """
-        Integration test that the LlamaChatGenerator component can run with tools and streaming.
+        Integration test that the MetaLlamaChatGenerator component can run with tools and streaming.
         """
 
         counter = 0
@@ -234,7 +234,7 @@ class TestLlamaChatGeneratorAsync:
             if chunk.meta.get("tool_calls"):
                 tool_calls.extend(chunk.meta["tool_calls"])
 
-        component = LlamaChatGenerator(tools=tools, streaming_callback=callback)
+        component = MetaLlamaChatGenerator(tools=tools, streaming_callback=callback)
         results = await component.run_async(
             [ChatMessage.from_user("What's the weather like in Paris?")],
         )

@@ -16,8 +16,8 @@ from openai import OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 
-from haystack_integrations.components.generators.llama.chat.chat_generator import (
-    LlamaChatGenerator,
+from haystack_integrations.components.generators.meta_llama.chat.chat_generator import (
+    MetaLlamaChatGenerator,
 )
 
 
@@ -79,7 +79,7 @@ def mock_chat_completion():
 class TestLlamaChatGenerator:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("LLAMA_API_KEY", "test-api-key")
-        component = LlamaChatGenerator()
+        component = MetaLlamaChatGenerator()
         assert component.client.api_key == "test-api-key"
         assert component.model == "Llama-4-Scout-17B-16E-Instruct-FP8"
         assert component.api_base_url == "https://api.llama.com/compat/v1/"
@@ -89,10 +89,10 @@ class TestLlamaChatGenerator:
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("LLAMA_API_KEY", raising=False)
         with pytest.raises(ValueError, match="None of the .* environment variables are set"):
-            LlamaChatGenerator()
+            MetaLlamaChatGenerator()
 
     def test_init_with_parameters(self):
-        component = LlamaChatGenerator(
+        component = MetaLlamaChatGenerator(
             api_key=Secret.from_token("test-api-key"),
             model="Llama-4-Scout-17B-16E-Instruct-FP8",
             streaming_callback=print_streaming_chunk,
@@ -109,11 +109,11 @@ class TestLlamaChatGenerator:
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("LLAMA_API_KEY", "test-api-key")
-        component = LlamaChatGenerator()
+        component = MetaLlamaChatGenerator()
         data = component.to_dict()
 
         assert (
-            data["type"] == "haystack_integrations.components.generators.llama.chat.chat_generator.LlamaChatGenerator"
+            data["type"] == "haystack_integrations.components.generators.llama.chat.chat_generator.MetaLlamaChatGenerator"
         )
 
         expected_params = {
@@ -133,7 +133,7 @@ class TestLlamaChatGenerator:
 
     def test_to_dict_with_parameters(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test-api-key")
-        component = LlamaChatGenerator(
+        component = MetaLlamaChatGenerator(
             api_key=Secret.from_env_var("ENV_VAR"),
             model="Llama-4-Scout-17B-16E-Instruct-FP8",
             streaming_callback=print_streaming_chunk,
@@ -143,7 +143,7 @@ class TestLlamaChatGenerator:
         data = component.to_dict()
 
         assert (
-            data["type"] == "haystack_integrations.components.generators.llama.chat.chat_generator.LlamaChatGenerator"
+            data["type"] == "haystack_integrations.components.generators.llama.chat.chat_generator.MetaLlamaChatGenerator"
         )
 
         expected_params = {
@@ -160,7 +160,7 @@ class TestLlamaChatGenerator:
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("LLAMA_API_KEY", "fake-api-key")
         data = {
-            "type": "haystack_integrations.components.generators.llama.chat.chat_generator.LlamaChatGenerator",
+            "type": "haystack_integrations.components.generators.llama.chat.chat_generator.MetaLlamaChatGenerator",
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["LLAMA_API_KEY"],
@@ -176,7 +176,7 @@ class TestLlamaChatGenerator:
                 },
             },
         }
-        component = LlamaChatGenerator.from_dict(data)
+        component = MetaLlamaChatGenerator.from_dict(data)
         assert component.model == "Llama-4-Scout-17B-16E-Instruct-FP8"
         assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
@@ -189,7 +189,7 @@ class TestLlamaChatGenerator:
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
         monkeypatch.delenv("LLAMA_API_KEY", raising=False)
         data = {
-            "type": "haystack_integrations.components.generators.llama.chat.chat_generator.LlamaChatGenerator",
+            "type": "haystack_integrations.components.generators.llama.chat.chat_generator.MetaLlamaChatGenerator",
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["LLAMA_API_KEY"],
@@ -206,11 +206,11 @@ class TestLlamaChatGenerator:
             },
         }
         with pytest.raises(ValueError, match="None of the .* environment variables are set"):
-            LlamaChatGenerator.from_dict(data)
+            MetaLlamaChatGenerator.from_dict(data)
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("LLAMA_API_KEY", "fake-api-key")
-        component = LlamaChatGenerator()
+        component = MetaLlamaChatGenerator()
         response = component.run(chat_messages)
 
         # check that the component returns the correct ChatMessage response
@@ -222,7 +222,7 @@ class TestLlamaChatGenerator:
 
     def test_run_with_params(self, chat_messages, mock_chat_completion, monkeypatch):
         monkeypatch.setenv("LLAMA_API_KEY", "fake-api-key")
-        component = LlamaChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
+        component = MetaLlamaChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
         response = component.run(chat_messages)
 
         # check that the component calls the OpenAI API with the correct parameters
@@ -238,7 +238,7 @@ class TestLlamaChatGenerator:
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
     def test_check_abnormal_completions(self, caplog):
-        component = LlamaChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component = MetaLlamaChatGenerator(api_key=Secret.from_token("test-api-key"))
         messages = [
             ChatMessage.from_assistant(
                 "",
@@ -274,7 +274,7 @@ class TestLlamaChatGenerator:
     @pytest.mark.integration
     def test_live_run(self):
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = LlamaChatGenerator()
+        component = MetaLlamaChatGenerator()
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
@@ -288,7 +288,7 @@ class TestLlamaChatGenerator:
     )
     @pytest.mark.integration
     def test_live_run_wrong_model(self, chat_messages):
-        component = LlamaChatGenerator(model="something-obviously-wrong")
+        component = MetaLlamaChatGenerator(model="something-obviously-wrong")
         with pytest.raises(OpenAIError):
             component.run(chat_messages)
 
@@ -308,7 +308,7 @@ class TestLlamaChatGenerator:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        component = LlamaChatGenerator(streaming_callback=callback)
+        component = MetaLlamaChatGenerator(streaming_callback=callback)
         results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1
@@ -328,7 +328,7 @@ class TestLlamaChatGenerator:
     @pytest.mark.integration
     def test_live_run_with_tools(self, tools):
         chat_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = LlamaChatGenerator(tools=tools)
+        component = MetaLlamaChatGenerator(tools=tools)
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message = results["replies"][0]
@@ -348,10 +348,10 @@ class TestLlamaChatGenerator:
     @pytest.mark.integration
     def test_live_run_with_tools_and_response(self, tools):
         """
-        Integration test that the LlamaChatGenerator component can run with tools and get a response.
+        Integration test that the MetaLlamaChatGenerator component can run with tools and get a response.
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = LlamaChatGenerator(tools=tools)
+        component = MetaLlamaChatGenerator(tools=tools)
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"
@@ -394,7 +394,7 @@ class TestLlamaChatGenerator:
     @pytest.mark.integration
     def test_live_run_with_tools_streaming(self, tools):
         """
-        Integration test that the LlamaChatGenerator component can run with tools and streaming.
+        Integration test that the MetaLlamaChatGenerator component can run with tools and streaming.
         """
 
         class Callback:
@@ -411,7 +411,7 @@ class TestLlamaChatGenerator:
                     self.tool_calls.extend(chunk.meta["tool_calls"])
 
         callback = Callback()
-        component = LlamaChatGenerator(tools=tools, streaming_callback=callback)
+        component = MetaLlamaChatGenerator(tools=tools, streaming_callback=callback)
         results = component.run(
             [ChatMessage.from_user("What's the weather like in Paris?")],
         )
@@ -444,10 +444,10 @@ class TestLlamaChatGenerator:
     @pytest.mark.integration
     def test_pipeline_with_llama_chat_generator(self, tools):
         """
-        Test that the LlamaChatGenerator component can be used in a pipeline
+        Test that the MetaLlamaChatGenerator component can be used in a pipeline
         """
         pipeline = Pipeline()
-        pipeline.add_component("generator", LlamaChatGenerator(tools=tools))
+        pipeline.add_component("generator", MetaLlamaChatGenerator(tools=tools))
         pipeline.add_component("tool_invoker", ToolInvoker(tools=tools))
 
         pipeline.connect("generator", "tool_invoker")
@@ -467,7 +467,7 @@ class TestLlamaChatGenerator:
 
     def test_serde_in_pipeline(self, monkeypatch):
         """
-        Test serialization/deserialization of LlamaChatGenerator in a Pipeline,
+        Test serialization/deserialization of MetaLlamaChatGenerator in a Pipeline,
         including YAML conversion and detailed dictionary validation
         """
         # Set mock API key
@@ -482,7 +482,7 @@ class TestLlamaChatGenerator:
         )
 
         # Create generator with specific configuration
-        generator = LlamaChatGenerator(
+        generator = MetaLlamaChatGenerator(
             model="Llama-4-Scout-17B-16E-Instruct-FP8",
             generation_kwargs={"temperature": 0.7},
             streaming_callback=print_streaming_chunk,
@@ -501,7 +501,7 @@ class TestLlamaChatGenerator:
             "connection_type_validation": True,
             "components": {
                 "generator": {
-                    "type": "haystack_integrations.components.generators.llama.chat.chat_generator.LlamaChatGenerator",
+                    "type": "haystack_integrations.components.generators.llama.chat.chat_generator.MetaLlamaChatGenerator",
                     "init_parameters": {
                         "api_key": {
                             "type": "env_var",
