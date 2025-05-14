@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/azure_ai_search-v2.0.2] - 2025-05-14
+
+
+### 🌀 Miscellaneous
+
+- Feat: Add user-agent to `AzureAISearchDocumentStore` (#1743)
+
 ## [integrations/azure_ai_search-v2.0.1] - 2025-04-16
 
 ### 🚀 Features
@@ -11,9 +18,15 @@
 
 ### 🐛 Bug Fixes
 
-- [**breaking**] The environment variables for AzureAIDocumentStore have been renamed for clarity. (#1597)
+- [**breaking**] Rename env variables for Azure AI (#1597)
+
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
 
 ## [integrations/azure_ai_search-v1.0.0] - 2025-03-11
+
 
 ### 🧪 Testing
 
