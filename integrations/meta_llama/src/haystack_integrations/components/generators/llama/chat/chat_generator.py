@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import StreamingChunk
+from haystack.dataclasses import StreamingCallbackT
 from haystack.tools import Tool
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
@@ -56,7 +56,7 @@ class LlamaChatGenerator(OpenAIChatGenerator):
         *,
         api_key: Secret = Secret.from_env_var("LLAMA_API_KEY"),
         model: str = "Llama-4-Scout-17B-16E-Instruct-FP8",
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = "https://api.llama.com/compat/v1/",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[List[Tool]] = None,
