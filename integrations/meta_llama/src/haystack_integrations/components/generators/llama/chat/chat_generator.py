@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class LlamaChatGenerator(OpenAIChatGenerator):
     """
     Enables text generation using Llama generative models.
-    For supported models, see Llama API documentation.
+    For supported models, see [Llama API Docs](https://llama.developer.meta.com/docs/).
 
     Users can pass any text generation parameters valid for the Llama Chat Completion API
     directly to this component via the `generation_kwargs` parameter in `__init__` or the `generation_kwargs`
@@ -33,10 +33,10 @@ class LlamaChatGenerator(OpenAIChatGenerator):
     This component uses the ChatMessage format for structuring both input and output,
     ensuring coherent and contextually relevant responses in chat-based text generation scenarios.
     Details on the ChatMessage format can be found in the
-    [Haystack docs](https://docs.haystack.deepset.ai/v2.0/docs/data-classes#chatmessage)
+    [Haystack docs](https://docs.haystack.deepset.ai/docs/data-classes#chatmessage)
 
     For more details on the parameters supported by the Llama API, refer to the
-    [Llama API Docs]https://llama.developer.meta.com/docs/).
+    [Llama API Docs](https://llama.developer.meta.com/docs/).
 
     Usage example:
     ```python
