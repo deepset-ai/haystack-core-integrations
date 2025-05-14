@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.9.0"]
+dependencies = ["haystack-ai>=2.13.2"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/meta_llama#readme"
@@ -35,11 +35,11 @@ packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/meta-llama-v(?P<version>.*)'
+tag-pattern = 'integrations\/meta_llama-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/meta-llama-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/meta_llama-v[0-9]*"'
 
 [tool.hatch.envs.default]
 installer = "uv"
