@@ -74,6 +74,11 @@ integration:mcp:
       - any-glob-to-any-file: "integrations/mcp/**/*"
       - any-glob-to-any-file: ".github/workflows/mcp.yml"
 
+integration:meta-llama:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/meta_llama/**/*"
+      - any-glob-to-any-file: ".github/workflows/meta_llama.yml"
+
 integration:mistral:
   - changed-files:
       - any-glob-to-any-file: "integrations/mistral/**/*"
