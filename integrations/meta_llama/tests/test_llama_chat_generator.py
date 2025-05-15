@@ -113,7 +113,8 @@ class TestLlamaChatGenerator:
         data = component.to_dict()
 
         assert (
-            data["type"] == "haystack_integrations.components.generators.meta_llama.chat.chat_generator.MetaLlamaChatGenerator"
+            data["type"]
+            == "haystack_integrations.components.generators.meta_llama.chat.chat_generator.MetaLlamaChatGenerator"
         )
 
         expected_params = {
@@ -143,7 +144,8 @@ class TestLlamaChatGenerator:
         data = component.to_dict()
 
         assert (
-            data["type"] == "haystack_integrations.components.generators.meta_llama.chat.chat_generator.MetaLlamaChatGenerator"
+            data["type"]
+            == "haystack_integrations.components.generators.meta_llama.chat.chat_generator.MetaLlamaChatGenerator"
         )
 
         expected_params = {
@@ -501,7 +503,10 @@ class TestLlamaChatGenerator:
             "connection_type_validation": True,
             "components": {
                 "generator": {
-                    "type": "haystack_integrations.components.generators.meta_llama.chat.chat_generator.MetaLlamaChatGenerator",
+                    "type": (
+                        "haystack_integrations.components.generators.meta_llama.chat."
+                        "chat_generator.MetaLlamaChatGenerator"
+                    ),
                     "init_parameters": {
                         "api_key": {
                             "type": "env_var",

@@ -111,11 +111,7 @@ class MetaLlamaChatGenerator(OpenAIChatGenerator):
         :returns:
             The serialized component as a dictionary.
         """
-        callback_name = (
-            serialize_callable(self.streaming_callback)
-            if self.streaming_callback
-            else None
-        )
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
 
         return default_to_dict(
             self,
