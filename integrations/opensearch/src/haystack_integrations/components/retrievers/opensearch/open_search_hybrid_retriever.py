@@ -4,28 +4,17 @@
 
 from typing import Any, Dict, List, Optional, Union
 
-from haystack import DeserializationError, Pipeline, default_from_dict, default_to_dict, logging
+from haystack import DeserializationError, Pipeline, default_from_dict, default_to_dict, logging, super_component
 from haystack.components.embedders.types import TextEmbedder
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.joiners.document_joiner import JoinMode
 from haystack.core.serialization import component_from_dict, import_class_by_name
 from haystack.document_stores.types import FilterPolicy
-from haystack.lazy_imports import LazyImport
 
 from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever, OpenSearchEmbeddingRetriever
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
 logger = logging.getLogger(__name__)
-
-# Use LazyImport to conditionally import haystack super_component, which is only available in haystack-ai>=2.14.0
-with LazyImport(
-    "To use the OpenSearchHybridRetriever you need a more recent version of haystack. Run 'pip install haystack-ai>=2.14.0'"  # noqa: E501
-) as haystack_imports:
-    from haystack import super_component
-
-# Trigger an error message when the OpenSearchHybridRetriever is imported without haystack-ai>=2.13.0
-haystack_imports.check()
-
 
 @super_component
 class OpenSearchHybridRetriever:
