@@ -51,11 +51,12 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
     response = client.run(messages)
     print(response)
 
-    >> {'replies': [ChatMessage(content='Natural Language Processing (NLP) is a field of artificial intelligence that
+    >> {'replies': [ChatMessage(_role=<ChatRole.ASSISTANT: 'assistant'>, _content=[TextContent(text=
+    >> "Natural Language Processing (NLP) is a field of artificial intelligence that
     >> focuses on enabling computers to understand, interpret, and generate human language. It involves developing
     >> techniques and algorithms to analyze and process text or speech data, allowing machines to comprehend and
-    >> communicate in natural languages like English, Spanish, or Chinese.', role=<ChatRole.ASSISTANT: 'assistant'>,
-    >> name=None, meta={'model': 'claude-3-sonnet@20240229', 'index': 0, 'finish_reason': 'end_turn',
+    >> communicate in natural languages like English, Spanish, or Chinese.")],
+    >> _name=None, _meta={'model': 'claude-3-sonnet@20240229', 'index': 0, 'finish_reason': 'end_turn',
     >> 'usage': {'input_tokens': 15, 'output_tokens': 64}})]}
     ```
 
