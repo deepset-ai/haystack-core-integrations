@@ -58,7 +58,7 @@ def _convert_ollama_meta_to_openai_format(intput_response_dict: Dict) -> Dict:
          18]
     }
     """
-    
+
     meta = {key: value for key, value in intput_response_dict.items() if key != "response"}
 
     if "done_reason" in meta:
@@ -201,10 +201,10 @@ class OllamaGenerator:
         """
 
         replies = ["".join([c.content for c in chunks])]
-        
+
         # Convert the metadata from the last chunk
         meta = _convert_ollama_meta_to_openai_format(chunks[-1].meta)
-        
+
         return {"replies": replies, "meta": [meta]}
 
     def _handle_streaming_response(
