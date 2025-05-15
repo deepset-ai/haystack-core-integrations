@@ -48,11 +48,12 @@ class MistralChatGenerator(OpenAIChatGenerator):
     response = client.run(messages)
     print(response)
 
-    >>{'replies': [ChatMessage(content='Natural Language Processing (NLP) is a branch of artificial intelligence
-    >>that focuses on enabling computers to understand, interpret, and generate human language in a way that is
-    >>meaningful and useful.', role=<ChatRole.ASSISTANT: 'assistant'>, name=None,
-    >>meta={'model': 'mistral-small-latest', 'index': 0, 'finish_reason': 'stop',
-    >>'usage': {'prompt_tokens': 15, 'completion_tokens': 36, 'total_tokens': 51}})]}
+    >>{'replies': [ChatMessage(_role=<ChatRole.ASSISTANT: 'assistant'>, _content=[TextContent(text=
+    >> "Natural Language Processing (NLP) is a branch of artificial intelligence
+    >> that focuses on enabling computers to understand, interpret, and generate human language in a way that is
+    >> meaningful and useful.")], _name=None,
+    >> _meta={'model': 'mistral-small-latest', 'index': 0, 'finish_reason': 'stop',
+    >> 'usage': {'prompt_tokens': 15, 'completion_tokens': 36, 'total_tokens': 51}})]}
     ```
     """
 
