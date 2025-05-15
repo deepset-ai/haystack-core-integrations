@@ -113,7 +113,7 @@ class TestLlamaChatGenerator:
         data = component.to_dict()
 
         assert (
-            data["type"] == "haystack_integrations.components.generators.llama.chat.chat_generator.MetaLlamaChatGenerator"
+            data["type"] == "haystack_integrations.components.generators.meta_llama.chat.chat_generator.MetaLlamaChatGenerator"
         )
 
         expected_params = {
@@ -143,7 +143,7 @@ class TestLlamaChatGenerator:
         data = component.to_dict()
 
         assert (
-            data["type"] == "haystack_integrations.components.generators.llama.chat.chat_generator.MetaLlamaChatGenerator"
+            data["type"] == "haystack_integrations.components.generators.meta_llama.chat.chat_generator.MetaLlamaChatGenerator"
         )
 
         expected_params = {
@@ -160,7 +160,7 @@ class TestLlamaChatGenerator:
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("LLAMA_API_KEY", "fake-api-key")
         data = {
-            "type": "haystack_integrations.components.generators.llama.chat.chat_generator.MetaLlamaChatGenerator",
+            "type": "haystack_integrations.components.generators.meta_llama.chat.chat_generator.MetaLlamaChatGenerator",
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["LLAMA_API_KEY"],
@@ -189,7 +189,7 @@ class TestLlamaChatGenerator:
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
         monkeypatch.delenv("LLAMA_API_KEY", raising=False)
         data = {
-            "type": "haystack_integrations.components.generators.llama.chat.chat_generator.MetaLlamaChatGenerator",
+            "type": "haystack_integrations.components.generators.meta_llama.chat.chat_generator.MetaLlamaChatGenerator",
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["LLAMA_API_KEY"],
@@ -501,7 +501,7 @@ class TestLlamaChatGenerator:
             "connection_type_validation": True,
             "components": {
                 "generator": {
-                    "type": "haystack_integrations.components.generators.llama.chat.chat_generator.MetaLlamaChatGenerator",
+                    "type": "haystack_integrations.components.generators.meta_llama.chat.chat_generator.MetaLlamaChatGenerator",
                     "init_parameters": {
                         "api_key": {
                             "type": "env_var",
