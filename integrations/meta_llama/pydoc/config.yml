@@ -2,7 +2,7 @@ loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
     modules: [
-      "haystack_integrations.components.generators.llama.chat.chat_generator",
+      "haystack_integrations.components.generators.meta_llama.chat.chat_generator",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
