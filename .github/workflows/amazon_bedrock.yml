@@ -69,7 +69,7 @@ jobs:
       # Do not authenticate on pull requests from forks
       - name: AWS authentication
         if: github.event.pull_request.head.repo.full_name == github.repository
-        uses: aws-actions/configure-aws-credentials@f24d7193d98baebaeacc7e2227925dd47cc267f5
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
