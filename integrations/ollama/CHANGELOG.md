@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/ollama-v3.0.0] - 2025-05-16
+
+### 🚀 Features
+
+- Adapt `OllamaGenerator` metadata to OpenAI format (#1753)
+
+### 🧪 Testing
+
+- Ollama - make test_run_with_response_format more robust (#1757)
+
+### 🌀 Miscellaneous
+
+- Removing import try for 2.2.12 `deserialize_tools_or_toolset_inplace` (#1713)
+
 ## [integrations/ollama-v2.4.2] - 2025-05-07
 
 ### 🐛 Bug Fixes
