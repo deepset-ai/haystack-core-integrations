@@ -16,6 +16,7 @@ from haystack_integrations.document_stores.opensearch import OpenSearchDocumentS
 
 logger = logging.getLogger(__name__)
 
+
 @super_component
 class OpenSearchHybridRetriever:
     """
