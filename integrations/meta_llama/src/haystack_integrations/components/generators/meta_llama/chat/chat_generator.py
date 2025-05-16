@@ -1,13 +1,14 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import StreamingChunk
-from haystack.tools import Tool
+from haystack.dataclasses import StreamingCallbackT
+from haystack.tools import Tool, Toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
 
@@ -15,74 +16,70 @@ logger = logging.getLogger(__name__)
 
 
 @component
-class MistralChatGenerator(OpenAIChatGenerator):
+class MetaLlamaChatGenerator(OpenAIChatGenerator):
     """
-    Enables text generation using Mistral AI generative models.
-    For supported models, see [Mistral AI docs](https://docs.mistral.ai/platform/endpoints/#operation/listModels).
+    Enables text generation using Llama generative models.
+    For supported models, see [Llama API Docs](https://llama.developer.meta.com/docs/).
 
-    Users can pass any text generation parameters valid for the Mistral Chat Completion API
+    Users can pass any text generation parameters valid for the Llama Chat Completion API
     directly to this component via the `generation_kwargs` parameter in `__init__` or the `generation_kwargs`
     parameter in `run` method.
 
     Key Features and Compatibility:
-    - **Primary Compatibility**: Designed to work seamlessly with the Mistral API Chat Completion endpoint.
-    - **Streaming Support**: Supports streaming responses from the Mistral API Chat Completion endpoint.
-    - **Customizability**: Supports all parameters supported by the Mistral API Chat Completion endpoint.
+    - **Primary Compatibility**: Designed to work seamlessly with the Llama API Chat Completion endpoint.
+    - **Streaming Support**: Supports streaming responses from the Llama API Chat Completion endpoint.
+    - **Customizability**: Supports parameters supported by the Llama API Chat Completion endpoint.
+    - **Response Format**: Currently only supports json_schema response format.
 
     This component uses the ChatMessage format for structuring both input and output,
     ensuring coherent and contextually relevant responses in chat-based text generation scenarios.
     Details on the ChatMessage format can be found in the
-    [Haystack docs](https://docs.haystack.deepset.ai/v2.0/docs/data-classes#chatmessage)
+    [Haystack docs](https://docs.haystack.deepset.ai/docs/data-classes#chatmessage)
 
-    For more details on the parameters supported by the Mistral API, refer to the
-    [Mistral API Docs](https://docs.mistral.ai/api/).
+    For more details on the parameters supported by the Llama API, refer to the
+    [Llama API Docs](https://llama.developer.meta.com/docs/).
 
     Usage example:
     ```python
-    from haystack_integrations.components.generators.mistral import MistralChatGenerator
+    from haystack_integrations.components.generators.llama import LlamaChatGenerator
     from haystack.dataclasses import ChatMessage
 
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
 
-    client = MistralChatGenerator()
+    client = LlamaChatGenerator()
     response = client.run(messages)
     print(response)
-
-    >>{'replies': [ChatMessage(_role=<ChatRole.ASSISTANT: 'assistant'>, _content=[TextContent(text=
-    >> "Natural Language Processing (NLP) is a branch of artificial intelligence
-    >> that focuses on enabling computers to understand, interpret, and generate human language in a way that is
-    >> meaningful and useful.")], _name=None,
-    >> _meta={'model': 'mistral-small-latest', 'index': 0, 'finish_reason': 'stop',
-    >> 'usage': {'prompt_tokens': 15, 'completion_tokens': 36, 'total_tokens': 51}})]}
     ```
     """
 
     def __init__(
         self,
-        api_key: Secret = Secret.from_env_var("MISTRAL_API_KEY"),
-        model: str = "mistral-small-latest",
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-        api_base_url: Optional[str] = "https://api.mistral.ai/v1",
+        *,
+        api_key: Secret = Secret.from_env_var("LLAMA_API_KEY"),
+        model: str = "Llama-4-Scout-17B-16E-Instruct-FP8",
+        streaming_callback: Optional[StreamingCallbackT] = None,
+        api_base_url: Optional[str] = "https://api.llama.com/compat/v1/",
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
     ):
         """
-        Creates an instance of MistralChatGenerator. Unless specified otherwise in the `model`, this is for Mistral's
-        `mistral-small-latest` model.
+        Creates an instance of LlamaChatGenerator. Unless specified otherwise in the `model`, this is for Llama's
+        `Llama-4-Scout-17B-16E-Instruct-FP8` model.
 
         :param api_key:
-            The Mistral API key.
+            The Llama API key.
         :param model:
-            The name of the Mistral chat completion model to use.
+            The name of the Llama chat completion model to use.
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         :param api_base_url:
-            The Mistral API Base url.
-            For more details, see Mistral [docs](https://docs.mistral.ai/api/).
+            The Llama API Base url.
+            For more details, see LlamaAPI [docs](https://llama.developer.meta.com/docs/features/compatibility/).
         :param generation_kwargs:
             Other parameters to use for the model. These parameters are all sent directly to
-            the Mistral endpoint. See [Mistral API docs](https://docs.mistral.ai/api/) for more details.
+            the Llama API endpoint. See [Llama API docs](https://llama.developer.meta.com/docs/features/compatibility/)
+            for more details.
             Some of the supported parameters:
             - `max_tokens`: The maximum number of tokens the output text can have.
             - `temperature`: What sampling temperature to use. Higher values mean the model will take more risks.
@@ -97,7 +94,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
         :param tools:
             A list of tools for which the model can prepare calls.
         """
-        super(MistralChatGenerator, self).__init__(  # noqa: UP008
+        super(MetaLlamaChatGenerator, self).__init__(  # noqa: UP008
             api_key=api_key,
             model=model,
             streaming_callback=streaming_callback,
@@ -116,10 +113,6 @@ class MistralChatGenerator(OpenAIChatGenerator):
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
 
-        # if we didn't implement the to_dict method here then the to_dict method of the superclass would be used
-        # which would serialiaze some fields that we don't want to serialize (e.g. the ones we don't have in
-        # the __init__)
-        # it would be hard to maintain the compatibility as superclass changes
         return default_to_dict(
             self,
             model=self.model,
