@@ -1,137 +1,131 @@
 import os
 import sys
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
 from haystack.tools import Tool
 
-from haystack_integrations.tools.mcp import MCPToolset, SSEServerInfo
-from haystack_integrations.tools.mcp.mcp_tool import MCPConnectionError
+from haystack_integrations.tools.mcp import MCPToolset
+from haystack_integrations.tools.mcp.mcp_tool import MCPConnectionError, SSEServerInfo
+
+# Import in-memory transport and fixtures
+from .mcp_memory_transport import InMemoryServerInfo
+from .mcp_servers_fixtures import calculator_mcp, echo_mcp
 
 
 @pytest_asyncio.fixture
-async def mock_mcp_toolset():
-    """Fixture to create a pre-configured MCPToolset for testing without server connection."""
-    mock_tool1 = MagicMock(spec=Tool)
-    mock_tool1.name = "tool1"
-    mock_tool1.description = "Test tool 1"
-    mock_tool1.inputSchema = {"type": "object", "properties": {}}
+async def calculator_toolset():
+    """Fixture that provides an MCPToolset connected to the in-memory ``calculator_mcp`` server."""
 
-    mock_tool2 = MagicMock(spec=Tool)
-    mock_tool2.name = "tool2"
-    mock_tool2.description = "Test tool 2"
-    mock_tool2.inputSchema = {"type": "object", "properties": {}}
+    server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+    toolset = MCPToolset(
+        server_info=server_info,
+        connection_timeout=45,
+        invocation_timeout=60,
+    )
 
-    mock_client = AsyncMock()
-    mock_client.connect.return_value = [mock_tool1, mock_tool2]
-    mock_client.close = AsyncMock()
-
-    with (
-        patch("haystack_integrations.tools.mcp.mcp_toolset.AsyncExecutor.get_instance") as mock_executor,
-        patch("haystack_integrations.tools.mcp.mcp_tool.MCPServerInfo.create_client") as mock_create_client,
-    ):
-        mock_create_client.return_value = mock_client
-        mock_executor.return_value.run.return_value = [mock_tool1, mock_tool2]
-
-        toolset = MCPToolset(
-            server_info=SSEServerInfo(base_url="http://example.com", token="test-token"),
-            connection_timeout=45,
-            invocation_timeout=60,
-        )
-
-        yield toolset
-
-        # Cleanup
-        await mock_client.close()
+    yield toolset
 
 
 @pytest_asyncio.fixture
-async def mock_mcp_toolset_with_tool_names():
-    """Fixture to create an MCPToolset with specific tool_names filtering."""
-    mock_tool2 = MagicMock(spec=Tool)
-    mock_tool2.name = "tool2"
-    mock_tool2.description = "Test tool 2"
-    mock_tool2.inputSchema = {"type": "object", "properties": {}}
+async def echo_toolset():
+    """Fixture that provides an MCPToolset connected to the in-memory ``echo_mcp`` server."""
 
-    mock_client = AsyncMock()
-    mock_client.connect.return_value = [mock_tool2]
-    mock_client.close = AsyncMock()
+    server_info = InMemoryServerInfo(server=echo_mcp._mcp_server)
+    toolset = MCPToolset(
+        server_info=server_info,
+        connection_timeout=45,
+        invocation_timeout=60,
+    )
 
-    with (
-        patch("haystack_integrations.tools.mcp.mcp_toolset.AsyncExecutor.get_instance") as mock_executor,
-        patch("haystack_integrations.tools.mcp.mcp_tool.MCPServerInfo.create_client") as mock_create_client,
-    ):
-        mock_create_client.return_value = mock_client
-        mock_executor.return_value.run.return_value = [mock_tool2]
+    yield toolset
 
-        toolset = MCPToolset(
-            server_info=SSEServerInfo(base_url="http://example.com", token="test-token"),
-            tool_names=["tool2"],  # Only include tool2
-            connection_timeout=45,
-            invocation_timeout=60,
-        )
 
-        yield toolset
+@pytest_asyncio.fixture
+async def calculator_toolset_with_tool_filter():
+    """Fixture that provides an MCPToolset connected to ``calculator_mcp`` but exposing only the *add* tool."""
 
-        # Cleanup
-        await mock_client.close()
+    server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+    toolset = MCPToolset(
+        server_info=server_info,
+        tool_names=["add"],  # Only include the 'add' tool
+        connection_timeout=45,
+        invocation_timeout=60,
+    )
+
+    yield toolset
 
 
 @pytest.mark.asyncio
 class TestMCPToolset:
     """Tests for the MCPToolset class."""
 
-    async def test_toolset_initialization(self, mock_mcp_toolset):
+    async def test_toolset_initialization(self, calculator_toolset):
         """Test if the MCPToolset initializes correctly and loads tools."""
-        toolset = mock_mcp_toolset
+        toolset = calculator_toolset
 
-        assert isinstance(toolset.server_info, SSEServerInfo)
+        assert isinstance(toolset.server_info, InMemoryServerInfo)
         assert toolset.connection_timeout == 45
         assert toolset.invocation_timeout == 60
-        assert len(toolset) == 2
+        assert len(toolset) == 3  # add, subtract, divide_by_zero
 
         tool_names = [tool.name for tool in toolset.tools]
-        assert "tool1" in tool_names
-        assert "tool2" in tool_names
+        assert "add" in tool_names
+        assert "subtract" in tool_names
+        assert "divide_by_zero" in tool_names
 
-        tool1 = next(tool for tool in toolset.tools if tool.name == "tool1")
-        tool2 = next(tool for tool in toolset.tools if tool.name == "tool2")
+        add_tool = next(tool for tool in toolset.tools if tool.name == "add")
+        subtract_tool = next(tool for tool in toolset.tools if tool.name == "subtract")
 
-        assert tool1.name == "tool1"
-        assert tool2.name == "tool2"
-        assert tool1.description == "Test tool 1"
-        assert tool2.description == "Test tool 2"
+        assert add_tool.name == "add"
+        assert subtract_tool.name == "subtract"
+        assert "Add two integers." in add_tool.description
+        assert "Subtract integer b from integer a." in subtract_tool.description
 
-    async def test_toolset_with_filtered_tools(self, mock_mcp_toolset_with_tool_names):
+    async def test_echo_toolset(self, echo_toolset):
+        """Test the MCPToolset with echo server."""
+        toolset = echo_toolset
+
+        assert len(toolset) == 1  # echo
+
+        tool_names = [tool.name for tool in toolset.tools]
+        assert "echo" in tool_names
+
+        echo_tool = toolset.tools[0]
+        assert echo_tool.name == "echo"
+        assert "Echo the input text." in echo_tool.description
+
+    async def test_toolset_with_filtered_tools(self, calculator_toolset_with_tool_filter):
         """Test if the MCPToolset correctly filters tools based on tool_names parameter."""
-        toolset = mock_mcp_toolset_with_tool_names
+        toolset = calculator_toolset_with_tool_filter
 
         # Verify tool_names parameter was stored
-        assert toolset.tool_names == ["tool2"]
+        assert toolset.tool_names == ["add"]
 
         # Verify only the specified tool was added
         assert len(toolset) == 1
 
         tool_names = [tool.name for tool in toolset.tools]
-        assert "tool1" not in tool_names
-        assert "tool2" in tool_names
+        assert "subtract" not in tool_names
+        assert "divide_by_zero" not in tool_names
+        assert "add" in tool_names
 
         # Check the tool that was included
         tool = toolset.tools[0]
-        assert tool.name == "tool2"
-        assert tool.description == "Test tool 2"
+        assert tool.name == "add"
+        assert "Add two integers." in tool.description
 
-    async def test_toolset_serde(self, mock_mcp_toolset):
+    async def test_toolset_serde(self, calculator_toolset):
         """Test serialization and deserialization of MCPToolset."""
-        toolset = mock_mcp_toolset
+        toolset = calculator_toolset
 
         toolset_dict = toolset.to_dict()
         assert toolset_dict["type"] == "haystack_integrations.tools.mcp.mcp_toolset.MCPToolset"
         assert toolset_dict["data"]["connection_timeout"] == 45
         assert toolset_dict["data"]["invocation_timeout"] == 60
-        assert toolset_dict["data"]["server_info"]["base_url"] == "http://example.com"
+        assert isinstance(toolset_dict["data"]["server_info"], dict)
         assert toolset_dict["data"]["tool_names"] is None
 
         with patch("haystack_integrations.tools.mcp.mcp_toolset.MCPToolset.__init__", return_value=None) as mock_init:
@@ -142,36 +136,34 @@ class TestMCPToolset:
             assert kwargs["connection_timeout"] == 45
             assert kwargs["invocation_timeout"] == 60
             assert kwargs["tool_names"] is None
-            assert isinstance(kwargs["server_info"], SSEServerInfo)
-            assert kwargs["server_info"].base_url == "http://example.com"
 
-    async def test_toolset_serde_with_tool_names(self, mock_mcp_toolset_with_tool_names):
+    async def test_toolset_serde_with_tool_names(self, calculator_toolset_with_tool_filter):
         """Test serialization and deserialization of MCPToolset with tool_names parameter."""
-        toolset = mock_mcp_toolset_with_tool_names
+        toolset = calculator_toolset_with_tool_filter
 
         toolset_dict = toolset.to_dict()
         assert toolset_dict["type"] == "haystack_integrations.tools.mcp.mcp_toolset.MCPToolset"
-        assert toolset_dict["data"]["tool_names"] == ["tool2"]
+        assert toolset_dict["data"]["tool_names"] == ["add"]
 
         with patch("haystack_integrations.tools.mcp.mcp_toolset.MCPToolset.__init__", return_value=None) as mock_init:
             MCPToolset.from_dict(toolset_dict)
 
             mock_init.assert_called_once()
             _, kwargs = mock_init.call_args
-            assert kwargs["tool_names"] == ["tool2"]
+            assert kwargs["tool_names"] == ["add"]
 
-    async def test_toolset_combination(self, mock_mcp_toolset):
+    async def test_toolset_combination(self, calculator_toolset):
         """Test combining MCPToolset with other tools."""
-        toolset = mock_mcp_toolset
+        toolset = calculator_toolset
 
-        def add(a: int, b: int) -> int:
-            """Add two numbers"""
-            return a + b
+        def multiply(a: int, b: int) -> int:
+            """Multiply two numbers"""
+            return a * b
 
-        add_tool = Tool(
-            name="add",
-            description="Add two numbers",
-            function=add,
+        multiply_tool = Tool(
+            name="multiply",
+            description="Multiply two numbers",
+            function=multiply,
             parameters={
                 "type": "object",
                 "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
@@ -179,22 +171,32 @@ class TestMCPToolset:
             },
         )
 
-        combined_tools = toolset + [add_tool]
+        combined_tools = toolset + [multiply_tool]
 
-        assert len(combined_tools) == 3
+        assert len(combined_tools) == 4  # add, subtract, divide_by_zero, multiply
 
         tool_names = [tool.name for tool in combined_tools.tools]
-        assert "tool1" in tool_names
-        assert "tool2" in tool_names
         assert "add" in tool_names
+        assert "subtract" in tool_names
+        assert "divide_by_zero" in tool_names
+        assert "multiply" in tool_names
 
-    async def test_toolset_error_handling(self):
-        """Test error handling during toolset initialization."""
+    @patch.object(InMemoryServerInfo, "create_client")
+    async def test_toolset_error_handling(self, mock_create_client):
+        """Test that initialization errors from the underlying client are surfaced as ``MCPConnectionError``."""
+
+        mock_create_client.side_effect = MCPConnectionError(
+            message="Test connection error",
+            operation="connect",
+        )
+
+        server_info = InMemoryServerInfo(server=calculator_mcp)
+
         with pytest.raises(MCPConnectionError):
             MCPToolset(
-                server_info=SSEServerInfo(base_url="http://example.com"),
-                connection_timeout=30.0,
-                invocation_timeout=30.0,
+                server_info=server_info,
+                connection_timeout=1.0,
+                invocation_timeout=1.0,
             )
 
 
