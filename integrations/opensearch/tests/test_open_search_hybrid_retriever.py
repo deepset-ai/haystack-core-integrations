@@ -53,7 +53,6 @@ class TestOpenSearchHybridRetriever:
                 "type": "haystack.components.embedders.sentence_transformers_text_embedder.SentenceTransformersTextEmbedder",  # noqa: E501
                 "init_parameters": {
                     "model": "sentence-transformers/all-mpnet-base-v2",
-                    "device": {"type": "single", "device": "mps"},
                     "token": {"type": "env_var", "env_vars": ["HF_API_TOKEN", "HF_TOKEN"], "strict": False},
                     "prefix": "",
                     "suffix": "",
@@ -97,6 +96,7 @@ class TestOpenSearchHybridRetriever:
         embedder = SentenceTransformersTextEmbedder()  # we use actual embedder here for the de/serialization
         hybrid_retriever = OpenSearchHybridRetriever(document_store=doc_store, embedder=embedder)
         result = hybrid_retriever.to_dict()
+        result["init_parameters"]["embedder"]["init_parameters"].pop("device")  # remove device info for comparison
         assert result == self.serialised
 
     def test_from_dict(self):
@@ -109,16 +109,17 @@ class TestOpenSearchHybridRetriever:
         doc_store = OpenSearchDocumentStore()
         embedder = SentenceTransformersTextEmbedder()  # an actual embedder here for the de/serialization
         hybrid_retriever = OpenSearchHybridRetriever(
-            document_store=doc_store, embedder=embedder, extra_arg={"embedding_retriever": {"raise_on_failure": True}}
+            document_store=doc_store, embedder=embedder, embedding_retriever={"raise_on_failure": True}
         )
         result = hybrid_retriever.to_dict()
         expected = deepcopy(self.serialised)
-        expected["init_parameters"]["extra_arg"] = {"embedding_retriever": {"raise_on_failure": True}}
+        expected["init_parameters"]["embedding_retriever"] = {"raise_on_failure": True}
+        result["init_parameters"]["embedder"]["init_parameters"].pop("device")  # remove device info for comparison
         assert result == expected
 
     def test_from_dict_with_extra_args(self):
         data = deepcopy(self.serialised)
-        data["init_parameters"]["extra_arg"] = {"embedding_retriever": {"raise_on_failure": True}}
+        data["init_parameters"]["embedding_retriever"] = {"raise_on_failure": True}
         hybrid = OpenSearchHybridRetriever.from_dict(data)
         assert isinstance(hybrid, OpenSearchHybridRetriever)
         assert hybrid.to_dict()
@@ -137,3 +138,42 @@ class TestOpenSearchHybridRetriever:
         assert len(result["documents"]) == 2
         assert any(doc.content == "Test doc BM25" for doc in result["documents"])
         assert any(doc.content == "Test doc Embedding" for doc in result["documents"])
+
+    def test_run_with_extra_arg(self, mock_embedder):
+        # mocked document store
+        mock_store = Mock(spec=OpenSearchDocumentStore)
+        mock_store._bm25_retrieval.return_value = [Document(content="Test doc BM25")]
+        mock_store._embedding_retrieval.return_value = [Document(content="Test doc Embedding")]
+
+        # use the mocked embedder
+        retriever = OpenSearchHybridRetriever(
+            document_store=mock_store,
+            embedder=mock_embedder,
+            bm25_retriever={"raise_on_failure": True},
+            embedding_retriever={"raise_on_failure": False},
+        )
+        result = retriever.run(query="test query")
+
+        # Verify the retrievers were called with the extra arguments
+        mock_store._bm25_retrieval.assert_called_once()
+        mock_store._embedding_retrieval.assert_called_once()
+
+        # Verify the results
+        assert len(result) == 1
+        assert len(result["documents"]) == 2
+        assert any(doc.content == "Test doc BM25" for doc in result["documents"])
+        assert any(doc.content == "Test doc Embedding" for doc in result["documents"])
+
+    def test_run_with_extra_arg_invalid_param(self, mock_embedder):
+        # mocked document store
+        mock_store = Mock(spec=OpenSearchDocumentStore)
+        mock_store._bm25_retrieval.return_value = [Document(content="Test doc BM25")]
+        mock_store._embedding_retrieval.return_value = [Document(content="Test doc Embedding")]
+
+        with pytest.raises(ValueError, match="valid extra args are only: 'bm25_retriever' and 'embedding_retriever'."):
+            _ = OpenSearchHybridRetriever(
+                document_store=mock_store,
+                embedder=mock_embedder,
+                invalid_a={"raise_on_failure": True},
+                invalid_b={"raise_on_failure": False},
+            )

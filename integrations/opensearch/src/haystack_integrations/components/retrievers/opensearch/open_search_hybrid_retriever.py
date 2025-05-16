@@ -175,10 +175,10 @@ class OpenSearchHybridRetriever:
             },
         }
 
-        # kwargs must contain 'bm25_retriever' and 'embedding_retriever' as top-level keys
-        if kwargs and not all(key in kwargs for key in ["bm25_retriever", "embedding_retriever"]):
-            msg = f"kwargs must contain 'bm25_retriever' and 'embedding_retriever' as top-level keys. Found: {list(kwargs.keys())}"  # noqa: E501
-            raise ValueError(msg)
+        for k in kwargs:
+            if k not in ["bm25_retriever", "embedding_retriever"]:
+                msg = f"valid extra args are only: 'bm25_retriever' and 'embedding_retriever'. Found: {k}"
+                raise ValueError(msg)
 
         self.extra_args = kwargs
 

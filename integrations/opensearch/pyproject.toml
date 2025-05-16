@@ -55,6 +55,7 @@ dependencies = [
   "haystack-pydoc-tools",
   "boto3",
 ]
+
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
