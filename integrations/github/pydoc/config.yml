@@ -1,0 +1,34 @@
+loaders:
+  - type: haystack_pydoc_tools.loaders.CustomPythonLoader
+    search_path: [../src]
+    modules: [
+      "haystack_integrations.components.connectors.github.file_editor",
+      "haystack_integrations.components.connectors.github.issue_commenter",
+      "haystack_integrations.components.connectors.github.issue_viewer",
+      "haystack_integrations.components.connectors.github.pr_creator",
+      "haystack_integrations.components.connectors.github.repo_viewer",
+      "haystack_integrations.components.connectors.github.repo_forker",
+    ]
+    ignore_when_discovered: ["__init__"]
+processors:
+  - type: filter
+    expression:
+    documented_only: true
+    do_not_filter_modules: false
+    skip_empty_modules: true
+  - type: smart
+  - type: crossref
+renderer:
+  type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
+  excerpt: GitHub integration for Haystack
+  category_slug: integrations-api
+  title: GitHub
+  slug: integrations-github
+  order: 100
+  markdown:
+    descriptive_class_title: false
+    classdef_code_block: false
+    descriptive_module_title: true
+    add_method_class_prefix: true
+    add_member_class_prefix: false
+    filename: _readme_github.md
