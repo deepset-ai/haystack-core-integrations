@@ -12,6 +12,7 @@ from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage, ChatRole
 
 from haystack_integrations.tools.mcp import (
+    MCPConnectionError,
     MCPError,
     MCPTool,
     SSEServerInfo,
@@ -222,14 +223,17 @@ if __name__ == "__main__":
         assert "New_York" in tool_message.tool_call_result.result
 
     @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
-    @pytest.mark.skip
     def test_mcp_tool_error_handling_integration(self):
         """Test error handling with MCPTool connection in a pipeline (integration)."""
 
         # Use a non-existent server address to force a connection error
         server_info = SSEServerInfo(base_url="http://localhost:9999", timeout=1)  # Short timeout
-        with pytest.raises(MCPError) as exc_info:
+        with pytest.raises(MCPConnectionError) as exc_info:
             MCPTool(name="non_existent_tool", server_info=server_info, connection_timeout=2)
 
-        assert "failed" in str(exc_info.value)
-        assert "connect" in str(exc_info.value)
+        # Check for platform-agnostic error message patterns
+        error_message = str(exc_info.value)
+        assert error_message, "Error message should not be empty"
+        assert any(
+            text in error_message.lower() for text in ["failed", "connection", "initialize"]
+        ), f"Error message '{error_message}' should contain connection failure information"

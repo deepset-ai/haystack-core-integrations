@@ -677,7 +677,14 @@ class MCPTool(Tool):
                     error_message = (
                         first_exception.message if hasattr(first_exception, "message") else str(first_exception)
                     )
-            raise MCPConnectionError(message=error_message, server_info=server_info, operation="initialize") from e
+
+            # Ensure we always have a meaningful error message
+            if not error_message or error_message.strip() == "":
+                # Provide platform-independent fallback message for connection errors
+                error_message = f"Connection failed to MCP server (using {type(server_info).__name__})"
+
+            message = f"Failed to initialize MCPTool '{name}': {error_message}"
+            raise MCPConnectionError(message=message, server_info=server_info, operation="initialize") from e
 
     def _invoke_tool(self, **kwargs: Any) -> Any:
         """
