@@ -90,6 +90,31 @@ class ChromaQueryTextRetriever:
         top_k = top_k or self.top_k
         return {"documents": self.document_store.search([query], top_k, filters)[0]}
 
+    @component.output_types(documents=List[Document])
+    async def run_async(
+        self,
+        query: str,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: Optional[int] = None,
+    ):
+        """
+        Run the retriever on the given input data.
+
+        :param query: The input data for the retriever. In this case, a plain-text query.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
+                        details.
+        :param top_k: The maximum number of documents to retrieve.
+            If not specified, the default value from the constructor is used.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of documents returned by the search engine.
+
+        :raises ValueError: If the specified document store is not found or is not a MemoryDocumentStore instance.
+        """
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
+        top_k = top_k or self.top_k
+        return {"documents": await self.document_store.search_async([query], top_k, filters)[0]}
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ChromaQueryTextRetriever":
         """
@@ -157,3 +182,30 @@ class ChromaEmbeddingRetriever(ChromaQueryTextRetriever):
 
         query_embeddings = [query_embedding]
         return {"documents": self.document_store.search_embeddings(query_embeddings, top_k, filters)[0]}
+
+    @component.output_types(documents=List[Document])
+    async def run_async(
+        self,
+        query_embedding: List[float],
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: Optional[int] = None,
+    ):
+        """
+        Run the retriever on the given input data.
+
+        :param query_embedding: the query embeddings.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
+                        details.
+        :param top_k: the maximum number of documents to retrieve.
+            If not specified, the default value from the constructor is used.
+
+        :returns: a dictionary with the following keys:
+            - `documents`: List of documents returned by the search engine.
+        """
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
+
+        top_k = top_k or self.top_k
+
+        query_embeddings = [query_embedding]
+        return {"documents": await self.document_store.search_embeddings_async(query_embeddings, top_k, filters)[0]}
