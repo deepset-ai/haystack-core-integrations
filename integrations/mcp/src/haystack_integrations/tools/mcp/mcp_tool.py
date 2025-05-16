@@ -666,8 +666,18 @@ class MCPTool(Tool):
                 except Exception as cleanup_error:
                     logger.debug(f"TOOL: Error during cleanup after initialization failure: {cleanup_error!s}")
 
-            message = f"Failed to initialize MCPTool '{name}': {e}"
-            raise MCPConnectionError(message=message, server_info=server_info, operation="initialize") from e
+            # Extract more detailed error information from TaskGroup/ExceptionGroup exceptions
+            from exceptiongroup import ExceptionGroup
+
+            error_message = str(e)
+            # Handle ExceptionGroup to extract more useful error messages
+            if isinstance(e, ExceptionGroup):
+                if e.exceptions:
+                    first_exception = e.exceptions[0]
+                    error_message = (
+                        first_exception.message if hasattr(first_exception, "message") else str(first_exception)
+                    )
+            raise MCPConnectionError(message=error_message, server_info=server_info, operation="initialize") from e
 
     def _invoke_tool(self, **kwargs: Any) -> Any:
         """
