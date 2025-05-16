@@ -574,10 +574,11 @@ class TestOllamaChatGenerator:
         response_format = {
             "type": "object",
             "properties": {"capital": {"type": "string"}, "population": {"type": "number"}},
+            "required": ["capital", "population"],
         }
         chat_generator = OllamaChatGenerator(model="llama3.2:3b", response_format=response_format)
 
-        message = ChatMessage.from_user("What's the capital of France and its population?")
+        message = ChatMessage.from_user("What's the capital of France and its population? Respond in JSON format.")
         response = chat_generator.run([message])
 
         assert isinstance(response, dict)
