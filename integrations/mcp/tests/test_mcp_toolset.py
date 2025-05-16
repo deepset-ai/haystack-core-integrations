@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
+from haystack import logging
 from haystack.tools import Tool
 
 from haystack_integrations.tools.mcp import MCPToolset
@@ -14,9 +15,11 @@ from haystack_integrations.tools.mcp.mcp_tool import MCPConnectionError, SSEServ
 from .mcp_memory_transport import InMemoryServerInfo
 from .mcp_servers_fixtures import calculator_mcp, echo_mcp
 
+logger = logging.getLogger(__name__)
+
 
 @pytest_asyncio.fixture
-async def calculator_toolset():
+async def calculator_toolset(mcp_tool_cleanup):
     """Fixture that provides an MCPToolset connected to the in-memory ``calculator_mcp`` server."""
 
     server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
@@ -26,11 +29,11 @@ async def calculator_toolset():
         invocation_timeout=60,
     )
 
-    yield toolset
+    return mcp_tool_cleanup(toolset)
 
 
 @pytest_asyncio.fixture
-async def echo_toolset():
+async def echo_toolset(mcp_tool_cleanup):
     """Fixture that provides an MCPToolset connected to the in-memory ``echo_mcp`` server."""
 
     server_info = InMemoryServerInfo(server=echo_mcp._mcp_server)
@@ -40,11 +43,11 @@ async def echo_toolset():
         invocation_timeout=60,
     )
 
-    yield toolset
+    return mcp_tool_cleanup(toolset)
 
 
 @pytest_asyncio.fixture
-async def calculator_toolset_with_tool_filter():
+async def calculator_toolset_with_tool_filter(mcp_tool_cleanup):
     """Fixture that provides an MCPToolset connected to ``calculator_mcp`` but exposing only the *add* tool."""
 
     server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
@@ -55,7 +58,7 @@ async def calculator_toolset_with_tool_filter():
         invocation_timeout=60,
     )
 
-    yield toolset
+    return mcp_tool_cleanup(toolset)
 
 
 @pytest.mark.asyncio
@@ -258,7 +261,6 @@ if __name__ == "__main__":
             # Create the toolset
             server_info = SSEServerInfo(base_url=f"http://127.0.0.1:{port}")
             toolset = MCPToolset(server_info=server_info)
-
             # Verify we got both tools
             assert len(toolset) == 2
 
@@ -283,6 +285,12 @@ if __name__ == "__main__":
             raise
 
         finally:
+            # Explicitly close tools first to prevent SSE connection errors
+            try:
+                toolset.sync_close()
+            except Exception as e:
+                logger.debug(f"Error during tool cleanup: {e}")
+
             # Clean up
             if server_process:
                 if server_process.poll() is None:  # Process is still running

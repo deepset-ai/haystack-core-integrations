@@ -20,26 +20,26 @@ class TestMCPTool:
     """Tests for the MCPTool class using in-memory servers."""
 
     @pytest.fixture
-    def mcp_add_tool(self):
+    def mcp_add_tool(self, mcp_tool_cleanup):
         """Provides an MCPTool instance for the 'add' tool using the in-memory calculator server."""
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
         # The MCPTool constructor will fetch the tool's schema from the in-memory server
         tool = MCPTool(name="add", server_info=server_info)
-        return tool
+        return mcp_tool_cleanup(tool)
 
     @pytest.fixture
-    def mcp_echo_tool(self):
+    def mcp_echo_tool(self, mcp_tool_cleanup):
         """Provides an MCPTool instance for the 'echo' tool using the in-memory echo server."""
         server_info = InMemoryServerInfo(server=echo_mcp._mcp_server)
         tool = MCPTool(name="echo", server_info=server_info)
-        return tool
+        return mcp_tool_cleanup(tool)
 
     @pytest.fixture
-    def mcp_error_tool(self):
+    def mcp_error_tool(self, mcp_tool_cleanup):
         """Provides an MCPTool instance for the 'divide_by_zero' tool for error testing."""
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
         tool = MCPTool(name="divide_by_zero", server_info=server_info)
-        return tool
+        return mcp_tool_cleanup(tool)
 
     # New tests using in-memory approach will be added below
     def test_mcp_tool_initialization(self, mcp_add_tool, mcp_echo_tool):
@@ -86,11 +86,13 @@ class TestMCPTool:
         # The first part of the message comes from ToolInvocationError's formatting
         assert "Failed to invoke Tool `divide_by_zero`" in error_message
 
-    def test_mcp_tool_serde(self):
+    def test_mcp_tool_serde(self, mcp_tool_cleanup):
         """Test serialization and deserialization of MCPTool with in-memory server."""
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
 
         tool = MCPTool(name="add", server_info=server_info, description="Addition tool for serde testing")
+        # Register tool for cleanup
+        mcp_tool_cleanup(tool)
 
         # Test serialization (to_dict)
         tool_dict = tool.to_dict()
@@ -107,6 +109,8 @@ class TestMCPTool:
 
         # Test deserialization (from_dict)
         new_tool = MCPTool.from_dict(tool_dict)
+        mcp_tool_cleanup(new_tool)
+
         assert new_tool.name == "add"
         assert new_tool.description == "Addition tool for serde testing"
 

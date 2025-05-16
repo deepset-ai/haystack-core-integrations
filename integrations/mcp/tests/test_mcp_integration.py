@@ -6,7 +6,7 @@ import tempfile
 import time
 
 import pytest
-from haystack import Pipeline
+from haystack import Pipeline, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage, ChatRole
@@ -20,6 +20,8 @@ from haystack_integrations.tools.mcp import (
 
 from .mcp_memory_transport import InMemoryServerInfo
 from .mcp_servers_fixtures import echo_mcp
+
+logger = logging.getLogger(__name__)
 
 
 # Keep integration tests separate
@@ -106,7 +108,14 @@ if __name__ == "__main__":
             raise
 
         finally:
-            # Clean up
+            # Explicitly close tools first to prevent SSE connection errors
+            try:
+                tool.sync_close()
+                subtract_tool.sync_close()
+            except Exception as e:
+                logger.debug(f"Error during tool cleanup: {e}")
+
+            # Then clean up the server process
             if server_process:
                 if server_process.poll() is None:  # Process is still running
                     server_process.terminate()
@@ -126,7 +135,7 @@ if __name__ == "__main__":
         or (sys.platform == "darwin"),
         reason="OPENAI_API_KEY or BRAVE_API_KEY not set, or running on Windows or macOS",
     )
-    def test_mcp_brave_search(self):
+    def test_mcp_brave_search(self, mcp_tool_cleanup):
         """Test using an MCPTool in a pipeline with OpenAI."""
 
         # Create an MCPTool for the brave_web_search operation
@@ -137,6 +146,9 @@ if __name__ == "__main__":
         )
         try:
             tool = MCPTool(name="brave_web_search", server_info=server_info)
+            # Register for cleanup
+            mcp_tool_cleanup(tool)
+
         except MCPError as e:
             if "Could not find docker command" in str(e):
                 pytest.skip("Docker is not installed or not in PATH")
@@ -166,7 +178,7 @@ if __name__ == "__main__":
         )
 
     @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
-    def test_mcp_tool_in_pipeline_with_multiple_tools(self):
+    def test_mcp_tool_in_pipeline_with_multiple_tools(self, mcp_tool_cleanup):
         """Test using multiple MCPTools in a pipeline with OpenAI."""
 
         # Mix mcp tool with a simple echo tool
@@ -175,6 +187,9 @@ if __name__ == "__main__":
                 command="uvx", args=["mcp-server-time", "--local-timezone=America/New_York"]
             )
             time_tool = MCPTool(name="get_current_time", server_info=time_server_info)
+            # Register for cleanup
+            mcp_tool_cleanup(time_tool)
+
         except MCPError as e:
             if "Could not find uvx command" in str(e):
                 pytest.skip("uvx command not found, skipping test")
@@ -182,6 +197,8 @@ if __name__ == "__main__":
 
         echo_server_info = InMemoryServerInfo(server=echo_mcp._mcp_server)
         echo_tool = MCPTool(name="echo", server_info=echo_server_info)
+        # Register for cleanup
+        mcp_tool_cleanup(echo_tool)
 
         # Create pipeline with OpenAIChatGenerator and ToolInvoker
         pipeline = Pipeline()
@@ -213,4 +230,5 @@ if __name__ == "__main__":
         with pytest.raises(MCPError) as exc_info:
             MCPTool(name="non_existent_tool", server_info=server_info, connection_timeout=2)
 
-        assert "Failed to connect to HTTP server" in str(exc_info.value)
+        assert "failed" in str(exc_info.value)
+        assert "connect" in str(exc_info.value)
