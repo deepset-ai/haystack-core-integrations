@@ -35,7 +35,6 @@ _SUPPORTED_GENERATORS = [
     "HuggingFaceAPIGenerator",
     "HuggingFaceLocalGenerator",
     "CohereGenerator",
-    "OllamaGenerator",
 ]
 _SUPPORTED_CHAT_GENERATORS = [
     "AzureOpenAIChatGenerator",
