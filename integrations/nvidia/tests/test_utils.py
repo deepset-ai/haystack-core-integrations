@@ -107,6 +107,6 @@ def test_validate_hosted_model_without_client() -> None:
 
 def test_validate_hosted_model_with_client() -> None:
     """Test when model's client matches the provided client."""
-    model = validate_hosted_model("meta/codellama-70b", "NvidiaGenerator")
+    model = validate_hosted_model("nvidia/llama-3.2-nv-rerankqa-1b-v1", "NvidiaRanker")
     assert model is not None
-    assert model.client == "NvidiaGenerator"
+    assert model.client == "NvidiaRanker"
