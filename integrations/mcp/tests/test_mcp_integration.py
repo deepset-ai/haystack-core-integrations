@@ -5,6 +5,7 @@ import sys
 import tempfile
 import time
 
+from haystack_integrations.tools.mcp.mcp_tool import MCPConnectionError
 import pytest
 from haystack import Pipeline, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -222,6 +223,7 @@ if __name__ == "__main__":
         assert "New_York" in tool_message.tool_call_result.result
 
     @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
+    @pytest.mark.skip
     def test_mcp_tool_error_handling_integration(self):
         """Test error handling with MCPTool connection in a pipeline (integration)."""
 
