@@ -5,7 +5,6 @@ import sys
 import tempfile
 import time
 
-from haystack_integrations.tools.mcp.mcp_tool import MCPConnectionError
 import pytest
 from haystack import Pipeline, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
