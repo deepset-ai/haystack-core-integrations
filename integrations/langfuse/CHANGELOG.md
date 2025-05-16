@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/langfuse-v1.1.2] - 2025-05-16
+
+### 🌀 Miscellaneous
+
+- Test: Update how test skipping works in Langfuse (#1756)
+- `OllamaGenerator` support in Langfuse (#1759)
+
 ## [integrations/langfuse-v1.1.1] - 2025-05-08
 
 ### 🚀 Features
