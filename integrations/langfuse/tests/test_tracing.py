@@ -57,6 +57,10 @@ def basic_pipeline(llm_class, expected_trace):
     return pipe
 
 
+@pytest.mark.skipif(
+    not all([os.environ.get("LANGFUSE_SECRET_KEY"), os.environ.get("LANGFUSE_PUBLIC_KEY")]),
+    reason="Missing required environment variables: LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY",
+)
 @pytest.mark.integration
 @pytest.mark.parametrize(
     "llm_class, env_var, expected_trace",
@@ -68,7 +72,7 @@ def basic_pipeline(llm_class, expected_trace):
 )
 def test_tracing_integration(llm_class, env_var, expected_trace, basic_pipeline):
     if not all([os.environ.get("LANGFUSE_SECRET_KEY"), os.environ.get("LANGFUSE_PUBLIC_KEY"), os.environ.get(env_var)]):
-        pytest.skip(f"Missing required environment variables: LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, or {env_var}")
+        pytest.skip(f"Missing required environment variable: {env_var}")
 
     messages = [
         ChatMessage.from_system("Always respond in German even if some input data is in other languages."),
@@ -102,14 +106,18 @@ def test_tracing_integration(llm_class, env_var, expected_trace, basic_pipeline)
     assert res_json["observations"][0]["type"] == "GENERATION"
 
 
+@pytest.mark.skipif(
+    not all(
+        [
+            os.environ.get("LANGFUSE_SECRET_KEY"),
+            os.environ.get("LANGFUSE_PUBLIC_KEY"),
+            os.environ.get("OPENAI_API_KEY"),
+        ]
+    ),
+    reason="Missing required environment variables: LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY",
+)
 @pytest.mark.integration
 def test_tracing_with_sub_pipelines():
-    if not all(
-        [os.environ.get("LANGFUSE_SECRET_KEY"), os.environ.get("LANGFUSE_PUBLIC_KEY"), os.environ.get("OPENAI_API_KEY")]
-    ):
-        pytest.skip(
-            f"Missing required environment variables: LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY, or OPENAI_API_KEY"
-        )
 
     @component
     class SubGenerator:
