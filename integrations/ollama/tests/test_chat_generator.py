@@ -218,17 +218,17 @@ class TestOllamaChatGenerator:
         toolset = Toolset(tools)
         generator = OllamaChatGenerator(model="llama3", tools=toolset)
         assert generator.tools == toolset
-            
+
     def test_to_dict_with_toolset(self, tools):
         """Test that the OllamaChatGenerator can be serialized to a dictionary with a Toolset."""
         toolset = Toolset(tools)
         generator = OllamaChatGenerator(model="llama3", tools=toolset)
         data = generator.to_dict()
-        
+
         assert data["init_parameters"]["tools"]["type"] == "haystack.tools.toolset.Toolset"
         assert "tools" in data["init_parameters"]["tools"]["data"]
         assert len(data["init_parameters"]["tools"]["data"]["tools"]) == len(tools)
-        
+
     def test_from_dict_with_toolset(self, tools):
         """Test that the OllamaChatGenerator can be deserialized from a dictionary with a Toolset."""
         toolset = Toolset(tools)
@@ -655,7 +655,7 @@ class TestOllamaChatGenerator:
         """Test that the OllamaChatGenerator can run with a Toolset."""
         toolset = Toolset(tools)
         generator = OllamaChatGenerator(model="llama3", tools=toolset)
-        
+
         mock_response = ChatResponse(
             model="llama3",
             created_at="2023-12-12T14:13:43.416799Z",
@@ -679,12 +679,12 @@ class TestOllamaChatGenerator:
             eval_count=298,
             eval_duration=4799921000,
         )
-        
+
         mock_client_instance = mock_client.return_value
         mock_client_instance.chat.return_value = mock_response
-        
+
         result = generator.run(messages=[ChatMessage.from_user("What's the weather in Paris?")])
-        
+
         mock_client_instance.chat.assert_called_once()
         assert "replies" in result
         assert len(result["replies"]) == 1
