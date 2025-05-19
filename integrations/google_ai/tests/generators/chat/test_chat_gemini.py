@@ -737,21 +737,21 @@ class TestGoogleAIGeminiChatGenerator:
                                     "city": {
                                         "default": "Munich",
                                         "type": "string",
-                                        "description": "the city for which to get the weather, e.g. 'San Francisco'"
+                                        "description": "the city for which to get the weather, e.g. 'San Francisco'",
                                     },
                                     "unit": {
                                         "default": "Celsius",
                                         "type": "string",
                                         "enum": ["Celsius", "Fahrenheit"],
-                                        "description": "the unit for the temperature"
-                                    }
-                                }
+                                        "description": "the unit for the temperature",
+                                    },
+                                },
                             },
                             "function": "test_chat_gemini.get_current_weather",
-                        }
+                        },
                     }
                 ]
-            }
+            },
         }
 
         # Add compatibility fields for haystack 2.12.0+
