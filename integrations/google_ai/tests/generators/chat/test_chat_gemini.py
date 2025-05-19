@@ -12,6 +12,7 @@ from haystack import Pipeline
 from haystack.dataclasses import StreamingChunk
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole, TextContent, ToolCall
 from haystack.tools import Tool, create_tool_from_function
+from haystack.tools.toolset import Toolset
 
 from haystack_integrations.components.generators.google_ai.chat.gemini import (
     GoogleAIGeminiChatGenerator,
@@ -695,3 +696,85 @@ class TestGoogleAIGeminiChatGenerator:
         assert all("prompt_tokens" in reply.meta["usage"] for reply in replies)
         assert all("completion_tokens" in reply.meta["usage"] for reply in replies)
         assert all("total_tokens" in reply.meta["usage"] for reply in replies)
+
+    def test_init_with_toolset(self, tools, monkeypatch):
+        """Test that the GoogleAIGeminiChatGenerator can be initialized with a Toolset."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test")
+        
+        toolset = Toolset(tools)
+        
+        with patch(
+            "haystack_integrations.components.generators.google_ai.chat.gemini.genai.configure"
+        ) as mock_genai_configure:
+            gemini = GoogleAIGeminiChatGenerator(tools=toolset)
+            
+        mock_genai_configure.assert_called_once_with(api_key="test")
+        assert gemini._tools == toolset
+
+    def test_to_dict_with_toolset(self, tools, monkeypatch):
+        """Test that the GoogleAIGeminiChatGenerator can be serialized to a dictionary with a Toolset."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test")
+        
+        toolset = Toolset(tools)
+        
+        with patch("haystack_integrations.components.generators.google_ai.chat.gemini.genai.configure"):
+            gemini = GoogleAIGeminiChatGenerator(tools=toolset)
+            
+        data = gemini.to_dict()
+        
+        expected_tools_data = {
+            "type": "haystack.tools.toolset.Toolset",
+            "data": {
+                "tools": [
+                    {
+                        "type": "haystack.tools.tool.Tool",
+                        "data": {
+                            "name": "get_current_weather",
+                            "description": "A simple function to get the current weather for a location.",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "city": {
+                                        "type": "string",
+                                        "description": "the city for which to get the weather, e.g. 'San Francisco'"
+                                    },
+                                    "unit": {
+                                        "type": "string",
+                                        "enum": ["Celsius", "Fahrenheit"],
+                                        "description": "the unit for the temperature"
+                                    }
+                                }
+                            },
+                            "function": "haystack_integrations.components.generators.google_ai.chat.test_chat_gemini.get_current_weather",
+                        }
+                    }
+                ]
+            }
+        }
+        
+        # Add compatibility fields for haystack 2.12.0+
+        tool = tools[0]
+        if hasattr(tool, "outputs_to_string"):
+            expected_tools_data["data"]["tools"][0]["data"]["outputs_to_string"] = tool.outputs_to_string
+        if hasattr(tool, "inputs_from_state"):
+            expected_tools_data["data"]["tools"][0]["data"]["inputs_from_state"] = tool.inputs_from_state
+        if hasattr(tool, "outputs_to_state"):
+            expected_tools_data["data"]["tools"][0]["data"]["outputs_to_state"] = tool.outputs_to_state
+            
+        assert data["init_parameters"]["tools"] == expected_tools_data
+
+    def test_from_dict_with_toolset(self, tools, monkeypatch):
+        """Test that the GoogleAIGeminiChatGenerator can be deserialized from a dictionary with a Toolset."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test")
+        
+        toolset = Toolset(tools)
+        
+        with patch("haystack_integrations.components.generators.google_ai.chat.gemini.genai.configure"):
+            gemini = GoogleAIGeminiChatGenerator(tools=toolset)
+            data = gemini.to_dict()
+            
+            deserialized_component = GoogleAIGeminiChatGenerator.from_dict(data)
+            
+        assert isinstance(deserialized_component._tools, Toolset)
+        assert len(deserialized_component._tools) == len(tools)
+        assert all(isinstance(tool, Tool) for tool in deserialized_component._tools)

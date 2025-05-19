@@ -18,7 +18,8 @@ from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import AsyncStreamingCallbackT, StreamingCallbackT, StreamingChunk, select_streaming_callback
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole, ToolCall
-from haystack.tools import Tool, _check_duplicate_tool_names
+from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_or_toolset_inplace, serialize_tools_or_toolset
+from haystack.tools.toolset import Toolset
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
 # Compatibility with Haystack 2.12.0 and 2.13.0 - remove after 2.13.0 is released
@@ -148,7 +149,7 @@ class GoogleAIGeminiChatGenerator:
         model: str = "gemini-1.5-flash",
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
         tool_config: Optional[content_types.ToolConfigDict] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
     ):
@@ -168,7 +169,8 @@ class GoogleAIGeminiChatGenerator:
             A dictionary with `HarmCategory` as keys and `HarmBlockThreshold` as values.
             For more information, see [the API reference](https://ai.google.dev/api/generate-content)
         :param tools:
-            A list of tools for which the model can prepare calls.
+            A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
+            list of `Tool` objects or a `Toolset` instance.
         :param tool_config: The tool config to use. See the documentation for
             [ToolConfig](https://ai.google.dev/api/caching#ToolConfig).
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
@@ -202,7 +204,7 @@ class GoogleAIGeminiChatGenerator:
             model=self._model_name,
             generation_config=self._generation_config,
             safety_settings=self._safety_settings,
-            tools=[tool.to_dict() for tool in self._tools] if self._tools else None,
+            tools=serialize_tools_or_toolset(self._tools),
             streaming_callback=callback_name,
             tool_config=self._tool_config,
         )
@@ -256,7 +258,7 @@ class GoogleAIGeminiChatGenerator:
         messages: List[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
         *,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
     ):
         """
         Generates text based on the provided messages.
@@ -266,8 +268,8 @@ class GoogleAIGeminiChatGenerator:
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
         :param tools:
-            A list of tools for which the model can prepare calls. If set, it will override the `tools` parameter set
-            during component initialization.
+            A list of tools or a Toolset for which the model can prepare calls. If set, it will override the `tools` parameter set
+            during component initialization. This parameter can accept either a list of `Tool` objects or a `Toolset` instance.
         :returns:
             A dictionary containing the following key:
             - `replies`:  A list containing the generated responses as `ChatMessage` instances.
@@ -276,6 +278,7 @@ class GoogleAIGeminiChatGenerator:
 
         tools = tools or self._tools
         _check_duplicate_tool_names(tools)
+        # This works for both Tool and Toolset
         google_tools = [self._convert_to_google_tool(tool) for tool in tools] if tools else None
 
         if messages[0].is_from(ChatRole.SYSTEM):
@@ -309,7 +312,7 @@ class GoogleAIGeminiChatGenerator:
         messages: List[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
         *,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
     ):
         """
         Async version of the run method. Generates text based on the provided messages.
@@ -319,8 +322,8 @@ class GoogleAIGeminiChatGenerator:
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
         :param tools:
-            A list of tools for which the model can prepare calls. If set, it will override the `tools` parameter set
-            during component initialization.
+            A list of tools or a Toolset for which the model can prepare calls. If set, it will override the `tools` parameter set
+            during component initialization. This parameter can accept either a list of `Tool` objects or a `Toolset` instance.
         :returns:
             A dictionary containing the following key:
             - `replies`:  A list containing the generated responses as `ChatMessage` instances.
@@ -332,6 +335,7 @@ class GoogleAIGeminiChatGenerator:
 
         tools = tools or self._tools
         _check_duplicate_tool_names(tools)
+        # This works for both Tool and Toolset
         google_tools = [self._convert_to_google_tool(tool) for tool in tools] if tools else None
 
         if messages[0].is_from(ChatRole.SYSTEM):
