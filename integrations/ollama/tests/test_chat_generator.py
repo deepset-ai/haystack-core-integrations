@@ -20,6 +20,8 @@ from haystack_integrations.components.generators.ollama.chat.chat_generator impo
     _convert_ollama_response_to_chatmessage,
 )
 
+def get_weather(city: str) -> str:
+    return f"The weather in {city} is sunny"
 
 @pytest.fixture
 def tools():
@@ -32,7 +34,7 @@ def tools():
         name="weather",
         description="useful to determine the weather in a given location",
         parameters=tool_parameters,
-        function=lambda x: x,
+        function=get_weather,
     )
 
     return [tool]
