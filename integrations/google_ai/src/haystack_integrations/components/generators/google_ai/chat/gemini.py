@@ -18,15 +18,14 @@ from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import AsyncStreamingCallbackT, StreamingCallbackT, StreamingChunk, select_streaming_callback
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole, ToolCall
-from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_or_toolset_inplace, serialize_tools_or_toolset
+from haystack.tools import (
+    Tool,
+    _check_duplicate_tool_names,
+    deserialize_tools_or_toolset_inplace,
+    serialize_tools_or_toolset,
+)
 from haystack.tools.toolset import Toolset
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
-
-# Compatibility with Haystack 2.12.0 and 2.13.0 - remove after 2.13.0 is released
-try:
-    from haystack.tools import deserialize_tools_or_toolset_inplace
-except ImportError:
-    from haystack.tools import deserialize_tools_inplace as deserialize_tools_or_toolset_inplace
 
 logger = logging.getLogger(__name__)
 
@@ -268,8 +267,9 @@ class GoogleAIGeminiChatGenerator:
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
         :param tools:
-            A list of tools or a Toolset for which the model can prepare calls. If set, it will override the `tools` parameter set
-            during component initialization. This parameter can accept either a list of `Tool` objects or a `Toolset` instance.
+            A list of tools or a Toolset for which the model can prepare calls. If set, it will
+            override the `tools` parameter set during component initialization. This parameter
+            can accept either a list of `Tool` objects or a `Toolset` instance.
         :returns:
             A dictionary containing the following key:
             - `replies`:  A list containing the generated responses as `ChatMessage` instances.
@@ -322,8 +322,9 @@ class GoogleAIGeminiChatGenerator:
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
         :param tools:
-            A list of tools or a Toolset for which the model can prepare calls. If set, it will override the `tools` parameter set
-            during component initialization. This parameter can accept either a list of `Tool` objects or a `Toolset` instance.
+            A list of tools or a Toolset for which the model can prepare calls. If set, it will
+            override the `tools` parameter set during component initialization. This parameter can
+            accept either a list of `Tool` objects or a `Toolset` instance.
         :returns:
             A dictionary containing the following key:
             - `replies`:  A list containing the generated responses as `ChatMessage` instances.
