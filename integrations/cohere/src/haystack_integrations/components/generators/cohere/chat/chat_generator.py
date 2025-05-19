@@ -570,7 +570,7 @@ class CohereChatGenerator:
         self,
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
     ):
         """
         Invoke the chat endpoint based on the provided messages and generation parameters.
