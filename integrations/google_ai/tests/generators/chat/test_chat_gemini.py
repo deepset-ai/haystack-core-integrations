@@ -735,10 +735,12 @@ class TestGoogleAIGeminiChatGenerator:
                                 "type": "object",
                                 "properties": {
                                     "city": {
+                                        "default": "Munich",
                                         "type": "string",
                                         "description": "the city for which to get the weather, e.g. 'San Francisco'"
                                     },
                                     "unit": {
+                                        "default": "Celsius",
                                         "type": "string",
                                         "enum": ["Celsius", "Fahrenheit"],
                                         "description": "the unit for the temperature"
