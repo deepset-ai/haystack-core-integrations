@@ -1,10 +1,32 @@
 # Changelog
 
+## [integrations/langfuse-v1.1.2] - 2025-05-16
+
+### 🌀 Miscellaneous
+
+- Test: Update how test skipping works in Langfuse (#1756)
+- `OllamaGenerator` support in Langfuse (#1759)
+
+## [integrations/langfuse-v1.1.1] - 2025-05-08
+
+### 🚀 Features
+
+- Add more options to LangfuseConnector (#1657)
+
+
+## [integrations/langfuse-v1.1.0] - 2025-05-06
+
+### 🚀 Features
+
+- Enhance Langfuse ToolInvoker span naming (#1682)
+
+
 ## [integrations/langfuse-v1.0.1] - 2025-04-28
 
-### Bug Fixes
+### 🐛 Bug Fixes
 
 - Langfuse - remove warning "Creating a new trace without a parent span is not recommended"
+
 
 ## [integrations/langfuse-v1.0.0] - 2025-04-11
 

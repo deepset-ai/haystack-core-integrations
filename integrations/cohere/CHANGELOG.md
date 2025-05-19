@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/cohere-v4.1.0] - 2025-05-05
+
+### 🚀 Features
+
+- Add Toolset support to CohereChatGenerator (#1700)
+
+### 🧹 Chores
+
+- Upgrade default model to command-r-08-2024 (#1691)
+
+
 ## [integrations/cohere-v4.0.0] - 2025-05-02
 
 ### 🐛 Bug Fixes

@@ -418,6 +418,14 @@ class TestOllamaChatGenerator:
         assert result["replies"][0].text == "first chunk second chunk"
         assert result["replies"][0].role == "assistant"
 
+        # Verify metadata is properly processed and includes usage information
+        assert hasattr(result["replies"][0], "_meta")
+        assert result["replies"][0]._meta["done"] is True
+        assert "usage" in result["replies"][0]._meta
+        assert result["replies"][0]._meta["usage"]["prompt_tokens"] == 26
+        assert result["replies"][0]._meta["usage"]["completion_tokens"] == 282
+        assert result["replies"][0]._meta["usage"]["total_tokens"] == 308
+
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run_streaming_at_runtime(self, mock_client):
         streaming_callback_called = False
@@ -462,6 +470,14 @@ class TestOllamaChatGenerator:
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "first chunk second chunk"
         assert result["replies"][0].role == "assistant"
+
+        # Verify metadata is properly processed and includes usage information
+        assert hasattr(result["replies"][0], "_meta")
+        assert result["replies"][0]._meta["done"] is True
+        assert "usage" in result["replies"][0]._meta
+        assert result["replies"][0]._meta["usage"]["prompt_tokens"] == 26
+        assert result["replies"][0]._meta["usage"]["completion_tokens"] == 282
+        assert result["replies"][0]._meta["usage"]["total_tokens"] == 308
 
     def test_run_fail_with_tools_and_streaming(self, tools):
         component = OllamaChatGenerator(tools=tools, streaming_callback=print_streaming_chunk)
@@ -558,10 +574,11 @@ class TestOllamaChatGenerator:
         response_format = {
             "type": "object",
             "properties": {"capital": {"type": "string"}, "population": {"type": "number"}},
+            "required": ["capital", "population"],
         }
         chat_generator = OllamaChatGenerator(model="llama3.2:3b", response_format=response_format)
 
-        message = ChatMessage.from_user("What's the capital of France and its population?")
+        message = ChatMessage.from_user("What's the capital of France and its population? Respond in JSON format.")
         response = chat_generator.run([message])
 
         assert isinstance(response, dict)

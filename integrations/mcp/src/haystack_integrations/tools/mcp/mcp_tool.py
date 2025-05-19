@@ -5,6 +5,7 @@
 import asyncio
 import concurrent.futures
 import threading
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Coroutine
 from contextlib import AsyncExitStack
@@ -16,6 +17,7 @@ from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.tools import Tool
 from haystack.tools.errors import ToolInvocationError
+from haystack.utils.url_validation import is_valid_http_url
 
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.sse import sse_client
@@ -351,18 +353,19 @@ class SSEClient(MCPClient):
     MCP client that connects to servers using SSE transport.
     """
 
-    def __init__(self, base_url: str, token: str | None = None, timeout: int = 5) -> None:
+    def __init__(self, server_info: "SSEServerInfo") -> None:
         """
-        Initialize an SSE MCP client.
+        Initialize an SSE MCP client using server configuration.
 
-        :param base_url: Base URL of the server
-        :param token: Authentication token for the server (optional)
-        :param timeout: Connection timeout in seconds
+        :param server_info: Configuration object containing URL, token, timeout, etc.
         """
         super().__init__()
-        self.base_url: str = base_url.rstrip("/")  # Remove any trailing slashes
-        self.token: str | None = token
-        self.timeout: int = timeout
+
+        # in post_init we validate the url and set the url field so it is guaranteed to be valid
+        # safely ignore the mypy warning here
+        self.url: str = server_info.url  # type: ignore[assignment]
+        self.token: str | None = server_info.token
+        self.timeout: int = server_info.timeout
 
     async def connect(self) -> list[Tool]:
         """
@@ -371,12 +374,11 @@ class SSEClient(MCPClient):
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
         """
-        sse_url = f"{self.base_url}/sse"
         headers = {"Authorization": f"Bearer {self.token}"} if self.token else None
         sse_transport = await self.exit_stack.enter_async_context(
-            sse_client(sse_url, headers=headers, timeout=self.timeout)
+            sse_client(self.url, headers=headers, timeout=self.timeout)
         )
-        return await self._initialize_session_with_transport(sse_transport, f"HTTP server at {self.base_url}")
+        return await self._initialize_session_with_transport(sse_transport, f"HTTP server at {self.url}")
 
 
 @dataclass
@@ -432,22 +434,51 @@ class SSEServerInfo(MCPServerInfo):
     """
     Data class that encapsulates SSE MCP server connection parameters.
 
-    :param base_url: Base URL of the MCP server
+    :param url: Full URL of the MCP server (including /sse endpoint)
+    :param base_url: Base URL of the MCP server (deprecated, use url instead)
     :param token: Authentication token for the server (optional)
     :param timeout: Connection timeout in seconds
     """
 
-    base_url: str
+    url: str | None = None
+    base_url: str | None = None  # deprecated
     token: str | None = None
     timeout: int = 30
+
+    def __post_init__(self):
+        """Validate that either url or base_url is provided."""
+        if not self.url and not self.base_url:
+            message = "Either url or base_url must be provided"
+            raise ValueError(message)
+        if self.url and self.base_url:
+            message = "Only one of url or base_url should be provided, if both are provided, base_url will be ignored"
+            warnings.warn(message, DeprecationWarning, stacklevel=2)
+
+        if self.base_url:
+            if not is_valid_http_url(self.base_url):
+                message = f"Invalid base_url: {self.base_url}"
+                raise ValueError(message)
+
+            warnings.warn(
+                "base_url is deprecated and will be removed in a future version. Use url instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            # from now on only use url for the lifetime of the SSEServerInfo instance, never base_url
+            self.url = f"{self.base_url.rstrip('/')}/sse"
+
+        elif not is_valid_http_url(self.url):
+            message = f"Invalid url: {self.url}"
+            raise ValueError(message)
 
     def create_client(self) -> MCPClient:
         """
         Create an SSE MCP client.
 
-        :returns: Configured HttpMCPClient instance
+        :returns: Configured MCPClient instance
         """
-        return SSEClient(self.base_url, self.token, self.timeout)
+        # Pass the validated SSEServerInfo instance directly
+        return SSEClient(server_info=self)
 
 
 @dataclass
@@ -491,7 +522,7 @@ class MCPTool(Tool):
     # Create tool instance
     tool = MCPTool(
         name="add",
-        server_info=SSEServerInfo(base_url="http://localhost:8000")
+        server_info=SSEServerInfo(url="http://localhost:8000/sse")
     )
 
     # Use the tool

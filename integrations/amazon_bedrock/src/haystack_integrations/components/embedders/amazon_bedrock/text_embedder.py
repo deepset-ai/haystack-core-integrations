@@ -64,7 +64,7 @@ class AmazonBedrockTextEmbedder:
         aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         boto3_config: Optional[Dict[str, Any]] = None,
         **kwargs,
-    ):
+    ) -> None:
         """
         Initializes the AmazonBedrockTextEmbedder with the provided parameters. The parameters are passed to the
         Amazon Bedrock client.
@@ -126,7 +126,7 @@ class AmazonBedrockTextEmbedder:
             raise AmazonBedrockConfigurationError(msg) from exception
 
     @component.output_types(embedding=List[float])
-    def run(self, text: str):
+    def run(self, text: str) -> Dict[str, List[float]]:
         """Embeds the input text using the Amazon Bedrock model.
 
         :param text: The input text to embed.
@@ -173,6 +173,9 @@ class AmazonBedrockTextEmbedder:
             embedding = response_body["embeddings"][0]
         elif "titan" in self.model:
             embedding = response_body["embedding"]
+        else:
+            msg = f"Unsupported model {self.model}. Supported models are: {', '.join(SUPPORTED_EMBEDDING_MODELS)}"
+            raise ValueError(msg)
 
         return {"embedding": embedding}
 

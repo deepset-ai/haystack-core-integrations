@@ -5,6 +5,7 @@
 import contextlib
 import os
 from abc import ABC, abstractmethod
+from collections import Counter
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime
@@ -34,6 +35,7 @@ _SUPPORTED_GENERATORS = [
     "HuggingFaceAPIGenerator",
     "HuggingFaceLocalGenerator",
     "CohereGenerator",
+    "OllamaGenerator",
 ]
 _SUPPORTED_CHAT_GENERATORS = [
     "AzureOpenAIChatGenerator",
@@ -55,6 +57,7 @@ _PIPELINE_RUN_KEY = "haystack.pipeline.run"
 _COMPONENT_NAME_KEY = "haystack.component.name"
 _COMPONENT_TYPE_KEY = "haystack.component.type"
 _COMPONENT_OUTPUT_KEY = "haystack.component.output"
+_COMPONENT_INPUT_KEY = "haystack.component.input"
 
 # Context var used to keep track of tracing related info.
 # This mainly useful for parents spans.
@@ -196,7 +199,7 @@ class SpanHandler(ABC):
     - Pass your handler to LangfuseConnector init method
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.tracer: Optional[langfuse.Langfuse] = None
 
     def init_tracer(self, tracer: langfuse.Langfuse) -> None:
@@ -286,6 +289,21 @@ class DefaultSpanHandler(SpanHandler):
             coerced_input = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_INPUT_KEY))
             coerced_output = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_OUTPUT_KEY))
             span.raw_span().update(input=coerced_input, output=coerced_output)
+
+        # special case for ToolInvoker (to update the span name to be: `original_component_name - [tool_names]`)
+        if component_type == "ToolInvoker":
+            tool_names: List[str] = []
+            messages = span.get_data().get(_COMPONENT_INPUT_KEY, {}).get("messages", [])
+            for message in messages:
+                if isinstance(message, ChatMessage) and message.tool_calls:
+                    tool_names.extend(call.tool_name for call in message.tool_calls)
+
+            if tool_names:
+                # Fallback to "ToolInvoker" if we can't retrieve component name
+                tool_invoker_name = span.get_data().get(_COMPONENT_NAME_KEY, "ToolInvoker")
+                tool_counts = Counter(tool_names)  # how many times each tool was called
+                formatted_names = [f"{name} (x{count})" if count > 1 else name for name, count in tool_counts.items()]
+                span.raw_span().update(name=f"{tool_invoker_name} - {sorted(formatted_names)}")
 
         if component_type in _SUPPORTED_GENERATORS:
             meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
@@ -391,7 +409,7 @@ class LangfuseTracer(Tracer):
         if self.enforce_flush:
             self.flush()
 
-    def flush(self):
+    def flush(self) -> None:
         self._tracer.flush()
 
     def current_span(self) -> Optional[Span]:
