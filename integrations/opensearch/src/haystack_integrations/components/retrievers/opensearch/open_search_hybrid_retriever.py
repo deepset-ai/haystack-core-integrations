@@ -21,7 +21,7 @@ class OpenSearchHybridRetriever:
     """
     A hybrid retriever that combines embedding-based and keyword-based retrieval from OpenSearch.
 
-    This component requires haystack-ai>=2.13.0 to work properly.
+    This component requires haystack-ai>=2.14.0 to work properly.
     """
 
     def __init__(
