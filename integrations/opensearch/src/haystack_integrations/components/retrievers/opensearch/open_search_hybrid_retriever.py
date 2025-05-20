@@ -22,6 +22,23 @@ class OpenSearchHybridRetriever:
     A hybrid retriever that combines embedding-based and keyword-based retrieval from OpenSearch.
 
     This component requires haystack-ai>=2.14.0 to work properly.
+
+    # pip install haystack-ai datasets "sentence-transformers>=3.0.0"
+
+    from haystack import Document
+    from haystack.components.embedders import SentenceTransformersTextEmbedder
+    from haystack_integrations.components.retrievers.opensearch import OpenSearchHybridRetriever
+    from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
+    from datasets import load_dataset
+
+    dataset = load_dataset("HaystackBot/medrag-pubmed-chunk-with-embeddings", split="train")
+    docs = [Document(content=doc["contents"], embedding=doc["embedding"]) for doc in dataset]
+    document_store = OpenSearchDocumentStore()
+    document_store.write_documents(docs)
+
+    query = "What treatments are available for chronic bronchitis?"
+    result = OpenSearchHybridRetriever(document_store).run(...). # add SentenceTransformersTextEmbedder with "BAAI/bge-small-en-v1.5"
+    print(result)
     """
 
     def __init__(
