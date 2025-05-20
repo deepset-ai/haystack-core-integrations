@@ -23,22 +23,65 @@ class OpenSearchHybridRetriever:
 
     This component requires haystack-ai>=2.14.0 to work properly.
 
-    # pip install haystack-ai datasets "sentence-transformers>=3.0.0"
+    Example usage:
 
+    Make sure you have "sentence-transformers>=3.0.0":
+
+        pip install haystack-ai datasets "sentence-transformers>=3.0.0"
+
+
+    And OpenSearch running. You can run OpenSearch with Docker:
+
+        docker run -d --name opensearch-nosec -p 9200:9200 -p 9600:9600 -e "discovery.type=single-node" -e "DISABLE_SECURITY_PLUGIN=true" opensearchproject/opensearch:2.12.0   # noqa: E501
+
+    ```python
     from haystack import Document
-    from haystack.components.embedders import SentenceTransformersTextEmbedder
+    from haystack.components.embedders import SentenceTransformersTextEmbedder, SentenceTransformersDocumentEmbedder
     from haystack_integrations.components.retrievers.opensearch import OpenSearchHybridRetriever
     from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
-    from datasets import load_dataset
 
-    dataset = load_dataset("HaystackBot/medrag-pubmed-chunk-with-embeddings", split="train")
-    docs = [Document(content=doc["contents"], embedding=doc["embedding"]) for doc in dataset]
-    document_store = OpenSearchDocumentStore()
-    document_store.write_documents(docs)
+    # Initialize the document store
+    doc_store = OpenSearchDocumentStore(
+        hosts=["<http://localhost:9200>"],
+        index="document_store",
+        embedding_dim=384,
+    )
 
-    query = "What treatments are available for chronic bronchitis?"
-    result = OpenSearchHybridRetriever(document_store).run(...). # add SentenceTransformersTextEmbedder with "BAAI/bge-small-en-v1.5"
-    print(result)
+    # Create some sample documents
+    docs = [
+        Document(content="Machine learning is a subset of artificial intelligence."),
+        Document(content="Deep learning is a subset of machine learning."),
+        Document(content="Natural language processing is a field of AI."),
+        Document(content="Reinforcement learning is a type of machine learning."),
+        Document(content="Supervised learning is a type of machine learning."),
+    ]
+
+    # Embed the documents and add them to the document store
+    doc_embedder = SentenceTransformersDocumentEmbedder(model="sentence-transformers/all-MiniLM-L6-v2")
+    doc_embedder.warm_up()
+    docs = doc_embedder.run(docs)
+    doc_store.write_documents(docs['documents'])
+
+    # Initialize some haystack text embedder, in this case the SentenceTransformersTextEmbedder
+    embedder = SentenceTransformersTextEmbedder(model="sentence-transformers/all-MiniLM-L6-v2")
+
+    # Initialize the hybrid retriever
+    retriever = OpenSearchHybridRetriever(
+        document_store=doc_store,
+        embedder=embedder,
+        top_k_bm25=3,
+        top_k_embedding=3,
+        join_mode="reciprocal_rank_fusion"
+    )
+
+    # Run the retriever
+    results = retriever.run(query="What is reinforcement learning?", filters_bm25=None, filters_embedding=None)
+
+    >> results['documents']
+    {'documents': [Document(id=..., content: 'Reinforcement learning is a type of machine learning.', score: 1.0),
+      Document(id=..., content: 'Supervised learning is a type of machine learning.', score: 0.9760624679979518),
+      Document(id=..., content: 'Deep learning is a subset of machine learning.', score: 0.4919354838709677),
+      Document(id=..., content: 'Machine learning is a subset of artificial intelligence.', score: 0.4841269841269841)]}
     """
 
     def __init__(
