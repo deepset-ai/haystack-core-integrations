@@ -32,7 +32,8 @@ class OpenSearchHybridRetriever:
 
     And OpenSearch running. You can run OpenSearch with Docker:
 
-        docker run -d --name opensearch-nosec -p 9200:9200 -p 9600:9600 -e "discovery.type=single-node" -e "DISABLE_SECURITY_PLUGIN=true" opensearchproject/opensearch:2.12.0   # noqa: E501
+        docker run -d --name opensearch-nosec -p 9200:9200 -p 9600:9600 -e "discovery.type=single-node"
+        -e "DISABLE_SECURITY_PLUGIN=true" opensearchproject/opensearch:2.12.0
 
     ```python
     from haystack import Document
