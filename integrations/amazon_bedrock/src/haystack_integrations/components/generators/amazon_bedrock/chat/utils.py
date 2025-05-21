@@ -150,6 +150,39 @@ def _repair_tool_result_messages(bedrock_formatted_messages: List[Dict[str, Any]
     return [msg for _, msg in repaired_bedrock_formatted_messages]
 
 
+def _format_text_image_message(message: ChatMessage) -> Dict[str, Any]:
+    """
+    Format a Haystack ChatMessage containing text and optionalimage content into Bedrock format.
+
+    :param message: Haystack ChatMessage.
+    :returns: Dictionary representing the message in Bedrock's expected format.
+    :raises ValueError: If image content is found in an assistant message or an unsupported image format is used.
+    """
+    content_parts = message._content
+
+    bedrock_content_blocks = []
+    for part in content_parts:
+        if isinstance(part, TextContent):
+            bedrock_content_blocks.append({"text": part.text})
+
+        elif isinstance(part, ImageContent):
+            if message.is_from(ChatRole.ASSISTANT):
+                err_msg = "Image content is not supported for assistant messages"
+                raise ValueError(err_msg)
+
+            image_format = part.mime_type.split("/")[-1] if part.mime_type else None
+            if image_format not in IMAGE_SUPPORTED_FORMATS:
+                err_msg = (
+                    f"Unsupported image format: {image_format}. "
+                    f"Bedrock supports the following image formats: {IMAGE_SUPPORTED_FORMATS}"
+                )
+                raise ValueError(err_msg)
+            source = {"bytes": base64.b64decode(part.base64_image)}
+            bedrock_content_blocks.append({"image": {"format": image_format, "source": source}})
+
+    return {"role": message.role.value, "content": bedrock_content_blocks}
+
+
 def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Format a list of Haystack ChatMessages to the format expected by Bedrock API.
@@ -175,24 +208,7 @@ def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]],
         elif msg.tool_call_results:
             bedrock_formatted_messages.append(_format_tool_result_message(msg))
         else:
-            content_parts = msg._content
-            bedrock_content_blocks = []
-            for part in content_parts:
-                if isinstance(part, TextContent):
-                    bedrock_content_blocks.append({"text": part.text})
-                elif isinstance(part, ImageContent):
-                    image_format = part.mime_type.split("/")[-1] if part.mime_type else None
-                    if image_format not in IMAGE_SUPPORTED_FORMATS:
-                        err_msg = (
-                            f"Unsupported image format: {image_format}. "
-                            f"Bedrock supports the following image formats: {IMAGE_SUPPORTED_FORMATS}"
-                        )
-                        raise ValueError(err_msg)
-                    source = {"bytes": base64.b64decode(part.base64_image)}
-                    bedrock_content_blocks.append({"image": {"format": image_format, "source": source}})
-
-            bedrock_message = {"role": msg.role.value, "content": bedrock_content_blocks}
-            bedrock_formatted_messages.append(bedrock_message)
+            bedrock_formatted_messages.append(_format_text_image_message(msg))
 
     repaired_bedrock_formatted_messages = _repair_tool_result_messages(bedrock_formatted_messages)
     return system_prompts, repaired_bedrock_formatted_messages

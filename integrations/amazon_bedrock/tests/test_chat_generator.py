@@ -26,6 +26,10 @@ MODELS_TO_TEST_WITH_TOOLS = [
 # so far we've discovered these models support streaming and tool use
 STREAMING_TOOL_MODELS = ["anthropic.claude-3-5-sonnet-20240620-v1:0", "cohere.command-r-plus-v1:0"]
 
+MODELS_TO_TEST_WITH_IMAGE_INPUT = [
+    "anthropic.claude-3-5-sonnet-20240620-v1:0",
+]
+
 
 def weather(city: str):
     """Get weather for a given city."""
@@ -325,8 +329,9 @@ class TestAmazonBedrockChatGeneratorInference:
         assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
 
-    def test_run_with_image_message(self):
-        client = AmazonBedrockChatGenerator(model="mistral.mistral-large-2402-v1:0") # anthropic.claude-3-5-sonnet-20240620-v1:0
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_IMAGE_INPUT)
+    def test_run_with_image_input(self, model_name):
+        client = AmazonBedrockChatGenerator(model=model_name)
         apple_image = ImageContent.from_url(
             "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Pink_Lady_Apple_%284107712628%29.jpg/250px-Pink_Lady_Apple_%284107712628%29.jpg"
         )
