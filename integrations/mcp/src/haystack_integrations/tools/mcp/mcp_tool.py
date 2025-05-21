@@ -11,6 +11,7 @@ from collections.abc import Callable, Coroutine
 from concurrent.futures import Future
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, fields
+from datetime import timedelta
 from typing import Any, cast
 
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
@@ -23,6 +24,7 @@ from haystack.utils.url_validation import is_valid_http_url
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
+from mcp.client.streamable_http import streamablehttp_client
 
 logger = logging.getLogger(__name__)
 
@@ -325,13 +327,14 @@ class MCPClient(ABC):
         """
         Common session initialization logic for all transports.
 
-        :param transport_tuple: Tuple containing (stdio, write) from the transport
+        :param transport_tuple: Tuple containing at least (stdio, write) from the transport
         :param connection_type: String describing the connection type for error messages
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
         """
         try:
-            self.stdio, self.write = transport_tuple
+            # Use extended unpacking to handle tuples with additional values
+            self.stdio, self.write, *_ = transport_tuple
             self.session = await self.exit_stack.enter_async_context(ClientSession(self.stdio, self.write))
 
             # Now session is guaranteed to be a ClientSession, not None
@@ -412,6 +415,37 @@ class SSEClient(MCPClient):
             sse_client(self.url, headers=headers, timeout=self.timeout)
         )
         return await self._initialize_session_with_transport(sse_transport, f"HTTP server at {self.url}")
+
+
+class StreamableHttpClient(MCPClient):
+    """
+    MCP client that connects to servers using streamable HTTP transport.
+    """
+
+    def __init__(self, server_info: "StreamableHttpServerInfo") -> None:
+        """
+        Initialize a streamable HTTP MCP client using server configuration.
+
+        :param server_info: Configuration object containing URL, token, timeout, etc.
+        """
+        super().__init__()
+
+        self.url: str = server_info.url
+        self.token: str | None = server_info.token
+        self.timeout: int = server_info.timeout
+
+    async def connect(self) -> list[Tool]:
+        """
+        Connect to an MCP server using streamable HTTP transport.
+
+        :returns: List of available tools on the server
+        :raises MCPConnectionError: If connection to the server fails
+        """
+        headers = {"Authorization": f"Bearer {self.token}"} if self.token else None
+        streamablehttp_transport = await self.exit_stack.enter_async_context(
+            streamablehttp_client(url=self.url, headers=headers, timeout=timedelta(seconds=self.timeout))
+        )
+        return await self._initialize_session_with_transport(streamablehttp_transport, f"HTTP server at {self.url}")
 
 
 @dataclass
@@ -512,6 +546,35 @@ class SSEServerInfo(MCPServerInfo):
         """
         # Pass the validated SSEServerInfo instance directly
         return SSEClient(server_info=self)
+
+
+@dataclass
+class StreamableHttpServerInfo(MCPServerInfo):
+    """
+    Data class that encapsulates streamable HTTP MCP server connection parameters.
+
+    :param url: Full URL of the MCP server (streamable HTTP endpoint)
+    :param token: Authentication token for the server (optional)
+    :param timeout: Connection timeout in seconds
+    """
+
+    url: str
+    token: str | None = None
+    timeout: int = 30
+
+    def __post_init__(self):
+        """Validate the URL."""
+        if not is_valid_http_url(self.url):
+            message = f"Invalid url: {self.url}"
+            raise ValueError(message)
+
+    def create_client(self) -> MCPClient:
+        """
+        Create a streamable HTTP MCP client.
+
+        :returns: Configured StreamableHttpClient instance
+        """
+        return StreamableHttpClient(server_info=self)
 
 
 @dataclass
