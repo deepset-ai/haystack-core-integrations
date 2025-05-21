@@ -6,7 +6,6 @@ from botocore.eventstream import EventStream
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingCallbackT, select_streaming_callback
-from haystack_experimental.dataclasses import ChatMessage
 from haystack.tools import (
     Tool,
     Toolset,
@@ -16,6 +15,7 @@ from haystack.tools import (
 )
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
+from haystack_experimental.dataclasses import ChatMessage
 
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
