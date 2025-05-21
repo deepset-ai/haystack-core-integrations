@@ -115,10 +115,9 @@ def _convert_ollama_response_to_chatmessage(ollama_response: "ChatResponse") -> 
     tool_calls = []
     if ollama_tool_calls := ollama_message.get("tool_calls"):
         for ollama_tc in ollama_tool_calls:
-            call_id = ollama_tc["id"] if "id" in ollama_tc else str(uuid.uuid4())
             tool_calls.append(
                 ToolCall(
-                    id=call_id, tool_name=ollama_tc["function"]["name"], arguments=ollama_tc["function"]["arguments"]
+                    tool_name=ollama_tc["function"]["name"], arguments=ollama_tc["function"]["arguments"]
                 )
             )
 
