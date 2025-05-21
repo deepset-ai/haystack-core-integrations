@@ -156,6 +156,7 @@ module = [
   "botocore.*",
   "boto3.*",
   "haystack.*",
+  "haystack_experimental.*",
   "haystack_integrations.*",
   "pytest.*",
   "numpy.*",
