@@ -1,4 +1,3 @@
-import uuid
 from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
@@ -116,9 +115,7 @@ def _convert_ollama_response_to_chatmessage(ollama_response: "ChatResponse") -> 
     if ollama_tool_calls := ollama_message.get("tool_calls"):
         for ollama_tc in ollama_tool_calls:
             tool_calls.append(
-                ToolCall(
-                    tool_name=ollama_tc["function"]["name"], arguments=ollama_tc["function"]["arguments"]
-                )
+                ToolCall(tool_name=ollama_tc["function"]["name"], arguments=ollama_tc["function"]["arguments"])
             )
 
     message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls)
