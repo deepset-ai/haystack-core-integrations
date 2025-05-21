@@ -11,6 +11,7 @@ from haystack.dataclasses import (
     StreamingChunk,
     SyncStreamingCallbackT,
     ToolCall,
+    ToolCallDelta,
 )
 from haystack.tools import Tool
 
@@ -260,6 +261,16 @@ def _convert_event_to_streaming_chunk(event: Dict[str, Any], model: str) -> Stre
             tool_start = block_start["start"]["toolUse"]
             streaming_chunk = StreamingChunk(
                 content="",
+                tool_calls=[
+                    ToolCallDelta(
+                        index=block_idx,
+                        id=tool_start["toolUseId"],
+                        name=tool_start["name"],
+                        arguments=None,
+                    )
+                ],
+                # TODO Not sure if I need start
+                # start=True,
                 meta={
                     "model": model,
                     # This is always 0 b/c it represents the choice index
@@ -304,6 +315,14 @@ def _convert_event_to_streaming_chunk(event: Dict[str, Any], model: str) -> Stre
         elif "toolUse" in delta:
             streaming_chunk = StreamingChunk(
                 content="",
+                tool_calls=[
+                    ToolCallDelta(
+                        index=block_idx,
+                        id=None,
+                        name=None,
+                        arguments=delta["toolUse"].get("input", ""),
+                    )
+                ],
                 meta={
                     "model": model,
                     # This is always 0 b/c it represents the choice index
