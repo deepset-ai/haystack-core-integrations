@@ -72,7 +72,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
         with:
           aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN_2 }}
 
       # Do not run integration tests on pull requests from forks
       - name: Run integration tests
