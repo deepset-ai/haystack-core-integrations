@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from haystack import component
 from haystack.components.embedders import OpenAIDocumentEmbedder
@@ -41,6 +41,10 @@ class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
         progress_bar: bool = True,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
+        *,
+        timeout: Optional[float] = None,
+        max_retries: Optional[int] = None,
+        http_client_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
         Creates a MistralDocumentEmbedder component.
@@ -64,6 +68,15 @@ class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
             List of meta fields that should be embedded along with the Document text.
         :param embedding_separator:
             Separator used to concatenate the meta fields to the Document text.
+        :param timeout:
+            Timeout for Mistral client calls. If not set, it defaults to either the `OPENAI_TIMEOUT` environment
+            variable, or 30 seconds.
+        :param max_retries:
+            Maximum number of retries to contact Mistral after an internal error.
+            If not set, it defaults to either the `OPENAI_MAX_RETRIES` environment variable, or set to 5.
+        :param http_client_kwargs:
+            A dictionary of keyword arguments to configure a custom `httpx.Client`or `httpx.AsyncClient`.
+            For more information, see the [HTTPX documentation](https://www.python-httpx.org/api/#client).
         """
         super(MistralDocumentEmbedder, self).__init__(  # noqa: UP008
             api_key=api_key,
@@ -77,4 +90,7 @@ class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
             progress_bar=progress_bar,
             meta_fields_to_embed=meta_fields_to_embed,
             embedding_separator=embedding_separator,
+            timeout=timeout,
+            max_retries=max_retries,
+            http_client_kwargs=http_client_kwargs,
         )

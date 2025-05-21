@@ -104,6 +104,25 @@ class TestMistralDocumentEmbedder:
             },
         }
 
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+        data = {
+            "type": "haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",
+            "init_parameters": {
+                "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
+                "model": "mistral-small",
+                "api_base_url": "test-base-url",
+                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
+                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+            },
+        }
+        component = MistralChatGenerator.from_dict(data)
+        assert component.model == "mistral-small"
+        assert component.streaming_callback is print_streaming_chunk
+        assert component.api_base_url == "test-base-url"
+        assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
+        assert component.api_key == Secret.from_env_var("MISTRAL_API_KEY")
+
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),
         reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",
