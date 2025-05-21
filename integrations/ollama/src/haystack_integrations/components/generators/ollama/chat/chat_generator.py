@@ -1,5 +1,5 @@
-from typing import Any, Callable, Dict, List, Literal, Optional, Union
 import uuid
+from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
@@ -117,7 +117,9 @@ def _convert_ollama_response_to_chatmessage(ollama_response: "ChatResponse") -> 
         for ollama_tc in ollama_tool_calls:
             call_id = ollama_tc["id"] if "id" in ollama_tc else str(uuid.uuid4())
             tool_calls.append(
-                ToolCall(id=call_id, tool_name=ollama_tc["function"]["name"], arguments=ollama_tc["function"]["arguments"])
+                ToolCall(
+                    id=call_id, tool_name=ollama_tc["function"]["name"], arguments=ollama_tc["function"]["arguments"]
+                )
             )
 
     message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls)
