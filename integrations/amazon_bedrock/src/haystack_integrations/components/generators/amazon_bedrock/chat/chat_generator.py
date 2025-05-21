@@ -5,7 +5,8 @@ from botocore.config import Config
 from botocore.eventstream import EventStream
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.dataclasses import ChatMessage, StreamingCallbackT, select_streaming_callback
+from haystack.dataclasses import StreamingCallbackT, select_streaming_callback
+from haystack_experimental.dataclasses import ChatMessage
 from haystack.tools import (
     Tool,
     Toolset,
