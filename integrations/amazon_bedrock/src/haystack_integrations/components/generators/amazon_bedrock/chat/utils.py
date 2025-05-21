@@ -1,3 +1,4 @@
+import base64
 import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -187,7 +188,7 @@ def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]],
                             f"Bedrock supports the following image formats: {IMAGE_SUPPORTED_FORMATS}"
                         )
                         raise ValueError(err_msg)
-                    source = {"bytes": part.base64_image}
+                    source = {"bytes": base64.b64decode(part.base64_image)}
                     bedrock_content_blocks.append({"image": {"format": image_format, "source": source}})
 
             bedrock_message = {"role": msg.role.value, "content": bedrock_content_blocks}
