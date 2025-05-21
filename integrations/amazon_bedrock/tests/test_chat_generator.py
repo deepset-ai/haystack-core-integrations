@@ -326,7 +326,7 @@ class TestAmazonBedrockChatGeneratorInference:
         assert first_reply.meta, "First reply has no metadata"
 
     def test_run_with_image_message(self):
-        client = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+        client = AmazonBedrockChatGenerator(model="mistral.mistral-large-2402-v1:0") # anthropic.claude-3-5-sonnet-20240620-v1:0
         apple_image = ImageContent.from_url(
             "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Pink_Lady_Apple_%284107712628%29.jpg/250px-Pink_Lady_Apple_%284107712628%29.jpg"
         )
