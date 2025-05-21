@@ -6,15 +6,15 @@ from botocore.eventstream import EventStream
 from haystack import logging
 from haystack.dataclasses import (
     AsyncStreamingCallbackT,
-    ChatMessage,
-    ChatRole,
     StreamingChunk,
     SyncStreamingCallbackT,
-    ToolCall,
 )
 from haystack.tools import Tool
+from haystack_experimental.dataclasses.chat_message import ChatMessage, ChatRole, ImageContent, TextContent, ToolCall
 
 logger = logging.getLogger(__name__)
+
+IMAGE_SUPPORTED_FORMATS = ["png", "jpeg", "gif", "webp"]
 
 
 # Haystack to Bedrock util methods
@@ -174,8 +174,24 @@ def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]],
         elif msg.tool_call_results:
             bedrock_formatted_messages.append(_format_tool_result_message(msg))
         else:
-            # regular user or assistant messages with only text content
-            bedrock_formatted_messages.append({"role": msg.role.value, "content": [{"text": msg.text}]})
+            content_parts = msg._content
+            bedrock_content_blocks = []
+            for part in content_parts:
+                if isinstance(part, TextContent):
+                    bedrock_content_blocks.append({"text": part.text})
+                elif isinstance(part, ImageContent):
+                    image_format = part.mime_type.split("/")[-1] if part.mime_type else None
+                    if image_format not in IMAGE_SUPPORTED_FORMATS:
+                        err_msg = (
+                            f"Unsupported image format: {image_format}. "
+                            f"Bedrock supports the following image formats: {IMAGE_SUPPORTED_FORMATS}"
+                        )
+                        raise ValueError(err_msg)
+                    source = {"bytes": part.base64_image}
+                    bedrock_content_blocks.append({"image": {"format": image_format, "source": source}})
+
+            bedrock_message = {"role": msg.role.value, "content": bedrock_content_blocks}
+            bedrock_formatted_messages.append(bedrock_message)
 
     repaired_bedrock_formatted_messages = _repair_tool_result_messages(bedrock_formatted_messages)
     return system_prompts, repaired_bedrock_formatted_messages

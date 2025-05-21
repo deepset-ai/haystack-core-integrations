@@ -5,8 +5,9 @@ import pytest
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
+from haystack.dataclasses import StreamingChunk
 from haystack.tools import Tool
+from haystack_experimental.dataclasses.chat_message import ChatMessage, ChatRole, ImageContent
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 
@@ -323,6 +324,23 @@ class TestAmazonBedrockChatGeneratorInference:
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
         assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
+
+    def test_run_with_image_message(self):
+        client = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+        apple_image = ImageContent.from_url(
+            "https://upload.wikimedia.org/wikipedia/commons/2/26/Pink_Lady_Apple_%284107712628%29.jpg"
+        )
+        response = client.run([ChatMessage.from_user(content_parts=["What's in the image? Max 5 words.", apple_image])])
+        assert "replies" in response, "Response does not contain 'replies' key"
+        replies = response["replies"]
+        assert isinstance(replies, list), "Replies is not a list"
+        assert len(replies) > 0, "No replies received"
+
+        first_reply = replies[0]
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert first_reply.text, "First reply has no content"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert "apple" in first_reply.text.lower(), "First reply does not contain 'apple'"
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
     def test_live_run_with_multi_tool_calls(self, model_name, tools):
