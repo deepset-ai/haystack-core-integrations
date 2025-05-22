@@ -156,6 +156,30 @@ class TestNvidiaChatGenerator:
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
+    def test_run_with_extra_body(self, chat_messages, mock_chat_completion, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        extra_body = {
+            "guardrails": {"config_id": "demo-self-check-input-output"},
+        }
+        component = NvidiaChatGenerator(generation_kwargs={"extra_body": extra_body})
+        response = component.run(chat_messages)
+
+        # check that the component calls the OpenAI API with the correct parameters
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["extra_body"] == extra_body
+        assert kwargs["model"] == "meta/llama-3.1-8b-instruct"
+        assert kwargs["messages"] == [
+            {"role": "system", "content": "You are a helpful assistant"},
+            {"role": "user", "content": "What's the capital of France"},
+        ]
+
+        # check that the component returns the correct response
+        assert isinstance(response, dict)
+        assert "replies" in response
+        assert isinstance(response["replies"], list)
+        assert len(response["replies"]) == 1
+        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
+
     @pytest.mark.skipif(
         not os.environ.get("NVIDIA_API_KEY", None),
         reason="Export an env var called NVIDIA_API_KEY containing the NVIDIA API key to run this test.",
