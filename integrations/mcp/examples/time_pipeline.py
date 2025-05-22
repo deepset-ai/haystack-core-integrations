@@ -60,7 +60,8 @@ def main():
 
         print(result["response_llm"]["replies"][0].text)
     finally:
-        time_tool.close()
+        if time_tool:
+            time_tool.close()
 
 
 if __name__ == "__main__":

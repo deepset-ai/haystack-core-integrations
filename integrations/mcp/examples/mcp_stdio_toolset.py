@@ -55,7 +55,8 @@ def main():
     except Exception as e:
         print(f"Error in stdio toolset example: {e}")
     finally:
-        stdio_toolset.close()
+        if stdio_toolset:
+            stdio_toolset.close()
 
 
 if __name__ == "__main__":

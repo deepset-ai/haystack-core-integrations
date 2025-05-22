@@ -58,7 +58,8 @@ def main():
         print(result["response_llm"]["replies"][0].text)
 
     finally:
-        mcp_toolset.close()
+        if mcp_toolset:
+            mcp_toolset.close()
 
 
 if __name__ == "__main__":

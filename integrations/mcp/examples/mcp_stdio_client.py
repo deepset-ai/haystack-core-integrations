@@ -37,7 +37,8 @@ def main():
     except Exception as e:
         print(f"Error in stdio example: {e}")
     finally:
-        stdio_tool.close()
+        if stdio_tool:
+            stdio_tool.close()
 
 
 if __name__ == "__main__":

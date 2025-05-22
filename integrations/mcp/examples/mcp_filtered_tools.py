@@ -49,8 +49,10 @@ def main():
     except Exception as e:
         print(f"Error in filtered toolset example: {e}")
     finally:
-        full_toolset.close()
-        filtered_toolset.close()
+        if full_toolset:
+            full_toolset.close()
+        if filtered_toolset:
+            filtered_toolset.close()
 
 
 if __name__ == "__main__":

@@ -42,13 +42,9 @@ def main():
     else:  # streamable-http
         server_info = StreamableHttpServerInfo(url="http://localhost:8000/mcp")
 
-    tool = MCPTool(name="add", server_info=server_info)
-
-    tool_subtract = MCPTool(name="subtract", server_info=server_info)
-
     try:
-        print(f"Connecting to MCP server using {args.transport} transport at: {server_info.url}")
-        print(f"Tool spec: {tool.tool_spec}")
+        tool = MCPTool(name="add", server_info=server_info)
+        tool_subtract = MCPTool(name="subtract", server_info=server_info)
 
         result = tool.invoke(a=7, b=3)
         print(f"7 + 3 = {result}")
@@ -62,8 +58,10 @@ def main():
     except Exception as e:
         print(f"Error in client example: {e}")
     finally:
-        tool.close()
-        tool_subtract.close()
+        if tool:
+            tool.close()
+        if tool_subtract:
+            tool_subtract.close()
 
 
 if __name__ == "__main__":

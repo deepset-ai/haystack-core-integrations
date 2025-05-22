@@ -63,7 +63,8 @@ def main():
         print(f"Error in SSE toolset example: {e}")
 
     finally:
-        sse_toolset.close()
+        if sse_toolset:
+            sse_toolset.close()
 
 
 if __name__ == "__main__":
