@@ -18,6 +18,7 @@ from .mcp_tool import (
     MCPToolNotFoundError,
     SSEServerInfo,
     StdioServerInfo,
+    _MCPClientSessionManager,
 )
 
 logger = logging.getLogger(__name__)
@@ -122,11 +123,12 @@ class MCPToolset(Toolset):
 
         # Connect and load tools
         try:
-            # Create the appropriate client using the factory method
+            # Create the client and spin up a worker so open/close happen in the
+            # same coroutine, avoiding AnyIO cancel-scope issues.
             client = self.server_info.create_client()
+            self._worker = _MCPClientSessionManager(client, timeout=self.connection_timeout)
 
-            # Connect and get available tools using AsyncExecutor
-            tools = AsyncExecutor.get_instance().run(client.connect(), timeout=self.connection_timeout)
+            tools = self._worker.tools()
 
             # If tool_names is provided, validate that all requested tools exist
             if self.tool_names:
@@ -175,6 +177,11 @@ class MCPToolset(Toolset):
             super().__init__(tools=haystack_tools)
 
         except Exception as e:
+            # We need to close because we could connect properly, retrieve tools yet
+            # fail because of an MCPToolNotFoundError
+            self.close()
+
+            # Create informative error message for SSE connection errors
             if isinstance(self.server_info, SSEServerInfo):
                 base_message = f"Failed to connect to SSE server at {self.server_info.url}"
                 checks = ["1. The server is running"]
@@ -205,6 +212,7 @@ class MCPToolset(Toolset):
                     message = f"{base_message}. Please check if:\n" + "\\n".join(checks)
                 else:
                     message = f"{base_message}: {e}"
+            # and for stdio connection errors
             elif isinstance(self.server_info, StdioServerInfo):  # stdio connection
                 base_message = "Failed to start MCP server process"
                 stdio_info = self.server_info
@@ -255,3 +263,14 @@ class MCPToolset(Toolset):
             connection_timeout=inner_data.get("connection_timeout", 30.0),
             invocation_timeout=inner_data.get("invocation_timeout", 30.0),
         )
+
+    def close(self):
+        """Close the underlying MCP client safely."""
+        if hasattr(self, "_worker") and self._worker:
+            try:
+                self._worker.stop()
+            except Exception as e:
+                logger.debug(f"TOOLSET: error during worker stop: {e!s}")
+
+    def __del__(self):
+        self.close()
