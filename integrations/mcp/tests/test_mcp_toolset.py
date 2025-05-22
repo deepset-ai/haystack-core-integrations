@@ -287,7 +287,7 @@ if __name__ == "__main__":
         finally:
             # Explicitly close tools first to prevent SSE connection errors
             try:
-                toolset.sync_close()
+                toolset.close()
             except Exception as e:
                 logger.debug(f"Error during tool cleanup: {e}")
 

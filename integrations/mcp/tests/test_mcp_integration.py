@@ -111,8 +111,8 @@ if __name__ == "__main__":
         finally:
             # Explicitly close tools first to prevent SSE connection errors
             try:
-                tool.sync_close()
-                subtract_tool.sync_close()
+                tool.close()
+                subtract_tool.close()
             except Exception as e:
                 logger.debug(f"Error during tool cleanup: {e}")
 

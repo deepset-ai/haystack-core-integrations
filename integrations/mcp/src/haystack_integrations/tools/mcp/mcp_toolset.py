@@ -177,6 +177,10 @@ class MCPToolset(Toolset):
             super().__init__(tools=haystack_tools)
 
         except Exception as e:
+            # Clean up session resources on error
+            self.close()
+
+            # Create informative error message for SSE connection errors
             if isinstance(self.server_info, SSEServerInfo):
                 base_message = f"Failed to connect to SSE server at {self.server_info.url}"
                 checks = ["1. The server is running"]
@@ -207,6 +211,7 @@ class MCPToolset(Toolset):
                     message = f"{base_message}. Please check if:\n" + "\\n".join(checks)
                 else:
                     message = f"{base_message}: {e}"
+            # and for stdio connection errors
             elif isinstance(self.server_info, StdioServerInfo):  # stdio connection
                 base_message = "Failed to start MCP server process"
                 stdio_info = self.server_info
@@ -258,7 +263,7 @@ class MCPToolset(Toolset):
             invocation_timeout=inner_data.get("invocation_timeout", 30.0),
         )
 
-    def sync_close(self):
+    def close(self):
         """Close the underlying MCP client safely."""
         if hasattr(self, "_worker") and self._worker:
             try:
@@ -267,4 +272,4 @@ class MCPToolset(Toolset):
                 logger.debug(f"TOOLSET: error during worker stop: {e!s}")
 
     def __del__(self):
-        self.sync_close()
+        self.close()

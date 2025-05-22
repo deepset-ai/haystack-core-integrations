@@ -21,7 +21,7 @@ def mcp_tool_cleanup():
 
     # Finalizer to close all tools and toolsets
     for tool in tools:
-        tool.sync_close()
+        tool.close()
 
     for toolset in toolsets:
-        toolset.sync_close()
+        toolset.close()

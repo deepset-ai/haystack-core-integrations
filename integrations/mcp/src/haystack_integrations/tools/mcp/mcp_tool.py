@@ -655,16 +655,7 @@ class MCPTool(Tool):
 
         except Exception as e:
             # Clean up resources on error
-            logger.debug(f"TOOL: Error during initialization of '{name}': {e!s}")
-            if self._client:
-                try:
-                    logger.debug(f"TOOL: Attempting cleanup after initialization failure for '{name}'")
-                    # Tell the background worker to shut down gracefully.
-                    if hasattr(self, "_worker") and self._worker:
-                        self._worker.stop()
-                    logger.debug(f"TOOL: Cleanup successful for '{name}'")
-                except Exception as cleanup_error:
-                    logger.debug(f"TOOL: Error during cleanup after initialization failure: {cleanup_error!s}")
+            self.close()
 
             # Extract more detailed error information from TaskGroup/ExceptionGroup exceptions
             from exceptiongroup import ExceptionGroup
@@ -799,7 +790,7 @@ class MCPTool(Tool):
             invocation_timeout=invocation_timeout,
         )
 
-    def sync_close(self):
+    def close(self):
         """Close the tool synchronously."""
         if hasattr(self, "_client") and self._client:
             try:
@@ -813,7 +804,7 @@ class MCPTool(Tool):
         """Cleanup resources when the tool is garbage collected."""
         logger.debug(f"TOOL: __del__ called for MCPTool '{self.name if hasattr(self, 'name') else 'unknown'}'")
 
-        self.sync_close()
+        self.close()
 
 
 class _MCPClientSessionManager:
@@ -830,6 +821,9 @@ class _MCPClientSessionManager:
           `Attempted to exit cancel scope in a different task than it was entered in` error
           thus properly closing the client.
     """
+
+    # Maximum time to wait for worker shutdown in seconds
+    WORKER_SHUTDOWN_TIMEOUT = 2.0
 
     def __init__(self, client: "MCPClient", *, timeout: float | None = None):
         self._client = client
@@ -871,7 +865,7 @@ class _MCPClientSessionManager:
         # Wait for the worker coroutine to finish so resources are fully
         # released before returning. Swallow any errors during shutdown.
         try:
-            self._worker_future.result(timeout=2)
+            self._worker_future.result(timeout=self.WORKER_SHUTDOWN_TIMEOUT)
         except Exception as e:
             logger.debug(f"Error during worker future result: {e}")
             pass
