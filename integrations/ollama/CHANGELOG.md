@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/ollama-v3.0.1] - 2025-05-22
+
+### 🚀 Features
+
+- OllamaChatGenerator - add Toolset support (#1765)
+
+
 ## [integrations/ollama-v3.0.0] - 2025-05-16
 
 ### 🚀 Features
