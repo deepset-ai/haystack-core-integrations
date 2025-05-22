@@ -62,7 +62,7 @@ class TestMistralTextEmbedder:
             api_base_url="https://custom-api-base-url.com",
             prefix="START",
             suffix="END",
-            timeout=10.,
+            timeout=10.0,
             max_retries=2,
             http_client_kwargs={"proxy": "http://localhost:8080"},
         )
