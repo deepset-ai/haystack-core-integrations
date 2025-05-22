@@ -162,6 +162,7 @@ module = [
   "pytest.*",
   "numpy.*",
   "requests_mock.*",
+  "openai.*",
   "pydantic.*",
 ]
 ignore_missing_imports = true
