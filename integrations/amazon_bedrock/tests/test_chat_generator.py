@@ -1,4 +1,3 @@
-import os
 from typing import Any, Dict, Optional
 
 import pytest
@@ -270,14 +269,8 @@ class TestAmazonBedrockChatGenerator:
         assert request_params["toolConfig"] == top_song_tool_config
 
 
+# In the CI, those tests are skipped if AWS Authentication fails
 @pytest.mark.integration
-@pytest.mark.skipif(
-    not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
-    reason=(
-        "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
-        "This test requires AWS credentials to run."
-    ),
-)
 class TestAmazonBedrockChatGeneratorInference:
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
     def test_default_inference_params(self, model_name, chat_messages):
@@ -460,14 +453,8 @@ class TestAmazonBedrockChatGeneratorInference:
         )
 
 
+# In the CI, those tests are skipped if AWS Authentication fails
 @pytest.mark.integration
-@pytest.mark.skipif(
-    not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
-    reason=(
-        "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
-        "This test requires AWS credentials to run."
-    ),
-)
 class TestAmazonBedrockChatGeneratorAsyncInference:
     """
     Test class for async inference functionality of AmazonBedrockChatGenerator
