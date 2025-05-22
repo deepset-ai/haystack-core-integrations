@@ -3,6 +3,7 @@ import pytest
 from haystack_integrations.tools.mcp import (
     SSEServerInfo,
     StdioServerInfo,
+    StreamableHttpServerInfo,
 )
 
 
@@ -26,6 +27,23 @@ class TestMCPServerInfo:
         assert new_info.token == "test-token"
         assert new_info.timeout == 45
 
+    def test_streamable_http_server_info_serde(self):
+        """Test serialization/deserialization of StreamableHttpServerInfo."""
+        server_info = StreamableHttpServerInfo(url="http://example.com/mcp", token="test-token", timeout=45)
+
+        # Test to_dict
+        info_dict = server_info.to_dict()
+        assert info_dict["type"] == "haystack_integrations.tools.mcp.mcp_tool.StreamableHttpServerInfo"
+        assert info_dict["url"] == "http://example.com/mcp"
+        assert info_dict["token"] == "test-token"
+        assert info_dict["timeout"] == 45
+
+        # Test from_dict
+        new_info = StreamableHttpServerInfo.from_dict(info_dict)
+        assert new_info.url == "http://example.com/mcp"
+        assert new_info.token == "test-token"
+        assert new_info.timeout == 45
+
     def test_url_base_url_validation(self):
         """Test validation of url and base_url parameters."""
         # Test with neither url nor base_url
@@ -45,6 +63,16 @@ class TestMCPServerInfo:
         with pytest.warns(DeprecationWarning, match="base_url is deprecated"):
             server_info = SSEServerInfo(base_url="http://example.com")
             assert server_info.base_url == "http://example.com"  # Should preserve original base_url
+
+    def test_streamable_http_url_validation(self):
+        """Test URL validation for StreamableHttpServerInfo."""
+        # Test with valid URL
+        server_info = StreamableHttpServerInfo(url="http://example.com/mcp")
+        assert server_info.url == "http://example.com/mcp"
+
+        # Test with invalid URL
+        with pytest.raises(ValueError, match="Invalid url:"):
+            StreamableHttpServerInfo(url="not-a-url")
 
     def test_stdio_server_info_serde(self):
         """Test serialization/deserialization of StdioServerInfo."""
@@ -67,9 +95,12 @@ class TestMCPServerInfo:
         """Test client creation from server info."""
         http_info = SSEServerInfo(base_url="http://example.com")
         stdio_info = StdioServerInfo(command="python")
+        streamable_http_info = StreamableHttpServerInfo(url="http://example.com/mcp")
 
         http_client = http_info.create_client()
         stdio_client = stdio_info.create_client()
+        streamable_http_client = streamable_http_info.create_client()
 
         assert http_client.url == "http://example.com/sse"
         assert stdio_client.command == "python"
+        assert streamable_http_client.url == "http://example.com/mcp"
