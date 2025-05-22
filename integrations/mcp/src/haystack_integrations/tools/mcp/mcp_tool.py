@@ -296,7 +296,7 @@ class MCPClient(ABC):
         # Return the original result object
         return result
 
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         """
         Close the connection and clean up resources.
 
@@ -314,15 +314,6 @@ class MCPClient(ABC):
             self.session = None
             self.stdio = None
             self.write = None
-
-    def close_sync(self) -> None:
-        """Synchronous version of close for use in __del__ - ensures resources are cleaned up."""
-        logger.debug("PROCESS: Closing StdioClient (sync)")
-
-        try:
-            AsyncExecutor.get_instance().run(self.close(), timeout=2)
-        except Exception as e:
-            logger.debug(f"PROCESS: Error during async cleanup in sync close: {e!s}")
 
     async def _initialize_session_with_transport(
         self,
@@ -352,7 +343,7 @@ class MCPClient(ABC):
             return response.tools
 
         except Exception as e:
-            await self.close()
+            # We'll clean up the session in the calling code, so we don't need to do it here.
             message = f"Failed to connect to {connection_type}: {e}"
             raise MCPConnectionError(message=message, operation="connect") from e
 
@@ -654,7 +645,8 @@ class MCPTool(Tool):
             logger.debug(f"TOOL: Initialization complete for '{name}'")
 
         except Exception as e:
-            # Clean up resources on error
+            # We need to close because we could connect properly, retrieve tools yet
+            # fail because of an MCPToolNotFoundError
             self.close()
 
             # Extract more detailed error information from TaskGroup/ExceptionGroup exceptions
@@ -890,6 +882,6 @@ class _MCPClientSessionManager:
             # logger.debug(f"TOOL: _run current task: {asyncio.current_task()}")
             # Close the client in the same couroutine that connected it
             try:
-                await self._client.close()
+                await self._client.aclose()
             except Exception as e:
                 logger.debug(f"Error during MCP client cleanup: {e!s}")

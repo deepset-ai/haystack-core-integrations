@@ -177,7 +177,8 @@ class MCPToolset(Toolset):
             super().__init__(tools=haystack_tools)
 
         except Exception as e:
-            # Clean up session resources on error
+            # We need to close because we could connect properly, retrieve tools yet
+            # fail because of an MCPToolNotFoundError
             self.close()
 
             # Create informative error message for SSE connection errors
