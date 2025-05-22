@@ -257,7 +257,7 @@ class MCPClient(ABC):
             raise
         except Exception as e:
             # Wrap other exceptions with context about which tool failed
-            message = f"Failed to invoke tool '{tool_name}' due to: {e}"
+            message = f"Failed to invoke tool '{tool_name}' with args: {tool_args} , got error: {e!s}"
             raise MCPInvocationError(message, tool_name, tool_args) from e
 
     def _validate_response(self, tool_name: str, result: types.CallToolResult) -> types.CallToolResult:
@@ -761,7 +761,7 @@ class MCPTool(Tool):
         except Exception as e:
             # Wrap other errors
             logger.debug(f"TOOL: Unknown error during invoke of '{self.name}': {e!s}")
-            message = f"Failed to invoke tool '{self.name}'"
+            message = f"Failed to invoke tool '{self.name}' with args: {kwargs} , got error: {e!s}"
             raise MCPInvocationError(message, self.name, kwargs) from e
 
     async def ainvoke(self, **kwargs: Any) -> Any:
@@ -782,7 +782,7 @@ class MCPTool(Tool):
         except Exception as e:
             if isinstance(e, MCPError):
                 raise
-            message = f"Failed to invoke tool '{self.name}'"
+            message = f"Failed to invoke tool '{self.name}' with args: {kwargs} , got error: {e!s}"
             raise MCPInvocationError(message, self.name, kwargs) from e
 
     def to_dict(self) -> dict[str, Any]:
