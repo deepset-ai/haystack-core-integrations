@@ -1,4 +1,3 @@
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -52,14 +51,8 @@ def test_bedrock_ranker_run(mock_aws_session):
     assert result["documents"][1].score == 0.7
 
 
+# In the CI, those tests are skipped if AWS Authentication fails
 @pytest.mark.integration
-@pytest.mark.skipif(
-    not os.environ.get("AWS_CI_ROLE_ARN", None) and not os.environ.get("AWS_REGION", None),
-    reason=(
-        "Skipping test because AWS_CI_ROLE_ARN and AWS_REGION environment variables are not set. "
-        "This test requires AWS credentials to run."
-    ),
-)
 def test_amazon_bedrock_ranker_live_run():
     ranker = AmazonBedrockRanker(
         model="cohere.rerank-v3-5:0",
