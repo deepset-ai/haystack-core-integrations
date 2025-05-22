@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import argparse
 import logging
 
-from haystack_integrations.tools.mcp import MCPTool, SSEServerInfo
+from haystack_integrations.tools.mcp import MCPTool, SSEServerInfo, StreamableHttpServerInfo
 
 # Setup targeted logging - only show debug logs from our package
 logging.basicConfig(level=logging.WARNING)  # Set root logger to WARNING
@@ -17,22 +18,36 @@ if not mcp_logger.handlers:
     mcp_logger.addHandler(handler)
     mcp_logger.propagate = False  # Prevent propagation to root logger
 
-# run this client after running the server mcp_sse_server.py
-# it shows how easy it is to use the MCPTool with SSE transport
+# Run this client after running the server mcp_server.py
+# It shows how easy it is to use the MCPTool with different transport options
 
 
 def main():
-    """Example of synchronous usage of MCPTool with SSE transport."""
+    """Example of MCPTool usage with server connection."""
 
-    server_info = SSEServerInfo(
-        base_url="http://localhost:8000",
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Run an MCP client to connect to the server")
+    parser.add_argument(
+        "--transport",
+        type=str,
+        default="sse",
+        choices=["sse", "streamable-http"],
+        help="Transport mechanism for the MCP client (default: sse)",
     )
+    args = parser.parse_args()
+
+    # Construct the appropriate URL based on transport type
+    if args.transport == "sse":
+        server_info = SSEServerInfo(url="http://localhost:8000/sse")
+    else:  # streamable-http
+        server_info = StreamableHttpServerInfo(url="http://localhost:8000/mcp")
 
     tool = MCPTool(name="add", server_info=server_info)
 
     tool_subtract = MCPTool(name="subtract", server_info=server_info)
 
     try:
+        print(f"Connecting to MCP server using {args.transport} transport at: {server_info.url}")
         print(f"Tool spec: {tool.tool_spec}")
 
         result = tool.invoke(a=7, b=3)
@@ -45,9 +60,10 @@ def main():
         print(f"10 + 20 = {result}")
 
     except Exception as e:
-        print(f"Error in sync example: {e}")
+        print(f"Error in client example: {e}")
     finally:
-        pass
+        tool.close()
+        tool_subtract.close()
 
 
 if __name__ == "__main__":

@@ -54,6 +54,8 @@ def main():
         print(f"Current time in Los Angeles: {result.content[0].text}")
     except Exception as e:
         print(f"Error in stdio toolset example: {e}")
+    finally:
+        stdio_toolset.close()
 
 
 if __name__ == "__main__":
