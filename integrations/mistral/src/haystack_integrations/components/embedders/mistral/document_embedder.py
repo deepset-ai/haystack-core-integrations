@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any, Dict, List, Optional
 
-from haystack import component, default_from_dict, default_to_dict
+from haystack import component, default_to_dict
 from haystack.components.embedders import OpenAIDocumentEmbedder
 from haystack.utils.auth import Secret
 
