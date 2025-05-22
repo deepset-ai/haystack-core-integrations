@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any, Dict, Optional
 
-from haystack import component
+from haystack import component, default_to_dict
 from haystack.components.embedders import OpenAITextEmbedder
 from haystack.utils.auth import Secret
 
@@ -75,4 +75,26 @@ class MistralTextEmbedder(OpenAITextEmbedder):
             timeout=timeout,
             max_retries=max_retries,
             http_client_kwargs=http_client_kwargs,
+        )
+        # We add these since they were only added in Haystack 2.14.0
+        self.timeout = timeout
+        self.max_retries = max_retries
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
+        return default_to_dict(
+            self,
+            api_key=self.api_key.to_dict(),
+            model=self.model,
+            api_base_url=self.api_base_url,
+            prefix=self.prefix,
+            suffix=self.suffix,
+            timeout=self.timeout,
+            max_retries=self.max_retries,
+            http_client_kwargs=self.http_client_kwargs,
         )
