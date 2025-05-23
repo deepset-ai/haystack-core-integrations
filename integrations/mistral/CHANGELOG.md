@@ -1,5 +1,37 @@
 # Changelog
 
+## [integrations/mistral-v0.2.0] - 2025-05-23
+
+### 🐛 Bug Fixes
+
+- Update serialization/deserialization tests to add new parameter `connection_type_validation` (#1464)
+- Bring Mistral integration up to date with changes made to OpenAIChatGenerator and OpenAI Embedders (#1774)
+
+### 📚 Documentation
+
+- ChatMessage examples (#1752)
+
+### 🧪 Testing
+
+- Mistral/Stackit - add pytz test dependency (#1504)
+- Update tool serialization in tests to include `inputs_from_state` and `outputs_to_state` (#1581)
+- Remove not needed tool_choice (#1651)
+- Add async tests for MistralChatGenerator (#1674)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+
+### 🌀 Miscellaneous
+
+- Mark test as integration (#1422)
+- Test: Update tests to check for `outputs_to_string` in Tool when running haystack-ai>=2.12 (#1585)
+- Fix: Fix Mistral sede tests (#1666)
+
 ## [integrations/mistral-v0.1.1] - 2025-02-12
 
 ### 🧹 Chores
@@ -8,7 +40,6 @@
 
 ### 🌀 Miscellaneous
 
-- Docs: update changelog for integrations/mistral (#1362)
 - Chore: remove `jsonschema` dependency from `default` environment (#1368)
 
 ## [integrations/mistral-v0.1.0] - 2025-02-10
