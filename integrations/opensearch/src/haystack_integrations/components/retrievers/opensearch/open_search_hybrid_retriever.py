@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 
 from haystack import DeserializationError, Pipeline, default_from_dict, default_to_dict, logging, super_component
 from haystack.components.embedders.types import TextEmbedder
@@ -253,6 +253,14 @@ class OpenSearchHybridRetriever:
             init_args["embedding_retriever"]["document_store"] = self.document_store
 
         self.pipeline = self._create_pipeline(init_args)
+
+    if TYPE_CHECKING:
+
+        def warm_up(self) -> None:   # noqa: D102
+            ...
+
+        def run(self, query: str, filters_bm25=None, filters_embedding=None) -> Dict[str, Any]:  # noqa: D102
+            ...
 
     def _create_pipeline(self, data: dict[str, Any]) -> Pipeline:
         """
