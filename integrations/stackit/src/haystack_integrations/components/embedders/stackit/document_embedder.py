@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
-from haystack import component
+from haystack import component, default_to_dict
 from haystack.components.embedders import OpenAIDocumentEmbedder
 from haystack.utils.auth import Secret
 
@@ -41,6 +41,10 @@ class STACKITDocumentEmbedder(OpenAIDocumentEmbedder):
         progress_bar: bool = True,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
+        *,
+        timeout: Optional[float] = None,
+        max_retries: Optional[int] = None,
+        http_client_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
         Creates a STACKITDocumentEmbedder component.
@@ -65,6 +69,15 @@ class STACKITDocumentEmbedder(OpenAIDocumentEmbedder):
             List of meta fields that should be embedded along with the Document text.
         :param embedding_separator:
             Separator used to concatenate the meta fields to the Document text.
+        :param timeout:
+            Timeout for STACKIT client calls. If not set, it defaults to either the `OPENAI_TIMEOUT` environment
+            variable, or 30 seconds.
+        :param max_retries:
+            Maximum number of retries to contact STACKIT after an internal error.
+            If not set, it defaults to either the `OPENAI_MAX_RETRIES` environment variable, or set to 5.
+        :param http_client_kwargs:
+            A dictionary of keyword arguments to configure a custom `httpx.Client`or `httpx.AsyncClient`.
+            For more information, see the [HTTPX documentation](https://www.python-httpx.org/api/#client).
         """
         super(STACKITDocumentEmbedder, self).__init__(  # noqa: UP008
             api_key=api_key,
@@ -78,4 +91,32 @@ class STACKITDocumentEmbedder(OpenAIDocumentEmbedder):
             progress_bar=progress_bar,
             meta_fields_to_embed=meta_fields_to_embed,
             embedding_separator=embedding_separator,
+            timeout=timeout,
+            max_retries=max_retries,
+            http_client_kwargs=http_client_kwargs,
+        )
+        # We add these since they were only added in Haystack 2.14.0
+        self.timeout = timeout
+        self.max_retries = max_retries
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+        :returns:
+            Dictionary with serialized data.
+        """
+        return default_to_dict(
+            self,
+            model=self.model,
+            api_key=self.api_key.to_dict(),
+            api_base_url=self.api_base_url,
+            prefix=self.prefix,
+            suffix=self.suffix,
+            batch_size=self.batch_size,
+            progress_bar=self.progress_bar,
+            meta_fields_to_embed=self.meta_fields_to_embed,
+            embedding_separator=self.embedding_separator,
+            timeout=self.timeout,
+            max_retries=self.max_retries,
+            http_client_kwargs=self.http_client_kwargs,
         )
