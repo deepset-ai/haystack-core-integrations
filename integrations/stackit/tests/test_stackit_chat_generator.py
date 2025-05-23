@@ -93,6 +93,9 @@ class TestSTACKITChatGenerator:
             "streaming_callback": None,
             "api_base_url": "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1",
             "generation_kwargs": {},
+            "timeout": None,
+            "max_retries": None,
+            "http_client_kwargs": None,
         }
 
         for key, value in expected_params.items():
@@ -106,6 +109,9 @@ class TestSTACKITChatGenerator:
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
+            timeout=10.0,
+            max_retries=2,
+            http_client_kwargs={"proxy": "https://proxy.example.com:8080"},
         )
         data = component.to_dict()
 
@@ -120,6 +126,9 @@ class TestSTACKITChatGenerator:
             "api_base_url": "test-base-url",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+            "timeout": 10.0,
+            "max_retries": 2,
+            "http_client_kwargs": {"proxy": "https://proxy.example.com:8080"},
         }
 
         for key, value in expected_params.items():
