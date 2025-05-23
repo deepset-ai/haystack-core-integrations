@@ -346,7 +346,7 @@ class TestCohereChatGenerator:
                                     "name": "weather",
                                     "description": "useful to determine the weather in a given location",
                                     "parameters": {"city": {"type": "string"}},
-                                    "function": "tests.test_cohere_chat_generator.weather",
+                                    "function": "tests.test_chat_generator.weather",
                                     "outputs_to_string": tool.outputs_to_string,
                                     "inputs_from_state": tool.inputs_from_state,
                                     "outputs_to_state": tool.outputs_to_state,
