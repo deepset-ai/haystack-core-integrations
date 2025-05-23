@@ -487,6 +487,9 @@ class TestMistralChatGenerator:
                                 },
                             }
                         ],
+                        "http_client_kwargs": None,
+                        "timeout": None,
+                        "max_retries": None,
                     },
                 }
             },
