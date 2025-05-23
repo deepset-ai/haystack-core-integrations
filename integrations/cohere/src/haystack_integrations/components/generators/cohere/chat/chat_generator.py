@@ -183,6 +183,87 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
     return message
 
 
+def _initialize_streaming_state():
+    """Initialize the state variables for streaming response parsing."""
+    return {
+        "response_text": "",
+        "tool_plan": "",
+        "tool_calls": [],
+        "current_tool_call": None,
+        "current_tool_arguments": "",
+        "captured_meta": {},
+    }
+
+
+def _process_streaming_chunk(chunk, state, model):
+    """
+    Process a single streaming chunk and update the parsing state.
+
+    :param chunk: The streaming chunk from Cohere's API
+    :param state: Dictionary containing the current parsing state
+    :param model: Model name for metadata
+    :return: Content to stream (if any), None otherwise
+    """
+    if not chunk:
+        return None
+
+    if chunk.type == "content-delta":
+        content = chunk.delta.message.content.text
+        state["response_text"] += content
+        return content
+    elif chunk.type == "tool-plan-delta":
+        content = chunk.delta.message.tool_plan
+        state["tool_plan"] += content
+        return content
+    elif chunk.type == "tool-call-start":
+        tool_call = chunk.delta.message.tool_calls
+        state["current_tool_call"] = ToolCall(
+            id=tool_call.id,
+            tool_name=tool_call.function.name,
+            arguments="",
+        )
+    elif chunk.type == "tool-call-delta":
+        state["current_tool_arguments"] += chunk.delta.message.tool_calls.function.arguments
+    elif chunk.type == "tool-call-end":
+        if state["current_tool_call"]:
+            state["current_tool_call"].arguments = json.loads(state["current_tool_arguments"])
+            state["tool_calls"].append(state["current_tool_call"])
+            state["current_tool_call"] = None
+            state["current_tool_arguments"] = ""
+    elif chunk.type == "message-end":
+        state["captured_meta"].update(
+            {
+                "model": model,
+                "index": 0,
+                "finish_reason": chunk.delta.finish_reason,
+                "usage": {
+                    "prompt_tokens": chunk.delta.usage.billed_units.input_tokens,
+                    "completion_tokens": chunk.delta.usage.billed_units.output_tokens,
+                },
+            }
+        )
+
+    return None
+
+
+def _finalize_streaming_message(state):
+    """
+    Create a ChatMessage from the final parsing state.
+
+    :param state: Dictionary containing the parsed state
+    :return: ChatMessage with metadata
+    """
+    # Create the appropriate ChatMessage based on what we received
+    if state["tool_calls"]:
+        chat_message = ChatMessage.from_assistant(text=state["tool_plan"], tool_calls=state["tool_calls"])
+    else:
+        chat_message = ChatMessage.from_assistant(text=state["response_text"])
+
+    # Add metadata
+    chat_message.meta.update(state["captured_meta"])
+    return chat_message
+
+
 def _parse_streaming_response(
     response: Generator,
     model: str,
@@ -190,74 +271,16 @@ def _parse_streaming_response(
 ) -> ChatMessage:
     """
     Parses Cohere's streaming chat response into a Haystack ChatMessage.
-
-    Processes streaming chunks and aggregates them into a complete response,
-    including:
-    - Text content
-    - Tool plan
-    - Tool calls and their arguments
-    - Usage statistics
-    - Finish reason
-
-    :param response: Streaming response from Cohere's chat API.
-    :param model: The name of the model that generated the response.
-    :param streaming_callback: Callback function for streaming chunks.
-    :return: A Haystack ChatMessage containing the formatted response.
     """
-    response_text = ""
-    tool_plan = ""
-    tool_calls = []
-    current_tool_call = None
-    current_tool_arguments = ""
-    captured_meta = {}
+    state = _initialize_streaming_state()
 
     for chunk in response:
-        if chunk and chunk.type == "content-delta":
-            stream_chunk = StreamingChunk(content=chunk.delta.message.content.text)
+        stream_content = _process_streaming_chunk(chunk, state, model)
+        if stream_content:
+            stream_chunk = StreamingChunk(content=stream_content)
             streaming_callback(stream_chunk)
-            response_text += chunk.delta.message.content.text
-        elif chunk and chunk.type == "tool-plan-delta":
-            tool_plan += chunk.delta.message.tool_plan
-            stream_chunk = StreamingChunk(content=chunk.delta.message.tool_plan)
-            streaming_callback(stream_chunk)
-        elif chunk and chunk.type == "tool-call-start":
-            tool_call = chunk.delta.message.tool_calls
-            current_tool_call = ToolCall(
-                id=tool_call.id,
-                tool_name=tool_call.function.name,
-                arguments="",
-            )
-        elif chunk and chunk.type == "tool-call-delta":
-            current_tool_arguments += chunk.delta.message.tool_calls.function.arguments
-        elif chunk and chunk.type == "tool-call-end":
-            if current_tool_call:
-                current_tool_call.arguments = json.loads(current_tool_arguments)
-                tool_calls.append(current_tool_call)
-                current_tool_call = None
-                current_tool_arguments = ""
-        elif chunk and chunk.type == "message-end":
-            captured_meta.update(
-                {
-                    "model": model,
-                    "index": 0,
-                    "finish_reason": chunk.delta.finish_reason,
-                    "usage": {
-                        "prompt_tokens": chunk.delta.usage.billed_units.input_tokens,
-                        "completion_tokens": chunk.delta.usage.billed_units.output_tokens,
-                    },
-                }
-            )
 
-    # Create the appropriate ChatMessage based on what we received
-    if tool_calls:
-        chat_message = ChatMessage.from_assistant(text=tool_plan, tool_calls=tool_calls)
-    else:
-        chat_message = ChatMessage.from_assistant(text=response_text)
-
-    # Add metadata
-    chat_message.meta.update(captured_meta)
-
-    return chat_message
+    return _finalize_streaming_message(state)
 
 
 async def _parse_async_streaming_response(
@@ -267,77 +290,16 @@ async def _parse_async_streaming_response(
 ) -> ChatMessage:
     """
     Parses Cohere's async streaming chat response into a Haystack ChatMessage.
-
-    Processes streaming chunks asynchronously and aggregates them into a complete response,
-    including:
-    - Text content
-    - Tool plan
-    - Tool calls and their arguments
-    - Usage statistics
-    - Finish reason
-
-    :param response: Async streaming response from Cohere's chat API.
-    :param model: The name of the model that generated the response.
-    :param streaming_callback: Async callback function for streaming chunks.
-    :return: A Haystack ChatMessage containing the formatted response.
     """
-    response_text = ""
-    tool_plan = ""
-    tool_calls = []
-    current_tool_call = None
-    current_tool_arguments = ""
-    captured_meta = {}
-
-    chunks_received_count = 0
+    state = _initialize_streaming_state()
 
     async for chunk in response:
-        chunks_received_count += 1
-        if chunk and chunk.type == "content-delta":
-            stream_chunk = StreamingChunk(content=chunk.delta.message.content.text)
+        stream_content = _process_streaming_chunk(chunk, state, model)
+        if stream_content:
+            stream_chunk = StreamingChunk(content=stream_content)
             await streaming_callback(stream_chunk)
-            response_text += chunk.delta.message.content.text
-        elif chunk and chunk.type == "tool-plan-delta":
-            tool_plan += chunk.delta.message.tool_plan
-            stream_chunk = StreamingChunk(content=chunk.delta.message.tool_plan)
-            await streaming_callback(stream_chunk)
-        elif chunk and chunk.type == "tool-call-start":
-            tool_call = chunk.delta.message.tool_calls
-            current_tool_call = ToolCall(
-                id=tool_call.id,
-                tool_name=tool_call.function.name,
-                arguments="",
-            )
-        elif chunk and chunk.type == "tool-call-delta":
-            current_tool_arguments += chunk.delta.message.tool_calls.function.arguments
-        elif chunk and chunk.type == "tool-call-end":
-            if current_tool_call:
-                current_tool_call.arguments = json.loads(current_tool_arguments)
-                tool_calls.append(current_tool_call)
-                current_tool_call = None
-                current_tool_arguments = ""
-        elif chunk and chunk.type == "message-end":
-            captured_meta.update(
-                {
-                    "model": model,
-                    "index": 0,
-                    "finish_reason": chunk.delta.finish_reason,
-                    "usage": {
-                        "prompt_tokens": chunk.delta.usage.billed_units.input_tokens,
-                        "completion_tokens": chunk.delta.usage.billed_units.output_tokens,
-                    },
-                }
-            )
 
-    # Create the appropriate ChatMessage based on what we received
-    if tool_calls:
-        chat_message = ChatMessage.from_assistant(text=tool_plan, tool_calls=tool_calls)
-    else:
-        chat_message = ChatMessage.from_assistant(text=response_text)
-
-    # Add metadata (already added to final_chunk, but ensure it's on the final message too)
-    chat_message.meta.update(captured_meta)
-
-    return chat_message
+    return _finalize_streaming_message(state)
 
 
 @component

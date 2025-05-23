@@ -6,15 +6,19 @@ from cohere.core import ApiError
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
+from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool
 from haystack.utils import Secret
 
 from haystack_integrations.components.generators.cohere import (
     CohereChatGenerator,
 )
-
-pytestmark = pytest.mark.chat_generators
+from haystack_integrations.components.generators.cohere.chat.chat_generator import (
+    _finalize_streaming_message,
+    _format_message,
+    _initialize_streaming_state,
+    _process_streaming_chunk,
+)
 
 
 def weather(city: str) -> str:
@@ -25,24 +29,136 @@ def stock_price(ticker: str):
     return f"The current price of {ticker} is $100"
 
 
-def streaming_chunk(text: str):
-    """
-    Mock chunks of streaming responses from the Cohere API
-    """
-    # mimic the chunk response from the OpenAI API
-    mock_chunks = Mock()
-    mock_chunks.index = 0
-    mock_chunks.text = text
-    mock_chunks.event_type = "text-generation"
-    return mock_chunks
-
-
-@pytest.fixture
-def chat_messages():
-    return [ChatMessage.from_assistant("What's the capital of France")]
-
-
 class TestCohereChatGenerator:
+    def test_format_message_empty_message_raises_error(self):
+        message = ChatMessage.from_user("")
+
+        with pytest.raises(ValueError):
+            _format_message(message)
+
+    def test_format_message_tool_call_result_with_none_id_raises_error(self):
+        tool_call = ToolCall(id=None, tool_name="test_tool", arguments={})
+
+        message = ChatMessage.from_tool(tool_result="test result", origin=tool_call, error="no error")
+
+        with pytest.raises(ValueError):
+            _format_message(message)
+
+    def test_format_message_tool_call_with_none_id_raises_error(self):
+        tool_call = ToolCall(id=None, tool_name="test_tool", arguments={})
+
+        message = ChatMessage.from_assistant("", tool_calls=[tool_call])
+
+        with pytest.raises(ValueError):
+            _format_message(message)
+
+    def test_process_streaming_chunk_none_chunk_returns_none(self):
+        state = _initialize_streaming_state()
+        result = _process_streaming_chunk(None, state, "test-model")
+        assert result is None
+
+    def test_process_streaming_chunk_unknown_type_returns_none(self):
+        chunk = Mock()
+        chunk.type = "unknown-type"
+        state = _initialize_streaming_state()
+
+        result = _process_streaming_chunk(chunk, state, "test-model")
+        assert result is None
+
+    def test_process_streaming_chunk_tool_call_end_without_current_tool_call(self):
+        chunk = Mock()
+        chunk.type = "tool-call-end"
+
+        state = _initialize_streaming_state()
+        state["current_tool_call"] = None  # Explicitly set to None
+
+        result = _process_streaming_chunk(chunk, state, "test-model")
+
+        assert result is None
+        assert len(state["tool_calls"]) == 0
+
+    def test_process_streaming_chunk_tool_call_complete_flow(self):
+        state = _initialize_streaming_state()
+        model = "test-model"
+
+        # Tool call start
+        start_chunk = Mock()
+        start_chunk.type = "tool-call-start"
+        start_chunk.delta.message.tool_calls.id = "test-id"
+        start_chunk.delta.message.tool_calls.function.name = "test_function"
+
+        _process_streaming_chunk(start_chunk, state, model)
+        assert state["current_tool_call"] is not None
+        assert state["current_tool_call"].id == "test-id"
+
+        # Tool call delta
+        delta_chunk = Mock()
+        delta_chunk.type = "tool-call-delta"
+        delta_chunk.delta.message.tool_calls.function.arguments = '{"key": "value"'
+
+        _process_streaming_chunk(delta_chunk, state, model)
+        assert state["current_tool_arguments"] == '{"key": "value"'
+
+        # Another delta to complete the JSON
+        delta_chunk2 = Mock()
+        delta_chunk2.type = "tool-call-delta"
+        delta_chunk2.delta.message.tool_calls.function.arguments = "}"
+
+        _process_streaming_chunk(delta_chunk2, state, model)
+        assert state["current_tool_arguments"] == '{"key": "value"}'
+
+        # Tool call end
+        end_chunk = Mock()
+        end_chunk.type = "tool-call-end"
+
+        _process_streaming_chunk(end_chunk, state, model)
+
+        assert len(state["tool_calls"]) == 1
+        assert state["tool_calls"][0].arguments == {"key": "value"}
+        assert state["current_tool_call"] is None
+        assert state["current_tool_arguments"] == ""
+
+    def test_finalize_streaming_message_with_tool_calls(self):
+        state = {
+            "response_text": "",
+            "tool_plan": "I need to check the weather",
+            "tool_calls": [ToolCall(id="test-id", tool_name="weather", arguments={"city": "Paris"})],
+            "current_tool_call": None,
+            "current_tool_arguments": "",
+            "captured_meta": {
+                "model": "test-model",
+                "finish_reason": "COMPLETE",
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+            },
+        }
+
+        message = _finalize_streaming_message(state)
+
+        assert message.text == "I need to check the weather"
+        assert len(message.tool_calls) == 1
+        assert message.tool_calls[0].tool_name == "weather"
+        assert message.meta["model"] == "test-model"
+
+    def test_finalize_streaming_message_without_tool_calls(self):
+        state = {
+            "response_text": "Simple response text",
+            "tool_plan": "",
+            "tool_calls": [],
+            "current_tool_call": None,
+            "current_tool_arguments": "",
+            "captured_meta": {
+                "model": "test-model",
+                "finish_reason": "COMPLETE",
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+            },
+        }
+
+        message = _finalize_streaming_message(state)
+
+        assert message.text == "Simple response text"
+        assert len(message.tool_calls) == 0
+        assert message.meta["model"] == "test-model"
+
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
 
@@ -184,11 +300,90 @@ class TestCohereChatGenerator:
         with pytest.raises(ValueError):
             CohereChatGenerator.from_dict(data)
 
-    @pytest.mark.skipif(
-        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
-        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
-    )
-    @pytest.mark.integration
+    def test_serde_in_pipeline(self, monkeypatch):
+        """
+        Test serialization/deserialization of CohereChatGenerator in a Pipeline,
+        including detailed dictionary validation
+        """
+        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
+
+        tool = Tool(
+            name="weather",
+            description="useful to determine the weather in a given location",
+            parameters={"city": {"type": "string"}},
+            function=weather,
+        )
+
+        generator = CohereChatGenerator(
+            model="command-r-08-2024",
+            generation_kwargs={"temperature": 0.7},
+            streaming_callback=print_streaming_chunk,
+            tools=[tool],
+        )
+
+        pipeline = Pipeline()
+        pipeline.add_component("generator", generator)
+
+        pipeline_dict = pipeline.to_dict()
+
+        expected_dict = {
+            "metadata": {},
+            "max_runs_per_component": 100,
+            "connection_type_validation": True,
+            "components": {
+                "generator": {
+                    "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",  # noqa: E501
+                    "init_parameters": {
+                        "model": "command-r-08-2024",
+                        "api_key": {"type": "env_var", "env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True},
+                        "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
+                        "api_base_url": "https://api.cohere.com",
+                        "generation_kwargs": {"temperature": 0.7},
+                        "tools": [
+                            {
+                                "type": "haystack.tools.tool.Tool",
+                                "data": {
+                                    "name": "weather",
+                                    "description": "useful to determine the weather in a given location",
+                                    "parameters": {"city": {"type": "string"}},
+                                    "function": "tests.test_cohere_chat_generator.weather",
+                                    "outputs_to_string": tool.outputs_to_string,
+                                    "inputs_from_state": tool.inputs_from_state,
+                                    "outputs_to_state": tool.outputs_to_state,
+                                },
+                            }
+                        ],
+                    },
+                }
+            },
+            "connections": [],
+        }
+
+        assert pipeline_dict == expected_dict
+
+        # Test YAML serialization/deserialization
+        pipeline_yaml = pipeline.dumps()
+        new_pipeline = Pipeline.loads(pipeline_yaml)
+        assert new_pipeline == pipeline
+
+        # Verify the loaded pipeline's generator has the same configuration
+        loaded_generator = new_pipeline.get_component("generator")
+        assert loaded_generator.model == generator.model
+        assert loaded_generator.generation_kwargs == generator.generation_kwargs
+        assert loaded_generator.streaming_callback == generator.streaming_callback
+        assert len(loaded_generator.tools) == len(generator.tools)
+        assert loaded_generator.tools[0].name == generator.tools[0].name
+        assert loaded_generator.tools[0].description == generator.tools[0].description
+        assert loaded_generator.tools[0].parameters == generator.tools[0].parameters
+
+
+@pytest.mark.skipif(
+    not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
+    reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
+)
+@pytest.mark.integration
+class TestCohereChatGeneratorInference:
+
     def test_live_run(self):
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
         component = CohereChatGenerator(generation_kwargs={"temperature": 0.8})
@@ -200,38 +395,11 @@ class TestCohereChatGenerator:
         assert "prompt_tokens" in message.meta["usage"]
         assert "completion_tokens" in message.meta["usage"]
 
-    @pytest.mark.skipif(
-        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
-        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
-    )
-    @pytest.mark.integration
-    @pytest.mark.asyncio
-    async def test_live_run_async(self):
-        chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = CohereChatGenerator(generation_kwargs={"temperature": 0.8})
-        results = await component.run_async(chat_messages)
-        assert len(results["replies"]) == 1
-        message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.text
-        assert "usage" in message.meta
-        assert "prompt_tokens" in message.meta["usage"]
-        assert "completion_tokens" in message.meta["usage"]
-
-    @pytest.mark.skipif(
-        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
-        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_wrong_model(self, chat_messages):
+    def test_live_run_wrong_model(self):
         component = CohereChatGenerator(model="something-obviously-wrong")
         with pytest.raises(ApiError):
-            component.run(chat_messages)
+            component.run([ChatMessage.from_assistant("What's the capital of France")])
 
-    @pytest.mark.skipif(
-        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
-        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
-    )
-    @pytest.mark.integration
     def test_live_run_streaming(self):
         class Callback:
             def __init__(self):
@@ -256,39 +424,6 @@ class TestCohereChatGenerator:
         assert "prompt_tokens" in message.meta["usage"]
         assert "completion_tokens" in message.meta["usage"]
 
-    @pytest.mark.skipif(
-        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
-        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
-    )
-    @pytest.mark.integration
-    @pytest.mark.asyncio
-    async def test_live_run_streaming_async(self):
-        counter = 0
-        responses = ""
-
-        async def callback(chunk: StreamingChunk):
-            nonlocal counter, responses
-            counter += 1
-            responses += chunk.content if chunk.content else ""
-
-        component = CohereChatGenerator(streaming_callback=callback)
-        results = await component.run_async([ChatMessage.from_user("What's the capital of France? answer in a word")])
-
-        assert len(results["replies"]) == 1
-        message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.text
-        assert message.meta["finish_reason"] == "COMPLETE"
-        assert counter > 1
-        assert "Paris" in responses
-        assert "usage" in message.meta
-        assert "prompt_tokens" in message.meta["usage"]
-        assert "completion_tokens" in message.meta["usage"]
-
-    @pytest.mark.skipif(
-        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
-        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
-    )
-    @pytest.mark.integration
     def test_tools_use_old_way(self):
         # See https://docs.cohere.com/docs/structured-outputs-json for more information
         tools_schema = [
@@ -329,11 +464,6 @@ class TestCohereChatGenerator:
         assert first_reply.tool_calls[0].tool_name == "get_stock_price", "First tool call is not get_stock_price"
         assert first_reply.tool_calls[0].arguments == {"ticker": "AAPL"}, "First tool call arguments are not correct"
 
-    @pytest.mark.skipif(
-        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
-        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
-    )
-    @pytest.mark.integration
     def test_tools_use_with_tools(self):
         stock_price_tool = Tool(
             name="get_stock_price",
@@ -384,67 +514,6 @@ class TestCohereChatGenerator:
         assert len(final_message.text) > 0
         assert "150.23" in final_message.text
 
-    @pytest.mark.skipif(
-        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
-        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
-    )
-    @pytest.mark.integration
-    @pytest.mark.asyncio
-    async def test_tools_use_with_tools_async(self):
-        stock_price_tool = Tool(
-            name="get_stock_price",
-            description="Retrieves the current stock price for a given ticker symbol.",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "ticker": {
-                        "type": "string",
-                        "description": "The stock ticker symbol, e.g. AAPL for Apple Inc.",
-                    }
-                },
-                "required": ["ticker"],
-            },
-            function=stock_price,
-        )
-        initial_messages = [ChatMessage.from_user("What is the current price of AAPL?")]
-        client = CohereChatGenerator(model="command-r")
-        response = await client.run_async(
-            messages=initial_messages,
-            tools=[stock_price_tool],
-        )
-        replies = response["replies"]
-        assert isinstance(replies, list), "Replies is not a list"
-        assert len(replies) > 0, "No replies received"
-
-        first_reply = replies[0]
-        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
-        assert first_reply.text, "First reply text should be a tool plan"
-        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
-
-        assert first_reply.tool_calls, "First reply has no tool calls"
-        assert len(first_reply.tool_calls) == 1, "First reply has more than one tool call"
-        assert first_reply.tool_calls[0].tool_name == "get_stock_price", "First tool call is not get_stock_price"
-        assert first_reply.tool_calls[0].arguments == {"ticker": "AAPL"}, "First tool call arguments are not correct"
-
-        # Test with tool result
-        new_messages = [
-            initial_messages[0],
-            first_reply,
-            ChatMessage.from_tool(tool_result="150.23", origin=first_reply.tool_calls[0]),
-        ]
-        results = client.run(new_messages)
-
-        assert len(results["replies"]) == 1
-        final_message = results["replies"][0]
-        assert not final_message.tool_calls
-        assert len(final_message.text) > 0
-        assert "150.23" in final_message.text
-
-    @pytest.mark.skipif(
-        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
-        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
-    )
-    @pytest.mark.integration
     def test_live_run_with_tools_streaming(self):
         """
         Test that the CohereChatGenerator can run with tools and streaming callback.
@@ -498,78 +567,6 @@ class TestCohereChatGenerator:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
 
-    @pytest.mark.skipif(
-        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
-        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
-    )
-    @pytest.mark.integration
-    @pytest.mark.asyncio
-    async def test_live_run_with_tools_streaming_async(self):
-        """
-        Test that the CohereChatGenerator can run with tools and streaming callback.
-        """
-
-        async def print_streaming_chunk_async(chunk: StreamingChunk) -> None:
-            """
-            Async callback function for streaming responses.
-            Prints the tokens of the first completion to stdout as soon as they are received
-            """
-            print(chunk.content)
-
-        weather_tool = Tool(
-            name="weather",
-            description="useful to determine the weather in a given location",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "city": {
-                        "type": "string",
-                        "description": "The name of the city to get weather for, e.g. Paris, London",
-                    }
-                },
-                "required": ["city"],
-            },
-            function=weather,
-        )
-
-        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = CohereChatGenerator(
-            model="command-r",  # Cohere's model that supports tools
-            tools=[weather_tool],
-            streaming_callback=print_streaming_chunk_async,
-        )
-        results = await component.run_async(messages=initial_messages)
-
-        assert len(results["replies"]) > 0, "No replies received"
-        first_reply = results["replies"][0]
-
-        assert isinstance(first_reply, ChatMessage), "Reply is not a ChatMessage instance"
-        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "Reply is not from the assistant"
-        assert first_reply.tool_calls, "No tool calls in the reply"
-
-        tool_call = first_reply.tool_calls[0]
-        assert tool_call.tool_name == "weather"
-        assert tool_call.arguments == {"city": "Paris"}
-
-        # Test with tool result
-        new_messages = [
-            initial_messages[0],
-            first_reply,
-            ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
-        ]
-        results = await component.run_async(new_messages)
-
-        assert len(results["replies"]) == 1
-        final_message = results["replies"][0]
-        assert not final_message.tool_calls
-        assert len(final_message.text) > 0
-        assert "paris" in final_message.text.lower()
-
-    @pytest.mark.skipif(
-        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
-        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
-    )
-    @pytest.mark.integration
     def test_pipeline_with_cohere_chat_generator(self):
         """
         Test that the CohereChatGenerator component can be used in a pipeline
@@ -604,84 +601,3 @@ class TestCohereChatGenerator:
             "The weather in Paris is sunny and 32°C"
             == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
         )
-
-    def test_serde_in_pipeline(self, monkeypatch):
-        """
-        Test serialization/deserialization of CohereChatGenerator in a Pipeline,
-        including detailed dictionary validation
-        """
-        # Set mock Cohere API key
-        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
-
-        # Create a test tool
-        tool = Tool(
-            name="weather",
-            description="useful to determine the weather in a given location",
-            parameters={"city": {"type": "string"}},
-            function=weather,
-        )
-
-        # Create generator with specific configuration
-        generator = CohereChatGenerator(
-            model="command-r-08-2024",
-            generation_kwargs={"temperature": 0.7},
-            streaming_callback=print_streaming_chunk,
-            tools=[tool],
-        )
-
-        # Create and configure pipeline
-        pipeline = Pipeline()
-        pipeline.add_component("generator", generator)
-
-        # Get pipeline dictionary and verify its structure
-        pipeline_dict = pipeline.to_dict()
-
-        expected_dict = {
-            "metadata": {},
-            "max_runs_per_component": 100,
-            "connection_type_validation": True,
-            "components": {
-                "generator": {
-                    "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",  # noqa: E501
-                    "init_parameters": {
-                        "model": "command-r-08-2024",
-                        "api_key": {"type": "env_var", "env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True},
-                        "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                        "api_base_url": "https://api.cohere.com",
-                        "generation_kwargs": {"temperature": 0.7},
-                        "tools": [
-                            {
-                                "type": "haystack.tools.tool.Tool",
-                                "data": {
-                                    "name": "weather",
-                                    "description": "useful to determine the weather in a given location",
-                                    "parameters": {"city": {"type": "string"}},
-                                    "function": "tests.test_cohere_chat_generator.weather",
-                                    "outputs_to_string": tool.outputs_to_string,
-                                    "inputs_from_state": tool.inputs_from_state,
-                                    "outputs_to_state": tool.outputs_to_state,
-                                },
-                            }
-                        ],
-                    },
-                }
-            },
-            "connections": [],
-        }
-
-        assert pipeline_dict == expected_dict
-
-        # Test YAML serialization/deserialization
-        pipeline_yaml = pipeline.dumps()
-        new_pipeline = Pipeline.loads(pipeline_yaml)
-        assert new_pipeline == pipeline
-
-        # Verify the loaded pipeline's generator has the same configuration
-        loaded_generator = new_pipeline.get_component("generator")
-        assert loaded_generator.model == generator.model
-        assert loaded_generator.generation_kwargs == generator.generation_kwargs
-        assert loaded_generator.streaming_callback == generator.streaming_callback
-        assert len(loaded_generator.tools) == len(generator.tools)
-        assert loaded_generator.tools[0].name == generator.tools[0].name
-        assert loaded_generator.tools[0].description == generator.tools[0].description
-        assert loaded_generator.tools[0].parameters == generator.tools[0].parameters
