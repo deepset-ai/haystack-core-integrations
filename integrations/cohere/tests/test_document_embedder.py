@@ -10,7 +10,6 @@ from haystack.utils import Secret
 from haystack_integrations.components.embedders.cohere import CohereDocumentEmbedder
 from haystack_integrations.components.embedders.cohere.embedding_types import EmbeddingTypes
 
-pytestmark = pytest.mark.embedders
 COHERE_API_URL = "https://api.cohere.com"
 
 

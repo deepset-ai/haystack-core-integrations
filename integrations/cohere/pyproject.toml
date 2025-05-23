@@ -46,6 +46,7 @@ installer = "uv"
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "pytest-asyncio",
   "pytest-rerunfailures",
   "haystack-pydoc-tools",
 ]
@@ -165,10 +166,5 @@ ignore_missing_imports = true
 addopts = "--strict-markers"
 markers = [
   "integration: integration tests",
-  "unit: unit tests",
-  "embedders: embedders tests",
-  "generators: generators tests",
-  "chat_generators: chat_generators tests",
-  "ranker: ranker tests",
 ]
 log_cli = true

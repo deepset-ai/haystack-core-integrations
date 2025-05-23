@@ -7,7 +7,6 @@ from haystack.utils.auth import Secret
 
 from haystack_integrations.components.rankers.cohere import CohereRanker
 
-pytestmark = pytest.mark.ranker
 COHERE_API_URL = "https://api.cohere.com"
 
 
@@ -21,7 +20,6 @@ def mock_ranker_response():
                                       RerankResult<document['text']: "", index: 1, relevance_score: 0.04>]
     """
     with patch("cohere.ClientV2.rerank", autospec=True) as mock_ranker_response:
-
         mock_response = Mock()
 
         mock_ranker_res_obj1 = Mock()
