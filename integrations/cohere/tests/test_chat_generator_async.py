@@ -23,7 +23,6 @@ def stock_price(ticker: str):
 @pytest.mark.integration
 @pytest.mark.asyncio
 class TestCohereChatGeneratorAsyncInference:
-
     async def test_live_run_async(self):
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
         component = CohereChatGenerator(generation_kwargs={"temperature": 0.8})

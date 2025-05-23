@@ -383,7 +383,6 @@ class TestCohereChatGenerator:
 )
 @pytest.mark.integration
 class TestCohereChatGeneratorInference:
-
     def test_live_run(self):
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
         component = CohereChatGenerator(generation_kwargs={"temperature": 0.8})
