@@ -11,11 +11,15 @@ from typing import (
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import (
-    AsyncStreamingCallbackT,
     ChatMessage,
+    ToolCall,
+)
+from haystack.dataclasses.streaming_chunk import (
+    AsyncStreamingCallbackT,
     StreamingCallbackT,
     StreamingChunk,
-    ToolCall,
+    SyncStreamingCallbackT,
+    select_streaming_callback,
 )
 from haystack.lazy_imports import LazyImport
 from haystack.tools import (
@@ -182,7 +186,7 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
 def _parse_streaming_response(
     response: Generator,
     model: str,
-    streaming_callback: StreamingCallbackT,
+    streaming_callback: SyncStreamingCallbackT,
 ) -> ChatMessage:
     """
     Parses Cohere's streaming chat response into a Haystack ChatMessage.
@@ -274,7 +278,7 @@ async def _parse_async_streaming_response(
 
     :param response: Async streaming response from Cohere's chat API.
     :param model: The name of the model that generated the response.
-    :param streaming_callback: Callback function for streaming chunks (can be sync or async).
+    :param streaming_callback: Async callback function for streaming chunks.
     :return: A Haystack ChatMessage containing the formatted response.
     """
     response_text = ""
@@ -416,7 +420,7 @@ class CohereChatGenerator:
         self,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
         model: str = "command-r-08-2024",
-        streaming_callback: Optional[Union[StreamingCallbackT, AsyncStreamingCallbackT]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
@@ -428,7 +432,7 @@ class CohereChatGenerator:
         :param api_key: The API key for the Cohere API.
         :param model: The name of the model to use. You can use models from the `command` family.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
-            The callback function accepts [StreamingCallbackT, AsyncStreamingCallbackT](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk)
+            The callback function accepts [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk)
             as an argument.
         :param api_base_url: The base URL of the Cohere API.
         :param generation_kwargs: Other parameters to use for the model during generation. For a list of parameters,
@@ -548,13 +552,17 @@ class CohereChatGenerator:
 
         formatted_messages = [_format_message(message) for message in messages]
 
-        if self.streaming_callback:
+        streaming_callback = select_streaming_callback(
+            init_callback=self.streaming_callback, runtime_callback=None, requires_async=False
+        )
+
+        if streaming_callback:
             response = self.client.chat_stream(
                 model=self.model,
                 messages=formatted_messages,
                 **generation_kwargs,
             )
-            chat_message = _parse_streaming_response(response, self.model, self.streaming_callback)
+            chat_message = _parse_streaming_response(response, self.model, streaming_callback)
         else:
             response = self.client.chat(
                 model=self.model,
@@ -599,13 +607,17 @@ class CohereChatGenerator:
 
         formatted_messages = [_format_message(message) for message in messages]
 
-        if self.streaming_callback:
+        streaming_callback = select_streaming_callback(
+            init_callback=self.streaming_callback, runtime_callback=None, requires_async=True
+        )
+
+        if streaming_callback:
             response = self.async_client.chat_stream(
                 model=self.model,
                 messages=formatted_messages,
                 **generation_kwargs,
             )
-            chat_message = await _parse_async_streaming_response(response, self.model, self.streaming_callback)
+            chat_message = await _parse_async_streaming_response(response, self.model, streaming_callback)
         else:
             response = await self.async_client.chat(
                 model=self.model,

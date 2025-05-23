@@ -263,25 +263,23 @@ class TestCohereChatGenerator:
     @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_live_run_streaming_async(self):
-        class Callback:
-            def __init__(self):
-                self.responses = ""
-                self.counter = 0
+        counter = 0
+        responses = ""
 
-            async def __call__(self, chunk: StreamingChunk) -> None:
-                self.counter += 1
-                self.responses += chunk.content if chunk.content else ""
+        async def callback(chunk: StreamingChunk):
+            nonlocal counter, responses
+            counter += 1
+            responses += chunk.content if chunk.content else ""
 
-        callback = Callback()
-        component = CohereChatGenerator(streaming_callback=callback.__call__)
+        component = CohereChatGenerator(streaming_callback=callback)
         results = await component.run_async([ChatMessage.from_user("What's the capital of France? answer in a word")])
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
         assert message.meta["finish_reason"] == "COMPLETE"
-        assert callback.counter > 1
-        assert "Paris" in callback.responses
+        assert counter > 1
+        assert "Paris" in responses
         assert "usage" in message.meta
         assert "prompt_tokens" in message.meta["usage"]
         assert "completion_tokens" in message.meta["usage"]
@@ -516,7 +514,7 @@ class TestCohereChatGenerator:
             Async callback function for streaming responses.
             Prints the tokens of the first completion to stdout as soon as they are received
             """
-            return chunk.content
+            print(chunk.content)
 
         weather_tool = Tool(
             name="weather",
@@ -559,7 +557,7 @@ class TestCohereChatGenerator:
             first_reply,
             ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
         ]
-        results = component.run(new_messages)
+        results = await component.run_async(new_messages)
 
         assert len(results["replies"]) == 1
         final_message = results["replies"][0]
@@ -659,6 +657,9 @@ class TestCohereChatGenerator:
                                     "description": "useful to determine the weather in a given location",
                                     "parameters": {"city": {"type": "string"}},
                                     "function": "tests.test_cohere_chat_generator.weather",
+                                    "outputs_to_string": tool.outputs_to_string,
+                                    "inputs_from_state": tool.inputs_from_state,
+                                    "outputs_to_state": tool.outputs_to_state,
                                 },
                             }
                         ],
@@ -667,24 +668,6 @@ class TestCohereChatGenerator:
             },
             "connections": [],
         }
-
-        if not hasattr(pipeline, "_connection_type_validation"):
-            expected_dict.pop("connection_type_validation")
-
-        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
-        # haystack-ai>=2.12.0
-        if hasattr(tool, "outputs_to_string"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "outputs_to_string"
-            ] = tool.outputs_to_string
-        if hasattr(tool, "inputs_from_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "inputs_from_state"
-            ] = tool.inputs_from_state
-        if hasattr(tool, "outputs_to_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "outputs_to_state"
-            ] = tool.outputs_to_state
 
         assert pipeline_dict == expected_dict
 
