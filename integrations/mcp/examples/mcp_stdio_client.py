@@ -36,6 +36,9 @@ def main():
         print(f"Current time in Los Angeles: {result}")
     except Exception as e:
         print(f"Error in stdio example: {e}")
+    finally:
+        if stdio_tool:
+            stdio_tool.close()
 
 
 if __name__ == "__main__":

@@ -14,6 +14,8 @@ from .mcp_tool import (
     SSEServerInfo,
     StdioClient,
     StdioServerInfo,
+    StreamableHttpClient,
+    StreamableHttpServerInfo,
 )
 from .mcp_toolset import MCPToolset
 
@@ -30,4 +32,6 @@ __all__ = [
     "SSEServerInfo",
     "StdioClient",
     "StdioServerInfo",
+    "StreamableHttpClient",
+    "StreamableHttpServerInfo",
 ]
