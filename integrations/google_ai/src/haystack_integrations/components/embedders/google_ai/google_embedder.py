@@ -104,10 +104,12 @@ class GoogleAITextEmbedder:
 
     def _prepare_input(self, text: str) -> Dict[str, Any]:
         if not isinstance(text, str):
-            raise TypeError(
-                "GoogleAITextEmbedder expects a string as an input."
+            error_message_text = (
+                "GoogleAITextEmbedder expects a string as an input. "
                 "In case you want to embed a list of Documents, please use the GoogleAIDocumentEmbedder."
             )
+
+            raise TypeError(error_message_text)
 
         text_to_embed = text
 
@@ -306,10 +308,11 @@ class GoogleAIDocumentEmbedder:
             - `meta`: Information about the usage of the model.
         """
         if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
-            raise TypeError(
-                "GoogleAIDocumentEmbedder expects a list of Documents as input."
+            error_message_documents = (
+                "GoogleAIDocumentEmbedder expects a list of Documents as input. "
                 "In case you want to embed a string, please use the OpenAITextEmbedder."
             )
+            raise TypeError(error_message_documents)
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
 
