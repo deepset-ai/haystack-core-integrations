@@ -168,7 +168,7 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
         message = ChatMessage.from_assistant("")
 
     # In V2, token usage is part of the response object, not the message
-    message.meta.update(
+    message._meta.update(
         {
             "model": model,
             "usage": {
@@ -260,7 +260,7 @@ def _finalize_streaming_message(state):
         chat_message = ChatMessage.from_assistant(text=state["response_text"])
 
     # Add metadata
-    chat_message.meta.update(state["captured_meta"])
+    chat_message._meta.update(state["captured_meta"])
     return chat_message
 
 
@@ -543,7 +543,7 @@ class CohereChatGenerator:
         tools: Optional[Union[List[Tool], Toolset]] = None,
     ):
         """
-        Invoke the chat endpoint based on the provided messages and generation parameters.
+        Asynchronously invoke the chat endpoint based on the provided messages and generation parameters.
 
         :param messages: list of `ChatMessage` instances representing the input messages.
         :param generation_kwargs: additional keyword arguments for chat generation. These parameters will
@@ -563,6 +563,8 @@ class CohereChatGenerator:
 
         # Handle tools
         tools = tools or self.tools
+        if isinstance(tools, Toolset):
+            tools = list(tools)
         if tools:
             _check_duplicate_tool_names(tools)
             generation_kwargs["tools"] = [_format_tool(tool) for tool in tools]

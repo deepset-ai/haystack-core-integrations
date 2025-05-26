@@ -29,7 +29,7 @@ def stock_price(ticker: str):
     return f"The current price of {ticker} is $100"
 
 
-class TestCohereChatGenerator:
+class TestUtils:
     def test_format_message_empty_message_raises_error(self):
         message = ChatMessage.from_user("")
 
@@ -158,6 +158,9 @@ class TestCohereChatGenerator:
         assert message.text == "Simple response text"
         assert len(message.tool_calls) == 0
         assert message.meta["model"] == "test-model"
+
+
+class TestCohereChatGenerator:
 
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
