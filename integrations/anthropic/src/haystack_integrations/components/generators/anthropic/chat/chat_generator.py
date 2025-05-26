@@ -1,5 +1,5 @@
 import json
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple
+from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import (
@@ -12,14 +12,8 @@ from haystack.dataclasses import (
     ToolCallResult,
     select_streaming_callback,
 )
-from haystack.tools import Tool, _check_duplicate_tool_names
+from haystack.tools import Tool, Toolset, _check_duplicate_tool_names, deserialize_tools_or_toolset_inplace
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
-
-# Compatibility with Haystack 2.12.0 and 2.13.0 - remove after 2.13.0 is released
-try:
-    from haystack.tools import deserialize_tools_or_toolset_inplace
-except ImportError:
-    from haystack.tools import deserialize_tools_inplace as deserialize_tools_or_toolset_inplace
 
 from anthropic import Anthropic, AsyncAnthropic
 
@@ -186,7 +180,7 @@ class AnthropicChatGenerator:
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         ignore_tools_thinking_messages: bool = True,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
     ):
         """
         Creates an instance of AnthropicChatGenerator.
@@ -213,10 +207,10 @@ class AnthropicChatGenerator:
             `ignore_tools_thinking_messages` is `True`, the generator will drop so-called thinking messages when tool
             use is detected. See the Anthropic [tools](https://docs.anthropic.com/en/docs/tool-use#chain-of-thought-tool-use)
             for more details.
-        :param tools: A list of Tool objects that the model can use. Each tool should have a unique name.
+        :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
 
         """
-        _check_duplicate_tool_names(tools)
+        _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
 
         self.api_key = api_key
         self.model = model
@@ -402,14 +396,15 @@ class AnthropicChatGenerator:
         self,
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any], List[Dict[str, Any]]]:
         """
         Prepare the parameters for the Anthropic API request.
 
         :param messages: A list of ChatMessage instances representing the input messages.
         :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint.
-        :param tools: A list of tools for which the model can prepare calls.
+        :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should
+        have a unique name.
         :returns: A tuple containing:
             - system_messages: List of system messages in Anthropic format
             - non_system_messages: List of non-system messages in Anthropic format
@@ -448,7 +443,7 @@ class AnthropicChatGenerator:
 
         # tools management
         tools = tools or self.tools
-        _check_duplicate_tool_names(tools)
+        _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
         anthropic_tools = (
             [
                 {
@@ -456,7 +451,7 @@ class AnthropicChatGenerator:
                     "description": tool.description,
                     "input_schema": tool.parameters,
                 }
-                for tool in tools
+                for tool in (list(tools) if isinstance(tools, Toolset) else tools)
             ]
             if tools
             else []
@@ -550,7 +545,7 @@ class AnthropicChatGenerator:
         messages: List[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
     ):
         """
         Invokes the Anthropic API with the given messages and generation kwargs.
@@ -558,8 +553,8 @@ class AnthropicChatGenerator:
         :param messages: A list of ChatMessage instances representing the input messages.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint.
-        :param tools: A list of tools for which the model can prepare calls. If set, it will override
-        the `tools` parameter set during component initialization.
+        :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should
+        have a unique name. If set, it will override the `tools` parameter set during component initialization.
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
         """
@@ -591,7 +586,7 @@ class AnthropicChatGenerator:
         messages: List[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
     ):
         """
         Async version of the run method. Invokes the Anthropic API with the given messages and generation kwargs.
@@ -599,8 +594,8 @@ class AnthropicChatGenerator:
         :param messages: A list of ChatMessage instances representing the input messages.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint.
-        :param tools: A list of tools for which the model can prepare calls. If set, it will override
-        the `tools` parameter set during component initialization.
+        :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should
+        have a unique name. If set, it will override the `tools` parameter set during component initialization.
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
         """
