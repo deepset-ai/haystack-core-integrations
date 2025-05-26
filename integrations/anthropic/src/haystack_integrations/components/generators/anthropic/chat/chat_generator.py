@@ -12,7 +12,13 @@ from haystack.dataclasses import (
     ToolCallResult,
     select_streaming_callback,
 )
-from haystack.tools import Tool, Toolset, _check_duplicate_tool_names, deserialize_tools_or_toolset_inplace
+from haystack.tools import (
+    Tool,
+    Toolset,
+    _check_duplicate_tool_names,
+    deserialize_tools_or_toolset_inplace,
+    serialize_tools_or_toolset,
+)
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
 from anthropic import Anthropic, AsyncAnthropic
@@ -235,7 +241,6 @@ class AnthropicChatGenerator:
             The serialized component as a dictionary.
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
-        serialized_tools = [tool.to_dict() for tool in self.tools] if self.tools else None
         return default_to_dict(
             self,
             model=self.model,
@@ -243,7 +248,7 @@ class AnthropicChatGenerator:
             generation_kwargs=self.generation_kwargs,
             api_key=self.api_key.to_dict(),
             ignore_tools_thinking_messages=self.ignore_tools_thinking_messages,
-            tools=serialized_tools,
+            tools=serialize_tools_or_toolset(self.tools),
         )
 
     @classmethod
