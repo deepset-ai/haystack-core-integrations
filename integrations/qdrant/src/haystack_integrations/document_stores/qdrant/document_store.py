@@ -232,7 +232,6 @@ class QdrantDocumentStore:
         self.path = path
         self.force_disable_check_same_thread = force_disable_check_same_thread
         self.metadata = metadata or {}
-        self.api_key = api_key
 
         # Store the Qdrant collection specific attributes
         self.shard_number = shard_number
