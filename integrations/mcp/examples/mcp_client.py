@@ -41,7 +41,8 @@ def main():
         server_info = SSEServerInfo(url="http://localhost:8000/sse")
     else:  # streamable-http
         server_info = StreamableHttpServerInfo(url="http://localhost:8000/mcp")
-
+    tool = None
+    tool_subtract = None
     try:
         tool = MCPTool(name="add", server_info=server_info)
         tool_subtract = MCPTool(name="subtract", server_info=server_info)
