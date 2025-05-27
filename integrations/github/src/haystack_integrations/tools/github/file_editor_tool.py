@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any, Callable, Dict, Optional, Union
 
-from haystack import default_from_dict, default_to_dict
 from haystack.tools import ComponentTool
 from haystack.utils import Secret, deserialize_secrets_inplace
 
@@ -93,22 +92,21 @@ class GitHubFileEditorTool(ComponentTool):
         :returns:
             Dictionary with serialized data.
         """
-        serialized = default_to_dict(
-            self,
-            name=self.name,
-            description=self.description,
-            parameters=self.parameters,
-            github_token=self.github_token.to_dict(),
-            repo=self.repo,
-            branch=self.branch,
-            raise_on_failure=self.raise_on_failure,
-            outputs_to_string=self.outputs_to_string,
-            inputs_from_state=self.inputs_from_state,
-            outputs_to_state=self.outputs_to_state,
-        )
+        serialized = {
+            "name": self.name,
+            "description": self.description,
+            "parameters": self.parameters,
+            "github_token": self.github_token.to_dict() if self.github_token else None,
+            "repo": self.repo,
+            "branch": self.branch,
+            "raise_on_failure": self.raise_on_failure,
+            "outputs_to_string": self.outputs_to_string,
+            "inputs_from_state": self.inputs_from_state,
+            "outputs_to_state": self.outputs_to_state,
+        }
 
         serialize_handlers(serialized, self.outputs_to_state, self.outputs_to_string)
-        return serialized
+        return {"type": "haystack_integrations.tools.github.file_editor_tool.GitHubFileEditorTool", "data": serialized}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GitHubFileEditorTool":
@@ -120,6 +118,7 @@ class GitHubFileEditorTool(ComponentTool):
         :returns:
             Deserialized tool.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["github_token"])
-        deserialize_handlers(data)
-        return default_from_dict(cls, data)
+        inner_data = data["data"]
+        deserialize_secrets_inplace(inner_data, keys=["github_token"])
+        deserialize_handlers(inner_data)
+        return cls(**inner_data)

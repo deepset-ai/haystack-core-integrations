@@ -50,13 +50,12 @@ def serialize_handlers(
             if "handler" in config:
                 serialized_config["handler"] = serialize_callable(config["handler"])
             serialized_outputs[key] = serialized_config
-        serialized["init_parameters"]["outputs_to_state"] = serialized_outputs
+        serialized["outputs_to_state"] = serialized_outputs
 
-    if outputs_to_string is not None and outputs_to_string.get("handler") is not None:
-        serialized["init_parameters"]["outputs_to_string"] = {
-            **outputs_to_string,
-            "handler": serialize_callable(outputs_to_string["handler"]),
-        }
+    if outputs_to_string is not None and "handler" in outputs_to_string:
+        serialized_string = outputs_to_string.copy()
+        serialized_string["handler"] = serialize_callable(outputs_to_string["handler"])
+        serialized["outputs_to_string"] = serialized_string
 
 
 def deserialize_handlers(data: Dict[str, Any]) -> None:
@@ -65,19 +64,10 @@ def deserialize_handlers(data: Dict[str, Any]) -> None:
 
     :param data: The dictionary containing serialized handlers to deserialize
     """
-    if "outputs_to_state" in data["init_parameters"] and data["init_parameters"]["outputs_to_state"]:
-        deserialized_outputs = {}
-        for key, config in data["init_parameters"]["outputs_to_state"].items():
-            deserialized_config = config.copy()
+    if data.get("outputs_to_state"):
+        for config in data["outputs_to_state"].values():
             if "handler" in config:
-                deserialized_config["handler"] = deserialize_callable(config["handler"])
-            deserialized_outputs[key] = deserialized_config
-        data["init_parameters"]["outputs_to_state"] = deserialized_outputs
+                config["handler"] = deserialize_callable(config["handler"])
 
-    if (
-        data["init_parameters"].get("outputs_to_string") is not None
-        and data["init_parameters"]["outputs_to_string"].get("handler") is not None
-    ):
-        data["init_parameters"]["outputs_to_string"]["handler"] = deserialize_callable(
-            data["init_parameters"]["outputs_to_string"]["handler"]
-        )
+    if "outputs_to_string" in data and data["outputs_to_string"] and "handler" in data["outputs_to_string"]:
+        data["outputs_to_string"]["handler"] = deserialize_callable(data["outputs_to_string"]["handler"])

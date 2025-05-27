@@ -8,15 +8,7 @@ from haystack.utils import Secret
 
 from haystack_integrations.prompts.github.file_editor_prompt import FILE_EDITOR_PROMPT, FILE_EDITOR_SCHEMA
 from haystack_integrations.tools.github.file_editor_tool import GitHubFileEditorTool
-
-
-def custom_handler(value):
-    """A test handler function for serialization tests."""
-    return f"Processed: {value}"
-
-
-# Make the handler available at module level
-__all__ = ["custom_handler"]
+from haystack_integrations.tools.github.utils import message_handler
 
 
 class TestGitHubFileEditorTool:
@@ -26,12 +18,19 @@ class TestGitHubFileEditorTool:
         assert tool.name == "file_editor"
         assert tool.description == FILE_EDITOR_PROMPT
         assert tool.parameters == FILE_EDITOR_SCHEMA
+        assert tool.github_token == Secret.from_env_var("GITHUB_TOKEN")
+        assert tool.repo is None
+        assert tool.branch == "main"
+        assert tool.raise_on_failure
+        assert tool.outputs_to_string is None
+        assert tool.inputs_from_state is None
+        assert tool.outputs_to_state is None
 
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
         tool_dict = {
             "type": "haystack_integrations.tools.github.file_editor_tool.GitHubFileEditorTool",
-            "init_parameters": {
+            "data": {
                 "name": "file_editor",
                 "description": FILE_EDITOR_PROMPT,
                 "parameters": FILE_EDITOR_SCHEMA,
@@ -55,35 +54,41 @@ class TestGitHubFileEditorTool:
         tool = GitHubFileEditorTool()
         tool_dict = tool.to_dict()
         assert tool_dict["type"] == "haystack_integrations.tools.github.file_editor_tool.GitHubFileEditorTool"
-        assert tool_dict["init_parameters"]["name"] == "file_editor"
-        assert tool_dict["init_parameters"]["description"] == FILE_EDITOR_PROMPT
-        assert tool_dict["init_parameters"]["parameters"] == FILE_EDITOR_SCHEMA
-        assert tool_dict["init_parameters"]["github_token"] == {
+        assert tool_dict["data"]["name"] == "file_editor"
+        assert tool_dict["data"]["description"] == FILE_EDITOR_PROMPT
+        assert tool_dict["data"]["parameters"] == FILE_EDITOR_SCHEMA
+        assert tool_dict["data"]["github_token"] == {
             "env_vars": ["GITHUB_TOKEN"],
             "strict": True,
             "type": "env_var",
         }
-        assert tool_dict["init_parameters"]["repo"] is None
-        assert tool_dict["init_parameters"]["branch"] == "main"
-        assert tool_dict["init_parameters"]["raise_on_failure"]
+        assert tool_dict["data"]["repo"] is None
+        assert tool_dict["data"]["branch"] == "main"
+        assert tool_dict["data"]["raise_on_failure"]
+        assert tool_dict["data"]["outputs_to_string"] is None
+        assert tool_dict["data"]["inputs_from_state"] is None
+        assert tool_dict["data"]["outputs_to_state"] is None
 
     def test_to_dict_with_extra_params(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
         tool = GitHubFileEditorTool(
-            outputs_to_string={"source": "result", "handler": custom_handler},
+            outputs_to_string={"source": "result", "handler": message_handler},
             inputs_from_state={"repo_state": "repo"},
-            outputs_to_state={"file_content": {"source": "content", "handler": custom_handler}},
+            outputs_to_state={"file_content": {"source": "content", "handler": message_handler}},
         )
 
         tool_dict = tool.to_dict()
-        assert tool_dict["init_parameters"]["outputs_to_string"] == {
+        assert tool_dict["data"]["outputs_to_string"] == {
             "source": "result",
-            "handler": "tests.test_file_editor_tool.custom_handler",
+            "handler": "haystack_integrations.tools.github.utils.message_handler",
         }
-        assert tool_dict["init_parameters"]["inputs_from_state"] == {"repo_state": "repo"}
-        assert tool_dict["init_parameters"]["outputs_to_state"] == {
-            "file_content": {"source": "content", "handler": "tests.test_file_editor_tool.custom_handler"}
+        assert tool_dict["data"]["inputs_from_state"] == {"repo_state": "repo"}
+        assert tool_dict["data"]["outputs_to_state"] == {
+            "file_content": {
+                "source": "content",
+                "handler": "haystack_integrations.tools.github.utils.message_handler",
+            },
         }
 
     def test_from_dict_with_extra_params(self, monkeypatch):
@@ -91,7 +96,7 @@ class TestGitHubFileEditorTool:
 
         tool_dict = {
             "type": "haystack_integrations.tools.github.file_editor_tool.GitHubFileEditorTool",
-            "init_parameters": {
+            "data": {
                 "name": "file_editor",
                 "description": FILE_EDITOR_PROMPT,
                 "parameters": FILE_EDITOR_SCHEMA,
@@ -99,20 +104,26 @@ class TestGitHubFileEditorTool:
                 "repo": None,
                 "branch": "main",
                 "raise_on_failure": True,
-                "outputs_to_string": {"source": "result", "handler": "tests.test_file_editor_tool.custom_handler"},
+                "outputs_to_string": {
+                    "source": "result",
+                    "handler": "haystack_integrations.tools.github.utils.message_handler",
+                },
                 "inputs_from_state": {"repo_state": "repo"},
                 "outputs_to_state": {
-                    "file_content": {"source": "content", "handler": "tests.test_file_editor_tool.custom_handler"}
+                    "file_content": {
+                        "source": "content",
+                        "handler": "haystack_integrations.tools.github.utils.message_handler",
+                    },
                 },
             },
         }
 
         tool = GitHubFileEditorTool.from_dict(tool_dict)
         assert tool.outputs_to_string["source"] == "result"
-        assert tool.outputs_to_string["handler"] == custom_handler
+        assert tool.outputs_to_string["handler"] == message_handler
         assert tool.inputs_from_state == {"repo_state": "repo"}
         assert tool.outputs_to_state["file_content"]["source"] == "content"
-        assert tool.outputs_to_state["file_content"]["handler"] == custom_handler
+        assert tool.outputs_to_state["file_content"]["handler"] == message_handler
 
     def test_pipeline_serialization(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
@@ -156,7 +167,7 @@ class TestGitHubFileEditorTool:
                         "tools": [
                             {
                                 "type": "haystack_integrations.tools.github.file_editor_tool.GitHubFileEditorTool",
-                                "init_parameters": {
+                                "data": {
                                     "name": "file_editor",
                                     "description": FILE_EDITOR_PROMPT,
                                     "parameters": FILE_EDITOR_SCHEMA,
