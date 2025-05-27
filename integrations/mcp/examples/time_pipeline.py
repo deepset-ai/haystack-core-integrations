@@ -31,6 +31,7 @@ if not mcp_logger.handlers:
 
 
 def main():
+    time_tool = None
     try:
         time_tool = MCPTool(
             name="get_current_time",

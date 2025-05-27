@@ -28,6 +28,7 @@ def find_tool(toolset, tool_name):
 def main():
     """Example of using the MCPToolset implementation with stdio transport."""
 
+    stdio_toolset = None
     try:
         # Create server info for the time service
         server_info = StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=Europe/Berlin"])

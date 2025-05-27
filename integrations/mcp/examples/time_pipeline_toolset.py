@@ -23,6 +23,7 @@ def main():
     # Create server info for the time service
     server_info = StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=Europe/Berlin"])
 
+    mcp_toolset = None
     try:
         # Create the toolset - this will automatically discover all available tools
         mcp_toolset = MCPToolset(server_info)

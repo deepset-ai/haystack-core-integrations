@@ -26,6 +26,7 @@ def find_tool(toolset, tool_name):
 def main():
     """Example of using MCPToolset with SSE transport."""
 
+    sse_toolset = None
     try:
         # Create the toolset - this automatically discovers all available tools
         # from the MCP server and creates Tool instances for each one
