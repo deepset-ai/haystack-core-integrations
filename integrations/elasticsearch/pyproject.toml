@@ -24,10 +24,10 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-                "haystack-ai>=2.11.0",
-                "elasticsearch>=8,<9",
-                "aiohttp" # for async support https://elasticsearch-py.readthedocs.io/en/latest/async.html#valueerror-when-initializing-asyncelasticsearch
-                ]
+  "haystack-ai>=2.0.0",
+  "elasticsearch>=8,<9",
+  "aiohttp>=3.11.0" # for async support https://elasticsearch-py.readthedocs.io/en/latest/async.html#valueerror-when-initializing-asyncelasticsearch
+]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/elasticsearch#readme"
