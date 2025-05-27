@@ -39,6 +39,23 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
             mocked_qdrant.assert_not_called()
 
+    def test_prepare_client_params_no_mutability(self):
+        metadata = {"key": "value"}
+        doc_store = QdrantDocumentStore(
+            ":memory:",
+            recreate_index=True,
+            return_embedding=True,
+            wait_result_from_api=True,
+            use_sparse_embeddings=False,
+            metadata=metadata,
+        )
+        client_params = doc_store._prepare_client_params()
+        # Mutate value of metadata in client_params
+        client_params["metadata"] = client_params["metadata"].update({"new_key": "new_value"})
+
+        # Assert that the original metadata in the document store is unchanged
+        assert metadata == {"key": "value"}
+
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("QDRANT_API_KEY", "test_api_key")
         doc_store = QdrantDocumentStore(
