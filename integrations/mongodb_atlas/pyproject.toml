@@ -24,8 +24,8 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.0.0",
-  "pymongo[srv]>=3.13.0"
+  "haystack-ai>=2.4.0",
+  "pymongo[srv]>=4.0.0"
 ]
 
 [project.urls]
