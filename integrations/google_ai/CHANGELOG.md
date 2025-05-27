@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/google_ai-v5.2.0] - 2025-05-27
 
 ### 🚀 Features
 
