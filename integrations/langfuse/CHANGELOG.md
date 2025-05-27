@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/langfuse-v2.0.0] - 2025-05-27
+
+### 🌀 Miscellaneous
+
+- Add Langfuse pins (#1837)
+
 ## [integrations/langfuse-v1.1.2] - 2025-05-16
 
 ### 🌀 Miscellaneous
