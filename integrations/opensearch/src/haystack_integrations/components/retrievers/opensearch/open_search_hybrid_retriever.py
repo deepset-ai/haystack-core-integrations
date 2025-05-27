@@ -256,11 +256,9 @@ class OpenSearchHybridRetriever:
 
     if TYPE_CHECKING:
 
-        def warm_up(self) -> None:
-            ...
+        def warm_up(self) -> None: ...
 
-        def run(self, query: str, filters_bm25=None, filters_embedding=None) -> Dict[str, Any]:
-            ...
+        def run(self, query: str, filters_bm25=None, filters_embedding=None) -> Dict[str, Any]: ...
 
     def _create_pipeline(self, data: dict[str, Any]) -> Pipeline:
         """
