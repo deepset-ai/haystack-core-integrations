@@ -23,7 +23,10 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "unstructured", "unstructured-client<0.30.0"]
+dependencies = [
+  "haystack-ai>=2.9.0",
+  "unstructured>=0.17.2",
+  "unstructured-client<0.30.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/unstructured#readme"
