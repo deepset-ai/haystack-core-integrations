@@ -16,7 +16,7 @@ pip install mcp-haystack
 from haystack_integrations.tools.mcp import MCPTool, SSEServerInfo
 
 # Create an MCP tool that connects to an HTTP server
-server_info = SSEServerInfo(url="http://localhost:8000")
+server_info = SSEServerInfo(url="http://localhost:8000/sse")
 tool = MCPTool(name="my_tool", server_info=server_info)
 
 # Use the tool
