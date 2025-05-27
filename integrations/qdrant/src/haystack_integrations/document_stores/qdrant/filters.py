@@ -138,10 +138,10 @@ def convert_filters_to_qdrant(
 
 
 def build_filters_for_repeated_operators(
-    must_clauses,
-    should_clauses,
-    must_not_clauses,
-    qdrant_filter,
+    must_clauses: List,
+    should_clauses: List,
+    must_not_clauses: List,
+    qdrant_filter: List[models.Filter],
 ) -> List[models.Filter]:
     """
     Flattens the nested lists of clauses by creating separate Filters for each clause of a logical operator.
