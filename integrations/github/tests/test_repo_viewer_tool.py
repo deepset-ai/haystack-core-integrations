@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from haystack_integrations.prompts.github.repo_viewer_prompt import REPO_VIEWER_PROMPT, REPO_VIEWER_SCHEMA
 from haystack_integrations.tools.github.repo_viewer_tool import GitHubRepoViewerTool
+from haystack_integrations.tools.github.utils import message_handler
 
 
 def custom_handler(value):
@@ -22,6 +23,9 @@ class TestGitHubRepoViewerTool:
         assert tool.description == REPO_VIEWER_PROMPT
         assert tool.parameters == REPO_VIEWER_SCHEMA
         assert tool.max_file_size == 1_000_000
+        assert tool.outputs_to_string == {"source": "documents", "handler": message_handler}
+        assert tool.inputs_from_state == {}
+        assert tool.outputs_to_state == {"documents": {"source": "documents"}}
 
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
@@ -36,6 +40,12 @@ class TestGitHubRepoViewerTool:
                 "branch": "main",
                 "raise_on_failure": True,
                 "max_file_size": 1_000_000,
+                "outputs_to_string": {
+                    "source": "documents",
+                    "handler": "haystack_integrations.tools.github.utils.message_handler",
+                },
+                "inputs_from_state": {},
+                "outputs_to_state": {"documents": {"source": "documents"}},
             },
         }
         tool = GitHubRepoViewerTool.from_dict(tool_dict)
@@ -47,6 +57,10 @@ class TestGitHubRepoViewerTool:
         assert tool.branch == "main"
         assert tool.raise_on_failure
         assert tool.max_file_size == 1_000_000
+        assert tool.outputs_to_string["source"] == "documents"
+        assert tool.outputs_to_string["handler"] == message_handler
+        assert tool.inputs_from_state == {}
+        assert tool.outputs_to_state == {"documents": {"source": "documents"}}
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
@@ -61,6 +75,12 @@ class TestGitHubRepoViewerTool:
         assert tool_dict["init_parameters"]["branch"] == "main"
         assert tool_dict["init_parameters"]["raise_on_failure"]
         assert tool_dict["init_parameters"]["max_file_size"] == 1_000_000
+        assert tool_dict["init_parameters"]["outputs_to_string"] == {
+            "source": "documents",
+            "handler": "haystack_integrations.tools.github.utils.message_handler",
+        }
+        assert tool_dict["init_parameters"]["inputs_from_state"] == {}
+        assert tool_dict["init_parameters"]["outputs_to_state"] == {"documents": {"source": "documents"}}
 
     def test_to_dict_with_extra_params(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")

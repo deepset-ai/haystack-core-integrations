@@ -10,6 +10,7 @@ from haystack.utils.callable_serialization import deserialize_callable, serializ
 
 from haystack_integrations.components.connectors.github.repo_viewer import GitHubRepoViewer
 from haystack_integrations.prompts.github.repo_viewer_prompt import REPO_VIEWER_PROMPT, REPO_VIEWER_SCHEMA
+from haystack_integrations.tools.github.utils import message_handler
 
 
 class GitHubRepoViewerTool(ComponentTool):
@@ -57,9 +58,12 @@ class GitHubRepoViewerTool(ComponentTool):
         branch: str = "main",
         raise_on_failure: bool = True,
         max_file_size: int = 1_000_000,  # 1MB default limit
-        outputs_to_string: Optional[Dict[str, Union[str, Callable[[Any], str]]]] = None,
-        inputs_from_state: Optional[Dict[str, str]] = None,
-        outputs_to_state: Optional[Dict[str, Dict[str, Union[str, Callable]]]] = None,
+        outputs_to_string: Optional[Dict[str, Union[str, Callable[[Any], str]]]] = {
+            "source": "documents",
+            "handler": message_handler,
+        },
+        inputs_from_state: Optional[Dict[str, str]] = {},
+        outputs_to_state: Optional[Dict[str, Dict[str, Union[str, Callable]]]] = {"documents": {"source": "documents"}},
     ):
         self.name = name
         self.description = description
