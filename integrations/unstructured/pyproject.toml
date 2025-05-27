@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.9.0",
+  "haystack-ai>=2.4.0",
   "unstructured>=0.17.0",
   "unstructured-client<0.30.0"]
 
