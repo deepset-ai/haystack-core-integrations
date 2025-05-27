@@ -46,7 +46,7 @@ class QdrantEmbeddingRetriever:
         score_threshold: Optional[float] = None,
         group_by: Optional[str] = None,
         group_size: Optional[int] = None,
-    ):
+    ) -> None:
         """
         Create a QdrantEmbeddingRetriever component.
 
@@ -136,7 +136,7 @@ class QdrantEmbeddingRetriever:
         score_threshold: Optional[float] = None,
         group_by: Optional[str] = None,
         group_size: Optional[int] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Run the Embedding Retriever on the given input data.
 
@@ -180,7 +180,7 @@ class QdrantEmbeddingRetriever:
         score_threshold: Optional[float] = None,
         group_by: Optional[str] = None,
         group_size: Optional[int] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Asynchronously run the Embedding Retriever on the given input data.
 
@@ -252,7 +252,7 @@ class QdrantSparseEmbeddingRetriever:
         score_threshold: Optional[float] = None,
         group_by: Optional[str] = None,
         group_size: Optional[int] = None,
-    ):
+    ) -> None:
         """
         Create a QdrantSparseEmbeddingRetriever component.
 
@@ -342,7 +342,7 @@ class QdrantSparseEmbeddingRetriever:
         score_threshold: Optional[float] = None,
         group_by: Optional[str] = None,
         group_size: Optional[int] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Run the Sparse Embedding Retriever on the given input data.
 
@@ -391,7 +391,7 @@ class QdrantSparseEmbeddingRetriever:
         score_threshold: Optional[float] = None,
         group_by: Optional[str] = None,
         group_size: Optional[int] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Asynchronously run the Sparse Embedding Retriever on the given input data.
 
@@ -473,7 +473,7 @@ class QdrantHybridRetriever:
         score_threshold: Optional[float] = None,
         group_by: Optional[str] = None,
         group_size: Optional[int] = None,
-    ):
+    ) -> None:
         """
         Create a QdrantHybridRetriever component.
 
@@ -557,7 +557,7 @@ class QdrantHybridRetriever:
         score_threshold: Optional[float] = None,
         group_by: Optional[str] = None,
         group_size: Optional[int] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Run the Sparse Embedding Retriever on the given input data.
 
@@ -606,7 +606,7 @@ class QdrantHybridRetriever:
         score_threshold: Optional[float] = None,
         group_by: Optional[str] = None,
         group_size: Optional[int] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Asynchronously run the Sparse Embedding Retriever on the given input data.
 

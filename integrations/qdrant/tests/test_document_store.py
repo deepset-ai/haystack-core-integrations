@@ -12,6 +12,7 @@ from haystack.testing.document_store import (
     WriteDocumentsTest,
     _random_embeddings,
 )
+from haystack.utils import Secret
 from qdrant_client.http import models as rest
 
 from haystack_integrations.document_stores.qdrant.document_store import (
@@ -37,6 +38,79 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         with patch("haystack_integrations.document_stores.qdrant.document_store.qdrant_client") as mocked_qdrant:
             QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
             mocked_qdrant.assert_not_called()
+
+    def test_prepare_client_params_no_mutability(self):
+        metadata = {"key": "value"}
+        doc_store = QdrantDocumentStore(
+            ":memory:",
+            recreate_index=True,
+            return_embedding=True,
+            wait_result_from_api=True,
+            use_sparse_embeddings=False,
+            metadata=metadata,
+        )
+        client_params = doc_store._prepare_client_params()
+        # Mutate value of metadata in client_params
+        client_params["metadata"] = client_params["metadata"].update({"new_key": "new_value"})
+
+        # Assert that the original metadata in the document store is unchanged
+        assert metadata == {"key": "value"}
+
+    def test_to_dict(self, monkeypatch):
+        monkeypatch.setenv("QDRANT_API_KEY", "test_api_key")
+        doc_store = QdrantDocumentStore(
+            ":memory:",
+            recreate_index=True,
+            return_embedding=True,
+            wait_result_from_api=True,
+            use_sparse_embeddings=False,
+            api_key=Secret.from_env_var("QDRANT_API_KEY"),
+        )
+        expected_dict = {
+            "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
+            "init_parameters": {
+                "location": ":memory:",
+                "url": None,
+                "port": 6333,
+                "grpc_port": 6334,
+                "prefer_grpc": False,
+                "https": None,
+                "api_key": {
+                    "env_vars": ["QDRANT_API_KEY"],
+                    "strict": True,
+                    "type": "env_var",
+                },
+                "prefix": None,
+                "timeout": None,
+                "host": None,
+                "path": None,
+                "force_disable_check_same_thread": False,
+                "index": "Document",
+                "embedding_dim": 768,
+                "on_disk": False,
+                "use_sparse_embeddings": False,
+                "sparse_idf": False,
+                "similarity": "cosine",
+                "return_embedding": True,
+                "progress_bar": True,
+                "recreate_index": True,
+                "shard_number": None,
+                "replication_factor": None,
+                "write_consistency_factor": None,
+                "on_disk_payload": None,
+                "hnsw_config": None,
+                "optimizers_config": None,
+                "wal_config": None,
+                "quantization_config": None,
+                "init_from": None,
+                "wait_result_from_api": True,
+                "metadata": {},
+                "write_batch_size": 100,
+                "scroll_size": 10000,
+                "payload_fields_to_index": None,
+            },
+        }
+        assert doc_store.to_dict() == expected_dict
 
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
