@@ -6,11 +6,10 @@ from typing import Any, Callable, Dict, Optional, Union
 from haystack import default_from_dict, default_to_dict
 from haystack.tools import ComponentTool
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
 from haystack_integrations.components.connectors.github.repo_viewer import GitHubRepoViewer
 from haystack_integrations.prompts.github.repo_viewer_prompt import REPO_VIEWER_PROMPT, REPO_VIEWER_SCHEMA
-from haystack_integrations.tools.github.utils import message_handler
+from haystack_integrations.tools.github.utils import deserialize_handlers, message_handler, serialize_handlers
 
 
 class GitHubRepoViewerTool(ComponentTool):
@@ -27,6 +26,7 @@ class GitHubRepoViewerTool(ComponentTool):
     :param max_file_size: Maximum file size in bytes to read
     :param outputs_to_string:
         Optional dictionary defining how a tool outputs should be converted into a string.
+        By default, truncates the document.content of the viewed files to 150,000 characters each.
         If the source is provided only the specified output key is sent to the handler.
         If the source is omitted the whole tool result is sent to the handler.
         Example: {
@@ -34,9 +34,11 @@ class GitHubRepoViewerTool(ComponentTool):
         }
     :param inputs_from_state:
         Optional dictionary mapping state keys to tool parameter names.
+        By default, the tool does not use any inputs from state.
         Example: {"repository": "repo"} maps state's "repository" to tool's "repo" parameter.
     :param outputs_to_state:
         Optional dictionary defining how tool outputs map to keys within state as well as optional handlers.
+        By default, outputs the viewed files as documents to the state.
         If the source is provided only the specified output key is sent to the handler.
         Example: {
             "documents": {"source": "docs", "handler": custom_handler}
@@ -58,12 +60,9 @@ class GitHubRepoViewerTool(ComponentTool):
         branch: str = "main",
         raise_on_failure: bool = True,
         max_file_size: int = 1_000_000,  # 1MB default limit
-        outputs_to_string: Optional[Dict[str, Union[str, Callable[[Any], str]]]] = {
-            "source": "documents",
-            "handler": message_handler,
-        },
-        inputs_from_state: Optional[Dict[str, str]] = {},
-        outputs_to_state: Optional[Dict[str, Dict[str, Union[str, Callable]]]] = {"documents": {"source": "documents"}},
+        outputs_to_string: Optional[Dict[str, Union[str, Callable[[Any], str]]]] = None,
+        inputs_from_state: Optional[Dict[str, str]] = None,
+        outputs_to_state: Optional[Dict[str, Dict[str, Union[str, Callable]]]] = None,
     ):
         self.name = name
         self.description = description
@@ -73,9 +72,11 @@ class GitHubRepoViewerTool(ComponentTool):
         self.branch = branch
         self.raise_on_failure = raise_on_failure
         self.max_file_size = max_file_size
-        self.outputs_to_string = outputs_to_string
-        self.inputs_from_state = inputs_from_state
-        self.outputs_to_state = outputs_to_state
+
+        # Set default values for mutable parameters
+        self.outputs_to_string = outputs_to_string or {"source": "documents", "handler": message_handler}
+        self.inputs_from_state = inputs_from_state or {}
+        self.outputs_to_state = outputs_to_state or {"documents": {"source": "documents"}}
 
         repo_viewer = GitHubRepoViewer(
             github_token=github_token,
@@ -89,9 +90,9 @@ class GitHubRepoViewerTool(ComponentTool):
             name=name,
             description=description,
             parameters=parameters,
-            outputs_to_string=outputs_to_string,
-            inputs_from_state=inputs_from_state,
-            outputs_to_state=outputs_to_state,
+            outputs_to_string=self.outputs_to_string,
+            inputs_from_state=self.inputs_from_state,
+            outputs_to_state=self.outputs_to_state,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -116,22 +117,7 @@ class GitHubRepoViewerTool(ComponentTool):
             outputs_to_state=self.outputs_to_state,
         )
 
-        # Handle serialization of callable handlers based on the code in ComponentTool.to_dict
-        if self.outputs_to_state is not None:
-            serialized_outputs = {}
-            for key, config in self.outputs_to_state.items():
-                serialized_config = config.copy()
-                if "handler" in config:
-                    serialized_config["handler"] = serialize_callable(config["handler"])
-                serialized_outputs[key] = serialized_config
-            serialized["init_parameters"]["outputs_to_state"] = serialized_outputs
-
-        if self.outputs_to_string is not None and self.outputs_to_string.get("handler") is not None:
-            serialized["init_parameters"]["outputs_to_string"] = {
-                **self.outputs_to_string,
-                "handler": serialize_callable(self.outputs_to_string["handler"]),
-            }
-
+        serialize_handlers(serialized, self.outputs_to_state, self.outputs_to_string)
         return serialized
 
     @classmethod
@@ -145,23 +131,5 @@ class GitHubRepoViewerTool(ComponentTool):
             Deserialized tool.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["github_token"])
-
-        # Handle deserialization of callable handlers based on the code in ComponentTool.from_dict
-        if "outputs_to_state" in data["init_parameters"] and data["init_parameters"]["outputs_to_state"]:
-            deserialized_outputs = {}
-            for key, config in data["init_parameters"]["outputs_to_state"].items():
-                deserialized_config = config.copy()
-                if "handler" in config:
-                    deserialized_config["handler"] = deserialize_callable(config["handler"])
-                deserialized_outputs[key] = deserialized_config
-            data["init_parameters"]["outputs_to_state"] = deserialized_outputs
-
-        if (
-            data["init_parameters"].get("outputs_to_string") is not None
-            and data["init_parameters"]["outputs_to_string"].get("handler") is not None
-        ):
-            data["init_parameters"]["outputs_to_string"]["handler"] = deserialize_callable(
-                data["init_parameters"]["outputs_to_string"]["handler"]
-            )
-
+        deserialize_handlers(data)
         return default_from_dict(cls, data)

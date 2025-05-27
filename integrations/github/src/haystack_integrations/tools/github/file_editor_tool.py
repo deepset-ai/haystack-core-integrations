@@ -6,10 +6,10 @@ from typing import Any, Callable, Dict, Optional, Union
 from haystack import default_from_dict, default_to_dict
 from haystack.tools import ComponentTool
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
 from haystack_integrations.components.connectors.github.file_editor import GitHubFileEditor
 from haystack_integrations.prompts.github.file_editor_prompt import FILE_EDITOR_PROMPT, FILE_EDITOR_SCHEMA
+from haystack_integrations.tools.github.utils import deserialize_handlers, serialize_handlers
 
 
 class GitHubFileEditorTool(ComponentTool):
@@ -107,22 +107,7 @@ class GitHubFileEditorTool(ComponentTool):
             outputs_to_state=self.outputs_to_state,
         )
 
-        # Handle serialization of callable handlers based on the code in ComponentTool.to_dict
-        if self.outputs_to_state is not None:
-            serialized_outputs = {}
-            for key, config in self.outputs_to_state.items():
-                serialized_config = config.copy()
-                if "handler" in config:
-                    serialized_config["handler"] = serialize_callable(config["handler"])
-                serialized_outputs[key] = serialized_config
-            serialized["init_parameters"]["outputs_to_state"] = serialized_outputs
-
-        if self.outputs_to_string is not None and self.outputs_to_string.get("handler") is not None:
-            serialized["init_parameters"]["outputs_to_string"] = {
-                **self.outputs_to_string,
-                "handler": serialize_callable(self.outputs_to_string["handler"]),
-            }
-
+        serialize_handlers(serialized, self.outputs_to_state, self.outputs_to_string)
         return serialized
 
     @classmethod
@@ -136,23 +121,5 @@ class GitHubFileEditorTool(ComponentTool):
             Deserialized tool.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["github_token"])
-
-        # Handle deserialization of callable handlers based on the code in ComponentTool.from_dict
-        if "outputs_to_state" in data["init_parameters"] and data["init_parameters"]["outputs_to_state"]:
-            deserialized_outputs = {}
-            for key, config in data["init_parameters"]["outputs_to_state"].items():
-                deserialized_config = config.copy()
-                if "handler" in config:
-                    deserialized_config["handler"] = deserialize_callable(config["handler"])
-                deserialized_outputs[key] = deserialized_config
-            data["init_parameters"]["outputs_to_state"] = deserialized_outputs
-
-        if (
-            data["init_parameters"].get("outputs_to_string") is not None
-            and data["init_parameters"]["outputs_to_string"].get("handler") is not None
-        ):
-            data["init_parameters"]["outputs_to_string"]["handler"] = deserialize_callable(
-                data["init_parameters"]["outputs_to_string"]["handler"]
-            )
-
+        deserialize_handlers(data)
         return default_from_dict(cls, data)
