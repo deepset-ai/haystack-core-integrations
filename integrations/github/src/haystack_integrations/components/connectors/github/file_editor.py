@@ -90,6 +90,8 @@ class GitHubFileEditor:
         :param repo: Default repository in owner/repo format
         :param branch: Default branch to work with
         :param raise_on_failure: If True, raises exceptions on API errors
+
+        :raises TypeError: If github_token is not a Secret
         """
         if not isinstance(github_token, Secret):
             error_message = "github_token must be a Secret"
