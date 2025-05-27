@@ -55,6 +55,7 @@ class TestOpenSearchHybridRetriever:
                     "token": {"type": "env_var", "env_vars": ["HF_API_TOKEN", "HF_TOKEN"], "strict": False},
                     "prefix": "",
                     "suffix": "",
+                    'local_files_only': False,
                     "batch_size": 32,
                     "progress_bar": True,
                     "normalize_embeddings": False,
