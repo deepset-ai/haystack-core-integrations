@@ -324,7 +324,6 @@ class OpenSearchHybridRetriever:
 
     @classmethod
     def from_dict(cls, data):
-
         # deserialize the document store
         doc_store = OpenSearchDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = doc_store

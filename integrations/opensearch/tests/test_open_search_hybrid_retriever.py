@@ -19,7 +19,6 @@ class MockedTextEmbedder:
 
 
 class TestOpenSearchHybridRetriever:
-
     serialised = {  # noqa: RUF012
         "type": "haystack_integrations.components.retrievers.opensearch.open_search_hybrid_retriever.OpenSearchHybridRetriever",  # noqa: E501
         "init_parameters": {
