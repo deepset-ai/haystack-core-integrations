@@ -19,7 +19,7 @@ logger.setLevel(logging.DEBUG)
 
 def main():
     """Example of using the MCPTool implementation with stdio transport."""
-    
+
     stdio_tool = None
     try:
 
