@@ -9,7 +9,7 @@ from haystack import logging
 from haystack.tools import Tool
 
 from haystack_integrations.tools.mcp import MCPToolset
-from haystack_integrations.tools.mcp.mcp_tool import MCPConnectionError, SSEServerInfo
+from haystack_integrations.tools.mcp.mcp_tool import MCPConnectionError, SSEServerInfo, StreamableHttpServerInfo
 
 # Import in-memory transport and fixtures
 from .mcp_memory_transport import InMemoryServerInfo
@@ -286,6 +286,105 @@ if __name__ == "__main__":
 
         finally:
             # Explicitly close tools first to prevent SSE connection errors
+            try:
+                toolset.close()
+            except Exception as e:
+                logger.debug(f"Error during tool cleanup: {e}")
+
+            # Clean up
+            if server_process:
+                if server_process.poll() is None:  # Process is still running
+                    server_process.terminate()
+                    try:
+                        server_process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        server_process.kill()
+                        server_process.wait(timeout=5)
+
+            # Remove the temporary file
+            if os.path.exists(server_script_path):
+                os.remove(server_script_path)
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="Windows fails for some reason")
+    def test_toolset_with_streamable_http_connection(self):
+        """Test MCPToolset with a streamable-http connection to a simple server."""
+        import socket
+        import subprocess
+        import tempfile
+
+        # Find an available port
+        def find_free_port():
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(("", 0))
+                return s.getsockname()[1]
+
+        port = find_free_port()
+
+        # Create a temporary file for the server script
+        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as temp_file:
+            temp_file.write(
+                f"""
+from mcp.server.fastmcp import FastMCP
+mcp = FastMCP("MCP Calculator", host="127.0.0.1", port={port})
+
+@mcp.tool()
+def add(a: int, b: int) -> int:
+    \"\"\"Add two numbers\"\"\"
+    return a + b
+
+@mcp.tool()
+def subtract(a: int, b: int) -> int:
+    \"\"\"Subtract b from a\"\"\"
+    return a - b
+
+if __name__ == "__main__":
+    try:
+        mcp.run(transport="streamable-http")
+    except Exception as e:
+        sys.exit(1)
+""".encode()
+            )
+            server_script_path = temp_file.name
+
+        server_process = None
+        try:
+            # Start the server in a separate process
+            server_process = subprocess.Popen(
+                ["python", server_script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+
+            # Give the server a moment to start
+            time.sleep(2)
+
+            # Create the toolset - note the /mcp endpoint for streamable-http
+            server_info = StreamableHttpServerInfo(url=f"http://127.0.0.1:{port}/mcp")
+            toolset = MCPToolset(server_info=server_info)
+
+            # Verify we got both tools
+            assert len(toolset) == 2
+
+            tool_names = [tool.name for tool in toolset.tools]
+            assert "add" in tool_names
+            assert "subtract" in tool_names
+
+            # Test the add tool
+            add_tool = next(tool for tool in toolset.tools if tool.name == "add")
+            result = add_tool.invoke(a=5, b=3)
+            assert result.content[0].text == "8"
+
+            # Test the subtract tool
+            subtract_tool = next(tool for tool in toolset.tools if tool.name == "subtract")
+            result = subtract_tool.invoke(a=10, b=4)
+            assert result.content[0].text == "6"
+
+        except Exception:
+            # Check server output for clues
+            if server_process and server_process.poll() is None:
+                server_process.terminate()
+            raise
+
+        finally:
+            # Explicitly close tools first to prevent connection errors
             try:
                 toolset.close()
             except Exception as e:
