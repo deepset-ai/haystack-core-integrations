@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/mongodb_atlas-v3.2.2] - 2025-05-27
+
+### 🌀 Miscellaneous
+
+- Pin version for `pymongo` and `haystack` in MongoDB integration (#1832)
+
 ## [integrations/mongodb_atlas-v3.2.1] - 2025-05-13
 
 ### 🚀 Features
