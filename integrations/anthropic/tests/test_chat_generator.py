@@ -339,6 +339,12 @@ class TestAnthropicChatGenerator:
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(message_start_chunk)
         assert streaming_chunk.content == ""
+
+        # remove fields not present in the pinned version of the Anthropic SDK.
+        # This ensures the test passes with both the pinned and the latest version of the Anthropic SDK.
+        streaming_chunk.meta["message"]["usage"].pop("server_tool_use", None)
+        streaming_chunk.meta["message"]["usage"].pop("service_tier", None)
+
         assert streaming_chunk.meta == {
             "type": "message_start",
             "message": {
@@ -354,7 +360,6 @@ class TestAnthropicChatGenerator:
                     "output_tokens": 1,
                     "cache_creation_input_tokens": None,
                     "cache_read_input_tokens": None,
-                    "server_tool_use": None,
                 },
             },
         }

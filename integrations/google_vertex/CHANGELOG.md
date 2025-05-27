@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/google_vertex-v5.2.1] - 2025-05-27
+
+### 📚 Documentation
+
+- Fix VertexAI Embedders docstrings (#1735)
+
+### 🌀 Miscellaneous
+
+- Add pins for Vertex (#1810)
+
 ## [integrations/google_vertex-v5.2.0] - 2025-05-02
 
 ### 🚀 Features
