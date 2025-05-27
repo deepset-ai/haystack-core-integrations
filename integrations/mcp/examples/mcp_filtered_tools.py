@@ -13,6 +13,8 @@ from haystack_integrations.tools.mcp import MCPToolset, SSEServerInfo
 def main():
     """Example of using MCPToolset with filtered tools."""
 
+    full_toolset = None
+    filtered_toolset = None
     try:
         print("Creating toolset with all available tools:")
         # Create a toolset with all available tools
