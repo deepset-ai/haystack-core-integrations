@@ -1,4 +1,5 @@
 import inspect
+from copy import deepcopy
 from itertools import islice
 from typing import Any, AsyncGenerator, ClassVar, Dict, Generator, List, Optional, Set, Tuple, Union
 
@@ -18,10 +19,10 @@ from tqdm import tqdm
 from .converters import (
     DENSE_VECTORS_NAME,
     SPARSE_VECTORS_NAME,
+    QdrantPoint,
     convert_haystack_documents_to_qdrant_points,
     convert_id,
     convert_qdrant_point_to_haystack_document,
-    QdrantPoint
 )
 from .filters import convert_filters_to_qdrant
 
@@ -131,7 +132,7 @@ class QdrantDocumentStore:
     ) -> None:
         """
         :param location:
-            If `memory` - use in-memory Qdrant instance.
+            If `":memory:"` - use in-memory Qdrant instance.
             If `str` - use it as a URL parameter.
             If `None` - use default values for host and port.
         :param url:
@@ -261,6 +262,7 @@ class QdrantDocumentStore:
     def _initialize_client(self) -> None:
         if self._client is None:
             client_params = self._prepare_client_params()
+            # This step adds the api-key and User-Agent to metadata
             self._client = qdrant_client.QdrantClient(**client_params)
             # Make sure the collection is properly set up
             self._set_up_collection(
@@ -1538,21 +1540,26 @@ class QdrantDocumentStore:
         Prepares the common parameters for client initialization.
 
         """
-        return {
-            "location": self.location,
-            "url": self.url,
-            "port": self.port,
-            "grpc_port": self.grpc_port,
-            "prefer_grpc": self.prefer_grpc,
-            "https": self.https,
-            "api_key": self.api_key.resolve_value() if self.api_key else None,
-            "prefix": self.prefix,
-            "timeout": self.timeout,
-            "host": self.host,
-            "path": self.path,
-            "metadata": self.metadata,
-            "force_disable_check_same_thread": self.force_disable_check_same_thread,
-        }
+        # NOTE: We need to use deepcopy here to avoid modifying the original class attributes.
+        # For example, the resolved api key is added to metadata by the QdrantClient class when using a hosted
+        # Qdrant service, which means running to_dict() exposes the api key.
+        return deepcopy(
+            {
+                "location": self.location,
+                "url": self.url,
+                "port": self.port,
+                "grpc_port": self.grpc_port,
+                "prefer_grpc": self.prefer_grpc,
+                "https": self.https,
+                "api_key": self.api_key.resolve_value() if self.api_key else None,
+                "prefix": self.prefix,
+                "timeout": self.timeout,
+                "host": self.host,
+                "path": self.path,
+                "metadata": self.metadata,
+                "force_disable_check_same_thread": self.force_disable_check_same_thread,
+            }
+        )
 
     def _prepare_collection_config(
         self,

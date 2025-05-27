@@ -6,13 +6,13 @@ from haystack import Document
 from haystack.dataclasses import SparseEmbedding
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils import Secret
 from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
     WriteDocumentsTest,
     _random_embeddings,
 )
+from haystack.utils import Secret
 from qdrant_client.http import models as rest
 
 from haystack_integrations.document_stores.qdrant.document_store import (
