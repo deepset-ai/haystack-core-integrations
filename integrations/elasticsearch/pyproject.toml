@@ -24,9 +24,9 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.3.0",
+  "haystack-ai>=2.4.0",
   "elasticsearch>=8,<9",
-  "aiohttp>=3.11.0" # for async support https://elasticsearch-py.readthedocs.io/en/latest/async.html#valueerror-when-initializing-asyncelasticsearch
+  "aiohttp>=3.0.0" # for async support https://elasticsearch-py.readthedocs.io/en/latest/async.html#valueerror-when-initializing-asyncelasticsearch
 ]
 
 [project.urls]
