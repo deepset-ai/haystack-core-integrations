@@ -28,20 +28,22 @@ dependencies = [
 
   # The following dependencies are copied from https://github.com/xlang-ai/instructor-embedding/blob/main/requirements.txt
   # since the InstructorEmbedding package does not install them, but they are mandatory.
-  # Commenting some of them to not interfere with the dependencies of Haystack.
-  #"transformers==4.20.0",
-  "datasets>=2.2.0",
-  "huggingface_hub<0.26.0",
-  #"pyarrow==8.0.0",
-  "jsonlines",
-  "numpy",
-  "requests>=2.26.0",
-  "scikit_learn>=1.0.2",
-  "scipy",
-  "sentence_transformers>=2.2.0,<2.3.0",
-  "torch",
-  "tqdm",
-  "rich",
+  "transformers>=4.20,<5.0",
+  "datasets>=2.20,<3.0",
+  "pyarrow>=17.0,<18.0",
+  "requests>=2.26,<3.0", 
+  "sentence-transformers>=3.0.1,<4.0",
+  "torch>=2.0",
+  "tqdm>=4.0,<5.0",
+  "rich>=13.0,<14.0",
+  "huggingface-hub>=0.24.1",
+
+  # the following dependencies were included in requirements but they are direct dependencies of sentence-transformers
+  # and relying on it for installing them is better. Otherwise, we should also take care of distutils removal in 3.12.
+  # Final users are still free to restrict the versions of these dependencies to their own needs.
+  #  "scipy>=1.14,<2.0",
+  #  "numpy>=1.0,<=1.26.4", # also a dependency of scipy
+  #  "scikit_learn>=1.0.2,<2.0"
 
   "InstructorEmbedding",
 ]
