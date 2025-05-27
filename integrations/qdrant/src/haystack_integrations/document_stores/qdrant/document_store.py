@@ -1,5 +1,4 @@
 import inspect
-from copy import deepcopy
 from itertools import islice
 from typing import Any, AsyncGenerator, ClassVar, Dict, Generator, List, Optional, Set, Tuple, Union
 
@@ -1540,26 +1539,24 @@ class QdrantDocumentStore:
         Prepares the common parameters for client initialization.
 
         """
-        # NOTE: We need to use deepcopy here to avoid modifying the original class attributes.
-        # For example, the resolved api key is added to metadata by the QdrantClient class when using a hosted
-        # Qdrant service, which means running to_dict() exposes the api key.
-        return deepcopy(
-            {
-                "location": self.location,
-                "url": self.url,
-                "port": self.port,
-                "grpc_port": self.grpc_port,
-                "prefer_grpc": self.prefer_grpc,
-                "https": self.https,
-                "api_key": self.api_key.resolve_value() if self.api_key else None,
-                "prefix": self.prefix,
-                "timeout": self.timeout,
-                "host": self.host,
-                "path": self.path,
-                "metadata": self.metadata,
-                "force_disable_check_same_thread": self.force_disable_check_same_thread,
-            }
-        )
+        return {
+            "location": self.location,
+            "url": self.url,
+            "port": self.port,
+            "grpc_port": self.grpc_port,
+            "prefer_grpc": self.prefer_grpc,
+            "https": self.https,
+            "api_key": self.api_key.resolve_value() if self.api_key else None,
+            "prefix": self.prefix,
+            "timeout": self.timeout,
+            "host": self.host,
+            "path": self.path,
+            # NOTE: We purposefully expand the fields of self.metadata to avoid modifying the original self.metadata
+            # class attribute. For example, the resolved api key is added to metadata by the QdrantClient class
+            # when using a hosted Qdrant service, which means running to_dict() exposes the api key.
+            "metadata": {**self.metadata},
+            "force_disable_check_same_thread": self.force_disable_check_same_thread,
+        }
 
     def _prepare_collection_config(
         self,
