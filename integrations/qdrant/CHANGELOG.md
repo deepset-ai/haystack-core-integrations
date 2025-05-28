@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/qdrant-v9.1.3] - 2025-05-28
 
 ### 🌀 Miscellaneous
 
