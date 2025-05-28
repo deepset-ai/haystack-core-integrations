@@ -25,8 +25,8 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai>=2.0.0",
-  "unstructured",
-  "unstructured-client"
+  "unstructured>=0.15.0",
+  "unstructured-client>=0.21.0"
 ]
 
 
