@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/unstructured-v0.4.3] - 2025-05-28
+
+### 📚 Documentation
+
+- Update Unstructured example (#1656)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🧹 Chores
+
+- Use Haystack logging across integrations (#1484)
+
+### 🌀 Miscellaneous
+
+- Pinning `unstructured` to lowest working versions (#1841)
+
 ## [integrations/unstructured-v0.4.2] - 2025-02-18
 
 ### 🐛 Bug Fixes
