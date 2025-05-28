@@ -141,7 +141,15 @@ class TestGitHubFileEditorTool:
 
         pipeline_dict = pipeline.to_dict()
 
-        assert pipeline_dict == {
+        # Remove http_client_kwargs from both dictionaries if it exists
+        # We don't want to test the http_client_kwargs because Haystack 2.12.0 doesn't have it
+        # Only Haystack 2.13.0+ has it
+        if "components" in pipeline_dict:
+            agent_params = pipeline_dict["components"]["agent"]["init_parameters"]["chat_generator"]["init_parameters"]
+            if "http_client_kwargs" in agent_params:
+                del agent_params["http_client_kwargs"]
+
+        expected_dict = {
             "metadata": {},
             "max_runs_per_component": 100,
             "components": {
@@ -161,7 +169,6 @@ class TestGitHubFileEditorTool:
                                 "max_retries": None,
                                 "tools": None,
                                 "tools_strict": False,
-                                "http_client_kwargs": None,
                             },
                         },
                         "tools": [
@@ -193,6 +200,8 @@ class TestGitHubFileEditorTool:
             "connections": [],
             "connection_type_validation": True,
         }
+
+        assert pipeline_dict == expected_dict
 
         deserialized_pipeline = Pipeline.from_dict(pipeline_dict)
         deserialized_components = [instance for _, instance in deserialized_pipeline.graph.nodes(data="instance")]
