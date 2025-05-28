@@ -21,7 +21,7 @@ from anthropic.types import (
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
-from haystack.tools import Tool
+from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.anthropic.chat.chat_generator import (
@@ -875,6 +875,59 @@ class TestAnthropicChatGenerator:
         assert not final_message.tool_calls
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
+
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_toolset(self):
+        """
+        Integration test that the AnthropicChatGenerator component can run with a Toolset.
+        """
+
+        def weather_function(city: str) -> str:
+            """Get weather information for a city."""
+            weather_data = {"Paris": "22°C, sunny", "London": "15°C, rainy", "Tokyo": "18°C, cloudy"}
+            return weather_data.get(city, "Weather data not available")
+
+        def echo_function(text: str) -> str:
+            """Echo a text."""
+            return text
+
+        # Create tools
+        weather_tool = Tool(
+            name="weather",
+            description="Get weather information for a city",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=weather_function,
+        )
+
+        echo_tool = Tool(
+            name="echo",
+            description="Echo a text",
+            parameters={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
+            function=echo_function,
+        )
+
+        # Create Toolset
+        toolset = Toolset([weather_tool, echo_tool])
+
+        # Test with weather query
+        initial_messages = [ChatMessage.from_user("What's the weather like in Tokyo?")]
+        component = AnthropicChatGenerator(tools=toolset)
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+
+        assert message.tool_calls
+        tool_call = message.tool_call
+        assert isinstance(tool_call, ToolCall)
+        assert tool_call.id is not None
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Tokyo"}
+        assert message.meta["finish_reason"] == "tool_use"
 
     @pytest.mark.skipif(
         not os.environ.get("ANTHROPIC_API_KEY", None),
