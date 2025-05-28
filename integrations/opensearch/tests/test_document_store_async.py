@@ -8,7 +8,6 @@ from haystack_integrations.document_stores.opensearch.document_store import Open
 
 @pytest.mark.integration
 class TestDocumentStoreAsync:
-
     @pytest.mark.asyncio
     async def test_write_documents(self, document_store: OpenSearchDocumentStore):
         assert await document_store.write_documents_async([Document(id="1")]) == 1
