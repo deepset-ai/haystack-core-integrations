@@ -169,7 +169,6 @@ class TestGoogleGenAIChatGenerator:
         assert len(google_content.parts) == 1
         assert google_content.parts[0].function_response.name == "math"
         assert google_content.parts[0].function_response.response == {"result": "4"}
-    
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
@@ -337,18 +336,18 @@ class TestGoogleGenAIChatGenerator:
 
 
 @pytest.mark.skipif(
-        not os.environ.get("GOOGLE_API_KEY", None),
-        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
-    )
+    not os.environ.get("GOOGLE_API_KEY", None),
+    reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+)
 @pytest.mark.integration
-@pytest.mark.asyncio 
+@pytest.mark.asyncio
 class TestAsyncGoogleGenAIChatGenerator:
     """Test class for async functionality of GoogleGenAIChatGenerator."""
 
     async def test_live_run_async(self) -> None:
         """Test async version of the run method."""
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash-001")
+        component = GoogleGenAIChatGenerator()
         results = await component.run_async(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
@@ -366,7 +365,7 @@ class TestAsyncGoogleGenAIChatGenerator:
             counter += 1
             responses += chunk.content if chunk.content else ""
 
-        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash-001")
+        component = GoogleGenAIChatGenerator()
         results = await component.run_async(
             [ChatMessage.from_user("What's the capital of France?")], streaming_callback=async_callback
         )
@@ -375,8 +374,7 @@ class TestAsyncGoogleGenAIChatGenerator:
         assert counter > 0, "No streaming chunks received"
         message: ChatMessage = results["replies"][0]
         assert "paris" in message.text.lower(), "Response does not contain Paris"
-    
-    @pytest.mark.skip
+
     async def test_live_run_async_with_tools(self, tools):
         """Test async version with tools."""
         component = GoogleGenAIChatGenerator(tools=tools)
@@ -396,11 +394,10 @@ class TestAsyncGoogleGenAIChatGenerator:
         assert len(tool_message.tool_calls) == 1, "Tool message has multiple tool calls"
         assert tool_message.tool_calls[0].tool_name == "weather"
         assert tool_message.tool_calls[0].arguments == {"city": "Paris"}
-    
-    @pytest.mark.skip
+
     async def test_concurrent_async_calls(self):
         """Test multiple concurrent async calls."""
-        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash-001")
+        component = GoogleGenAIChatGenerator()
 
         # Create multiple tasks
         tasks = []
