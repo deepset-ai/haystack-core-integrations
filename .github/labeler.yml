@@ -9,6 +9,11 @@ integration:amazon-sagemaker:
       - any-glob-to-any-file: "integrations/amazon_sagemaker/**/*"
       - any-glob-to-any-file: ".github/workflows/amazon_sagemaker.yml"
 
+integration:anthropic:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/anthropic/**/*"
+      - any-glob-to-any-file: ".github/workflows/anthropic.yml"
+
 integration:astra:
   - changed-files:
       - any-glob-to-any-file: "integrations/astra/**/*"
@@ -158,6 +163,11 @@ integration:deepeval:
   - changed-files:
       - any-glob-to-any-file: "integrations/deepeval/**/*"
       - any-glob-to-any-file: ".github/workflows/deepeval.yml"
+
+integration:stackit:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/stackit/**/*"
+      - any-glob-to-any-file: ".github/workflows/stackit.yml"
 
 # Topics
 topic:CI:
