@@ -235,7 +235,7 @@ class TestOptimumDocumentEmbedder:
                 model="sentence-transformers/all-mpnet-base-v2", pooling_mode="Invalid_pooling_mode"
             )
 
-    def test_infer_pooling_mode_from_str(self):
+    def test_infer_pooling_mode_from_str(self, mock_check_valid_model):  # noqa: ARG002
         """
         Test that the pooling mode is correctly inferred from a string.
         The pooling mode is "mean" as per the model config.
