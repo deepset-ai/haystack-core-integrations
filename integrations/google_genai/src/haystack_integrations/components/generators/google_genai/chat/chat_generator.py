@@ -125,7 +125,7 @@ def _convert_tools_to_google_genai_format(tools: Union[List[Tool], Toolset]) -> 
     # Return a single Tool object with all function declarations
     # we could also return multiple Tool objects, doesn't seem to make a difference
     # revisit this decision
-    return [types.Tool(function_declarations=function_declarations)]
+    return [types.Tool(function_declarations=function_declarations)]  # type: ignore[arg-type]
 
 
 def _convert_google_genai_response_to_chatmessage(response, model: str) -> ChatMessage:
@@ -460,7 +460,7 @@ class GoogleGenAIChatGenerator:
         chat_messages = messages
 
         if messages and messages[0].is_from(ChatRole.SYSTEM):
-            system_instruction = messages[0].text
+            system_instruction = messages[0].text or ""
             chat_messages = messages[1:]
 
         # Convert messages to Google Gen AI Content format
@@ -540,7 +540,7 @@ class GoogleGenAIChatGenerator:
         chat_messages = messages
 
         if messages and messages[0].is_from(ChatRole.SYSTEM):
-            system_instruction = messages[0].text
+            system_instruction = messages[0].text or ""
             chat_messages = messages[1:]
 
         # Convert messages to Google Gen AI Content format
@@ -565,7 +565,7 @@ class GoogleGenAIChatGenerator:
                 response_stream = await self._client.aio.models.generate_content_stream(
                     model=self._model, contents=contents, config=config
                 )
-                return await self._handle_streaming_response_direct_async(response_stream, streaming_callback)
+                return await self._handle_streaming_response_direct_async(response_stream, streaming_callback)  # type: ignore[arg-type]
             else:
                 # Use async non-streaming
                 response = await self._client.aio.models.generate_content(

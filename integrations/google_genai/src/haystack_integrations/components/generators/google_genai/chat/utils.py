@@ -1,7 +1,9 @@
 from typing import Any, Dict, List, Union
 
 
-def remove_key_from_schema(schema: Union[Dict[str, Any], List[Any]], target_key: str) -> Union[Dict[str, Any]]:
+def remove_key_from_schema(
+    schema: Union[Dict[str, Any], List[Any]], target_key: str
+) -> Union[Dict[str, Any], List[Any], Any]:
     """
     Recursively traverse a schema and remove all occurrences of the target key.
 

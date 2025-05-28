@@ -181,7 +181,7 @@ class TestGoogleGenAIChatGenerator:
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        assert "paris" in message.text.lower(), "Response does not contain Paris"
+        assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
         assert "gemini-2.0-flash" in message.meta["model"]
         assert message.meta["finish_reason"] is not None
 
@@ -207,7 +207,7 @@ class TestGoogleGenAIChatGenerator:
         assert len(results["replies"]) == 1
         assert callback.counter > 0, "No streaming chunks received"
         message: ChatMessage = results["replies"][0]
-        assert "paris" in message.text.lower(), "Response does not contain Paris"
+        assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
@@ -330,7 +330,7 @@ class TestGoogleGenAIChatGenerator:
 
         assert not message.tool_calls, "Message has tool calls and it should not have any"
         assert len(message.text) > 0, "Message has no text"
-        assert "paris" in message.text.lower() or "berlin" in message.text.lower()
+        assert message.text and ("paris" in message.text.lower() or "berlin" in message.text.lower())
         # Check that the response mentions both temperature readings
         assert "22" in message.text or "15" in message.text
 
@@ -351,7 +351,7 @@ class TestAsyncGoogleGenAIChatGenerator:
         results = await component.run_async(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        assert "paris" in message.text.lower(), "Response does not contain Paris"
+        assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
         assert "gemini-2.0-flash" in message.meta["model"]
         assert message.meta["finish_reason"] is not None
 
@@ -373,7 +373,7 @@ class TestAsyncGoogleGenAIChatGenerator:
         assert len(results["replies"]) == 1
         assert counter > 0, "No streaming chunks received"
         message: ChatMessage = results["replies"][0]
-        assert "paris" in message.text.lower(), "Response does not contain Paris"
+        assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
 
     async def test_live_run_async_with_tools(self, tools):
         """Test async version with tools."""
