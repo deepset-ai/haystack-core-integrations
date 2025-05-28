@@ -4,11 +4,11 @@
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from haystack import DeserializationError, Pipeline, default_from_dict, default_to_dict, logging, super_component
+from haystack import Pipeline, default_from_dict, default_to_dict, logging, super_component
 from haystack.components.embedders.types import TextEmbedder
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.joiners.document_joiner import JoinMode
-from haystack.core.serialization import component_from_dict, component_to_dict, import_class_by_name
+from haystack.core.serialization import component_to_dict
 from haystack.document_stores.types import FilterPolicy
 from haystack.utils import deserialize_chatgenerator_inplace
 
