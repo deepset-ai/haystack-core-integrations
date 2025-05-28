@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any, Callable, Dict, Optional, Union
 
+from haystack.core.serialization import generate_qualified_class_name
 from haystack.tools import ComponentTool
 from haystack.utils import Secret, deserialize_secrets_inplace
 
@@ -104,10 +105,7 @@ class GitHubIssueViewerTool(ComponentTool):
         }
 
         serialize_handlers(serialized, self.outputs_to_state, self.outputs_to_string)
-        return {
-            "type": "haystack_integrations.tools.github.issue_viewer_tool.GitHubIssueViewerTool",
-            "data": serialized,
-        }
+        return {"type": generate_qualified_class_name(type(self)), "data": serialized}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GitHubIssueViewerTool":

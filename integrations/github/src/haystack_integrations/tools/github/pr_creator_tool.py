@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any, Callable, Dict, Optional, Union
 
+from haystack.core.serialization import generate_qualified_class_name
 from haystack.tools import ComponentTool
 from haystack.utils import Secret, deserialize_secrets_inplace
 
@@ -98,7 +99,7 @@ class GitHubPRCreatorTool(ComponentTool):
             "outputs_to_state": self.outputs_to_state,
         }
         serialize_handlers(serialized, self.outputs_to_state, self.outputs_to_string)
-        return {"type": "haystack_integrations.tools.github.pr_creator_tool.GitHubPRCreatorTool", "data": serialized}
+        return {"type": generate_qualified_class_name(type(self)), "data": serialized}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GitHubPRCreatorTool":
