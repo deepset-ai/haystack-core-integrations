@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/mcp-v0.3.1] - 2025-05-28
 
 ### 🌀 Miscellaneous
 
