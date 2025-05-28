@@ -14,32 +14,6 @@ from haystack_integrations.tools.github.utils import deserialize_handlers, seria
 class GitHubPRCreatorTool(ComponentTool):
     """
     A tool for creating pull requests in GitHub repositories.
-
-    :param name: Optional name for the tool.
-    :param description: Optional description.
-    :param parameters: Optional JSON schema defining the parameters expected by the Tool.
-    :param github_token: GitHub personal access token for API authentication
-    :param raise_on_failure: If True, raises exceptions on API errors
-    :param outputs_to_string:
-        Optional dictionary defining how a tool outputs should be converted into a string.
-        If the source is provided only the specified output key is sent to the handler.
-        If the source is omitted the whole tool result is sent to the handler.
-        Example: {
-            "source": "docs", "handler": format_documents
-        }
-    :param inputs_from_state:
-        Optional dictionary mapping state keys to tool parameter names.
-        Example: {"repository": "repo"} maps state's "repository" to tool's "repo" parameter.
-    :param outputs_to_state:
-        Optional dictionary defining how tool outputs map to keys within state as well as optional handlers.
-        If the source is provided only the specified output key is sent to the handler.
-        Example: {
-            "documents": {"source": "docs", "handler": custom_handler}
-        }
-        If the source is omitted the whole tool result is sent to the handler.
-        Example: {
-            "documents": {"handler": custom_handler}
-        }
     """
 
     def __init__(
@@ -54,6 +28,35 @@ class GitHubPRCreatorTool(ComponentTool):
         inputs_from_state: Optional[Dict[str, str]] = None,
         outputs_to_state: Optional[Dict[str, Dict[str, Union[str, Callable]]]] = None,
     ):
+        """
+        Initialize the GitHub PR creator tool.
+
+        :param name: Optional name for the tool.
+        :param description: Optional description.
+        :param parameters: Optional JSON schema defining the parameters expected by the Tool.
+        :param github_token: GitHub personal access token for API authentication
+        :param raise_on_failure: If True, raises exceptions on API errors
+        :param outputs_to_string:
+            Optional dictionary defining how a tool outputs should be converted into a string.
+            If the source is provided only the specified output key is sent to the handler.
+            If the source is omitted the whole tool result is sent to the handler.
+            Example: {
+                "source": "docs", "handler": format_documents
+            }
+        :param inputs_from_state:
+            Optional dictionary mapping state keys to tool parameter names.
+            Example: {"repository": "repo"} maps state's "repository" to tool's "repo" parameter.
+        :param outputs_to_state:
+            Optional dictionary defining how tool outputs map to keys within state as well as optional handlers.
+            If the source is provided only the specified output key is sent to the handler.
+            Example: {
+                "documents": {"source": "docs", "handler": custom_handler}
+            }
+            If the source is omitted the whole tool result is sent to the handler.
+            Example: {
+                "documents": {"handler": custom_handler}
+            }
+        """
         self.name = name
         self.description = description
         self.parameters = parameters

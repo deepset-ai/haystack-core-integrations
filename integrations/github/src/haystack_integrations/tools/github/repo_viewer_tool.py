@@ -14,38 +14,6 @@ from haystack_integrations.tools.github.utils import deserialize_handlers, messa
 class GitHubRepoViewerTool(ComponentTool):
     """
     A tool for viewing files and directories in GitHub repositories.
-
-    :param name: Optional name for the tool.
-    :param description: Optional description.
-    :param parameters: Optional JSON schema defining the parameters expected by the Tool.
-    :param github_token: GitHub personal access token for API authentication
-    :param repo: Default repository in owner/repo format
-    :param branch: Default branch to work with
-    :param raise_on_failure: If True, raises exceptions on API errors
-    :param max_file_size: Maximum file size in bytes to read
-    :param outputs_to_string:
-        Optional dictionary defining how a tool outputs should be converted into a string.
-        By default, truncates the document.content of the viewed files to 150,000 characters each.
-        If the source is provided only the specified output key is sent to the handler.
-        If the source is omitted the whole tool result is sent to the handler.
-        Example: {
-            "source": "docs", "handler": format_documents
-        }
-    :param inputs_from_state:
-        Optional dictionary mapping state keys to tool parameter names.
-        By default, the tool does not use any inputs from state.
-        Example: {"repository": "repo"} maps state's "repository" to tool's "repo" parameter.
-    :param outputs_to_state:
-        Optional dictionary defining how tool outputs map to keys within state as well as optional handlers.
-        By default, outputs the viewed files as documents to the state.
-        If the source is provided only the specified output key is sent to the handler.
-        Example: {
-            "documents": {"source": "docs", "handler": custom_handler}
-        }
-        If the source is omitted the whole tool result is sent to the handler.
-        Example: {
-            "documents": {"handler": custom_handler}
-        }
     """
 
     def __init__(
@@ -63,6 +31,41 @@ class GitHubRepoViewerTool(ComponentTool):
         inputs_from_state: Optional[Dict[str, str]] = None,
         outputs_to_state: Optional[Dict[str, Dict[str, Union[str, Callable]]]] = None,
     ):
+        """
+        Initialize the GitHub repository viewer tool.
+
+        :param name: Optional name for the tool.
+        :param description: Optional description.
+        :param parameters: Optional JSON schema defining the parameters expected by the Tool.
+        :param github_token: Optional GitHub personal access token for API authentication
+        :param repo: Default repository in owner/repo format
+        :param branch: Default branch to work with
+        :param raise_on_failure: If True, raises exceptions on API errors
+        :param max_file_size: Maximum file size in bytes to read
+        :param outputs_to_string:
+            Optional dictionary defining how a tool outputs should be converted into a string.
+            By default, truncates the document.content of the viewed files to 150,000 characters each.
+            If the source is provided only the specified output key is sent to the handler.
+            If the source is omitted the whole tool result is sent to the handler.
+            Example: {
+                "source": "docs", "handler": format_documents
+            }
+        :param inputs_from_state:
+            Optional dictionary mapping state keys to tool parameter names.
+            By default, the tool does not use any inputs from state.
+            Example: {"repository": "repo"} maps state's "repository" to tool's "repo" parameter.
+        :param outputs_to_state:
+            Optional dictionary defining how tool outputs map to keys within state as well as optional handlers.
+            By default, outputs the viewed files as documents to the state.
+            If the source is provided only the specified output key is sent to the handler.
+            Example: {
+                "documents": {"source": "docs", "handler": custom_handler}
+            }
+            If the source is omitted the whole tool result is sent to the handler.
+            Example: {
+                "documents": {"handler": custom_handler}
+            }
+        """
         self.name = name
         self.description = description
         self.parameters = parameters
