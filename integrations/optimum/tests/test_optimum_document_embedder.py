@@ -311,7 +311,7 @@ class TestOptimumDocumentEmbedder:
 
     def test_run_wrong_input_format(self, mock_check_valid_model):  # noqa: ARG002
         embedder = OptimumDocumentEmbedder(model="sentence-transformers/all-mpnet-base-v2", pooling_mode="mean")
-        embedder.warm_up()
+        embedder._initialized = True
         # wrong formats
         string_input = "text"
         list_integers_input = [1, 2, 3]
@@ -326,7 +326,7 @@ class TestOptimumDocumentEmbedder:
         embedder = OptimumDocumentEmbedder(
             model="sentence-transformers/paraphrase-albert-small-v2",
         )
-        embedder.warm_up()
+        embedder._initialized = True
         empty_list_input = []
         result = embedder.run(documents=empty_list_input)
 
