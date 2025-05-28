@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/pgvector-v3.3.1] - 2025-05-28
+
+### 🌀 Miscellaneous
+
+- Add pins for Pgvector (#1849)
+
 ## [integrations/pgvector-v3.3.0] - 2025-05-06
 
 ### 🚀 Features
