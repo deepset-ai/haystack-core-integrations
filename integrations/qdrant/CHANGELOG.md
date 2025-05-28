@@ -1,5 +1,11 @@
 # Changelog
 
+## [unreleased]
+
+### 🌀 Miscellaneous
+
+- Add pins for Qdrant (#1853)
+
 ## [integrations/qdrant-v9.1.2] - 2025-05-27
 
 ### 🐛 Bug Fixes
