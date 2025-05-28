@@ -22,8 +22,6 @@ class OpenSearchHybridRetriever:
     """
     A hybrid retriever that combines embedding-based and keyword-based retrieval from OpenSearch.
 
-    This component requires haystack-ai>=2.14.0 to work properly.
-
     Example usage:
 
     Make sure you have "sentence-transformers>=3.0.0":
@@ -129,60 +127,41 @@ class OpenSearchHybridRetriever:
 
         :param document_store:
             The OpenSearchDocumentStore to use for retrieval.
-
         :param embedder:
             A TextEmbedder to use for embedding the query.
             See `haystack.components.embedders.types.protocol.TextEmbedder` for more information.
-
         :param filters_bm25:
             Filters for the BM25 retriever.
-
         :param fuzziness:
             The fuzziness for the BM25 retriever.
-
         :param top_k_bm25:
             The number of results to return from the BM25 retriever.
-
         :param scale_score:
             Whether to scale the score for the BM25 retriever.
-
         :param all_terms_must_match:
             Whether all terms must match for the BM25 retriever.
-
         :param filter_policy_bm25:
             The filter policy for the BM25 retriever.
-
         :param custom_query_bm25:
             A custom query for the BM25 retriever.
-
         :param filters_embedding:
             Filters for the embedding retriever.
-
         :param top_k_embedding:
             The number of results to return from the embedding retriever.
-
         :param filter_policy_embedding:
             The filter policy for the embedding retriever.
-
         :param custom_query_embedding:
             A custom query for the embedding retriever.
-
         :param join_mode:
             The mode to use for joining the results from the BM25 and embedding retrievers.
-
         :param weights:
             The weights for the joiner.
-
         :param top_k:
             The number of results to return from the joiner.
-
         :param sort_by_score:
             Whether to sort the results by score.
-
         :param **kwargs:
-
             Additional keyword arguments. Use the following keys to pass extra parameters to the retrievers:
-
             - "bm25_retriever" -> OpenSearchBM25Retriever
             - "embedding_retriever" -> OpenSearchEmbeddingRetriever
 
