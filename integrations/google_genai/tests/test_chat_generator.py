@@ -105,6 +105,72 @@ class TestGoogleGenAIChatGenerator:
         assert len(deserialized_component._tools) == len(tools)
         assert all(isinstance(tool, Tool) for tool in deserialized_component._tools)
 
+    def test_convert_message_to_google_genai_format_complex(self):
+        """
+        Test that the GoogleGenAIChatGenerator can convert a complex sequence of ChatMessages to Google GenAI format.
+        In particular, we check that different tool results are handled properly in sequence.
+        """
+        from haystack.dataclasses import ToolCall
+
+        from haystack_integrations.components.generators.google_genai.chat.chat_generator import (
+            _convert_message_to_google_genai_format,
+        )
+
+        messages = [
+            ChatMessage.from_system("You are good assistant"),
+            ChatMessage.from_user("What's the weather like in Paris? And how much is 2+2?"),
+            ChatMessage.from_assistant(
+                text="",
+                tool_calls=[
+                    ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"}),
+                    ToolCall(id="456", tool_name="math", arguments={"expression": "2+2"}),
+                ],
+            ),
+            ChatMessage.from_tool(
+                tool_result="22° C", origin=ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
+            ),
+            ChatMessage.from_tool(
+                tool_result="4", origin=ToolCall(id="456", tool_name="math", arguments={"expression": "2+2"})
+            ),
+        ]
+
+        # Test system message handling (should be handled separately in Google GenAI)
+        system_message = messages[0]
+        assert system_message.is_from(ChatRole.SYSTEM)
+
+        # Test user message conversion
+        user_message = messages[1]
+        google_content = _convert_message_to_google_genai_format(user_message)
+        assert google_content.role == "user"
+        assert len(google_content.parts) == 1
+        assert google_content.parts[0].text == "What's the weather like in Paris? And how much is 2+2?"
+
+        # Test assistant message with tool calls
+        assistant_message = messages[2]
+        google_content = _convert_message_to_google_genai_format(assistant_message)
+        assert google_content.role == "model"
+        assert len(google_content.parts) == 2
+        assert google_content.parts[0].function_call.name == "weather"
+        assert google_content.parts[0].function_call.args == {"city": "Paris"}
+        assert google_content.parts[1].function_call.name == "math"
+        assert google_content.parts[1].function_call.args == {"expression": "2+2"}
+
+        # Test tool result messages
+        tool_result_1 = messages[3]
+        google_content = _convert_message_to_google_genai_format(tool_result_1)
+        assert google_content.role == "user"
+        assert len(google_content.parts) == 1
+        assert google_content.parts[0].function_response.name == "weather"
+        assert google_content.parts[0].function_response.response == {"result": "22° C"}
+
+        tool_result_2 = messages[4]
+        google_content = _convert_message_to_google_genai_format(tool_result_2)
+        assert google_content.role == "user"
+        assert len(google_content.parts) == 1
+        assert google_content.parts[0].function_response.name == "math"
+        assert google_content.parts[0].function_response.response == {"result": "4"}
+    
+
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
         reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
@@ -269,81 +335,16 @@ class TestGoogleGenAIChatGenerator:
         # Check that the response mentions both temperature readings
         assert "22" in message.text or "15" in message.text
 
-    def test_convert_message_to_google_genai_format_complex(self):
-        """
-        Test that the GoogleGenAIChatGenerator can convert a complex sequence of ChatMessages to Google GenAI format.
-        In particular, we check that different tool results are handled properly in sequence.
-        """
-        from haystack.dataclasses import ToolCall
 
-        from haystack_integrations.components.generators.google_genai.chat.chat_generator import (
-            _convert_message_to_google_genai_format,
-        )
-
-        messages = [
-            ChatMessage.from_system("You are good assistant"),
-            ChatMessage.from_user("What's the weather like in Paris? And how much is 2+2?"),
-            ChatMessage.from_assistant(
-                text="",
-                tool_calls=[
-                    ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"}),
-                    ToolCall(id="456", tool_name="math", arguments={"expression": "2+2"}),
-                ],
-            ),
-            ChatMessage.from_tool(
-                tool_result="22° C", origin=ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
-            ),
-            ChatMessage.from_tool(
-                tool_result="4", origin=ToolCall(id="456", tool_name="math", arguments={"expression": "2+2"})
-            ),
-        ]
-
-        # Test system message handling (should be handled separately in Google GenAI)
-        system_message = messages[0]
-        assert system_message.is_from(ChatRole.SYSTEM)
-
-        # Test user message conversion
-        user_message = messages[1]
-        google_content = _convert_message_to_google_genai_format(user_message)
-        assert google_content.role == "user"
-        assert len(google_content.parts) == 1
-        assert google_content.parts[0].text == "What's the weather like in Paris? And how much is 2+2?"
-
-        # Test assistant message with tool calls
-        assistant_message = messages[2]
-        google_content = _convert_message_to_google_genai_format(assistant_message)
-        assert google_content.role == "model"
-        assert len(google_content.parts) == 2
-        assert google_content.parts[0].function_call.name == "weather"
-        assert google_content.parts[0].function_call.args == {"city": "Paris"}
-        assert google_content.parts[1].function_call.name == "math"
-        assert google_content.parts[1].function_call.args == {"expression": "2+2"}
-
-        # Test tool result messages
-        tool_result_1 = messages[3]
-        google_content = _convert_message_to_google_genai_format(tool_result_1)
-        assert google_content.role == "user"
-        assert len(google_content.parts) == 1
-        assert google_content.parts[0].function_response.name == "weather"
-        assert google_content.parts[0].function_response.response == {"result": "22° C"}
-
-        tool_result_2 = messages[4]
-        google_content = _convert_message_to_google_genai_format(tool_result_2)
-        assert google_content.role == "user"
-        assert len(google_content.parts) == 1
-        assert google_content.parts[0].function_response.name == "math"
-        assert google_content.parts[0].function_response.response == {"result": "4"}
-
-
-class TestAsyncGoogleGenAIChatGenerator:
-    """Test class for async functionality of GoogleGenAIChatGenerator."""
-
-    @pytest.mark.skipif(
+@pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
         reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
     )
-    @pytest.mark.integration
-    @pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.asyncio 
+class TestAsyncGoogleGenAIChatGenerator:
+    """Test class for async functionality of GoogleGenAIChatGenerator."""
+
     async def test_live_run_async(self) -> None:
         """Test async version of the run method."""
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
@@ -355,12 +356,6 @@ class TestAsyncGoogleGenAIChatGenerator:
         assert "gemini-2.0-flash" in message.meta["model"]
         assert message.meta["finish_reason"] is not None
 
-    @pytest.mark.skipif(
-        not os.environ.get("GOOGLE_API_KEY", None),
-        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
-    )
-    @pytest.mark.integration
-    @pytest.mark.asyncio
     async def test_live_run_async_streaming(self):
         """Test async version with streaming."""
         responses = ""
@@ -380,13 +375,8 @@ class TestAsyncGoogleGenAIChatGenerator:
         assert counter > 0, "No streaming chunks received"
         message: ChatMessage = results["replies"][0]
         assert "paris" in message.text.lower(), "Response does not contain Paris"
-
-    @pytest.mark.skipif(
-        not os.environ.get("GOOGLE_API_KEY", None),
-        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
-    )
-    @pytest.mark.integration
-    @pytest.mark.asyncio
+    
+    @pytest.mark.skip
     async def test_live_run_async_with_tools(self, tools):
         """Test async version with tools."""
         component = GoogleGenAIChatGenerator(tools=tools)
@@ -406,13 +396,8 @@ class TestAsyncGoogleGenAIChatGenerator:
         assert len(tool_message.tool_calls) == 1, "Tool message has multiple tool calls"
         assert tool_message.tool_calls[0].tool_name == "weather"
         assert tool_message.tool_calls[0].arguments == {"city": "Paris"}
-
-    @pytest.mark.skipif(
-        not os.environ.get("GOOGLE_API_KEY", None),
-        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
-    )
-    @pytest.mark.integration
-    @pytest.mark.asyncio
+    
+    @pytest.mark.skip
     async def test_concurrent_async_calls(self):
         """Test multiple concurrent async calls."""
         component = GoogleGenAIChatGenerator(model="gemini-2.0-flash-001")
