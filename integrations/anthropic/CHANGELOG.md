@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/anthropic-v2.5.0] - 2025-05-28
+
+### 🚀 Features
+
+- AnthropicChatGenerator - add Toolset support (#1787)
+
+
 ## [integrations/anthropic-v2.4.2] - 2025-05-27
 
 ### 📚 Documentation
