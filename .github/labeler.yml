@@ -9,6 +9,11 @@ integration:amazon-sagemaker:
       - any-glob-to-any-file: "integrations/amazon_sagemaker/**/*"
       - any-glob-to-any-file: ".github/workflows/amazon_sagemaker.yml"
 
+integration:anthropic:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/anthropic/**/*"
+      - any-glob-to-any-file: ".github/workflows/anthropic.yml"
+
 integration:astra:
   - changed-files:
       - any-glob-to-any-file: "integrations/astra/**/*"
@@ -28,6 +33,11 @@ integration:cohere:
   - changed-files:
       - any-glob-to-any-file: "integrations/cohere/**/*"
       - any-glob-to-any-file: ".github/workflows/cohere.yml"
+
+integration:deepeval:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/deepeval/**/*"
+      - any-glob-to-any-file: ".github/workflows/deepeval.yml"
 
 integration:elasticsearch:
   - changed-files:
@@ -134,6 +144,16 @@ integration:ragas:
       - any-glob-to-any-file: "integrations/ragas/**/*"
       - any-glob-to-any-file: ".github/workflows/ragas.yml"
 
+integration:snowflake:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/snowflake/**/*"
+      - any-glob-to-any-file: ".github/workflows/snowflake.yml"
+
+integration:stackit:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/stackit/**/*"
+      - any-glob-to-any-file: ".github/workflows/stackit.yml"
+
 integration:unstructured-fileconverter:
   - changed-files:
       - any-glob-to-any-file: "integrations/unstructured/**/*"
@@ -148,16 +168,6 @@ integration:weight_bias:
   - changed-files:
       - any-glob-to-any-file: "integrations/weight_bias/**/*"
       - any-glob-to-any-file: ".github/workflows/weight_bias.yml"
-
-integration:snowflake:
-  - changed-files:
-      - any-glob-to-any-file: "integrations/snowflake/**/*"
-      - any-glob-to-any-file: ".github/workflows/snowflake.yml"
-
-integration:deepeval:
-  - changed-files:
-      - any-glob-to-any-file: "integrations/deepeval/**/*"
-      - any-glob-to-any-file: ".github/workflows/deepeval.yml"
 
 # Topics
 topic:CI:

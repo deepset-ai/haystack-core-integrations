@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/mcp-v0.3.1] - 2025-05-28
+
+### 🌀 Miscellaneous
+
+- App pins for MCP (#1845)
+
 ## [integrations/mcp-v0.3.0] - 2025-05-27
 
 ### 🚀 Features
