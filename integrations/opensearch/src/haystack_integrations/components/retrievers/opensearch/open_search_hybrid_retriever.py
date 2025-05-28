@@ -84,6 +84,7 @@ class OpenSearchHybridRetriever:
       Document(id=..., content: 'Supervised learning is a type of machine learning.', score: 0.9760624679979518),
       Document(id=..., content: 'Deep learning is a subset of machine learning.', score: 0.4919354838709677),
       Document(id=..., content: 'Machine learning is a subset of artificial intelligence.', score: 0.4841269841269841)]}
+      ```
     """
 
     def __init__(
