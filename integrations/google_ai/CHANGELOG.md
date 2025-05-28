@@ -1,6 +1,6 @@
 # Changelog
 
-## [integrations/google_ai-v5.2.0] - 2025-05-27
+## [integrations/google_ai-v5.2.1] - 2025-05-28
 
 ### 🚀 Features
 
@@ -9,6 +9,7 @@
 ### 🐛 Bug Fixes
 
 - Update serialization/deserialization tests to add new parameter `connection_type_validation` (#1464)
+
 
 ### 🧪 Testing
 
@@ -30,6 +31,7 @@
 - Chore: remove `jsonschema` dependency from `default` environment (#1368)
 - Test: Update tests to check for `outputs_to_string` in Tool when running haystack-ai>=2.12 (#1585)
 - Ci: Update to `GoogleAIGeminiGenerator` tests (#1648)
+- Add pins for Google AI (#1828)
 
 ## [integrations/google_ai-v5.1.0] - 2025-01-30
 
