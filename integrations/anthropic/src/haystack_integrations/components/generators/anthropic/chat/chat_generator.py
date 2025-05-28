@@ -448,7 +448,8 @@ class AnthropicChatGenerator:
 
         # tools management
         tools = tools or self.tools
-        _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
+        tools = list(tools) if isinstance(tools, Toolset) else tools
+        _check_duplicate_tool_names(tools)  # handles Toolset as well
         anthropic_tools = (
             [
                 {
@@ -456,7 +457,7 @@ class AnthropicChatGenerator:
                     "description": tool.description,
                     "input_schema": tool.parameters,
                 }
-                for tool in (list(tools) if isinstance(tools, Toolset) else tools)
+                for tool in tools
             ]
             if tools
             else []
