@@ -8,7 +8,7 @@ from haystack import DeserializationError, Pipeline, default_from_dict, default_
 from haystack.components.embedders.types import TextEmbedder
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.joiners.document_joiner import JoinMode
-from haystack.core.serialization import component_from_dict, import_class_by_name
+from haystack.core.serialization import component_from_dict, component_to_dict, import_class_by_name
 from haystack.document_stores.types import FilterPolicy
 
 from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever, OpenSearchEmbeddingRetriever
@@ -278,7 +278,7 @@ class OpenSearchHybridRetriever:
             self,
             # DocumentStore
             document_store=self.document_store.to_dict(),
-            embedder=self.embedder.to_dict(),
+            embedder=component_to_dict(obj=self.embedder, name="embedder"),
             filters_bm25=self.filters_bm25,
             fuzziness=self.fuzziness,
             top_k_bm25=self.top_k_bm25,
