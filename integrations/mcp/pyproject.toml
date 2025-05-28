@@ -28,7 +28,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
 ]
 dependencies = [
-    "mcp",
+    "mcp>=1.8.0",
     "haystack-ai>=2.13.0",
     "exceptiongroup",  # Backport of ExceptionGroup for Python < 3.11
     "httpx"  # HTTP client library used for SSE connections
