@@ -6,18 +6,20 @@ from haystack_integrations.tools.mcp import MCPToolset, SSEServerInfo
 
 # This example demonstrates using MCPToolset with SSE transport
 # and filtering tools by name
-# Run this client after running the server mcp_sse_server.py
+# Run this client after running the server mcp_server.py with sse transport
 # It shows how MCPToolset can selectively include only specific tools
 
 
 def main():
     """Example of using MCPToolset with filtered tools."""
 
+    full_toolset = None
+    filtered_toolset = None
     try:
         print("Creating toolset with all available tools:")
         # Create a toolset with all available tools
         full_toolset = MCPToolset(
-            server_info=SSEServerInfo(base_url="http://localhost:8000"),
+            server_info=SSEServerInfo(url="http://localhost:8000/sse"),
         )
 
         # Print all discovered tools
@@ -29,7 +31,7 @@ def main():
         # Create a toolset with only specific tools
         # In this example, we're only including the 'add' tool
         filtered_toolset = MCPToolset(
-            server_info=SSEServerInfo(base_url="http://localhost:8000"),
+            server_info=SSEServerInfo(url="http://localhost:8000/sse"),
             tool_names=["add"],  # Only include the 'add' tool
         )
 
@@ -48,6 +50,11 @@ def main():
 
     except Exception as e:
         print(f"Error in filtered toolset example: {e}")
+    finally:
+        if full_toolset:
+            full_toolset.close()
+        if filtered_toolset:
+            filtered_toolset.close()
 
 
 if __name__ == "__main__":

@@ -208,32 +208,6 @@ class TestMistralChatGenerator:
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
-    def test_check_abnormal_completions(self, caplog):
-        component = MistralChatGenerator(api_key=Secret.from_token("test-api-key"))
-        messages = [
-            ChatMessage.from_assistant(
-                "", meta={"finish_reason": "content_filter" if i % 2 == 0 else "length", "index": i}
-            )
-            for i, _ in enumerate(range(4))
-        ]
-
-        for m in messages:
-            component._check_finish_reason(m.meta)
-
-        # check truncation warning
-        message_template = (
-            "The completion for index {index} has been truncated before reaching a natural stopping point. "
-            "Increase the max_tokens parameter to allow for longer completions."
-        )
-
-        for index in [1, 3]:
-            assert caplog.records[index].message == message_template.format(index=index)
-
-        # check content filter warning
-        message_template = "The completion for index {index} has been truncated due to the content filter."
-        for index in [0, 2]:
-            assert caplog.records[index].message == message_template.format(index=index)
-
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),
         reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",

@@ -5,7 +5,7 @@
 from haystack_integrations.tools.mcp import MCPToolset, SSEServerInfo
 
 # This example demonstrates using MCPToolset with SSE transport
-# Run this client after running the server mcp_sse_server.py
+# Run this client after running the server mcp_server.py with sse transport
 # It shows how MCPToolset automatically discovers and creates tools from the MCP server
 
 
@@ -26,11 +26,12 @@ def find_tool(toolset, tool_name):
 def main():
     """Example of using MCPToolset with SSE transport."""
 
+    sse_toolset = None
     try:
         # Create the toolset - this automatically discovers all available tools
         # from the MCP server and creates Tool instances for each one
         sse_toolset = MCPToolset(
-            server_info=SSEServerInfo(base_url="http://localhost:8000"),
+            server_info=SSEServerInfo(url="http://localhost:8000/sse"),
         )
 
         # Print discovered tools
@@ -61,6 +62,10 @@ def main():
 
     except Exception as e:
         print(f"Error in SSE toolset example: {e}")
+
+    finally:
+        if sse_toolset:
+            sse_toolset.close()
 
 
 if __name__ == "__main__":

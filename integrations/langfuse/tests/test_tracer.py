@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 from typing import Optional
 
 import pytest
-from haystack.dataclasses import ChatMessage, ToolCall, ToolCallResult
+from haystack.dataclasses import ChatMessage, ToolCall
 from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer, LangfuseSpan, SpanContext, DefaultSpanHandler
 from haystack_integrations.tracing.langfuse.tracer import _COMPONENT_OUTPUT_KEY
 
