@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/snowflake-v1.0.1] - 2025-05-28
+
+### 🌀 Miscellaneous
+
+- Add pins for Snowflake + small refactoring (#1860)
+
 ## [integrations/snowflake-v1.0.0] - 2025-04-10
 
 ### 🚜 Refactor
