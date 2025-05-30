@@ -68,7 +68,7 @@ typing = "mypy --install-types --non-interactive --explicit-package-bases {args:
 
 style = ["ruff check {args:.}", "black --check --diff {args:.}"]
 
-fmt = ["black {args:.}", "ruff check --fix {args:.}", "style"]
+format = ["black {args:.}", "ruff check --fix {args:.}", "style"]
 
 all = ["style", "typing"]
 
