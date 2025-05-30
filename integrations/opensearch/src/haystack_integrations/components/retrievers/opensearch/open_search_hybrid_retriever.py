@@ -308,7 +308,7 @@ class OpenSearchHybridRetriever:
         data["init_parameters"]["document_store"] = doc_store
 
         # deserialize the embedder
-        # ToDo: in the future we use upcoming generic `deserialize_component_inplace` function
+        # ToDo: in the future we should use the upcoming generic `deserialize_component_inplace` function
         deserialize_chatgenerator_inplace(data["init_parameters"], key="embedder")
 
         # deserialize the embedders filtering policy
