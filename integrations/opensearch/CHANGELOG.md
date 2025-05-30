@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/opensearch-v4.0.2] - 2025-05-30
+
+### 🚜 Refactor
+
+- OpenSearchHybridRetriever use `deserialize_chatgenerator_inplace` (#1870)
+
+### 🌀 Miscellaneous
+
+- Docs: add OpenSearchHybridRetriever to API Reference (#1868)
+
 ## [integrations/opensearch-v4.0.1] - 2025-05-28
 
 ### 🚀 Features
