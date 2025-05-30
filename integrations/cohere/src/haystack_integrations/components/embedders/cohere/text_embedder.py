@@ -189,9 +189,6 @@ class CohereTextEmbedder:
         """
         text = self._prepare_input(text=text)
 
-        # Explicitly setting to True since this uses `async` client by default
-        self.use_async_client = True
-
         api_key = self.api_key.resolve_value()
         assert api_key is not None
 
