@@ -204,7 +204,7 @@ $ hatch run lint:all
 If you see Hatch reporting problems, you can try fixing them with:
 
 ```console
-$ hatch run lint:fmt
+$ hatch run lint:format
 ```
 
 You can also run the code formatter and the static checker separated:
