@@ -4,12 +4,13 @@
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from haystack import DeserializationError, Pipeline, default_from_dict, default_to_dict, logging, super_component
+from haystack import Pipeline, default_from_dict, default_to_dict, logging, super_component
 from haystack.components.embedders.types import TextEmbedder
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.joiners.document_joiner import JoinMode
-from haystack.core.serialization import component_from_dict, component_to_dict, import_class_by_name
+from haystack.core.serialization import component_to_dict
 from haystack.document_stores.types import FilterPolicy
+from haystack.utils import deserialize_chatgenerator_inplace
 
 from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever, OpenSearchEmbeddingRetriever
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
@@ -307,15 +308,8 @@ class OpenSearchHybridRetriever:
         data["init_parameters"]["document_store"] = doc_store
 
         # deserialize the embedder
-        try:
-            text_embedder_class = import_class_by_name(data["init_parameters"]["embedder"]["type"])
-        except ImportError as e:
-            msg = f"Class '{data['init_parameters']['embedder']['type']}' not correctly imported"
-            raise DeserializationError(msg) from e
-
-        data["init_parameters"]["embedder"] = component_from_dict(
-            cls=text_embedder_class, data=data["init_parameters"]["embedder"], name="embedder"
-        )
+        # ToDo: in the future we should use the upcoming generic `deserialize_component_inplace` function
+        deserialize_chatgenerator_inplace(data["init_parameters"], key="embedder")
 
         # deserialize the embedders filtering policy
         if "filter_policy_bm25" in data["init_parameters"]:
