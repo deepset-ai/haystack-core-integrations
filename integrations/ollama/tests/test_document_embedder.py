@@ -50,6 +50,23 @@ class TestOllamaDocumentEmbedder:
             Document(content="Llamas have been used as pack animals for centuries, especially in South America."),
         ]
         result = embedder.run(list_of_docs)
+
+        assert result["meta"]["model"] == "nomic-embed-text"
+        documents = result["documents"]
+        assert len(documents) == 3
+        assert all(isinstance(element, float) for document in documents for element in document.embedding)
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_run_async(self):
+        embedder = OllamaDocumentEmbedder(model="nomic-embed-text", batch_size=2)
+        list_of_docs = [
+            Document(content="Llamas are amazing animals known for their soft wool and gentle demeanor."),
+            Document(content="The Andes mountains are the natural habitat of many llamas."),
+            Document(content="Llamas have been used as pack animals for centuries, especially in South America."),
+        ]
+        result = await embedder.run_async(list_of_docs)
+
         assert result["meta"]["model"] == "nomic-embed-text"
         documents = result["documents"]
         assert len(documents) == 3
