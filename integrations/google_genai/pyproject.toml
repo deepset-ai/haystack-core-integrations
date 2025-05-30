@@ -121,6 +121,10 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
+  # Ignore unused params
+  "ARG001",
+  "ARG002",
+  "ARG005",
 ]
 unfixable = [
   # Don't touch unused imports
@@ -140,7 +144,7 @@ ban-relative-imports = "parents"
 [tool.coverage.run]
 source = ["haystack_integrations"]
 branch = true
-parallel = false
+parallel = true
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
@@ -161,6 +165,9 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
 markers = [
+  "unit: unit tests",
   "integration: integration tests",
+  "generators: generators tests",
 ]
-log_cli = true 
+log_cli = true
+asyncio_mode = "auto" 
