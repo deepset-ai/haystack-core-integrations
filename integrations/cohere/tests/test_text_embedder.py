@@ -116,5 +116,21 @@ class TestCohereTextEmbedder:
     def test_run(self):
         embedder = CohereTextEmbedder()
         text = "The food was delicious"
-        result = embedder.run(text)
+        result = embedder.run(text=text)
+
+        assert len(result["embedding"]) == 4096
+        assert all(isinstance(x, float) for x in result["embedding"])
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
+        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
+    )
+    @pytest.mark.integration
+    async def test_run_async(self):
+        embedder = CohereTextEmbedder()
+        text = "The food was delicious"
+        result = await embedder.run_async(text=text)
+
+        assert len(result["embedding"]) == 4096
         assert all(isinstance(x, float) for x in result["embedding"])
