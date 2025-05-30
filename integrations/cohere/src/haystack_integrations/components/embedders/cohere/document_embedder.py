@@ -91,6 +91,16 @@ class CohereDocumentEmbedder:
         self.embedding_separator = embedding_separator
         self.embedding_type = embedding_type or EmbeddingTypes.FLOAT
 
+    def _prepare_input(self, documents: List[Document]) -> List[Document]:
+        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
+            msg = (
+                "CohereDocumentEmbedder expects a list of Documents as input. "
+                "In case you want to embed a string, please use the CohereTextEmbedder."
+            )
+            raise TypeError(msg)
+
+        return documents
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Serializes the component to a dictionary.
@@ -156,12 +166,7 @@ class CohereDocumentEmbedder:
             - `meta`: metadata about the embedding process.
         :raises TypeError: if the input is not a list of `Documents`.
         """
-        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
-            msg = (
-                "CohereDocumentEmbedder expects a list of Documents as input."
-                "In case you want to embed a string, please use the CohereTextEmbedder."
-            )
-            raise TypeError(msg)
+        documents = self._prepare_input(documents)
 
         if not documents:
             # return early if we were passed an empty list
@@ -201,6 +206,49 @@ class CohereDocumentEmbedder:
                 self.progress_bar,
                 self.embedding_type,
             )
+
+        for doc, embeddings in zip(documents, all_embeddings):
+            doc.embedding = embeddings
+
+        return {"documents": documents, "meta": metadata}
+
+    @component.output_types(documents=List[Document], meta=Dict[str, Any])
+    async def run_async(self, documents: List[Document]):
+        """
+        Asynchronously embed list of documents.
+
+        :param documents:
+            List of documents to embed.
+
+        :returns:
+            A dictionary with the following keys:
+            - `documents`: A list of documents with embeddings.
+            - `meta`: Information about the usage of the model.
+
+        :raises TypeError:
+            If the input is not a list of documents.
+        """
+
+        documents = self._prepare_input(documents)
+
+        if not documents:
+            # return early if we were passed an empty list
+            return {"documents": [], "meta": {}}
+
+        texts_to_embed = self._prepare_texts_to_embed(documents)
+
+        api_key = self.api_key.resolve_value()
+        assert api_key is not None
+
+        cohere_client = AsyncClientV2(
+            api_key,
+            base_url=self.api_base_url,
+            timeout=self.timeout,
+            client_name="haystack",
+        )
+        all_embeddings, metadata = await get_async_response(
+            cohere_client, texts_to_embed, self.model, self.input_type, self.truncate, self.embedding_type
+        )
 
         for doc, embeddings in zip(documents, all_embeddings):
             doc.embedding = embeddings
