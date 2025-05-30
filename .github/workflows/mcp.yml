@@ -74,9 +74,16 @@ jobs:
       - name: Run tests
         run: hatch run cov-retry
 
+      - name: Run unit tests with lowest direct dependencies
+        run: |
+          hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
+          hatch run uv pip install -r requirements_lowest_direct.txt
+          hatch run test -m "not integration"        
+
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
+          hatch env prune
           hatch run uv pip install git+https://github.com/deepset-ai/haystack.git@main
           hatch run cov-retry -m "not integration"
 

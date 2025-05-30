@@ -1,11 +1,23 @@
 # Changelog
 
-## [unreleased]
+## [integrations/anthropic-v2.5.0] - 2025-05-28
 
+### 🚀 Features
+
+- AnthropicChatGenerator - add Toolset support (#1787)
+
+
+## [integrations/anthropic-v2.4.2] - 2025-05-27
+
+### 📚 Documentation
+
+- ChatMessage examples (#1752)
 
 ### 🧪 Testing
 
 - Update tool serialization in tests to include `inputs_from_state` and `outputs_to_state` (#1581)
+- Anthropic - add `server_tool_use` to `usage` (#1717)
+- Add service_tier to test_convert_anthropic_chunk_to_streaming_chunk (#1778)
 
 ### ⚙️ CI
 
@@ -19,6 +31,7 @@
 
 - Improve `streaming_callback` type and use async version in `run_async` (#1579)
 - Test: Update tests to check for `outputs_to_string` in Tool when running haystack-ai>=2.12 (#1585)
+- Add pins for Anthropic (#1811)
 
 ## [integrations/anthropic-v2.4.0] - 2025-03-06
 

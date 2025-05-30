@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/cohere-v4.2.1] - 2025-05-27
+
+### 🌀 Miscellaneous
+
+- Add pins for Cohere (#1817)
+
 ## [integrations/cohere-v4.2.0] - 2025-05-26
 
 ### 🚀 Features

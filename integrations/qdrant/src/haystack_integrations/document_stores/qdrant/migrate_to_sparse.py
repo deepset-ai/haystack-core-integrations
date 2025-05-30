@@ -11,7 +11,7 @@ logger.addHandler(python_logging.StreamHandler())
 logger.setLevel(python_logging.INFO)
 
 
-def migrate_to_sparse_embeddings_support(old_document_store: QdrantDocumentStore, new_index: str):
+def migrate_to_sparse_embeddings_support(old_document_store: QdrantDocumentStore, new_index: str) -> None:
     """
     Utility function to migrate an existing `QdrantDocumentStore` to a new one with support for sparse embeddings.
 
