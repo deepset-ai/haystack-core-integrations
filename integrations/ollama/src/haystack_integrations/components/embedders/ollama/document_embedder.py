@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 from haystack import Document, component
 from tqdm import tqdm
 
-from ollama import Client
+from ollama import AsyncClient, Client
 
 
 @component
@@ -75,6 +75,16 @@ class OllamaDocumentEmbedder:
 
         self._client = Client(host=self.url, timeout=self.timeout)
 
+    def _prepare_input(self, documents: List[Document]) -> List[Document]:
+        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
+            msg = (
+                "OllamaDocumentEmbedder expects a list of Documents as input."
+                "In case you want to embed a list of strings, please use the OllamaTextEmbedder."
+            )
+            raise TypeError(msg)
+
+        return documents
+
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
         """
         Prepares the texts to embed by concatenating the Document text with the metadata fields to embed.
@@ -115,6 +125,24 @@ class OllamaDocumentEmbedder:
 
         return all_embeddings
 
+    async def _embed_batch_async(
+        self, texts_to_embed: List[str], batch_size: int, generation_kwargs: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Internal method to embed a batch of texts asynchronously.
+        """
+        self._client = AsyncClient(host=self.url, timeout=self.timeout)
+        all_embeddings = []
+
+        for i in tqdm(
+            range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
+        ):
+            batch = texts_to_embed[i : i + batch_size]
+            result = await self._client.embed(model=self.model, input=batch, options=generation_kwargs)
+            all_embeddings.extend(result["embeddings"])
+
+        return all_embeddings
+
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
     def run(self, documents: List[Document], generation_kwargs: Optional[Dict[str, Any]] = None):
         """
@@ -130,17 +158,46 @@ class OllamaDocumentEmbedder:
             - `documents`: Documents with embedding information attached
             - `meta`: The metadata collected during the embedding process
         """
-        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
-            msg = (
-                "OllamaDocumentEmbedder expects a list of Documents as input."
-                "In case you want to embed a list of strings, please use the OllamaTextEmbedder."
-            )
-            raise TypeError(msg)
+        documents = self._prepare_input(documents=documents)
 
         generation_kwargs = generation_kwargs or self.generation_kwargs
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
         embeddings = self._embed_batch(
+            texts_to_embed=texts_to_embed, batch_size=self.batch_size, generation_kwargs=generation_kwargs
+        )
+
+        for doc, emb in zip(documents, embeddings):
+            doc.embedding = emb
+
+        return {"documents": documents, "meta": {"model": self.model}}
+
+    @component.output_types(documents=List[Document], meta=Dict[str, Any])
+    async def run_async(self, documents: List[Document], generation_kwargs: Optional[Dict[str, Any]] = None):
+        """
+        Asynchronously run an Ollama Model to compute embeddings of the provided documents.
+
+        :param documents:
+            Documents to be converted to an embedding.
+        :param generation_kwargs:
+            Optional arguments to pass to the Ollama generation endpoint, such as temperature,
+            top_p, etc. See the
+            [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
+        :returns: A dictionary with the following keys:
+            - `documents`: Documents with embedding information attached
+            - `meta`: The metadata collected during the embedding process
+        """
+
+        documents = self._prepare_input(documents=documents)
+
+        if not documents:
+            # return early if we were passed an empty list
+            return {"documents": [], "meta": {}}
+
+        generation_kwargs = generation_kwargs or self.generation_kwargs
+
+        texts_to_embed = self._prepare_texts_to_embed(documents=documents)
+        embeddings = await self._embed_batch_async(
             texts_to_embed=texts_to_embed, batch_size=self.batch_size, generation_kwargs=generation_kwargs
         )
 
