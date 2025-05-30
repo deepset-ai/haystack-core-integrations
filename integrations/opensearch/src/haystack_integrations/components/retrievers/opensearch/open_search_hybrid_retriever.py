@@ -308,16 +308,7 @@ class OpenSearchHybridRetriever:
         data["init_parameters"]["document_store"] = doc_store
 
         # deserialize the embedder
-        # try:
-        #     text_embedder_class = import_class_by_name(data["init_parameters"]["embedder"]["type"])
-        # except ImportError as e:
-        #     msg = f"Class '{data['init_parameters']['embedder']['type']}' not correctly imported"
-        #     raise DeserializationError(msg) from e
-        #
-        # data["init_parameters"]["embedder"] = component_from_dict(
-        #     cls=text_embedder_class, data=data["init_parameters"]["embedder"], name="embedder"
-        # )
-
+        # ToDo: in the future we use upcoming generic `deserialize_component_inplace` function
         deserialize_chatgenerator_inplace(data["init_parameters"], key="embedder")
 
         # deserialize the embedders filtering policy
