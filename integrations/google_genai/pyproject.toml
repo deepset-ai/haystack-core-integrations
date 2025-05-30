@@ -154,6 +154,7 @@ module = [
   "haystack_integrations.*",
   "pytest.*",
   "numpy.*",
+  "jsonref.*",
 ]
 ignore_missing_imports = true
 

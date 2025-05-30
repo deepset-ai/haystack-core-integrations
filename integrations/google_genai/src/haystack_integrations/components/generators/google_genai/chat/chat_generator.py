@@ -122,7 +122,7 @@ def _convert_tools_to_google_genai_format(tools: Union[List[Tool], Toolset]) -> 
         parameters = _sanitize_tool_schema(tool.parameters)
         function_declarations.append({"name": tool.name, "description": tool.description, "parameters": parameters})
 
-    # Return a single Tool object with all function declarations as in the docs
+    # Return a single Tool object with all function declarations as in the Google GenAI docs
     # we could also return multiple Tool objects, doesn't seem to make a difference
     # revisit this decision
     return [types.Tool(function_declarations=function_declarations)]  # type: ignore[arg-type]
