@@ -80,6 +80,11 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
         role = "model"
     elif message.is_from(ChatRole.SYSTEM):
         # System messages will be handled separately as system instruction
+        # When we convert a list of ChatMessage to be sent to google genai,
+        # we need to handle system messages separately as system instruction and we only take the first message
+        # as the system instruction - if it is present.
+        #
+        # If we find any additional system messages, we will treat them as user messages
         role = "user"
     else:
         msg = f"Unsupported message role: {message._role}"
