@@ -4,7 +4,7 @@
 
 ### 🚀 Features
 
-- Use Langfuse local to_openai_dict_format function to serialize messages (#1885)
+- Use Langfuse local _to_openai_dict_format function to serialize messages (#1885)
 
 ### 🌀 Miscellaneous
 
