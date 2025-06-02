@@ -46,6 +46,7 @@ _SUPPORTED_CHAT_GENERATORS = [
     "HuggingFaceLocalChatGenerator",
     "CohereChatGenerator",
     "OllamaChatGenerator",
+    "GoogleGenAIChatGenerator",
 ]
 _ALL_SUPPORTED_GENERATORS = _SUPPORTED_GENERATORS + _SUPPORTED_CHAT_GENERATORS
 
