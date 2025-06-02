@@ -121,7 +121,8 @@ class PineconeDocumentStore:
                 host = new_index["host"]
             else:
                 logger.info(
-                    f"Connecting to existing index {self.index_name}. `dimension`, `spec`, and `metric` will be ignored."
+                    f"Connecting to existing index {self.index_name}. `dimension`,"
+                    f"`spec`, and `metric` will be ignored."
                 )
                 host = next((index["host"] for index in indexes if index["name"] == self.index_name), None)
 
