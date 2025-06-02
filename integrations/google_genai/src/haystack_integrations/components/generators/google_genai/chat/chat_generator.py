@@ -335,11 +335,10 @@ class GoogleGenAIChatGenerator:
 
             # Build final response from collected data
             final_text = "".join(all_text_parts)
-            message = ChatMessage.from_assistant(text=final_text, tool_calls=all_tool_calls)
-
-            # Add metadata
-            message._meta.update(
-                {
+            message = ChatMessage.from_assistant(
+                text=final_text,
+                tool_calls=all_tool_calls,
+                meta={
                     "model": self._model,
                     "finish_reason": str(final_finish_reason) if final_finish_reason else None,
                 }
