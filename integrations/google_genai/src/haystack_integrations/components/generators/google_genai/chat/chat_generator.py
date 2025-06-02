@@ -555,7 +555,7 @@ class GoogleGenAIChatGenerator:
             - `replies`: A list containing the generated ChatMessage responses.
 
         :raises RuntimeError: If there is an error in the Google Gen AI chat generation.
-        :raises ValueError: If there is an error in the Google Gen AI chat generation.
+        :raises ValueError: If a ChatMessage does not contain at least one of TextContent, ToolCall, or ToolCallResult or if the role in ChatMessage is different from User, System, Assistant.
         """
         # Use provided configs or fall back to instance defaults
         generation_kwargs = generation_kwargs or self._generation_kwargs
