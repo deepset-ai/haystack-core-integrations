@@ -64,6 +64,7 @@ _COMPONENT_INPUT_KEY = "haystack.component.input"
 # This mainly useful for parents spans.
 tracing_context_var: ContextVar[Dict[Any, Any]] = ContextVar("tracing_context")
 
+
 def to_openai_dict_format(chat_message: ChatMessage) -> Dict[str, Any]:
     """
     Convert a ChatMessage to the dictionary format expected by OpenAI's chat completion API.
@@ -76,11 +77,13 @@ def to_openai_dict_format(chat_message: ChatMessage) -> Dict[str, Any]:
     tool_call_results = chat_message.tool_call_results
 
     if not text_contents and not tool_calls and not tool_call_results:
-        raise ValueError(
-            "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
-        )
+        message = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
+        logger.error(message)
+        raise ValueError(message)
     if len(text_contents) + len(tool_call_results) > 1:
-        raise ValueError("A `ChatMessage` can only contain one `TextContent` or one `ToolCallResult`.")
+        message = "A `ChatMessage` can only contain one `TextContent` or one `ToolCallResult`."
+        logger.error(message)
+        raise ValueError(message)
 
     openai_msg: Dict[str, Any] = {"role": chat_message._role.value}
 
