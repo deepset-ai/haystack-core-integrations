@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+import asyncio
 from copy import copy
 from typing import Any, Dict, List, Literal, Optional
-import asyncio
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -137,7 +137,6 @@ class PineconeDocumentStore:
                 )
             self.dimension = actual_dimension or self.dimension
             self._dummy_vector = [-10.0] * self.dimension
-
 
     @staticmethod
     def _convert_dict_spec_to_pinecone_object(spec: Dict[str, Any]):
@@ -542,7 +541,7 @@ class PineconeDocumentStore:
         It closes the PineconeAsyncio client (and all underlying aiohttp sessions).
         """
         errors = []
-        
+
         if self._async_index:
             try:
                 await self._async_index.close()
@@ -550,7 +549,7 @@ class PineconeDocumentStore:
                 errors.append(f"Error closing async index: {e}")
             finally:
                 self._async_index = None
-                
+
         if self._async_client:
             try:
                 await self._async_client.close()
@@ -558,8 +557,6 @@ class PineconeDocumentStore:
                 errors.append(f"Error closing async client: {e}")
             finally:
                 self._async_client = None
-                
+
         if errors:
             logger.warning(f"Errors during async cleanup: {', '.join(errors)}")
-       
-            
