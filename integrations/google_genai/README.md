@@ -8,6 +8,7 @@
 **Table of Contents**
 
 - [Installation](#installation)
+- [Usage](#usage)
 - [License](#license)
 
 ## Installation
@@ -23,15 +24,11 @@ This integration provides components to use Google's Gemini models via the new G
 ### Chat Generator
 
 ```python
-from haystack.utils import Secret
 from haystack.dataclasses.chat_message import ChatMessage
 from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
 
 # Initialize the chat generator
-chat_generator = GoogleGenAIChatGenerator(
-    model="gemini-2.0-flash-001",
-    api_key=Secret.from_env_var("GOOGLE_API_KEY")
-)
+chat_generator = GoogleGenAIChatGenerator(model="gemini-2.0-flash")
 
 # Generate a response
 messages = [ChatMessage.from_user("Tell me about the future of AI")]
@@ -42,7 +39,6 @@ print(response["replies"][0].text)
 ### Streaming Chat Generator
 
 ```python
-from haystack.utils import Secret
 from haystack.dataclasses.chat_message import ChatMessage
 from haystack.dataclasses import StreamingChunk
 from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
@@ -53,7 +49,6 @@ def streaming_callback(chunk: StreamingChunk):
 # Initialize with streaming callback
 chat_generator = GoogleGenAIChatGenerator(
     model="gemini-2.0-flash",
-    api_key=Secret.from_env_var("GOOGLE_API_KEY"),
     streaming_callback=streaming_callback
 )
 
