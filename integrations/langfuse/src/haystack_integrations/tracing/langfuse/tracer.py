@@ -65,9 +65,14 @@ _COMPONENT_INPUT_KEY = "haystack.component.input"
 tracing_context_var: ContextVar[Dict[Any, Any]] = ContextVar("tracing_context")
 
 
-def to_openai_dict_format(chat_message: ChatMessage) -> Dict[str, Any]:
+def _to_openai_dict_format(chat_message: ChatMessage) -> Dict[str, Any]:
     """
     Convert a ChatMessage to the dictionary format expected by OpenAI's chat completion API.
+
+    Note: We already have such a method in Haystack's ChatMessage class.
+    However, the original method doesn't tolerate None values for ids of ToolCall and ToolCallResult.
+    Some generators, like GoogleGenAIChatGenerator, return None values for ids of ToolCall and ToolCallResult.
+    To seamlessly support these generators, we use this, Langfuse local, version of the method.
 
     :param chat_message: The ChatMessage instance to convert.
     :return: Dictionary in OpenAI Chat API format.
@@ -152,7 +157,7 @@ class LangfuseSpan(Span):
             return
         if key.endswith(".input"):
             if "messages" in value:
-                messages = [to_openai_dict_format(m) for m in value["messages"]]
+                messages = [_to_openai_dict_format(m) for m in value["messages"]]
                 self._span.update(input=messages)
             else:
                 coerced_value = tracing_utils.coerce_tag_value(value)
@@ -160,7 +165,7 @@ class LangfuseSpan(Span):
         elif key.endswith(".output"):
             if "replies" in value:
                 if all(isinstance(r, ChatMessage) for r in value["replies"]):
-                    replies = [to_openai_dict_format(m) for m in value["replies"]]
+                    replies = [_to_openai_dict_format(m) for m in value["replies"]]
                 else:
                     replies = value["replies"]
                 self._span.update(output=replies)
