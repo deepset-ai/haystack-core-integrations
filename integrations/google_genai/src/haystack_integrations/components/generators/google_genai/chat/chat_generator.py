@@ -128,7 +128,7 @@ def _convert_tools_to_google_genai_format(tools: Union[List[Tool], Toolset]) -> 
     return [types.Tool(function_declarations=function_declarations)]  # type: ignore[arg-type]
 
 
-def _convert_google_genai_response_to_chatmessage(response, model: str) -> ChatMessage:
+def _convert_google_genai_response_to_chatmessage(response: types.GenerateContentResponse, model: str) -> ChatMessage:
     """
     Converts a Google Gen AI response to a Haystack ChatMessage.
 
