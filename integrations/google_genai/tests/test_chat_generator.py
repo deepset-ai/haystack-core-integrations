@@ -42,10 +42,12 @@ class TestGoogleGenAIChatGenerator:
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         component = GoogleGenAIChatGenerator()
         assert component._model == "gemini-2.0-flash"
-        assert component._generation_config == {}
+        assert component._generation_kwargs == {}
         assert component._safety_settings == []
         assert component._streaming_callback is None
         assert component._tools is None
+        assert component._api_key is not None
+        assert component._api_key.resolve_value() == "test-api-key"
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
@@ -60,18 +62,18 @@ class TestGoogleGenAIChatGenerator:
 
     def test_init_with_parameters(self, monkeypatch):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=weather)
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key-from-env")
         component = GoogleGenAIChatGenerator(
-            api_key=Secret.from_token("test-api-key"),
+            api_key=Secret.from_token("test-api-key-from-env"),
             model="gemini-2.0-flash",
             streaming_callback=print_streaming_chunk,
-            generation_config={"temperature": 0.5, "max_output_tokens": 100},
+            generation_kwargs={"temperature": 0.5, "max_output_tokens": 100},
             safety_settings=[{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}],
             tools=[tool],
         )
         assert component._model == "gemini-2.0-flash"
         assert component._streaming_callback is print_streaming_chunk
-        assert component._generation_config == {"temperature": 0.5, "max_output_tokens": 100}
+        assert component._generation_kwargs == {"temperature": 0.5, "max_output_tokens": 100}
         assert component._safety_settings == [
             {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}
         ]
@@ -177,7 +179,7 @@ class TestGoogleGenAIChatGenerator:
     @pytest.mark.integration
     def test_live_run(self) -> None:
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash-001")
+        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash")
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
@@ -201,7 +203,7 @@ class TestGoogleGenAIChatGenerator:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash-001", streaming_callback=callback)
+        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash", streaming_callback=callback)
         results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1

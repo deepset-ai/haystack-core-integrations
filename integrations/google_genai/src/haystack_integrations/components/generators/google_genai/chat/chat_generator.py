@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
 from google import genai
@@ -159,14 +160,18 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
     text = " ".join(text_parts) if text_parts else ""
 
     # Create ChatMessage
-    message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls)
-
-    # Add metadata
-    message._meta.update(
-        {
+    message = ChatMessage.from_assistant(
+        text=text,
+        tool_calls=tool_calls,
+        meta={
             "model": model,
             "finish_reason": str(finish_reason) if finish_reason else None,
-        }
+            "usage": {
+                "prompt_tokens": response.usage_metadata.prompt_token_count or 0,
+                "completion_tokens": response.usage_metadata.candidates_token_count or 0,
+                "total_tokens": response.usage_metadata.total_token_count or 0,
+            },
+        },
     )
 
     return message
@@ -183,16 +188,12 @@ class GoogleGenAIChatGenerator:
     ### Usage example
 
     ```python
-    from haystack.utils import Secret
     from haystack.dataclasses.chat_message import ChatMessage
     from haystack.tools import Tool, Toolset
     from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
 
     # Initialize the chat generator
-    chat_generator = GoogleGenAIChatGenerator(
-        model="gemini-2.0-flash",
-        api_key=Secret.from_env_var("GOOGLE_API_KEY")
-    )
+    chat_generator = GoogleGenAIChatGenerator(model="gemini-2.0-flash")
 
     # Generate a response
     messages = [ChatMessage.from_user("Tell me about the future of AI")]
@@ -226,7 +227,7 @@ class GoogleGenAIChatGenerator:
         *,
         api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),  # noqa: B008
         model: str = "gemini-2.0-flash",
-        generation_config: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
         safety_settings: Optional[List[Dict[str, Any]]] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
@@ -234,9 +235,10 @@ class GoogleGenAIChatGenerator:
         """
         Initialize a GoogleGenAIChatGenerator instance.
 
-        :param api_key: Google AI Studio API key. Get one at https://aistudio.google.com/
+        :param api_key: Google API key, defaults to the `GOOGLE_API_KEY` environment variable,
+        see https://ai.google.dev/gemini-api/docs/api-key for more information.
         :param model: Name of the model to use (e.g., "gemini-2.0-flash")
-        :param generation_config: Configuration for generation (temperature, max_tokens, etc.)
+        :param generation_kwargs: Configuration for generation (temperature, max_tokens, etc.)
         :param safety_settings: Safety settings for content filtering
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
@@ -245,7 +247,7 @@ class GoogleGenAIChatGenerator:
 
         self._api_key = api_key
         self._model = model
-        self._generation_config = generation_config or {}
+        self._generation_kwargs = generation_kwargs or {}
         self._safety_settings = safety_settings or []
         self._streaming_callback = streaming_callback
         self._tools = tools
@@ -265,7 +267,7 @@ class GoogleGenAIChatGenerator:
             self,
             api_key=self._api_key.to_dict(),
             model=self._model,
-            generation_config=self._generation_config,
+            generation_kwargs=self._generation_kwargs,
             safety_settings=self._safety_settings,
             streaming_callback=callback_name,
             tools=serialized_tools,
@@ -286,6 +288,71 @@ class GoogleGenAIChatGenerator:
             init_params["streaming_callback"] = deserialize_callable(init_params["streaming_callback"])
         return default_from_dict(cls, data)
 
+    def _process_streaming_chunk(self, chunk, all_text_parts: List[str], all_tool_calls: List[ToolCall]) -> str:
+        """
+        Process a single streaming chunk and extract text and tool calls.
+
+        :param chunk: The streaming chunk from Google Gen AI.
+        :param all_text_parts: List to collect text parts.
+        :param all_tool_calls: List to collect tool calls.
+        :returns: The text content from this chunk.
+        """
+        chunk_text = ""
+
+        # Process candidates in the chunk
+        if chunk.candidates:
+            candidate = chunk.candidates[0]  # Take the first candidate
+
+            # Extract content from parts
+            if candidate.content and candidate.content.parts:
+                for part in candidate.content.parts:
+                    if part.text:
+                        chunk_text += part.text
+                        all_text_parts.append(part.text)
+                    elif part.function_call:
+                        tool_call = ToolCall(
+                            tool_name=part.function_call.name,
+                            arguments=dict(part.function_call.args) if part.function_call.args else {},
+                            id=part.function_call.id,
+                        )
+                        all_tool_calls.append(tool_call)
+
+        return chunk_text
+
+    def _build_final_message(
+        self,
+        all_text_parts: List[str],
+        all_tool_calls: List[ToolCall],
+        final_finish_reason,
+        first_chunk_received_at: Optional[str],
+        last_chunk,
+    ) -> ChatMessage:
+        """
+        Build the final ChatMessage from collected streaming data.
+
+        :param all_text_parts: All collected text parts.
+        :param all_tool_calls: All collected tool calls.
+        :param final_finish_reason: The final finish reason.
+        :param first_chunk_received_at: Timestamp when first chunk was received.
+        :param last_chunk: The last chunk received (for usage metadata).
+        :returns: The final ChatMessage.
+        """
+        final_text = "".join(all_text_parts)
+        return ChatMessage.from_assistant(
+            text=final_text,
+            tool_calls=all_tool_calls,
+            meta={
+                "model": self._model,
+                "completion_start_time": first_chunk_received_at,
+                "usage": {
+                    "prompt_tokens": last_chunk.usage_metadata.prompt_token_count or 0,
+                    "completion_tokens": last_chunk.usage_metadata.candidates_token_count or 0,
+                    "total_tokens": last_chunk.usage_metadata.total_token_count or 0,
+                },
+                "finish_reason": str(final_finish_reason) if final_finish_reason else None,
+            },
+        )
+
     def _handle_streaming_response_direct(
         self, response_stream, streaming_callback: StreamingCallbackT
     ) -> Dict[str, Any]:
@@ -298,52 +365,33 @@ class GoogleGenAIChatGenerator:
         """
         try:
             # Collect all chunks to build the final response
-            all_text_parts = []
-            all_tool_calls = []
+            all_text_parts: List[str] = []
+            all_tool_calls: List[ToolCall] = []
             final_finish_reason = None
+            first_chunk_received_at = None
+            last_chunk = None
 
             for chunk in response_stream:
-                # Each chunk is a GenerateContentResponse
-                chunk_text = ""
+                if first_chunk_received_at is None:
+                    first_chunk_received_at = datetime.now(timezone.utc).isoformat()
 
-                # Process candidates in the chunk
-                if chunk.candidates:
-                    candidate = chunk.candidates[0]  # Take the first candidate
+                last_chunk = chunk
+                chunk_text = self._process_streaming_chunk(chunk, all_text_parts, all_tool_calls)
 
-                    # Extract content from parts
-                    if candidate.content and candidate.content.parts:
-                        for part in candidate.content.parts:
-                            if part.text:
-                                chunk_text += part.text
-                                all_text_parts.append(part.text)
-                            elif part.function_call:
-                                tool_call = ToolCall(
-                                    tool_name=part.function_call.name,
-                                    arguments=dict(part.function_call.args) if part.function_call.args else {},
-                                    id=part.function_call.id,
-                                )
-                                all_tool_calls.append(tool_call)
-
-                    # Update finish reason (keep the last non-None value)
-                    if candidate.finish_reason:
-                        final_finish_reason = candidate.finish_reason
+                # Update finish reason (keep the last non-None value)
+                if chunk.candidates and chunk.candidates[0].finish_reason:
+                    final_finish_reason = chunk.candidates[0].finish_reason
 
                 # Send streaming chunk if there's text content
+                # This will be revisited soon for non-text content
                 if chunk_text:
                     streaming_chunk = StreamingChunk(content=chunk_text, meta={"chunk": chunk})
                     streaming_callback(streaming_chunk)
 
-            # Build final response from collected data
-            final_text = "".join(all_text_parts)
-            message = ChatMessage.from_assistant(
-                text=final_text,
-                tool_calls=all_tool_calls,
-                meta={
-                    "model": self._model,
-                    "finish_reason": str(final_finish_reason) if final_finish_reason else None,
-                }
+            # Build final ChatMessage from collected chunks
+            message = self._build_final_message(
+                all_text_parts, all_tool_calls, final_finish_reason, first_chunk_received_at, last_chunk
             )
-
             return {"replies": [message]}
 
         except Exception as e:
@@ -362,53 +410,32 @@ class GoogleGenAIChatGenerator:
         """
         try:
             # Collect all chunks to build the final response
-            all_text_parts = []
-            all_tool_calls = []
+            all_text_parts: List[str] = []
+            all_tool_calls: List[ToolCall] = []
             final_finish_reason = None
+            first_chunk_received_at = None
+            last_chunk = None
 
             async for chunk in response_stream:
-                # Each chunk is a GenerateContentResponse
-                chunk_text = ""
+                if first_chunk_received_at is None:
+                    first_chunk_received_at = datetime.now(timezone.utc).isoformat()
 
-                # Process candidates in the chunk
-                if chunk.candidates:
-                    candidate = chunk.candidates[0]  # Take the first candidate
+                last_chunk = chunk
+                chunk_text = self._process_streaming_chunk(chunk, all_text_parts, all_tool_calls)
 
-                    # Extract content from parts
-                    if candidate.content and candidate.content.parts:
-                        for part in candidate.content.parts:
-                            if part.text:
-                                chunk_text += part.text
-                                all_text_parts.append(part.text)
-                            elif part.function_call:
-                                tool_call = ToolCall(
-                                    tool_name=part.function_call.name,
-                                    arguments=dict(part.function_call.args) if part.function_call.args else {},
-                                    id=part.function_call.id,
-                                )
-                                all_tool_calls.append(tool_call)
-
-                    # Update finish reason (keep the last non-None value)
-                    if candidate.finish_reason:
-                        final_finish_reason = candidate.finish_reason
+                # Update finish reason (keep the last non-None value)
+                if chunk.candidates and chunk.candidates[0].finish_reason:
+                    final_finish_reason = chunk.candidates[0].finish_reason
 
                 # Send streaming chunk if there's text content
                 if chunk_text:
                     streaming_chunk = StreamingChunk(content=chunk_text, meta={"chunk": chunk})
                     await streaming_callback(streaming_chunk)
 
-            # Build final response from collected data
-            final_text = "".join(all_text_parts)
-            message = ChatMessage.from_assistant(text=final_text, tool_calls=all_tool_calls)
-
-            # Add metadata
-            message._meta.update(
-                {
-                    "model": self._model,
-                    "finish_reason": str(final_finish_reason) if final_finish_reason else None,
-                }
+            # Build final ChatMessage from collected chunks and parts
+            message = self._build_final_message(
+                all_text_parts, all_tool_calls, final_finish_reason, first_chunk_received_at, last_chunk
             )
-
             return {"replies": [message]}
 
         except Exception as e:
@@ -419,7 +446,7 @@ class GoogleGenAIChatGenerator:
     def run(
         self,
         messages: List[ChatMessage],
-        generation_config: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
         safety_settings: Optional[List[Dict[str, Any]]] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
@@ -428,7 +455,7 @@ class GoogleGenAIChatGenerator:
         Run the Google Gen AI chat generator on the given input data.
 
         :param messages: A list of ChatMessage instances representing the input messages.
-        :param generation_config: Configuration for generation. If provided, it will override
+        :param generation_kwargs: Configuration for generation. If provided, it will override
         the default config.
         :param safety_settings: Safety settings for content filtering. If provided, it will override the
         default settings.
@@ -438,9 +465,12 @@ class GoogleGenAIChatGenerator:
         override the tools set during initialization.
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated ChatMessage responses.
+
+        :raises RuntimeError: If there is an error in the Google Gen AI chat generation.
+        :raises ValueError: If there is an error in the Google Gen AI chat generation.
         """
         # Use provided configs or fall back to instance defaults
-        generation_config = generation_config or self._generation_config
+        generation_kwargs = generation_kwargs or self._generation_kwargs
         safety_settings = safety_settings or self._safety_settings
         tools = tools or self._tools
 
@@ -469,7 +499,7 @@ class GoogleGenAIChatGenerator:
 
         try:
             # Prepare generation config
-            config_params = generation_config.copy() if generation_config else {}
+            config_params = generation_kwargs.copy() if generation_kwargs else {}
             if system_instruction:
                 config_params["system_instruction"] = system_instruction
 
@@ -499,7 +529,7 @@ class GoogleGenAIChatGenerator:
     async def run_async(
         self,
         messages: List[ChatMessage],
-        generation_config: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
         safety_settings: Optional[List[Dict[str, Any]]] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
@@ -508,7 +538,7 @@ class GoogleGenAIChatGenerator:
         Async version of the run method. Run the Google Gen AI chat generator on the given input data.
 
         :param messages: A list of ChatMessage instances representing the input messages.
-        :param generation_config: Configuration for generation. If provided, it will override
+        :param generation_kwargs: Configuration for generation. If provided, it will override
         the default config.
         :param safety_settings: Safety settings for content filtering. If provided, it will override the
         default settings.
@@ -518,9 +548,12 @@ class GoogleGenAIChatGenerator:
         override the tools set during initialization.
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated ChatMessage responses.
+
+        :raises RuntimeError: If there is an error in the Google Gen AI chat generation.
+        :raises ValueError: If there is an error in the Google Gen AI chat generation.
         """
         # Use provided configs or fall back to instance defaults
-        generation_config = generation_config or self._generation_config
+        generation_kwargs = generation_kwargs or self._generation_kwargs
         safety_settings = safety_settings or self._safety_settings
         tools = tools or self._tools
 
@@ -549,7 +582,7 @@ class GoogleGenAIChatGenerator:
 
         try:
             # Prepare generation config
-            config_params = generation_config.copy() if generation_config else {}
+            config_params = generation_kwargs.copy() if generation_kwargs else {}
             if system_instruction:
                 config_params["system_instruction"] = system_instruction
 
