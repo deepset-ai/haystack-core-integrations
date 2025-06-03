@@ -4,7 +4,7 @@
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from haystack import Pipeline, default_from_dict, default_to_dict, logging, super_component
+from haystack import Document, Pipeline, component, default_from_dict, default_to_dict, logging, super_component
 from haystack.components.embedders.types import TextEmbedder
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.joiners.document_joiner import JoinMode
@@ -239,8 +239,6 @@ class OpenSearchHybridRetriever:
 
         def warm_up(self) -> None: ...
 
-        def run(self, query: str, filters_bm25=None, filters_embedding=None) -> Dict[str, Any]: ...
-
     def _create_pipeline(self, data: dict[str, Any]) -> Pipeline:
         """
         Create the pipeline for the OpenSearchHybridRetriever.
@@ -325,3 +323,15 @@ class OpenSearchHybridRetriever:
             data["init_parameters"]["join_mode"] = join_mode
 
         return default_from_dict(cls, data)
+
+    @component.output_types(documents=List[Document])
+    def run(
+        self,
+        query: str,
+        filters_bm25: Optional[Dict[str, Any]] = None,
+        filters_embedding: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,  # noqa
+    ):
+        # Technically not necessary to override this method
+        # We only do it to have input/output types immediately available
+        super().run(query=query, filters_bm25=filters_bm25, filters_embedding=filters_embedding)  # type: ignore
