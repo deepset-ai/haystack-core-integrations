@@ -74,6 +74,7 @@ class OllamaDocumentEmbedder:
         self.prefix = prefix
 
         self._client = Client(host=self.url, timeout=self.timeout)
+        self._async_client = AsyncClient(host=self.url, timeout=self.timeout)
 
     def _prepare_input(self, documents: List[Document]) -> List[Document]:
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
@@ -131,14 +132,13 @@ class OllamaDocumentEmbedder:
         """
         Internal method to embed a batch of texts asynchronously.
         """
-        self._client = AsyncClient(host=self.url, timeout=self.timeout)
         all_embeddings = []
 
         for i in tqdm(
             range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
         ):
             batch = texts_to_embed[i : i + batch_size]
-            result = await self._client.embed(model=self.model, input=batch, options=generation_kwargs)
+            result = await self._async_client.embed(model=self.model, input=batch, options=generation_kwargs)
             all_embeddings.extend(result["embeddings"])
 
         return all_embeddings
