@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/langfuse-v2.0.1] - 2025-06-02
+
+### 🚀 Features
+
+- Use Langfuse local _to_openai_dict_format function to serialize messages (#1885)
+
+### 🌀 Miscellaneous
+
+- Feat: Add detailed tracing for GoogleGenAIChatGenerator (#1887)
+
 ## [integrations/langfuse-v2.0.0] - 2025-05-27
 
 ### 🌀 Miscellaneous

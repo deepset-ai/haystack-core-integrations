@@ -3,9 +3,9 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "cohere-haystack"
+name = "google-genai-haystack"
 dynamic = ["version"]
-description = ''
+description = 'Use models like Gemini via Google Gen AI SDK'
 readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"
@@ -23,23 +23,23 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.13.1", "cohere>=5.12.0"]
+dependencies = ["haystack-ai>=2.13.2", "google-genai>=1.17.0", "jsonref>=1.0.0"]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/cohere#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_genai#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/cohere"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_genai"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/cohere-v(?P<version>.*)'
+tag-pattern = 'integrations\/google_genai-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/cohere-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/google_genai-v[0-9]*"'
 
 [tool.hatch.envs.default]
 installer = "uv"
@@ -65,11 +65,8 @@ detached = true
 dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-style = [
-  "ruff check {args:.}",
-  "black --check --diff {args:.}",
-]
-fmt = ["black {args:.}", "ruff check --fix {args:}", "style"]
+style = ["ruff check {args:.}", "black --check --diff {args:.}"]
+fmt = ["black {args:.}", "ruff check --fix {args:.}", "style"]
 all = ["style", "typing"]
 
 [tool.black]
@@ -91,6 +88,7 @@ select = [
   "E",
   "EM",
   "F",
+  "FBT",
   "I",
   "ICN",
   "ISC",
@@ -111,6 +109,8 @@ select = [
 ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
+  # Allow boolean positional values in function calls, like `dict.get(... True)`
+  "FBT003",
   # Ignore checks for possible passwords
   "S105",
   "S106",
@@ -121,9 +121,10 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
-  # Misc
-  "B008",
-  "S101",
+  # Ignore unused params
+  "ARG001",
+  "ARG002",
+  "ARG005",
 ]
 unfixable = [
   # Don't touch unused imports
@@ -143,30 +144,30 @@ ban-relative-imports = "parents"
 [tool.coverage.run]
 source = ["haystack_integrations"]
 branch = true
-parallel = false
-
+parallel = true
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
 show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
-
 [[tool.mypy.overrides]]
 module = [
-  "cohere.*",
+  "google.*",
   "haystack.*",
   "haystack_integrations.*",
   "pytest.*",
   "numpy.*",
+  "jsonref.*",
 ]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
 markers = [
+  "unit: unit tests",
   "integration: integration tests",
+  "generators: generators tests",
 ]
 log_cli = true
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "class"
+asyncio_mode = "auto" 
