@@ -1,7 +1,8 @@
 from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
-from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
+from haystack.dataclasses import ChatMessage, ToolCall
+from haystack.dataclasses.streaming_chunk import StreamingChunk, SyncStreamingCallbackT, ComponentInfo
 from haystack.tools import (
     Tool,
     _check_duplicate_tool_names,
@@ -156,7 +157,7 @@ class OllamaChatGenerator:
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: int = 120,
         keep_alive: Optional[Union[float, str]] = None,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[SyncStreamingCallbackT] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
         response_format: Optional[Union[None, Literal["json"], JsonSchemaValue]] = None,
     ):
@@ -245,7 +246,7 @@ class OllamaChatGenerator:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
-    def _build_chunk(self, chunk_response: Any) -> StreamingChunk:
+    def _build_chunk(self, chunk_response: Any, component_info: ComponentInfo) -> StreamingChunk:
         """
         Converts the response from the Ollama API to a StreamingChunk.
         """
@@ -255,18 +256,21 @@ class OllamaChatGenerator:
         meta = {key: value for key, value in chunk_response_dict.items() if key != "message"}
         meta["role"] = chunk_response_dict["message"]["role"]
 
-        chunk_message = StreamingChunk(content, meta)
+        chunk_message = StreamingChunk(content=content, meta=meta, component_info=component_info)
         return chunk_message
 
     def _handle_streaming_response(
-        self, response: Any, streaming_callback: Optional[Callable[[StreamingChunk], None]]
+        self, response: Any, streaming_callback: Optional[SyncStreamingCallbackT]
     ) -> Dict[str, List[Any]]:
         """
         Handles streaming response and converts it to Haystack format
         """
+        
+        component_info = ComponentInfo.from_component(self)
+
         chunks: List[StreamingChunk] = []
         for chunk in response:
-            chunk_delta = self._build_chunk(chunk)
+            chunk_delta = self._build_chunk(chunk_response=chunk, component_info=component_info)
             chunks.append(chunk_delta)
             if streaming_callback is not None:
                 streaming_callback(chunk_delta)
@@ -289,7 +293,7 @@ class OllamaChatGenerator:
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
         *,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[SyncStreamingCallbackT] = None,
     ):
         """
         Runs an Ollama Model on a given chat history.
