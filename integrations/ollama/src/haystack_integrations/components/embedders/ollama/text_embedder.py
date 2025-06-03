@@ -46,6 +46,7 @@ class OllamaTextEmbedder:
         self.model = model
 
         self._client = Client(host=self.url, timeout=self.timeout)
+        self._async_client = AsyncClient(host=self.url, timeout=self.timeout)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
     def run(self, text: str, generation_kwargs: Optional[Dict[str, Any]] = None):
@@ -82,8 +83,7 @@ class OllamaTextEmbedder:
             - `embedding`: The computed embeddings
             - `meta`: The metadata collected during the embedding process
         """
-        self._client = AsyncClient(host=self.url, timeout=self.timeout)
-        response = await self._client.embeddings(model=self.model, prompt=text, options=generation_kwargs)
+        response = await self._async_client.embeddings(model=self.model, prompt=text, options=generation_kwargs)
         result = response.model_dump()
         result["meta"] = {"model": self.model}
 
