@@ -4,7 +4,7 @@
 import logging as python_logging
 import os
 from datetime import datetime
-from typing import Any, ClassVar, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import ClientAuthenticationError, HttpResponseError, ResourceNotFoundError
@@ -85,7 +85,6 @@ python_logging.getLogger("azure.identity").setLevel(python_logging.DEBUG)
 
 
 class AzureAISearchDocumentStore:
-    TYPE_MAP: ClassVar[Dict[str, type]] = {"str": str, "int": int, "float": float, "bool": bool, "datetime": datetime}
 
     def __init__(
         self,
