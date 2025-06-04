@@ -160,7 +160,7 @@ def test_from_dict_with_params(monkeypatch):
             "index_name": "my_index",
             "embedding_dimension": 15,
             "metadata_fields": {
-                "Title": SimpleField(name="Title", type="Edm.String", filterable=True).as_dict(),
+                "Title": SearchField(name="Title", type="Edm.String", filterable=True).as_dict(),
                 "Pages": SimpleField(name="Pages", type="Edm.Int32", filterable=True).as_dict(),
             },
             "encryption_key": {
@@ -196,7 +196,7 @@ def test_from_dict_with_params(monkeypatch):
     assert document_store._index_name == "my_index"
     assert document_store._embedding_dimension == 15
     assert document_store._metadata_fields == {
-        "Title": SimpleField(name="Title", type="Edm.String", filterable=True),
+        "Title": SearchField(name="Title", type="Edm.String", filterable=True),
         "Pages": SimpleField(name="Pages", type="Edm.Int32", filterable=True),
     }
     assert document_store._index_creation_kwargs["encryption_key"] == encryption_key

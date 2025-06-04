@@ -103,10 +103,22 @@ class AzureAISearchDocumentStore:
         :param api_key: The API key to use for authentication.
         :param index_name: Name of index in Azure AI Search, if it doesn't exist it will be created.
         :param embedding_dimension: Dimension of the embeddings.
-        :param metadata_fields: A dictionary of metadata keys and search index fields to map them
-            to. These fields will automatically be added during index creation. For convenience,
-            a mapping may also be a Python type (`str`, `bool`, `int`, `float`, or `datetime`)
-            instead of a `SearchField`, in which case a simple filterable field is created.
+        :param metadata_fields: A dictionary mapping metadata field names to their corresponding field definitions.
+            Each field can be defined either as:
+            - A SearchField object to specify detailed field configuration like type, searchability, and filterability
+            - A Python type (`str`, `bool`, `int`, `float`, or `datetime`) to create a simple filterable field
+
+            These fields are automatically added when creating the search index.
+            Example:
+                metadata_fields={
+                    "Title": SearchField(
+                        name="Title",
+                        type="Edm.String",
+                        searchable=True,
+                        filterable=True
+                    ),
+                    "Pages": int
+                }
         :param vector_search_configuration: Configuration option related to vector search.
             Default configuration uses the HNSW algorithm with cosine similarity to handle vector searches.
 
