@@ -8,7 +8,7 @@ from typing import List
 from unittest.mock import patch
 
 import pytest
-from azure.search.documents.indexes.models import CustomAnalyzer, SearchResourceEncryptionKey
+from azure.search.documents.indexes.models import CustomAnalyzer, SearchField, SearchResourceEncryptionKey, SimpleField
 from haystack.dataclasses.document import Document
 from haystack.errors import FilterError
 from haystack.testing.document_store import (
@@ -37,7 +37,7 @@ def test_to_dict(monkeypatch):
             "api_key": {"env_vars": ["AZURE_AI_SEARCH_API_KEY"], "strict": False, "type": "env_var"},
             "index_name": "default",
             "embedding_dimension": 768,
-            "metadata_fields": None,
+            "metadata_fields": {},
             "vector_search_configuration": {
                 "profiles": [
                     {"name": "default-vector-config", "algorithm_configuration_name": "cosine-algorithm-config"}
@@ -70,7 +70,10 @@ def test_to_dict_with_params(monkeypatch):
     document_store = AzureAISearchDocumentStore(
         index_name="my_index",
         embedding_dimension=15,
-        metadata_fields={"Title": str, "Pages": int},
+        metadata_fields={
+            "Title": SearchField(name="Title", type="Edm.String", searchable=True, filterable=True),
+            "Pages": int,
+        },
         encryption_key=encryption_key,
         analyzers=[analyzer],
     )
@@ -84,8 +87,8 @@ def test_to_dict_with_params(monkeypatch):
             "index_name": "my_index",
             "embedding_dimension": 15,
             "metadata_fields": {
-                "Title": "str",
-                "Pages": "int",
+                "Title": SearchField(name="Title", type="Edm.String", searchable=True, filterable=True).as_dict(),
+                "Pages": SimpleField(name="Pages", type="Edm.Int32", filterable=True).as_dict(),
             },
             "encryption_key": {
                 "key_name": "my-key",
@@ -136,7 +139,7 @@ def test_from_dict(monkeypatch):
     assert isinstance(document_store._azure_endpoint, EnvVarSecret)
     assert document_store._index_name == "default"
     assert document_store._embedding_dimension == 768
-    assert document_store._metadata_fields is None
+    assert document_store._metadata_fields == {}
     assert document_store._vector_search_configuration == DEFAULT_VECTOR_SEARCH
 
 
@@ -157,8 +160,8 @@ def test_from_dict_with_params(monkeypatch):
             "index_name": "my_index",
             "embedding_dimension": 15,
             "metadata_fields": {
-                "Title": "str",
-                "Pages": "int",
+                "Title": SearchField(name="Title", type="Edm.String", filterable=True).as_dict(),
+                "Pages": SimpleField(name="Pages", type="Edm.Int32", filterable=True).as_dict(),
             },
             "encryption_key": {
                 "key_name": "my-key",
@@ -192,7 +195,10 @@ def test_from_dict_with_params(monkeypatch):
     assert isinstance(document_store._azure_endpoint, EnvVarSecret)
     assert document_store._index_name == "my_index"
     assert document_store._embedding_dimension == 15
-    assert document_store._metadata_fields == {"Title": str, "Pages": int}
+    assert document_store._metadata_fields == {
+        "Title": SearchField(name="Title", type="Edm.String", filterable=True),
+        "Pages": SimpleField(name="Pages", type="Edm.Int32", filterable=True),
+    }
     assert document_store._index_creation_kwargs["encryption_key"] == encryption_key
     assert document_store._index_creation_kwargs["analyzers"][0].name == "url-analyze"
     assert document_store._index_creation_kwargs["analyzers"][0].token_filters == ["lowercase"]
@@ -218,7 +224,10 @@ def test_init(_mock_azure_search_client):
 
     assert document_store._index_name == "my_index"
     assert document_store._embedding_dimension == 15
-    assert document_store._metadata_fields == {"Title": str, "Pages": int}
+    assert document_store._metadata_fields == {
+        "Title": SimpleField(name="Title", type="Edm.String", filterable=True),
+        "Pages": SimpleField(name="Pages", type="Edm.Int32", filterable=True),
+    }
     assert document_store._vector_search_configuration == DEFAULT_VECTOR_SEARCH
 
 
@@ -228,7 +237,6 @@ def test_init(_mock_azure_search_client):
     reason="Missing AZURE_AI_SEARCH_ENDPOINT or AZURE_AI_SEARCH_API_KEY.",
 )
 class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
-
     def test_write_documents(self, document_store: AzureAISearchDocumentStore):
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1
@@ -281,7 +289,6 @@ TEST_EMBEDDING_2 = _random_embeddings(768)
     indirect=True,
 )
 class TestFilters(FilterDocumentsTest):
-
     # Overriding to change "date" to compatible ISO 8601 format
     @pytest.fixture
     def filterable_docs(self) -> List[Document]:

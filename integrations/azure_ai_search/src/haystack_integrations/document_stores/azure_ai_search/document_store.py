@@ -4,7 +4,7 @@
 import logging as python_logging
 import os
 from datetime import datetime
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import ClientAuthenticationError, HttpResponseError, ResourceNotFoundError
@@ -85,7 +85,6 @@ python_logging.getLogger("azure.identity").setLevel(python_logging.DEBUG)
 
 
 class AzureAISearchDocumentStore:
-    TYPE_MAP: ClassVar[Dict[str, type]] = {"str": str, "int": int, "float": float, "bool": bool, "datetime": datetime}
 
     def __init__(
         self,
@@ -94,8 +93,8 @@ class AzureAISearchDocumentStore:
         azure_endpoint: Secret = Secret.from_env_var("AZURE_AI_SEARCH_ENDPOINT", strict=True),  # noqa: B008
         index_name: str = "default",
         embedding_dimension: int = 768,
-        metadata_fields: Optional[Dict[str, type]] = None,
-        vector_search_configuration: VectorSearch = None,
+        metadata_fields: Optional[Dict[str, Union[SearchField, type]]] = None,
+        vector_search_configuration: Optional[VectorSearch] = None,
         **index_creation_kwargs,
     ):
         """
@@ -106,10 +105,22 @@ class AzureAISearchDocumentStore:
         :param api_key: The API key to use for authentication.
         :param index_name: Name of index in Azure AI Search, if it doesn't exist it will be created.
         :param embedding_dimension: Dimension of the embeddings.
-        :param metadata_fields: A dictionary of metadata keys and their types to create
-            additional fields in index schema. As fields in Azure SearchIndex cannot be dynamic,
-            it is necessary to specify the metadata fields in advance.
-            (e.g. metadata_fields = {"author": str, "date": datetime})
+        :param metadata_fields: A dictionary mapping metadata field names to their corresponding field definitions.
+            Each field can be defined either as:
+            - A SearchField object to specify detailed field configuration like type, searchability, and filterability
+            - A Python type (`str`, `bool`, `int`, `float`, or `datetime`) to create a simple filterable field
+
+            These fields are automatically added when creating the search index.
+            Example:
+                metadata_fields={
+                    "Title": SearchField(
+                        name="Title",
+                        type="Edm.String",
+                        searchable=True,
+                        filterable=True
+                    ),
+                    "Pages": int
+                }
         :param vector_search_configuration: Configuration option related to vector search.
             Default configuration uses the HNSW algorithm with cosine similarity to handle vector searches.
 
@@ -139,13 +150,12 @@ class AzureAISearchDocumentStore:
         self._index_name = index_name
         self._embedding_dimension = embedding_dimension
         self._dummy_vector = [-10.0] * self._embedding_dimension
-        self._metadata_fields = metadata_fields
+        self._metadata_fields = self._normalize_metadata_index_fields(metadata_fields)
         self._vector_search_configuration = vector_search_configuration or DEFAULT_VECTOR_SEARCH
         self._index_creation_kwargs = index_creation_kwargs
 
     @property
     def client(self) -> SearchClient:
-
         # resolve secrets for authentication
         resolved_endpoint = (
             self._azure_endpoint.resolve_value() if isinstance(self._azure_endpoint, Secret) else self._azure_endpoint
@@ -185,6 +195,45 @@ class AzureAISearchDocumentStore:
 
         return self._client
 
+    def _normalize_metadata_index_fields(
+        self, metadata_fields: Optional[Dict[str, Union[SearchField, type]]]
+    ) -> Dict[str, SearchField]:
+        """Create a list of index fields for storing metadata values."""
+
+        if not metadata_fields:
+            return {}
+
+        normalized_fields = {}
+
+        for key, value in metadata_fields.items():
+            if isinstance(value, SearchField):
+                if value.name == key:
+                    normalized_fields[key] = value
+                else:
+                    msg = f"Name of SearchField ('{value.name}') must match metadata field name ('{key}')"
+                    raise ValueError(msg)
+            else:
+                if not key[0].isalpha():
+                    msg = (
+                        f"Azure Search index only allows field names starting with letters. "
+                        f"Invalid key: {key} will be dropped."
+                    )
+                    logger.warning(msg)
+                    continue
+
+                field_type = type_mapping.get(value)
+                if not field_type:
+                    error_message = f"Unsupported field type for key '{key}': {value}"
+                    raise ValueError(error_message)
+
+                normalized_fields[key] = SimpleField(
+                    name=key,
+                    type=field_type,
+                    filterable=True,
+                )
+
+        return normalized_fields
+
     def _create_index(self) -> None:
         """
         Internally creates a new search index.
@@ -205,28 +254,17 @@ class AzureAISearchDocumentStore:
         ]
 
         if self._metadata_fields:
-            default_fields.extend(self._create_metadata_index_fields(self._metadata_fields))
+            default_fields.extend(self._metadata_fields.values())
+
         index = SearchIndex(
             name=self._index_name,
             fields=default_fields,
             vector_search=self._vector_search_configuration,
             **self._index_creation_kwargs,
         )
+
         if self._index_client:
             self._index_client.create_index(index)
-
-    @classmethod
-    def _deserialize_metadata_fields(cls, fields: Optional[Dict[str, str]]) -> Optional[Dict[str, type]]:
-        """Convert string representations back to type objects."""
-        if not fields:
-            return None
-        try:
-            # Use the class-level TYPE_MAP for conversion.
-            ans = {key: cls.TYPE_MAP[value] for key, value in fields.items()}
-            return ans
-        except KeyError as e:
-            msg = f"Unsupported type encountered in metadata_fields: {e}"
-            raise ValueError(msg) from e
 
     @staticmethod
     def _serialize_index_creation_kwargs(index_creation_kwargs: Dict[str, Any]) -> Dict[str, Any]:
@@ -265,28 +303,19 @@ class AzureAISearchDocumentStore:
         return result[key]
 
     def to_dict(self) -> Dict[str, Any]:
-        # This is not the best solution to serialise this class but is the fastest to implement.
-        # Not all kwargs types can be serialised to text so this can fail. We must serialise each
-        # type explicitly to handle this properly.
         """
         Serializes the component to a dictionary.
 
         :returns:
             Dictionary with serialized data.
         """
-
-        if self._metadata_fields:
-            serialized_metadata = {key: value.__name__ for key, value in self._metadata_fields.items()}
-        else:
-            serialized_metadata = None
-
         return default_to_dict(
             self,
             azure_endpoint=self._azure_endpoint.to_dict() if self._azure_endpoint else None,
             api_key=self._api_key.to_dict() if self._api_key else None,
             index_name=self._index_name,
             embedding_dimension=self._embedding_dimension,
-            metadata_fields=serialized_metadata,
+            metadata_fields={key: value.as_dict() for key, value in self._metadata_fields.items()},
             vector_search_configuration=self._vector_search_configuration.as_dict(),
             **self._serialize_index_creation_kwargs(self._index_creation_kwargs),
         )
@@ -303,7 +332,11 @@ class AzureAISearchDocumentStore:
             Deserialized component.
         """
         if (fields := data["init_parameters"]["metadata_fields"]) is not None:
-            data["init_parameters"]["metadata_fields"] = cls._deserialize_metadata_fields(fields)
+            data["init_parameters"]["metadata_fields"] = {
+                key: SearchField.from_dict(field) for key, field in fields.items()
+            }
+        else:
+            data["init_parameters"]["metadata_fields"] = {}
 
         for key, _value in AZURE_CLASS_MAPPING.items():
             if key in data["init_parameters"]:
@@ -461,46 +494,12 @@ class AzureAISearchDocumentStore:
 
         return index_document
 
-    def _create_metadata_index_fields(self, metadata: Dict[str, Any]) -> List[SimpleField]:
-        """Create a list of index fields for storing metadata values."""
-
-        index_fields = []
-        metadata_field_mapping = self._map_metadata_field_types(metadata)
-
-        for key, field_type in metadata_field_mapping.items():
-            index_fields.append(SimpleField(name=key, type=field_type, filterable=True))
-
-        return index_fields
-
-    def _map_metadata_field_types(self, metadata: Dict[str, type]) -> Dict[str, str]:
-        """Map metadata field types to Azure Search field types."""
-
-        metadata_field_mapping = {}
-
-        for key, value_type in metadata.items():
-
-            if not key[0].isalpha():
-                msg = (
-                    f"Azure Search index only allows field names starting with letters. "
-                    f"Invalid key: {key} will be dropped."
-                )
-                logger.warning(msg)
-                continue
-
-            field_type = type_mapping.get(value_type)
-            if not field_type:
-                error_message = f"Unsupported field type for key '{key}': {value_type}"
-                raise ValueError(error_message)
-            metadata_field_mapping[key] = field_type
-
-        return metadata_field_mapping
-
     def _embedding_retrieval(
         self,
         query_embedding: List[float],
         *,
         top_k: int = 10,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[str] = None,
         **kwargs,
     ) -> List[Document]:
         """
@@ -534,7 +533,7 @@ class AzureAISearchDocumentStore:
         self,
         query: str,
         top_k: int = 10,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[str] = None,
         **kwargs,
     ) -> List[Document]:
         """
@@ -567,7 +566,7 @@ class AzureAISearchDocumentStore:
         query: str,
         query_embedding: List[float],
         top_k: int = 10,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[str] = None,
         **kwargs,
     ) -> List[Document]:
         """
