@@ -267,19 +267,6 @@ class AzureAISearchDocumentStore:
         if self._index_client:
             self._index_client.create_index(index)
 
-    @classmethod
-    def _deserialize_metadata_fields(cls, fields: Optional[Dict[str, str]]) -> Optional[Dict[str, type]]:
-        """Convert string representations back to type objects."""
-        if not fields:
-            return None
-        try:
-            # Use the class-level TYPE_MAP for conversion.
-            ans = {key: cls.TYPE_MAP[value] for key, value in fields.items()}
-            return ans
-        except KeyError as e:
-            msg = f"Unsupported type encountered in metadata_fields: {e}"
-            raise ValueError(msg) from e
-
     @staticmethod
     def _serialize_index_creation_kwargs(index_creation_kwargs: Dict[str, Any]) -> Dict[str, Any]:
         """
