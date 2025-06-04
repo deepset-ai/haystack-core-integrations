@@ -44,10 +44,10 @@ class TestSTACKITTextEmbedder:
                 "api_key": {"env_vars": ["STACKIT_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "intfloat/e5-mistral-7b-instruct",
                 "api_base_url": "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1",
-                "dimensions": None,
-                "organization": None,
                 "prefix": "",
                 "suffix": "",
+                "timeout": None,
+                "max_retries": None,
                 "http_client_kwargs": None,
             },
         }
@@ -60,6 +60,9 @@ class TestSTACKITTextEmbedder:
             api_base_url="https://custom-api-base-url.com",
             prefix="START",
             suffix="END",
+            timeout=10.0,
+            max_retries=2,
+            http_client_kwargs={"proxy": "https://proxy.example.com"},
         )
         component_dict = embedder.to_dict()
         assert component_dict == {
@@ -68,13 +71,38 @@ class TestSTACKITTextEmbedder:
                 "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
                 "model": "intfloat/e5-mistral-7b-instruct",
                 "api_base_url": "https://custom-api-base-url.com",
-                "dimensions": None,
-                "organization": None,
                 "prefix": "START",
                 "suffix": "END",
+                "timeout": 10.0,
+                "max_retries": 2,
+                "http_client_kwargs": {"proxy": "https://proxy.example.com"},
+            },
+        }
+
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("STACKIT_API_KEY", "test-secret-key")
+        data = {
+            "type": "haystack_integrations.components.embedders.stackit.text_embedder.STACKITTextEmbedder",
+            "init_parameters": {
+                "api_key": {"env_vars": ["STACKIT_API_KEY"], "strict": True, "type": "env_var"},
+                "model": "intfloat/e5-mistral-7b-instruct",
+                "api_base_url": "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1",
+                "prefix": "",
+                "suffix": "",
+                "timeout": None,
+                "max_retries": None,
                 "http_client_kwargs": None,
             },
         }
+        embedder = STACKITTextEmbedder.from_dict(data)
+        assert embedder.api_key == Secret.from_env_var(["STACKIT_API_KEY"])
+        assert embedder.api_base_url == "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1"
+        assert embedder.model == "intfloat/e5-mistral-7b-instruct"
+        assert embedder.prefix == ""
+        assert embedder.suffix == ""
+        assert embedder.timeout is None
+        assert embedder.max_retries is None
+        assert embedder.http_client_kwargs is None
 
     @pytest.mark.skipif(
         not os.environ.get("STACKIT_API_KEY", None),

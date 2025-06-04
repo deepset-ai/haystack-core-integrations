@@ -7,9 +7,11 @@ import concurrent.futures
 import threading
 import warnings
 from abc import ABC, abstractmethod
-from collections.abc import Coroutine
+from collections.abc import Callable, Coroutine
+from concurrent.futures import Future
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, fields
+from datetime import timedelta
 from typing import Any, cast
 
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
@@ -22,6 +24,7 @@ from haystack.utils.url_validation import is_valid_http_url
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
+from mcp.client.streamable_http import streamablehttp_client
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +75,47 @@ class AsyncExecutor:
             future.cancel()
             message = f"Operation timed out after {timeout} seconds"
             raise TimeoutError(message) from e
+
+    def get_loop(self):
+        """
+        Get the event loop.
+
+        :returns: The event loop
+        """
+        return self._loop
+
+    def run_background(
+        self, coro_factory: Callable[[asyncio.Event], Coroutine[Any, Any, Any]], timeout: float | None = None
+    ) -> tuple[concurrent.futures.Future[Any], asyncio.Event]:
+        """
+        Schedule `coro_factory` to run in the executor's event loop **without** blocking the
+        caller thread.
+
+        The factory receives an :class:`asyncio.Event` that can be used to cooperatively shut
+        the coroutine down. The method returns **both** the concurrent future (to observe
+        completion or failure) and the created *stop_event* so that callers can signal termination.
+
+        :param coro_factory: A callable receiving the stop_event and returning the coroutine to execute.
+        :param timeout: Optional timeout while waiting for the stop_event to be created.
+        :returns: Tuple ``(future, stop_event)``.
+        """
+        # A promise that will be fulfilled from inside the coroutine_with_stop_event coroutine once the
+        # stop_event is created *inside* the target event loop to ensure it is bound to the
+        # correct loop and can safely be set from other threads via *call_soon_threadsafe*.
+        stop_event_promise: Future[asyncio.Event] = Future()
+
+        async def _coroutine_with_stop_event():
+            stop_event = asyncio.Event()
+            stop_event_promise.set_result(stop_event)
+            await coro_factory(stop_event)
+
+        # Schedule the coroutine
+        future = asyncio.run_coroutine_threadsafe(_coroutine_with_stop_event(), self._loop)
+
+        # This ensures that the stop_event is fully initialized and ready for use before
+        # the run_background method returns, allowing the caller to immediately
+        # use it to control the coroutine.
+        return future, stop_event_promise.result(timeout)
 
     def shutdown(self, timeout: float = 2):
         """
@@ -213,7 +257,7 @@ class MCPClient(ABC):
             raise
         except Exception as e:
             # Wrap other exceptions with context about which tool failed
-            message = f"Failed to invoke tool '{tool_name}'"
+            message = f"Failed to invoke tool '{tool_name}' with args: {tool_args} , got error: {e!s}"
             raise MCPInvocationError(message, tool_name, tool_args) from e
 
     def _validate_response(self, tool_name: str, result: types.CallToolResult) -> types.CallToolResult:
@@ -254,7 +298,7 @@ class MCPClient(ABC):
         # Return the original result object
         return result
 
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         """
         Close the connection and clean up resources.
 
@@ -273,15 +317,6 @@ class MCPClient(ABC):
             self.stdio = None
             self.write = None
 
-    def close_sync(self) -> None:
-        """Synchronous version of close for use in __del__ - ensures resources are cleaned up."""
-        logger.debug("PROCESS: Closing StdioClient (sync)")
-
-        try:
-            AsyncExecutor.get_instance().run(self.close(), timeout=2)
-        except Exception as e:
-            logger.debug(f"PROCESS: Error during async cleanup in sync close: {e!s}")
-
     async def _initialize_session_with_transport(
         self,
         transport_tuple: tuple[
@@ -292,13 +327,14 @@ class MCPClient(ABC):
         """
         Common session initialization logic for all transports.
 
-        :param transport_tuple: Tuple containing (stdio, write) from the transport
+        :param transport_tuple: Tuple containing at least (stdio, write) from the transport
         :param connection_type: String describing the connection type for error messages
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
         """
         try:
-            self.stdio, self.write = transport_tuple
+            # Use extended unpacking to handle tuples with additional values
+            self.stdio, self.write, *_ = transport_tuple
             self.session = await self.exit_stack.enter_async_context(ClientSession(self.stdio, self.write))
 
             # Now session is guaranteed to be a ClientSession, not None
@@ -310,7 +346,7 @@ class MCPClient(ABC):
             return response.tools
 
         except Exception as e:
-            await self.close()
+            # We'll clean up the session in the calling code, so we don't need to do it here.
             message = f"Failed to connect to {connection_type}: {e}"
             raise MCPConnectionError(message=message, operation="connect") from e
 
@@ -379,6 +415,37 @@ class SSEClient(MCPClient):
             sse_client(self.url, headers=headers, timeout=self.timeout)
         )
         return await self._initialize_session_with_transport(sse_transport, f"HTTP server at {self.url}")
+
+
+class StreamableHttpClient(MCPClient):
+    """
+    MCP client that connects to servers using streamable HTTP transport.
+    """
+
+    def __init__(self, server_info: "StreamableHttpServerInfo") -> None:
+        """
+        Initialize a streamable HTTP MCP client using server configuration.
+
+        :param server_info: Configuration object containing URL, token, timeout, etc.
+        """
+        super().__init__()
+
+        self.url: str = server_info.url
+        self.token: str | None = server_info.token
+        self.timeout: int = server_info.timeout
+
+    async def connect(self) -> list[Tool]:
+        """
+        Connect to an MCP server using streamable HTTP transport.
+
+        :returns: List of available tools on the server
+        :raises MCPConnectionError: If connection to the server fails
+        """
+        headers = {"Authorization": f"Bearer {self.token}"} if self.token else None
+        streamablehttp_transport = await self.exit_stack.enter_async_context(
+            streamablehttp_client(url=self.url, headers=headers, timeout=timedelta(seconds=self.timeout))
+        )
+        return await self._initialize_session_with_transport(streamablehttp_transport, f"HTTP server at {self.url}")
 
 
 @dataclass
@@ -482,6 +549,35 @@ class SSEServerInfo(MCPServerInfo):
 
 
 @dataclass
+class StreamableHttpServerInfo(MCPServerInfo):
+    """
+    Data class that encapsulates streamable HTTP MCP server connection parameters.
+
+    :param url: Full URL of the MCP server (streamable HTTP endpoint)
+    :param token: Authentication token for the server (optional)
+    :param timeout: Connection timeout in seconds
+    """
+
+    url: str
+    token: str | None = None
+    timeout: int = 30
+
+    def __post_init__(self):
+        """Validate the URL."""
+        if not is_valid_http_url(self.url):
+            message = f"Invalid url: {self.url}"
+            raise ValueError(message)
+
+    def create_client(self) -> MCPClient:
+        """
+        Create a streamable HTTP MCP client.
+
+        :returns: Configured StreamableHttpClient instance
+        """
+        return StreamableHttpClient(server_info=self)
+
+
+@dataclass
 class StdioServerInfo(MCPServerInfo):
     """
     Data class that encapsulates stdio MCP server connection parameters.
@@ -572,22 +668,17 @@ class MCPTool(Tool):
 
         logger.debug(f"TOOL: Initializing MCPTool '{name}'")
 
-        # Create client
-        self._client = server_info.create_client()
-        logger.debug(f"TOOL: Created client for MCPTool '{name}'")
-
         try:
+            # Create client and spin up a long-lived worker that keeps the
+            # connect/close lifecycle inside one coroutine.
+            self._client = server_info.create_client()
+            logger.debug(f"TOOL: Created client for MCPTool '{name}'")
 
-            async def connect():
-                logger.debug(f"TOOL: Inside connect coroutine for '{name}'")
-                result = await asyncio.wait_for(self._client.connect(), timeout=connection_timeout)
-                logger.debug(f"TOOL: Connect successful for '{name}', found {len(result)} tools")
-                return result
+            # The worker starts immediately and blocks here until the connection
+            # is established (or fails), returning the tool list.
+            self._worker = _MCPClientSessionManager(self._client, timeout=connection_timeout)
 
-            logger.debug(f"TOOL: About to run connect for '{name}'")
-            tools = AsyncExecutor.get_instance().run(connect(), timeout=connection_timeout)
-            logger.debug(f"TOOL: Connection complete for '{name}'")
-
+            tools = self._worker.tools()
             # Handle no tools case
             if not tools:
                 logger.debug(f"TOOL: No tools found for '{name}'")
@@ -617,17 +708,28 @@ class MCPTool(Tool):
             logger.debug(f"TOOL: Initialization complete for '{name}'")
 
         except Exception as e:
-            # Clean up resources on error
-            logger.debug(f"TOOL: Error during initialization of '{name}': {e!s}")
-            if self._client:
-                try:
-                    logger.debug(f"TOOL: Attempting cleanup after initialization failure for '{name}'")
-                    AsyncExecutor.get_instance().run(self._client.close(), timeout=5)
-                    logger.debug(f"TOOL: Cleanup successful for '{name}'")
-                except Exception as cleanup_error:
-                    logger.debug(f"TOOL: Error during cleanup after initialization failure: {cleanup_error!s}")
+            # We need to close because we could connect properly, retrieve tools yet
+            # fail because of an MCPToolNotFoundError
+            self.close()
 
-            message = f"Failed to initialize MCPTool '{name}': {e}"
+            # Extract more detailed error information from TaskGroup/ExceptionGroup exceptions
+            from exceptiongroup import ExceptionGroup
+
+            error_message = str(e)
+            # Handle ExceptionGroup to extract more useful error messages
+            if isinstance(e, ExceptionGroup):
+                if e.exceptions:
+                    first_exception = e.exceptions[0]
+                    error_message = (
+                        first_exception.message if hasattr(first_exception, "message") else str(first_exception)
+                    )
+
+            # Ensure we always have a meaningful error message
+            if not error_message or error_message.strip() == "":
+                # Provide platform-independent fallback message for connection errors
+                error_message = f"Connection failed to MCP server (using {type(server_info).__name__})"
+
+            message = f"Failed to initialize MCPTool '{name}': {error_message}"
             raise MCPConnectionError(message=message, server_info=server_info, operation="initialize") from e
 
     def _invoke_tool(self, **kwargs: Any) -> Any:
@@ -659,7 +761,7 @@ class MCPTool(Tool):
         except Exception as e:
             # Wrap other errors
             logger.debug(f"TOOL: Unknown error during invoke of '{self.name}': {e!s}")
-            message = f"Failed to invoke tool '{self.name}'"
+            message = f"Failed to invoke tool '{self.name}' with args: {kwargs} , got error: {e!s}"
             raise MCPInvocationError(message, self.name, kwargs) from e
 
     async def ainvoke(self, **kwargs: Any) -> Any:
@@ -680,7 +782,7 @@ class MCPTool(Tool):
         except Exception as e:
             if isinstance(e, MCPError):
                 raise
-            message = f"Failed to invoke tool '{self.name}'"
+            message = f"Failed to invoke tool '{self.name}' with args: {kwargs} , got error: {e!s}"
             raise MCPInvocationError(message, self.name, kwargs) from e
 
     def to_dict(self) -> dict[str, Any]:
@@ -743,13 +845,106 @@ class MCPTool(Tool):
             invocation_timeout=invocation_timeout,
         )
 
+    def close(self):
+        """Close the tool synchronously."""
+        if hasattr(self, "_client") and self._client:
+            try:
+                # Tell the background worker to shut down gracefully.
+                if hasattr(self, "_worker") and self._worker:
+                    self._worker.stop()
+            except Exception as e:
+                logger.debug(f"TOOL: Error during synchronous worker stop: {e!s}")
+
     def __del__(self):
         """Cleanup resources when the tool is garbage collected."""
         logger.debug(f"TOOL: __del__ called for MCPTool '{self.name if hasattr(self, 'name') else 'unknown'}'")
 
-        # Call synchronous close on the client
-        if hasattr(self, "_client") and self._client:
+        self.close()
+
+
+class _MCPClientSessionManager:
+    """Runs an MCPClient connect/close inside the AsyncExecutor's event loop.
+
+    Life-cycle:
+      1.  Create the worker to schedule a long-running coroutine in the
+          dedicated background loop.
+      2.  The coroutine calls *connect* on mcp client; when it has the tool list it fulfils
+          a concurrent future so the synchronous thread can continue.
+      3.  It then waits on an `asyncio.Event`.
+      4.  `stop()` sets the event from any thread. The same coroutine then calls
+          *close()* on mcp client and finishes without the dreaded
+          `Attempted to exit cancel scope in a different task than it was entered in` error
+          thus properly closing the client.
+    """
+
+    # Maximum time to wait for worker shutdown in seconds
+    WORKER_SHUTDOWN_TIMEOUT = 2.0
+
+    def __init__(self, client: "MCPClient", *, timeout: float | None = None):
+        self._client = client
+        self.executor = AsyncExecutor.get_instance()
+
+        # Where the tool list (or an exception) will be delivered.
+        self._tools_promise: Future[list[Tool]] = Future()
+
+        # Kick off the worker coroutine in the background loop
+        self._worker_future, self._stop_event = self.executor.run_background(self._run, timeout=None)
+
+        # Wait (in the caller thread) until connect() finishes or raises.
+        try:
+            self._tools_promise.result(timeout)
+        except BaseException:
+            # If connect failed we should cancel the worker so it doesn't hang.
+            self.stop()
+            raise
+
+    def tools(self) -> list[Tool]:
+        """Return the tool list already collected during startup."""
+
+        return self._tools_promise.result()
+
+    def stop(self) -> None:
+        """Request the worker to shut down and block until done."""
+
+        def _set(ev: asyncio.Event):
+            if not ev.is_set():
+                ev.set()
+
+        if self.executor.get_loop().is_closed():
+            return
+
+        # The stop event is created inside the worker *before* the connect
+        # promise is fulfilled, so at this point it must exist.
+        self.executor.get_loop().call_soon_threadsafe(_set, self._stop_event)  # type: ignore[attr-defined]
+
+        # Wait for the worker coroutine to finish so resources are fully
+        # released before returning. Swallow any errors during shutdown.
+        try:
+            self._worker_future.result(timeout=self.WORKER_SHUTDOWN_TIMEOUT)
+        except Exception as e:
+            logger.debug(f"Error during worker future result: {e}")
+            pass
+
+    async def _run(self, stop_event: asyncio.Event):
+        """Background coroutine living in AsyncExecutor's loop."""
+
+        try:
+            # logger.debug(f"TOOL: _run current task: {asyncio.current_task()}")
+            tools = await self._client.connect()
+            # Deliver the tool list to the waiting synchronous code.
+            if not self._tools_promise.done():
+                self._tools_promise.set_result(tools)
+            # Park until told to stop.
+            await stop_event.wait()
+        except Exception as exc:
+            logger.debug(f"Error during _run: {exc}")
+            if not self._tools_promise.done():
+                self._tools_promise.set_exception(exc)
+            raise
+        finally:
+            # logger.debug(f"TOOL: _run current task: {asyncio.current_task()}")
+            # Close the client in the same couroutine that connected it
             try:
-                self._client.close_sync()
+                await self._client.aclose()
             except Exception as e:
-                logger.debug(f"TOOL: Error during synchronous client close: {e!s}")
+                logger.debug(f"Error during MCP client cleanup: {e!s}")

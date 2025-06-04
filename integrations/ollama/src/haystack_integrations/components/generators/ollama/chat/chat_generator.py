@@ -2,7 +2,13 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
-from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_or_toolset_inplace
+from haystack.tools import (
+    Tool,
+    _check_duplicate_tool_names,
+    deserialize_tools_or_toolset_inplace,
+    serialize_tools_or_toolset,
+)
+from haystack.tools.toolset import Toolset
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 from pydantic.json_schema import JsonSchemaValue
 
@@ -151,7 +157,7 @@ class OllamaChatGenerator:
         timeout: int = 120,
         keep_alive: Optional[Union[float, str]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
         response_format: Optional[Union[None, Literal["json"], JsonSchemaValue]] = None,
     ):
         """
@@ -177,7 +183,8 @@ class OllamaChatGenerator:
             A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         :param tools:
-            A list of tools for which the model can prepare calls.
+            A list of tools or a Toolset for which the model can prepare calls.
+            This parameter can accept either a list of `Tool` objects or a `Toolset` instance.
             Not all models support tools. For a list of models compatible with tools, see the
             [models page](https://ollama.com/search?c=tools).
         :param response_format:
@@ -207,7 +214,7 @@ class OllamaChatGenerator:
               Dictionary with serialized data.
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
-        serialized_tools = [tool.to_dict() for tool in self.tools] if self.tools else None
+
         return default_to_dict(
             self,
             model=self.model,
@@ -216,7 +223,7 @@ class OllamaChatGenerator:
             generation_kwargs=self.generation_kwargs,
             timeout=self.timeout,
             streaming_callback=callback_name,
-            tools=serialized_tools,
+            tools=serialize_tools_or_toolset(self.tools),
             response_format=self.response_format,
         )
 
@@ -280,7 +287,7 @@ class OllamaChatGenerator:
         self,
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
         *,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
@@ -294,7 +301,8 @@ class OllamaChatGenerator:
             top_p, etc. See the
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :param tools:
-            A list of tools for which the model can prepare calls. If set, it will override the `tools` parameter set
+            A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
+            list of `Tool` objects or a `Toolset` instance. If set, it will override the `tools` parameter set
             during component initialization.
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
@@ -319,6 +327,10 @@ class OllamaChatGenerator:
         if self.response_format and stream:
             msg = "Ollama does not support streaming and response_format at the same time. Please choose one."
             raise ValueError(msg)
+
+        # Convert toolset to list of tools if needed
+        if isinstance(tools, Toolset):
+            tools = list(tools)
 
         ollama_tools = [{"type": "function", "function": {**t.tool_spec}} for t in tools] if tools else None
 

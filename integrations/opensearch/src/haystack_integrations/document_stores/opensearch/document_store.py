@@ -533,7 +533,6 @@ class OpenSearchDocumentStore:
         all_terms_must_match: bool,
         custom_query: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
-
         if not query:
             body: Dict[str, Any] = {"query": {"bool": {"must": {"match_all": {}}}}}
             if filters:
@@ -673,7 +672,6 @@ class OpenSearchDocumentStore:
         custom_query: Optional[Dict[str, Any]],
         efficient_filtering: bool = False,
     ) -> Dict[str, Any]:
-
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
             raise ValueError(msg)

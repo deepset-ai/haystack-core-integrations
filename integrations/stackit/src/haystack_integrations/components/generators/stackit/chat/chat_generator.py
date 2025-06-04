@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Dict, Optional
 
 from haystack import component, default_to_dict
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import StreamingChunk
+from haystack.dataclasses import StreamingCallbackT
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
 
@@ -40,9 +40,13 @@ class STACKITChatGenerator(OpenAIChatGenerator):
         self,
         model: str,
         api_key: Secret = Secret.from_env_var("STACKIT_API_KEY"),
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1",
         generation_kwargs: Optional[Dict[str, Any]] = None,
+        *,
+        timeout: Optional[float] = None,
+        max_retries: Optional[int] = None,
+        http_client_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
         Creates an instance of STACKITChatGenerator class.
@@ -70,6 +74,15 @@ class STACKITChatGenerator(OpenAIChatGenerator):
                 events as they become available, with the stream terminated by a data: [DONE] message.
             - `safe_prompt`: Whether to inject a safety prompt before all conversations.
             - `random_seed`: The seed to use for random sampling.
+        :param timeout:
+            Timeout for STACKIT client calls. If not set, it defaults to either the `OPENAI_TIMEOUT` environment
+            variable, or 30 seconds.
+        :param max_retries:
+            Maximum number of retries to contact STACKIT after an internal error.
+            If not set, it defaults to either the `OPENAI_MAX_RETRIES` environment variable, or set to 5.
+        :param http_client_kwargs:
+            A dictionary of keyword arguments to configure a custom `httpx.Client`or `httpx.AsyncClient`.
+            For more information, see the [HTTPX documentation](https://www.python-httpx.org/api/#client).
         """
         super(STACKITChatGenerator, self).__init__(  # noqa: UP008
             model=model,
@@ -78,6 +91,9 @@ class STACKITChatGenerator(OpenAIChatGenerator):
             api_base_url=api_base_url,
             organization=None,
             generation_kwargs=generation_kwargs,
+            timeout=timeout,
+            max_retries=max_retries,
+            http_client_kwargs=http_client_kwargs,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -100,4 +116,7 @@ class STACKITChatGenerator(OpenAIChatGenerator):
             api_base_url=self.api_base_url,
             generation_kwargs=self.generation_kwargs,
             api_key=self.api_key.to_dict(),
+            timeout=self.timeout,
+            max_retries=self.max_retries,
+            http_client_kwargs=self.http_client_kwargs,
         )

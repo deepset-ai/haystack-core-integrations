@@ -60,14 +60,14 @@ class TestMistralDocumentEmbedder:
                 "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "mistral-embed",
                 "api_base_url": "https://api.mistral.ai/v1",
-                "dimensions": None,
-                "organization": None,
                 "prefix": "",
                 "suffix": "",
                 "batch_size": 32,
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
+                "timeout": None,
+                "max_retries": None,
                 "http_client_kwargs": None,
             },
         }
@@ -84,6 +84,9 @@ class TestMistralDocumentEmbedder:
             progress_bar=False,
             meta_fields_to_embed=["test_field"],
             embedding_separator="-",
+            timeout=10.0,
+            max_retries=2,
+            http_client_kwargs={"proxy": "http://localhost:8080"},
         )
         component_dict = embedder.to_dict()
         assert component_dict == {
@@ -91,18 +94,51 @@ class TestMistralDocumentEmbedder:
             "init_parameters": {
                 "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
                 "model": "mistral-embed-v2",
-                "dimensions": None,
                 "api_base_url": "https://custom-api-base-url.com",
-                "organization": None,
                 "prefix": "START",
                 "suffix": "END",
                 "batch_size": 64,
                 "progress_bar": False,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": "-",
+                "timeout": 10.0,
+                "max_retries": 2,
+                "http_client_kwargs": {"proxy": "http://localhost:8080"},
+            },
+        }
+
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+        data = {
+            "type": "haystack_integrations.components.embedders.mistral.document_embedder.MistralDocumentEmbedder",
+            "init_parameters": {
+                "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
+                "model": "mistral-embed",
+                "api_base_url": "https://api.mistral.ai/v1",
+                "prefix": "",
+                "suffix": "",
+                "batch_size": 32,
+                "progress_bar": True,
+                "meta_fields_to_embed": [],
+                "embedding_separator": "\n",
+                "timeout": None,
+                "max_retries": None,
                 "http_client_kwargs": None,
             },
         }
+        component = MistralDocumentEmbedder.from_dict(data)
+        assert component.api_key == Secret.from_env_var(["MISTRAL_API_KEY"])
+        assert component.model == "mistral-embed"
+        assert component.api_base_url == "https://api.mistral.ai/v1"
+        assert component.prefix == ""
+        assert component.suffix == ""
+        assert component.batch_size == 32
+        assert component.progress_bar is True
+        assert component.meta_fields_to_embed == []
+        assert component.embedding_separator == "\n"
+        assert component.timeout is None
+        assert component.max_retries is None
+        assert component.http_client_kwargs is None
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),

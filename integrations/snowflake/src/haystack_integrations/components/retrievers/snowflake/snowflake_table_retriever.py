@@ -3,13 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any, Dict, Optional
 
-import pandas as pd
+import polars as pl
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.lazy_imports import LazyImport
 from haystack.utils import Secret, deserialize_secrets_inplace
-
-with LazyImport("Run 'pip install polars>=1.23.0'") as polars_import:
-    import polars as pl
+from pandas import DataFrame
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +148,7 @@ class SnowflakeTableRetriever:
         return uri
 
     @staticmethod
-    def _polars_to_md(data: "pl.DataFrame") -> str:
+    def _polars_to_md(data: pl.DataFrame) -> str:
         """
         Converts a Polars DataFrame to a Markdown-formatted string.
         Uses Polars' built-in table formatting for efficient conversion.
@@ -159,7 +156,6 @@ class SnowflakeTableRetriever:
         :param data: The Polars DataFrame to convert.
         :returns: A Markdown-formatted string if `data` is not empty; otherwise, an empty string.
         """
-        polars_import.check()  # Ensure polars is imported
         if data.is_empty():
             return ""  # No markdown for empty DataFrame.
 
@@ -184,9 +180,9 @@ class SnowflakeTableRetriever:
             - `dataframe`: An empty Pandas DataFrame.
             - `table`: An empty Markdown string.
         """
-        return {"dataframe": pd.DataFrame(), "table": ""}
+        return {"dataframe": DataFrame(), "table": ""}
 
-    @component.output_types(dataframe=pd.DataFrame, table=str)
+    @component.output_types(dataframe=DataFrame, table=str)
     def run(self, query: str, return_markdown: Optional[bool] = None) -> Dict[str, Any]:
         """
         Executes a SQL query against a Snowflake database using ADBC and Polars.
