@@ -109,7 +109,6 @@ def mock_async_chat_completion():
         yield mock_chat_completion_create
 
 
-
 class TestNvidiaChatGenerator:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")
