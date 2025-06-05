@@ -86,7 +86,7 @@ jobs:
 
       - name: Lint
         if: matrix.python-version == '3.9'
-        run: hatch fmt --check && hatch run lint:typing
+        run: hatch run fmt-check && hatch run lint:typing
 
       - name: Generate docs
         if: matrix.python-version == '3.9' && runner.os == 'Linux'

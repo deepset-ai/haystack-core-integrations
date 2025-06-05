@@ -47,10 +47,11 @@ git_describe_command = 'git describe --tags --match="integrations/ollama-v[0-9]*
 
 [tool.hatch.envs.default]
 installer = "uv"
-dependencies = ["haystack-pydoc-tools"]
+dependencies = ["haystack-pydoc-tools", "ruff"]
 
 [tool.hatch.envs.default.scripts]
 docs = ["pydoc-markdown pydoc/config.yml"]
+fmt 
 
 [tool.hatch.envs.test]
 dependencies = [
