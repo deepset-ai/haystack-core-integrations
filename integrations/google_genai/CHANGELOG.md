@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/google_genai-v1.0.1] - 2025-06-05
+
+### 🌀 Miscellaneous
+
+- Style: Update to linting to allow function calls in default arguments (#1899)
+- Add examples, set safety_settings
+- Add print in examples
+
 ## [integrations/google_genai-v1.0.0] - 2025-06-02
 
 ### 🚀 Features
