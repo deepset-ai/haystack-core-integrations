@@ -246,7 +246,7 @@ class VertexAIDocumentEmbedder:
                 except Exception as e:
                     logger.debug(f"Batch {batch_number} Error tokens, {e}")
                     logger.debug(f"Batch {batch_number} Embedding by smaller batchers")
-                    logger.debug(f"batch_size reduced to {math.ceil(batch_size/2)})")
+                    logger.debug(f"batch_size reduced to {math.ceil(batch_size / 2)})")
 
                     try:
                         all_embeddings.extend(
