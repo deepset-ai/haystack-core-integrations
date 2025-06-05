@@ -230,7 +230,7 @@ class GoogleGenAIChatGenerator:
     def __init__(
         self,
         *,
-        api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),  # noqa: B008
+        api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),
         model: str = "gemini-2.0-flash",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         safety_settings: Optional[List[Dict[str, Any]]] = None,
