@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from google import genai
 from google.genai import types
@@ -15,19 +15,19 @@ logger = logging.getLogger(__name__)
 
 
 @component
-class GoogleAIDocumentEmbedder:
+class GoogleGenAIDocumentEmbedder:
     """
-    Computes document embeddings using OpenAI models.
+    Computes document embeddings using Google AI models.
 
     ### Usage example
 
     ```python
     from haystack import Document
-    from haystack.components.embedders import GoogleAIDocumentEmbedder
+    from haystack_integrations.components.embedders import GoogleGenAIDocumentEmbedder
 
     doc = Document(content="I love pizza!")
 
-    document_embedder = GoogleAIDocumentEmbedder()
+    document_embedder = GoogleGenAIDocumentEmbedder()
 
     result = document_embedder.run([doc])
     print(result['documents'][0].embedding)
@@ -38,29 +38,35 @@ class GoogleAIDocumentEmbedder:
 
     def __init__(  # pylint: disable=too-many-positional-arguments
         self,
+        *,
         api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),
         model: str = "text-embedding-004",
+        prefix: str = "",
+        suffix: str = "",
         batch_size: int = 32,
         progress_bar: bool = True,
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
-        config: Optional[types.EmbedContentConfig] = types.EmbedContentConfig(
-            task_type="SEMANTIC_SIMILARITY"),
+        config: Optional[Dict[str, Any]] = None,
     ):
         """
-        Creates an GoogleAIDocumentEmbedder component.
+        Creates an GoogleGenAIDocumentEmbedder component.
 
-        Before initializing the component, you can set the 'OPENAI_TIMEOUT' and 'OPENAI_MAX_RETRIES'
+        Before initializing the component, you can set the 'GoogleGenAI_TIMEOUT' and 'GoogleGenAI_MAX_RETRIES'
         environment variables to override the `timeout` and `max_retries` parameters respectively
-        in the OpenAI client.
+        in the GoogleGenAI client.
 
         :param api_key:
-            The OpenAI API key.
-            You can set it with an environment variable `OPENAI_API_KEY`, or pass with this parameter
+            The Google API key.
+            You can set it with the environment variable `GOOGLE_API_KEY`, or pass it via this parameter
             during initialization.
         :param model:
             The name of the model to use for calculating embeddings.
             The default model is `text-embedding-ada-002`.
+        :param prefix:
+            A string to add at the beginning of each text.
+        :param suffix:
+            A string to add at the end of each text.
         :param batch_size:
             Number of documents to embed at once.
         :param progress_bar:
@@ -75,18 +81,14 @@ class GoogleAIDocumentEmbedder:
         """
         self.api_key = api_key
         self.model = model
+        self.prefix = prefix
+        self.suffix = suffix
         self.batch_size = batch_size
         self.progress_bar = progress_bar
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
         self.client = genai.Client(api_key=api_key.resolve_value())
-        self.config = config
-
-    def _get_telemetry_data(self) -> Dict[str, Any]:
-        """
-        Data that is sent to Posthog for usage analytics.
-        """
-        return {"model": self.model}
+        self.config = config if config is not None else {"task_type": "SEMANTIC_SIMILARITY"}
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -98,16 +100,18 @@ class GoogleAIDocumentEmbedder:
         return default_to_dict(
             self,
             model=self.model,
+            prefix=self.prefix,
+            suffix=self.suffix,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
             api_key=self.api_key.to_dict(),
-            config=self.config.to_json_dict()
+            config=self.config,
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GoogleAIDocumentEmbedder":
+    def from_dict(cls, data: Dict[str, Any]) -> "GoogleGenAIDocumentEmbedder":
         """
         Deserializes the component from a dictionary.
 
@@ -130,9 +134,7 @@ class GoogleAIDocumentEmbedder:
             ]
 
             texts_to_embed[doc.id] = (
-                self.embedding_separator.join(
-                    [*meta_values_to_embed, doc.content or ""]
-                )
+                self.prefix + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self.suffix
             )
 
         return texts_to_embed
@@ -147,10 +149,9 @@ class GoogleAIDocumentEmbedder:
         for batch in tqdm(
             batched(texts_to_embed.items(), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
         ):
-            args: Dict[str, Any] = {"model": self.model,
-                                    "contents": [b[1] for b in batch]}
+            args: Dict[str, Any] = {"model": self.model, "contents": [b[1] for b in batch]}
             if self.config:
-                args["config"] = self.config
+                args["config"] = types.EmbedContentConfig(**self.config) if self.config else None
 
             try:
                 response = self.client.models.embed_content(**args)
@@ -169,7 +170,7 @@ class GoogleAIDocumentEmbedder:
         return all_embeddings, meta
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
-    def run(self, documents: List[Document]):
+    def run(self, documents: List[Document]) -> Dict[str, Union[List[Document], Dict[str, Any]]]:
         """
         Embeds a list of documents.
 
@@ -183,15 +184,14 @@ class GoogleAIDocumentEmbedder:
         """
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             error_message_documents = (
-                "GoogleAIDocumentEmbedder expects a list of Documents as input. "
-                "In case you want to embed a string, please use the OpenAITextEmbedder."
+                "GoogleGenAIDocumentEmbedder expects a list of Documents as input. "
+                "In case you want to embed a string, please use the GoogleGenAITextEmbedder."
             )
             raise TypeError(error_message_documents)
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
 
-        embeddings, meta = self._embed_batch(
-            texts_to_embed=texts_to_embed, batch_size=self.batch_size)
+        embeddings, meta = self._embed_batch(texts_to_embed=texts_to_embed, batch_size=self.batch_size)
 
         for doc, emb in zip(documents, embeddings):
             doc.embedding = emb
