@@ -14,7 +14,6 @@ from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 @pytest.mark.integration
 @pytest.mark.asyncio
 class TestEmbeddingRetrievalAsync:
-
     @pytest.mark.parametrize("document_store", ["document_store", "document_store_w_hnsw_index"], indirect=True)
     async def test_embedding_retrieval_cosine_similarity_async(self, document_store: PgvectorDocumentStore):
         query_embedding = [0.1] * 768

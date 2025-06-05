@@ -339,17 +339,17 @@ class TestGoogleAIGeminiChatGenerator:
         # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
         # haystack-ai>=2.12.0
         if hasattr(tool, "outputs_to_string"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "outputs_to_string"
-            ] = tool.outputs_to_string
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["outputs_to_string"] = (
+                tool.outputs_to_string
+            )
         if hasattr(tool, "inputs_from_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "inputs_from_state"
-            ] = tool.inputs_from_state
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = (
+                tool.inputs_from_state
+            )
         if hasattr(tool, "outputs_to_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "outputs_to_state"
-            ] = tool.outputs_to_state
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = (
+                tool.outputs_to_state
+            )
 
         assert pipeline_dict == expected_dict
 
@@ -415,7 +415,6 @@ class TestGoogleAIGeminiChatGenerator:
     @pytest.mark.integration
     @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
     def test_run_with_tools(self, tools):
-
         gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-2.0-flash-exp", tools=tools)
         user_message = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
         response = gemini_chat.run(messages=user_message)
@@ -452,7 +451,6 @@ class TestGoogleAIGeminiChatGenerator:
     @pytest.mark.integration
     @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
     async def test_run_with_tools_async(self, tools):
-
         gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-2.0-flash-exp", tools=tools)
         user_message = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
         response = await gemini_chat.run_async(messages=user_message)
@@ -488,7 +486,6 @@ class TestGoogleAIGeminiChatGenerator:
     @pytest.mark.integration
     @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
     def test_run_with_tools_and_tool_config(self, tools):
-
         def get_population(city: Annotated[str, "the city for which to get the population, e.g. 'Munich'"] = "Munich"):
             """A simple function to get the population for a location."""
             return f"Population of {city}: 1,000,000"
@@ -524,7 +521,6 @@ class TestGoogleAIGeminiChatGenerator:
     @pytest.mark.integration
     @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
     async def test_run_with_tools_and_tool_config_async(self, tools):
-
         def get_population(city: Annotated[str, "the city for which to get the population, e.g. 'Munich'"] = "Munich"):
             """A simple function to get the population for a location."""
             return f"Population of {city}: 1,000,000"
