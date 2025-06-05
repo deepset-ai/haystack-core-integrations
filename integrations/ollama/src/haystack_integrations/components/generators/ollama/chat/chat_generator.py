@@ -186,7 +186,7 @@ class OllamaChatGenerator:
             self,
             model: str = "orca-mini",
             api_base_url: str = "http://localhost:11434",
-            url: str = "http://localhost:11434"
+            url: str = "http://localhost:11434",
             generation_kwargs: Optional[Dict[str, Any]] = None,
             timeout: int = 120,
             keep_alive: Optional[Union[float, str]] = None,
