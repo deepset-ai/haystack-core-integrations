@@ -37,7 +37,20 @@ class TestOllamaTextEmbedder:
     def test_run(self):
         embedder = OllamaTextEmbedder(model="nomic-embed-text")
 
-        reply = embedder.run("hello")
+        text = "hello"
+        reply = embedder.run(text=text)
+
+        assert isinstance(reply, dict)
+        assert all(isinstance(element, float) for element in reply["embedding"])
+        assert reply["meta"]["model"] == "nomic-embed-text"
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_run_async(self):
+        embedder = OllamaTextEmbedder(model="nomic-embed-text")
+
+        text = "hello"
+        reply = await embedder.run_async(text=text)
 
         assert isinstance(reply, dict)
         assert all(isinstance(element, float) for element in reply["embedding"])
