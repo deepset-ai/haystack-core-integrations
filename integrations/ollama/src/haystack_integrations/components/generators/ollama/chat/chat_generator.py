@@ -107,6 +107,31 @@ class OllamaChatGenerator:
 
     * Fully supports streaming.
     * Correctly passes tool-calls to Haystack when `stream=True`.
+
+    Self-test / demo:
+    ```python
+    from haystack.dataclasses import ChatMessage
+    from haystack.tools import Tool
+
+    def echo_tool(query: str) -> str:
+        return f"🔍 {query}"
+
+    rag_search = Tool(
+        name="rag_search",
+        description="Echoes the query (demo tool).",
+        func=echo_tool,
+        parameters={"query": {"type": "string", "description": "Search query"}},
+    )
+
+    gen = OllamaChatGenerator(model="phi3", tools=[rag_search])
+
+    msgs = [ChatMessage.from_user("Explain linear interpolation (G1)")]
+    result = gen.run(
+        messages=msgs,
+        streaming_callback=lambda ch: print(ch.content, end="", flush=True),
+    )
+    print("\n\nAssistant:", result["replies"][0].texts[0])
+    ```
     """
 
     # ------------------------------------------------------------------
@@ -115,7 +140,7 @@ class OllamaChatGenerator:
     def __init__(
             self,
             model: str = "orca-mini",
-            url: str = "http://localhost:11434",
+            api_base_url: str = "http://localhost:11434",
             generation_kwargs: Optional[Dict[str, Any]] = None,
             timeout: int = 120,
             keep_alive: Optional[Union[float, str]] = None,
@@ -124,19 +149,35 @@ class OllamaChatGenerator:
             response_format: Optional[Union[None, Literal["json"], JsonSchemaValue]] = None,
     ):
         """
-        :param model: Name of the model inside the running Ollama instance.
-        :param url:   Base URL of that instance.
-        :param generation_kwargs: Default inference-options (temperature, top_p …).
-        :param timeout:  API timeout in seconds.
-        :param keep_alive: Ollama “keep-alive” setting (seconds, duration string, -1 or '0').
-        :param streaming_callback: Optional token callback when `stream=True`.
-        :param tools: List[Tool] **or** Toolset; duplicate names are rejected.
-        :param response_format: None / "json" / JSON Schema dict (Ollama ≥ 0.1.34).
+        :param model:
+            The name of the model to use. The model must already be present (pulled) in the running Ollama instance.
+        :param api_base_url:
+            The base URL of the Ollama server (default ``"http://localhost:11434"``).
+        :param generation_kwargs:
+            Default inference options—e.g. ``temperature``, ``top_p``,
+            ``num_predict``—merged with any ``generation_kwargs`` passed to
+            :meth:`run`.
+        :param timeout:
+            Socket timeout *in seconds* for HTTP calls to Ollama.
+        :param keep_alive:
+            How long Ollama should keep the model in memory after the request.
+            Accepts seconds (int/float), a duration string (``"10m"``, ``"24h"``),
+            ``-1`` (never unload), or ``'0'`` (unload immediately).
+        :param streaming_callback:
+            Callable invoked **once per :class:`StreamingChunk`** when streaming is
+            active.  Supply either here *or* in :meth:`run` to enable streaming.
+        :param tools:
+            A list of :class:`haystack.tools.Tool` **or** a
+            :class:`haystack.tools.Toolset`. Duplicate tool names raise a
+            ``ValueError``.
+        :param response_format:
+            ``None`` for free-form text, ``"json"`` to require valid JSON, or a
+            JSON-Schema dict (needs Ollama ≥ 0.1.34).
         """
         _check_duplicate_tool_names(tools)
 
         self.model = model
-        self.url = url
+        self.url = api_base_url
         self.generation_kwargs = generation_kwargs or {}
         self.timeout = timeout
         self.keep_alive = keep_alive
@@ -273,11 +314,21 @@ class OllamaChatGenerator:
             streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
         """
-        Generate a reply given the full `messages` history.
+        Generate a reply from the model.
 
-        * If `streaming_callback` **or** the instance was created with one,
-          streaming is enabled.
-        * `tools` overrides the instance’s default list for this call only.
+        :param messages:
+            Complete chat history, including the user’s **latest** message.
+        :param generation_kwargs:
+            Per-call overrides for Ollama inference options.  These are merged
+            on top of the instance-level ``generation_kwargs``.
+        :param tools:
+            Temporarily override the component’s tool list for *this* call.
+        :param streaming_callback:
+            A callable to receive :class:`StreamingChunk` objects as they
+            arrive.  Supplying a callback (here or in the constructor) switches
+            the component into streaming mode.
+        :returns:
+            ``{"replies": List[ChatMessage]}`` – ready for Haystack pipelines.
         """
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         tools = tools or self.tools
