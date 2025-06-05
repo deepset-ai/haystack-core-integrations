@@ -13,7 +13,6 @@ from haystack_integrations.document_stores.astra import AstraDocumentStore
 )
 @pytest.mark.skipif(os.environ.get("ASTRA_DB_API_ENDPOINT", "") == "", reason="ASTRA_DB_API_ENDPOINT env var not set")
 class TestEmbeddingRetrieval:
-
     @pytest.fixture
     def document_store(self) -> AstraDocumentStore:
         return AstraDocumentStore(
