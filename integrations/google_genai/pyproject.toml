@@ -125,6 +125,8 @@ ignore = [
   "ARG001",
   "ARG002",
   "ARG005",
+  # Allow function call argument defaults e.g. `Secret.from_env_var`
+  "B008",
 ]
 unfixable = [
   # Don't touch unused imports
