@@ -23,7 +23,9 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.11.0", "opensearch-py[async]>=2,<3"]
+dependencies = [
+  "haystack-ai>=2.14.0",
+  "opensearch-py[async]>=2.4.0,<3"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/opensearch#readme"
@@ -52,6 +54,7 @@ dependencies = [
   "haystack-pydoc-tools",
   "boto3",
 ]
+
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
 test-cov = "coverage run -m pytest {args:tests}"
@@ -66,6 +69,7 @@ docs = ["pydoc-markdown pydoc/config.yml"]
 installer = "uv"
 detached = true
 dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243", "boto3"]
+
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
 style = ["ruff check {args:}", "black --check --diff {args:.}"]

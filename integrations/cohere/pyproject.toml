@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.13.1", "cohere==5.*"]
+dependencies = ["haystack-ai>=2.13.1", "cohere>=5.12.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/cohere#readme"
@@ -46,6 +46,7 @@ installer = "uv"
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "pytest-asyncio",
   "pytest-rerunfailures",
   "haystack-pydoc-tools",
 ]
@@ -165,10 +166,7 @@ ignore_missing_imports = true
 addopts = "--strict-markers"
 markers = [
   "integration: integration tests",
-  "unit: unit tests",
-  "embedders: embedders tests",
-  "generators: generators tests",
-  "chat_generators: chat_generators tests",
-  "ranker: ranker tests",
 ]
 log_cli = true
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "class"

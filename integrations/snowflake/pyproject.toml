@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "adbc_driver_snowflake>=1.4.0", "polars>=1.23.0", "pyarrow>=19.0.1", "pandas"]
+dependencies = ["haystack-ai", "adbc_driver_snowflake>=1.4.0", "polars[pandas,pyarrow]>=1.23.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/snowflake#readme"

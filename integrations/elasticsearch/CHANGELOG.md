@@ -1,6 +1,18 @@
 # Changelog
 
+## [integrations/elasticsearch-v3.0.1] - 2025-05-27
+
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🌀 Miscellaneous
+
+- Pining lower versions of haystack and `aiohttp` for `ElasticSearch` (#1827)
+
 ## [integrations/elasticsearch-v3.0.0] - 2025-03-11
+
 
 ### 🧹 Chores
 
@@ -21,9 +33,6 @@
 
 - Remove Python 3.8 support (#1421)
 
-### 🌀 Miscellaneous
-
-- Docs: update changelog for integrations/elasticsearch (#1400)
 
 ## [integrations/elasticsearch-v2.0.0] - 2025-02-14
 
