@@ -86,27 +86,27 @@ jobs:
 
       - name: Lint
         if: matrix.python-version == '3.9'
-        run: hatch run lint:all
+        run: hatch fmt --check && hatch run lint:typing
 
       - name: Generate docs
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run docs
 
       - name: Run tests
-        run: hatch run cov-retry
+        run: hatch run test:cov-retry
 
       - name: Run unit tests with lowest direct dependencies
         run: |
           hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
           hatch run uv pip install -r requirements_lowest_direct.txt
-          hatch run test -m "not integration"
+          hatch run test:unit
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
           hatch env prune
           hatch run uv pip install git+https://github.com/deepset-ai/haystack.git@main
-          hatch run cov-retry -m "not integration"
+          hatch run test:unit
 
       - name: Send event to Datadog for nightly failures
         if: failure() && github.event_name == 'schedule'

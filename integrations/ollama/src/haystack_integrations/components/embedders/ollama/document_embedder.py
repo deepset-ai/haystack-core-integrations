@@ -21,7 +21,7 @@ class OllamaDocumentEmbedder:
     document_embedder = OllamaDocumentEmbedder()
 
     result = document_embedder.run([doc])
-    print(result['documents'][0].embedding)
+    print(result["documents"][0].embedding)
     ```
     """
 
