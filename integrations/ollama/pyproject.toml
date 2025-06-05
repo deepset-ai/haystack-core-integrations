@@ -47,18 +47,8 @@ git_describe_command = 'git describe --tags --match="integrations/ollama-v[0-9]*
 
 [tool.hatch.envs.default]
 installer = "uv"
-<<<<<<< HEAD
 dependencies = ["haystack-pydoc-tools", "ruff"]
 
-=======
-dependencies = [
-    "coverage[toml]>=6.5",
-    "pytest",
-    "pytest-asyncio",
-    "pytest-rerunfailures",
-    "haystack-pydoc-tools",
-]
->>>>>>> main
 [tool.hatch.envs.default.scripts]
 docs = ["pydoc-markdown pydoc/config.yml"]
 fmt = "ruff check --fix {args} && ruff format {args}"
