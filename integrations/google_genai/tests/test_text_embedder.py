@@ -5,12 +5,11 @@
 import os
 
 import pytest
-
-from haystack_integrations.components.embedders.google_genai import GoogleAITextEmbedder
+from google.genai import types
+from google.genai.types import ContentEmbedding, EmbedContentConfig, EmbedContentResponse
 from haystack.utils.auth import Secret
 
-from google.genai import types 
-from google.genai.types import EmbedContentResponse, ContentEmbedding, EmbedContentConfig
+from haystack_integrations.components.embedders.google_genai import GoogleAITextEmbedder
 
 
 class TestGoogleAITextEmbedder:
@@ -50,11 +49,11 @@ class TestGoogleAITextEmbedder:
         component = GoogleAITextEmbedder()
         data = component.to_dict()
         assert data == {
-            "type": "aystack_integrations.components.embedders.google_genai.GoogleAITextEmbedder",
+            "type": "haystack_integrations.components.embedders.google_genai.text_embedder.GoogleAITextEmbedder",
             "init_parameters": {
-                'api_key': {'type': 'env_var', 'env_vars': ['GOOGLE_API_KEY'], 'strict': True},
+                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY"], "strict": True},
                 "model": "text-embedding-004",
-                'config': {'task_type': 'SEMANTIC_SIMILARITY'}
+                "config": {"task_type": "SEMANTIC_SIMILARITY"}
             },
         }
 
@@ -69,24 +68,24 @@ class TestGoogleAITextEmbedder:
         )
         data = component.to_dict()
         assert data == {
-            'type': 'aystack_integrations.components.embedders.google_genai.GoogleAITextEmbedder',
-            'init_parameters': {
-                'model': 'model',
-                'api_key': {
-                    'type': 'env_var',
-                    'env_vars': ['ENV_VAR'],
-                    'strict': False
+            "type": "haystack_integrations.components.embedders.google_genai.text_embedder.GoogleAITextEmbedder",
+            "init_parameters": {
+                "model": "model",
+                "api_key": {
+                    "type": "env_var",
+                    "env_vars": ["ENV_VAR"],
+                    "strict": False
                 },
-                'config': {'task_type': 'SEMANTIC_SIMILARITY'}
+                "config": {"task_type": "SEMANTIC_SIMILARITY"}
             }
         }
 
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
         data = {
-            "type": "aystack_integrations.components.embedders.google_genai.GoogleAITextEmbedder",
+            "type": "haystack_integrations.components.embedders.google_genai.text_embedder.GoogleAITextEmbedder",
             "init_parameters": {
-                "api_key": {'type': 'env_var', 'env_vars': ['GOOGLE_API_KEY'], 'strict': True},
+                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY"], "strict": True},
                 "model": "text-embedding-004",
             },
         }
@@ -105,7 +104,7 @@ class TestGoogleAITextEmbedder:
             "contents": "The food was delicious",
             "config": EmbedContentConfig(
                 http_options=None,
-                task_type='SEMANTIC_SIMILARITY',
+                task_type="SEMANTIC_SIMILARITY",
                 title=None,
                 output_dimensionality=None,
                 mime_type=None,

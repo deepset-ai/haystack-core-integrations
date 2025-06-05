@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional
 
 from google import genai
 from google.genai import types
-
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 

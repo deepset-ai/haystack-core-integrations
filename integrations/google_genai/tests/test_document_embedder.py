@@ -7,14 +7,16 @@ import random
 from typing import List
 
 import pytest
-
 from haystack import Document
-from haystack_integrations.components.embedders.google_genai import GoogleAIDocumentEmbedder
 from haystack.utils.auth import Secret
 
-def mock_google_response(input: List[str], model: str = "text-embedding-004", **kwargs) -> dict:
+from haystack_integrations.components.embedders.google_genai import GoogleAIDocumentEmbedder
+
+
+def mock_google_response(contents: List[str], model: str = "text-embedding-004", **kwargs) -> dict:
+    secure_random = random.SystemRandom()
     dict_response = {
-        "embedding": [[random.random() for _ in range(768)] for _ in input],
+        "embedding": [[secure_random.random() for _ in range(768)] for _ in contents],
         "meta": {
             "model": model
         }
@@ -76,15 +78,18 @@ class TestGoogleAIDocumentEmbedder:
         component = GoogleAIDocumentEmbedder()
         data = component.to_dict()
         assert data == {
-            'type': 'haystack_integrations.components.embedders.google_genai.GoogleAIDocumentEmbedder',
-            'init_parameters': {
-                'model': 'text-embedding-004',
-                'batch_size': 32,
-                'progress_bar': True,
-                'meta_fields_to_embed': [],
-                'embedding_separator': '\n',
-                'api_key': {'type': 'env_var', 'env_vars': ['GOOGLE_API_KEY'], 'strict': True},
-                'config': {'task_type': 'SEMANTIC_SIMILARITY'}
+            "type": (
+                "haystack_integrations.components.embedders."
+                "google_genai.document_embedder.GoogleAIDocumentEmbedder"
+            ),
+            "init_parameters": {
+                "model": "text-embedding-004",
+                "batch_size": 32,
+                "progress_bar": True,
+                "meta_fields_to_embed": [],
+                "embedding_separator": "\n",
+                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY"], "strict": True},
+                "config": {"task_type": "SEMANTIC_SIMILARITY"}
             }
         }
 
@@ -100,15 +105,18 @@ class TestGoogleAIDocumentEmbedder:
         )
         data = component.to_dict()
         assert data == {
-            'type': 'haystack_integrations.components.embedders.google_genai.GoogleAIDocumentEmbedder',
-            'init_parameters': {
-                'model': 'model',
-                'batch_size': 64,
-                'progress_bar': False,
-                'meta_fields_to_embed': ['test_field'],
-                'embedding_separator': ' | ',
-                'api_key': {'type': 'env_var', 'env_vars': ['ENV_VAR'], 'strict': False},
-                'config': {'task_type': 'SEMANTIC_SIMILARITY'}
+            "type": (
+                "haystack_integrations.components.embedders."
+                "google_genai.document_embedder.GoogleAIDocumentEmbedder"
+            ),
+            "init_parameters": {
+                "model": "model",
+                "batch_size": 64,
+                "progress_bar": False,
+                "meta_fields_to_embed": ["test_field"],
+                "embedding_separator": " | ",
+                "api_key": {"type": "env_var", "env_vars": ["ENV_VAR"], "strict": False},
+                "config": {"task_type": "SEMANTIC_SIMILARITY"}
             }
         }
 

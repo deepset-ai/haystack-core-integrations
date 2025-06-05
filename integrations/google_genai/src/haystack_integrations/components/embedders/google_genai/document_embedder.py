@@ -3,14 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Any, Dict, List, Optional, Tuple
-from more_itertools import batched
-from tqdm import tqdm
 
 from google import genai
 from google.genai import types
-
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
+from more_itertools import batched
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +131,8 @@ class GoogleAIDocumentEmbedder:
 
             texts_to_embed[doc.id] = (
                 self.embedding_separator.join(
-                    meta_values_to_embed + [doc.content or ""])
+                    [*meta_values_to_embed, doc.content or ""]
+                )
             )
 
         return texts_to_embed
@@ -181,7 +181,7 @@ class GoogleAIDocumentEmbedder:
             - `documents`: A list of documents with embeddings.
             - `meta`: Information about the usage of the model.
         """
-        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
+        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             error_message_documents = (
                 "GoogleAIDocumentEmbedder expects a list of Documents as input. "
                 "In case you want to embed a string, please use the OpenAITextEmbedder."
