@@ -29,8 +29,8 @@ def document_store(request):
     index_name = f"haystack_test_{uuid.uuid4().hex}"
     metadata_fields = getattr(request, "param", {}).get("metadata_fields", None)
 
-    azure_endpoint = os.environ["AZURE_SEARCH_SERVICE_ENDPOINT"]
-    api_key = os.environ["AZURE_SEARCH_API_KEY"]
+    azure_endpoint = os.environ["AZURE_AI_SEARCH_ENDPOINT"]
+    api_key = os.environ["AZURE_AI_SEARCH_API_KEY"]
 
     client = SearchIndexClient(azure_endpoint, AzureKeyCredential(api_key))
     if index_name in client.list_index_names():

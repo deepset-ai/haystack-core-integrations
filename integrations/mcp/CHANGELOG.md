@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/mcp-v0.3.1] - 2025-05-28
+
+### 🌀 Miscellaneous
+
+- App pins for MCP (#1845)
+
+## [integrations/mcp-v0.3.0] - 2025-05-27
+
+### 🚀 Features
+
+- MCPTool and MCPToolset async resource management improvements (#1758)
+- Add streamable-http transport MCP support (#1777)
+
+
 ## [integrations/mcp-v0.2.0] - 2025-05-06
 
 ### 🚀 Features

@@ -1,6 +1,20 @@
 # Changelog
 
+## [integrations/qdrant-v9.1.3] - 2025-05-28
+
+### 🌀 Miscellaneous
+
+- Add pins for Qdrant (#1853)
+
+## [integrations/qdrant-v9.1.2] - 2025-05-27
+
+### 🐛 Bug Fixes
+
+- Fix exposing Qdrant api-key in `metadata` field when running `to_dict` (#1813)
+
+
 ## [integrations/qdrant-v9.1.1] - 2025-03-20
+
 
 ### ⚙️ CI
 
@@ -16,7 +30,9 @@
 
 - Qdrant -- async support (#1480)
 
+
 ## [integrations/qdrant-v9.0.0] - 2025-03-11
+
 
 ### 🧹 Chores
 

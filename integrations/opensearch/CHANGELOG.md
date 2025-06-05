@@ -1,6 +1,35 @@
 # Changelog
 
+## [integrations/opensearch-v4.0.2] - 2025-05-30
+
+### 🚜 Refactor
+
+- OpenSearchHybridRetriever use `deserialize_chatgenerator_inplace` (#1870)
+
+### 🌀 Miscellaneous
+
+- Docs: add OpenSearchHybridRetriever to API Reference (#1868)
+
+## [integrations/opensearch-v4.0.1] - 2025-05-28
+
+### 🚀 Features
+
+- Adding an `HybridRetriever` as a `Supercomponent` having `OpenSearch` as the document store (#1701)
+
+### 🚜 Refactor
+
+- Use `component_to_dict` in OpenSearchHybridRetriever (#1866)
+
+### 📚 Documentation
+
+- Add usage example to OpenSearchDocumentStore docstring (#1690)
+
+### 🧪 Testing
+
+- OpenSearch - reorganize test suite (#1563)
+
 ## [integrations/opensearch-v4.0.0] - 2025-03-26
+
 
 ### 🌀 Miscellaneous
 
@@ -11,6 +40,7 @@
 ### 🐛 Bug Fixes
 
 - OpenSearch custom_query use without filters (#1554)
+
 
 ### ⚙️ CI
 
@@ -25,6 +55,7 @@
 ### 🐛 Bug Fixes
 
 - OpenSearch - call _ensure_index_exists only at initialization (#1522)
+
 
 ## [integrations/opensearch-v3.0.0] - 2025-03-11
 
@@ -49,6 +80,7 @@
 ### 🚀 Features
 
 - OpenSearch - async support (#1414)
+
 
 ## [integrations/opensearch-v2.0.0] - 2025-02-14
 
