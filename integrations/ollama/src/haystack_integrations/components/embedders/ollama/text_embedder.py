@@ -17,7 +17,7 @@ class OllamaTextEmbedder:
 
     embedder = OllamaTextEmbedder()
     result = embedder.run(text="What do llamas say once you have thanked them? No probllama!")
-    print(result["embedding"])
+    print(result['embedding'])
     ```
     """
 

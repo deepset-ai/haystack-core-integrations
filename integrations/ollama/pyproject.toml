@@ -51,7 +51,8 @@ dependencies = ["haystack-pydoc-tools", "ruff"]
 
 [tool.hatch.envs.default.scripts]
 docs = ["pydoc-markdown pydoc/config.yml"]
-fmt 
+fmt = "ruff check --fix {args} && ruff format {args}"
+fmt-check = "ruff check {args} && ruff format --check {args}" 
 
 [tool.hatch.envs.test]
 dependencies = [
@@ -93,9 +94,6 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py38"
 line-length = 120
-
-[tool.ruff.format]
-docstring-code-line-length = 120
 
 [tool.ruff.lint]
 select = [
