@@ -509,6 +509,10 @@ class GoogleGenAIChatGenerator:
             if system_instruction:
                 config_params["system_instruction"] = system_instruction
 
+            # Add safety settings if provided
+            if safety_settings:
+                config_params["safety_settings"] = safety_settings
+
             # Add tools if provided
             if tools:
                 config_params["tools"] = _convert_tools_to_google_genai_format(tools)
@@ -592,6 +596,10 @@ class GoogleGenAIChatGenerator:
             config_params = generation_kwargs.copy() if generation_kwargs else {}
             if system_instruction:
                 config_params["system_instruction"] = system_instruction
+
+            # Add safety settings if provided
+            if safety_settings:
+                config_params["safety_settings"] = safety_settings
 
             # Add tools if provided
             if tools:
