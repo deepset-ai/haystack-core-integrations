@@ -1,29 +1,28 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / azure_ai_search
+name: Test / google-genai
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/azure_ai_search/**"
-      - "!integrations/azure_ai_search/*.md"
-      - ".github/workflows/azure_ai_search.yml"
+      - "integrations/google_genai/**"
+      - "!integrations/google_genai/*.md"
+      - ".github/workflows/google_genai.yml"
+
+defaults:
+  run:
+    working-directory: integrations/google_genai
 
 concurrency:
-  group: azure_ai_search-${{ github.head_ref }}
+  group: google-genai-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  AZURE_AI_SEARCH_API_KEY: ${{ secrets.AZURE_AI_SEARCH_API_KEY }}
-  AZURE_AI_SEARCH_ENDPOINT: ${{ secrets.AZURE_AI_SEARCH_ENDPOINT }}
-
-defaults:
-  run:
-    working-directory: integrations/azure_ai_search
+  GOOGLE_API_KEY: "${{ secrets.GOOGLE_API_KEY }}"
 
 jobs:
   run:
@@ -31,12 +30,17 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      max-parallel: 3
       matrix:
-        os: [ubuntu-latest, windows-latest]  # the tests are slow and we can't run many of them in parallel, so we skip testing on macOS
+        os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.9", "3.13"]
+      max-parallel: 2  # to avoid "429 Resource has been exhausted"
 
     steps:
+      - name: Support longpaths
+        if: matrix.os == 'windows-latest'
+        working-directory: .
+        run: git config --system core.longpaths true
+
       - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
@@ -48,7 +52,7 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        if: matrix.python-version == '3.9'
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run lint:all
 
       - name: Generate docs
@@ -77,4 +81,4 @@ jobs:
         with:
           title: |
             Core integrations nightly tests failure: ${{ github.workflow }}
-          api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
+          api-key: ${{ secrets.CORE_DATADOG_API_KEY }} 
