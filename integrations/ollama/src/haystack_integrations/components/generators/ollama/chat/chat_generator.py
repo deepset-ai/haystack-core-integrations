@@ -54,7 +54,37 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any
 def _convert_ollama_meta_to_openai_format(input_response_dict: Dict) -> Dict:
     """
     Map Ollama metadata keys onto the OpenAI-compatible names Haystack expects.
-    All unknown keys are preserved.
+    All fields that are not part of the OpenAI metadata are left unchanged in the returned dict.
+    
+    Example Ollama metadata:
+    {
+        'model': 'phi4:14b-q4_K_M',
+        'created_at': '2025-03-09T18:38:33.004185821Z',
+        'done': True,
+        'done_reason': 'stop',
+        'total_duration': 86627206961,
+        'load_duration': 23585622554,
+        'prompt_eval_count': 26,
+        'prompt_eval_duration': 3426000000,
+        'eval_count': 298,
+        'eval_duration': 4799921000
+    }
+    Example OpenAI metadata:
+    {
+        'model': 'phi4:14b-q4_K_M',
+        'finish_reason': 'stop',
+        'usage': {
+            'completion_tokens': 298,
+            'prompt_tokens': 26,
+            'total_tokens': 324,
+        }
+        'completion_start_time': '2025-03-09T18:38:33.004185821Z',
+        'done': True,
+        'total_duration': 86627206961,
+        'load_duration': 23585622554,
+        'prompt_eval_duration': 3426000000,
+        'eval_duration': 4799921000,
+    }
     """
     meta = {k: v for k, v in input_response_dict.items() if k != "message"}
 
