@@ -186,6 +186,7 @@ class OllamaChatGenerator:
             self,
             model: str = "orca-mini",
             api_base_url: str = "http://localhost:11434",
+            url: str = "http://localhost:11434"
             generation_kwargs: Optional[Dict[str, Any]] = None,
             timeout: int = 120,
             keep_alive: Optional[Union[float, str]] = None,
@@ -198,6 +199,8 @@ class OllamaChatGenerator:
             The name of the model to use. The model must already be present (pulled) in the running Ollama instance.
         :param api_base_url:
             The base URL of the Ollama server (default "http://localhost:11434").
+        :param url:
+            This will be deprecated soon, use instead api_base_url.
         :param generation_kwargs:
             Optional arguments to pass to the Ollama generation endpoint, such as temperature,
             top_p, and others. See the available arguments in
@@ -228,7 +231,7 @@ class OllamaChatGenerator:
         _check_duplicate_tool_names(tools)
 
         self.model = model
-        self.url = api_base_url
+        self.url = api_base_url or url
         self.generation_kwargs = generation_kwargs or {}
         self.timeout = timeout
         self.keep_alive = keep_alive
