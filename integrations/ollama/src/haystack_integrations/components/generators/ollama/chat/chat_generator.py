@@ -141,27 +141,41 @@ class OllamaChatGenerator:
 
     Usage example:
     ```python
+    from haystack.components.generators.utils import print_streaming_chunk
+    from haystack.components.agents import Agent
+    from components.OlamaChatGenerator import OllamaChatGenerator
     from haystack.dataclasses import ChatMessage
     from haystack.tools import Tool
-
-    def echo_tool(query: str) -> str:
+    def echo(query: str) -> str:
+        print("Tool executed with QUERY: {🔍 {query}}")
         return f"🔍 {query}"
-
-    rag_search = Tool(
-        name="rag_search",
+    echo_tool = Tool(
+        name="echo_tool",
         description="Echoes the query (demo tool).",
-        func=echo_tool,
+        function=echo,
         parameters={"query": {"type": "string", "description": "Search query"}},
     )
-
-    gen = OllamaChatGenerator(model="phi3", tools=[rag_search])
-
-    msgs = [ChatMessage.from_user("Explain linear interpolation (G1)")]
-    result = gen.run(
-        messages=msgs,
+    agent = Agent(
+        chat_generator=OllamaChatGenerator(model="mistral-small3.1:24b"),
+        tools=[echo_tool],
+        system_prompt="Use tool to print the query to test tools. Do not answer the question, just send the query to the tool",
+        max_agent_steps=5,
+        raise_on_tool_invocation_failure=True,
         streaming_callback=lambda ch: print(ch.content, end="", flush=True),
     )
-    print("\n\nAssistant:", result["replies"][0].texts[0])
+    messages = [ChatMessage.from_user("This is stream test of tool usage")]
+    result = agent.run(messages=messages)
+    for message in result["messages"]:
+        print("\n======")
+        if message.role == "system":
+            continue
+        elif message.role == "tool":
+            print(f"{message.role}:")
+            print(f"Tool Results: {[tool.result for tool in message.tool_call_results]}")
+            print(f"Used Tools: {[tool.origin.tool_name for tool in message.tool_call_results]}\n")
+        else:
+            print(f"{message.role}: {message.text}")
+            print(f"Used Tools: {[tool.tool_name for tool in message.tool_calls]}\n")
     ```
     """
 
