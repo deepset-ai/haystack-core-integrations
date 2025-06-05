@@ -47,8 +47,18 @@ git_describe_command = 'git describe --tags --match="integrations/ollama-v[0-9]*
 
 [tool.hatch.envs.default]
 installer = "uv"
+<<<<<<< HEAD
 dependencies = ["haystack-pydoc-tools", "ruff"]
 
+=======
+dependencies = [
+    "coverage[toml]>=6.5",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-rerunfailures",
+    "haystack-pydoc-tools",
+]
+>>>>>>> main
 [tool.hatch.envs.default.scripts]
 docs = ["pydoc-markdown pydoc/config.yml"]
 fmt = "ruff check --fix {args} && ruff format {args}"
@@ -165,7 +175,10 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 markers = [
     "integration: marks tests as slow (deselect with '-m \"not integration\"')",
 ]
+log_cli = true
 addopts = ["--import-mode=importlib"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "class"
 
 [[tool.mypy.overrides]]
 module = ["haystack.*", "haystack_integrations.*", "pytest.*", "ollama.*", "pydantic.*"]
