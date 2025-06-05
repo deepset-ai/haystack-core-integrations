@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Union
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import StreamingCallbackT
-from haystack.tools import Tool, Toolset
+from haystack.tools import Tool, Toolset, serialize_tools_or_toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
 
@@ -126,7 +126,7 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
             api_base_url=self.api_base_url,
             generation_kwargs=self.generation_kwargs,
             api_key=self.api_key.to_dict(),
-            tools=[tool.to_dict() for tool in self.tools] if self.tools else None,
+            tools=serialize_tools_or_toolset(self.tools),
             timeout=self.timeout,
             max_retries=self.max_retries,
             http_client_kwargs=self.http_client_kwargs,
