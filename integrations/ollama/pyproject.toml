@@ -73,6 +73,9 @@ cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
 
 types = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
 
+# TODO: remove lint environment once this integration is properly typed
+# test environment should be used instead
+# https://github.com/deepset-ai/haystack-core-integrations/issues/1771
 [tool.hatch.envs.lint]
 installer = "uv"
 detached = true
