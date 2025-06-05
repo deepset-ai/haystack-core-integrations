@@ -26,7 +26,11 @@ from haystack.utils.url_validation import is_valid_http_url
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
-from mcp.client.streamable_http import streamablehttp_client
+
+try:
+    from mcp.client.streamable_http import streamablehttp_client
+except ImportError:
+    streamablehttp_client = None
 
 logger = logging.getLogger(__name__)
 
@@ -452,6 +456,13 @@ class StreamableHttpClient(MCPClient):
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
         """
+        if streamablehttp_client is None:
+            message = (
+                "Streamable HTTP client is not available. "
+                "This may require a newer version of the mcp package that includes mcp.client.streamable_http"
+            )
+            raise MCPConnectionError(message=message, operation="streamable_http_connect")
+
         headers = {"Authorization": f"Bearer {self.token}"} if self.token else None
         streamablehttp_transport = await self.exit_stack.enter_async_context(
             streamablehttp_client(url=self.url, headers=headers, timeout=timedelta(seconds=self.timeout))

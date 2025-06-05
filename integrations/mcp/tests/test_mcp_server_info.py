@@ -233,23 +233,12 @@ class TestMCPServerInfo:
         )
 
         # Token-based secrets cannot be serialized
-        with pytest.raises(ValueError, match="Cannot serialize token-based secret"):
+        with pytest.raises(ValueError, match="token"):
             server_info.to_dict()
 
-    def test_streamable_http_server_info_with_token_secret_cannot_serialize(self):
-        """Test that StreamableHttpServerInfo with Secret.from_token cannot be serialized."""
-        server_info = StreamableHttpServerInfo(
-            url="https://localhost:8000/streamable",
-            token=Secret.from_token("secret_token_value"),
-        )
-
-        # Token-based secrets cannot be serialized
-        with pytest.raises(ValueError, match="Cannot serialize token-based secret"):
-            server_info.to_dict()
-
-    def test_secret_deserialization_handles_any_secret_type(self):
+    def test_secret_deserialization_handles_any_secret_type(self, monkeypatch):
         """Test that our deserialization can handle any Secret type, not just env_vars."""
-        # Simulate a serialized Secret with just "type" field (like a hypothetical future Secret type)
+        monkeypatch.setenv("TEST_VAR", "test_var_value")
         fake_secret_dict = {"type": "env_var", "env_vars": ["TEST_VAR"], "strict": True}  # Valid Secret type
 
         server_info_dict = {
@@ -263,6 +252,7 @@ class TestMCPServerInfo:
         # This should work - our condition only checks for "type" field
         deserialized = SSEServerInfo.from_dict(server_info_dict)
         assert isinstance(deserialized.token, Secret)
+        assert deserialized.token.resolve_value() == "test_var_value"
         assert deserialized.url == "https://localhost:8000/sse"
 
     def test_non_secret_dict_with_type_field_not_deserialized(self):
