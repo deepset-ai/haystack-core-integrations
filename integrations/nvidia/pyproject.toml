@@ -58,7 +58,8 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
-    "requests_mock"
+    "requests_mock",
+    "pytz"
 ]
 
 [tool.hatch.envs.test.scripts]
