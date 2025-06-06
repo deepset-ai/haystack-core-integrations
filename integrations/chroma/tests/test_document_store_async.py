@@ -27,7 +27,6 @@ class TestDocumentStoreAsync:
                 port=8000,
             )
 
-
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
         Assert that two lists of Documents are equal.

@@ -172,6 +172,37 @@ class ChromaDocumentStore:
                     embedding_function=self._embedding_func,
                 )
 
+    def _prepare_get_kwargs(self, filters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Prepare kwargs for Chroma get operations.
+        """
+        kwargs: Dict[str, Any] = {"include": ["embeddings", "documents", "metadatas"]}
+
+        if filters:
+            chroma_filter = _convert_filters(filters)
+            kwargs["where"] = chroma_filter.where
+
+            if chroma_filter.ids:
+                kwargs["ids"] = chroma_filter.ids
+            if chroma_filter.where_document:
+                kwargs["where_document"] = chroma_filter.where_document
+
+        return kwargs
+
+    def _prepare_query_kwargs(self, filters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Prepare kwargs for Chroma query operations.
+        """
+        if not filters:
+            return {"include": ["embeddings", "documents", "metadatas", "distances"]}
+
+        chroma_filters = _convert_filters(filters=filters)
+        return {
+            "where": chroma_filters.where,
+            "where_document": chroma_filters.where_document,
+            "include": ["embeddings", "documents", "metadatas", "distances"],
+        }
+
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
@@ -207,17 +238,7 @@ class ChromaDocumentStore:
         self._ensure_initialized()
         assert self._collection is not None
 
-        kwargs: Dict[str, Any] = {"include": ["embeddings", "documents", "metadatas"]}
-
-        if filters:
-            chroma_filter = _convert_filters(filters)
-            kwargs["where"] = chroma_filter.where
-
-            if chroma_filter.ids:
-                kwargs["ids"] = chroma_filter.ids
-            if chroma_filter.where_document:
-                kwargs["where_document"] = chroma_filter.where_document
-
+        kwargs = self._prepare_get_kwargs(filters)
         result = self._collection.get(**kwargs)
 
         return self._get_result_to_documents(result)
@@ -235,17 +256,7 @@ class ChromaDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_collection is not None
 
-        kwargs: Dict[str, Any] = {"include": ["embeddings", "documents", "metadatas"]}
-
-        if filters:
-            chroma_filter = _convert_filters(filters)
-            kwargs["where"] = chroma_filter.where
-
-            if chroma_filter.ids:
-                kwargs["ids"] = chroma_filter.ids
-            if chroma_filter.where_document:
-                kwargs["where_document"] = chroma_filter.where_document
-
+        kwargs = self._prepare_get_kwargs(filters)
         result = await self._async_collection.get(**kwargs)
 
         return self._get_result_to_documents(result)
@@ -406,21 +417,12 @@ class ChromaDocumentStore:
         self._ensure_initialized()
         assert self._collection is not None
 
-        if not filters:
-            results = self._collection.query(
-                query_texts=queries,
-                n_results=top_k,
-                include=["embeddings", "documents", "metadatas", "distances"],
-            )
-        else:
-            chroma_filters = _convert_filters(filters=filters)
-            results = self._collection.query(
-                query_texts=queries,
-                n_results=top_k,
-                where=chroma_filters.where,
-                where_document=chroma_filters.where_document,
-                include=["embeddings", "documents", "metadatas", "distances"],
-            )
+        kwargs = self._prepare_query_kwargs(filters)
+        results = self._collection.query(
+            query_texts=queries,
+            n_results=top_k,
+            **kwargs,
+        )
 
         return self._query_result_to_documents(results)
 
@@ -441,21 +443,12 @@ class ChromaDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_collection is not None
 
-        if not filters:
-            results = await self._async_collection.query(
-                query_texts=queries,
-                n_results=top_k,
-                include=["embeddings", "documents", "metadatas", "distances"],
-            )
-        else:
-            chroma_filters = _convert_filters(filters=filters)
-            results = await self._async_collection.query(
-                query_texts=queries,
-                n_results=top_k,
-                where=chroma_filters.where,
-                where_document=chroma_filters.where_document,
-                include=["embeddings", "documents", "metadatas", "distances"],
-            )
+        kwargs = self._prepare_query_kwargs(filters)
+        results = await self._async_collection.query(
+            query_texts=queries,
+            n_results=top_k,
+            **kwargs,
+        )
 
         return self._query_result_to_documents(results)
 
@@ -478,21 +471,12 @@ class ChromaDocumentStore:
         self._ensure_initialized()
         assert self._collection is not None
 
-        if not filters:
-            results = self._collection.query(
-                query_embeddings=query_embeddings,
-                n_results=top_k,
-                include=["embeddings", "documents", "metadatas", "distances"],
-            )
-        else:
-            chroma_filters = _convert_filters(filters=filters)
-            results = self._collection.query(
-                query_embeddings=query_embeddings,
-                n_results=top_k,
-                where=chroma_filters.where,
-                where_document=chroma_filters.where_document,
-                include=["embeddings", "documents", "metadatas", "distances"],
-            )
+        kwargs = self._prepare_query_kwargs(filters)
+        results = self._collection.query(
+            query_embeddings=query_embeddings,
+            n_results=top_k,
+            **kwargs,
+        )
 
         return self._query_result_to_documents(results)
 
@@ -516,21 +500,12 @@ class ChromaDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_collection is not None
 
-        if not filters:
-            results = await self._async_collection.query(
-                query_embeddings=query_embeddings,
-                n_results=top_k,
-                include=["embeddings", "documents", "metadatas", "distances"],
-            )
-        else:
-            chroma_filters = _convert_filters(filters=filters)
-            results = await self._async_collection.query(
-                query_embeddings=query_embeddings,
-                n_results=top_k,
-                where=chroma_filters.where,
-                where_document=chroma_filters.where_document,
-                include=["embeddings", "documents", "metadatas", "distances"],
-            )
+        kwargs = self._prepare_query_kwargs(filters)
+        results = await self._async_collection.query(
+            query_embeddings=query_embeddings,
+            n_results=top_k,
+            **kwargs,
+        )
 
         return self._query_result_to_documents(results)
 

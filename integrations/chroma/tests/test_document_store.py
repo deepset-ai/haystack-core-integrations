@@ -38,7 +38,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             get_func.return_value = embedding_function
             return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
 
-
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
         Assert that two lists of Documents are equal.
@@ -209,7 +208,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
 
         assert document_store.filter_documents()[0].embedding == pytest.approx(TEST_EMBEDDING_1)
 
-
     def test_write_documents_unsupported_meta_values(self, document_store: ChromaDocumentStore):
         """
         Unsupported meta values should be removed from the documents before writing them to the database
@@ -315,10 +313,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             ],
         )
 
-
-
-
-
     @pytest.mark.skip(reason="Chroma does not support comparison with null values")
     def test_comparison_equal_with_none(self, document_store, filterable_docs):
         pass
@@ -362,7 +356,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
     @pytest.mark.skip(reason="Chroma does not support not operator")
     def test_not_operator(self, document_store, filterable_docs):
         pass
-
 
     @pytest.mark.integration
     def test_search(self):

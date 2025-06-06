@@ -22,9 +22,11 @@ class _TestEmbeddingFunction(EmbeddingFunction):
         # embed the documents somehow
         return [np.random.default_rng().uniform(-1, 1, 768).tolist()]
 
+
 @pytest.fixture
 def embedding_function():
     return _TestEmbeddingFunction()
+
 
 @pytest.fixture
 def filterable_docs() -> List[Document]:
@@ -98,5 +100,3 @@ def filterable_docs() -> List[Document]:
             )
         )
     return documents
-
-

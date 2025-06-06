@@ -10,7 +10,6 @@ from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 
 
 class TestRetriever:
-
     def test_init(self, request):
         ds = ChromaDocumentStore(
             collection_name=request.node.name, embedding_function="HuggingFaceEmbeddingFunction", api_key="1234567890"
@@ -20,7 +19,6 @@ class TestRetriever:
 
         with pytest.raises(ValueError):
             ChromaQueryTextRetriever(ds, filters={"foo": "bar"}, top_k=99, filter_policy="unknown")
-
 
     def test_to_dict(self, request):
         ds = ChromaDocumentStore(
@@ -47,7 +45,6 @@ class TestRetriever:
                 },
             },
         }
-
 
     def test_from_dict(self, request):
         data = {
@@ -76,7 +73,6 @@ class TestRetriever:
         assert retriever.filters == {"bar": "baz"}
         assert retriever.top_k == 42
         assert retriever.filter_policy == FilterPolicy.REPLACE
-
 
     def test_from_dict_no_filter_policy(self, request):
         data = {
