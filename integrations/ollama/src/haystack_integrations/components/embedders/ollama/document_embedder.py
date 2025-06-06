@@ -77,6 +77,9 @@ class OllamaDocumentEmbedder:
         self._async_client = AsyncClient(host=self.url, timeout=self.timeout)
 
     def _prepare_input(self, documents: List[Document]) -> List[Document]:
+        """
+        Prepares the list of documents to embed by appropriate validation.
+        """
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "OllamaDocumentEmbedder expects a list of Documents as input."
@@ -159,6 +162,10 @@ class OllamaDocumentEmbedder:
             - `meta`: The metadata collected during the embedding process
         """
         documents = self._prepare_input(documents=documents)
+
+        if not documents:
+            # return early if we were passed an empty list
+            return {"documents": [], "meta": {}}
 
         generation_kwargs = generation_kwargs or self.generation_kwargs
 
