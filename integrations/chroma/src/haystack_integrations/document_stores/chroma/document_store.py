@@ -9,7 +9,6 @@ from chromadb.api.types import GetResult, QueryResult
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
-from numpy import ndarray
 
 from .filters import _convert_filters
 from .utils import get_embedding_function
@@ -217,6 +216,8 @@ class ChromaDocumentStore:
         """
         Asynchronously returns how many documents are present in the document store.
 
+        Asynchronous methods are only supported for HTTP connections.
+
         :returns: how many documents are present in the document store.
         """
         await self._ensure_initialized_async()
@@ -246,6 +247,8 @@ class ChromaDocumentStore:
     async def filter_documents_async(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
         Asynchronously returns the documents that match the filters provided.
+
+        Asynchronous methods are only supported for HTTP connections.
 
         For a detailed specification of the filters,
         refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering).
@@ -357,6 +360,8 @@ class ChromaDocumentStore:
         """
         Asynchronously writes (or overwrites) documents into the store.
 
+        Asynchronous methods are only supported for HTTP connections.
+
         :param documents:
             A list of documents to write into the document store.
         :param policy:
@@ -392,6 +397,8 @@ class ChromaDocumentStore:
     async def delete_documents_async(self, document_ids: List[str]) -> None:
         """
         Asynchronously deletes all documents with a matching document_ids from the document store.
+
+        Asynchronous methods are only supported for HTTP connections.
 
         :param document_ids: the document ids to delete
         """
@@ -434,6 +441,8 @@ class ChromaDocumentStore:
     ) -> List[List[Document]]:
         """
         Asynchronously search the documents in the store using the provided text queries.
+
+        Asynchronous methods are only supported for HTTP connections.
 
         :param queries: the list of queries to search for.
         :param top_k: top_k documents to return for each query.
@@ -490,6 +499,8 @@ class ChromaDocumentStore:
         Asynchronously perform vector search on the stored document, pass the embeddings of the queries instead of
         their text.
 
+        Asynchronous methods are only supported for HTTP connections.
+
         :param query_embeddings: a list of embeddings to use as queries.
         :param top_k: the maximum number of documents to retrieve.
         :param filters: a dictionary of filters to apply to the search. Accepts filters in haystack format.
@@ -545,7 +556,8 @@ class ChromaDocumentStore:
         Helper function to convert Chroma results into Haystack Documents
         """
         retval = []
-        for i in range(len(result.get("documents", []))):
+        documents = result.get("documents") or []
+        for i in range(len(documents)):
             document_dict: Dict[str, Any] = {"id": result["ids"][i]}
 
             result_documents = result.get("documents")
@@ -558,10 +570,14 @@ class ChromaDocumentStore:
                 document_dict["meta"] = result_metadata[i]
 
             result_embeddings = result.get("embeddings")
+            # Chroma can return different types of embeddings
+            # https://github.com/chroma-core/chroma/blob/8ca12208aa3d3b33192a4a0f8b37501fd8293bfb/chromadb/api/types.py#L378
+
             if result_embeddings is not None:
-                if isinstance(result_embeddings[i], ndarray):
-                    document_dict["embedding"] = result_embeddings[i].tolist()
-                else:
+                try:
+                    # we first try to call tolist() which is available for numpy arrays
+                    document_dict["embedding"] = result_embeddings[i].tolist()  # type: ignore
+                except AttributeError:
                     document_dict["embedding"] = result_embeddings[i]
 
             retval.append(Document.from_dict(document_dict))

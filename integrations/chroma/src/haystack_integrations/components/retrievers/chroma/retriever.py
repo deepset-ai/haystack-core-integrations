@@ -100,6 +100,8 @@ class ChromaQueryTextRetriever:
         """
         Asynchronously run the retriever on the given input data.
 
+        Asynchronous methods are only supported for HTTP connections.
+
         :param query: The input data for the retriever. In this case, a plain-text query.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
                         the `filter_policy` chosen at retriever initialization. See init method docstring for more
@@ -151,10 +153,30 @@ class ChromaQueryTextRetriever:
 
 
 @component
-class ChromaEmbeddingRetriever(ChromaQueryTextRetriever):
+class ChromaEmbeddingRetriever:
     """
     A component for retrieving documents from a [Chroma database](https://docs.trychroma.com/) using embeddings.
     """
+
+    def __init__(
+        self,
+        document_store: ChromaDocumentStore,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
+    ):
+        """
+        :param document_store: an instance of `ChromaDocumentStore`.
+        :param filters: filters to narrow down the search space.
+        :param top_k: the maximum number of documents to retrieve.
+        :param filter_policy: Policy to determine how filters are applied.
+        """
+        self.filters = filters or {}
+        self.top_k = top_k
+        self.document_store = document_store
+        self.filter_policy = (
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+        )
 
     @component.output_types(documents=List[Document])
     def run(
@@ -193,6 +215,8 @@ class ChromaEmbeddingRetriever(ChromaQueryTextRetriever):
         """
         Asynchronously run the retriever on the given input data.
 
+        Asynchronous methods are only supported for HTTP connections.
+
         :param query_embedding: the query embeddings.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
                         the `filter_policy` chosen at retriever initialization. See init method docstring for more
@@ -209,3 +233,37 @@ class ChromaEmbeddingRetriever(ChromaQueryTextRetriever):
 
         query_embeddings = [query_embedding]
         return {"documents": await self.document_store.search_embeddings_async(query_embeddings, top_k, filters)[0]}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ChromaEmbeddingRetriever":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
+        document_store = ChromaDocumentStore.from_dict(data["init_parameters"]["document_store"])
+        data["init_parameters"]["document_store"] = document_store
+        # Pipelines serialized with old versions of the component might not
+        # have the filter_policy field.
+        if filter_policy := data["init_parameters"].get("filter_policy"):
+            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
+
+        return default_from_dict(cls, data)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
+        return default_to_dict(
+            self,
+            filters=self.filters,
+            top_k=self.top_k,
+            filter_policy=self.filter_policy.value,
+            document_store=self.document_store.to_dict(),
+        )
