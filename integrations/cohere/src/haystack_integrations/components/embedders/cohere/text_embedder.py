@@ -75,6 +75,16 @@ class CohereTextEmbedder:
         self.timeout = timeout
         self.embedding_type = embedding_type or EmbeddingTypes.FLOAT
 
+    def _prepare_input(self, text: str) -> str:
+        if not isinstance(text, str):
+            msg = (
+                "CohereTextEmbedder expects a string as input."
+                "In case you want to embed a list of Documents, please use the CohereDocumentEmbedder."
+            )
+            raise TypeError(msg)
+
+        return text
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Serializes the component to a dictionary.
@@ -114,20 +124,19 @@ class CohereTextEmbedder:
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
     def run(self, text: str):
-        """Embed text.
-
-        :param text: the text to embed.
-        :returns: A dictionary with the following keys:
-            - `embedding`: the embedding of the text.
-            - `meta`: metadata about the request.
-        :raises TypeError: If the input is not a string.
         """
-        if not isinstance(text, str):
-            msg = (
-                "CohereTextEmbedder expects a string as input."
-                "In case you want to embed a list of Documents, please use the CohereDocumentEmbedder."
-            )
-            raise TypeError(msg)
+        Embed text.
+
+        :param text:
+            the text to embed.
+        :returns:
+            A dictionary with the following keys:
+                - `embedding`: the embedding of the text.
+                - `meta`: metadata about the request.
+        :raises TypeError:
+            If the input is not a string.
+        """
+        text = self._prepare_input(text=text)
 
         # Establish connection to API
 
@@ -156,5 +165,42 @@ class CohereTextEmbedder:
             embedding, metadata = get_response(
                 cohere_client, [text], self.model, self.input_type, self.truncate, embedding_type=self.embedding_type
             )
+
+        return {"embedding": embedding[0], "meta": metadata}
+
+    @component.output_types(embedding=List[float], meta=Dict[str, Any])
+    async def run_async(self, text: str):
+        """
+        Asynchronously embed text.
+
+        This is the asynchronous version of the `run` method. It has the same parameters and return values
+        but can be used with `await` in async code.
+
+         :param text:
+            Text to embed.
+
+        :returns:
+            A dictionary with the following keys:
+            - `embedding`: the embedding of the text.
+            - `meta`: metadata about the request.
+
+        :raises TypeError:
+            If the input is not a string.
+        """
+        text = self._prepare_input(text=text)
+
+        api_key = self.api_key.resolve_value()
+        assert api_key is not None
+
+        cohere_client = AsyncClientV2(
+            api_key,
+            base_url=self.api_base_url,
+            timeout=self.timeout,
+            client_name="haystack",
+        )
+
+        embedding, metadata = await get_async_response(
+            cohere_client, [text], self.model, self.input_type, self.truncate, self.embedding_type
+        )
 
         return {"embedding": embedding[0], "meta": metadata}

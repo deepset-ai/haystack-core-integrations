@@ -20,8 +20,8 @@ logger.setLevel(logging.DEBUG)
 def main():
     """Example of using the MCPTool implementation with stdio transport."""
 
+    stdio_tool = None
     try:
-
         stdio_tool = MCPTool(
             name="get_current_time",
             server_info=StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=Europe/Berlin"]),
@@ -36,6 +36,9 @@ def main():
         print(f"Current time in Los Angeles: {result}")
     except Exception as e:
         print(f"Error in stdio example: {e}")
+    finally:
+        if stdio_tool:
+            stdio_tool.close()
 
 
 if __name__ == "__main__":

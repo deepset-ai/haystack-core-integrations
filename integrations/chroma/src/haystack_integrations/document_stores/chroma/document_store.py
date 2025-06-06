@@ -126,8 +126,7 @@ class ChromaDocumentStore:
 
                 if self._metadata != self._collection.metadata:
                     logger.warning(
-                        "Collection already exists. "
-                        "The `distance_function` and `metadata` parameters will be ignored."
+                        "Collection already exists. The `distance_function` and `metadata` parameters will be ignored."
                     )
             else:
                 self._collection = client.create_collection(

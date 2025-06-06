@@ -10,7 +10,6 @@ from haystack.utils import Secret
 
 from haystack_integrations.components.generators.cohere import CohereGenerator
 
-pytestmark = pytest.mark.generators
 COHERE_API_URL = "https://api.cohere.com"
 
 

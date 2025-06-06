@@ -1,12 +1,25 @@
 # Changelog
 
+## [integrations/pinecone-v5.1.1] - 2025-05-28
+
+
+### 🌀 Miscellaneous
+
+- Add pins for Pinecone (#1851)
+
 ## [integrations/pinecone-v5.1.0] - 2025-03-25
 
 ### 🚀 Features
 
 - Pinecone -- async support (#1560)
 
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
 ## [integrations/pinecone-v5.0.0] - 2025-03-11
+
 
 ### 🧪 Testing
 
@@ -27,9 +40,6 @@
 
 - Replace `pinecone-client` dependency with `pinecone` (#1431)
 
-### 📚 Documentation
-
-- Update changelog for integrations/pinecone (#1397)
 
 ### 🧹 Chores
 

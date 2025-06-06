@@ -1,6 +1,6 @@
 import inspect
 from itertools import islice
-from typing import Any, AsyncGenerator, ClassVar, Dict, Generator, List, Optional, Set, Union
+from typing import Any, AsyncGenerator, ClassVar, Dict, Generator, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import qdrant_client
@@ -18,6 +18,7 @@ from tqdm import tqdm
 from .converters import (
     DENSE_VECTORS_NAME,
     SPARSE_VECTORS_NAME,
+    QdrantPoint,
     convert_haystack_documents_to_qdrant_points,
     convert_id,
     convert_qdrant_point_to_haystack_document,
@@ -34,7 +35,7 @@ class QdrantStoreError(DocumentStoreError):
 FilterType = Dict[str, Union[Dict[str, Any], List[Any], str, int, float, bool]]
 
 
-def get_batches_from_generator(iterable, n):
+def get_batches_from_generator(iterable: List, n: int) -> Generator:
     """
     Batch elements of an iterable into fixed-length chunks or blocks.
     """
@@ -127,10 +128,10 @@ class QdrantDocumentStore:
         write_batch_size: int = 100,
         scroll_size: int = 10_000,
         payload_fields_to_index: Optional[List[dict]] = None,
-    ):
+    ) -> None:
         """
         :param location:
-            If `memory` - use in-memory Qdrant instance.
+            If `":memory:"` - use in-memory Qdrant instance.
             If `str` - use it as a URL parameter.
             If `None` - use default values for host and port.
         :param url:
@@ -164,7 +165,7 @@ class QdrantDocumentStore:
             Dimension of the embeddings.
         :param on_disk:
             Whether to store the collection on disk.
-        :param use_sparse_embedding:
+        :param use_sparse_embeddings:
             If set to `True`, enables support for sparse embeddings.
         :param sparse_idf:
             If set to `True`, computes the Inverse Document Frequency (IDF) when using sparse embeddings.
@@ -232,7 +233,6 @@ class QdrantDocumentStore:
         self.path = path
         self.force_disable_check_same_thread = force_disable_check_same_thread
         self.metadata = metadata or {}
-        self.api_key = api_key
 
         # Store the Qdrant collection specific attributes
         self.shard_number = shard_number
@@ -258,9 +258,10 @@ class QdrantDocumentStore:
         self.write_batch_size = write_batch_size
         self.scroll_size = scroll_size
 
-    def _initialize_client(self):
+    def _initialize_client(self) -> None:
         if self._client is None:
             client_params = self._prepare_client_params()
+            # This step adds the api-key and User-Agent to metadata
             self._client = qdrant_client.QdrantClient(**client_params)
             # Make sure the collection is properly set up
             self._set_up_collection(
@@ -274,7 +275,7 @@ class QdrantDocumentStore:
                 self.payload_fields_to_index,
             )
 
-    async def _initialize_async_client(self):
+    async def _initialize_async_client(self) -> None:
         """
         Returns the asynchronous Qdrant client, initializing it if necessary.
         """
@@ -628,8 +629,6 @@ class QdrantDocumentStore:
 
         :param ids:
             A list of document IDs to retrieve.
-        :param index:
-            The name of the index to retrieve documents from.
         :returns:
             A list of documents.
         """
@@ -661,8 +660,6 @@ class QdrantDocumentStore:
 
         :param ids:
             A list of document IDs to retrieve.
-        :param index:
-            The name of the index to retrieve documents from.
         :returns:
             A list of documents.
         """
@@ -1210,7 +1207,7 @@ class QdrantDocumentStore:
             )
             raise QdrantStoreError(msg) from ke
 
-    def _create_payload_index(self, collection_name: str, payload_fields_to_index: Optional[List[dict]] = None):
+    def _create_payload_index(self, collection_name: str, payload_fields_to_index: Optional[List[dict]] = None) -> None:
         """
         Create payload index for the collection if payload_fields_to_index is provided
         See: https://qdrant.tech/documentation/concepts/indexing/#payload-index
@@ -1229,14 +1226,13 @@ class QdrantDocumentStore:
 
     async def _create_payload_index_async(
         self, collection_name: str, payload_fields_to_index: Optional[List[dict]] = None
-    ):
+    ) -> None:
         """
         Asynchronously create payload index for the collection if payload_fields_to_index is provided
         See: https://qdrant.tech/documentation/concepts/indexing/#payload-index
         """
         if payload_fields_to_index is not None:
             for payload_index in payload_fields_to_index:
-
                 # self._async_client is initialized at this point
                 # since _initialize_async_client() is called before this method is executed
                 assert self._async_client is not None
@@ -1257,7 +1253,7 @@ class QdrantDocumentStore:
         sparse_idf: bool,
         on_disk: bool = False,
         payload_fields_to_index: Optional[List[dict]] = None,
-    ):
+    ) -> None:
         """
         Sets up the Qdrant collection with the specified parameters.
         :param collection_name:
@@ -1313,7 +1309,7 @@ class QdrantDocumentStore:
         sparse_idf: bool,
         on_disk: bool = False,
         payload_fields_to_index: Optional[List[dict]] = None,
-    ):
+    ) -> None:
         """
         Asynchronously sets up the Qdrant collection with the specified parameters.
         :param collection_name:
@@ -1367,7 +1363,7 @@ class QdrantDocumentStore:
         on_disk: Optional[bool] = None,
         use_sparse_embeddings: Optional[bool] = None,
         sparse_idf: bool = False,
-    ):
+    ) -> None:
         """
         Recreates the Qdrant collection with the specified parameters.
 
@@ -1410,7 +1406,7 @@ class QdrantDocumentStore:
         on_disk: Optional[bool] = None,
         use_sparse_embeddings: Optional[bool] = None,
         sparse_idf: bool = False,
-    ):
+    ) -> None:
         """
         Asynchronously recreates the Qdrant collection with the specified parameters.
 
@@ -1449,7 +1445,7 @@ class QdrantDocumentStore:
         self,
         documents: List[Document],
         policy: DuplicatePolicy = None,
-    ):
+    ) -> List[Document]:
         """
         Checks whether any of the passed documents is already existing in the chosen index and returns a list of
         documents that are not in the index yet.
@@ -1476,7 +1472,7 @@ class QdrantDocumentStore:
         self,
         documents: List[Document],
         policy: DuplicatePolicy = None,
-    ):
+    ) -> List[Document]:
         """
         Asynchronously checks whether any of the passed documents is already existing
         in the chosen index and returns a list of
@@ -1521,7 +1517,7 @@ class QdrantDocumentStore:
 
         return _documents
 
-    def _prepare_collection_params(self):
+    def _prepare_collection_params(self) -> Dict[str, Any]:
         """
         Prepares the common parameters for collection creation.
         """
@@ -1537,7 +1533,7 @@ class QdrantDocumentStore:
             "init_from": self.init_from,
         }
 
-    def _prepare_client_params(self):
+    def _prepare_client_params(self) -> Dict[str, Any]:
         """
         Prepares the common parameters for client initialization.
 
@@ -1554,7 +1550,10 @@ class QdrantDocumentStore:
             "timeout": self.timeout,
             "host": self.host,
             "path": self.path,
-            "metadata": self.metadata,
+            # NOTE: We purposefully expand the fields of self.metadata to avoid modifying the original self.metadata
+            # class attribute. For example, the resolved api key is added to metadata by the QdrantClient class
+            # when using a hosted Qdrant service, which means running to_dict() exposes the api key.
+            "metadata": {**self.metadata},
             "force_disable_check_same_thread": self.force_disable_check_same_thread,
         }
 
@@ -1565,7 +1564,7 @@ class QdrantDocumentStore:
         on_disk: Optional[bool] = None,
         use_sparse_embeddings: Optional[bool] = None,
         sparse_idf: bool = False,
-    ):
+    ) -> Tuple[Dict[str, rest.VectorParams], Optional[Dict[str, rest.SparseVectorParams]]]:
         """
         Prepares the configuration for creating or recreating a Qdrant collection.
 
@@ -1595,9 +1594,12 @@ class QdrantDocumentStore:
 
         return vectors_config, sparse_vectors_config
 
-    def _validate_filters(self, filters: Optional[Union[Dict[str, Any], rest.Filter]] = None):
+    def _validate_filters(self, filters: Optional[Union[Dict[str, Any], rest.Filter]] = None) -> None:
         """
         Validates the filters provided for querying.
+
+        :param filters: Filters to validate. Can be a dictionary or an instance of `qdrant_client.http.models.Filter`.
+        :raises ValueError: If the filters are not in the correct format or syntax.
         """
         if filters and not isinstance(filters, dict) and not isinstance(filters, rest.Filter):
             msg = "Filter must be a dictionary or an instance of `qdrant_client.http.models.Filter`"
@@ -1607,7 +1609,7 @@ class QdrantDocumentStore:
             msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
             raise ValueError(msg)
 
-    def _process_query_point_results(self, results, scale_score: bool = False):
+    def _process_query_point_results(self, results: List[QdrantPoint], scale_score: bool = False) -> List[Document]:
         """
         Processes query results from Qdrant.
         """
@@ -1627,7 +1629,7 @@ class QdrantDocumentStore:
 
         return documents
 
-    def _process_group_results(self, groups):
+    def _process_group_results(self, groups: List[rest.PointGroup]) -> List[Document]:
         """
         Processes grouped query results from Qdrant.
 
@@ -1647,7 +1649,7 @@ class QdrantDocumentStore:
         collection_info,
         distance,
         embedding_dim: int,
-    ):
+    ) -> None:
         """
         Validates that an existing collection is compatible with the current configuration.
         """

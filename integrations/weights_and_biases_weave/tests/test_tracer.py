@@ -27,7 +27,6 @@ class MockWeaveClient:
 
 
 class TestWeaveTracer:
-
     def test_initialization(self):
         with patch("weave.init") as mock_init:
             mock_init.return_value = MockWeaveClient()

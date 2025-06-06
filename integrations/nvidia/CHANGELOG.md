@@ -1,10 +1,20 @@
 # Changelog
 
+## [integrations/nvidia-v0.2.0] - 2025-06-05
+
+### 🚀 Features
+
+- Add NvidiaChatGenerator based on OpenAIChatGenerator (#1776)
+
+
+## [integrations/nvidia-v0.1.8] - 2025-05-28
+
+### 🌀 Miscellaneous
+
+- Add pins for Nvidia (#1846)
+
 ## [integrations/nvidia-v0.1.7] - 2025-04-03
 
-### 📚 Documentation
-
-- Update changelog for integrations/nvidia (#1365)
 
 ### 🧪 Testing
 
@@ -30,9 +40,6 @@
 
 - Add nvidia latest embedding models (#1364)
 
-### 📚 Documentation
-
-- Update changelog for integrations/nvidia (#1353)
 
 ## [integrations/nvidia-v0.1.5] - 2025-02-04
 

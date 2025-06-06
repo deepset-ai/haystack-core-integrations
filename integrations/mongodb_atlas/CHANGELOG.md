@@ -1,5 +1,35 @@
 # Changelog
 
+## [integrations/mongodb_atlas-v3.2.2] - 2025-05-27
+
+### 🌀 Miscellaneous
+
+- Pin version for `pymongo` and `haystack` in MongoDB integration (#1832)
+
+## [integrations/mongodb_atlas-v3.2.1] - 2025-05-13
+
+### 🚀 Features
+
+- Support custom content field (#1721)
+
+### 🐛 Bug Fixes
+
+- Fulltext retrieval (#1730)
+
+### 📚 Documentation
+
+
+## [integrations/mongodb_atlas-v3.1.2] - 2025-05-07
+
+### 🐛 Bug Fixes
+
+- Hard coded embedding field for mongodb (#1708)
+
+
+### 🌀 Miscellaneous
+
+- Docs: add MongoDBAtlasFullTextRetriever to API Reference (#1669)
+
 ## [integrations/mongodb_atlas-v3.1.1] - 2025-04-11
 
 ### 🚀 Features
@@ -33,12 +63,6 @@
 - Chore: Mongo - pin haystack and remove dataframe checks (#1512)
 
 ## [integrations/mongodb_atlas-v2.0.0] - 2025-02-14
-
-### 🧹 Chores
-
-- [**breaking**] Mongodb - remove dataframe support (#1398)
-
-## [integrations/mongodb_atlas-v1.1.0] - 2025-02-10
 
 ### 🚀 Features
 

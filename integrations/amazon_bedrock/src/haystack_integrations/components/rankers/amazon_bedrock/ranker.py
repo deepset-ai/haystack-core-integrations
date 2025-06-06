@@ -1,3 +1,4 @@
+import warnings
 from typing import Any, Dict, List, Optional
 
 from botocore.exceptions import ClientError
@@ -16,7 +17,7 @@ MAX_NUM_DOCS_FOR_BEDROCK_RANKER = 1000
 
 
 @component
-class BedrockRanker:
+class AmazonBedrockRanker:
     """
     Ranks Documents based on their similarity to the query using Amazon Bedrock's Cohere Rerank model.
 
@@ -30,9 +31,13 @@ class BedrockRanker:
     ```python
     from haystack import Document
     from haystack.utils import Secret
-    from haystack_integrations.components.rankers.amazon_bedrock import BedrockRanker
+    from haystack_integrations.components.rankers.amazon_bedrock import AmazonBedrockRanker
 
-    ranker = BedrockRanker(model="cohere.rerank-v3-5:0", top_k=2, aws_region_name=Secret.from_token("eu-central-1"))
+    ranker = AmazonBedrockRanker(
+        model="cohere.rerank-v3-5:0",
+        top_k=2,
+        aws_region_name=Secret.from_token("eu-central-1")
+    )
 
     docs = [Document(content="Paris"), Document(content="Berlin")]
     query = "What is the capital of germany?"
@@ -40,7 +45,7 @@ class BedrockRanker:
     docs = output["documents"]
     ```
 
-    BedrockRanker uses AWS for authentication. You can use the AWS CLI to authenticate through your IAM.
+    AmazonBedrockRanker uses AWS for authentication. You can use the AWS CLI to authenticate through your IAM.
     For more information on setting up an IAM identity-based policy, see [Amazon Bedrock documentation]
     (https://docs.aws.amazon.com/bedrock/latest/userguide/security_iam_id-based-policy-examples.html).
 
@@ -66,12 +71,12 @@ class BedrockRanker:
         max_chunks_per_doc: Optional[int] = None,
         meta_fields_to_embed: Optional[List[str]] = None,
         meta_data_separator: str = "\n",
-    ):
+    ) -> None:
         if not model:
             msg = "'model' cannot be None or empty string"
             raise ValueError(msg)
         """
-        Creates an instance of the 'BedrockRanker'.
+        Creates an instance of the 'AmazonBedrockRanker'.
 
         :param model: Amazon Bedrock model name for Cohere Rerank. Default is "cohere.rerank-v3-5:0".
         :param top_k: The maximum number of documents to return.
@@ -140,7 +145,7 @@ class BedrockRanker:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "BedrockRanker":
+    def from_dict(cls, data: Dict[str, Any]) -> "AmazonBedrockRanker":
         """
         Deserializes the component from a dictionary.
 
@@ -173,7 +178,7 @@ class BedrockRanker:
         return concatenated_input_list
 
     @component.output_types(documents=List[Document])
-    def run(self, query: str, documents: List[Document], top_k: Optional[int] = None):
+    def run(self, query: str, documents: List[Document], top_k: Optional[int] = None) -> Dict[str, List[Document]]:
         """
         Use the Amazon Bedrock Reranker to re-rank the list of documents based on the query.
 
@@ -260,3 +265,20 @@ class BedrockRanker:
         except Exception as e:
             msg = f"Error during Amazon Bedrock API call: {e!s}"
             raise AmazonBedrockInferenceError(msg) from e
+
+
+class BedrockRanker(AmazonBedrockRanker):
+    """
+    Deprecated alias for AmazonBedrockRanker.
+    This class will be removed in a future version.
+    Please use AmazonBedrockRanker instead.
+    """
+
+    def __init__(self, *args, **kwargs):
+        warnings.warn(
+            "BedrockRanker is deprecated and will be removed in a future version. "
+            "Please use AmazonBedrockRanker instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(*args, **kwargs)

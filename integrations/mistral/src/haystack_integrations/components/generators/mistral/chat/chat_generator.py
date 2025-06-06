@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import StreamingChunk
-from haystack.tools import Tool
+from haystack.dataclasses import StreamingCallbackT
+from haystack.tools import Tool, Toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
 
@@ -48,11 +48,12 @@ class MistralChatGenerator(OpenAIChatGenerator):
     response = client.run(messages)
     print(response)
 
-    >>{'replies': [ChatMessage(content='Natural Language Processing (NLP) is a branch of artificial intelligence
-    >>that focuses on enabling computers to understand, interpret, and generate human language in a way that is
-    >>meaningful and useful.', role=<ChatRole.ASSISTANT: 'assistant'>, name=None,
-    >>meta={'model': 'mistral-small-latest', 'index': 0, 'finish_reason': 'stop',
-    >>'usage': {'prompt_tokens': 15, 'completion_tokens': 36, 'total_tokens': 51}})]}
+    >>{'replies': [ChatMessage(_role=<ChatRole.ASSISTANT: 'assistant'>, _content=[TextContent(text=
+    >> "Natural Language Processing (NLP) is a branch of artificial intelligence
+    >> that focuses on enabling computers to understand, interpret, and generate human language in a way that is
+    >> meaningful and useful.")], _name=None,
+    >> _meta={'model': 'mistral-small-latest', 'index': 0, 'finish_reason': 'stop',
+    >> 'usage': {'prompt_tokens': 15, 'completion_tokens': 36, 'total_tokens': 51}})]}
     ```
     """
 
@@ -60,10 +61,14 @@ class MistralChatGenerator(OpenAIChatGenerator):
         self,
         api_key: Secret = Secret.from_env_var("MISTRAL_API_KEY"),
         model: str = "mistral-small-latest",
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = "https://api.mistral.ai/v1",
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
+        *,
+        timeout: Optional[float] = None,
+        max_retries: Optional[int] = None,
+        http_client_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
         Creates an instance of MistralChatGenerator. Unless specified otherwise in the `model`, this is for Mistral's
@@ -94,7 +99,17 @@ class MistralChatGenerator(OpenAIChatGenerator):
             - `safe_prompt`: Whether to inject a safety prompt before all conversations.
             - `random_seed`: The seed to use for random sampling.
         :param tools:
-            A list of tools for which the model can prepare calls.
+            A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
+            list of `Tool` objects or a `Toolset` instance.
+        :param timeout:
+            The timeout for the Mistral API call. If not set, it defaults to either the `OPENAI_TIMEOUT`
+            environment variable, or 30 seconds.
+        :param max_retries:
+            Maximum number of retries to contact OpenAI after an internal error.
+            If not set, it defaults to either the `OPENAI_MAX_RETRIES` environment variable, or set to 5.
+        :param http_client_kwargs:
+            A dictionary of keyword arguments to configure a custom `httpx.Client`or `httpx.AsyncClient`.
+            For more information, see the [HTTPX documentation](https://www.python-httpx.org/api/#client).
         """
         super(MistralChatGenerator, self).__init__(  # noqa: UP008
             api_key=api_key,
@@ -104,6 +119,9 @@ class MistralChatGenerator(OpenAIChatGenerator):
             organization=None,
             generation_kwargs=generation_kwargs,
             tools=tools,
+            timeout=timeout,
+            max_retries=max_retries,
+            http_client_kwargs=http_client_kwargs,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -118,7 +136,6 @@ class MistralChatGenerator(OpenAIChatGenerator):
         # if we didn't implement the to_dict method here then the to_dict method of the superclass would be used
         # which would serialiaze some fields that we don't want to serialize (e.g. the ones we don't have in
         # the __init__)
-        # it would be hard to maintain the compatibility as superclass changes
         return default_to_dict(
             self,
             model=self.model,
@@ -127,4 +144,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
             generation_kwargs=self.generation_kwargs,
             api_key=self.api_key.to_dict(),
             tools=[tool.to_dict() for tool in self.tools] if self.tools else None,
+            timeout=self.timeout,
+            max_retries=self.max_retries,
+            http_client_kwargs=self.http_client_kwargs,
         )

@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 from exceptiongroup import ExceptionGroup
@@ -17,6 +18,8 @@ from .mcp_tool import (
     MCPToolNotFoundError,
     SSEServerInfo,
     StdioServerInfo,
+    StreamableHttpServerInfo,
+    _MCPClientSessionManager,
 )
 
 logger = logging.getLogger(__name__)
@@ -88,7 +91,7 @@ class MCPToolset(Toolset):
 
     # Create the toolset with an SSE connection
     sse_toolset = MCPToolset(
-        server_info=SSEServerInfo(base_url="http://some-remote-server.com:8000"),
+        server_info=SSEServerInfo(url="http://some-remote-server.com:8000/sse"),
         tool_names=["add", "subtract"]  # Only include specific tools
     )
 
@@ -121,11 +124,12 @@ class MCPToolset(Toolset):
 
         # Connect and load tools
         try:
-            # Create the appropriate client using the factory method
+            # Create the client and spin up a worker so open/close happen in the
+            # same coroutine, avoiding AnyIO cancel-scope issues.
             client = self.server_info.create_client()
+            self._worker = _MCPClientSessionManager(client, timeout=self.connection_timeout)
 
-            # Connect and get available tools using AsyncExecutor
-            tools = AsyncExecutor.get_instance().run(client.connect(), timeout=self.connection_timeout)
+            tools = self._worker.tools()
 
             # If tool_names is provided, validate that all requested tools exist
             if self.tool_names:
@@ -174,22 +178,52 @@ class MCPToolset(Toolset):
             super().__init__(tools=haystack_tools)
 
         except Exception as e:
-            if isinstance(self.server_info, SSEServerInfo):
-                base_message = f"Failed to connect to SSE server at {self.server_info.base_url}"
-                checks = ["1. The server is running"]
+            # We need to close because we could connect properly, retrieve tools yet
+            # fail because of an MCPToolNotFoundError
+            self.close()
 
-                # Check for ConnectError in exception group or direct exception
+            # Create informative error message for SSE connection errors
+            # Common error handling for HTTP-based transports
+            if isinstance(self.server_info, (SSEServerInfo | StreamableHttpServerInfo)):
+                # Determine transport type for messages
+                transport_name = "SSE" if isinstance(self.server_info, SSEServerInfo) else "streamable HTTP"
+                server_url = self.server_info.url
+
+                base_message = f"Failed to connect to MCP server via {transport_name}"
+                checks = [
+                    f"1. The server URL is correct (attempted: {server_url})",
+                    "2. The server is running and accessible",
+                    "3. Authentication token is correct (if required)",
+                ]
+
+                # Add specific connection error details for network issues
                 has_connect_error = isinstance(e, httpx.ConnectError) or (
                     isinstance(e, ExceptionGroup) and any(isinstance(exc, httpx.ConnectError) for exc in e.exceptions)
                 )
 
                 if has_connect_error:
-                    port = self.server_info.base_url.split(":")[-1]
-                    checks.append(f"2. The address and port are correct (attempted port: {port})")
-                    checks.append("3. There are no firewall or network connectivity issues")
-                    message = f"{base_message}. Please check if:\n" + "\n".join(checks)
-                else:
-                    message = f"{base_message}: {e}"
+                    # Use urlparse to reliably get scheme, hostname, and port
+                    parsed_url = urlparse(server_url)
+                    port_str = ""
+                    if parsed_url.port:
+                        port_str = str(parsed_url.port)
+                    elif parsed_url.scheme == "http":
+                        port_str = "80 (default)"
+                    elif parsed_url.scheme == "https":
+                        port_str = "443 (default)"
+                    else:
+                        port_str = "unknown (scheme not http/https or missing)"
+
+                    # Ensure hostname is handled correctly (it might be None)
+                    hostname_str = str(parsed_url.hostname) if parsed_url.hostname else "<unknown>"
+
+                    # Replace generic accessible message with specific network details
+                    checks[1] = f"2. The address '{hostname_str}' and port '{port_str}' are correct"
+                    checks.append("4. There are no firewall or network connectivity issues")
+
+                message = f"{base_message}. Please check if:\n" + "\n".join(checks)
+
+            # and for stdio connection errors
             elif isinstance(self.server_info, StdioServerInfo):  # stdio connection
                 base_message = "Failed to start MCP server process"
                 stdio_info = self.server_info
@@ -240,3 +274,14 @@ class MCPToolset(Toolset):
             connection_timeout=inner_data.get("connection_timeout", 30.0),
             invocation_timeout=inner_data.get("invocation_timeout", 30.0),
         )
+
+    def close(self):
+        """Close the underlying MCP client safely."""
+        if hasattr(self, "_worker") and self._worker:
+            try:
+                self._worker.stop()
+            except Exception as e:
+                logger.debug(f"TOOLSET: error during worker stop: {e!s}")
+
+    def __del__(self):
+        self.close()

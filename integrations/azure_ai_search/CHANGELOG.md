@@ -1,5 +1,26 @@
 # Changelog
 
+## [integrations/azure_ai_search-v2.1.1] - 2025-06-04
+
+### 🐛 Bug Fixes
+
+- Correct Azure AI search _in delimiter (#1729)
+
+
+## [integrations/azure_ai_search-v2.1.0] - 2025-06-04
+
+### 🚀 Features
+
+- Feat: Allow full metadata field customization.`SearchField` can now be passed in `metadata_fields`. (#1893)
+
+
+## [integrations/azure_ai_search-v2.0.2] - 2025-05-14
+
+
+### 🌀 Miscellaneous
+
+- Feat: Add user-agent to `AzureAISearchDocumentStore` (#1743)
+
 ## [integrations/azure_ai_search-v2.0.1] - 2025-04-16
 
 ### 🚀 Features
@@ -14,6 +35,7 @@
 - [**breaking**] The environment variables for AzureAIDocumentStore have been renamed for clarity. (#1597)
 
 ## [integrations/azure_ai_search-v1.0.0] - 2025-03-11
+
 
 ### 🧪 Testing
 

@@ -1,5 +1,29 @@
 # Changelog
 
+## [integrations/mcp-v0.3.1] - 2025-05-28
+
+### 🌀 Miscellaneous
+
+- App pins for MCP (#1845)
+
+## [integrations/mcp-v0.3.0] - 2025-05-27
+
+### 🚀 Features
+
+- MCPTool and MCPToolset async resource management improvements (#1758)
+- Add streamable-http transport MCP support (#1777)
+
+
+## [integrations/mcp-v0.2.0] - 2025-05-06
+
+### 🚀 Features
+
+- [**breaking**] Deprecate SSEServerInfo base_url in favour of url (#1662)
+
+### 📚 Documentation
+
+- Add_mcptoolset_docs (#1668)
+
 ## [integrations/mcp-v0.1.0] - 2025-04-22
 
 ### 🚀 Features
@@ -12,6 +36,10 @@
 ### 📚 Documentation
 
 - Fix MCPTool import in code example (#1578)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
 
 ### 🌀 Miscellaneous
 

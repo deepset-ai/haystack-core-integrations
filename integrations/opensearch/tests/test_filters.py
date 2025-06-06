@@ -227,7 +227,6 @@ def test_normalize_ranges():
 
 @pytest.mark.integration
 class TestFilters(FilterDocumentsTest):
-
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
         The OpenSearchDocumentStore.filter_documents() method returns a Documents with their score set.

@@ -3,8 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import contextlib
+import json
 import os
 from abc import ABC, abstractmethod
+from collections import Counter
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime
@@ -34,6 +36,7 @@ _SUPPORTED_GENERATORS = [
     "HuggingFaceAPIGenerator",
     "HuggingFaceLocalGenerator",
     "CohereGenerator",
+    "OllamaGenerator",
 ]
 _SUPPORTED_CHAT_GENERATORS = [
     "AzureOpenAIChatGenerator",
@@ -43,6 +46,7 @@ _SUPPORTED_CHAT_GENERATORS = [
     "HuggingFaceLocalChatGenerator",
     "CohereChatGenerator",
     "OllamaChatGenerator",
+    "GoogleGenAIChatGenerator",
 ]
 _ALL_SUPPORTED_GENERATORS = _SUPPORTED_GENERATORS + _SUPPORTED_CHAT_GENERATORS
 
@@ -55,10 +59,66 @@ _PIPELINE_RUN_KEY = "haystack.pipeline.run"
 _COMPONENT_NAME_KEY = "haystack.component.name"
 _COMPONENT_TYPE_KEY = "haystack.component.type"
 _COMPONENT_OUTPUT_KEY = "haystack.component.output"
+_COMPONENT_INPUT_KEY = "haystack.component.input"
 
 # Context var used to keep track of tracing related info.
 # This mainly useful for parents spans.
 tracing_context_var: ContextVar[Dict[Any, Any]] = ContextVar("tracing_context")
+
+
+def _to_openai_dict_format(chat_message: ChatMessage) -> Dict[str, Any]:
+    """
+    Convert a ChatMessage to the dictionary format expected by OpenAI's chat completion API.
+
+    Note: We already have such a method in Haystack's ChatMessage class.
+    However, the original method doesn't tolerate None values for ids of ToolCall and ToolCallResult.
+    Some generators, like GoogleGenAIChatGenerator, return None values for ids of ToolCall and ToolCallResult.
+    To seamlessly support these generators, we use this, Langfuse local, version of the method.
+
+    :param chat_message: The ChatMessage instance to convert.
+    :return: Dictionary in OpenAI Chat API format.
+    """
+    text_contents = chat_message.texts
+    tool_calls = chat_message.tool_calls
+    tool_call_results = chat_message.tool_call_results
+
+    if not text_contents and not tool_calls and not tool_call_results:
+        message = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
+        logger.error(message)
+        raise ValueError(message)
+    if len(text_contents) + len(tool_call_results) > 1:
+        message = "A `ChatMessage` can only contain one `TextContent` or one `ToolCallResult`."
+        logger.error(message)
+        raise ValueError(message)
+
+    openai_msg: Dict[str, Any] = {"role": chat_message._role.value}
+
+    # Add name field if present
+    if chat_message._name is not None:
+        openai_msg["name"] = chat_message._name
+
+    if tool_call_results:
+        result = tool_call_results[0]
+        openai_msg["content"] = result.result
+        openai_msg["tool_call_id"] = result.origin.id
+        # OpenAI does not provide a way to communicate errors in tool invocations, so we ignore the error field
+        return openai_msg
+
+    if text_contents:
+        openai_msg["content"] = text_contents[0]
+    if tool_calls:
+        openai_tool_calls = []
+        for tc in tool_calls:
+            openai_tool_calls.append(
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    # We disable ensure_ascii so special chars like emojis are not converted
+                    "function": {"name": tc.tool_name, "arguments": json.dumps(tc.arguments, ensure_ascii=False)},
+                }
+            )
+        openai_msg["tool_calls"] = openai_tool_calls
+    return openai_msg
 
 
 class LangfuseSpan(Span):
@@ -98,7 +158,7 @@ class LangfuseSpan(Span):
             return
         if key.endswith(".input"):
             if "messages" in value:
-                messages = [m.to_openai_dict_format() for m in value["messages"]]
+                messages = [_to_openai_dict_format(m) for m in value["messages"]]
                 self._span.update(input=messages)
             else:
                 coerced_value = tracing_utils.coerce_tag_value(value)
@@ -106,7 +166,7 @@ class LangfuseSpan(Span):
         elif key.endswith(".output"):
             if "replies" in value:
                 if all(isinstance(r, ChatMessage) for r in value["replies"]):
-                    replies = [m.to_openai_dict_format() for m in value["replies"]]
+                    replies = [_to_openai_dict_format(m) for m in value["replies"]]
                 else:
                     replies = value["replies"]
                 self._span.update(output=replies)
@@ -196,7 +256,7 @@ class SpanHandler(ABC):
     - Pass your handler to LangfuseConnector init method
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.tracer: Optional[langfuse.Langfuse] = None
 
     def init_tracer(self, tracer: langfuse.Langfuse) -> None:
@@ -262,11 +322,6 @@ class DefaultSpanHandler(SpanHandler):
 
         tracing_ctx = tracing_context_var.get({})
         if not context.parent_span:
-            if context.operation_name not in [_PIPELINE_RUN_KEY, _ASYNC_PIPELINE_RUN_KEY]:
-                logger.warning(
-                    "Creating a new trace without a parent span is not recommended for operation '{operation_name}'.",
-                    operation_name=context.operation_name,
-                )
             # Create a new trace when there's no parent span
             return LangfuseSpan(
                 self.tracer.trace(
@@ -291,6 +346,21 @@ class DefaultSpanHandler(SpanHandler):
             coerced_input = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_INPUT_KEY))
             coerced_output = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_OUTPUT_KEY))
             span.raw_span().update(input=coerced_input, output=coerced_output)
+
+        # special case for ToolInvoker (to update the span name to be: `original_component_name - [tool_names]`)
+        if component_type == "ToolInvoker":
+            tool_names: List[str] = []
+            messages = span.get_data().get(_COMPONENT_INPUT_KEY, {}).get("messages", [])
+            for message in messages:
+                if isinstance(message, ChatMessage) and message.tool_calls:
+                    tool_names.extend(call.tool_name for call in message.tool_calls)
+
+            if tool_names:
+                # Fallback to "ToolInvoker" if we can't retrieve component name
+                tool_invoker_name = span.get_data().get(_COMPONENT_NAME_KEY, "ToolInvoker")
+                tool_counts = Counter(tool_names)  # how many times each tool was called
+                formatted_names = [f"{name} (x{count})" if count > 1 else name for name, count in tool_counts.items()]
+                span.raw_span().update(name=f"{tool_invoker_name} - {sorted(formatted_names)}")
 
         if component_type in _SUPPORTED_GENERATORS:
             meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
@@ -396,7 +466,7 @@ class LangfuseTracer(Tracer):
         if self.enforce_flush:
             self.flush()
 
-    def flush(self):
+    def flush(self) -> None:
         self._tracer.flush()
 
     def current_span(self) -> Optional[Span]:

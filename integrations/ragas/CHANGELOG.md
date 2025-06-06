@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/ragas-v2.1.1] - 2025-05-28
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🌀 Miscellaneous
+
+- Add pins for Ragas (#1854)
+
 ## [integrations/ragas-v2.1.0] - 2025-02-24
 
 ### 🚀 Features

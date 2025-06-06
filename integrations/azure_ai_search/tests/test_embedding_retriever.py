@@ -50,7 +50,7 @@ def test_to_dict():
                     "api_key": {"type": "env_var", "env_vars": ["AZURE_AI_SEARCH_API_KEY"], "strict": False},
                     "index_name": "default",
                     "embedding_dimension": 768,
-                    "metadata_fields": None,
+                    "metadata_fields": {},
                     "vector_search_configuration": {
                         "profiles": [
                             {"name": "default-vector-config", "algorithm_configuration_name": "cosine-algorithm-config"}
@@ -169,7 +169,6 @@ def test_run_time_params():
 )
 @pytest.mark.integration
 class TestRetriever:
-
     def test_run(self, document_store: AzureAISearchDocumentStore):
         docs = [Document(id="1")]
         document_store.write_documents(docs)

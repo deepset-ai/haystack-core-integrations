@@ -21,7 +21,7 @@ from anthropic.types import (
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
-from haystack.tools import Tool
+from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.anthropic.chat.chat_generator import (
@@ -67,7 +67,6 @@ def mock_anthropic_completion():
 
 
 class TestAnthropicChatGenerator:
-
     def test_init_default(self, monkeypatch):
         """
         Test the default initialization of the AnthropicChatGenerator component.
@@ -339,6 +338,12 @@ class TestAnthropicChatGenerator:
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(message_start_chunk)
         assert streaming_chunk.content == ""
+
+        # remove fields not present in the pinned version of the Anthropic SDK.
+        # This ensures the test passes with both the pinned and the latest version of the Anthropic SDK.
+        streaming_chunk.meta["message"]["usage"].pop("server_tool_use", None)
+        streaming_chunk.meta["message"]["usage"].pop("service_tier", None)
+
         assert streaming_chunk.meta == {
             "type": "message_start",
             "message": {
@@ -580,17 +585,17 @@ class TestAnthropicChatGenerator:
         # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
         # haystack-ai>=2.12.0
         if hasattr(tool, "outputs_to_string"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "outputs_to_string"
-            ] = tool.outputs_to_string
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["outputs_to_string"] = (
+                tool.outputs_to_string
+            )
         if hasattr(tool, "inputs_from_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "inputs_from_state"
-            ] = tool.inputs_from_state
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = (
+                tool.inputs_from_state
+            )
         if hasattr(tool, "outputs_to_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "outputs_to_state"
-            ] = tool.outputs_to_state
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = (
+                tool.outputs_to_state
+            )
 
         assert pipeline_dict == expected_dict
 
@@ -875,6 +880,59 @@ class TestAnthropicChatGenerator:
         reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
     )
     @pytest.mark.integration
+    def test_live_run_with_toolset(self):
+        """
+        Integration test that the AnthropicChatGenerator component can run with a Toolset.
+        """
+
+        def weather_function(city: str) -> str:
+            """Get weather information for a city."""
+            weather_data = {"Paris": "22°C, sunny", "London": "15°C, rainy", "Tokyo": "18°C, cloudy"}
+            return weather_data.get(city, "Weather data not available")
+
+        def echo_function(text: str) -> str:
+            """Echo a text."""
+            return text
+
+        # Create tools
+        weather_tool = Tool(
+            name="weather",
+            description="Get weather information for a city",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=weather_function,
+        )
+
+        echo_tool = Tool(
+            name="echo",
+            description="Echo a text",
+            parameters={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
+            function=echo_function,
+        )
+
+        # Create Toolset
+        toolset = Toolset([weather_tool, echo_tool])
+
+        # Test with weather query
+        initial_messages = [ChatMessage.from_user("What's the weather like in Tokyo?")]
+        component = AnthropicChatGenerator(tools=toolset)
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+
+        assert message.tool_calls
+        tool_call = message.tool_call
+        assert isinstance(tool_call, ToolCall)
+        assert tool_call.id is not None
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Tokyo"}
+        assert message.meta["finish_reason"] == "tool_use"
+
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
     def test_live_run_with_tools_streaming(self, tools):
         """
         Integration test that the AnthropicChatGenerator component can run with tools and streaming.
@@ -1093,7 +1151,6 @@ class TestAnthropicChatGenerator:
 
 
 class TestAnthropicChatGeneratorAsync:
-
     @pytest.fixture
     async def mock_anthropic_completion_async(self):
         with patch("anthropic.resources.messages.AsyncMessages.create") as mock_anthropic:

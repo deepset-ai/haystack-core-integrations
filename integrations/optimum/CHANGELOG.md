@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/optimum-v1.0.1] - 2025-05-28
+
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🌀 Miscellaneous
+
+- Add pins for Optimum (#1847)
+
 ## [integrations/optimum-v1.0.0] - 2025-03-05
 
 ### 🧹 Chores

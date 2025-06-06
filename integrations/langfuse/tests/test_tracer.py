@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 from typing import Optional
 
 import pytest
-from haystack.dataclasses import ChatMessage
+from haystack.dataclasses import ChatMessage, ToolCall
 from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer, LangfuseSpan, SpanContext, DefaultSpanHandler
 from haystack_integrations.tracing.langfuse.tracer import _COMPONENT_OUTPUT_KEY
 
@@ -287,6 +287,56 @@ class TestLangfuseTracer:
         assert span.raw_span()._data["usage"] is None
         assert span.raw_span()._data["model"] == "test_model"
         assert span.raw_span()._data["completion_start_time"] == datetime.datetime(2021, 7, 27, 16, 2, 8, 12345)
+
+    def test_handle_tool_invoker(self):
+        """
+        Test that the ToolInvoker span name is updated correctly with the tool names invoked for better UI/UX
+        """
+        mock_span = Mock()
+        mock_span.raw_span.return_value = mock_span
+
+        # Simulate data for the ToolInvoker component
+        span_data = {
+            "haystack.component.name": "tool_invoker",
+            "haystack.component.type": "ToolInvoker",
+            "haystack.component.input": {
+                "messages": [
+                    # Create a chat message with tool calls
+                    ChatMessage.from_assistant(
+                        text="Calling tools",
+                        tool_calls=[
+                            ToolCall(tool_name="search_tool", arguments={"query": "test"}),
+                            ToolCall(tool_name="search_tool", arguments={"query": "another test"}),
+                            ToolCall(tool_name="weather_tool", arguments={"location": "Berlin"}),
+                        ],
+                    )
+                ]
+            },
+        }
+
+        mock_span.get_data.return_value = span_data
+
+        handler = DefaultSpanHandler()
+        handler.handle(mock_span, component_type="ToolInvoker")
+
+        assert mock_span.update.call_count >= 1
+        name_update_call = None
+        for call in mock_span.update.call_args_list:
+            if 'name' in call[1]:
+                name_update_call = call
+                break
+
+        assert name_update_call is not None, "No call to update the span name was made"
+        updated_name = name_update_call[1]['name']
+
+        # verify the format of the updated span name to be: `original_component_name - [list_of_tool_names]`
+        assert updated_name != "tool_invoker", f"Expected 'tool_invoker` to be upddated with tool names"
+        assert " - " in updated_name, f"Expected ' - ' in {updated_name}"
+        assert "[" in updated_name, f"Expected '[' in {updated_name}"
+        assert "]" in updated_name, f"Expected ']' in {updated_name}"
+        assert "tool_invoker" in updated_name, f"Expected 'tool_invoker' in {updated_name}"
+        assert "search_tool (x2)" in updated_name, f"Expected 'search_tool (x2)' in {updated_name}"
+        assert "weather_tool" in updated_name, f"Expected 'weather_tool' in {updated_name}"
 
     def test_trace_generation_invalid_start_time(self):
         tracer = LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)

@@ -4,11 +4,7 @@ import pytest
 from haystack import Pipeline
 from haystack.components.builders import PromptBuilder
 from haystack.dataclasses import StreamingChunk
-from vertexai.generative_models import (
-    GenerationConfig,
-    HarmBlockThreshold,
-    HarmCategory,
-)
+from vertexai.generative_models import GenerationConfig, HarmBlockThreshold, HarmCategory
 
 from haystack_integrations.components.generators.google_vertex import VertexAIGeminiGenerator
 
@@ -16,7 +12,6 @@ from haystack_integrations.components.generators.google_vertex import VertexAIGe
 @patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
 @patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
 def test_init(mock_vertexai_init, _mock_generative_model):
-
     generation_config = GenerationConfig(
         candidate_count=1,
         stop_sequences=["stop"],
@@ -52,7 +47,6 @@ def test_init_fails_with_tools_or_tool_config():
 @patch("haystack_integrations.components.generators.google_vertex.gemini.vertexai_init")
 @patch("haystack_integrations.components.generators.google_vertex.gemini.GenerativeModel")
 def test_to_dict(_mock_vertexai_init, _mock_generative_model):
-
     gemini = VertexAIGeminiGenerator()
     assert gemini.to_dict() == {
         "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",

@@ -11,7 +11,7 @@ logger.addHandler(python_logging.StreamHandler())
 logger.setLevel(python_logging.INFO)
 
 
-def migrate_to_sparse_embeddings_support(old_document_store: QdrantDocumentStore, new_index: str):
+def migrate_to_sparse_embeddings_support(old_document_store: QdrantDocumentStore, new_index: str) -> None:
     """
     Utility function to migrate an existing `QdrantDocumentStore` to a new one with support for sparse embeddings.
 
@@ -115,7 +115,7 @@ def migrate_to_sparse_embeddings_support(old_document_store: QdrantDocumentStore
 
         message = (
             f"Points transmitted: {points_transmitted}/{total_points}\n"
-            f"Percent done {points_transmitted/total_points*100:.2f}%\n"
+            f"Percent done {points_transmitted / total_points * 100:.2f}%\n"
             f"Time elapsed: {time.time() - start:.2f} seconds\n"
             f"Time remaining: {(((time.time() - start) / points_transmitted) * points_remaining) / 60:.2f} minutes\n"
             f"Current offset: {next_page_offset}\n"
