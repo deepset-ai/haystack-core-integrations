@@ -85,7 +85,8 @@ class GoogleGenAIDocumentEmbedder:
         self._meta_fields_to_embed = meta_fields_to_embed or []
         self._embedding_separator = embedding_separator
         self._client = genai.Client(api_key=api_key.resolve_value())
-        self._config = config if config is not None else {"task_type": "SEMANTIC_SIMILARITY"}
+        self._config = config if config is not None else {
+            "task_type": "SEMANTIC_SIMILARITY"}
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -127,14 +128,14 @@ class GoogleGenAIDocumentEmbedder:
         texts_to_embed: List[str] = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.meta[key]) 
-                for key in 
-                self._meta_fields_to_embed 
+                str(doc.meta[key])
+                for key in self._meta_fields_to_embed
                 if key in doc.meta and doc.meta[key] is not None
             ]
 
             text_to_embed = (
-                self._prefix + self._embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self._suffix
+                self._prefix + self._embedding_separator.join(
+                    [*meta_values_to_embed, doc.content or ""]) + self._suffix
             )
             texts_to_embed.append(text_to_embed)
 
@@ -150,9 +151,11 @@ class GoogleGenAIDocumentEmbedder:
         for batch in tqdm(
             batched(texts_to_embed, batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
         ):
-            args: Dict[str, Any] = {"model": self._model, "contents": [b[1] for b in batch]}
+            args: Dict[str, Any] = {"model": self._model,
+                                    "contents": [b[1] for b in batch]}
             if self._config:
-                args["config"] = types.EmbedContentConfig(**self._config) if self._config else None
+                args["config"] = types.EmbedContentConfig(
+                    **self._config) if self._config else None
 
             response = self._client.models.embed_content(**args)
 
@@ -186,7 +189,8 @@ class GoogleGenAIDocumentEmbedder:
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
 
-        embeddings, meta = self._embed_batch(texts_to_embed=texts_to_embed, batch_size=self._batch_size)
+        embeddings, meta = self._embed_batch(
+            texts_to_embed=texts_to_embed, batch_size=self._batch_size)
 
         for doc, emb in zip(documents, embeddings):
             doc.embedding = emb

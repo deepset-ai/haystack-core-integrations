@@ -142,7 +142,8 @@ class TestGoogleGenAIDocumentEmbedder:
 
     def test_prepare_texts_to_embed_w_metadata(self):
         documents = [
-            Document(id=f"{i}", content=f"document number {i}:\ncontent", meta={"meta_field": f"meta_value {i}"})
+            Document(id=f"{i}", content=f"document number {i}:\ncontent", meta={
+                     "meta_field": f"meta_value {i}"})
             for i in range(5)
         ]
 
@@ -152,15 +153,16 @@ class TestGoogleGenAIDocumentEmbedder:
 
         prepared_texts = embedder._prepare_texts_to_embed(documents)
         assert prepared_texts == [
-            'meta_value 0 | document number 0:\ncontent', 
-            'meta_value 1 | document number 1:\ncontent', 
-            'meta_value 2 | document number 2:\ncontent', 
-            'meta_value 3 | document number 3:\ncontent', 
-            'meta_value 4 | document number 4:\ncontent'
+            "meta_value 0 | document number 0:\ncontent",
+            "meta_value 1 | document number 1:\ncontent",
+            "meta_value 2 | document number 2:\ncontent",
+            "meta_value 3 | document number 3:\ncontent",
+            "meta_value 4 | document number 4:\ncontent"
         ]
 
     def test_run_wrong_input_format(self):
-        embedder = GoogleGenAIDocumentEmbedder(api_key=Secret.from_token("fake-api-key"))
+        embedder = GoogleGenAIDocumentEmbedder(
+            api_key=Secret.from_token("fake-api-key"))
 
         # wrong formats
         string_input = "text"
@@ -173,7 +175,8 @@ class TestGoogleGenAIDocumentEmbedder:
             embedder.run(documents=list_integers_input)
 
     def test_run_on_empty_list(self):
-        embedder = GoogleGenAIDocumentEmbedder(api_key=Secret.from_token("fake-api-key"))
+        embedder = GoogleGenAIDocumentEmbedder(
+            api_key=Secret.from_token("fake-api-key"))
 
         empty_list_input = []
         result = embedder.run(documents=empty_list_input)
@@ -189,12 +192,14 @@ class TestGoogleGenAIDocumentEmbedder:
     def test_run(self):
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
-            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+            Document(content="A transformer is a deep learning architecture", meta={
+                     "topic": "ML"}),
         ]
 
         model = "text-embedding-004"
 
-        embedder = GoogleGenAIDocumentEmbedder(model=model, meta_fields_to_embed=["topic"], embedding_separator=" | ")
+        embedder = GoogleGenAIDocumentEmbedder(model=model, meta_fields_to_embed=[
+                                               "topic"], embedding_separator=" | ")
 
         result = embedder.run(documents=docs)
         documents_with_embeddings = result["documents"]
