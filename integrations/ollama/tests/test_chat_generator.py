@@ -511,12 +511,21 @@ class TestOllamaChatGenerator:
         assert result["replies"][0]._meta["usage"]["completion_tokens"] == 282
         assert result["replies"][0]._meta["usage"]["total_tokens"] == 308
 
-    def test_run_fail_with_tools_and_streaming(self, tools):
-        component = OllamaChatGenerator(tools=tools, streaming_callback=print_streaming_chunk)
+    @pytest.mark.integration
+    def test_run_success_with_tools_and_streaming(self, tools):
+        component = OllamaChatGenerator(model="llama3.2:3b", tools=tools, streaming_callback=print_streaming_chunk)
 
-        with pytest.raises(ValueError):
-            message = ChatMessage.from_user("irrelevant")
-            component.run([message])
+        message = ChatMessage.from_user("What is the weather in Paris?")
+        response = component.run([message])
+
+        assert len(response["replies"]) == 1
+        message = response["replies"][0]
+
+        assert message.tool_calls
+        tool_call = message.tool_call
+        assert isinstance(tool_call, ToolCall)
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
 
     @pytest.mark.integration
     def test_live_run(self):
@@ -625,33 +634,56 @@ class TestOllamaChatGenerator:
         assert isinstance(response_data["population"], (int, float))
         assert response_data["capital"].lower() == "paris"
 
+    @pytest.mark.integration
     def test_run_with_streaming_and_format(self):
         response_format = {
             "type": "object",
-            "properties": {"answer": {"type": "string"}},
+            "properties": {"capital": {"type": "string"}, "population": {"type": "number"}},
+            "required": ["capital", "population"],
         }
         streaming_callback = Mock()
         chat_generator = OllamaChatGenerator(
             model="llama3.2:3b", streaming_callback=streaming_callback, response_format=response_format
         )
+        message = ChatMessage.from_user("What's the weather in Paris?")
 
-        chat_messages = [
-            ChatMessage.from_user("What is the largest city in the United Kingdom by population?"),
-            ChatMessage.from_assistant("London is the largest city in the United Kingdom by population"),
-            ChatMessage.from_user("And what is the second largest?"),
-        ]
-        with pytest.raises(ValueError):
-            chat_generator.run([chat_messages])
+        result = chat_generator.run([message])
 
+        assert isinstance(result, dict)
+        assert isinstance(result["replies"], list)
+
+        # Parse the response text as JSON and verify its structure
+        response_data = json.loads(result["replies"][0].text)
+        assert isinstance(response_data, dict)
+        assert "capital" in response_data
+        assert isinstance(response_data["capital"], str)
+        assert "population" in response_data
+        assert isinstance(response_data["population"], (int, float))
+        assert response_data["capital"].lower() == "paris"
+
+    @pytest.mark.integration
     def test_run_with_tools_and_format(self, tools):
         response_format = {
             "type": "object",
             "properties": {"capital": {"type": "string"}, "population": {"type": "number"}},
+            "required": ["capital", "population"],
         }
         chat_generator = OllamaChatGenerator(model="llama3.2:3b", tools=tools, response_format=response_format)
         message = ChatMessage.from_user("What's the weather in Paris?")
-        with pytest.raises(ValueError):
-            chat_generator.run([message])
+
+        result = chat_generator.run([message])
+
+        assert isinstance(result, dict)
+        assert isinstance(result["replies"], list)
+
+        # Parse the response text as JSON and verify its structure
+        response_data = json.loads(result["replies"][0].text)
+        assert isinstance(response_data, dict)
+        assert "capital" in response_data
+        assert isinstance(response_data["capital"], str)
+        assert "population" in response_data
+        assert isinstance(response_data["population"], (int, float))
+        assert response_data["capital"].lower() == "paris"
 
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run_with_toolset(self, mock_client, tools):
