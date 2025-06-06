@@ -185,7 +185,6 @@ class OllamaChatGenerator:
     def __init__(
             self,
             model: str = "orca-mini",
-            api_base_url: str = "http://localhost:11434",
             url: str = "http://localhost:11434",
             generation_kwargs: Optional[Dict[str, Any]] = None,
             timeout: int = 120,
@@ -193,6 +192,7 @@ class OllamaChatGenerator:
             streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
             tools: Optional[Union[List[Tool], Toolset]] = None,
             response_format: Optional[Union[None, Literal["json"], JsonSchemaValue]] = None,
+            api_base_url: str | None = None,
     ):
         """
         :param model:
