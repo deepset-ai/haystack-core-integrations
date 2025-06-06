@@ -36,7 +36,7 @@ class GoogleGenAIDocumentEmbedder:
     ```
     """
 
-    def __init__(  # pylint: disable=too-many-positional-arguments
+    def __init__(
         self,
         *,
         api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),
@@ -51,10 +51,6 @@ class GoogleGenAIDocumentEmbedder:
     ):
         """
         Creates an GoogleGenAIDocumentEmbedder component.
-
-        Before initializing the component, you can set the 'GoogleGenAI_TIMEOUT' and 'GoogleGenAI_MAX_RETRIES'
-        environment variables to override the `timeout` and `max_retries` parameters respectively
-        in the GoogleGenAI client.
 
         :param api_key:
             The Google API key.
@@ -77,18 +73,19 @@ class GoogleGenAIDocumentEmbedder:
             Separator used to concatenate the metadata fields to the document text.
         :param config:
             A dictionary of keyword arguments to configure embedding content configuration `types.EmbedContentConfig`.
+            If not specified, it defaults to {"task_type": "SEMANTIC_SIMILARITY"}.
             For more information, see the [Google AI Task types](https://ai.google.dev/gemini-api/docs/embeddings#task-types).
         """
-        self.api_key = api_key
-        self.model = model
-        self.prefix = prefix
-        self.suffix = suffix
-        self.batch_size = batch_size
-        self.progress_bar = progress_bar
-        self.meta_fields_to_embed = meta_fields_to_embed or []
-        self.embedding_separator = embedding_separator
-        self.client = genai.Client(api_key=api_key.resolve_value())
-        self.config = config if config is not None else {"task_type": "SEMANTIC_SIMILARITY"}
+        self._api_key = api_key
+        self._model = model
+        self._prefix = prefix
+        self._suffix = suffix
+        self._batch_size = batch_size
+        self._progress_bar = progress_bar
+        self._meta_fields_to_embed = meta_fields_to_embed or []
+        self._embedding_separator = embedding_separator
+        self._client = genai.Client(api_key=api_key.resolve_value())
+        self._config = config if config is not None else {"task_type": "SEMANTIC_SIMILARITY"}
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -99,15 +96,15 @@ class GoogleGenAIDocumentEmbedder:
         """
         return default_to_dict(
             self,
-            model=self.model,
-            prefix=self.prefix,
-            suffix=self.suffix,
-            batch_size=self.batch_size,
-            progress_bar=self.progress_bar,
-            meta_fields_to_embed=self.meta_fields_to_embed,
-            embedding_separator=self.embedding_separator,
-            api_key=self.api_key.to_dict(),
-            config=self.config,
+            model=self._model,
+            prefix=self._prefix,
+            suffix=self._suffix,
+            batch_size=self._batch_size,
+            progress_bar=self._progress_bar,
+            meta_fields_to_embed=self._meta_fields_to_embed,
+            embedding_separator=self._embedding_separator,
+            api_key=self._api_key.to_dict(),
+            config=self._config,
         )
 
     @classmethod
@@ -127,19 +124,20 @@ class GoogleGenAIDocumentEmbedder:
         """
         Prepare the texts to embed by concatenating the Document text with the metadata fields to embed.
         """
-        texts_to_embed = {}
+        texts_to_embed: List[str] = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None
+                str(doc.meta[key]) for key in self._meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None
             ]
 
-            texts_to_embed[doc.id] = (
-                self.prefix + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self.suffix
+            text_to_embed = (
+                self._prefix + self._embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self._suffix
             )
+            texts_to_embed.append(text_to_embed)
 
         return texts_to_embed
 
-    def _embed_batch(self, texts_to_embed: Dict[str, str], batch_size: int) -> Tuple[List[List[float]], Dict[str, Any]]:
+    def _embed_batch(self, texts_to_embed: List[str], batch_size: int) -> Tuple[List[List[float]], Dict[str, Any]]:
         """
         Embed a list of texts in batches.
         """
@@ -147,25 +145,19 @@ class GoogleGenAIDocumentEmbedder:
         all_embeddings = []
         meta: Dict[str, Any] = {}
         for batch in tqdm(
-            batched(texts_to_embed.items(), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
+            batched(texts_to_embed, batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
         ):
-            args: Dict[str, Any] = {"model": self.model, "contents": [b[1] for b in batch]}
-            if self.config:
-                args["config"] = types.EmbedContentConfig(**self.config) if self.config else None
+            args: Dict[str, Any] = {"model": self._model, "contents": [b[1] for b in batch]}
+            if self._config:
+                args["config"] = types.EmbedContentConfig(**self._config) if self._config else None
 
-            try:
-                response = self.client.models.embed_content(**args)
-            except Exception as exc:
-                ids = ", ".join(b[0] for b in batch)
-                msg = "Failed embedding of documents {ids} caused by {exc}"
-                logger.exception(msg, ids=ids, exc=exc)
-                continue
+            response = self._client.models.embed_content(**args)
 
             embeddings = [el.values for el in response.embeddings]
             all_embeddings.extend(embeddings)
 
             if "model" not in meta:
-                meta["model"] = self.model
+                meta["model"] = self._model
 
         return all_embeddings, meta
 
@@ -191,7 +183,7 @@ class GoogleGenAIDocumentEmbedder:
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
 
-        embeddings, meta = self._embed_batch(texts_to_embed=texts_to_embed, batch_size=self.batch_size)
+        embeddings, meta = self._embed_batch(texts_to_embed=texts_to_embed, batch_size=self._batch_size)
 
         for doc, emb in zip(documents, embeddings):
             doc.embedding = emb

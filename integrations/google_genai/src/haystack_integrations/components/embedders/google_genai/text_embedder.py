@@ -36,7 +36,7 @@ class GoogleGenAITextEmbedder:
     ```
     """
 
-    def __init__(  # pylint: disable=too-many-positional-arguments
+    def __init__(
         self,
         *,
         api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),
@@ -61,6 +61,7 @@ class GoogleGenAITextEmbedder:
             A string to add at the end of each text to embed.
         :param config:
             A dictionary of keyword arguments to configure embedding content configuration `types.EmbedContentConfig`.
+            If not specified, it defaults to {"task_type": "SEMANTIC_SIMILARITY"}.
             For more information, see the [Google AI Task types](https://ai.google.dev/gemini-api/docs/embeddings#task-types).
         """
 

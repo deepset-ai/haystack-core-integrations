@@ -27,15 +27,15 @@ class TestGoogleGenAIDocumentEmbedder:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
         embedder = GoogleGenAIDocumentEmbedder()
-        assert embedder.api_key.resolve_value() == "fake-api-key"
-        assert embedder.model == "text-embedding-004"
-        assert embedder.prefix == ""
-        assert embedder.suffix == ""
-        assert embedder.batch_size == 32
-        assert embedder.progress_bar is True
-        assert embedder.meta_fields_to_embed == []
-        assert embedder.embedding_separator == "\n"
-        assert embedder.config == {"task_type": "SEMANTIC_SIMILARITY"}
+        assert embedder._api_key.resolve_value() == "fake-api-key"
+        assert embedder._model == "text-embedding-004"
+        assert embedder._prefix == ""
+        assert embedder._suffix == ""
+        assert embedder._batch_size == 32
+        assert embedder._progress_bar is True
+        assert embedder._meta_fields_to_embed == []
+        assert embedder._embedding_separator == "\n"
+        assert embedder._config == {"task_type": "SEMANTIC_SIMILARITY"}
 
     def test_init_with_parameters(self, monkeypatch):
         embedder = GoogleGenAIDocumentEmbedder(
@@ -49,15 +49,15 @@ class TestGoogleGenAIDocumentEmbedder:
             embedding_separator=" | ",
             config={"task_type": "CLASSIFICATION"},
         )
-        assert embedder.api_key.resolve_value() == "fake-api-key-2"
-        assert embedder.model == "model"
-        assert embedder.prefix == "prefix"
-        assert embedder.suffix == "suffix"
-        assert embedder.batch_size == 64
-        assert embedder.progress_bar is False
-        assert embedder.meta_fields_to_embed == ["test_field"]
-        assert embedder.embedding_separator == " | "
-        assert embedder.config == {"task_type": "CLASSIFICATION"}
+        assert embedder._api_key.resolve_value() == "fake-api-key-2"
+        assert embedder._model == "model"
+        assert embedder._prefix == "prefix"
+        assert embedder._suffix == "suffix"
+        assert embedder._batch_size == 64
+        assert embedder._progress_bar is False
+        assert embedder._meta_fields_to_embed == ["test_field"]
+        assert embedder._embedding_separator == " | "
+        assert embedder._config == {"task_type": "CLASSIFICATION"}
 
     def test_init_with_parameters_and_env_vars(self, monkeypatch):
         embedder = GoogleGenAIDocumentEmbedder(
@@ -71,15 +71,15 @@ class TestGoogleGenAIDocumentEmbedder:
             embedding_separator=" | ",
             config={"task_type": "CLASSIFICATION"},
         )
-        assert embedder.api_key.resolve_value() == "fake-api-key-2"
-        assert embedder.model == "model"
-        assert embedder.prefix == "prefix"
-        assert embedder.suffix == "suffix"
-        assert embedder.batch_size == 64
-        assert embedder.progress_bar is False
-        assert embedder.meta_fields_to_embed == ["test_field"]
-        assert embedder.embedding_separator == " | "
-        assert embedder.config == {"task_type": "CLASSIFICATION"}
+        assert embedder._api_key.resolve_value() == "fake-api-key-2"
+        assert embedder._model == "model"
+        assert embedder._prefix == "prefix"
+        assert embedder._suffix == "suffix"
+        assert embedder._batch_size == 64
+        assert embedder._progress_bar is False
+        assert embedder._meta_fields_to_embed == ["test_field"]
+        assert embedder._embedding_separator == " | "
+        assert embedder._config == {"task_type": "CLASSIFICATION"}
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
