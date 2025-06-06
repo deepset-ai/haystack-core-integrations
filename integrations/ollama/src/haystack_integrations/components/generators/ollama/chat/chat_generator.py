@@ -1,5 +1,4 @@
-from typing import Any, Callable, Dict, List, Literal, Optional, Union, DefaultDict
-from collections import defaultdict
+from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
@@ -16,9 +15,6 @@ from pydantic.json_schema import JsonSchemaValue
 from ollama import ChatResponse, Client
 
 
-# --------------------------------------------------------------------------------------
-# Helper conversions
-# --------------------------------------------------------------------------------------
 def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any]:
     """
     Convert a ChatMessage to the format expected by the Ollama Chat API.
@@ -46,8 +42,7 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any
     if tool_calls:
         # Ollama does not support tool call id, so we ignore it
         ollama_msg["tool_calls"] = [
-            {"type": "function", "function": {"name": tc.tool_name, "arguments": tc.arguments}} 
-            for tc in tool_calls
+            {"type": "function", "function": {"name": tc.tool_name, "arguments": tc.arguments}} for tc in tool_calls
         ]
     return ollama_msg
 
@@ -128,9 +123,6 @@ def _convert_ollama_response_to_chatmessage(ollama_response: "ChatResponse") -> 
     return chat_msg
 
 
-# --------------------------------------------------------------------------------------
-# Main component
-# --------------------------------------------------------------------------------------
 @component
 class OllamaChatGenerator:
     """
@@ -146,9 +138,11 @@ class OllamaChatGenerator:
     from components.OlamaChatGenerator import OllamaChatGenerator
     from haystack.dataclasses import ChatMessage
     from haystack.tools import Tool
+
     def echo(query: str) -> str:
-        print("Tool executed with QUERY: {🔍 {query}}")
-        return f"🔍 {query}"
+        print(f"Tool executed with QUERY: {query}")
+        return query
+
     echo_tool = Tool(
         name="echo_tool",
         description="Echoes the query (demo tool).",
@@ -158,10 +152,12 @@ class OllamaChatGenerator:
     agent = Agent(
         chat_generator=OllamaChatGenerator(model="mistral-small3.1:24b"),
         tools=[echo_tool],
-        system_prompt="Use tool to print the query to test tools. Do not answer the question, just send the query to the tool",
+        system_prompt=(
+            "Use tool to print the query to test tools. Do not answer the question, just send the query to the tool"
+        ),
         max_agent_steps=5,
         raise_on_tool_invocation_failure=True,
-        streaming_callback=lambda ch: print(ch.content, end="", flush=True),
+        streaming_callback=print_streaming_chunk,
     )
     messages = [ChatMessage.from_user("This is stream test of tool usage")]
     result = agent.run(messages=messages)
@@ -179,28 +175,22 @@ class OllamaChatGenerator:
     ```
     """
 
-    # ------------------------------------------------------------------
-    # Construction / (de)serialisation
-    # ------------------------------------------------------------------
     def __init__(
-            self,
-            model: str = "orca-mini",
-            url: str = "http://localhost:11434",
-            generation_kwargs: Optional[Dict[str, Any]] = None,
-            timeout: int = 120,
-            keep_alive: Optional[Union[float, str]] = None,
-            streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-            tools: Optional[Union[List[Tool], Toolset]] = None,
-            response_format: Optional[Union[None, Literal["json"], JsonSchemaValue]] = None,
-            api_base_url: str | None = None,
+        self,
+        model: str = "orca-mini",
+        url: str = "http://localhost:11434",
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        timeout: int = 120,
+        keep_alive: Optional[Union[float, str]] = None,
+        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
+        response_format: Optional[Union[None, Literal["json"], JsonSchemaValue]] = None,
     ):
         """
         :param model:
             The name of the model to use. The model must already be present (pulled) in the running Ollama instance.
-        :param api_base_url:
-            The base URL of the Ollama server (default "http://localhost:11434").
         :param url:
-            This will be deprecated soon, use instead api_base_url.
+            The base URL of the Ollama server (default "http://localhost:11434").
         :param generation_kwargs:
             Optional arguments to pass to the Ollama generation endpoint, such as temperature,
             top_p, and others. See the available arguments in
@@ -226,12 +216,13 @@ class OllamaChatGenerator:
             The format for structured model outputs. The value can be:
             - None: No specific structure or format is applied to the response. The response is returned as-is.
             - "json": The response is formatted as a JSON object.
-            - JSON Schema: The response is formatted as a JSON object that adheres to the specified JSON Schema. (needs Ollama ≥ 0.1.34)
+            - JSON Schema: The response is formatted as a JSON object
+                that adheres to the specified JSON Schema. (needs Ollama ≥ 0.1.34)
         """
         _check_duplicate_tool_names(tools)
 
         self.model = model
-        self.url = api_base_url or url
+        self.url = url
         self.generation_kwargs = generation_kwargs or {}
         self.timeout = timeout
         self.keep_alive = keep_alive
@@ -241,7 +232,6 @@ class OllamaChatGenerator:
 
         self._client = Client(host=self.url, timeout=self.timeout)
 
-    # Serialisation helpers
     def to_dict(self) -> Dict[str, Any]:
         """
         Serializes the component to a dictionary.
@@ -279,21 +269,18 @@ class OllamaChatGenerator:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(callback_ser)
         return default_from_dict(cls, data)
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
     @staticmethod
     def _build_chunk(chunk_response: Any) -> StreamingChunk:
         """
         Convert one Ollama stream-chunk to Haystack StreamingChunk.
         """
-        d = chunk_response.model_dump()
+        chunk_response_dict = chunk_response.model_dump()
 
-        content = d["message"]["content"]
-        meta = {k: v for k, v in d.items() if k != "message"}
-        meta["role"] = d["message"]["role"]  # keep for debugging
-        if tc := d["message"].get("tool_calls"):
-            meta["tool_calls"] = tc
+        content = chunk_response_dict["message"]["content"]
+        meta = {key: value for key, value in chunk_response_dict.items() if key != "message"}
+        meta["role"] = chunk_response_dict["message"]["role"]
+        if tool_calls := chunk_response_dict["message"].get("tool_calls"):
+            meta["tool_calls"] = tool_calls
 
         return StreamingChunk(content, meta)
 
@@ -308,8 +295,8 @@ class OllamaChatGenerator:
         chunks: List[StreamingChunk] = []
 
         # For every tool-call id store EITHER
-        #   * a concatenated str (when the model streams JSON snippets), OR
-        #   * the most-recent dict (when it sends a full JSON object at once)
+        #  - a concatenated str (when the model streams JSON snippets), OR
+        #  - the most-recent dict (when it sends a full JSON object at once)
         tool_call_args_by_id: Dict[str, Union[str, dict]] = {}
         last_seen_calls: List[Dict[str, Any]] = []
 
@@ -320,7 +307,7 @@ class OllamaChatGenerator:
             if streaming_callback is not None:
                 streaming_callback(chunk)
 
-            # ── collect tool-call deltas ──────────────────────────────
+            # collect tool-call deltas
             for tc in chunk.meta.get("tool_calls", []):
                 tc_id = tc.get("id") or tc["function"]["name"]
                 arg_delta = tc["function"].get("arguments")
@@ -340,10 +327,10 @@ class OllamaChatGenerator:
 
                 last_seen_calls.append(tc)
 
-        # ── merge text ────────────────────────────────────────────────
+        # merge text
         combined_text = "".join(c.content for c in chunks)
 
-        # ── rebuild completed ToolCall objects ────────────────────────
+        # rebuild completed ToolCall objects
         completed_tool_calls: List[ToolCall] = []
         if last_seen_calls:
             seen_ids = set()
@@ -365,34 +352,30 @@ class OllamaChatGenerator:
         reply = ChatMessage.from_assistant(
             text=combined_text,
             tool_calls=completed_tool_calls or None,
+            meta=_convert_ollama_meta_to_openai_format(chunks[-1].meta) if chunks else None,
         )
-
-        # Convert the last chunk's metadata to OpenAI format and attach it to the ChatMessage
-        if chunks:
-            reply._meta = _convert_ollama_meta_to_openai_format(chunks[-1].meta)
 
         return {"replies": [reply]}
 
-    # ------------------------------------------------------------------
-    # Main public entry point
-    # ------------------------------------------------------------------
     @component.output_types(replies=List[ChatMessage])
     def run(
-            self,
-            messages: List[ChatMessage],
-            generation_kwargs: Optional[Dict[str, Any]] = None,
-            tools: Optional[Union[List[Tool], Toolset]] = None,
-            *,
-            streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        self,
+        messages: List[ChatMessage],
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
+        *,
+        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
         """
         Runs an Ollama Model on a given chat history.
 
         :param messages:
-            Complete chat history, including the user’s latest message.
+            A list of ChatMessage instances representing the input messages.
         :param generation_kwargs:
-            Per-call overrides for Ollama inference options.  These are merged
-            on top of the instance-level `generation_kwargs`.
+            Per-call overrides for Ollama inference options.
+            These are merged on top of the instance-level `generation_kwargs`.
+            Optional arguments to pass to the Ollama generation endpoint, such as temperature, top_p, etc. See the
+            [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
             list of `Tool` objects or a `Toolset` instance. If set, it will override the `tools` parameter set
@@ -401,8 +384,8 @@ class OllamaChatGenerator:
             A callable to receive `StreamingChunk` objects as they
             arrive.  Supplying a callback (here or in the constructor) switches
             the component into streaming mode.
-        :returns:
-            {"replies": List[ChatMessage]} – ready for Haystack pipelines.
+        :returns: A dictionary with the following keys:
+            - `replies`: A list of ChatMessages containing the model's response
         """
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         tools = tools or self.tools
@@ -411,9 +394,7 @@ class OllamaChatGenerator:
         # Convert Toolset → list[Tool] for JSON serialisation
         if isinstance(tools, Toolset):
             tools = list(tools)
-        ollama_tools = (
-            [{"type": "function", "function": {**tool.tool_spec}} for tool in tools] if tools else None
-        )
+        ollama_tools = [{"type": "function", "function": {**tool.tool_spec}} for tool in tools] if tools else None
 
         callback = streaming_callback or self.streaming_callback
         is_stream = callback is not None
