@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import operator
+import sys
 import uuid
 from typing import List
 from unittest import mock
@@ -13,6 +14,11 @@ from haystack.dataclasses import Document
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason=("We do not run the Chroma server on Windows and async is onlysupported with HTTP connections"),
+)
+@pytest.mark.asyncio
 class TestDocumentStoreAsync:
     @pytest.fixture
     def document_store(self, embedding_function) -> ChromaDocumentStore:
@@ -43,13 +49,11 @@ class TestDocumentStoreAsync:
             assert doc_received.content == doc_expected.content
             assert doc_received.meta == doc_expected.meta
 
-    @pytest.mark.asyncio
     async def test_write_documents_async(self, document_store: ChromaDocumentStore):
         doc = Document(content="test doc")
         await document_store.write_documents_async([doc])
         assert await document_store.count_documents_async() == 1
 
-    @pytest.mark.asyncio
     async def test_delete_documents_async(self, document_store: ChromaDocumentStore):
         """Test delete_documents() normal behaviour."""
         doc = Document(content="test doc")
@@ -59,12 +63,10 @@ class TestDocumentStoreAsync:
         await document_store.delete_documents_async([doc.id])
         assert await document_store.count_documents_async() == 0
 
-    @pytest.mark.asyncio
     async def test_count_empty_async(self, document_store: ChromaDocumentStore):
         """Test count is zero for an empty document store"""
         assert await document_store.count_documents_async() == 0
 
-    @pytest.mark.asyncio
     async def test_count_not_empty_async(self, document_store: ChromaDocumentStore):
         """Test count is greater than zero if the document store contains documents"""
         await document_store.write_documents_async(
@@ -76,7 +78,6 @@ class TestDocumentStoreAsync:
         )
         assert await document_store.count_documents_async() == 3
 
-    @pytest.mark.asyncio
     async def test_no_filters_async(self, document_store):
         """Test filter_documents() with empty filters"""
         self.assert_documents_are_equal(await document_store.filter_documents_async(), [])
@@ -86,7 +87,6 @@ class TestDocumentStoreAsync:
         self.assert_documents_are_equal(await document_store.filter_documents_async(), docs)
         self.assert_documents_are_equal(await document_store.filter_documents_async(filters={}), docs)
 
-    @pytest.mark.asyncio
     async def test_comparison_equal_async(self, document_store, filterable_docs):
         """Test filter_documents() with == comparator"""
         await document_store.write_documents_async(filterable_docs)
@@ -95,7 +95,6 @@ class TestDocumentStoreAsync:
         )
         self.assert_documents_are_equal(result, [d for d in filterable_docs if d.meta.get("number") == 100])
 
-    @pytest.mark.asyncio
     @pytest.mark.integration
     async def test_search_async(self):
         document_store = ChromaDocumentStore(host="localhost", port=8000, collection_name="my_custom_collection")
