@@ -84,11 +84,9 @@ def test_convert_chatmessage_to_google_content_invalid():
 
 
 class TestVertexAIGeminiChatGenerator:
-
     @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.vertexai_init")
     @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
     def test_init(self, mock_vertexai_init, _mock_generative_model, tools):
-
         generation_config = GenerationConfig(
             candidate_count=1,
             stop_sequences=["stop"],
@@ -124,7 +122,6 @@ class TestVertexAIGeminiChatGenerator:
     @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.vertexai_init")
     @patch("haystack_integrations.components.generators.google_vertex.chat.gemini.GenerativeModel")
     def test_to_dict(self, _mock_vertexai_init, _mock_generative_model):
-
         gemini = VertexAIGeminiChatGenerator()
         assert gemini.to_dict() == {
             "type": "haystack_integrations.components.generators.google_vertex.chat.gemini.VertexAIGeminiChatGenerator",
@@ -725,17 +722,17 @@ class TestVertexAIGeminiChatGenerator:
         # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
         # haystack-ai>=2.12.0
         if hasattr(tool, "outputs_to_string"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "outputs_to_string"
-            ] = tool.outputs_to_string
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["outputs_to_string"] = (
+                tool.outputs_to_string
+            )
         if hasattr(tool, "inputs_from_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "inputs_from_state"
-            ] = tool.inputs_from_state
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = (
+                tool.inputs_from_state
+            )
         if hasattr(tool, "outputs_to_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "outputs_to_state"
-            ] = tool.outputs_to_state
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = (
+                tool.outputs_to_state
+            )
 
         assert pipeline_dict == expected_dict
 
