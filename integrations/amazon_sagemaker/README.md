@@ -34,7 +34,7 @@ hatch run test
 
 To only run unit tests:
 ```
-hatch run test -m "not integration"
+hatch run test:unit
 ```
 
 To only run integration tests:

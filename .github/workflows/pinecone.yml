@@ -54,7 +54,7 @@ jobs:
 
       - name: Lint
         working-directory: integrations/pinecone
-        if: matrix.python-version == '3.9'
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run lint:all
 
       - name: Generate docs
@@ -64,20 +64,20 @@ jobs:
       - name: Run tests
         env:
           INDEX_NAME: ${{ matrix.INDEX_NAME }}
-        run: hatch run cov-retry
+        run: hatch run test:cov-retry
 
       - name: Run unit tests with lowest direct dependencies
         run: |
           hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
           hatch run uv pip install -r requirements_lowest_direct.txt
-          hatch run test -m "not integration"
+          hatch run test:unit
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
           hatch env prune
           hatch run uv pip install git+https://github.com/deepset-ai/haystack.git@main
-          hatch run cov-retry -m "not integration"
+          hatch run test:unit
 
       - name: Send event to Datadog for nightly failures
         if: failure() && github.event_name == 'schedule'

@@ -284,9 +284,9 @@ class TestGoogleGenAIChatGenerator:
         assert len(final_results["replies"]) == 1
         final_message = final_results["replies"][0]
         assert final_message.text
-        assert (
-            "paris" in final_message.text.lower() or "weather" in final_message.text.lower()
-        ), "Response does not contain Paris or weather"
+        assert "paris" in final_message.text.lower() or "weather" in final_message.text.lower(), (
+            "Response does not contain Paris or weather"
+        )
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
@@ -404,7 +404,7 @@ class TestAsyncGoogleGenAIChatGenerator:
         # Create multiple tasks
         tasks = []
         for i in range(3):
-            messages = [ChatMessage.from_user(f"What's the capital of country number {i+1}? Just say the city name.")]
+            messages = [ChatMessage.from_user(f"What's the capital of country number {i + 1}? Just say the city name.")]
             task = component.run_async(messages)
             tasks.append(task)
 

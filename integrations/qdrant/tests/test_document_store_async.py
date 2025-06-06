@@ -123,7 +123,6 @@ class TestQdrantDocumentStore:
         embedding = [0.1] * 768
 
         with pytest.raises(QdrantStoreError):
-
             await document_store._query_hybrid_async(
                 query_sparse_embedding=sparse_embedding,
                 query_embedding=embedding,
@@ -137,7 +136,6 @@ class TestQdrantDocumentStore:
         embedding = [0.1] * 768
 
         with patch.object(document_store._async_client, "query_points", side_effect=Exception("query_points")):
-
             with pytest.raises(QdrantStoreError):
                 await document_store._query_hybrid_async(
                     query_sparse_embedding=sparse_embedding, query_embedding=embedding
@@ -170,7 +168,6 @@ class TestQdrantDocumentStore:
         with patch.object(document_store._async_client, "collection_exists", return_value=True), patch.object(
             document_store._async_client, "get_collection", return_value=mock_collection_info
         ):
-
             with pytest.raises(QdrantStoreError, match="created outside of Haystack"):
                 await document_store._set_up_collection_async("test_collection", 768, False, "cosine", True, False)
 
@@ -187,7 +184,6 @@ class TestQdrantDocumentStore:
         with patch.object(document_store._async_client, "collection_exists", return_value=True), patch.object(
             document_store._async_client, "get_collection", return_value=mock_collection_info
         ):
-
             with pytest.raises(QdrantStoreError, match="without sparse embedding vectors"):
                 await document_store._set_up_collection_async("test_collection", 768, False, "cosine", True, False)
 

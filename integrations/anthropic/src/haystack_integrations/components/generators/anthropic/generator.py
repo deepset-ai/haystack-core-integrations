@@ -218,7 +218,6 @@ class AnthropicGenerator:
             )
         # if streaming is disabled, the response is an Anthropic Message
         elif isinstance(response, Message):
-
             completions = [
                 content_block.text for content_block in response.content if isinstance(content_block, TextBlock)
             ]

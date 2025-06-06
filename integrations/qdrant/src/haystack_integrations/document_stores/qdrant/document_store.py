@@ -1233,7 +1233,6 @@ class QdrantDocumentStore:
         """
         if payload_fields_to_index is not None:
             for payload_index in payload_fields_to_index:
-
                 # self._async_client is initialized at this point
                 # since _initialize_async_client() is called before this method is executed
                 assert self._async_client is not None
