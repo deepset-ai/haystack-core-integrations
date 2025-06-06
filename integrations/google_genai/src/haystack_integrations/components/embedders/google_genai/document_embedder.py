@@ -127,7 +127,10 @@ class GoogleGenAIDocumentEmbedder:
         texts_to_embed: List[str] = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.meta[key]) for key in self._meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None
+                str(doc.meta[key]) 
+                for key in 
+                self._meta_fields_to_embed 
+                if key in doc.meta and doc.meta[key] is not None
             ]
 
             text_to_embed = (

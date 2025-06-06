@@ -151,13 +151,13 @@ class TestGoogleGenAIDocumentEmbedder:
         )
 
         prepared_texts = embedder._prepare_texts_to_embed(documents)
-        assert prepared_texts == {
-            "0": "meta_value 0 | document number 0:\ncontent",
-            "1": "meta_value 1 | document number 1:\ncontent",
-            "2": "meta_value 2 | document number 2:\ncontent",
-            "3": "meta_value 3 | document number 3:\ncontent",
-            "4": "meta_value 4 | document number 4:\ncontent",
-        }
+        assert prepared_texts == [
+            'meta_value 0 | document number 0:\ncontent', 
+            'meta_value 1 | document number 1:\ncontent', 
+            'meta_value 2 | document number 2:\ncontent', 
+            'meta_value 3 | document number 3:\ncontent', 
+            'meta_value 4 | document number 4:\ncontent'
+        ]
 
     def test_run_wrong_input_format(self):
         embedder = GoogleGenAIDocumentEmbedder(api_key=Secret.from_token("fake-api-key"))
