@@ -4,37 +4,20 @@
 
 import logging
 import operator
-import sys
 import uuid
 from typing import List
 from unittest import mock
 
-import numpy as np
 import pytest
-from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 from haystack.dataclasses import ByteStream, Document
 from haystack.testing.document_store import (
     TEST_EMBEDDING_1,
-    TEST_EMBEDDING_2,
     CountDocumentsTest,
     DeleteDocumentsTest,
     FilterDocumentsTest,
-    _random_embeddings,
 )
 
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
-
-
-class _TestEmbeddingFunction(EmbeddingFunction):
-    """
-    Chroma lets you provide custom functions to compute embeddings,
-    we use this feature to provide a fake algorithm returning random
-    vectors in unit tests.
-    """
-
-    def __call__(self, input: Documents) -> Embeddings:  # noqa - chroma will inspect the signature, it must match
-        # embed the documents somehow
-        return [np.random.default_rng().uniform(-1, 1, 768).tolist()]
 
 
 class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest):
@@ -44,7 +27,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
     """
 
     @pytest.fixture
-    def document_store(self) -> ChromaDocumentStore:
+    def document_store(self, embedding_function) -> ChromaDocumentStore:
         """
         This is the most basic requirement for the child class: provide
         an instance of this document store so the base class can use it.
@@ -52,69 +35,9 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         with mock.patch(
             "haystack_integrations.document_stores.chroma.document_store.get_embedding_function"
         ) as get_func:
-            get_func.return_value = _TestEmbeddingFunction()
+            get_func.return_value = embedding_function
             return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
 
-    @pytest.fixture
-    def filterable_docs(self) -> List[Document]:
-        """
-        This fixture has been copied from haystack/testing/document_store.py and modified to
-        remove the documents that don't have textual content, as Chroma does not support writing them.
-        """
-        documents = []
-        for i in range(3):
-            documents.append(
-                Document(
-                    content=f"A Foo Document {i}",
-                    meta={
-                        "name": f"name_{i}",
-                        "page": "100",
-                        "chapter": "intro",
-                        "number": 2,
-                        "date": "1969-07-21T20:17:40",
-                    },
-                    embedding=_random_embeddings(768),
-                )
-            )
-            documents.append(
-                Document(
-                    content=f"A Bar Document {i}",
-                    meta={
-                        "name": f"name_{i}",
-                        "page": "123",
-                        "chapter": "abstract",
-                        "number": -2,
-                        "date": "1972-12-11T19:54:58",
-                    },
-                    embedding=_random_embeddings(768),
-                )
-            )
-            documents.append(
-                Document(
-                    content=f"A Foobar Document {i}",
-                    meta={
-                        "name": f"name_{i}",
-                        "page": "90",
-                        "chapter": "conclusion",
-                        "number": -10,
-                        "date": "1989-11-09T17:53:00",
-                    },
-                    embedding=_random_embeddings(768),
-                )
-            )
-            documents.append(
-                Document(
-                    content=f"Document {i} without embedding",
-                    meta={"name": f"name_{i}", "no_embedding": True, "chapter": "conclusion"},
-                )
-            )
-            documents.append(
-                Document(content=f"Doc {i} with zeros emb", meta={"name": "zeros_doc"}, embedding=TEST_EMBEDDING_1)
-            )
-            documents.append(
-                Document(content=f"Doc {i} with ones emb", meta={"name": "ones_doc"}, embedding=TEST_EMBEDDING_2)
-            )
-        return documents
 
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
@@ -146,11 +69,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         assert store._host is None
         assert store._port is None
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        sys.platform == "win32",
-        reason="This test requires running the Chroma server. For simplicity, we don't run it on Windows.",
-    )
     def test_init_http_connection(self):
         store = ChromaDocumentStore(host="localhost", port=8000)
 
@@ -166,89 +84,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             store = ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost")
             store._ensure_initialized()
 
-    def test_delete_empty(self, document_store: ChromaDocumentStore):
-        """
-        Deleting a non-existing document should not raise with Chroma
-        """
-        document_store.delete_documents(["test"])
-
-    def test_delete_not_empty_nonexisting(self, document_store: ChromaDocumentStore):
-        """
-        Deleting a non-existing document should not raise with Chroma
-        """
-        doc = Document(content="test doc")
-        document_store.write_documents([doc])
-        document_store.delete_documents(["non_existing"])
-        filters = {"operator": "==", "field": "id", "value": doc.id}
-
-        assert document_store.filter_documents(filters=filters)[0].id == doc.id
-
-    def test_filter_documents_return_embeddings(self, document_store: ChromaDocumentStore):
-        document_store.write_documents([Document(content="test doc", embedding=TEST_EMBEDDING_1)])
-
-        assert document_store.filter_documents()[0].embedding == pytest.approx(TEST_EMBEDDING_1)
-
-    def test_search(self):
-        document_store = ChromaDocumentStore()
-        documents = [
-            Document(content="First document", meta={"author": "Author1"}),
-            Document(content="Second document"),  # No metadata
-            Document(content="Third document", meta={"author": "Author2"}),
-            Document(content="Fourth document"),  # No metadata
-        ]
-        document_store.write_documents(documents)
-        result = document_store.search(["Third"], top_k=1)
-
-        # Assertions to verify correctness
-        assert len(result) == 1
-        doc = result[0][0]
-        assert doc.content == "Third document"
-        assert doc.meta == {"author": "Author2"}
-        assert doc.embedding
-        assert isinstance(doc.embedding, list)
-        assert all(isinstance(el, float) for el in doc.embedding)
-
-        # check that empty filters behave as no filters
-        result_empty_filters = document_store.search(["Third"], filters={}, top_k=1)
-        assert result == result_empty_filters
-
-    def test_write_documents_unsupported_meta_values(self, document_store: ChromaDocumentStore):
-        """
-        Unsupported meta values should be removed from the documents before writing them to the database
-        """
-
-        docs = [
-            Document(content="test doc 1", meta={"invalid": {"dict": "value"}}),
-            Document(content="test doc 2", meta={"invalid": ["list", "value"]}),
-            Document(content="test doc 3", meta={"ok": 123}),
-        ]
-
-        document_store.write_documents(docs)
-
-        written_docs = document_store.filter_documents()
-        written_docs.sort(key=lambda x: x.content)
-
-        assert len(written_docs) == 3
-        assert [doc.id for doc in written_docs] == [doc.id for doc in docs]
-        assert written_docs[0].meta == {}
-        assert written_docs[1].meta == {}
-        assert written_docs[2].meta == {"ok": 123}
-
-    def test_documents_with_content_none_are_not_stored(self, document_store: ChromaDocumentStore):
-        document_store.write_documents([Document(content=None)])
-        assert document_store.filter_documents() == []
-
-    def test_blob_not_stored(self, document_store: ChromaDocumentStore):
-        bs = ByteStream(data=b"test")
-        doc_mixed = Document(content="test", blob=bs)
-
-        document_store.write_documents([doc_mixed])
-
-        retrieved_doc = document_store.filter_documents()[0]
-        assert retrieved_doc.content == "test"
-        assert retrieved_doc.blob is None
-
-    @pytest.mark.integration
     def test_to_dict(self, request):
         ds = ChromaDocumentStore(
             collection_name=request.node.name, embedding_function="HuggingFaceEmbeddingFunction", api_key="1234567890"
@@ -267,7 +102,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             },
         }
 
-    @pytest.mark.integration
     def test_from_dict(self):
         collection_name = "test_collection"
         function_name = "HuggingFaceEmbeddingFunction"
@@ -289,12 +123,10 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         assert ds._embedding_function == function_name
         assert ds._embedding_function_params == {"api_key": "1234567890"}
 
-    @pytest.mark.integration
     def test_same_collection_name_reinitialization(self):
         ChromaDocumentStore("test_1")
         ChromaDocumentStore("test_1")
 
-    @pytest.mark.integration
     def test_distance_metric_initialization(self):
         store = ChromaDocumentStore("test_2", distance_function="cosine")
         store._ensure_initialized()
@@ -303,7 +135,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         with pytest.raises(ValueError):
             ChromaDocumentStore("test_3", distance_function="jaccard")
 
-    @pytest.mark.integration
     def test_distance_metric_reinitialization(self, caplog):
         store = ChromaDocumentStore("test_4", distance_function="cosine")
         store._ensure_initialized()
@@ -319,7 +150,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         assert store._collection.metadata["hnsw:space"] == "cosine"
         assert new_store._collection.metadata["hnsw:space"] == "cosine"
 
-    @pytest.mark.integration
     def test_metadata_initialization(self, caplog):
         store = ChromaDocumentStore(
             "test_5",
@@ -356,6 +186,65 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         )
         assert store._collection.metadata["hnsw:space"] == "ip"
         assert new_store._collection.metadata["hnsw:space"] == "ip"
+
+    def test_delete_empty(self, document_store: ChromaDocumentStore):
+        """
+        Deleting a non-existing document should not raise with Chroma
+        """
+        document_store.delete_documents(["test"])
+
+    def test_delete_not_empty_nonexisting(self, document_store: ChromaDocumentStore):
+        """
+        Deleting a non-existing document should not raise with Chroma
+        """
+        doc = Document(content="test doc")
+        document_store.write_documents([doc])
+        document_store.delete_documents(["non_existing"])
+        filters = {"operator": "==", "field": "id", "value": doc.id}
+
+        assert document_store.filter_documents(filters=filters)[0].id == doc.id
+
+    def test_filter_documents_return_embeddings(self, document_store: ChromaDocumentStore):
+        document_store.write_documents([Document(content="test doc", embedding=TEST_EMBEDDING_1)])
+
+        assert document_store.filter_documents()[0].embedding == pytest.approx(TEST_EMBEDDING_1)
+
+
+    def test_write_documents_unsupported_meta_values(self, document_store: ChromaDocumentStore):
+        """
+        Unsupported meta values should be removed from the documents before writing them to the database
+        """
+
+        docs = [
+            Document(content="test doc 1", meta={"invalid": {"dict": "value"}}),
+            Document(content="test doc 2", meta={"invalid": ["list", "value"]}),
+            Document(content="test doc 3", meta={"ok": 123}),
+        ]
+
+        document_store.write_documents(docs)
+
+        written_docs = document_store.filter_documents()
+        written_docs.sort(key=lambda x: x.content)
+
+        assert len(written_docs) == 3
+        assert [doc.id for doc in written_docs] == [doc.id for doc in docs]
+        assert written_docs[0].meta == {}
+        assert written_docs[1].meta == {}
+        assert written_docs[2].meta == {"ok": 123}
+
+    def test_documents_with_content_none_are_not_stored(self, document_store: ChromaDocumentStore):
+        document_store.write_documents([Document(content=None)])
+        assert document_store.filter_documents() == []
+
+    def test_blob_not_stored(self, document_store: ChromaDocumentStore):
+        bs = ByteStream(data=b"test")
+        doc_mixed = Document(content="test", blob=bs)
+
+        document_store.write_documents([doc_mixed])
+
+        retrieved_doc = document_store.filter_documents()[0]
+        assert retrieved_doc.content == "test"
+        assert retrieved_doc.blob is None
 
     def test_contains(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
         document_store.write_documents(filterable_docs)
@@ -426,6 +315,10 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             ],
         )
 
+
+
+
+
     @pytest.mark.skip(reason="Chroma does not support comparison with null values")
     def test_comparison_equal_with_none(self, document_store, filterable_docs):
         pass
@@ -469,3 +362,29 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
     @pytest.mark.skip(reason="Chroma does not support not operator")
     def test_not_operator(self, document_store, filterable_docs):
         pass
+
+
+    @pytest.mark.integration
+    def test_search(self):
+        document_store = ChromaDocumentStore()
+        documents = [
+            Document(content="First document", meta={"author": "Author1"}),
+            Document(content="Second document"),  # No metadata
+            Document(content="Third document", meta={"author": "Author2"}),
+            Document(content="Fourth document"),  # No metadata
+        ]
+        document_store.write_documents(documents)
+        result = document_store.search(["Third"], top_k=1)
+
+        # Assertions to verify correctness
+        assert len(result) == 1
+        doc = result[0][0]
+        assert doc.content == "Third document"
+        assert doc.meta == {"author": "Author2"}
+        assert doc.embedding
+        assert isinstance(doc.embedding, list)
+        assert all(isinstance(el, float) for el in doc.embedding)
+
+        # check that empty filters behave as no filters
+        result_empty_filters = document_store.search(["Third"], filters={}, top_k=1)
+        assert result == result_empty_filters

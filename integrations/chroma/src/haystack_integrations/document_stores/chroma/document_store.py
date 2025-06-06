@@ -82,16 +82,16 @@ class ChromaDocumentStore:
         self._embedding_function_params = embedding_function_params
         self._distance_function = distance_function
         self._metadata = metadata
-        self._collection = None
 
         self._persist_path = persist_path
         self._host = host
         self._port = port
 
-        self._initialized = False
+        self._collection = None
+        self._async_collection = None
 
     def _ensure_initialized(self):
-        if not self._initialized:
+        if not self._collection:
             # Create the client instance
             if self._persist_path and (self._host or self._port is not None):
                 error_message = (
@@ -135,16 +135,15 @@ class ChromaDocumentStore:
                     embedding_function=self._embedding_func,
                 )
 
-            self._initialized = True
-
     async def _ensure_initialized_async(self):
-        if not self._initialized:
-            # Create the client instance
+        if not self._async_collection:
             if self._host is None or self._port is None:
-                error_message = "You must specify `host` and `port` for remote asynchronous HTTP client connection. "
+                error_message = (
+                    "Async support in Chroma is only available for remote connections. "
+                    "You must specify `host` and `port` for remote asynchronous HTTP client connection. "
+                )
                 raise ValueError(error_message)
 
-            # Remote connection via async HTTP client
             client = await chromadb.AsyncHttpClient(
                 host=self._host,
                 port=self._port,
@@ -157,24 +156,21 @@ class ChromaDocumentStore:
             collection = await client.list_collections()
             existing_collection_names = [c.name for c in collection]
             if self._collection_name in existing_collection_names:
-                self._collection = await client.get_collection(
+                self._async_collection = await client.get_collection(
                     self._collection_name,
                     embedding_function=self._embedding_func,
                 )
 
-                if self._metadata != self._collection.metadata:
+                if self._metadata != self._async_collection.metadata:
                     logger.warning(
-                        "Collection already exists. "
-                        "The `distance_function` and `metadata` parameters will be ignored."
+                        "Collection already exists. The `distance_function` and `metadata` parameters will be ignored."
                     )
             else:
-                self._collection = await client.create_collection(
+                self._async_collection = await client.create_collection(
                     name=self._collection_name,
                     metadata=self._metadata,
                     embedding_function=self._embedding_func,
                 )
-
-            self._initialized = True
 
     def count_documents(self) -> int:
         """
@@ -188,77 +184,25 @@ class ChromaDocumentStore:
 
     async def count_documents_async(self) -> int:
         """
-        Returns how many documents are present in the document store.
+        Asynchronously returns how many documents are present in the document store.
 
         :returns: how many documents are present in the document store.
         """
         await self._ensure_initialized_async()
-        assert self._collection is not None
-        value = await self._collection.count()
+        assert self._async_collection is not None
+        value = await self._async_collection.count()
 
         return value
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
-         Returns the documents that match the filters provided.
+        Returns the documents that match the filters provided.
 
-         Filters can be provided as a dictionary supporting filtering by ids, metadata, and document content.
-         Metadata filters should use the `"meta.<metadata_key>"` syntax, while content-based filters
-         use the `"content"` field directly.
-         Content filters support the `contains` and `not contains` operators,
-         while id filters only support the `==` operator.
+        For a detailed specification of the filters,
+        refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering).
 
-         Due to Chroma's distinction between metadata filters and document filters, filters with `"field": "content"`
-        (i.e., document content filters) and metadata fields must be supplied separately. For details on chroma filters,
-        see the [Chroma documentation](https://docs.trychroma.com/guides).
-
-         Example:
-
-         ```python
-         filter_1 = {
-                "operator": "AND",
-                "conditions": [
-                    {"field": "meta.name", "operator": "==", "value": "name_0"},
-                    {"field": "meta.number", "operator": "not in", "value": [2, 9]},
-                ],
-            }
-         filter_2 = {
-                "operator": "AND",
-                "conditions": [
-                    {"field": "content", "operator": "contains", "value": "FOO"},
-                    {"field": "content", "operator": "not contains", "value": "BAR"},
-                ],
-            }
-         ```
-
-        If you need to apply the same logical operator (e.g., "AND", "OR") to multiple conditions at the same level,
-         you can provide a list of dictionaries as the value for the operator, like in the example below:
-
-         ```python
-         filters = {
-             "operator": "OR",
-             "conditions": [
-                 {"field": "meta.author", "operator": "==", "value": "author_1"},
-                 {
-                     "operator": "AND",
-                     "conditions": [
-                         {"field": "meta.tag", "operator": "==", "value": "tag_1"},
-                         {"field": "meta.page", "operator": ">", "value": 100},
-                     ],
-                 },
-                 {
-                     "operator": "AND",
-                     "conditions": [
-                         {"field": "meta.tag", "operator": "==", "value": "tag_2"},
-                         {"field": "meta.page", "operator": ">", "value": 200},
-                     ],
-                 },
-             ],
-         }
-         ```
-
-         :param filters: the filters to apply to the document list.
-         :returns: a list of Documents that match the given filters.
+        :param filters: the filters to apply to the document list.
+        :returns: a list of Documents that match the given filters.
         """
         self._ensure_initialized()
         assert self._collection is not None
@@ -280,68 +224,16 @@ class ChromaDocumentStore:
 
     async def filter_documents_async(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
-         Returns the documents that match the filters provided.
+        Asynchronously returns the documents that match the filters provided.
 
-         Filters can be provided as a dictionary supporting filtering by ids, metadata, and document content.
-         Metadata filters should use the `"meta.<metadata_key>"` syntax, while content-based filters
-         use the `"content"` field directly.
-         Content filters support the `contains` and `not contains` operators,
-         while id filters only support the `==` operator.
+        For a detailed specification of the filters,
+        refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering).
 
-         Due to Chroma's distinction between metadata filters and document filters, filters with `"field": "content"`
-        (i.e., document content filters) and metadata fields must be supplied separately. For details on chroma filters,
-        see the [Chroma documentation](https://docs.trychroma.com/guides).
-
-         Example:
-
-         ```python
-         filter_1 = {
-                "operator": "AND",
-                "conditions": [
-                    {"field": "meta.name", "operator": "==", "value": "name_0"},
-                    {"field": "meta.number", "operator": "not in", "value": [2, 9]},
-                ],
-            }
-         filter_2 = {
-                "operator": "AND",
-                "conditions": [
-                    {"field": "content", "operator": "contains", "value": "FOO"},
-                    {"field": "content", "operator": "not contains", "value": "BAR"},
-                ],
-            }
-         ```
-
-        If you need to apply the same logical operator (e.g., "AND", "OR") to multiple conditions at the same level,
-         you can provide a list of dictionaries as the value for the operator, like in the example below:
-
-         ```python
-         filters = {
-             "operator": "OR",
-             "conditions": [
-                 {"field": "meta.author", "operator": "==", "value": "author_1"},
-                 {
-                     "operator": "AND",
-                     "conditions": [
-                         {"field": "meta.tag", "operator": "==", "value": "tag_1"},
-                         {"field": "meta.page", "operator": ">", "value": 100},
-                     ],
-                 },
-                 {
-                     "operator": "AND",
-                     "conditions": [
-                         {"field": "meta.tag", "operator": "==", "value": "tag_2"},
-                         {"field": "meta.page", "operator": ">", "value": 200},
-                     ],
-                 },
-             ],
-         }
-         ```
-
-         :param filters: the filters to apply to the document list.
-         :returns: a list of Documents that match the given filters.
+        :param filters: the filters to apply to the document list.
+        :returns: a list of Documents that match the given filters.
         """
         await self._ensure_initialized_async()
-        assert self._collection is not None
+        assert self._async_collection is not None
 
         kwargs: Dict[str, Any] = {"include": ["embeddings", "documents", "metadatas"]}
 
@@ -354,9 +246,68 @@ class ChromaDocumentStore:
             if chroma_filter.where_document:
                 kwargs["where_document"] = chroma_filter.where_document
 
-        result = await self._collection.get(**kwargs)
+        result = await self._async_collection.get(**kwargs)
 
         return self._get_result_to_documents(result)
+
+    def _convert_document_to_chroma(self, doc: Document) -> Optional[Dict[str, Any]]:
+        """
+        Converts a Haystack Document to a Chroma document.
+        """
+        if not isinstance(doc, Document):
+            msg = "param 'documents' must contain a list of objects of type Document"
+            raise ValueError(msg)
+
+        if doc.content is None:
+            logger.warning(
+                "ChromaDocumentStore cannot store documents with `content=None`. "
+                "Document with id {doc_id} will be skipped.",
+                doc_id=doc.id,
+            )
+            return None
+        elif hasattr(doc, "blob") and doc.blob is not None:
+            logger.warning(
+                "Document with id {doc_id} contains the `blob` field. "
+                "ChromaDocumentStore cannot store `blob` fields. "
+                "This field will be ignored.",
+                doc_id=doc.id,
+            )
+        data: Dict[str, Any] = {"ids": [doc.id], "documents": [doc.content]}
+
+        if doc.meta:
+            valid_meta = {}
+            discarded_keys = []
+
+            for k, v in doc.meta.items():
+                if isinstance(v, SUPPORTED_TYPES_FOR_METADATA_VALUES):
+                    valid_meta[k] = v
+                else:
+                    discarded_keys.append(k)
+
+            if discarded_keys:
+                logger.warning(
+                    "Document {doc_id} contains `meta` values of unsupported types for the keys: {keys}. "
+                    "These items will be discarded. Supported types are: {types}.",
+                    doc_id=doc.id,
+                    keys=", ".join(discarded_keys),
+                    types=", ".join([t.__name__ for t in SUPPORTED_TYPES_FOR_METADATA_VALUES]),
+                )
+
+            if valid_meta:
+                data["metadatas"] = [valid_meta]
+
+        if doc.embedding is not None:
+            data["embeddings"] = [doc.embedding]
+
+        if hasattr(doc, "sparse_embedding") and doc.sparse_embedding is not None:
+            logger.warning(
+                "Document {doc_id} has the `sparse_embedding` field set, "
+                "but storing sparse embeddings in Chroma is not currently supported. "
+                "The `sparse_embedding` field will be ignored.",
+                doc_id=doc.id,
+            )
+
+        return data
 
     def write_documents(
         self,
@@ -381,60 +332,9 @@ class ChromaDocumentStore:
         assert self._collection is not None
 
         for doc in documents:
-            if not isinstance(doc, Document):
-                msg = "param 'documents' must contain a list of objects of type Document"
-                raise ValueError(msg)
-
-            if doc.content is None:
-                logger.warning(
-                    "ChromaDocumentStore cannot store documents with `content=None`. "
-                    "Document with id {doc_id} will be skipped.",
-                    doc_id=doc.id,
-                )
-                continue
-            elif hasattr(doc, "blob") and doc.blob is not None:
-                logger.warning(
-                    "Document with id {doc_id} contains the `blob` field. "
-                    "ChromaDocumentStore cannot store `blob` fields. "
-                    "This field will be ignored.",
-                    doc_id=doc.id,
-                )
-            data = {"ids": [doc.id], "documents": [doc.content]}
-
-            if doc.meta:
-                valid_meta = {}
-                discarded_keys = []
-
-                for k, v in doc.meta.items():
-                    if isinstance(v, SUPPORTED_TYPES_FOR_METADATA_VALUES):
-                        valid_meta[k] = v
-                    else:
-                        discarded_keys.append(k)
-
-                if discarded_keys:
-                    logger.warning(
-                        "Document {doc_id} contains `meta` values of unsupported types for the keys: {keys}. "
-                        "These items will be discarded. Supported types are: {types}.",
-                        doc_id=doc.id,
-                        keys=", ".join(discarded_keys),
-                        types=", ".join([t.__name__ for t in SUPPORTED_TYPES_FOR_METADATA_VALUES]),
-                    )
-
-                if valid_meta:
-                    data["metadatas"] = [valid_meta]
-
-            if doc.embedding is not None:
-                data["embeddings"] = [doc.embedding]
-
-            if hasattr(doc, "sparse_embedding") and doc.sparse_embedding is not None:
-                logger.warning(
-                    "Document {doc_id} has the `sparse_embedding` field set, "
-                    "but storing sparse embeddings in Chroma is not currently supported. "
-                    "The `sparse_embedding` field will be ignored.",
-                    doc_id=doc.id,
-                )
-
-            self._collection.add(**data)
+            data = self._convert_document_to_chroma(doc)
+            if data is not None:
+                self._collection.add(**data)
 
         return len(documents)
 
@@ -444,7 +344,7 @@ class ChromaDocumentStore:
         policy: DuplicatePolicy = DuplicatePolicy.FAIL,
     ) -> int:
         """
-        Writes (or overwrites) documents into the store.
+        Asynchronously writes (or overwrites) documents into the store.
 
         :param documents:
             A list of documents to write into the document store.
@@ -458,63 +358,12 @@ class ChromaDocumentStore:
             The number of documents written
         """
         await self._ensure_initialized_async()
-        assert self._collection is not None
+        assert self._async_collection is not None
 
         for doc in documents:
-            if not isinstance(doc, Document):
-                msg = "param 'documents' must contain a list of objects of type Document"
-                raise ValueError(msg)
-
-            if doc.content is None:
-                logger.warning(
-                    "ChromaDocumentStore cannot store documents with `content=None`. "
-                    "Document with id {doc_id} will be skipped.",
-                    doc_id=doc.id,
-                )
-                continue
-            elif hasattr(doc, "blob") and doc.blob is not None:
-                logger.warning(
-                    "Document with id {doc_id} contains the `blob` field. "
-                    "ChromaDocumentStore cannot store `blob` fields. "
-                    "This field will be ignored.",
-                    doc_id=doc.id,
-                )
-            data = {"ids": [doc.id], "documents": [doc.content]}
-
-            if doc.meta:
-                valid_meta = {}
-                discarded_keys = []
-
-                for k, v in doc.meta.items():
-                    if isinstance(v, SUPPORTED_TYPES_FOR_METADATA_VALUES):
-                        valid_meta[k] = v
-                    else:
-                        discarded_keys.append(k)
-
-                if discarded_keys:
-                    logger.warning(
-                        "Document {doc_id} contains `meta` values of unsupported types for the keys: {keys}. "
-                        "These items will be discarded. Supported types are: {types}.",
-                        doc_id=doc.id,
-                        keys=", ".join(discarded_keys),
-                        types=", ".join([t.__name__ for t in SUPPORTED_TYPES_FOR_METADATA_VALUES]),
-                    )
-
-                if valid_meta:
-                    data["metadatas"] = [valid_meta]
-
-            if doc.embedding is not None:
-                data["embeddings"] = [doc.embedding]
-
-            if hasattr(doc, "sparse_embedding") and doc.sparse_embedding is not None:
-                logger.warning(
-                    "Document {doc_id} has the `sparse_embedding` field set, "
-                    "but storing sparse embeddings in Chroma is not currently supported. "
-                    "The `sparse_embedding` field will be ignored.",
-                    doc_id=doc.id,
-                )
-
-            await self._collection.add(**data)
+            data = self._convert_document_to_chroma(doc)
+            if data is not None:
+                await self._async_collection.add(**data)
 
         return len(documents)
 
@@ -531,14 +380,14 @@ class ChromaDocumentStore:
 
     async def delete_documents_async(self, document_ids: List[str]) -> None:
         """
-        Deletes all documents with a matching document_ids from the document store.
+        Asynchronously deletes all documents with a matching document_ids from the document store.
 
         :param document_ids: the document ids to delete
         """
         await self._ensure_initialized_async()
-        assert self._collection is not None
+        assert self._async_collection is not None
 
-        await self._collection.delete(ids=document_ids)
+        await self._async_collection.delete(ids=document_ids)
 
     def search(
         self,
@@ -546,7 +395,8 @@ class ChromaDocumentStore:
         top_k: int,
         filters: Optional[Dict[str, Any]] = None,
     ) -> List[List[Document]]:
-        """Search the documents in the store using the provided text queries.
+        """
+        Search the documents in the store using the provided text queries.
 
         :param queries: the list of queries to search for.
         :param top_k: top_k documents to return for each query.
@@ -580,7 +430,8 @@ class ChromaDocumentStore:
         top_k: int,
         filters: Optional[Dict[str, Any]] = None,
     ) -> List[List[Document]]:
-        """Search the documents in the store using the provided text queries.
+        """
+        Asynchronously search the documents in the store using the provided text queries.
 
         :param queries: the list of queries to search for.
         :param top_k: top_k documents to return for each query.
@@ -588,17 +439,17 @@ class ChromaDocumentStore:
         :returns: matching documents for each query.
         """
         await self._ensure_initialized_async()
-        assert self._collection is not None
+        assert self._async_collection is not None
 
         if not filters:
-            results = await self._collection.query(
+            results = await self._async_collection.query(
                 query_texts=queries,
                 n_results=top_k,
                 include=["embeddings", "documents", "metadatas", "distances"],
             )
         else:
             chroma_filters = _convert_filters(filters=filters)
-            results = await self._collection.query(
+            results = await self._async_collection.query(
                 query_texts=queries,
                 n_results=top_k,
                 where=chroma_filters.where,
@@ -652,7 +503,8 @@ class ChromaDocumentStore:
         filters: Optional[Dict[str, Any]] = None,
     ) -> List[List[Document]]:
         """
-        Perform vector search on the stored document, pass the embeddings of the queries instead of their text.
+        Asynchronously perform vector search on the stored document, pass the embeddings of the queries instead of
+        their text.
 
         :param query_embeddings: a list of embeddings to use as queries.
         :param top_k: the maximum number of documents to retrieve.
@@ -662,17 +514,17 @@ class ChromaDocumentStore:
 
         """
         await self._ensure_initialized_async()
-        assert self._collection is not None
+        assert self._async_collection is not None
 
         if not filters:
-            results = await self._collection.query(
+            results = await self._async_collection.query(
                 query_embeddings=query_embeddings,
                 n_results=top_k,
                 include=["embeddings", "documents", "metadatas", "distances"],
             )
         else:
             chroma_filters = _convert_filters(filters=filters)
-            results = await self._collection.query(
+            results = await self._async_collection.query(
                 query_embeddings=query_embeddings,
                 n_results=top_k,
                 where=chroma_filters.where,

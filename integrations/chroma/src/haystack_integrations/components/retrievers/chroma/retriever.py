@@ -98,7 +98,7 @@ class ChromaQueryTextRetriever:
         top_k: Optional[int] = None,
     ):
         """
-        Run the retriever on the given input data.
+        Asynchronously run the retriever on the given input data.
 
         :param query: The input data for the retriever. In this case, a plain-text query.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
@@ -191,7 +191,7 @@ class ChromaEmbeddingRetriever(ChromaQueryTextRetriever):
         top_k: Optional[int] = None,
     ):
         """
-        Run the retriever on the given input data.
+        Asynchronously run the retriever on the given input data.
 
         :param query_embedding: the query embeddings.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
