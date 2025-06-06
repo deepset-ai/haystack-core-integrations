@@ -16,7 +16,7 @@ from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 
 @pytest.mark.skipif(
     sys.platform == "win32",
-    reason=("We do not run the Chroma server on Windows and async is onlysupported with HTTP connections"),
+    reason=("We do not run the Chroma server on Windows and async is only supported with HTTP connections"),
 )
 @pytest.mark.asyncio
 class TestDocumentStoreAsync:
