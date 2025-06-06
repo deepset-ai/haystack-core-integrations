@@ -348,7 +348,10 @@ class OllamaChatGenerator:
         # Compose final reply
         text = "".join(c.content for c in chunks)
 
-        tool_calls = [ToolCall(tool_name=name_by_id[tc_id], arguments=arg_by_id.get(tc_id)) for tc_id in id_order]
+        tool_calls = [
+            ToolCall(tool_name=name_by_id[tool_call_id], arguments=arg_by_id.get(tool_call_id))
+            for tool_call_id in id_order
+        ]
 
         reply = ChatMessage.from_assistant(
             text=text,
