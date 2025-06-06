@@ -438,7 +438,7 @@ class AzureAISearchDocumentStore:
                 embedding = None
 
             # Anything besides default fields (id, content, and embedding) is considered metadata
-            # meta will also contain the @search.score, @search.score, @search.ranker_score, 
+            # meta will also contain the @search.score, @search.reranker_score,
             # @search.highlights, @search.captions, and other fields returned by Azure AI Search
             meta = {
                 key: value
