@@ -30,7 +30,7 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any
         msg = "A `ChatMessage` can only contain one `TextContent` or one `ToolCallResult`."
         raise ValueError(msg)
 
-    ollama_msg: Dict[str, Any] = {"role": message._role.value}
+    ollama_msg: Dict[str, Any] = {"role": message.role.value}
 
     if tool_call_results:
         # Ollama does not provide a way to communicate errors in tool invocations, so we ignore the error field
@@ -42,7 +42,8 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any
     if tool_calls:
         # Ollama does not support tool call id, so we ignore it
         ollama_msg["tool_calls"] = [
-            {"type": "function", "function": {"name": tc.tool_name, "arguments": tc.arguments}} for tc in tool_calls
+            {"type": "function", "function": {"name": tool_call.tool_name, "arguments": tool_call.arguments}}
+            for tool_call in tool_calls
         ]
     return ollama_msg
 
@@ -101,7 +102,7 @@ def _convert_ollama_meta_to_openai_format(input_response_dict: Dict) -> Dict:
 
 def _convert_ollama_response_to_chatmessage(ollama_response: "ChatResponse") -> ChatMessage:
     """
-    Convert non-streaming Ollama Chat API response to Haystack ChatMessage with assistant role..
+    Convert non-streaming Ollama Chat API response to Haystack ChatMessage with the assistant role.
     """
     response_dict = ollama_response.model_dump()
     ollama_message = response_dict["message"]
@@ -135,7 +136,7 @@ class OllamaChatGenerator:
     ```python
     from haystack.components.generators.utils import print_streaming_chunk
     from haystack.components.agents import Agent
-    from components.OlamaChatGenerator import OllamaChatGenerator
+    from components.OllamaChatGenerator import OllamaChatGenerator
     from haystack.dataclasses import ChatMessage
     from haystack.tools import Tool
 
@@ -287,74 +288,73 @@ class OllamaChatGenerator:
     def _handle_streaming_response(
         self,
         response_iter: Any,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]],
+        callback: Optional[Callable[[StreamingChunk], None]],
     ) -> Dict[str, List[ChatMessage]]:
         """
-        Handles streaming response and converts it to Haystack format
+        Merge an Ollama streaming response into a single ChatMessage, preserving
+        tool calls.  Works even when arguments arrive piecemeal as str fragments
+        or as full JSON dicts.
         """
+
         chunks: List[StreamingChunk] = []
 
-        # For every tool-call id store EITHER
-        #  - a concatenated str (when the model streams JSON snippets), OR
-        #  - the most-recent dict (when it sends a full JSON object at once)
-        tool_call_args_by_id: Dict[str, Union[str, dict]] = {}
-        last_seen_calls: List[Dict[str, Any]] = []
+        # Accumulators
+        arg_by_id: Dict[str, Union[str, dict]] = {}
+        name_by_id: Dict[str, str] = {}
+        id_order: List[str] = []
 
-        for raw_chunk in response_iter:
-            chunk = self._build_chunk(raw_chunk)
+        # Stream
+        for raw in response_iter:
+            chunk = self._build_chunk(raw)
             chunks.append(chunk)
 
-            if streaming_callback is not None:
-                streaming_callback(chunk)
+            if callback:
+                callback(chunk)
 
-            # collect tool-call deltas
-            for tc in chunk.meta.get("tool_calls", []):
-                tc_id = tc.get("id") or tc["function"]["name"]
-                arg_delta = tc["function"].get("arguments")
+            for tool_call in chunk.meta.get("tool_calls", []):
+                tool_call_id = tool_call.get("id") or tool_call["function"]["name"]
+                args = tool_call["function"].get("arguments")
 
-                if arg_delta is None:
-                    continue
+                # Remember first-seen order and tool name
+                if tool_call_id not in id_order:
+                    id_order.append(tool_call_id)
+                    name_by_id[tool_call_id] = tool_call["function"]["name"]
 
-                prev = tool_call_args_by_id.get(tc_id)
+                # Update the argument accumulator for this tool_call_id.
+                #
+                # • Ollama may stream the same `arguments` field in *two* different forms:
+                #   1) as one or more **str fragments**  -- characters of a JSON string, delivered chunk-by-chunk;
+                #   2) as a complete **dict**            -- fully-parsed JSON in a single chunk.
+                #
+                # • A dict always represents the *final* state (it is already parsed JSON),
+                #   so it should **overwrite** anything collected before.
+                #
+                # • If we are still receiving str fragments *and* we have not yet seen a
+                #   dict, we concatenate them in arrival order.
+                #
+                # • If a dict has already been stored (`prev` is dict) and another string
+                #   fragment arrives, we ignore it by skipping the concat - this prevents
+                #   `TypeError: can only concatenate str (not "dict") to str` and keeps the
+                #   fully-formed JSON intact.
+                if isinstance(args, dict):
+                    # Dict beats anything seen so far (final, authoritative version).
+                    arg_by_id[tool_call_id] = args
+                elif isinstance(args, str):
+                    # Append only when we are still in "string mode".
+                    if not isinstance(arg_by_id.get(tool_call_id), dict):
+                        prev = arg_by_id.get(tool_call_id, "")
+                        arg_by_id[tool_call_id] = f"{prev}{args}"
 
-                if isinstance(arg_delta, str):
-                    if isinstance(prev, str):
-                        tool_call_args_by_id[tc_id] = prev + arg_delta
-                    else:  # prev is dict or None → start fresh with str
-                        tool_call_args_by_id[tc_id] = arg_delta
-                else:  # arg_delta is dict
-                    tool_call_args_by_id[tc_id] = arg_delta  # overwrite; latest wins
+        # Compose final reply
+        text = "".join(c.content for c in chunks)
 
-                last_seen_calls.append(tc)
-
-        # merge text
-        combined_text = "".join(c.content for c in chunks)
-
-        # rebuild completed ToolCall objects
-        completed_tool_calls: List[ToolCall] = []
-        if last_seen_calls:
-            seen_ids = set()
-            # walk backwards so earlier duplicates are skipped
-            for tc in reversed(last_seen_calls):
-                tc_id = tc.get("id") or tc["function"]["name"]
-                if tc_id in seen_ids:
-                    continue
-                seen_ids.add(tc_id)
-
-                completed_tool_calls.append(
-                    ToolCall(
-                        tool_name=tc["function"]["name"],
-                        arguments=tool_call_args_by_id.get(tc_id),
-                    )
-                )
-            completed_tool_calls.reverse()  # restore original order
+        tool_calls = [ToolCall(tool_name=name_by_id[tc_id], arguments=arg_by_id.get(tc_id)) for tc_id in id_order]
 
         reply = ChatMessage.from_assistant(
-            text=combined_text,
-            tool_calls=completed_tool_calls or None,
+            text=text,
+            tool_calls=tool_calls or None,
             meta=_convert_ollama_meta_to_openai_format(chunks[-1].meta) if chunks else None,
         )
-
         return {"replies": [reply]}
 
     @component.output_types(replies=List[ChatMessage])
@@ -391,7 +391,7 @@ class OllamaChatGenerator:
         tools = tools or self.tools
         _check_duplicate_tool_names(tools)
 
-        # Convert Toolset → list[Tool] for JSON serialisation
+        # Convert Toolset → list[Tool] for JSON serialization
         if isinstance(tools, Toolset):
             tools = list(tools)
         ollama_tools = [{"type": "function", "function": {**tool.tool_spec}} for tool in tools] if tools else None
