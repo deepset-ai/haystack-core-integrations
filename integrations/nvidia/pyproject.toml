@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "requests>=2.25.0", "tqdm>=4.21.0"]
+dependencies = ["haystack-ai>=2.13.0", "requests>=2.25.0", "tqdm>=4.21.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/nvidia#readme"
@@ -46,6 +46,8 @@ installer = "uv"
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "pytest-asyncio",
+  "pytz",
   "pytest-rerunfailures",
   "haystack-pydoc-tools",
   "requests_mock",
@@ -160,6 +162,7 @@ module = [
   "pytest.*",
   "numpy.*",
   "requests_mock.*",
+  "openai.*",
   "pydantic.*",
 ]
 ignore_missing_imports = true
