@@ -512,6 +512,7 @@ class TestOllamaChatGenerator:
         assert result["replies"][0]._meta["usage"]["completion_tokens"] == 282
         assert result["replies"][0]._meta["usage"]["total_tokens"] == 308
 
+    @pytest.mark.integration
     def test_run_success_with_tools_and_streaming(self, tools):
         component = OllamaChatGenerator(model="llama3.2:3b", tools=tools, streaming_callback=print_streaming_chunk)
 
@@ -634,6 +635,7 @@ class TestOllamaChatGenerator:
         assert isinstance(response_data["population"], (int, float))
         assert response_data["capital"].lower() == "paris"
 
+    @pytest.mark.integration
     def test_run_with_streaming_and_format(self):
         response_format = {
             "type": "object",
@@ -660,6 +662,7 @@ class TestOllamaChatGenerator:
         assert isinstance(response_data["population"], (int, float))
         assert response_data["capital"].lower() == "paris"
 
+    @pytest.mark.integration
     def test_run_with_tools_and_format(self, tools):
         response_format = {
             "type": "object",
