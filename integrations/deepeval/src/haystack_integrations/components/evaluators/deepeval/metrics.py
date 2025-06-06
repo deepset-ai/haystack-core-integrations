@@ -171,7 +171,7 @@ class InputConverters:
 
         same_length = len({len(x) for x in kwargs.values()}) == 1
         if not same_length:
-            msg = f"Mismatching counts in the following inputs: {({k: len(v) for k, v in kwargs.items()})}"
+            msg = f"Mismatching counts in the following inputs: { ({k: len(v) for k, v in kwargs.items()}) }"
             raise ValueError(msg)
 
     @staticmethod

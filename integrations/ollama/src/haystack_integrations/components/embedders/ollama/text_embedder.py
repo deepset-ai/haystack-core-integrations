@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional
 
 from haystack import component
 
-from ollama import Client
+from ollama import AsyncClient, Client
 
 
 @component
@@ -46,6 +46,7 @@ class OllamaTextEmbedder:
         self.model = model
 
         self._client = Client(host=self.url, timeout=self.timeout)
+        self._async_client = AsyncClient(host=self.url, timeout=self.timeout)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
     def run(self, text: str, generation_kwargs: Optional[Dict[str, Any]] = None):
@@ -63,6 +64,27 @@ class OllamaTextEmbedder:
             - `meta`: The metadata collected during the embedding process
         """
         result = self._client.embeddings(model=self.model, prompt=text, options=generation_kwargs).model_dump()
+        result["meta"] = {"model": self.model}
+
+        return result
+
+    @component.output_types(embedding=List[float], meta=Dict[str, Any])
+    async def run_async(self, text: str, generation_kwargs: Optional[Dict[str, Any]] = None):
+        """
+        Asynchronously run an Ollama Model to compute embeddings of the provided text.
+
+        :param text:
+            Text to be converted to an embedding.
+        :param generation_kwargs:
+            Optional arguments to pass to the Ollama generation endpoint, such as temperature,
+            top_p, etc. See the
+            [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
+        :returns: A dictionary with the following keys:
+            - `embedding`: The computed embeddings
+            - `meta`: The metadata collected during the embedding process
+        """
+        response = await self._async_client.embeddings(model=self.model, prompt=text, options=generation_kwargs)
+        result = response.model_dump()
         result["meta"] = {"model": self.model}
 
         return result

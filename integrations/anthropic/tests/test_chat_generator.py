@@ -67,7 +67,6 @@ def mock_anthropic_completion():
 
 
 class TestAnthropicChatGenerator:
-
     def test_init_default(self, monkeypatch):
         """
         Test the default initialization of the AnthropicChatGenerator component.
@@ -586,17 +585,17 @@ class TestAnthropicChatGenerator:
         # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
         # haystack-ai>=2.12.0
         if hasattr(tool, "outputs_to_string"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "outputs_to_string"
-            ] = tool.outputs_to_string
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["outputs_to_string"] = (
+                tool.outputs_to_string
+            )
         if hasattr(tool, "inputs_from_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "inputs_from_state"
-            ] = tool.inputs_from_state
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = (
+                tool.inputs_from_state
+            )
         if hasattr(tool, "outputs_to_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"][
-                "outputs_to_state"
-            ] = tool.outputs_to_state
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = (
+                tool.outputs_to_state
+            )
 
         assert pipeline_dict == expected_dict
 
@@ -1152,7 +1151,6 @@ class TestAnthropicChatGenerator:
 
 
 class TestAnthropicChatGeneratorAsync:
-
     @pytest.fixture
     async def mock_anthropic_completion_async(self):
         with patch("anthropic.resources.messages.AsyncMessages.create") as mock_anthropic:

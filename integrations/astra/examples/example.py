@@ -75,31 +75,35 @@ if documents_count != ALL_DOCUMENTS_COUNT:
     raise ValueError(msg)
 
 logger.info(
-    f"""filter results: {document_store.filter_documents(
-        {
-            "field": "meta",
-            "operator": "==",
-            "value": {
-                "file_path": "/workspace/astra-haystack/examples/data/usr_01.txt",
-                "source_id": "5b2d27de79bba97da6fc446180d0d99e1024bc7dd6a757037f0934162cfb0916",
-            },
-        }
-    )
-}"""
+    f"""filter results: {
+        document_store.filter_documents(
+            {
+                "field": "meta",
+                "operator": "==",
+                "value": {
+                    "file_path": "/workspace/astra-haystack/examples/data/usr_01.txt",
+                    "source_id": "5b2d27de79bba97da6fc446180d0d99e1024bc7dd6a757037f0934162cfb0916",
+                },
+            }
+        )
+    }"""
 )
 
 logger.info(
-    f"""get_document_by_id {document_store.get_document_by_id(
-    "92ef055fbae55b2b0fc79d34cbf8a80b0ad7700ca526053223b0cc6d1351df10")}"""
+    f"""get_document_by_id {
+        document_store.get_document_by_id("92ef055fbae55b2b0fc79d34cbf8a80b0ad7700ca526053223b0cc6d1351df10")
+    }"""
 )
 
 logger.info(
-    f"""get_documents_by_ids {document_store.get_documents_by_id(
-        [
-            "92ef055fbae55b2b0fc79d34cbf8a80b0ad7700ca526053223b0cc6d1351df10",
-            "6f2450a51eaa3eeb9239d875402bcfe24b2d3534ff27f26c1f3fc8133b04e756",
-        ]
-    )}"""
+    f"""get_documents_by_ids {
+        document_store.get_documents_by_id(
+            [
+                "92ef055fbae55b2b0fc79d34cbf8a80b0ad7700ca526053223b0cc6d1351df10",
+                "6f2450a51eaa3eeb9239d875402bcfe24b2d3534ff27f26c1f3fc8133b04e756",
+            ]
+        )
+    }"""
 )
 
 document_store.delete_documents(["92ef055fbae55b2b0fc79d34cbf8a80b0ad7700ca526053223b0cc6d1351df10"])

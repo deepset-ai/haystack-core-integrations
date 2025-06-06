@@ -47,21 +47,35 @@ git_describe_command = 'git describe --tags --match="integrations/ollama-v[0-9]*
 
 [tool.hatch.envs.default]
 installer = "uv"
-dependencies = [
-    "coverage[toml]>=6.5",
-    "pytest",
-    "pytest-rerunfailures",
-    "haystack-pydoc-tools",
-]
-[tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}"
-test-cov = "coverage run -m pytest {args:tests}"
-test-cov-retry = "test-cov --reruns 3 --reruns-delay 30 -x"
-cov-report = ["- coverage combine", "coverage report"]
-cov = ["test-cov", "cov-report"]
-cov-retry = ["test-cov-retry", "cov-report"]
-docs = ["pydoc-markdown pydoc/config.yml"]
+dependencies = ["haystack-pydoc-tools", "ruff"]
 
+[tool.hatch.envs.default.scripts]
+docs = ["pydoc-markdown pydoc/config.yml"]
+fmt = "ruff check --fix {args} && ruff format {args}"
+fmt-check = "ruff check {args} && ruff format --check {args}" 
+
+[tool.hatch.envs.test]
+dependencies = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-rerunfailures",
+    "mypy",
+    "pip"
+
+]
+
+[tool.hatch.envs.test.scripts]
+unit = 'pytest -m "not integration" {args:tests}'
+integration = 'pytest -m "integration" {args:tests}'
+all = 'pytest {args:tests}'
+cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
+
+types = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+
+# TODO: remove lint environment once this integration is properly typed
+# test environment should be used instead
+# https://github.com/deepset-ai/haystack-core-integrations/issues/1771
 [tool.hatch.envs.lint]
 installer = "uv"
 detached = true
@@ -69,9 +83,6 @@ dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-style = ["ruff check {args:.}", "black --check --diff {args:.}"]
-fmt = ["black {args:.}", "ruff check --fix {args:.}", "style"]
-all = ["style", "typing"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -158,7 +169,10 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 markers = [
     "integration: marks tests as slow (deselect with '-m \"not integration\"')",
 ]
+log_cli = true
 addopts = ["--import-mode=importlib"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "class"
 
 [[tool.mypy.overrides]]
 module = ["haystack.*", "haystack_integrations.*", "pytest.*", "ollama.*", "pydantic.*"]

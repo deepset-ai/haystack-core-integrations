@@ -14,7 +14,6 @@ def test_convert_id_is_deterministic():
 
 
 def test_point_to_document_reverts_proper_structure_from_record_with_sparse():
-
     point = rest.Record(
         id="c7c62e8e-02b9-4ec6-9f88-46bd97b628b7",
         payload={
@@ -41,7 +40,6 @@ def test_point_to_document_reverts_proper_structure_from_record_with_sparse():
 
 
 def test_point_to_document_reverts_proper_structure_from_record_without_sparse():
-
     point = rest.Record(
         id="c7c62e8e-02b9-4ec6-9f88-46bd97b628b7",
         payload={

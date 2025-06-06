@@ -22,7 +22,6 @@ def main():
 
     stdio_tool = None
     try:
-
         stdio_tool = MCPTool(
             name="get_current_time",
             server_info=StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=Europe/Berlin"]),
