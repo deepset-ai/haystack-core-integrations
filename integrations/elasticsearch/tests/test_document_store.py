@@ -342,7 +342,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
 @pytest.mark.integration
 class TestElasticsearchDocumentStoreAsync:
-
     @pytest.fixture
     async def document_store(self, request):
         """
@@ -410,7 +409,6 @@ class TestElasticsearchDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_embedding_retrieval_async(self, document_store):
-
         # init document store
         docs = [
             Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),

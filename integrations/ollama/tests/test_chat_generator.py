@@ -212,7 +212,6 @@ class TestOllamaChatGenerator:
         }
 
     def test_init_fail_with_duplicate_tool_names(self, tools):
-
         duplicate_tools = [tools[0], tools[0]]
         with pytest.raises(ValueError):
             OllamaChatGenerator(tools=duplicate_tools)

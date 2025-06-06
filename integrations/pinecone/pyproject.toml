@@ -46,24 +46,33 @@ git_describe_command = 'git describe --tags --match="integrations/pinecone-v[0-9
 
 [tool.hatch.envs.default]
 installer = "uv"
+dependencies = ["haystack-pydoc-tools", "ruff"]
+
+[tool.hatch.envs.default.scripts]
+docs = ["pydoc-markdown pydoc/config.yml"]
+fmt = "ruff check --fix {args} && ruff format {args}"
+fmt-check = "ruff check {args} && ruff format --check {args}"
+
+[tool.hatch.envs.test]
+installer = "uv"
 dependencies = [
-  "coverage[toml]>=6.5",
   "pytest",
   "pytest-asyncio",
+  "pytest-cov",
   "pytest-rerunfailures",
+  "mypy",
+  "pip",
   "pytest-xdist",
-  "haystack-pydoc-tools",
 ]
-[tool.hatch.envs.default.scripts]
+
+[tool.hatch.envs.test.scripts]
+unit = 'pytest -m "not integration" {args:tests}'
+integration = 'pytest -m "integration" {args:tests}'
+all = 'pytest {args:tests}'
+
 # Pinecone tests are slow (require HTTP requests), so we run them in parallel
 # with pytest-xdist (https://pytest-xdist.readthedocs.io/en/stable/distribution.html)
-test = "pytest -n auto --maxprocesses=2 -x {args:tests}"
-test-cov = "coverage run -m pytest -n auto --maxprocesses=2 {args:tests}"
-test-cov-retry = "test-cov --reruns 3 --reruns-delay 30 -x"
-cov-report = ["- coverage combine", "coverage report"]
-cov = ["test-cov", "cov-report"]
-cov-retry = ["test-cov-retry", "cov-report"]
-docs = ["pydoc-markdown pydoc/config.yml"]
+cov-retry = 'all -n auto --maxprocesses=2 --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
 
 [tool.hatch.envs.lint]
 installer = "uv"

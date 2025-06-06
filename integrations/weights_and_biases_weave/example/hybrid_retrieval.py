@@ -9,7 +9,6 @@ from haystack_integrations.components.connectors import WeaveConnector
 
 
 def index():
-
     document_store = InMemoryDocumentStore()
     documents = [
         Document(content="The Eiffel Tower is located in Paris, France."),
@@ -30,7 +29,6 @@ def index():
 
 
 def hybrid_pipeline(document_store):
-
     text_embedder = SentenceTransformersTextEmbedder()
     embedding_retriever = InMemoryEmbeddingRetriever(document_store)
     bm25_retriever = InMemoryBM25Retriever(document_store)

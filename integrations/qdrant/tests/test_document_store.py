@@ -210,7 +210,6 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         embedding = [0.1] * 768
 
         with pytest.raises(QdrantStoreError):
-
             document_store._query_hybrid(
                 query_sparse_embedding=sparse_embedding,
                 query_embedding=embedding,
@@ -223,7 +222,6 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         embedding = [0.1] * 768
 
         with patch.object(document_store._client, "query_points", side_effect=Exception("query_points")):
-
             with pytest.raises(QdrantStoreError):
                 document_store._query_hybrid(query_sparse_embedding=sparse_embedding, query_embedding=embedding)
 
@@ -237,7 +235,6 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         with patch.object(document_store._client, "collection_exists", return_value=True), patch.object(
             document_store._client, "get_collection", return_value=mock_collection_info
         ):
-
             with pytest.raises(QdrantStoreError, match="created outside of Haystack"):
                 document_store._set_up_collection("test_collection", 768, False, "cosine", True, False)
 
@@ -253,7 +250,6 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         with patch.object(document_store._client, "collection_exists", return_value=True), patch.object(
             document_store._client, "get_collection", return_value=mock_collection_info
         ):
-
             with pytest.raises(QdrantStoreError, match="without sparse embedding vectors"):
                 document_store._set_up_collection("test_collection", 768, False, "cosine", True, False)
 
@@ -268,7 +264,6 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         with patch.object(document_store._client, "collection_exists", return_value=True), patch.object(
             document_store._client, "get_collection", return_value=mock_collection_info
         ):
-
             with pytest.raises(QdrantStoreError, match="with sparse embedding vectors"):
                 document_store._set_up_collection("test_collection", 768, False, "cosine", False, False)
 
@@ -285,7 +280,6 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         with patch.object(document_store._client, "collection_exists", return_value=True), patch.object(
             document_store._client, "get_collection", return_value=mock_collection_info
         ):
-
             with pytest.raises(ValueError, match="different similarity"):
                 document_store._set_up_collection("test_collection", 768, False, "cosine", False, False)
 
@@ -301,6 +295,5 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         with patch.object(document_store._client, "collection_exists", return_value=True), patch.object(
             document_store._client, "get_collection", return_value=mock_collection_info
         ):
-
             with pytest.raises(ValueError, match="different vector size"):
                 document_store._set_up_collection("test_collection", 768, False, "cosine", False, False)

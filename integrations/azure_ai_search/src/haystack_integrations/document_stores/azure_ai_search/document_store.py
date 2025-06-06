@@ -85,7 +85,6 @@ python_logging.getLogger("azure.identity").setLevel(python_logging.DEBUG)
 
 
 class AzureAISearchDocumentStore:
-
     def __init__(
         self,
         *,
