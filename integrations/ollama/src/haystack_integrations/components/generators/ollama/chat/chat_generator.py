@@ -136,7 +136,7 @@ class OllamaChatGenerator:
     ```python
     from haystack.components.generators.utils import print_streaming_chunk
     from haystack.components.agents import Agent
-    from components.OllamaChatGenerator import OllamaChatGenerator
+    from haystack_integrations.components.generators.ollama.chat import OllamaChatGenerator    
     from haystack.dataclasses import ChatMessage
     from haystack.tools import Tool
 
