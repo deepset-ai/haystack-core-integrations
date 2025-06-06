@@ -82,7 +82,7 @@ def _convert_ollama_meta_to_openai_format(input_response_dict: Dict) -> Dict:
         'eval_duration': 4799921000,
     }
     """
-    meta = {k: v for k, v in input_response_dict.items() if k != "message"}
+    meta = {key: value for key, value in input_response_dict.items() if key != "message"}
 
     if "done_reason" in meta:
         meta["finish_reason"] = meta.pop("done_reason")
