@@ -312,6 +312,15 @@ class OllamaChatGenerator:
                 callback(chunk)
 
             for tool_call in chunk.meta.get("tool_calls", []):
+                # the Ollama server doesn’t guarantee an id field in every tool_calls entry.
+                # OpenAI-compatible endpoint (/v1/chat/completions) – recent releases do add an auto-generated id when the model produces multiple tool calls, so that clients can map results back.
+                # Native Ollama endpoint (/api/chat) and older builds – the JSON often contains only function.name + arguments; 
+                # many users have reported that id is missing even with several calls, making client-side resolution harder:
+                # https://github.com/ollama/ollama/issues/6708
+                # https://github.com/ollama/ollama/issues/7510
+                # - If id is provided → we can distinguish multiple calls to the same tool.
+                # - If id is missing → fallback to function.name works only when there’s one call.
+                # - That’s why the deduplication logic is cautious and assumes one logical call per name when id is absent.
                 tool_call_id = tool_call.get("id") or tool_call["function"]["name"]
                 args = tool_call["function"].get("arguments")
 
