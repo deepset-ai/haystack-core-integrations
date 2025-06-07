@@ -3,6 +3,8 @@ loaders:
     search_path: [../src]
     modules: [
       "haystack_integrations.components.generators.google_genai.chat.chat_generator",
+      "haystack_integrations.components.embedders.google_genai.document_embedder",
+      "haystack_integrations.components.embedders.google_genai.text_embedder"
     ]
     ignore_when_discovered: ["__init__"]
 processors:
