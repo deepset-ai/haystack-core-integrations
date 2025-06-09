@@ -75,6 +75,11 @@ types = """mypy -p haystack_integrations.common.amazon_bedrock \
 install_types = true
 non_interactive = true
 
+check_untyped_defs = true
+disallow_incomplete_defs = true
+warn_return_any = false
+warn_unused_configs = true
+
 [[tool.mypy.overrides]]
 # unfortunately, unofficial type stubs do not play well with some features of Bedrock
 module = [

@@ -1,4 +1,4 @@
-from typing import Literal, Optional, Union, overload
+from typing import Any, Optional, Union
 
 import aioboto3
 import boto3
@@ -15,24 +15,6 @@ AWS_CONFIGURATION_KEYS = [
 ]
 
 
-@overload
-def get_aws_session(
-    aws_access_key_id: Optional[str] = None,
-    aws_secret_access_key: Optional[str] = None,
-    aws_session_token: Optional[str] = None,
-    aws_region_name: Optional[str] = None,
-    aws_profile_name: Optional[str] = None,
-    async_mode: Literal[True] = True,
-) -> aioboto3.Session: ...
-@overload
-def get_aws_session(
-    aws_access_key_id: Optional[str] = None,
-    aws_secret_access_key: Optional[str] = None,
-    aws_session_token: Optional[str] = None,
-    aws_region_name: Optional[str] = None,
-    aws_profile_name: Optional[str] = None,
-    async_mode: Literal[False] = False,
-) -> boto3.Session: ...
 def get_aws_session(
     aws_access_key_id: Optional[str] = None,
     aws_secret_access_key: Optional[str] = None,
@@ -40,7 +22,7 @@ def get_aws_session(
     aws_region_name: Optional[str] = None,
     aws_profile_name: Optional[str] = None,
     async_mode: bool = False,
-    **kwargs,
+    **kwargs: Any,
 ) -> Union[boto3.Session, aioboto3.Session]:
     """
     Creates an AWS Session with the given parameters.
@@ -80,7 +62,7 @@ def get_aws_session(
         raise AWSConfigurationError(msg) from e
 
 
-def aws_configured(**kwargs) -> bool:
+def aws_configured(**kwargs: Any) -> bool:
     """
     Checks whether AWS configuration is provided.
     :param kwargs: The kwargs passed down to the generator.
