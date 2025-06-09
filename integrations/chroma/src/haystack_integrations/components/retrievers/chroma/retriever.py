@@ -71,7 +71,7 @@ class ChromaQueryTextRetriever:
         query: str,
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
-    ):
+    ) -> Dict[str, Any]:
         """
         Run the retriever on the given input data.
 
@@ -96,7 +96,7 @@ class ChromaQueryTextRetriever:
         query: str,
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
-    ):
+    ) -> Dict[str, Any]:
         """
         Asynchronously run the retriever on the given input data.
 
@@ -184,7 +184,7 @@ class ChromaEmbeddingRetriever:
         query_embedding: List[float],
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
-    ):
+    ) -> Dict[str, Any]:
         """
         Run the retriever on the given input data.
 
@@ -211,7 +211,7 @@ class ChromaEmbeddingRetriever:
         query_embedding: List[float],
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
-    ):
+    ) -> Dict[str, Any]:
         """
         Asynchronously run the retriever on the given input data.
 

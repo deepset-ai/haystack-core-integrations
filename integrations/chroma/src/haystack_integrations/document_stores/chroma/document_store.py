@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Sequence, cast
 
 import chromadb
+from chromadb.api.models.AsyncCollection import AsyncCollection
 from chromadb.api.types import GetResult, QueryResult
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -37,7 +38,7 @@ class ChromaDocumentStore:
         port: Optional[int] = None,
         distance_function: Literal["l2", "cosine", "ip"] = "l2",
         metadata: Optional[dict] = None,
-        **embedding_function_params,
+        **embedding_function_params: Any,
     ):
         """
         Creates a new ChromaDocumentStore instance.
@@ -86,8 +87,8 @@ class ChromaDocumentStore:
         self._host = host
         self._port = port
 
-        self._collection = None
-        self._async_collection = None
+        self._collection: Optional[chromadb.Collection] = None
+        self._async_collection: Optional[AsyncCollection] = None
 
     def _ensure_initialized(self):
         if not self._collection:
@@ -482,7 +483,7 @@ class ChromaDocumentStore:
 
         kwargs = self._prepare_query_kwargs(filters)
         results = self._collection.query(
-            query_embeddings=query_embeddings,
+            query_embeddings=cast(List[Sequence[float]], query_embeddings),
             n_results=top_k,
             **kwargs,
         )
@@ -513,7 +514,7 @@ class ChromaDocumentStore:
 
         kwargs = self._prepare_query_kwargs(filters)
         results = await self._async_collection.query(
-            query_embeddings=query_embeddings,
+            query_embeddings=cast(List[Sequence[float]], query_embeddings),
             n_results=top_k,
             **kwargs,
         )
