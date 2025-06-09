@@ -71,11 +71,8 @@ types = "mypy -p haystack_integrations.components.retrievers.chroma -p haystack_
 [tool.mypy]
 install_types = true
 non_interactive = true
-
 check_untyped_defs = true
 disallow_incomplete_defs = true
-warn_return_any = false
-warn_unused_configs = true
 
 [tool.hatch.metadata]
 allow-direct-references = true
