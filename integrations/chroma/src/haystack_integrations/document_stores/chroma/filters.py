@@ -4,9 +4,9 @@
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
-from chromadb.api.types import validate_where, validate_where_document
+from chromadb.api.types import WhereDocument, validate_where, validate_where_document
 
 from .errors import ChromaDocumentStoreFilterError
 
@@ -76,7 +76,7 @@ def _convert_filters(filters: Dict[str, Any]) -> ChromaFilter:
     try:
         if where_document:
             test_clause = "document content filter"
-            validate_where_document(where_document)
+            validate_where_document(cast(WhereDocument, where_document))
         elif where:
             test_clause = "metadata filter"
             validate_where(where)

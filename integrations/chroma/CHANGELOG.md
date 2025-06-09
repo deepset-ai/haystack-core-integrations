@@ -1,6 +1,25 @@
 # Changelog
 
-## [integrations/chroma-v3.1.0] - 2025-04-14
+## [integrations/chroma-v3.3.0] - 2025-06-09
+
+### 🚀 Features
+
+- Chroma - fix typing + ship types by adding py.typed files (#1910)
+
+
+## [integrations/chroma-v3.2.0] - 2025-06-06
+
+### 🚀 Features
+
+- Add async support for Chroma + improve typing (#1697)
+
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+
+
+## [integrations/chroma-v2.0.3] - 2025-04-04
 
 ### 🐛 Bug Fixes
 
