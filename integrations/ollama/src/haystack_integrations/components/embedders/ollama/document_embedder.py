@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Dict, List, Optional
 
 from haystack import Document, component
@@ -137,12 +138,21 @@ class OllamaDocumentEmbedder:
         """
         all_embeddings = []
 
-        for i in tqdm(
-            range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
-        ):
-            batch = texts_to_embed[i : i + batch_size]
-            result = await self._async_client.embed(model=self.model, input=batch, options=generation_kwargs)
-            all_embeddings.extend(result["embeddings"])
+        batches = [texts_to_embed[i : i + batch_size] for i in range(0, len(texts_to_embed), batch_size)]
+
+        tasks = [
+            self._async_client.embed(
+                model=self.model,
+                input=batch,
+                options=generation_kwargs,
+            )
+            for batch in batches
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for _idx, res in enumerate(results):
+            all_embeddings.extend(res["embeddings"])
 
         return all_embeddings
 
