@@ -66,7 +66,11 @@ integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
 
-types = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+types = "mypy {args: -p haystack_integrations.components.retrievers.chroma -p haystack_integrations.document_stores.chroma}"
+
+[tool.mypy]
+install_types = true
+non_interactive = true
 
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -160,7 +164,3 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 [tool.pytest.ini_options]
 minversion = "6.0"
 markers = ["integration: integration tests"]
-
-[[tool.mypy.overrides]]
-module = ["haystack_integrations.*"]
-ignore_missing_imports = true

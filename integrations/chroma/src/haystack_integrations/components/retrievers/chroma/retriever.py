@@ -115,7 +115,7 @@ class ChromaQueryTextRetriever:
         """
         filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         top_k = top_k or self.top_k
-        return {"documents": await self.document_store.search_async([query], top_k, filters)[0]}
+        return {"documents": (await self.document_store.search_async([query], top_k, filters))[0]}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ChromaQueryTextRetriever":
@@ -232,7 +232,7 @@ class ChromaEmbeddingRetriever:
         top_k = top_k or self.top_k
 
         query_embeddings = [query_embedding]
-        return {"documents": await self.document_store.search_embeddings_async(query_embeddings, top_k, filters)[0]}
+        return {"documents": (await self.document_store.search_embeddings_async(query_embeddings, top_k, filters))[0]}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ChromaEmbeddingRetriever":
