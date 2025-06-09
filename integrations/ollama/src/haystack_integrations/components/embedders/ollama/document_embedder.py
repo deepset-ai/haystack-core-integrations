@@ -151,7 +151,10 @@ class OllamaDocumentEmbedder:
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        for _idx, res in enumerate(results):
+        for idx, res in enumerate(results):
+            if isinstance(res, BaseException):
+                err_msg = f"Embedding batch {idx} raised an exception."
+                raise RuntimeError(err_msg)
             all_embeddings.extend(res["embeddings"])
 
         return all_embeddings
