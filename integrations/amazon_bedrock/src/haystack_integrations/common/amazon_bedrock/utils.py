@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Literal, Optional, Union, overload
 
 import aioboto3
 import boto3
@@ -15,6 +15,24 @@ AWS_CONFIGURATION_KEYS = [
 ]
 
 
+@overload
+def get_aws_session(
+    aws_access_key_id: Optional[str] = None,
+    aws_secret_access_key: Optional[str] = None,
+    aws_session_token: Optional[str] = None,
+    aws_region_name: Optional[str] = None,
+    aws_profile_name: Optional[str] = None,
+    async_mode: Literal[True] = True,
+) -> aioboto3.Session: ...
+@overload
+def get_aws_session(
+    aws_access_key_id: Optional[str] = None,
+    aws_secret_access_key: Optional[str] = None,
+    aws_session_token: Optional[str] = None,
+    aws_region_name: Optional[str] = None,
+    aws_profile_name: Optional[str] = None,
+    async_mode: Literal[False] = False,
+) -> boto3.Session: ...
 def get_aws_session(
     aws_access_key_id: Optional[str] = None,
     aws_secret_access_key: Optional[str] = None,

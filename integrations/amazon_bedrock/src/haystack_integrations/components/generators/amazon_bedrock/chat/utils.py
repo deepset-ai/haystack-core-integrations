@@ -46,7 +46,7 @@ def _format_tool_call_message(tool_call_message: ChatMessage) -> Dict[str, Any]:
     :returns:
         Dictionary representing the tool call message in Bedrock's expected format
     """
-    content = []
+    content: List[Dict[str, Any]] = []
     # Tool call message can contain text
     if tool_call_message.text:
         content.append({"text": tool_call_message.text})
@@ -470,7 +470,7 @@ async def _parse_streaming_response_async(
     :return: List of ChatMessage objects
     """
     chunks: List[StreamingChunk] = []
-    async for event in response_stream:
+    for event in response_stream:
         streaming_chunk = _convert_event_to_streaming_chunk(event=event, model=model)
         await streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
