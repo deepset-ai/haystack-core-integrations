@@ -242,6 +242,6 @@ if __name__ == "__main__":
         # Check for platform-agnostic error message patterns
         error_message = str(exc_info.value)
         assert error_message, "Error message should not be empty"
-        assert any(
-            text in error_message.lower() for text in ["failed", "connection", "initialize"]
-        ), f"Error message '{error_message}' should contain connection failure information"
+        assert any(text in error_message.lower() for text in ["failed", "connection", "initialize"]), (
+            f"Error message '{error_message}' should contain connection failure information"
+        )
