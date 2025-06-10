@@ -516,23 +516,26 @@ class MCPServerInfo(ABC):
         data_copy = data.copy()
         data_copy.pop("type", None)
 
-        # Handle Secret deserialization for any field
-        for dataclass_field in fields(cls):
-            if dataclass_field.name in data_copy:
-                field_value = data_copy[dataclass_field.name]
-                if isinstance(field_value, dict):
-                    if "type" in field_value and field_value["type"] in [e.value for e in SecretType]:
-                        # The whole field is a Secret e.g. token field of SSEServerInfo
-                        deserialize_secrets_inplace(data_copy, keys=[dataclass_field.name])
-                    else:
-                        # Most likely env field of StdioServerInfo
-                        for key, value in field_value.items():
-                            if (
-                                isinstance(value, dict)
-                                and "type" in value
-                                and value["type"] in [e.value for e in SecretType]
-                            ):
-                                deserialize_secrets_inplace(field_value, keys=[key])
+secret_types = {e.value for e in SecretType}
+        field_names = {f.name for f in fields(cls)}
+
+        # Iterate over a static list of items to avoid mutation issues
+        for name, value in list(data_copy.items()):
+            if name not in field_names or not isinstance(value, dict):
+                continue
+
+            # Top-level secret?
+            if value.get("type") in secret_types:
+                deserialize_secrets_inplace(data_copy, keys=[name])
+                continue
+
+            # Nested secrets (one level deep)
+            nested_keys: List[str] = [
+                k for k, v in value.items()
+                if isinstance(v, dict) and v.get("type") in secret_types
+            ]
+            if nested_keys:
+                deserialize_secrets_inplace(value, keys=nested_keys)
 
         # Create an instance of the class with the remaining fields
         return cls(**data_copy)
