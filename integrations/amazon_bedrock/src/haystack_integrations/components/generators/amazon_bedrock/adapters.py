@@ -1,9 +1,9 @@
 import json
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from botocore.eventstream import EventStream
-from haystack.dataclasses import StreamingChunk
+from haystack.dataclasses import StreamingChunk, SyncStreamingCallbackT
 
 
 class BedrockModelAdapter(ABC):
@@ -45,9 +45,7 @@ class BedrockModelAdapter(ABC):
         responses = [completion.lstrip() for completion in completions]
         return responses
 
-    def get_stream_responses(
-        self, stream: EventStream, streaming_callback: Callable[[StreamingChunk], None]
-    ) -> List[str]:
+    def get_stream_responses(self, stream: EventStream, streaming_callback: SyncStreamingCallbackT) -> List[str]:
         """
         Extracts the responses from the Amazon Bedrock streaming response.
 
