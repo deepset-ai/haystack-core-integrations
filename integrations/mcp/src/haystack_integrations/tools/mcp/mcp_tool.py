@@ -4,7 +4,6 @@
 
 import asyncio
 import concurrent.futures
-import json
 import threading
 import warnings
 from abc import ABC, abstractmethod

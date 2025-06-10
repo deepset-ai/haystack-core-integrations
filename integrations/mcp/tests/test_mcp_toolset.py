@@ -210,10 +210,10 @@ class TestMCPToolsetIntegration:
     @pytest.mark.skipif(sys.platform == "win32", reason="Windows fails for some reason")
     def test_toolset_with_sse_connection(self):
         """Test MCPToolset with an SSE connection to a simple server."""
+        import json
         import socket
         import subprocess
         import tempfile
-        import json
 
         # Find an available port
         def find_free_port():
@@ -315,10 +315,10 @@ if __name__ == "__main__":
     @pytest.mark.skipif(sys.platform == "win32", reason="Windows fails for some reason")
     def test_toolset_with_streamable_http_connection(self):
         """Test MCPToolset with a streamable-http connection to a simple server."""
+        import json
         import socket
         import subprocess
         import tempfile
-        import json
 
         # Find an available port
         def find_free_port():
