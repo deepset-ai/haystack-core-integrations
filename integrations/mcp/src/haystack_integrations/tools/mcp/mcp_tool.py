@@ -495,17 +495,10 @@ class MCPServerInfo(ABC):
         # Add all fields from the dataclass
         for dataclass_field in fields(self):
             value = getattr(self, dataclass_field.name)
-            if isinstance(value, Secret):
+            if hasattr(value, "to_dict"):
                 result[dataclass_field.name] = value.to_dict()
             elif isinstance(value, dict):
-                # Handle dicts that may contain Secret objects
-                serialized_dict = {}
-                for k, v in value.items():
-                    if isinstance(v, Secret):
-                        serialized_dict[k] = v.to_dict()
-                    else:
-                        serialized_dict[k] = v
-                result[dataclass_field.name] = serialized_dict
+                result[dataclass_field.name] = {k: v.to_dict() if hasattr(v, "to_dict") else v for k, v in value.items()}
             else:
                 result[dataclass_field.name] = value
 
