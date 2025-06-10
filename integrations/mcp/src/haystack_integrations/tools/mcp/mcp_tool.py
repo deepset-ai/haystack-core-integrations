@@ -26,11 +26,7 @@ from haystack.utils.url_validation import is_valid_http_url
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
-
-try:
-    from mcp.client.streamable_http import streamablehttp_client
-except ImportError:
-    streamablehttp_client = None
+from mcp.client.streamable_http import streamablehttp_client
 
 logger = logging.getLogger(__name__)
 
