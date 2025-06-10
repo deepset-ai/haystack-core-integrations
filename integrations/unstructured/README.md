@@ -33,5 +33,5 @@ docker run -p 8000:8000 -d --rm --name unstructured-api quay.io/unstructured-io/
 Then run tests:
 
 ```console
-hatch run test
+hatch run test:all
 ```

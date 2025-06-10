@@ -12,7 +12,7 @@ For example, to run the tests suite for the Chroma document store, from the root
 
 ```sh
 $ cd integrations/chroma
-$ hatch run test
+$ hatch run test:all
 ```
 
 Hatch will take care of setting up an isolated Python environment and run the tests.
