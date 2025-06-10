@@ -1,3 +1,4 @@
+import json
 import os
 import socket
 import subprocess
@@ -87,10 +88,6 @@ if __name__ == "__main__":
 
             # Invoke the tool
             result_json = tool.invoke(a=5, b=3)
-
-            # Parse the JSON result
-            import json
-
             result = json.loads(result_json)
 
             # Verify the result

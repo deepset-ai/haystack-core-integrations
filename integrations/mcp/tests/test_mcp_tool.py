@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from haystack.tools.errors import ToolInvocationError
 from haystack.tools.from_function import tool
@@ -66,8 +68,6 @@ class TestMCPTool:
         """Test invoking MCPTools connected to in-memory servers."""
         # Test add tool invocation
         add_result = mcp_add_tool.invoke(a=25, b=17)
-        import json
-
         add_result = json.loads(add_result)
         assert add_result["content"][0]["text"] == "42"
 

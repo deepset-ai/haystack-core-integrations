@@ -1,0 +1,42 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# PR Description Template Rule
+
+When creating PR descriptions for Haystack integrations, use this concise format:
+
+## Template Structure
+
+### Why:
+Brief explanation of the motivation and problem being solved.
+
+### What:
+- **Core component**: Main functionality added
+- **Key features**: 2-3 bullet points of major capabilities
+- **Integration**: How it works with Haystack
+
+### How can it be used:
+```python
+# Basic usage example
+component = NewComponent(param="value")
+result = component.run(input_data)
+
+# Advanced usage if applicable
+component_advanced = NewComponent(
+    param="value",
+    tools=tools,
+    streaming_callback=callback
+)
+```
+
+### How did you test it:
+- **Unit tests**: Core functionality and serialization
+- **Integration tests**: Live API tests (when applicable)
+- **Feature tests**: Key capabilities like tools, streaming, async
+
+### Notes for the reviewer:
+- **Dependencies**: Any new packages added
+- **Compatibility**: Haystack integration notes
+- **Limitations**: Known issues or constraints
