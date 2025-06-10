@@ -10,6 +10,7 @@ from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret
+from psycopg.sql import SQL
 
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
@@ -97,16 +98,18 @@ class TestDocumentStoreAsync:
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_hnsw_index_recreation():
-    async def get_index_oid(document_store, schema_name, index_name):
-        sql_get_index_oid = """
+    async def get_index_oid(cursor, document_store, schema_name, index_name):
+        sql_get_index_oid = SQL("""
             SELECT c.oid
             FROM pg_class c
             JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE c.relkind = 'i'
             AND n.nspname = %s
             AND c.relname = %s;
-        """
-        result = await document_store._execute_sql_async(sql_get_index_oid, (schema_name, index_name))
+        """)
+        result = await document_store._execute_sql_async(
+            cursor=cursor, sql_query=sql_get_index_oid, params=(schema_name, index_name)
+        )
         return (await result.fetchone())[0]
 
     # create a new schema
@@ -127,14 +130,18 @@ async def test_hnsw_index_recreation():
 
     # get the hnsw index oid
     hnws_index_name = "haystack_hnsw_index"
-    first_oid = await get_index_oid(ds1, ds1.schema_name, hnws_index_name)
+    first_oid = await get_index_oid(
+        cursor=ds1._async_cursor, document_store=ds1, schema_name=ds1.schema_name, index_name=hnws_index_name
+    )
 
     # create second document store with recreation enabled
     ds2 = PgvectorDocumentStore(**params, hnsw_recreate_index_if_exists=True)
     await ds2._ensure_db_setup_async()
 
     # get the index oid
-    second_oid = await get_index_oid(ds2, ds2.schema_name, hnws_index_name)
+    second_oid = await get_index_oid(
+        cursor=ds2._async_cursor, document_store=ds2, schema_name=ds2.schema_name, index_name=hnws_index_name
+    )
 
     # verify that oids differ
     assert second_oid != first_oid, "Index was not recreated (OID remained the same)"
@@ -147,16 +154,18 @@ async def test_hnsw_index_recreation():
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_create_table_if_not_exists():
-    async def get_table_oid(document_store, schema_name, table_name):
-        sql_get_table_oid = """
+    async def get_table_oid(cursor, document_store, schema_name, table_name):
+        sql_get_table_oid = SQL("""
             SELECT c.oid
             FROM pg_class c
             JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE c.relkind = 'r'
             AND n.nspname = %s
             AND c.relname = %s;
-        """
-        result = await document_store._execute_sql_async(sql_get_table_oid, (schema_name, table_name))
+        """)
+        result = await document_store._execute_sql_async(
+            cursor=cursor, sql_query=sql_get_table_oid, params=(schema_name, table_name)
+        )
         return (await result.fetchone())[0]
 
     connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
@@ -176,11 +185,21 @@ async def test_create_table_if_not_exists():
     await document_store._ensure_db_setup_async()
     await document_store._initialize_table_async()
 
-    first_table_oid = await get_table_oid(document_store, schema_name, table_name)
+    first_table_oid = await get_table_oid(
+        cursor=document_store._async_cursor,
+        document_store=document_store,
+        schema_name=schema_name,
+        table_name=table_name,
+    )
     assert first_table_oid is not None, "Table was not created"
 
     await document_store._initialize_table_async()
-    second_table_oid = await get_table_oid(document_store, schema_name, table_name)
+    second_table_oid = await get_table_oid(
+        cursor=document_store._async_cursor,
+        document_store=document_store,
+        schema_name=schema_name,
+        table_name=table_name,
+    )
 
     assert first_table_oid == second_table_oid, "Table was recreated"
 
