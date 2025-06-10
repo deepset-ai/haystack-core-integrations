@@ -244,7 +244,6 @@ class MCPClient(ABC):
         :returns: JSON string representation of the tool invocation result
         :raises MCPConnectionError: If not connected to an MCP server
         :raises MCPInvocationError: If the tool invocation fails
-        :raises MCPResponseTypeError: If response type is not TextContent or ImageContent
         """
         if not self.session:
             message = "Not connected to an MCP server"
