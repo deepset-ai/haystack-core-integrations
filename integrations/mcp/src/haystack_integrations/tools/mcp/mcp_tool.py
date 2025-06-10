@@ -824,7 +824,6 @@ class MCPTool(Tool):
         :param kwargs: Arguments to pass to the tool
         :returns: JSON string representation of the tool invocation result
         :raises MCPInvocationError: If the tool invocation fails
-        :raises MCPResponseTypeError: If response type is not supported
         :raises TimeoutError: If the operation times out
         """
         try:
