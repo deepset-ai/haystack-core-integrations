@@ -19,6 +19,8 @@ from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.tools import Tool
 from haystack.tools.errors import ToolInvocationError
+from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils.auth import SecretType
 from haystack.utils.url_validation import is_valid_http_url
 
 from mcp import ClientSession, StdioServerParameters, types
@@ -356,7 +358,7 @@ class StdioClient(MCPClient):
     MCP client that connects to servers using stdio transport.
     """
 
-    def __init__(self, command: str, args: list[str] | None = None, env: dict[str, str] | None = None) -> None:
+    def __init__(self, command: str, args: list[str] | None = None, env: dict[str, str | Secret] | None = None) -> None:
         """
         Initialize a stdio MCP client.
 
@@ -367,7 +369,12 @@ class StdioClient(MCPClient):
         super().__init__()
         self.command: str = command
         self.args: list[str] = args or []
-        self.env: dict[str, str] | None = env
+        # Resolve Secret values in environment variables
+        self.env: dict[str, str] | None = None
+        if env:
+            self.env = {
+                key: value.resolve_value() if isinstance(value, Secret) else value for key, value in env.items()
+            }
         logger.debug(f"PROCESS: Created StdioClient for command: {command} {' '.join(self.args or [])}")
 
     async def connect(self) -> list[Tool]:
@@ -400,7 +407,9 @@ class SSEClient(MCPClient):
         # in post_init we validate the url and set the url field so it is guaranteed to be valid
         # safely ignore the mypy warning here
         self.url: str = server_info.url  # type: ignore[assignment]
-        self.token: str | None = server_info.token
+        self.token: str | None = (
+            server_info.token.resolve_value() if isinstance(server_info.token, Secret) else server_info.token
+        )
         self.timeout: int = server_info.timeout
 
     async def connect(self) -> list[Tool]:
@@ -431,7 +440,9 @@ class StreamableHttpClient(MCPClient):
         super().__init__()
 
         self.url: str = server_info.url
-        self.token: str | None = server_info.token
+        self.token: str | None = (
+            server_info.token.resolve_value() if isinstance(server_info.token, Secret) else server_info.token
+        )
         self.timeout: int = server_info.timeout
 
     async def connect(self) -> list[Tool]:
@@ -441,6 +452,13 @@ class StreamableHttpClient(MCPClient):
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
         """
+        if streamablehttp_client is None:
+            message = (
+                "Streamable HTTP client is not available. "
+                "This may require a newer version of the mcp package that includes mcp.client.streamable_http"
+            )
+            raise MCPConnectionError(message=message, operation="streamable_http_connect")
+
         headers = {"Authorization": f"Bearer {self.token}"} if self.token else None
         streamablehttp_transport = await self.exit_stack.enter_async_context(
             streamablehttp_client(url=self.url, headers=headers, timeout=timedelta(seconds=self.timeout))
@@ -475,8 +493,16 @@ class MCPServerInfo(ABC):
         result = {"type": generate_qualified_class_name(type(self))}
 
         # Add all fields from the dataclass
-        for field in fields(self):
-            result[field.name] = getattr(self, field.name)
+        for dataclass_field in fields(self):
+            value = getattr(self, dataclass_field.name)
+            if hasattr(value, "to_dict"):
+                result[dataclass_field.name] = value.to_dict()
+            elif isinstance(value, dict):
+                result[dataclass_field.name] = {
+                    k: v.to_dict() if hasattr(v, "to_dict") else v for k, v in value.items()
+                }
+            else:
+                result[dataclass_field.name] = value
 
         return result
 
@@ -492,6 +518,26 @@ class MCPServerInfo(ABC):
         data_copy = data.copy()
         data_copy.pop("type", None)
 
+        secret_types = {e.value for e in SecretType}
+        field_names = {f.name for f in fields(cls)}
+
+        # Iterate over a static list of items to avoid mutation issues
+        for name, value in list(data_copy.items()):
+            if name not in field_names or not isinstance(value, dict):
+                continue
+
+            # Top-level secret?
+            if value.get("type") in secret_types:
+                deserialize_secrets_inplace(data_copy, keys=[name])
+                continue
+
+            # Nested secrets (one level deep)
+            nested_keys: list[str] = [
+                k for k, v in value.items() if isinstance(v, dict) and v.get("type") in secret_types
+            ]
+            if nested_keys:
+                deserialize_secrets_inplace(value, keys=nested_keys)
+
         # Create an instance of the class with the remaining fields
         return cls(**data_copy)
 
@@ -501,6 +547,16 @@ class SSEServerInfo(MCPServerInfo):
     """
     Data class that encapsulates SSE MCP server connection parameters.
 
+    For authentication tokens containing sensitive data, you can use Secret objects
+    for secure handling and serialization:
+
+    ```python
+    server_info = SSEServerInfo(
+        url="https://my-mcp-server.com",
+        token=Secret.from_env_var("API_KEY"),
+    )
+    ```
+
     :param url: Full URL of the MCP server (including /sse endpoint)
     :param base_url: Base URL of the MCP server (deprecated, use url instead)
     :param token: Authentication token for the server (optional)
@@ -509,7 +565,7 @@ class SSEServerInfo(MCPServerInfo):
 
     url: str | None = None
     base_url: str | None = None  # deprecated
-    token: str | None = None
+    token: str | Secret | None = None
     timeout: int = 30
 
     def __post_init__(self):
@@ -553,13 +609,23 @@ class StreamableHttpServerInfo(MCPServerInfo):
     """
     Data class that encapsulates streamable HTTP MCP server connection parameters.
 
+    For authentication tokens containing sensitive data, you can use Secret objects
+    for secure handling and serialization:
+
+    ```python
+    server_info = StreamableHttpServerInfo(
+        url="https://my-mcp-server.com",
+        token=Secret.from_env_var("API_KEY"),
+    )
+    ```
+
     :param url: Full URL of the MCP server (streamable HTTP endpoint)
     :param token: Authentication token for the server (optional)
     :param timeout: Connection timeout in seconds
     """
 
     url: str
-    token: str | None = None
+    token: str | Secret | None = None
     timeout: int = 30
 
     def __post_init__(self):
@@ -585,11 +651,29 @@ class StdioServerInfo(MCPServerInfo):
     :param command: Command to run (e.g., "python", "node")
     :param args: Arguments to pass to the command
     :param env: Environment variables for the command
+
+    For environment variables containing sensitive data, you can use Secret objects
+    for secure handling and serialization:
+
+    ```python
+    server_info = StdioServerInfo(
+        command="uv",
+        args=["run", "my-mcp-server"],
+        env={
+            "WORKSPACE_PATH": "/path/to/workspace",  # Plain string
+            "API_KEY": Secret.from_env_var("API_KEY"),  # Secret object
+        }
+    )
+    ```
+
+    Secret objects will be properly serialized and deserialized without exposing
+    the secret value, while plain strings will be preserved as-is. Use Secret objects
+    for sensitive data that needs to be handled securely.
     """
 
     command: str
     args: list[str] | None = None
-    env: dict[str, str] | None = None
+    env: dict[str, str | Secret] | None = None
 
     def create_client(self) -> MCPClient:
         """
