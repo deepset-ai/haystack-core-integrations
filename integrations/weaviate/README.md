@@ -18,10 +18,8 @@ pip install weaviate-haystack
 
 ## Testing
 
-TODO
-
 ```console
-hatch run test
+hatch run test:all
 ```
 
 ## License

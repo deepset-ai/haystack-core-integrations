@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/pgvector-v3.4.0] - 2025-06-10
+
+### 🐛 Bug Fixes
+
+- Fix pgvector types + add py.typed (#1914)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+
+
 ## [integrations/pgvector-v3.3.1] - 2025-05-28
 
 ### 🌀 Miscellaneous

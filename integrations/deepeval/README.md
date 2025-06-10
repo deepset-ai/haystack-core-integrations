@@ -24,7 +24,7 @@ For more information about the deepeval evaluation framework, please refer to th
 ## Testing
 
 ```console
-hatch run test
+hatch run test:all
 ```
 
 ## Examples

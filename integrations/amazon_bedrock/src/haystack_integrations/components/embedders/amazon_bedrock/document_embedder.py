@@ -74,7 +74,7 @@ class AmazonBedrockDocumentEmbedder:
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
         boto3_config: Optional[Dict[str, Any]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """
         Initializes the AmazonBedrockDocumentEmbedder with the provided parameters. The parameters are passed to the

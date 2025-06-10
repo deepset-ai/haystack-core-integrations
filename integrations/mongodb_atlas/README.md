@@ -24,19 +24,26 @@ pip install mongodb-atlas-haystack
 pip install hatch
 ```
 
-To run the linters `ruff` and `mypy`:
-```
-hatch run lint:all
-```
-
 To run all the tests:
 ```
-hatch run test
+hatch run test:all
 ```
 
-Note: you need your own MongoDB Atlas account to run the tests: you can make one here: 
-https://www.mongodb.com/cloud/atlas/register. Once you have it, export the connection string
-to the env var `MONGO_CONNECTION_STRING`. If you forget to do so, all the tests will be skipped.
+> Note: you need your own MongoDB Atlas account to run the tests: you can make one here: 
+> https://www.mongodb.com/cloud/atlas/register. Once you have it, export the connection string
+> to the env var `MONGO_CONNECTION_STRING`. If you forget to do so, all the tests will be skipped.
+
+To format your code and perform linting using Ruff (with automatic fixes), run:
+```
+hatch run fmt
+```
+
+To check for static type errors, run:
+
+```console
+$ hatch run test:types
+```
+
 
 ## License
 
