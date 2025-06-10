@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/ollama-v3.2.0] - 2025-06-10
+
+### 🚀 Features
+
+- Add run_async support for OllamaDocumentEmbedder (#1878)
+
+
 ## [integrations/ollama-v3.1.0] - 2025-06-10
 
 ### 🚀 Features
