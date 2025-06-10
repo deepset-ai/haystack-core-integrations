@@ -2,7 +2,6 @@ import inspect
 from itertools import islice
 from typing import Any, AsyncGenerator, ClassVar, Dict, Generator, List, Optional, Set, Tuple, Union
 
-import numpy as np
 import qdrant_client
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -10,6 +9,7 @@ from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
+from numpy import exp
 from qdrant_client import grpc
 from qdrant_client.http import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
@@ -18,7 +18,6 @@ from tqdm import tqdm
 from .converters import (
     DENSE_VECTORS_NAME,
     SPARSE_VECTORS_NAME,
-    QdrantPoint,
     convert_haystack_documents_to_qdrant_points,
     convert_id,
     convert_qdrant_point_to_haystack_document,
@@ -26,6 +25,12 @@ from .converters import (
 from .filters import convert_filters_to_qdrant
 
 logger = logging.getLogger(__name__)
+
+# Default group size to apply when using group_by
+# - Our methods use None as the default for optional group_size parameter.
+# - Qdrant expects an integer and internally defaults to 3 when performing grouped queries.
+# - When group_by is specified but group_size is None, we use this value instead of passing None.
+DEFAULT_GROUP_SIZE = 3
 
 
 class QdrantStoreError(DocumentStoreError):
@@ -85,7 +90,7 @@ class QdrantDocumentStore:
     ```
     """
 
-    SIMILARITY: ClassVar[Dict[str, str]] = {
+    SIMILARITY: ClassVar[Dict[str, rest.Distance]] = {
         "cosine": rest.Distance.COSINE,
         "dot_product": rest.Distance.DOT,
         "l2": rest.Distance.EUCLID,
@@ -216,8 +221,8 @@ class QdrantDocumentStore:
             List of payload fields to index.
         """
 
-        self._client = None
-        self._async_client = None
+        self._client: Optional[qdrant_client.QdrantClient] = None
+        self._async_client: Optional[qdrant_client.AsyncQdrantClient] = None
 
         # Store the Qdrant client specific attributes
         self.location = location
@@ -575,8 +580,8 @@ class QdrantDocumentStore:
                 with_vectors=True,
             )
             stop_scrolling = next_offset is None or (
-                isinstance(next_offset, grpc.PointId) and next_offset.num == 0 and next_offset.uuid == ""
-            )
+                isinstance(next_offset, grpc.PointId) and next_offset.num == 0 and next_offset.uuid == ""  # type: ignore[union-attr]
+            )  # grpc.PointId always has num and uuid
 
             for record in records:
                 yield convert_qdrant_point_to_haystack_document(
@@ -612,7 +617,7 @@ class QdrantDocumentStore:
                 with_vectors=True,
             )
             stop_scrolling = next_offset is None or (
-                isinstance(next_offset, grpc.PointId) and next_offset.num == 0 and next_offset.uuid == ""
+                isinstance(next_offset, grpc.PointId) and next_offset.num == 0 and next_offset.uuid == ""  # type: ignore[union-attr]
             )
 
             for record in records:
@@ -739,7 +744,7 @@ class QdrantDocumentStore:
                 query_filter=qdrant_filters,
                 limit=top_k,
                 group_by=group_by,
-                group_size=group_size,
+                group_size=group_size or DEFAULT_GROUP_SIZE,
                 with_vectors=return_embedding,
                 score_threshold=score_threshold,
             ).groups
@@ -801,7 +806,7 @@ class QdrantDocumentStore:
                 query_filter=qdrant_filters,
                 limit=top_k,
                 group_by=group_by,
-                group_size=group_size,
+                group_size=group_size or DEFAULT_GROUP_SIZE,
                 with_vectors=return_embedding,
                 score_threshold=score_threshold,
             ).groups
@@ -893,7 +898,7 @@ class QdrantDocumentStore:
                     query=rest.FusionQuery(fusion=rest.Fusion.RRF),
                     limit=top_k,
                     group_by=group_by,
-                    group_size=group_size,
+                    group_size=group_size or DEFAULT_GROUP_SIZE,
                     score_threshold=score_threshold,
                     with_payload=True,
                     with_vectors=return_embedding,
@@ -990,14 +995,14 @@ class QdrantDocumentStore:
                 query_filter=qdrant_filters,
                 limit=top_k,
                 group_by=group_by,
-                group_size=group_size,
+                group_size=group_size or DEFAULT_GROUP_SIZE,
                 with_vectors=return_embedding,
                 score_threshold=score_threshold,
             )
             groups = response.groups
             return self._process_group_results(groups)
         else:
-            response = await self._async_client.query_points(
+            query_response = await self._async_client.query_points(
                 collection_name=self.index,
                 query=rest.SparseVector(
                     indices=query_indices,
@@ -1009,7 +1014,7 @@ class QdrantDocumentStore:
                 with_vectors=return_embedding,
                 score_threshold=score_threshold,
             )
-            points = response.points
+            points = query_response.points
             return self._process_query_point_results(points, scale_score=scale_score)
 
     async def _query_by_embedding_async(
@@ -1054,14 +1059,14 @@ class QdrantDocumentStore:
                 query_filter=qdrant_filters,
                 limit=top_k,
                 group_by=group_by,
-                group_size=group_size,
+                group_size=group_size or DEFAULT_GROUP_SIZE,
                 with_vectors=return_embedding,
                 score_threshold=score_threshold,
             )
             groups = response.groups
             return self._process_group_results(groups)
         else:
-            response = await self._async_client.query_points(
+            query_response = await self._async_client.query_points(
                 collection_name=self.index,
                 query=query_embedding,
                 using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
@@ -1070,7 +1075,7 @@ class QdrantDocumentStore:
                 with_vectors=return_embedding,
                 score_threshold=score_threshold,
             )
-            points = response.points
+            points = query_response.points
             return self._process_query_point_results(points, scale_score=scale_score)
 
     async def _query_hybrid_async(
@@ -1145,14 +1150,14 @@ class QdrantDocumentStore:
                     query=rest.FusionQuery(fusion=rest.Fusion.RRF),
                     limit=top_k,
                     group_by=group_by,
-                    group_size=group_size,
+                    group_size=group_size or DEFAULT_GROUP_SIZE,
                     score_threshold=score_threshold,
                     with_payload=True,
                     with_vectors=return_embedding,
                 )
                 groups = response.groups
             else:
-                response = await self._async_client.query_points(
+                query_response = await self._async_client.query_points(
                     collection_name=self.index,
                     prefetch=[
                         rest.Prefetch(
@@ -1175,7 +1180,7 @@ class QdrantDocumentStore:
                     with_payload=True,
                     with_vectors=return_embedding,
                 )
-                points = response.points
+                points = query_response.points
 
         except Exception as e:
             msg = "Error during hybrid search"
@@ -1358,7 +1363,7 @@ class QdrantDocumentStore:
     def recreate_collection(
         self,
         collection_name: str,
-        distance,
+        distance: rest.Distance,
         embedding_dim: int,
         on_disk: Optional[bool] = None,
         use_sparse_embeddings: Optional[bool] = None,
@@ -1401,7 +1406,7 @@ class QdrantDocumentStore:
     async def recreate_collection_async(
         self,
         collection_name: str,
-        distance,
+        distance: rest.Distance,
         embedding_dim: int,
         on_disk: Optional[bool] = None,
         use_sparse_embeddings: Optional[bool] = None,
@@ -1444,7 +1449,7 @@ class QdrantDocumentStore:
     def _handle_duplicate_documents(
         self,
         documents: List[Document],
-        policy: DuplicatePolicy = None,
+        policy: Optional[DuplicatePolicy] = None,
     ) -> List[Document]:
         """
         Checks whether any of the passed documents is already existing in the chosen index and returns a list of
@@ -1471,7 +1476,7 @@ class QdrantDocumentStore:
     async def _handle_duplicate_documents_async(
         self,
         documents: List[Document],
-        policy: DuplicatePolicy = None,
+        policy: Optional[DuplicatePolicy] = None,
     ) -> List[Document]:
         """
         Asynchronously checks whether any of the passed documents is already existing
@@ -1560,11 +1565,11 @@ class QdrantDocumentStore:
     def _prepare_collection_config(
         self,
         embedding_dim: int,
-        distance,
+        distance: rest.Distance,
         on_disk: Optional[bool] = None,
         use_sparse_embeddings: Optional[bool] = None,
         sparse_idf: bool = False,
-    ) -> Tuple[Dict[str, rest.VectorParams], Optional[Dict[str, rest.SparseVectorParams]]]:
+    ) -> Tuple[Union[Dict[str, rest.VectorParams], rest.VectorParams], Optional[Dict[str, rest.SparseVectorParams]]]:
         """
         Prepares the configuration for creating or recreating a Qdrant collection.
 
@@ -1576,12 +1581,14 @@ class QdrantDocumentStore:
             use_sparse_embeddings = self.use_sparse_embeddings
 
         # dense vectors configuration
-        vectors_config = rest.VectorParams(size=embedding_dim, on_disk=on_disk, distance=distance)
-        sparse_vectors_config = None
+        base_vectors_config = rest.VectorParams(size=embedding_dim, on_disk=on_disk, distance=distance)
+        vectors_config: Union[rest.VectorParams, Dict[str, rest.VectorParams]] = base_vectors_config
+
+        sparse_vectors_config: Optional[Dict[str, rest.SparseVectorParams]] = None
 
         if use_sparse_embeddings:
             # in this case, we need to define named vectors
-            vectors_config = {DENSE_VECTORS_NAME: vectors_config}
+            vectors_config = {DENSE_VECTORS_NAME: base_vectors_config}
 
             sparse_vectors_config = {
                 SPARSE_VECTORS_NAME: rest.SparseVectorParams(
@@ -1609,7 +1616,9 @@ class QdrantDocumentStore:
             msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
             raise ValueError(msg)
 
-    def _process_query_point_results(self, results: List[QdrantPoint], scale_score: bool = False) -> List[Document]:
+    def _process_query_point_results(
+        self, results: List[rest.ScoredPoint], scale_score: bool = False
+    ) -> List[Document]:
         """
         Processes query results from Qdrant.
         """
@@ -1621,10 +1630,12 @@ class QdrantDocumentStore:
         if scale_score:
             for document in documents:
                 score = document.score
+                if score is None:
+                    continue
                 if self.similarity == "cosine":
                     score = (score + 1) / 2
                 else:
-                    score = float(1 / (1 + np.exp(-score / 100)))
+                    score = float(1 / (1 + exp(-score / 100)))
                 document.score = score
 
         return documents
@@ -1646,16 +1657,22 @@ class QdrantDocumentStore:
     def _validate_collection_compatibility(
         self,
         collection_name: str,
-        collection_info,
-        distance,
+        collection_info: rest.CollectionInfo,
+        distance: rest.Distance,
         embedding_dim: int,
     ) -> None:
         """
         Validates that an existing collection is compatible with the current configuration.
         """
-        has_named_vectors = isinstance(collection_info.config.params.vectors, dict)
+        vectors_config = collection_info.config.params.vectors
 
-        if has_named_vectors and DENSE_VECTORS_NAME not in collection_info.config.params.vectors:
+        if vectors_config is None:
+            msg = f"Collection '{collection_name}' has no vector configuration."
+            raise QdrantStoreError(msg)
+
+        has_named_vectors = isinstance(vectors_config, dict)
+
+        if has_named_vectors and DENSE_VECTORS_NAME not in vectors_config:
             msg = (
                 f"Collection '{collection_name}' already exists in Qdrant, "
                 f"but it has been originally created outside of Haystack and is not supported. "
@@ -1687,11 +1704,20 @@ class QdrantDocumentStore:
 
         # Get current distance and vector size based on collection configuration
         if self.use_sparse_embeddings:
-            current_distance = collection_info.config.params.vectors[DENSE_VECTORS_NAME].distance
-            current_vector_size = collection_info.config.params.vectors[DENSE_VECTORS_NAME].size
+            if not isinstance(vectors_config, dict):
+                msg = f"Collection '{collection_name}' has invalid vector configuration for sparse embeddings."
+                raise QdrantStoreError(msg)
+
+            dense_vector_config = vectors_config[DENSE_VECTORS_NAME]
+            current_distance = dense_vector_config.distance
+            current_vector_size = dense_vector_config.size
         else:
-            current_distance = collection_info.config.params.vectors.distance
-            current_vector_size = collection_info.config.params.vectors.size
+            if isinstance(vectors_config, dict):
+                msg = f"Collection '{collection_name}' has invalid vector configuration for dense embeddings only."
+                raise QdrantStoreError(msg)
+
+            current_distance = vectors_config.distance
+            current_vector_size = vectors_config.size
 
         # Validate distance metric
         if current_distance != distance:
