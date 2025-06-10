@@ -4,6 +4,7 @@
 
 import asyncio
 import concurrent.futures
+import json
 import threading
 import warnings
 from abc import ABC, abstractmethod
@@ -233,16 +234,16 @@ class MCPClient(ABC):
         """
         pass
 
-    async def call_tool(self, tool_name: str, tool_args: dict[str, Any]) -> Any:
+    async def call_tool(self, tool_name: str, tool_args: dict[str, Any]) -> str:
         """
         Call a tool on the connected MCP server.
 
         :param tool_name: Name of the tool to call
         :param tool_args: Arguments to pass to the tool
-        :returns: Result of the tool invocation
+        :returns: JSON string representation of the tool invocation result
         :raises MCPConnectionError: If not connected to an MCP server
         :raises MCPInvocationError: If the tool invocation fails
-        :raises MCPResponseTypeError: If response type is not TextContent
+        :raises MCPResponseTypeError: If response type is not TextContent or ImageContent
         """
         if not self.session:
             message = "Not connected to an MCP server"
@@ -250,8 +251,10 @@ class MCPClient(ABC):
 
         try:
             result = await self.session.call_tool(tool_name, tool_args)
-            validated_result = self._validate_response(tool_name, result)
-            return validated_result
+            if result.isError:
+                message = f"Tool '{tool_name}' returned an error: {result.content!s}"
+                raise MCPInvocationError(message=message, tool_name=tool_name)
+            return result.model_dump_json()
         except MCPError:
             # Re-raise specific MCP errors directly
             raise
@@ -259,44 +262,6 @@ class MCPClient(ABC):
             # Wrap other exceptions with context about which tool failed
             message = f"Failed to invoke tool '{tool_name}' with args: {tool_args} , got error: {e!s}"
             raise MCPInvocationError(message, tool_name, tool_args) from e
-
-    def _validate_response(self, tool_name: str, result: types.CallToolResult) -> types.CallToolResult:
-        """
-        Validate response from an MCP tool call, accepting only TextContent.
-
-        :param tool_name: Name of the called tool (for error messages)
-        :param result: CallToolResult from MCP tool call
-        :returns: The original CallToolResult object
-        :raises MCPResponseTypeError: If content type is not TextContent
-        :raises MCPInvocationError: If the tool call resulted in an error
-        """
-
-        # Check for error response
-        if result.isError:
-            if len(result.content) > 0 and isinstance(result.content[0], types.TextContent):
-                # Get the error message from the first item
-                first_item = result.content[0]
-                message = f"Tool '{tool_name}' returned an error: {first_item.text}"
-            else:
-                message = f"Tool '{tool_name}' returned an error: {result.content!s}"
-            raise MCPInvocationError(
-                message=message,
-                tool_name=tool_name,
-            )
-
-        # Validate content types - only allow TextContent for now
-        if result.content:
-            for item in result.content:
-                if not isinstance(item, types.TextContent):
-                    # Reject any non-TextContent
-                    message = (
-                        f"Unsupported content type in response from tool '{tool_name}'. "
-                        f"Only TextContent is currently supported."
-                    )
-                    raise MCPResponseTypeError(message, result, tool_name)
-
-        # Return the original result object
-        return result
 
     async def aclose(self) -> None:
         """
@@ -608,11 +573,14 @@ class MCPTool(Tool):
     compatibility with the Haystack tool ecosystem.
 
     Response handling:
-    - Text content is supported and returned as strings
-    - Unsupported content types (like binary/images) will raise MCPResponseTypeError
+    - Text and image content are supported and returned as JSON strings
+    - The JSON contains the structured response from the MCP server
+    - Use json.loads() to parse the response into a dictionary
+    - Unsupported content types will raise MCPResponseTypeError
 
     Example using HTTP:
     ```python
+    import json
     from haystack.tools import MCPTool, SSEServerInfo
 
     # Create tool instance
@@ -621,12 +589,14 @@ class MCPTool(Tool):
         server_info=SSEServerInfo(url="http://localhost:8000/sse")
     )
 
-    # Use the tool
-    result = tool.invoke(a=5, b=3)
+    # Use the tool and parse result
+    result_json = tool.invoke(a=5, b=3)
+    result = json.loads(result_json)
     ```
 
     Example using stdio:
     ```python
+    import json
     from haystack.tools import MCPTool, StdioServerInfo
 
     # Create tool instance
@@ -635,8 +605,9 @@ class MCPTool(Tool):
         server_info=StdioServerInfo(command="python", args=["path/to/server.py"])
     )
 
-    # Use the tool
-    result = tool.invoke(timezone="America/New_York")
+    # Use the tool and parse result
+    result_json = tool.invoke(timezone="America/New_York")
+    result = json.loads(result_json)
     ```
     """
 
@@ -732,12 +703,12 @@ class MCPTool(Tool):
             message = f"Failed to initialize MCPTool '{name}': {error_message}"
             raise MCPConnectionError(message=message, server_info=server_info, operation="initialize") from e
 
-    def _invoke_tool(self, **kwargs: Any) -> Any:
+    def _invoke_tool(self, **kwargs: Any) -> str:
         """
         Synchronous tool invocation.
 
         :param kwargs: Arguments to pass to the tool
-        :returns: Result of the tool invocation
+        :returns: JSON string representation of the tool invocation result
         """
         logger.debug(f"TOOL: Invoking tool '{self.name}' with args: {kwargs}")
         try:
@@ -764,12 +735,12 @@ class MCPTool(Tool):
             message = f"Failed to invoke tool '{self.name}' with args: {kwargs} , got error: {e!s}"
             raise MCPInvocationError(message, self.name, kwargs) from e
 
-    async def ainvoke(self, **kwargs: Any) -> Any:
+    async def ainvoke(self, **kwargs: Any) -> str:
         """
         Asynchronous tool invocation.
 
         :param kwargs: Arguments to pass to the tool
-        :returns: Result of the tool invocation, processed based on content type
+        :returns: JSON string representation of the tool invocation result
         :raises MCPInvocationError: If the tool invocation fails
         :raises MCPResponseTypeError: If response type is not supported
         :raises TimeoutError: If the operation times out

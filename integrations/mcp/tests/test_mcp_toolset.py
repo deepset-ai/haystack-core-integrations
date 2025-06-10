@@ -213,6 +213,7 @@ class TestMCPToolsetIntegration:
         import socket
         import subprocess
         import tempfile
+        import json
 
         # Find an available port
         def find_free_port():
@@ -270,13 +271,19 @@ if __name__ == "__main__":
 
             # Test the add tool
             add_tool = next(tool for tool in toolset.tools if tool.name == "add")
-            result = add_tool.invoke(a=5, b=3)
-            assert result.content[0].text == "8"
+            result_json = add_tool.invoke(a=5, b=3)
+
+            # Parse the JSON result
+            result = json.loads(result_json)
+            assert result["content"][0]["text"] == "8"
 
             # Test the subtract tool
             subtract_tool = next(tool for tool in toolset.tools if tool.name == "subtract")
-            result = subtract_tool.invoke(a=10, b=4)
-            assert result.content[0].text == "6"
+            result_json = subtract_tool.invoke(a=10, b=4)
+
+            # Parse the JSON result
+            result = json.loads(result_json)
+            assert result["content"][0]["text"] == "6"
 
         except Exception:
             # Check server output for clues
@@ -311,6 +318,7 @@ if __name__ == "__main__":
         import socket
         import subprocess
         import tempfile
+        import json
 
         # Find an available port
         def find_free_port():
@@ -369,13 +377,19 @@ if __name__ == "__main__":
 
             # Test the add tool
             add_tool = next(tool for tool in toolset.tools if tool.name == "add")
-            result = add_tool.invoke(a=5, b=3)
-            assert result.content[0].text == "8"
+            result_json = add_tool.invoke(a=5, b=3)
+
+            # Parse the JSON result
+            result = json.loads(result_json)
+            assert result["content"][0]["text"] == "8"
 
             # Test the subtract tool
             subtract_tool = next(tool for tool in toolset.tools if tool.name == "subtract")
-            result = subtract_tool.invoke(a=10, b=4)
-            assert result.content[0].text == "6"
+            result_json = subtract_tool.invoke(a=10, b=4)
+
+            # Parse the JSON result
+            result = json.loads(result_json)
+            assert result["content"][0]["text"] == "6"
 
         except Exception:
             # Check server output for clues
