@@ -233,4 +233,4 @@ class TestGoogleGenAIDocumentEmbedder:
             assert len(doc.embedding) == 768
             assert all(isinstance(x, float) for x in doc.embedding)
 
-        assert result["documents"][0].meta["model"] == model
+        assert result["documents"][0].meta == {"model": model}
