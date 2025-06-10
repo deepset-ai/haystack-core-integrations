@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/chroma-v3.3.0] - 2025-06-09
+
+### 🚀 Features
+
+- Chroma - fix typing + ship types by adding py.typed files (#1910)
+
+
 ## [integrations/chroma-v3.2.0] - 2025-06-06
 
 ### 🚀 Features

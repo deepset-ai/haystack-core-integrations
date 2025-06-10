@@ -24,7 +24,7 @@ docker-compose up
 Then run tests:
 
 ```console
-hatch run test
+hatch run test:all
 ```
 
 ## License

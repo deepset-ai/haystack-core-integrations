@@ -113,7 +113,7 @@ class PgvectorKeywordRetriever:
         query: str,
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Retrieve documents from the `PgvectorDocumentStore`, based on keywords.
 
@@ -143,7 +143,7 @@ class PgvectorKeywordRetriever:
         query: str,
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Asynchronously retrieve documents from the `PgvectorDocumentStore`, based on keywords.
 

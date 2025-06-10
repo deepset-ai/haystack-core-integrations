@@ -194,29 +194,16 @@ $ hatch version
 
 #### Run the linter
 
-Every time you change the code, it's a good practice to run the linter, that will ensure your code is well formatted
-and the static checker is happy with the typing:
+Every time you change the code, it's a good practice to format the code and perform linting (with automatic fixes):
 
 ```console
-$ hatch run lint:all
+$ hatch run fmt
 ```
 
-If you see Hatch reporting problems, you can try fixing them with:
+To check for static type errors, run:
 
 ```console
-$ hatch run lint:fmt
-```
-
-You can also run the code formatter and the static checker separated:
-
-```console
-$ hatch run lint:style
-```
-
-and
-
-```console
-$ hatch run lint:typing
+$ hatch run test:types
 ```
 
 #### Run the tests
@@ -224,18 +211,23 @@ $ hatch run lint:typing
 It's important your tests pass before contributing code. To run all the tests locally:
 
 ```console
-$ hatch run test
+$ hatch run test:all
 ```
 
 > [!IMPORTANT] The command above will run ALL the tests, including integration tests; some of those often need you to
 > run a certain service in background (e.g. a Vector Database) or provide credentials to external services (e.g. OpenAI)
 > in order to pass.
 
-If you want to run only a portion of the tests, for example including integration tests, Hatch will happily take the
-same options you would pass to `pytest` directly, in this case a marker with the option `-m`:
+To run the unit tests only, run:
 
 ```console
-$ hatch run test -m"not integration"
+$ hatch run test:unit
+```
+
+For integration tests, run:
+
+```console
+$ hatch run test:integration
 ```
 
 #### Create a new integration
