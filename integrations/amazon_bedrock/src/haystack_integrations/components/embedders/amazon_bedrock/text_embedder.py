@@ -63,7 +63,7 @@ class AmazonBedrockTextEmbedder:
         aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         boto3_config: Optional[Dict[str, Any]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """
         Initializes the AmazonBedrockTextEmbedder with the provided parameters. The parameters are passed to the
