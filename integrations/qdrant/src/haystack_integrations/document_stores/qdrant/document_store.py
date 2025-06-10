@@ -618,7 +618,7 @@ class QdrantDocumentStore:
             )
             stop_scrolling = next_offset is None or (
                 isinstance(next_offset, grpc.PointId) and next_offset.num == 0 and next_offset.uuid == ""  # type: ignore[union-attr]
-            )
+            )  # grpc.PointId always has num and uuid
 
             for record in records:
                 yield convert_qdrant_point_to_haystack_document(

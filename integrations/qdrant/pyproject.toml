@@ -158,6 +158,10 @@ parallel = false
 
 
 [tool.coverage.report]
-omit = ["*/tests/*", "*/__init__.py"]
+omit = [
+  "*/tests/*",
+  "*/__init__.py",
+  "src/haystack_integrations/document_stores/qdrant/migrate_to_sparse.py",
+]
 show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
