@@ -498,7 +498,9 @@ class MCPServerInfo(ABC):
             if hasattr(value, "to_dict"):
                 result[dataclass_field.name] = value.to_dict()
             elif isinstance(value, dict):
-                result[dataclass_field.name] = {k: v.to_dict() if hasattr(v, "to_dict") else v for k, v in value.items()}
+                result[dataclass_field.name] = {
+                    k: v.to_dict() if hasattr(v, "to_dict") else v for k, v in value.items()
+                }
             else:
                 result[dataclass_field.name] = value
 
@@ -516,7 +518,7 @@ class MCPServerInfo(ABC):
         data_copy = data.copy()
         data_copy.pop("type", None)
 
-secret_types = {e.value for e in SecretType}
+        secret_types = {e.value for e in SecretType}
         field_names = {f.name for f in fields(cls)}
 
         # Iterate over a static list of items to avoid mutation issues
@@ -530,9 +532,8 @@ secret_types = {e.value for e in SecretType}
                 continue
 
             # Nested secrets (one level deep)
-            nested_keys: List[str] = [
-                k for k, v in value.items()
-                if isinstance(v, dict) and v.get("type") in secret_types
+            nested_keys: list[str] = [
+                k for k, v in value.items() if isinstance(v, dict) and v.get("type") in secret_types
             ]
             if nested_keys:
                 deserialize_secrets_inplace(value, keys=nested_keys)
