@@ -179,22 +179,6 @@ class MCPToolNotFoundError(MCPError):
         self.available_tools = available_tools or []
 
 
-class MCPResponseTypeError(MCPError):
-    """Error when response content type is not supported."""
-
-    def __init__(self, message: str, response: Any, tool_name: str | None = None) -> None:
-        """
-        Initialize the MCPResponseTypeError.
-
-        :param message: Descriptive error message
-        :param response: The response that had the wrong type
-        :param tool_name: Name of the tool that produced the response
-        """
-        super().__init__(message)
-        self.response = response
-        self.tool_name = tool_name
-
-
 class MCPInvocationError(ToolInvocationError):
     """Error during tool invocation."""
 
@@ -658,7 +642,6 @@ class MCPTool(Tool):
     - Text and image content are supported and returned as JSON strings
     - The JSON contains the structured response from the MCP server
     - Use json.loads() to parse the response into a dictionary
-    - Unsupported content types will raise MCPResponseTypeError
 
     Example using HTTP:
     ```python

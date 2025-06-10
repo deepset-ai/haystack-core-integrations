@@ -39,7 +39,6 @@ class InMemoryClient(MCPClient):
         :returns: Result of the tool invocation
         :raises MCPConnectionError: If not connected to an MCP server
         :raises MCPInvocationError: If the tool invocation fails
-        :raises MCPResponseTypeError: If response type is not TextContent
         """
         async with create_connected_server_and_client_session(self.server) as session:
             await session.initialize()
