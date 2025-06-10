@@ -158,7 +158,6 @@ class GoogleGenAIDocumentEmbedder:
 
             response = self._client.models.embed_content(**args)
 
-            # TODO Decide if we should return None or empty List
             embeddings = []
             if response.embeddings:
                 for el in response.embeddings:
