@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from math import exp
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -81,8 +81,8 @@ class OpenSearchDocumentStore:
         use_ssl: Optional[bool] = None,
         verify_certs: Optional[bool] = None,
         timeout: Optional[int] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """
         Creates a new OpenSearchDocumentStore instance.
 
@@ -211,6 +211,7 @@ class OpenSearchDocumentStore:
             Dictionary with serialized data.
         """
         # Handle http_auth serialization
+        http_auth: Union[List[Dict[str, Any]], Dict[str, Any], Tuple[str, str], List[str], str] = ""
         if isinstance(self._http_auth, list) and self._http_auth_are_secrets:
             # Recreate the Secret objects for serialization
             http_auth = [
