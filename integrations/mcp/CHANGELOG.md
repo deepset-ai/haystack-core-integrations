@@ -1,6 +1,19 @@
 # Changelog
 
-## [integrations/mcp-v0.3.1] - 2025-05-28
+## [integrations/mcp-v0.4.0] - 2025-06-11
+
+### 🚀 Features
+
+- Add Secret support to MCPTool and MCPToolset (#1900)
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Use model_dump_json for tool results instead of returning mcp-sdk types.CallToolResult (#1917)
+
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
 
 ### 🌀 Miscellaneous
 
