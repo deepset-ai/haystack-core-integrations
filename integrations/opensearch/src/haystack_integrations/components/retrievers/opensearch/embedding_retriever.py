@@ -152,7 +152,7 @@ class OpenSearchEmbeddingRetriever:
         top_k: Optional[int] = None,
         custom_query: Optional[Dict[str, Any]] = None,
         efficient_filtering: Optional[bool] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Retrieve documents using a vector similarity metric.
 
@@ -251,7 +251,7 @@ class OpenSearchEmbeddingRetriever:
         top_k: Optional[int] = None,
         custom_query: Optional[Dict[str, Any]] = None,
         efficient_filtering: Optional[bool] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Asynchronously retrieve documents using a vector similarity metric.
 
