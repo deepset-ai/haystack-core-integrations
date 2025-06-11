@@ -1,3 +1,4 @@
+import json
 import os
 import socket
 import subprocess
@@ -86,21 +87,25 @@ if __name__ == "__main__":
             tool = MCPTool(name="add", server_info=server_info)
 
             # Invoke the tool
-            result = tool.invoke(a=5, b=3)
+            result_json = tool.invoke(a=5, b=3)
+            result = json.loads(result_json)
 
             # Verify the result
-            assert not result.isError
-            assert len(result.content) == 1
-            assert result.content[0].text == "8"
+            assert not result["isError"]
+            assert len(result["content"]) == 1
+            assert result["content"][0]["text"] == "8"
 
             # Try another tool from the same server
             subtract_tool = MCPTool(name="subtract", server_info=server_info)
-            result = subtract_tool.invoke(a=10, b=4)
+            result_json = subtract_tool.invoke(a=10, b=4)
+
+            # Parse the JSON result
+            result = json.loads(result_json)
 
             # Verify the result
-            assert not result.isError
-            assert len(result.content) == 1
-            assert result.content[0].text == "6"
+            assert not result["isError"]
+            assert len(result["content"]) == 1
+            assert result["content"][0]["text"] == "6"
 
         except Exception:
             # Check server output for clues
