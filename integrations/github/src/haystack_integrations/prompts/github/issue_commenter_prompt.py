@@ -4,7 +4,7 @@
 ISSUE_COMMENTER_PROMPT = """Haystack-Agent uses this tool to post a comment to a GitHub-issue discussion.
 
 <usage>
-Pass a `comment` string to post a comment and a `url` string for the GitHub issue to comment on.
+Pass a `comment` string and a `url` string to post a comment to a GitHub issue.
 </usage>
 
 IMPORTANT
