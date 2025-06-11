@@ -116,7 +116,9 @@ class ElasticsearchBM25Retriever:
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
-    def run(self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
+    def run(
+        self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> Dict[str, List[Document]]:
         """
         Retrieve documents using the BM25 keyword-based algorithm.
 
@@ -139,7 +141,9 @@ class ElasticsearchBM25Retriever:
         return {"documents": docs}
 
     @component.output_types(documents=List[Document])
-    async def run_async(self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
+    async def run_async(
+        self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> Dict[str, List[Document]]:
         """
         Asynchronously retrieve documents using the BM25 keyword-based algorithm.
 
