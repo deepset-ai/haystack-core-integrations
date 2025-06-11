@@ -175,11 +175,11 @@ class CohereDocumentEmbedder:
             - `meta`: metadata about the embedding process.
         :raises TypeError: if the input is not a list of `Documents`.
         """
-        documents = self._prepare_input(documents)
-
         if not documents:
             # return early if we were passed an empty list
             return {"documents": [], "meta": {}}
+        
+        documents = self._prepare_input(documents)
 
         texts_to_embed = self._prepare_texts_to_embed(documents)
 
