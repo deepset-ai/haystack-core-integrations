@@ -5,7 +5,7 @@ from haystack.tools import Tool
 from mcp.server import Server
 from mcp.shared.memory import create_connected_server_and_client_session
 
-from haystack_integrations.tools.mcp import MCPClient, MCPServerInfo
+from haystack_integrations.tools.mcp import MCPClient, MCPInvocationError, MCPServerInfo
 
 
 class InMemoryClient(MCPClient):
@@ -39,12 +39,16 @@ class InMemoryClient(MCPClient):
         :returns: Result of the tool invocation
         :raises MCPConnectionError: If not connected to an MCP server
         :raises MCPInvocationError: If the tool invocation fails
-        :raises MCPResponseTypeError: If response type is not TextContent
         """
         async with create_connected_server_and_client_session(self.server) as session:
             await session.initialize()
             response = await session.call_tool(tool_name, tool_args)
-            return self._validate_response(tool_name, response)
+            if response.isError:
+                raise MCPInvocationError(
+                    message=f"Tool '{tool_name}' returned an error: {response.content!s}",
+                    tool_name=tool_name,
+                )
+            return response.model_dump_json()
 
 
 @dataclass
