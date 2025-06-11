@@ -121,7 +121,6 @@ class OpenSearchDocumentStore:
         :param **kwargs: Optional arguments that ``OpenSearch`` takes. For the full list of supported kwargs,
             see the [official OpenSearch reference](https://opensearch-project.github.io/opensearch-py/api-ref/clients/opensearch_client.html)
         """
-        self._client = None
         self._hosts = hosts
         self._index = index
         self._max_chunk_bytes = max_chunk_bytes
@@ -150,8 +149,8 @@ class OpenSearchDocumentStore:
 
         # Client is initialized lazily to prevent side effects when
         # the document store is instantiated.
-        self._client = None
-        self._async_client = None
+        self._client: Optional[OpenSearch] = None
+        self._async_client: Optional[AsyncOpenSearch] = None
         self._initialized = False
 
     def _get_default_mappings(self) -> Dict[str, Any]:
@@ -418,7 +417,7 @@ class OpenSearchDocumentStore:
             "max_chunk_bytes": self._max_chunk_bytes,
         }
 
-    def _process_bulk_write_errors(self, errors: List[Dict[str, Any]], policy: DuplicatePolicy):
+    def _process_bulk_write_errors(self, errors: List[Dict[str, Any]], policy: DuplicatePolicy) -> None:
         if len(errors) == 0:
             return
 
@@ -579,12 +578,13 @@ class OpenSearchDocumentStore:
 
         return body
 
-    def _postprocess_bm25_search_results(self, *, results: List[Document], scale_score: bool):
+    def _postprocess_bm25_search_results(self, *, results: List[Document], scale_score: bool) -> None:
         if not scale_score:
             return
 
         for doc in results:
-            assert doc.score is not None
+            if doc.score is None:
+                continue
             doc.score = float(1 / (1 + exp(-(doc.score / float(BM25_SCALING_FACTOR)))))
 
     def _bm25_retrieval(
