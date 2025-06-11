@@ -16,7 +16,7 @@ Haystack-Agent always passes the contents of the comment to the "comment" parame
 ISSUE_COMMENTER_SCHEMA = {
     "properties": {
         "comment": {"type": "string", "description": "The contents of the comment that you want to create."},
-        "url": {"type": "string", "description": "URL of the GitHub issue to comment on."}
+        "url": {"type": "string", "description": "URL of the GitHub issue to comment on."},
     },
     "required": ["comment", "url"],
     "type": "object",
