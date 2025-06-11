@@ -92,6 +92,15 @@ class CohereDocumentEmbedder:
         self.embedding_type = embedding_type or EmbeddingTypes.FLOAT
 
     def _prepare_input(self, documents: List[Document]) -> List[Document]:
+        """
+        Prepares the list of documents to embed by appropriate validation.
+
+        :param documents:
+            List of documents to embed.
+        :returns:
+            List of documents to embed if validations pass.
+        :raises TypeError: if the input is not a list of `Documents`.
+        """
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "CohereDocumentEmbedder expects a list of Documents as input. "
