@@ -107,7 +107,7 @@ class AmazonBedrockGenerator:
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         boto3_config: Optional[Dict[str, Any]] = None,
         model_family: Optional[MODEL_FAMILIES] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """
         Create a new `AmazonBedrockGenerator` instance.

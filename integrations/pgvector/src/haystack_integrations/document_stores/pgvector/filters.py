@@ -6,7 +6,7 @@ from itertools import chain
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from haystack.errors import FilterError
-from psycopg.sql import SQL
+from psycopg.sql import SQL, Composed
 from psycopg.types.json import Jsonb
 
 # we need this mapping to cast meta values to the correct type,
@@ -21,7 +21,7 @@ PYTHON_TYPES_TO_PG_TYPES = {
 NO_VALUE = "no_value"
 
 
-def _validate_filters(filters: Optional[Dict[str, Any]] = None):
+def _validate_filters(filters: Optional[Dict[str, Any]] = None) -> None:
     """
     Validates the filters provided.
     """
@@ -36,7 +36,7 @@ def _validate_filters(filters: Optional[Dict[str, Any]] = None):
 
 def _convert_filters_to_where_clause_and_params(
     filters: Dict[str, Any], operator: Literal["WHERE", "AND"] = "WHERE"
-) -> Tuple[SQL, Tuple]:
+) -> Tuple[Composed, Tuple]:
     """
     Convert Haystack filters to a WHERE clause and a tuple of params to query PostgreSQL.
     """

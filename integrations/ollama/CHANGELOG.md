@@ -1,5 +1,28 @@
 # Changelog
 
+## [integrations/ollama-v3.2.0] - 2025-06-10
+
+### 🚀 Features
+
+- Add run_async support for OllamaDocumentEmbedder (#1878)
+
+
+## [integrations/ollama-v3.1.0] - 2025-06-10
+
+### 🚀 Features
+
+- Add run_async support for OllamaTextEmbedder (#1877)
+
+### 🐛 Bug Fixes
+
+- Ollama tools with streaming (#1906)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+
+
 ## [integrations/ollama-v3.0.1] - 2025-05-22
 
 ### 🚀 Features

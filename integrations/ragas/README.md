@@ -24,7 +24,7 @@ For more information about the Ragas evaluation framework, please refer to their
 ## Testing
 
 ```console
-hatch run test
+hatch run test:all
 ```
 
 ## Examples

@@ -59,6 +59,11 @@ integration:google-ai:
       - any-glob-to-any-file: "integrations/google_ai/**/*"
       - any-glob-to-any-file: ".github/workflows/google_ai.yml"
 
+integration:google-genai:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/google_genai/**/*"
+      - any-glob-to-any-file: ".github/workflows/google_genai.yml"
+
 integration:google-vertex:
   - changed-files:
       - any-glob-to-any-file: "integrations/google_vertex/**/*"

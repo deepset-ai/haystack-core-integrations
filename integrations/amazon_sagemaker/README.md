@@ -26,7 +26,7 @@ pip install hatch
 
 With `hatch` installed, to run all the tests:
 ```
-hatch run test
+hatch run test:all
 ```
 
 > Note: You need to export your AWS credentials for Sagemaker integration tests to run (`AWS_ACCESS_KEY_ID` and 
@@ -34,17 +34,23 @@ hatch run test
 
 To only run unit tests:
 ```
-hatch run test -m "not integration"
+hatch run test:unit
 ```
 
 To only run integration tests:
 ```
-hatch run test -m "integration"
+hatch run test:integration
 ```
 
-To run the linters `ruff` and `mypy`:
+To format your code and perform linting using Ruff (with automatic fixes), run:
 ```
-hatch run lint:all
+hatch run fmt
+```
+
+To check for static type errors, run:
+
+```console
+$ hatch run test:types
 ```
 
 ## License

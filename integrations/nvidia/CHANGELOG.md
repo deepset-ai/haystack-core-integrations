@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/nvidia-v0.2.0] - 2025-06-05
+
+### 🚀 Features
+
+- Add NvidiaChatGenerator based on OpenAIChatGenerator (#1776)
+
+
 ## [integrations/nvidia-v0.1.8] - 2025-05-28
 
 ### 🌀 Miscellaneous

@@ -16,7 +16,7 @@ pip install pinecone-haystack
 ## Testing
 
 ```console
-hatch run test
+hatch run test:all
 ```
 
 ## License

@@ -42,7 +42,7 @@ pipe = Pipeline()
 pipe.add_component("joiner", BranchJoiner(List[ChatMessage]))
 pipe.add_component("fc_llm", CohereChatGenerator(model="command-r"))
 pipe.add_component("validator", JsonSchemaValidator(json_schema=person_schema))
-pipe.add_component("adapter", OutputAdapter("{{chat_message}}", List[ChatMessage])),
+(pipe.add_component("adapter", OutputAdapter("{{chat_message}}", List[ChatMessage])),)
 # And connect them
 pipe.connect("adapter", "joiner")
 pipe.connect("joiner", "fc_llm")

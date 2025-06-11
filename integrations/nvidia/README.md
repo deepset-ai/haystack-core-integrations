@@ -29,7 +29,7 @@ pip install hatch
 With `hatch` installed, to run all the tests:
 
 ```
-hatch run test
+hatch run test:all
 ```
 
 > Note: integration tests will be skipped unless the env var NVIDIA_API_KEY is set. The api key needs to be valid
@@ -38,13 +38,19 @@ hatch run test
 To only run unit tests:
 
 ```
-hatch run test -m "not integration"
+hatch run test:unit
 ```
 
-To run the linters `ruff` and `mypy`:
+To format your code and perform linting using Ruff (with automatic fixes), run:
 
 ```
-hatch run lint:all
+hatch run fmt
+```
+
+To check for static type errors, run:
+
+```console
+$ hatch run test:types
 ```
 
 ## License

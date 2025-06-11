@@ -33,7 +33,6 @@ def test_init_is_lazy(_mock_client):
 @pytest.mark.skipif(not os.environ.get("MONGO_CONNECTION_STRING"), reason="No MongoDBAtlas connection string provided")
 @pytest.mark.integration
 class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
-
     @pytest.fixture
     async def document_store(self):
         database_name = "haystack_integration_test"

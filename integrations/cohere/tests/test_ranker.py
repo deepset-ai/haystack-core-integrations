@@ -160,8 +160,8 @@ class TestCohereRanker:
                 content=f"document number {i}",
                 meta={
                     "meta_field_1": f"meta_value_1 {i}",
-                    "meta_field_2": f"meta_value_2 {i+5}",
-                    "meta_field_3": f"meta_value_3 {i+15}",
+                    "meta_field_2": f"meta_value_2 {i + 5}",
+                    "meta_field_3": f"meta_value_3 {i + 15}",
                 },
             )
             for i in range(5)
@@ -185,8 +185,8 @@ class TestCohereRanker:
                 content=f"document number {i}",
                 meta={
                     "meta_field_1": f"meta_value_1 {i}",
-                    "meta_field_2": f"meta_value_2 {i+5}",
-                    "meta_field_3": f"meta_value_3 {i+15}",
+                    "meta_field_2": f"meta_value_2 {i + 5}",
+                    "meta_field_3": f"meta_value_3 {i + 15}",
                 },
             )
             for i in range(5)
