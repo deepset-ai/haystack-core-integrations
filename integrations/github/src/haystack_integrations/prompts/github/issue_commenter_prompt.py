@@ -9,7 +9,8 @@ Pass a `comment` string and a `url` string to post a comment to a GitHub issue.
 
 IMPORTANT
 Haystack-Agent MUST pass "comment" and "url" to this tool. Otherwise, comment creation fails.
-Haystack-Agent always passes the contents of the comment to the "comment" parameter and the URL of the GitHub issue to the "url" parameter when calling this tool.
+Haystack-Agent always passes the contents of the comment to the "comment" parameter and
+ the URL of the GitHub issue to the "url" parameter when calling this tool.
 """
 
 ISSUE_COMMENTER_SCHEMA = {
