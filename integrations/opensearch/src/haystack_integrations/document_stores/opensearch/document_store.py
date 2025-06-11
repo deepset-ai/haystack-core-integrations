@@ -299,7 +299,7 @@ class OpenSearchDocumentStore:
         elif self._create_index:
             # Create the index if it doesn't exist
             body = {"mappings": self._mappings, "settings": self._settings}
-            self._client.indices.create(index=self._index, body=body)  # type:ignore
+            self._client.indices.create(index=self._index, body=body)
 
     def count_documents(self) -> int:
         """
@@ -415,6 +415,7 @@ class OpenSearchDocumentStore:
             "index": self._index,
             "raise_on_error": False,
             "max_chunk_bytes": self._max_chunk_bytes,
+            "stats_only": False,
         }
 
     def _process_bulk_write_errors(self, errors: List[Dict[str, Any]], policy: DuplicatePolicy) -> None:
@@ -476,7 +477,8 @@ class OpenSearchDocumentStore:
         self._ensure_initialized()
         bulk_params = self._prepare_bulk_write_request(documents=documents, policy=policy, is_async=True)
         documents_written, errors = await async_bulk(**bulk_params)
-        self._process_bulk_write_errors(errors, policy)  # type:ignore
+        # since we call async_bulk with stats_only=False, errors is guaranteed to be a list (not int)
+        self._process_bulk_write_errors(errors=errors, policy=policy)  # type: ignore[arg-type]
         return documents_written
 
     def _deserialize_document(self, hit: Dict[str, Any]) -> Document:
@@ -683,7 +685,7 @@ class OpenSearchDocumentStore:
                 custom_query,
                 {
                     "$query_embedding": query_embedding,
-                    "$filters": normalize_filters(filters),  # type:ignore
+                    "$filters": normalize_filters(filters) if filters else None,
                 },
             )
 
