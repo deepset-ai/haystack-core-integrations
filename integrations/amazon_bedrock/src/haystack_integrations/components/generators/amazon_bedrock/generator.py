@@ -234,11 +234,7 @@ class AmazonBedrockGenerator:
             metadata = response.get("ResponseMetadata", {})
 
         except ClientError as exception:
-            msg = (
-                f"Could not connect to Amazon Bedrock model {self.model}. "
-                f"Make sure your AWS environment is configured correctly, "
-                f"the model is available in the configured AWS region, and you have access."
-            )
+            msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
             raise AmazonBedrockInferenceError(msg) from exception
 
         return {"replies": replies, "meta": metadata}
