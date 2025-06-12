@@ -83,6 +83,10 @@ class CohereDocumentEmbedder:
         self.input_type = input_type
         self.api_base_url = api_base_url
         self.truncate = truncate
+        self._client = ClientV2(api_key, base_url=self.api_base_url, timeout=self.timeout, client_name="haystack")
+        self._async_client = AsyncClientV2(
+            api_key, base_url=self.api_base_url, timeout=self.timeout, client_name="haystack"
+        )
         self.use_async_client = use_async_client
         self.timeout = timeout
         self.batch_size = batch_size
@@ -187,26 +191,14 @@ class CohereDocumentEmbedder:
         assert api_key is not None
 
         if self.use_async_client:
-            cohere_client = AsyncClientV2(
-                api_key,
-                base_url=self.api_base_url,
-                timeout=self.timeout,
-                client_name="haystack",
-            )
             all_embeddings, metadata = asyncio.run(
                 get_async_response(
-                    cohere_client, texts_to_embed, self.model, self.input_type, self.truncate, self.embedding_type
+                    self._async_client, texts_to_embed, self.model, self.input_type, self.truncate, self.embedding_type
                 )
             )
         else:
-            cohere_client = ClientV2(
-                api_key,
-                base_url=self.api_base_url,
-                timeout=self.timeout,
-                client_name="haystack",
-            )
             all_embeddings, metadata = get_response(
-                cohere_client,
+                self._client,
                 texts_to_embed,
                 self.model,
                 self.input_type,
@@ -249,14 +241,8 @@ class CohereDocumentEmbedder:
         api_key = self.api_key.resolve_value()
         assert api_key is not None
 
-        cohere_client = AsyncClientV2(
-            api_key,
-            base_url=self.api_base_url,
-            timeout=self.timeout,
-            client_name="haystack",
-        )
         all_embeddings, metadata = await get_async_response(
-            cohere_client, texts_to_embed, self.model, self.input_type, self.truncate, self.embedding_type
+            self._async_client, texts_to_embed, self.model, self.input_type, self.truncate, self.embedding_type
         )
 
         for doc, embeddings in zip(documents, all_embeddings):
