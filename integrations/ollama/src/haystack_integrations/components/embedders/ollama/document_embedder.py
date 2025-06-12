@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import Document, component
 from tqdm import tqdm
@@ -160,7 +160,9 @@ class OllamaDocumentEmbedder:
         return all_embeddings
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
-    def run(self, documents: List[Document], generation_kwargs: Optional[Dict[str, Any]] = None) -> Union[Dict[str, List[Document]], Dict[str, Dict[str, Any]]]:
+    def run(
+        self, documents: List[Document], generation_kwargs: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Union[List[Document], Dict[str, Any]]]:
         """
         Runs an Ollama Model to compute embeddings of the provided documents.
 
@@ -195,7 +197,7 @@ class OllamaDocumentEmbedder:
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
     async def run_async(
         self, documents: List[Document], generation_kwargs: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, Union[List[Document], Dict[str, Any]]]:
         """
         Asynchronously run an Ollama Model to compute embeddings of the provided documents.
 
