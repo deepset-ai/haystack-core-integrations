@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component
 
@@ -49,7 +49,9 @@ class OllamaTextEmbedder:
         self._async_client = AsyncClient(host=self.url, timeout=self.timeout)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
-    def run(self, text: str, generation_kwargs: Optional[Dict[str, Any]] = None):
+    def run(
+        self, text: str, generation_kwargs: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Union[List[float], Dict[str, Any]]]:
         """
         Runs an Ollama Model to compute embeddings of the provided text.
 
@@ -69,7 +71,9 @@ class OllamaTextEmbedder:
         return result
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
-    async def run_async(self, text: str, generation_kwargs: Optional[Dict[str, Any]] = None):
+    async def run_async(
+        self, text: str, generation_kwargs: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Union[List[float], Dict[str, Any]]]:
         """
         Asynchronously run an Ollama Model to compute embeddings of the provided text.
 
