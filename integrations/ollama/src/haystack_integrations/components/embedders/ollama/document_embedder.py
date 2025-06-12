@@ -160,7 +160,7 @@ class OllamaDocumentEmbedder:
         return all_embeddings
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
-    def run(self, documents: List[Document], generation_kwargs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def run(self, documents: List[Document], generation_kwargs: Optional[Dict[str, Any]] = None) -> Union[Dict[str, List[Document]], Dict[str, Dict[str, Any]]]:
         """
         Runs an Ollama Model to compute embeddings of the provided documents.
 
