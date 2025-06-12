@@ -220,7 +220,7 @@ class OllamaChatGenerator:
             - JSON Schema: The response is formatted as a JSON object
                 that adheres to the specified JSON Schema. (needs Ollama ≥ 0.1.34)
         """
-        _check_duplicate_tool_names(tools)
+        _check_duplicate_tool_names(list(tools or []))
 
         self.model = model
         self.url = url
@@ -361,10 +361,11 @@ class OllamaChatGenerator:
         # Compose final reply
         text = "".join(c.content for c in chunks)
 
-        tool_calls = [
-            ToolCall(tool_name=name_by_id[tool_call_id], arguments=arg_by_id.get(tool_call_id))
-            for tool_call_id in id_order
-        ]
+        tool_calls = []
+        for tool_call_id in id_order:
+            arguments = arg_by_id.get(tool_call_id, {})
+            assert isinstance(arguments, dict)  # final arguments are a dictionary  # noqa: S101
+            tool_calls.append(ToolCall(tool_name=name_by_id[tool_call_id], arguments=arguments))
 
         reply = ChatMessage.from_assistant(
             text=text,
@@ -381,7 +382,7 @@ class OllamaChatGenerator:
         tools: Optional[Union[List[Tool], Toolset]] = None,
         *,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-    ):
+    ) -> Dict[str, List[ChatMessage]]:
         """
         Runs an Ollama Model on a given chat history.
 
@@ -405,7 +406,7 @@ class OllamaChatGenerator:
         """
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         tools = tools or self.tools
-        _check_duplicate_tool_names(tools)
+        _check_duplicate_tool_names(list(tools or []))
 
         # Convert Toolset → list[Tool] for JSON serialization
         if isinstance(tools, Toolset):
@@ -421,7 +422,7 @@ class OllamaChatGenerator:
             model=self.model,
             messages=ollama_messages,
             tools=ollama_tools,
-            stream=is_stream,
+            stream=is_stream,  # type: ignore[call-overload]  # Ollama expects Literal[True] or Literal[False], not bool
             keep_alive=self.keep_alive,
             options=generation_kwargs,
             format=self.response_format,
