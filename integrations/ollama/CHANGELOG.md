@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/ollama-v3.3.0] - 2025-06-12
+
+### 🐛 Bug Fixes
+
+- Fix Ollama types + add py.typed (#1922)
+
+
 ## [integrations/ollama-v3.2.0] - 2025-06-10
 
 ### 🚀 Features
