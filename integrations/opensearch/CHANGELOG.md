@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/opensearch-v4.2.0] - 2025-06-12
+
+### 🐛 Bug Fixes
+
+- Fix passing filters and topks to OpenSearchHybridRetriever at runtime (#1936)
+
+
 ## [integrations/opensearch-v4.1.0] - 2025-06-11
 
 ### 🐛 Bug Fixes
