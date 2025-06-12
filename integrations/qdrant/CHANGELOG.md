@@ -1,6 +1,16 @@
 # Changelog
 
-## [integrations/qdrant-v9.1.3] - 2025-05-28
+## [integrations/qdrant-v9.2.0] - 2025-06-12
+
+### 🐛 Bug Fixes
+
+- Fix Qdrant types + add py.typed (#1919)
+
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
 
 ### 🌀 Miscellaneous
 
