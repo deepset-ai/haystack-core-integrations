@@ -1,9 +1,15 @@
 import json
-from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, ClassVar, Dict, List, Literal, Optional, Tuple, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole, ToolCall, ToolCallResult
-from haystack.dataclasses.streaming_chunk import AsyncStreamingCallbackT, StreamingCallbackT, StreamingChunk, select_streaming_callback
+from haystack.dataclasses.streaming_chunk import (
+    AsyncStreamingCallbackT,
+    StreamingCallbackT,
+    StreamingChunk,
+    SyncStreamingCallbackT,
+    select_streaming_callback,
+)
 from haystack.tools import (
     Tool,
     Toolset,
@@ -12,11 +18,11 @@ from haystack.tools import (
     serialize_tools_or_toolset,
 )
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
-from haystack.utils.callable_serialization import serialize_callable, deserialize_callable
+from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
 from anthropic import Anthropic, AsyncAnthropic
-from anthropic.types import MessageParam, TextBlockParam, ToolParam, ToolUseBlockParam, ToolResultBlockParam
-from typing import Union
+from anthropic.resources.messages.messages import Message, RawMessageStreamEvent, Stream
+from anthropic.types import MessageParam, TextBlockParam, ToolParam, ToolResultBlockParam, ToolUseBlockParam
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +43,7 @@ def _update_anthropic_message_with_tool_call_results(
         if tool_call_result.origin.id is None:
             msg = "`ToolCall` must have a non-null `id` attribute to be used with Anthropic."
             raise ValueError(msg)
-        
+
         tool_result_block = ToolResultBlockParam(
             type="tool_result",
             tool_use_id=tool_call_result.origin.id,
@@ -59,7 +65,7 @@ def _convert_tool_calls_to_anthropic_format(tool_calls: List[ToolCall]) -> List[
         if tc.id is None:
             msg = "`ToolCall` must have a non-null `id` attribute to be used with Anthropic."
             raise ValueError(msg)
-        
+
         tool_use_block = ToolUseBlockParam(
             type="tool_use",
             id=tc.id,
@@ -95,7 +101,6 @@ def _convert_messages_to_anthropic_format(
         # they can have only type and text fields, and they need to be passed separately
         # to the Anthropic API endpoint
         if message.is_from(ChatRole.SYSTEM) and message.text:
-            
             if cache_control is not None:
                 sys_message = TextBlockParam(type="text", text=message.text, cache_control=cache_control)
             else:
@@ -109,7 +114,7 @@ def _convert_messages_to_anthropic_format(
         if message.texts and message.texts[0]:
             text_block = TextBlockParam(type="text", text=message.texts[0])
             content.append(text_block)
-        
+
         if message.tool_calls:
             tool_use_blocks = _convert_tool_calls_to_anthropic_format(message.tool_calls)
             content.extend(tool_use_blocks)
@@ -126,8 +131,10 @@ def _convert_messages_to_anthropic_format(
         if not content:
             msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
             raise ValueError(msg)
-        
-        role: Union[Literal["assistant"], Literal["user"]] = "assistant" if message._role == ChatRole.ASSISTANT else "user"
+
+        role: Union[Literal["assistant"], Literal["user"]] = "user"
+        if message._role == ChatRole.ASSISTANT:
+            role = "assistant"
 
         anthropic_message = MessageParam(role=role, content=content)
         anthropic_non_system_messages.append(anthropic_message)
@@ -344,11 +351,14 @@ class AnthropicChatGenerator:
         for chunk in chunks:
             chunk_type = chunk.meta.get("type")
             if chunk_type == "content_block_start":
-                if chunk.meta.get("content_block", {}).get("type") == "tool_use":
-                    delta_block = chunk.meta.get("content_block")
+                content_block = chunk.meta.get("content_block")
+                if content_block is None:
+                    msg = "Invalid streaming chunk. Expected 'content_block' field."
+                    raise ValueError(msg)
+                if content_block.get("type") == "tool_use":
                     current_tool_call = {
-                        "id": delta_block.get("id"),
-                        "name": delta_block.get("name"),
+                        "id": content_block.get("id"),
+                        "name": content_block.get("name"),
                         "arguments": "",
                     }
             elif chunk_type == "content_block_delta":
@@ -404,17 +414,6 @@ class AnthropicChatGenerator:
             new_text_block["cache_control"] = None
 
         return new_text_block
-    
-    # @staticmethod
-    # def _remove_cache_control_from_message(message: MessageParam) -> None:
-    #     """
-    #     Removes the cache_control key from a MessageParam.
-    #     :param message: The MessageParam to remove the cache_control key from.
-    #     :returns: The MessageParam with the cache_control key removed.
-    #     """
-    #     for content_item in message["content"]:
-    #         if isinstance(content_item, dict) and content_item.get("cache_control"):
-    #             content_item["cache_control"] = None
 
     def _prepare_request_params(
         self,
@@ -469,25 +468,20 @@ class AnthropicChatGenerator:
         tools = tools or self.tools
         tools = list(tools) if isinstance(tools, Toolset) else tools
         _check_duplicate_tool_names(tools)  # handles Toolset as well
-        anthropic_tools = (
-            [
-                {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "input_schema": tool.parameters,
-                }
-                for tool in tools
-            ]
-            if tools
-            else []
-        )
+
+        anthropic_tools: List[ToolParam] = []
+        if tools:
+            for tool in tools:
+                anthropic_tools.append(
+                    ToolParam(name=tool.name, description=tool.description, input_schema=tool.parameters)
+                )
 
         return system_messages, non_system_messages, generation_kwargs, anthropic_tools
 
     def _process_response(
         self,
-        response: Any,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        response: Union[Message, Stream[RawMessageStreamEvent]],
+        streaming_callback: Optional[SyncStreamingCallbackT] = None,
     ) -> Dict[str, List[ChatMessage]]:
         """
         Process the response from the Anthropic API.
@@ -497,8 +491,8 @@ class AnthropicChatGenerator:
         :returns: A dictionary containing the processed response as a list of ChatMessage objects.
         """
         # workaround for https://github.com/DataDog/dd-trace-py/issues/12562
-        stream = streaming_callback is not None
-        if stream:
+        # we cannot use isinstance(Stream)
+        if not isinstance(response, Message):
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
             for chunk in response:
@@ -571,7 +565,7 @@ class AnthropicChatGenerator:
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
-    ):
+    ) -> Dict[str, List[ChatMessage]]:
         """
         Invokes the Anthropic API with the given messages and generation kwargs.
 
@@ -603,7 +597,8 @@ class AnthropicChatGenerator:
             **generation_kwargs,
         )
 
-        return self._process_response(response, streaming_callback)
+        # select_streaming_callback returns a StreamingCallbackT, but we know it's SyncStreamingCallbackT
+        return self._process_response(response=response, streaming_callback=streaming_callback)  # type: ignore[arg-type]
 
     @component.output_types(replies=List[ChatMessage])
     async def run_async(
@@ -612,7 +607,7 @@ class AnthropicChatGenerator:
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
-    ):
+    ) -> Dict[str, List[ChatMessage]]:
         """
         Async version of the run method. Invokes the Anthropic API with the given messages and generation kwargs.
 
@@ -644,4 +639,5 @@ class AnthropicChatGenerator:
             **generation_kwargs,
         )
 
-        return await self._process_response_async(response, streaming_callback)
+        # select_streaming_callback returns a StreamingCallbackT, but we know it's AsyncStreamingCallbackT
+        return await self._process_response_async(response, streaming_callback)  # type: ignore[arg-type]

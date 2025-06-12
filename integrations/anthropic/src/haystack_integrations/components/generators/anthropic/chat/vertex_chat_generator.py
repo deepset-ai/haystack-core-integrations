@@ -3,10 +3,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingChunk
-from haystack.tools import Tool, _check_duplicate_tool_names
+from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_or_toolset_inplace
 from haystack.utils import deserialize_callable, serialize_callable
-
-from haystack.tools import deserialize_tools_or_toolset_inplace
 
 from anthropic import AnthropicVertex
 
@@ -105,9 +103,11 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         self.model = model
         self.generation_kwargs = generation_kwargs or {}
         self.streaming_callback = streaming_callback
-        self.client = AnthropicVertex(region=self.region, project_id=self.project_id)
         self.ignore_tools_thinking_messages = ignore_tools_thinking_messages
         self.tools = tools
+
+        # mypy is not happy that we override the type of the client
+        self.client = AnthropicVertex(region=self.region, project_id=self.project_id)  # type: ignore
 
     def to_dict(self) -> Dict[str, Any]:
         """
