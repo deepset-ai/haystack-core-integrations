@@ -4,7 +4,7 @@
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from haystack import Pipeline, default_from_dict, default_to_dict, logging, super_component
+from haystack import Document, Pipeline, default_from_dict, default_to_dict, logging, super_component
 from haystack.components.embedders.types import TextEmbedder
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.joiners.document_joiner import JoinMode
@@ -244,7 +244,9 @@ class OpenSearchHybridRetriever:
             query: str,
             filters_bm25: Optional[Dict[str, Any]] = None,
             filters_embedding: Optional[Dict[str, Any]] = None,
-        ) -> Dict[str, Any]: ...
+            top_k_bm25: Optional[int] = None,
+            top_k_embedding: Optional[int] = None,
+        ) -> Dict[str, List[Document]]: ...
 
     def _create_pipeline(self, data: dict[str, Any]) -> Pipeline:
         """
@@ -268,6 +270,10 @@ class OpenSearchHybridRetriever:
         self.input_mapping = {
             # The pipeline input "query" feeds into each of the retrievers
             "query": ["text_embedder.text", "bm25_retriever.query"],
+            "filters_bm25": ["bm25_retriever.filters"],
+            "filters_embedding": ["embedding_retriever.filters"],
+            "top_k_bm25": ["bm25_retriever.top_k"],
+            "top_k_embedding": ["embedding_retriever.top_k"],
         }
         self.output_mapping = {"document_joiner.documents": "documents"}
 
