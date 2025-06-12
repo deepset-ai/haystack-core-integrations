@@ -1,17 +1,9 @@
 import json
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Tuple, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.dataclasses import (
-    AsyncStreamingCallbackT,
-    ChatMessage,
-    ChatRole,
-    StreamingCallbackT,
-    StreamingChunk,
-    ToolCall,
-    ToolCallResult,
-    select_streaming_callback,
-)
+from haystack.dataclasses.chat_message import ChatMessage, ChatRole, ToolCall, ToolCallResult
+from haystack.dataclasses.streaming_chunk import AsyncStreamingCallbackT, StreamingCallbackT, StreamingChunk, select_streaming_callback
 from haystack.tools import (
     Tool,
     Toolset,
@@ -19,98 +11,108 @@ from haystack.tools import (
     deserialize_tools_or_toolset_inplace,
     serialize_tools_or_toolset,
 )
-from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
+from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.callable_serialization import serialize_callable, deserialize_callable
 
 from anthropic import Anthropic, AsyncAnthropic
+from anthropic.types import MessageParam, TextBlockParam, ToolParam, ToolUseBlockParam, ToolResultBlockParam
+from typing import Union
 
 logger = logging.getLogger(__name__)
 
+# Type alias for content blocks
+ContentBlockParam = Union[TextBlockParam, ToolUseBlockParam, ToolResultBlockParam]
+
 
 def _update_anthropic_message_with_tool_call_results(
-    tool_call_results: List[ToolCallResult], anthropic_msg: Dict[str, Any]
+    tool_call_results: List[ToolCallResult], content: List[ContentBlockParam]
 ) -> None:
     """
-    Update an Anthropic message with tool call results.
+    Update an Anthropic message content list with tool call results.
 
     :param tool_call_results: The list of ToolCallResults to update the message with.
-    :param anthropic_msg: The Anthropic message to update.
+    :param content: The Anthropic message content list to update.
     """
-    if "content" not in anthropic_msg:
-        anthropic_msg["content"] = []
-
     for tool_call_result in tool_call_results:
         if tool_call_result.origin.id is None:
             msg = "`ToolCall` must have a non-null `id` attribute to be used with Anthropic."
             raise ValueError(msg)
-        anthropic_msg["content"].append(
-            {
-                "type": "tool_result",
-                "tool_use_id": tool_call_result.origin.id,
-                "content": [{"type": "text", "text": tool_call_result.result}],
-                "is_error": tool_call_result.error,
-            }
+        
+        tool_result_block = ToolResultBlockParam(
+            type="tool_result",
+            tool_use_id=tool_call_result.origin.id,
+            content=[{"type": "text", "text": tool_call_result.result}],
+            is_error=tool_call_result.error,
         )
+        content.append(tool_result_block)
 
 
-def _convert_tool_calls_to_anthropic_format(tool_calls: List[ToolCall]) -> List[Dict[str, Any]]:
+def _convert_tool_calls_to_anthropic_format(tool_calls: List[ToolCall]) -> List[ToolUseBlockParam]:
     """
     Convert a list of tool calls to the format expected by Anthropic Chat API.
 
     :param tool_calls: The list of ToolCalls to convert.
-    :return: A list of dictionaries in the format expected by Anthropic API.
+    :return: A list of ToolUseBlockParam objects in the format expected by Anthropic API.
     """
     anthropic_tool_calls = []
     for tc in tool_calls:
         if tc.id is None:
             msg = "`ToolCall` must have a non-null `id` attribute to be used with Anthropic."
             raise ValueError(msg)
-        anthropic_tool_calls.append(
-            {
-                "type": "tool_use",
-                "id": tc.id,
-                "name": tc.tool_name,
-                "input": tc.arguments,
-            }
+        
+        tool_use_block = ToolUseBlockParam(
+            type="tool_use",
+            id=tc.id,
+            name=tc.tool_name,
+            input=tc.arguments,
         )
+        anthropic_tool_calls.append(tool_use_block)
     return anthropic_tool_calls
 
 
 def _convert_messages_to_anthropic_format(
     messages: List[ChatMessage],
-) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+) -> Tuple[List[TextBlockParam], List[MessageParam]]:
     """
     Convert a list of messages to the format expected by Anthropic Chat API.
 
     :param messages: The list of ChatMessages to convert.
     :return: A tuple of two lists:
-        - A list of system message dictionaries in the format expected by Anthropic API.
-        - A list of non-system message dictionaries in the format expected by Anthropic API.
+        - A list of system message TextBlockParam objects in the format expected by Anthropic API.
+        - A list of non-system MessageParam objects in the format expected by Anthropic API.
     """
 
-    anthropic_system_messages = []
-    anthropic_non_system_messages = []
+    anthropic_system_messages: List[TextBlockParam] = []
+    anthropic_non_system_messages: List[MessageParam] = []
 
     i = 0
     while i < len(messages):
         message = messages[i]
 
-        # allow passing cache_control
-        cache_control = {"cache_control": message.meta.get("cache_control")} if "cache_control" in message.meta else {}
+        cache_control = message.meta.get("cache_control")
 
         # system messages have special format requirements for Anthropic API
         # they can have only type and text fields, and they need to be passed separately
         # to the Anthropic API endpoint
-        if message.is_from(ChatRole.SYSTEM):
-            anthropic_system_messages.append({"type": "text", "text": message.text, **cache_control})
+        if message.is_from(ChatRole.SYSTEM) and message.text:
+            
+            if cache_control is not None:
+                sys_message = TextBlockParam(type="text", text=message.text, cache_control=cache_control)
+            else:
+                sys_message = TextBlockParam(type="text", text=message.text)
+            anthropic_system_messages.append(sys_message)
             i += 1
             continue
 
-        anthropic_msg: Dict[str, Any] = {"role": message._role.value, "content": [], **cache_control}
+        content: List[ContentBlockParam] = []
 
         if message.texts and message.texts[0]:
-            anthropic_msg["content"].append({"type": "text", "text": message.texts[0]})
+            text_block = TextBlockParam(type="text", text=message.texts[0])
+            content.append(text_block)
+        
         if message.tool_calls:
-            anthropic_msg["content"] += _convert_tool_calls_to_anthropic_format(message.tool_calls)
+            tool_use_blocks = _convert_tool_calls_to_anthropic_format(message.tool_calls)
+            content.extend(tool_use_blocks)
 
         if message.tool_call_results:
             results = message.tool_call_results.copy()
@@ -119,14 +121,16 @@ def _convert_messages_to_anthropic_format(
                 i += 1
                 results.extend(messages[i].tool_call_results)
 
-            _update_anthropic_message_with_tool_call_results(results, anthropic_msg)
-            anthropic_msg["role"] = "user"
+            _update_anthropic_message_with_tool_call_results(results, content)
 
-        if not anthropic_msg["content"]:
+        if not content:
             msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
             raise ValueError(msg)
+        
+        role: Union[Literal["assistant"], Literal["user"]] = "assistant" if message._role == ChatRole.ASSISTANT else "user"
 
-        anthropic_non_system_messages.append(anthropic_msg)
+        anthropic_message = MessageParam(role=role, content=content)
+        anthropic_non_system_messages.append(anthropic_message)
         i += 1
 
     return anthropic_system_messages, anthropic_non_system_messages
@@ -389,20 +393,35 @@ class AnthropicChatGenerator:
         return message
 
     @staticmethod
-    def _remove_cache_control(message: Dict[str, Any]) -> Dict[str, Any]:
+    def _remove_cache_control_from_text_block(text_block: TextBlockParam) -> TextBlockParam:
         """
-        Removes the cache_control key from the message.
-        :param message: The message to remove the cache_control key from.
-        :returns: The message with the cache_control key removed.
+        Removes the cache_control key from a TextBlockParam.
+        :param message: The TextBlockParam to remove the cache_control key from.
+        :returns: The TextBlockParam with the cache_control key removed.
         """
-        return {k: v for k, v in message.items() if k != "cache_control"}
+        new_text_block = text_block.copy()
+        if new_text_block.get("cache_control"):
+            new_text_block["cache_control"] = None
+
+        return new_text_block
+    
+    # @staticmethod
+    # def _remove_cache_control_from_message(message: MessageParam) -> None:
+    #     """
+    #     Removes the cache_control key from a MessageParam.
+    #     :param message: The MessageParam to remove the cache_control key from.
+    #     :returns: The MessageParam with the cache_control key removed.
+    #     """
+    #     for content_item in message["content"]:
+    #         if isinstance(content_item, dict) and content_item.get("cache_control"):
+    #             content_item["cache_control"] = None
 
     def _prepare_request_params(
         self,
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any], List[Dict[str, Any]]]:
+    ) -> Tuple[List[TextBlockParam], List[MessageParam], Dict[str, Any], List[ToolParam]]:
         """
         Prepare the parameters for the Anthropic API request.
 
@@ -433,8 +452,8 @@ class AnthropicChatGenerator:
         # prompt caching
         extra_headers = generation_kwargs.get("extra_headers", {})
         prompt_caching_on = "anthropic-beta" in extra_headers and "prompt-caching" in extra_headers["anthropic-beta"]
-        has_cached_messages = any("cache_control" in m for m in system_messages) or any(
-            "cache_control" in m for m in non_system_messages
+        has_cached_messages = any(m.get("cache_control") is not None for m in system_messages) or any(
+            m.get("cache_control") is not None for m in non_system_messages
         )
         if has_cached_messages and not prompt_caching_on:
             # this avoids Anthropic errors when prompt caching is not enabled
@@ -443,8 +462,8 @@ class AnthropicChatGenerator:
                 "Prompt caching is not enabled but you requested individual messages to be cached. "
                 "Messages will be sent to the API without prompt caching."
             )
-            system_messages = list(map(self._remove_cache_control, system_messages))
-            non_system_messages = list(map(self._remove_cache_control, non_system_messages))
+            system_messages = list(map(self._remove_cache_control_from_text_block, system_messages))
+            # non_system_messages = list(map(self._remove_cache_control_from_message, non_system_messages))
 
         # tools management
         tools = tools or self.tools
