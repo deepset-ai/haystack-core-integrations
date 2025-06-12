@@ -160,6 +160,4 @@ class TestGoogleGenAITextEmbedder:
         assert len(result["embedding"]) == 768
         assert all(isinstance(x, float) for x in result["embedding"])
 
-        assert "text" in result["meta"]["model"] and "004" in result["meta"]["model"], (
-            "The model name does not contain 'text' and '004'"
-        )
+        assert result["meta"] == {"model": model}

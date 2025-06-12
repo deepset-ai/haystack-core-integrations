@@ -44,7 +44,7 @@ class GoogleGenAITextEmbedder:
         prefix: str = "",
         suffix: str = "",
         config: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """
         Creates an GoogleGenAITextEmbedder component.
 
@@ -119,7 +119,8 @@ class GoogleGenAITextEmbedder:
         return kwargs
 
     def _prepare_output(self, result: types.EmbedContentResponse) -> Dict[str, Any]:
-        return {"embedding": result.embeddings[0].values, "meta": {"model": self._model_name}}
+        embedding = result.embeddings[0].values if result.embeddings else []
+        return {"embedding": embedding, "meta": {"model": self._model_name}}
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
     def run(self, text: str) -> Union[Dict[str, List[float]], Dict[str, Any]]:
