@@ -102,7 +102,7 @@ class TestGoogleGenAIDocumentEmbedder:
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
-                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY"], "strict": True},
+                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": True},
                 "config": {"task_type": "SEMANTIC_SIMILARITY"},
             },
         }

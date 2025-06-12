@@ -39,7 +39,7 @@ class GoogleGenAIDocumentEmbedder:
     def __init__(
         self,
         *,
-        api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),
+        api_key: Secret = Secret.from_env_var(["GOOGLE_API_KEY", "GEMINI_API_KEY"]),
         model: str = "text-embedding-004",
         prefix: str = "",
         suffix: str = "",
@@ -54,8 +54,8 @@ class GoogleGenAIDocumentEmbedder:
 
         :param api_key:
             The Google API key.
-            You can set it with the environment variable `GOOGLE_API_KEY`, or pass it via this parameter
-            during initialization.
+            You can set it with the environment variable `GOOGLE_API_KEY` or `GEMINI_API_KEY`, or pass it via
+            this parameter during initialization.
         :param model:
             The name of the model to use for calculating embeddings.
             The default model is `text-embedding-ada-002`.
