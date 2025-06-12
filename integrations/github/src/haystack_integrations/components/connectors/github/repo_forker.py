@@ -106,19 +106,37 @@ class GitHubRepoForker:
 
     def _check_fork_status(self, fork_path: str) -> bool:
         """
-        Check if a forked repository exists and is ready.
+        Check if a forked repository exists and is ready for branch operations.
 
         :param fork_path: Repository path in owner/repo format
-        :return: True if fork exists and is ready, False otherwise
+        :return: True if fork exists and branches are accessible, False otherwise
         """
-        url = f"https://api.github.com/repos/{fork_path}"
         try:
+            # First check if repository exists
+            url = f"https://api.github.com/repos/{fork_path}"
+            response = requests.get(
+                url,
+                headers=self._get_request_headers(),
+                timeout=10,
+            )
+            if response.status_code != 200:  # noqa: PLR2004
+                return False
+
+            # Get default branch name
+            repo_data = response.json()
+            default_branch = repo_data.get("default_branch")
+            if not default_branch:
+                return False
+
+            # Check if default branch is accessible via Git refs API
+            url = f"https://api.github.com/repos/{fork_path}/git/refs/heads/{default_branch}"
             response = requests.get(
                 url,
                 headers=self._get_request_headers(),
                 timeout=10,
             )
             return response.status_code == 200  # noqa: PLR2004
+
         except requests.RequestException:
             return False
 
@@ -186,7 +204,7 @@ class GitHubRepoForker:
         default_branch = response.json()["default_branch"]
 
         # Get the SHA of the default branch
-        url = f"https://api.github.com/repos/{fork_path}/git/ref/heads/{default_branch}"
+        url = f"https://api.github.com/repos/{fork_path}/git/refs/heads/{default_branch}"
         response = requests.get(url, headers=self._get_request_headers(), timeout=10)
         response.raise_for_status()
         sha = response.json()["object"]["sha"]
