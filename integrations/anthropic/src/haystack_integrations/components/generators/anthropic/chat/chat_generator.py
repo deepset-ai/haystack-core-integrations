@@ -26,12 +26,10 @@ from anthropic.types import MessageParam, TextBlockParam, ToolParam, ToolResultB
 
 logger = logging.getLogger(__name__)
 
-# Type alias for content blocks
-ContentBlockParam = Union[TextBlockParam, ToolUseBlockParam, ToolResultBlockParam]
-
 
 def _update_anthropic_message_with_tool_call_results(
-    tool_call_results: List[ToolCallResult], content: List[ContentBlockParam]
+    tool_call_results: List[ToolCallResult],
+    content: List[Union[TextBlockParam, ToolUseBlockParam, ToolResultBlockParam]],
 ) -> None:
     """
     Update an Anthropic message content list with tool call results.
@@ -95,21 +93,18 @@ def _convert_messages_to_anthropic_format(
     while i < len(messages):
         message = messages[i]
 
-        cache_control = message.meta.get("cache_control")
-
         # system messages have special format requirements for Anthropic API
         # they can have only type and text fields, and they need to be passed separately
         # to the Anthropic API endpoint
         if message.is_from(ChatRole.SYSTEM) and message.text:
-            if cache_control is not None:
-                sys_message = TextBlockParam(type="text", text=message.text, cache_control=cache_control)
-            else:
-                sys_message = TextBlockParam(type="text", text=message.text)
+            sys_message = TextBlockParam(type="text", text=message.text)
+            if cache_control := message.meta.get("cache_control"):
+                sys_message["cache_control"] = cache_control
             anthropic_system_messages.append(sys_message)
             i += 1
             continue
 
-        content: List[ContentBlockParam] = []
+        content: List[Union[TextBlockParam, ToolUseBlockParam, ToolResultBlockParam]] = []
 
         if message.texts and message.texts[0]:
             text_block = TextBlockParam(type="text", text=message.texts[0])
@@ -132,6 +127,8 @@ def _convert_messages_to_anthropic_format(
             msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
             raise ValueError(msg)
 
+        # Anthropic only supports assistant and user roles in messages. User role is also used for tool messages.
+        # System messages are passed separately.
         role: Union[Literal["assistant"], Literal["user"]] = "user"
         if message._role == ChatRole.ASSISTANT:
             role = "assistant"
@@ -402,19 +399,6 @@ class AnthropicChatGenerator:
 
         return message
 
-    @staticmethod
-    def _remove_cache_control_from_text_block(text_block: TextBlockParam) -> TextBlockParam:
-        """
-        Removes the cache_control key from a TextBlockParam.
-        :param message: The TextBlockParam to remove the cache_control key from.
-        :returns: The TextBlockParam with the cache_control key removed.
-        """
-        new_text_block = text_block.copy()
-        if new_text_block.get("cache_control"):
-            new_text_block["cache_control"] = None
-
-        return new_text_block
-
     def _prepare_request_params(
         self,
         messages: List[ChatMessage],
@@ -461,8 +445,9 @@ class AnthropicChatGenerator:
                 "Prompt caching is not enabled but you requested individual messages to be cached. "
                 "Messages will be sent to the API without prompt caching."
             )
-            system_messages = list(map(self._remove_cache_control_from_text_block, system_messages))
-            # non_system_messages = list(map(self._remove_cache_control_from_message, non_system_messages))
+            for message in system_messages:
+                if message.get("cache_control"):
+                    del message["cache_control"]
 
         # tools management
         tools = tools or self.tools
