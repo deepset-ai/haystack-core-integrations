@@ -437,11 +437,9 @@ class AzureAISearchDocumentStore:
                 embedding = None
 
             # Anything besides default fields (id, content, and embedding) is considered metadata
-            meta = {
-                key: value
-                for key, value in azure_doc.items()
-                if key not in ["id", "content", "embedding"] and key in self._index_fields and value is not None
-            }
+            # meta will also contain the @search.score, @search.reranker_score,
+            # @search.highlights, @search.captions, and other fields returned by Azure AI Search
+            meta = {key: value for key, value in azure_doc.items() if key not in ["id", "content", "embedding"]}
 
             # Create the document with meta only if it's non-empty
             doc = Document(
