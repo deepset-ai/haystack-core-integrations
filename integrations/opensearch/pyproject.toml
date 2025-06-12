@@ -60,7 +60,8 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
-    "boto3"
+    "boto3",
+    "boto3-stubs"  # type stubs for boto3
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -69,18 +70,14 @@ integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
 
-types = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+types = """mypy -p haystack_integrations.document_stores.opensearch \
+-p haystack_integrations.components.retrievers.opensearch {args}"""
 
-# TODO: remove lint environment once this integration is properly typed
-# test environment should be used instead
-# https://github.com/deepset-ai/haystack-core-integrations/issues/1771
-[tool.hatch.envs.lint]
-installer = "uv"
-detached = true
-dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243", "boto3"]
-
-[tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+[tool.mypy]
+install_types = true
+non_interactive = true
+check_untyped_defs = true
+disallow_incomplete_defs = true
 
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -172,6 +169,3 @@ minversion = "6.0"
 markers = ["unit: unit tests", "integration: integration tests"]
 asyncio_mode = "auto"
 
-[[tool.mypy.overrides]]
-module = ["botocore.*", "boto3.*", "haystack.*", "haystack_integrations.*", "pytest.*", "opensearchpy.*"]
-ignore_missing_imports = true

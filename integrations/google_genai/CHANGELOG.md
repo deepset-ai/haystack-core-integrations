@@ -1,12 +1,24 @@
 # Changelog
 
-## [integrations/google_genai-v1.0.1] - 2025-06-05
+## [integrations/google_genai-v1.0.2] - 2025-06-12
+
+### 🚀 Features
+
+- Add GoogleAITextEmbedder and GoogleAIDocumentEmbedder components (#1783)
+
+### 🐛 Bug Fixes
+
+- Fix types in the Google Gen AI embedders (#1916)
+
+### 🧹 Chores
+
+- Add GoogleGenAIChatGenerator examples, set safety_settings (#1901)
+- Align core-integrations Hatch scripts (#1898)
+- Use GEMINI_API_KEY as default env var for the api key (in addition to GOOGLE_API_KEY) (#1928)
 
 ### 🌀 Miscellaneous
 
 - Style: Update to linting to allow function calls in default arguments (#1899)
-- Add examples, set safety_settings
-- Add print in examples
 
 ## [integrations/google_genai-v1.0.0] - 2025-06-02
 

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from math import exp
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -81,8 +81,8 @@ class OpenSearchDocumentStore:
         use_ssl: Optional[bool] = None,
         verify_certs: Optional[bool] = None,
         timeout: Optional[int] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """
         Creates a new OpenSearchDocumentStore instance.
 
@@ -121,7 +121,6 @@ class OpenSearchDocumentStore:
         :param **kwargs: Optional arguments that ``OpenSearch`` takes. For the full list of supported kwargs,
             see the [official OpenSearch reference](https://opensearch-project.github.io/opensearch-py/api-ref/clients/opensearch_client.html)
         """
-        self._client = None
         self._hosts = hosts
         self._index = index
         self._max_chunk_bytes = max_chunk_bytes
@@ -150,8 +149,8 @@ class OpenSearchDocumentStore:
 
         # Client is initialized lazily to prevent side effects when
         # the document store is instantiated.
-        self._client = None
-        self._async_client = None
+        self._client: Optional[OpenSearch] = None
+        self._async_client: Optional[AsyncOpenSearch] = None
         self._initialized = False
 
     def _get_default_mappings(self) -> Dict[str, Any]:
@@ -211,6 +210,7 @@ class OpenSearchDocumentStore:
             Dictionary with serialized data.
         """
         # Handle http_auth serialization
+        http_auth: Union[List[Dict[str, Any]], Dict[str, Any], Tuple[str, str], List[str], str] = ""
         if isinstance(self._http_auth, list) and self._http_auth_are_secrets:
             # Recreate the Secret objects for serialization
             http_auth = [
@@ -299,7 +299,7 @@ class OpenSearchDocumentStore:
         elif self._create_index:
             # Create the index if it doesn't exist
             body = {"mappings": self._mappings, "settings": self._settings}
-            self._client.indices.create(index=self._index, body=body)  # type:ignore
+            self._client.indices.create(index=self._index, body=body)
 
     def count_documents(self) -> int:
         """
@@ -415,9 +415,10 @@ class OpenSearchDocumentStore:
             "index": self._index,
             "raise_on_error": False,
             "max_chunk_bytes": self._max_chunk_bytes,
+            "stats_only": False,
         }
 
-    def _process_bulk_write_errors(self, errors: List[Dict[str, Any]], policy: DuplicatePolicy):
+    def _process_bulk_write_errors(self, errors: List[Dict[str, Any]], policy: DuplicatePolicy) -> None:
         if len(errors) == 0:
             return
 
@@ -476,7 +477,8 @@ class OpenSearchDocumentStore:
         self._ensure_initialized()
         bulk_params = self._prepare_bulk_write_request(documents=documents, policy=policy, is_async=True)
         documents_written, errors = await async_bulk(**bulk_params)
-        self._process_bulk_write_errors(errors, policy)  # type:ignore
+        # since we call async_bulk with stats_only=False, errors is guaranteed to be a list (not int)
+        self._process_bulk_write_errors(errors=errors, policy=policy)  # type: ignore[arg-type]
         return documents_written
 
     def _deserialize_document(self, hit: Dict[str, Any]) -> Document:
@@ -578,12 +580,13 @@ class OpenSearchDocumentStore:
 
         return body
 
-    def _postprocess_bm25_search_results(self, *, results: List[Document], scale_score: bool):
+    def _postprocess_bm25_search_results(self, *, results: List[Document], scale_score: bool) -> None:
         if not scale_score:
             return
 
         for doc in results:
-            assert doc.score is not None
+            if doc.score is None:
+                continue
             doc.score = float(1 / (1 + exp(-(doc.score / float(BM25_SCALING_FACTOR)))))
 
     def _bm25_retrieval(
@@ -682,7 +685,7 @@ class OpenSearchDocumentStore:
                 custom_query,
                 {
                     "$query_embedding": query_embedding,
-                    "$filters": normalize_filters(filters),  # type:ignore
+                    "$filters": normalize_filters(filters) if filters else None,
                 },
             )
 

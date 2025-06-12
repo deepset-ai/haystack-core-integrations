@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/elasticsearch-v3.1.0] - 2025-06-12
+
+### 🐛 Bug Fixes
+
+- Fix Elasticsearch types + add py.typed (#1923)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+
+
 ## [integrations/elasticsearch-v3.0.1] - 2025-05-27
 
 

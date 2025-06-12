@@ -427,7 +427,7 @@ class AmazonBedrockChatGenerator:
                 response = self.client.converse(**params)
                 replies = _parse_completion_response(response, self.model)
         except ClientError as exception:
-            msg = f"Could not generate inference for Amazon Bedrock model {self.model} due: {exception}"
+            msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
             raise AmazonBedrockInferenceError(msg) from exception
 
         return {"replies": replies}
@@ -485,7 +485,7 @@ class AmazonBedrockChatGenerator:
                     replies = _parse_completion_response(response, self.model)
 
         except ClientError as exception:
-            msg = f"Could not generate inference for Amazon Bedrock model {self.model} due: {exception}"
+            msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
             raise AmazonBedrockInferenceError(msg) from exception
 
         return {"replies": replies}
