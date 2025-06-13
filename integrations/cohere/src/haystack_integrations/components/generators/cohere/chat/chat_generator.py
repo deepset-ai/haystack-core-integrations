@@ -225,7 +225,7 @@ def _process_streaming_chunk(chunk, state, model):
         state["current_tool_call"] = ToolCall(
             id=tool_call.id,
             tool_name=tool_call.function.name,
-            arguments="",
+            arguments={},
         )
     elif chunk.type == "tool-call-delta":
         state["current_tool_arguments"] += chunk.delta.message.tool_calls.function.arguments
@@ -391,7 +391,7 @@ class CohereChatGenerator:
         api_base_url: Optional[str] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
-        **kwargs,
+        **kwargs: Any,
     ):
         """
         Initialize the CohereChatGenerator instance.
@@ -488,7 +488,7 @@ class CohereChatGenerator:
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
-    ):
+    ) -> Dict[str, List[ChatMessage]]:
         """
         Invoke the chat endpoint based on the provided messages and generation parameters.
 
@@ -530,8 +530,10 @@ class CohereChatGenerator:
             )
             # we know that streaming_callback is sync but mypy doesn't
             chat_message = _parse_streaming_response(
-                response=streamed_response, model=self.model, streaming_callback=streaming_callback
-            )  # type: ignore[arg-type]
+                response=streamed_response,
+                model=self.model,
+                streaming_callback=streaming_callback,  # type: ignore[arg-type]
+            )
         else:
             response = self.client.chat(
                 model=self.model,
@@ -548,7 +550,7 @@ class CohereChatGenerator:
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
-    ):
+    ) -> Dict[str, List[ChatMessage]]:
         """
         Asynchronously invoke the chat endpoint based on the provided messages and generation parameters.
 
@@ -590,8 +592,10 @@ class CohereChatGenerator:
             )
             # we know that streaming_callback is async but mypy doesn't
             chat_message = await _parse_async_streaming_response(
-                response=streamed_response, model=self.model, streaming_callback=streaming_callback
-            )  # type: ignore[arg-type]
+                response=streamed_response,
+                model=self.model,
+                streaming_callback=streaming_callback,  # type: ignore[arg-type]
+            )
         else:
             response = await self.async_client.chat(
                 model=self.model,

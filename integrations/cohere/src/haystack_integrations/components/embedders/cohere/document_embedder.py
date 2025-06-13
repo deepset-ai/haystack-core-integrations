@@ -1,14 +1,15 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from cohere import AsyncClientV2, ClientV2
-from haystack_integrations.components.embedders.cohere.embedding_types import EmbeddingTypes
-from haystack_integrations.components.embedders.cohere.utils import get_async_response, get_response
+
+from .embedding_types import EmbeddingTypes
+from .utils import get_async_response, get_response
 
 
 @component
@@ -154,7 +155,7 @@ class CohereDocumentEmbedder:
         return texts_to_embed
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
-    def run(self, documents: List[Document]):
+    def run(self, documents: List[Document]) -> Dict[str, Union[List[Document], Dict[str, Any]]]:
         """Embed a list of `Documents`.
 
         :param documents: documents to embed.
@@ -192,7 +193,7 @@ class CohereDocumentEmbedder:
         return {"documents": documents, "meta": metadata}
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
-    async def run_async(self, documents: List[Document]):
+    async def run_async(self, documents: List[Document]) -> Dict[str, Union[List[Document], Dict[str, Any]]]:
         """
         Embed a list of `Documents` asynchronously.
 
@@ -216,12 +217,12 @@ class CohereDocumentEmbedder:
         texts_to_embed = self._prepare_texts_to_embed(documents)
 
         all_embeddings, metadata = await get_async_response(
-            self._async_client,
-            texts_to_embed,
-            self.model,
-            self.input_type,
-            self.truncate,
-            self.embedding_type,
+            cohere_async_client=self._async_client,
+            texts=texts_to_embed,
+            model_name=self.model,
+            input_type=self.input_type,
+            truncate=self.truncate,
+            embedding_type=self.embedding_type,
         )
 
         for doc, embeddings in zip(documents, all_embeddings):

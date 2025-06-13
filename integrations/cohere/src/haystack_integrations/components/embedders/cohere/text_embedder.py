@@ -1,14 +1,15 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from cohere import AsyncClientV2, ClientV2
-from haystack_integrations.components.embedders.cohere.embedding_types import EmbeddingTypes
-from haystack_integrations.components.embedders.cohere.utils import get_async_response, get_response
+
+from .embedding_types import EmbeddingTypes
+from .utils import get_async_response, get_response
 
 
 @component
@@ -131,7 +132,7 @@ class CohereTextEmbedder:
         return default_from_dict(cls, data)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
-    def run(self, text: str):
+    def run(self, text: str) -> Dict[str, Union[List[float], Dict[str, Any]]]:
         """
         Embed text.
 
@@ -153,7 +154,7 @@ class CohereTextEmbedder:
         return {"embedding": embedding[0], "meta": metadata}
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
-    async def run_async(self, text: str):
+    async def run_async(self, text: str) -> Dict[str, Union[List[float], Dict[str, Any]]]:
         """
         Asynchronously embed text.
 
