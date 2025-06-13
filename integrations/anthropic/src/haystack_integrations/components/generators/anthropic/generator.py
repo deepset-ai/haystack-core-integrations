@@ -132,7 +132,7 @@ class AnthropicGenerator:
         prompt: str,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-    ):
+    ) -> Dict[str, Union[List[str], List[Dict[str, Any]]]]:
         """
         Generate replies using the Anthropic API.
 
