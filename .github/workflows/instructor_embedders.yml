@@ -23,6 +23,13 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.9", "3.13"]
         
+        # sentence-piece cannot be installed on Windows
+        # https://github.com/google/sentencepiece/issues/1111
+        exclude:
+          - os: windows-latest
+            python-version: "3.13"
+
+        
     steps:
       - name: Checkout
         uses: actions/checkout@v4
