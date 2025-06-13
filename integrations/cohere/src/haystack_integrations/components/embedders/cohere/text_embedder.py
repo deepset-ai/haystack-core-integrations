@@ -148,7 +148,12 @@ class CohereTextEmbedder:
         text = self._prepare_input(text=text)
 
         embedding, metadata = get_response(
-            self._client, [text], self.model, self.input_type, self.truncate, embedding_type=self.embedding_type
+            cohere_client=self._client,
+            texts=[text],
+            model_name=self.model,
+            input_type=self.input_type,
+            truncate=self.truncate,
+            embedding_type=self.embedding_type,
         )
 
         return {"embedding": embedding[0], "meta": metadata}
@@ -175,7 +180,12 @@ class CohereTextEmbedder:
         text = self._prepare_input(text=text)
 
         embedding, metadata = await get_async_response(
-            self._async_client, [text], self.model, self.input_type, self.truncate, self.embedding_type
+            cohere_async_client=self._async_client,
+            texts=[text],
+            model_name=self.model,
+            input_type=self.input_type,
+            truncate=self.truncate,
+            embedding_type=self.embedding_type,
         )
 
         return {"embedding": embedding[0], "meta": metadata}
