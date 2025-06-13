@@ -120,7 +120,7 @@ class CohereRanker:
         return concatenated_input_list
 
     @component.output_types(documents=List[Document])
-    def run(self, query: str, documents: List[Document], top_k: Optional[int] = None):
+    def run(self, query: str, documents: List[Document], top_k: Optional[int] = None) -> Dict[str, List[Document]]:
         """
         Use the Cohere Reranker to re-rank the list of documents based on the query.
 

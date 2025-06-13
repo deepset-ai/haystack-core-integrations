@@ -6,17 +6,18 @@ from typing import Any, Dict, List, Optional, Tuple
 from tqdm import tqdm
 
 from cohere import AsyncClientV2, ClientV2
-from haystack_integrations.components.embedders.cohere.embedding_types import EmbeddingTypes
+
+from .embedding_types import EmbeddingTypes
 
 
 async def get_async_response(
     cohere_async_client: AsyncClientV2,
     texts: List[str],
-    model_name,
-    input_type,
-    truncate,
+    model_name: str,
+    input_type: str,
+    truncate: str,
     embedding_type: Optional[EmbeddingTypes] = None,
-):
+) -> Tuple[List[List[float]], Dict[str, Any]]:
     """Embeds a list of texts asynchronously using the Cohere API.
 
     :param cohere_async_client: the Cohere `AsyncClient`
@@ -43,7 +44,7 @@ async def get_async_response(
         embedding_types=[embedding_type.value],
     )
     if response.meta is not None:
-        metadata = response.meta
+        metadata = response.meta.model_dump()
     for emb_tuple in response.embeddings:
         # emb_tuple[0] is a str denoting the embedding type (e.g. "float", "int8", etc.)
         if emb_tuple[1] is not None:
@@ -58,11 +59,11 @@ async def get_async_response(
 def get_response(
     cohere_client: ClientV2,
     texts: List[str],
-    model_name,
-    input_type,
-    truncate,
-    batch_size=32,
-    progress_bar=False,
+    model_name: str,
+    input_type: str,
+    truncate: str,
+    batch_size: int = 32,
+    progress_bar: bool = False,
     embedding_type: Optional[EmbeddingTypes] = None,
 ) -> Tuple[List[List[float]], Dict[str, Any]]:
     """Embeds a list of texts using the Cohere API.
@@ -107,6 +108,6 @@ def get_response(
                 # ok we have embeddings for this type, let's take all the embeddings (a list of embeddings)
                 all_embeddings.extend(emb_tuple[1])
         if response.meta is not None:
-            metadata = response.meta
+            metadata = response.meta.model_dump()
 
     return all_embeddings, metadata
