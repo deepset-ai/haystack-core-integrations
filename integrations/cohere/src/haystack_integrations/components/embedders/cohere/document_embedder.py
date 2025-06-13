@@ -184,7 +184,12 @@ class CohereDocumentEmbedder:
         texts_to_embed = self._prepare_texts_to_embed(documents)
 
         api_key = self.api_key.resolve_value()
-        assert api_key is not None
+        if api_key is None:
+            err_msg = (
+                "Cohere API key is missing. Pass it via the `api_key` or set the "
+                "`COHERE_API_KEY` or `CO_API_KEY` environment variable."
+            )
+            raise ValueError(err_msg)
 
         if self.use_async_client:
             cohere_client = AsyncClientV2(
@@ -247,7 +252,12 @@ class CohereDocumentEmbedder:
         texts_to_embed = self._prepare_texts_to_embed(documents)
 
         api_key = self.api_key.resolve_value()
-        assert api_key is not None
+        if api_key is None:
+            err_msg = (
+                "Cohere API key is missing. Pass it via the `api_key` or set the "
+                "`COHERE_API_KEY` or `CO_API_KEY` environment variable."
+            )
+            raise ValueError(err_msg)
 
         cohere_client = AsyncClientV2(
             api_key,
