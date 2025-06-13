@@ -43,7 +43,7 @@ async def get_async_response(
         embedding_types=[embedding_type.value],
     )
     if response.meta is not None:
-        metadata = response.meta
+        metadata = response.meta.model_dump()
     for emb_tuple in response.embeddings:
         # emb_tuple[0] is a str denoting the embedding type (e.g. "float", "int8", etc.)
         if emb_tuple[1] is not None:
@@ -107,6 +107,6 @@ def get_response(
                 # ok we have embeddings for this type, let's take all the embeddings (a list of embeddings)
                 all_embeddings.extend(emb_tuple[1])
         if response.meta is not None:
-            metadata = response.meta
+            metadata = response.meta.model_dump()
 
     return all_embeddings, metadata

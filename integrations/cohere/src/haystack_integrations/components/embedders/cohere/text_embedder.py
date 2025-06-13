@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import asyncio
 from typing import Any, Dict, List, Optional
 
 from haystack import component, default_from_dict, default_to_dict
@@ -39,7 +38,6 @@ class CohereTextEmbedder:
         input_type: str = "search_query",
         api_base_url: str = "https://api.cohere.com",
         truncate: str = "END",
-        use_async_client: bool = False,
         timeout: int = 120,
         embedding_type: Optional[EmbeddingTypes] = None,
     ):
@@ -59,8 +57,6 @@ class CohereTextEmbedder:
             Passing "START" will discard the start of the input. "END" will discard the end of the input. In both
             cases, input is discarded until the remaining input is exactly the maximum input token length for the model.
             If "NONE" is selected, when the input exceeds the maximum input token length an error will be returned.
-        :param use_async_client: flag to select the AsyncClient. It is recommended to use
-            AsyncClient for applications with many concurrent calls.
         :param timeout: request timeout in seconds.
         :param embedding_type: the type of embeddings to return. Defaults to float embeddings.
             Note that int8, uint8, binary, and ubinary are only valid for v3 models.
@@ -71,9 +67,22 @@ class CohereTextEmbedder:
         self.input_type = input_type
         self.api_base_url = api_base_url
         self.truncate = truncate
-        self.use_async_client = use_async_client
         self.timeout = timeout
         self.embedding_type = embedding_type or EmbeddingTypes.FLOAT
+
+        self._client = ClientV2(
+            api_key=self.api_key.resolve_value(),
+            base_url=self.api_base_url,
+            timeout=self.timeout,
+            client_name="haystack",
+        )
+
+        self._async_client = AsyncClientV2(
+            api_key=self.api_key.resolve_value(),
+            base_url=self.api_base_url,
+            timeout=self.timeout,
+            client_name="haystack",
+        )
 
     def _prepare_input(self, text: str) -> str:
         if not isinstance(text, str):
@@ -99,7 +108,6 @@ class CohereTextEmbedder:
             input_type=self.input_type,
             api_base_url=self.api_base_url,
             truncate=self.truncate,
-            use_async_client=self.use_async_client,
             timeout=self.timeout,
             embedding_type=self.embedding_type.value,
         )
@@ -138,33 +146,9 @@ class CohereTextEmbedder:
         """
         text = self._prepare_input(text=text)
 
-        # Establish connection to API
-
-        api_key = self.api_key.resolve_value()
-        assert api_key is not None
-
-        if self.use_async_client:
-            cohere_client = AsyncClientV2(
-                api_key,
-                base_url=self.api_base_url,
-                timeout=self.timeout,
-                client_name="haystack",
-            )
-            embedding, metadata = asyncio.run(
-                get_async_response(
-                    cohere_client, [text], self.model, self.input_type, self.truncate, self.embedding_type
-                )
-            )
-        else:
-            cohere_client = ClientV2(
-                api_key,
-                base_url=self.api_base_url,
-                timeout=self.timeout,
-                client_name="haystack",
-            )
-            embedding, metadata = get_response(
-                cohere_client, [text], self.model, self.input_type, self.truncate, embedding_type=self.embedding_type
-            )
+        embedding, metadata = get_response(
+            self._client, [text], self.model, self.input_type, self.truncate, embedding_type=self.embedding_type
+        )
 
         return {"embedding": embedding[0], "meta": metadata}
 
@@ -189,18 +173,8 @@ class CohereTextEmbedder:
         """
         text = self._prepare_input(text=text)
 
-        api_key = self.api_key.resolve_value()
-        assert api_key is not None
-
-        cohere_client = AsyncClientV2(
-            api_key,
-            base_url=self.api_base_url,
-            timeout=self.timeout,
-            client_name="haystack",
-        )
-
         embedding, metadata = await get_async_response(
-            cohere_client, [text], self.model, self.input_type, self.truncate, self.embedding_type
+            self._async_client, [text], self.model, self.input_type, self.truncate, self.embedding_type
         )
 
         return {"embedding": embedding[0], "meta": metadata}
