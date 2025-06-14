@@ -182,6 +182,7 @@ class OllamaChatGenerator:
         url: str = "http://localhost:11434",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: int = 120,
+        think=False,
         keep_alive: Optional[Union[float, str]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,

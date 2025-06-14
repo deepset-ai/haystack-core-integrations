@@ -30,6 +30,17 @@ class TestOllamaGenerator:
             assert answer in response
 
     @pytest.mark.integration
+    def test_run_with_thinking(self):
+        prompt = "How many times does the letter 'r' appear in the word 'strawberry'?"
+        component = OllamaGenerator(model="qwen3:1.7b", think=True)
+
+        results = component.run(prompt=prompt)
+
+        assert "replies" in results
+        assert "meta" in results
+        assert "thinking" in results["meta"][0]
+
+    @pytest.mark.integration
     def test_run_model_unavailable(self):
         component = OllamaGenerator(model="Alistair_is_great")
 
