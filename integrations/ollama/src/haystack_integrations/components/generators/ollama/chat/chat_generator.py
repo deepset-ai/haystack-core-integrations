@@ -109,7 +109,6 @@ def _convert_ollama_response_to_chatmessage(ollama_response: "ChatResponse") -> 
     response_dict = ollama_response.model_dump()
 
     ollama_message = response_dict["message"]
-
     text = ollama_message["content"]
 
     tool_calls = []
@@ -122,6 +121,12 @@ def _convert_ollama_response_to_chatmessage(ollama_response: "ChatResponse") -> 
     message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls)
 
     message._meta = _convert_ollama_meta_to_openai_format(response_dict)
+
+    thinking = ollama_message.get("thinking", None)
+
+    if thinking is not None:
+        message._meta["thinking"] = thinking
+
     return message
 
 
