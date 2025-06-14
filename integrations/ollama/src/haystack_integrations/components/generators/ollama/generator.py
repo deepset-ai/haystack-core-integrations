@@ -36,6 +36,7 @@ class OllamaGenerator:
         template: Optional[str] = None,
         raw: bool = False,
         timeout: int = 120,
+        think: bool = False,
         keep_alive: Optional[Union[float, str]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
@@ -57,6 +58,8 @@ class OllamaGenerator:
             if you are specifying a full templated prompt in your API request.
         :param timeout:
             The number of seconds before throwing a timeout error from the Ollama API.
+        :param think
+            Enables the model's "thinking" process.
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
@@ -75,6 +78,7 @@ class OllamaGenerator:
         self.system_prompt = system_prompt
         self.model = model
         self.url = url
+        self.think = think
         self.keep_alive = keep_alive
         self.generation_kwargs = generation_kwargs or {}
         self.streaming_callback = streaming_callback
@@ -194,6 +198,7 @@ class OllamaGenerator:
             model=self.model,
             prompt=prompt,
             stream=stream,
+            think=self.think,
             keep_alive=self.keep_alive,
             options=generation_kwargs,
         )

@@ -156,6 +156,7 @@ class OllamaChatGenerator:
         url: str = "http://localhost:11434",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: int = 120,
+        think=False,
         keep_alive: Optional[Union[float, str]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         tools: Optional[List[Tool]] = None,
@@ -172,6 +173,8 @@ class OllamaChatGenerator:
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :param timeout:
             The number of seconds before throwing a timeout error from the Ollama API.
+        :param think
+            Enables the model's "thinking" process.
         :param keep_alive:
             The option that controls how long the model will stay loaded into memory following the request.
             If not set, it will use the default value from the Ollama (5 minutes).
@@ -200,6 +203,7 @@ class OllamaChatGenerator:
         self.generation_kwargs = generation_kwargs or {}
         self.url = url
         self.model = model
+        self.think = think
         self.keep_alive = keep_alive
         self.streaming_callback = streaming_callback
         self.tools = tools
@@ -329,6 +333,7 @@ class OllamaChatGenerator:
             messages=ollama_messages,
             tools=ollama_tools,
             stream=stream,
+            think=self.think,
             keep_alive=self.keep_alive,
             options=generation_kwargs,
             format=self.response_format,
