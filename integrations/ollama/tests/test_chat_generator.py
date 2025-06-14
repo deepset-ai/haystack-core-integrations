@@ -566,6 +566,17 @@ class TestOllamaChatGenerator:
         )
 
     @pytest.mark.integration
+    def test_live_run_with_thinking(self):
+        chat_generator = OllamaChatGenerator(model="qwen3:1.7b", think=True)
+
+        message = ChatMessage.from_user("How many times does the letter 'r' appear in the word 'strawberry'?")
+        response = chat_generator.run([message])
+
+        assert isinstance(response, dict)
+        assert isinstance(response["replies"], list)
+        assert "thinking" in response["replies"][0]._meta
+
+    @pytest.mark.integration
     def test_run_model_unavailable(self):
         component = OllamaChatGenerator(model="unknown_model")
 
