@@ -231,7 +231,7 @@ class UnstructuredFileConverter:
             elements = partition_via_api(
                 filename=str(filepath),
                 api_url=self.api_url,
-                api_key=self.api_key.resolve_value() if self.api_key else None,
+                api_key=self.api_key.resolve_value() if self.api_key else "",
                 **self.unstructured_kwargs,
             )
         except Exception as e:
