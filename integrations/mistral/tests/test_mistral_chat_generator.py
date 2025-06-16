@@ -11,8 +11,11 @@ from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool
 from haystack.utils.auth import Secret
 from openai import OpenAIError
-from openai.types.chat import ChatCompletion, ChatCompletionMessage
+from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
+from openai.types.chat.chat_completion_chunk import Choice as ChoiceChunk
+from openai.types.chat.chat_completion_chunk import ChoiceDelta, ChoiceDeltaToolCall, ChoiceDeltaToolCallFunction
+from openai.types.completion_usage import CompletionUsage
 
 from haystack_integrations.components.generators.mistral.chat.chat_generator import MistralChatGenerator
 
@@ -179,6 +182,101 @@ class TestMistralChatGenerator:
         with pytest.raises(ValueError, match="None of the .* environment variables are set"):
             MistralChatGenerator.from_dict(data)
 
+    def test_handle_stream_response(self):
+        mistral_chunks = [
+            ChatCompletionChunk(
+                id="76535283139540de943bc2036121d4c5",
+                choices=[
+                    ChoiceChunk(
+                        delta=ChoiceDelta(
+                            content="", function_call=None, refusal=None, role="assistant", tool_calls=None
+                        ),
+                        finish_reason=None,
+                        index=0,
+                        logprobs=None,
+                    )
+                ],
+                created=1750076261,
+                model="mistral-small-latest",
+                object="chat.completion.chunk",
+                service_tier=None,
+                system_fingerprint=None,
+                usage=None,
+            ),
+            ChatCompletionChunk(
+                id="76535283139540de943bc2036121d4c5",
+                choices=[
+                    ChoiceChunk(
+                        delta=ChoiceDelta(
+                            content=None,
+                            function_call=None,
+                            refusal=None,
+                            role=None,
+                            tool_calls=[
+                                ChoiceDeltaToolCall(
+                                    index=0,
+                                    id="FL1FFlqUG",
+                                    function=ChoiceDeltaToolCallFunction(arguments='{"city": "Paris"}', name="weather"),
+                                    type=None,
+                                ),
+                                ChoiceDeltaToolCall(
+                                    index=1,
+                                    id="xSuhp66iB",
+                                    function=ChoiceDeltaToolCallFunction(
+                                        arguments='{"city": "Berlin"}', name="weather"
+                                    ),
+                                    type=None,
+                                ),
+                            ],
+                        ),
+                        finish_reason="tool_calls",
+                        index=0,
+                        logprobs=None,
+                    )
+                ],
+                created=1750076261,
+                model="mistral-small-latest",
+                object="chat.completion.chunk",
+                service_tier=None,
+                system_fingerprint=None,
+                usage=CompletionUsage(
+                    completion_tokens=35,
+                    prompt_tokens=77,
+                    total_tokens=112,
+                    completion_tokens_details=None,
+                    prompt_tokens_details=None,
+                ),
+            ),
+        ]
+
+        llm = MistralChatGenerator(api_key=Secret.from_token("test-api-key"))
+        result = llm._handle_stream_response(mistral_chunks, callback=lambda _: None)[0]  # type: ignore
+
+        assert not result.texts
+        assert not result.text
+
+        # Verify both tool calls were found and processed
+        assert len(result.tool_calls) == 2
+        assert result.tool_calls[0].id == "FL1FFlqUG"
+        assert result.tool_calls[0].tool_name == "weather"
+        assert result.tool_calls[0].arguments == {"city": "Paris"}
+        assert result.tool_calls[1].id == "xSuhp66iB"
+        assert result.tool_calls[1].tool_name == "weather"
+        assert result.tool_calls[1].arguments == {"city": "Berlin"}
+
+        # Verify meta information
+        assert result.meta["model"] == "mistral-small-latest"
+        assert result.meta["finish_reason"] == "tool_calls"
+        assert result.meta["index"] == 0
+        assert result.meta["completion_start_time"] is not None
+        assert result.meta["usage"] == {
+            "completion_tokens": 35,
+            "prompt_tokens": 77,
+            "total_tokens": 112,
+            "completion_tokens_details": None,
+            "prompt_tokens_details": None,
+        }
+
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
         component = MistralChatGenerator()
@@ -337,45 +435,29 @@ class TestMistralChatGenerator:
         """
         Integration test that the MistralChatGenerator component can run with tools and streaming.
         """
-
-        class Callback:
-            def __init__(self):
-                self.responses = ""
-                self.counter = 0
-                self.tool_calls = []
-
-            def __call__(self, chunk: StreamingChunk) -> None:
-                self.counter += 1
-                if chunk.content:
-                    self.responses += chunk.content
-                if chunk.meta.get("tool_calls"):
-                    self.tool_calls.extend(chunk.meta["tool_calls"])
-
-        callback = Callback()
-        component = MistralChatGenerator(tools=tools, streaming_callback=callback)
+        component = MistralChatGenerator(tools=tools, streaming_callback=print_streaming_chunk)
         results = component.run(
-            [ChatMessage.from_user("What's the weather like in Paris?")], generation_kwargs={"tool_choice": "any"}
+            [ChatMessage.from_user("What's the weather like in Paris and Berlin?")],
+            generation_kwargs={"tool_choice": "any"},
         )
 
-        assert len(results["replies"]) > 0, "No replies received"
-        assert callback.counter > 1, "Streaming callback was not called multiple times"
-        assert callback.tool_calls, "No tool calls received in streaming"
+        assert len(results["replies"]) == 1
 
         # Find the message with tool calls
-        tool_message = None
-        for message in results["replies"]:
-            if message.tool_call:
-                tool_message = message
-                break
+        tool_message = results["replies"][0]
 
-        assert tool_message is not None, "No message with tool call found"
-        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
-        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+        assert isinstance(tool_message, ChatMessage)
+        tool_calls = tool_message.tool_calls
+        assert len(tool_calls) == 2
+        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT)
 
-        tool_call = tool_message.tool_call
-        assert tool_call.id, "Tool call does not contain value for 'id' key"
-        assert tool_call.tool_name == "weather"
-        assert tool_call.arguments == {"city": "Paris"}
+        for tool_call in tool_calls:
+            assert tool_call.id is not None
+            assert isinstance(tool_call, ToolCall)
+            assert tool_call.tool_name == "weather"
+
+        arguments = [tool_call.arguments for tool_call in tool_calls]
+        assert sorted(arguments, key=lambda x: x["city"]) == [{"city": "Berlin"}, {"city": "Paris"}]
         assert tool_message.meta["finish_reason"] == "tool_calls"
 
     @pytest.mark.skipif(
