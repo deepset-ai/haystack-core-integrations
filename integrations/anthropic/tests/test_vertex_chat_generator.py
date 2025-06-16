@@ -58,6 +58,8 @@ class TestAnthropicVertexChatGenerator:
                 "generation_kwargs": {},
                 "ignore_tools_thinking_messages": True,
                 "tools": None,
+                "timeout": None,
+                "max_retries": None,
             },
         }
 
@@ -67,6 +69,9 @@ class TestAnthropicVertexChatGenerator:
             project_id="test-project-id",
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
+            ignore_tools_thinking_messages=False,
+            timeout=10.0,
+            max_retries=1,
         )
         data = component.to_dict()
         assert data == {
@@ -80,8 +85,10 @@ class TestAnthropicVertexChatGenerator:
                 "model": "claude-3-5-sonnet@20240620",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
-                "ignore_tools_thinking_messages": True,
+                "ignore_tools_thinking_messages": False,
                 "tools": None,
+                "timeout": 10.0,
+                "max_retries": 1,
             },
         }
 
@@ -98,6 +105,9 @@ class TestAnthropicVertexChatGenerator:
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "ignore_tools_thinking_messages": True,
+                "tools": None,
+                "timeout": None,
+                "max_retries": None,
             },
         }
         component = AnthropicVertexChatGenerator.from_dict(data)
@@ -106,6 +116,9 @@ class TestAnthropicVertexChatGenerator:
         assert component.project_id == "test-project-id"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
+        assert component.ignore_tools_thinking_messages is True
+        assert component.timeout is None
+        assert component.max_retries is None
 
     def test_run(self, chat_messages, mock_chat_completion):
         component = AnthropicVertexChatGenerator(region="us-central1", project_id="test-project-id")
