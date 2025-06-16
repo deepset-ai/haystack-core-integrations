@@ -367,12 +367,18 @@ class AnthropicChatGenerator:
             elif chunk_type == "message_delta":
                 if chunk.meta.get("delta", {}).get("stop_reason") == "tool_use" and current_tool_call:
                     try:
-                        # arguments is a string, convert to json
+                        # When calling a tool with no arguments, the `arguments` field is an empty string.
+                        # We handle this by checking if `arguments` is empty and setting it to an empty dict.
+                        arguments = (
+                            json.loads(current_tool_call.get("arguments", "{}"))
+                            if current_tool_call.get("arguments")
+                            else {}
+                        )
                         tool_calls.append(
                             ToolCall(
                                 id=current_tool_call.get("id"),
                                 tool_name=str(current_tool_call.get("name")),
-                                arguments=json.loads(current_tool_call.get("arguments", {})),
+                                arguments=arguments,
                             )
                         )
                     except json.JSONDecodeError:
