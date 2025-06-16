@@ -126,7 +126,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
 
         # mypy is not happy that we override the type of the clients
         self.client = AnthropicVertex(**client_kwargs)  # type: ignore[assignment]
-        self.async_client = AsyncAnthropicVertex(**client_kwargs) # type: ignore[assignment]
+        self.async_client = AsyncAnthropicVertex(**client_kwargs)  # type: ignore[assignment]
 
     def to_dict(self) -> Dict[str, Any]:
         """

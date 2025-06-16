@@ -186,3 +186,30 @@ class TestAnthropicVertexChatGenerator:
 
     # Anthropic messages API is similar for AnthropicVertex and Anthropic endpoint,
     # remaining tests are skipped for AnthropicVertexChatGenerator as they are already tested in AnthropicChatGenerator.
+
+
+class TestAnthropicVertexChatGeneratorAsync:
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        not (os.environ.get("REGION", None) or os.environ.get("PROJECT_ID", None)),
+        reason="Authenticate with GCP and set env variables REGION and PROJECT_ID to run this test.",
+    )
+    @pytest.mark.integration
+    async def test_live_run_async(self):
+        """
+        Integration test that the async run method of AnthropicVertexChatGenerator works correctly
+        """
+        component = AnthropicVertexChatGenerator(
+            region=os.environ.get("REGION"),
+            project_id=os.environ.get("PROJECT_ID"),
+            model="claude-3-5-sonnet@20240620",
+        )
+        results = await component.run_async(messages=[ChatMessage.from_user("What's the capital of France?")])
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        assert "Paris" in message.text
+        assert "claude-3-5-sonnet-20240620" in message.meta["model"]
+        assert message.meta["finish_reason"] == "end_turn"
+
+    # Anthropic messages API is similar for AnthropicVertex and Anthropic endpoint,
+    # remaining tests are skipped for AnthropicVertexChatGenerator as they are already tested in AnthropicChatGenerator.
