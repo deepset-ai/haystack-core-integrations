@@ -139,7 +139,7 @@ class TestCohereDocumentEmbedder:
 
     @pytest.mark.asyncio
     @patch("haystack_integrations.components.embedders.cohere.document_embedder.get_async_response")
-    async def test_async_run(self, mock_get_response):
+    async def test_run_async(self, mock_get_response):
         embedder = CohereDocumentEmbedder(api_key=Secret.from_token("test-api-key"))
 
         embeddings = [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
@@ -173,6 +173,29 @@ class TestCohereDocumentEmbedder:
         ]
 
         result = embedder.run(docs)
+        docs_with_embeddings = result["documents"]
+
+        assert isinstance(docs_with_embeddings, list)
+        assert len(docs_with_embeddings) == len(docs)
+        for doc in docs_with_embeddings:
+            assert isinstance(doc.embedding, list)
+            assert isinstance(doc.embedding[0], float)
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
+        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
+    )
+    @pytest.mark.integration
+    async def test_live_run_async(self):
+        embedder = CohereDocumentEmbedder(model="embed-english-v2.0", embedding_type=EmbeddingTypes.FLOAT)
+
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        result = await embedder.run_async(documents=docs)
         docs_with_embeddings = result["documents"]
 
         assert isinstance(docs_with_embeddings, list)

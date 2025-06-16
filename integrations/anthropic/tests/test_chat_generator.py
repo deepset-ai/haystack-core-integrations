@@ -30,6 +30,21 @@ from haystack_integrations.components.generators.anthropic.chat.chat_generator i
 )
 
 
+def hello_world():
+    return "Hello, World!"
+
+
+@pytest.fixture
+def tool_with_no_parameters():
+    tool = Tool(
+        name="hello_world",
+        description="This prints hello world",
+        parameters={"properties": {}, "type": "object"},
+        function=hello_world,
+    )
+    return tool
+
+
 @pytest.fixture
 def tools():
     tool_parameters = {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
@@ -39,7 +54,6 @@ def tools():
         parameters=tool_parameters,
         function=lambda x: x,
     )
-
     return [tool]
 
 
@@ -533,6 +547,116 @@ class TestAnthropicChatGenerator:
         with caplog.at_level(logging.WARNING):
             assert "Anthropic returned a malformed JSON string" in caplog.text
 
+    def test_convert_streaming_chunks_to_chat_message_tool_call_with_empty_arguments(self):
+        """
+        Test converting streaming chunks with an empty tool call arguments
+        """
+        chunks = [
+            StreamingChunk(
+                content="",
+                meta={
+                    "content_block": {"citations": None, "text": "", "type": "text"},
+                    "index": 0,
+                    "type": "content_block_start",
+                },
+            ),
+            StreamingChunk(
+                content="Certainly! I can",
+                meta={
+                    "delta": {"text": "Certainly! I can", "type": "text_delta"},
+                    "index": 0,
+                    "type": "content_block_delta",
+                },
+            ),
+            StreamingChunk(
+                content=' help you print "Hello World" using the available',
+                meta={
+                    "delta": {"text": ' help you print "Hello World" using the available', "type": "text_delta"},
+                    "index": 0,
+                    "type": "content_block_delta",
+                },
+            ),
+            StreamingChunk(
+                content=" tool. Let's use the \"",
+                meta={
+                    "delta": {"text": " tool. Let's use the \"", "type": "text_delta"},
+                    "index": 0,
+                    "type": "content_block_delta",
+                },
+            ),
+            StreamingChunk(
+                content='hello_world" function to accomplish this task.',
+                meta={
+                    "delta": {"text": 'hello_world" function to accomplish this task.', "type": "text_delta"},
+                    "index": 0,
+                    "type": "content_block_delta",
+                },
+            ),
+            StreamingChunk(
+                content="",
+                meta={
+                    "content_block": {
+                        "id": "toolu_014yzmmeNPAuTuiN92qV6LKr",
+                        "input": {},
+                        "name": "hello_world",
+                        "type": "tool_use",
+                    },
+                    "index": 1,
+                    "type": "content_block_start",
+                },
+            ),
+            StreamingChunk(
+                content="",
+                meta={
+                    "delta": {"partial_json": "", "type": "input_json_delta"},
+                    "index": 1,
+                    "type": "content_block_delta",
+                },
+            ),
+            StreamingChunk(
+                content="",
+                meta={
+                    "delta": {"stop_reason": "tool_use", "stop_sequence": None},
+                    "type": "message_delta",
+                    "usage": {
+                        "cache_creation_input_tokens": None,
+                        "cache_read_input_tokens": None,
+                        "input_tokens": None,
+                        "output_tokens": 69,
+                        "server_tool_use": None,
+                    },
+                },
+            ),
+        ]
+
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        message = component._convert_streaming_chunks_to_chat_message(chunks, model="claude-3-sonnet")
+
+        # Verify the message content
+        assert message.text == (
+            'Certainly! I can help you print "Hello World" using the available tool. Let\'s use the "hello_world" '
+            "function to accomplish this task."
+        )
+
+        # Verify tool calls
+        assert len(message.tool_calls) == 1
+        tool_call = message.tool_calls[0]
+        assert tool_call.id == "toolu_014yzmmeNPAuTuiN92qV6LKr"
+        assert tool_call.tool_name == "hello_world"
+        assert tool_call.arguments == {}
+
+        # Verify meta information
+        assert message._meta["model"] == "claude-3-sonnet"
+        assert message._meta["index"] == 0
+        assert message._meta["finish_reason"] == "tool_use"
+        assert message._meta["usage"] == {
+            "cache_creation_input_tokens": None,
+            "cache_read_input_tokens": None,
+            "completion_tokens": 69,
+            "prompt_tokens": None,
+            "server_tool_use": None,
+        }
+
     def test_serde_in_pipeline(self):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
 
@@ -969,6 +1093,47 @@ class TestAnthropicChatGenerator:
         assert not final_message.tool_calls
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
+
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_tool_with_no_args_streaming(self, tool_with_no_parameters):
+        """
+        Integration test that the AnthropicChatGenerator component can run with a tool that has no arguments and
+        streaming.
+        """
+        initial_messages = [ChatMessage.from_user("Print Hello World using the print hello world tool.")]
+        component = AnthropicChatGenerator(tools=[tool_with_no_parameters], streaming_callback=print_streaming_chunk)
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+
+        # this is Anthropic thinking message prior to tool call
+        assert message.text is not None
+
+        # now we have the tool call
+        assert message.tool_calls
+        tool_call = message.tool_call
+        assert isinstance(tool_call, ToolCall)
+        assert tool_call.id is not None
+        assert tool_call.tool_name == "hello_world"
+        assert tool_call.arguments == {}
+        assert message.meta["finish_reason"] == "tool_use"
+
+        new_messages = [
+            *initial_messages,
+            message,
+            ChatMessage.from_tool(tool_result="Hello World!", origin=tool_call),
+        ]
+        results = component.run(new_messages)
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_calls
+        assert len(final_message.text) > 0
+        assert "hello" in final_message.text.lower()
 
     @pytest.mark.skipif(
         not os.environ.get("ANTHROPIC_API_KEY", None),
