@@ -126,7 +126,7 @@ class UnstructuredFileConverter:
         self,
         paths: Union[List[str], List[os.PathLike]],
         meta: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Convert files to Haystack Documents using the Unstructured API.
 
@@ -227,11 +227,16 @@ class UnstructuredFileConverter:
         Partition a file into elements using the Unstructured API.
         """
         elements = []
+
+        resolved_api_key = ""
+        if self.api_key:
+            resolved_api_key = self.api_key.resolve_value() or ""
+
         try:
             elements = partition_via_api(
                 filename=str(filepath),
                 api_url=self.api_url,
-                api_key=self.api_key.resolve_value() if self.api_key else "",
+                api_key=resolved_api_key,
                 **self.unstructured_kwargs,
             )
         except Exception as e:
