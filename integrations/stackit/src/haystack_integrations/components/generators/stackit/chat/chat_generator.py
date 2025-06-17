@@ -1,11 +1,12 @@
 # SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_to_dict
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import StreamingCallbackT
+from haystack.tools import Tool, Toolset, serialize_tools_or_toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
 
@@ -44,6 +45,7 @@ class STACKITChatGenerator(OpenAIChatGenerator):
         api_base_url: Optional[str] = "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         *,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
         http_client_kwargs: Optional[Dict[str, Any]] = None,
@@ -74,6 +76,9 @@ class STACKITChatGenerator(OpenAIChatGenerator):
                 events as they become available, with the stream terminated by a data: [DONE] message.
             - `safe_prompt`: Whether to inject a safety prompt before all conversations.
             - `random_seed`: The seed to use for random sampling.
+        :param tools:
+            A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
+            list of `Tool` objects or a `Toolset` instance.
         :param timeout:
             Timeout for STACKIT client calls. If not set, it defaults to either the `OPENAI_TIMEOUT` environment
             variable, or 30 seconds.
@@ -93,6 +98,7 @@ class STACKITChatGenerator(OpenAIChatGenerator):
             generation_kwargs=generation_kwargs,
             timeout=timeout,
             max_retries=max_retries,
+            tools=tools,
             http_client_kwargs=http_client_kwargs,
         )
 
@@ -108,7 +114,6 @@ class STACKITChatGenerator(OpenAIChatGenerator):
         # if we didn't implement the to_dict method here then the to_dict method of the superclass would be used
         # which would serialiaze some fields that we don't want to serialize (e.g. the ones we don't have in
         # the __init__)
-        # it would be hard to maintain the compatibility as superclass changes
         return default_to_dict(
             self,
             model=self.model,
@@ -116,6 +121,7 @@ class STACKITChatGenerator(OpenAIChatGenerator):
             api_base_url=self.api_base_url,
             generation_kwargs=self.generation_kwargs,
             api_key=self.api_key.to_dict(),
+            tools=serialize_tools_or_toolset(self.tools),
             timeout=self.timeout,
             max_retries=self.max_retries,
             http_client_kwargs=self.http_client_kwargs,

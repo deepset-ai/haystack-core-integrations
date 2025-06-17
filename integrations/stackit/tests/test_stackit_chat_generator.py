@@ -5,7 +5,8 @@ from unittest.mock import patch
 import pytest
 import pytz
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage, StreamingChunk
+from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
+from haystack.tools import Tool
 from haystack.utils.auth import Secret
 from openai import OpenAIError
 from openai.types import CompletionUsage
@@ -21,6 +22,24 @@ def chat_messages():
         ChatMessage.from_system("You are a helpful assistant"),
         ChatMessage.from_user("What's the capital of France"),
     ]
+
+
+def weather(city: str):
+    """Get weather for a given city."""
+    return f"The weather in {city} is sunny and 32°C"
+
+
+@pytest.fixture
+def tools():
+    tool_parameters = {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
+    tool = Tool(
+        name="weather",
+        description="useful to determine the weather in a given location",
+        parameters=tool_parameters,
+        function=weather,
+    )
+
+    return [tool]
 
 
 @pytest.fixture
@@ -254,3 +273,51 @@ class TestSTACKITChatGenerator:
 
         assert callback.counter > 1
         assert "Paris" in callback.responses
+
+    @pytest.mark.skipif(
+        not os.environ.get("STACKIT_API_KEY", None),
+        reason="Export an env var called STACKIT_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_tools_and_response(self, tools):
+        """
+        Integration test that the MistralChatGenerator component can run with tools and get a response.
+        """
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
+        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8", tools=tools)
+        results = component.run(messages=initial_messages, generation_kwargs={"tool_choice": "any"})
+
+        assert len(results["replies"]) == 1
+
+        # Find the message with tool calls
+        tool_message = results["replies"][0]
+
+        assert isinstance(tool_message, ChatMessage)
+        tool_calls = tool_message.tool_calls
+        assert len(tool_calls) == 2
+        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT)
+
+        for tool_call in tool_calls:
+            assert tool_call.id is not None
+            assert isinstance(tool_call, ToolCall)
+            assert tool_call.tool_name == "weather"
+
+        arguments = [tool_call.arguments for tool_call in tool_calls]
+        assert sorted(arguments, key=lambda x: x["city"]) == [{"city": "Berlin"}, {"city": "Paris"}]
+        assert tool_message.meta["finish_reason"] == "tool_calls"
+
+        new_messages = [
+            initial_messages[0],
+            tool_message,
+            ChatMessage.from_tool(tool_result="22° C and sunny", origin=tool_calls[0]),
+            ChatMessage.from_tool(tool_result="16° C and windy", origin=tool_calls[1]),
+        ]
+        # Pass the tool result to the model to get the final response
+        results = component.run(new_messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert final_message.is_from(ChatRole.ASSISTANT)
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+        assert "berlin" in final_message.text.lower()
