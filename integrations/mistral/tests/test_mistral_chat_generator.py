@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import patch, ANY
 
 import pytest
 import pytz
@@ -18,6 +18,18 @@ from openai.types.chat.chat_completion_chunk import ChoiceDelta, ChoiceDeltaTool
 from openai.types.completion_usage import CompletionUsage
 
 from haystack_integrations.components.generators.mistral.chat.chat_generator import MistralChatGenerator
+
+
+class CollectorCallback:
+    """
+    Callback to collect streaming chunks for testing purposes.
+    """
+
+    def __init__(self):
+        self.chunks = []
+
+    def __call__(self, chunk: StreamingChunk) -> None:
+        self.chunks.append(chunk)
 
 
 @pytest.fixture
@@ -186,38 +198,21 @@ class TestMistralChatGenerator:
         mistral_chunks = [
             ChatCompletionChunk(
                 id="76535283139540de943bc2036121d4c5",
-                choices=[
-                    ChoiceChunk(
-                        delta=ChoiceDelta(
-                            content="", function_call=None, refusal=None, role="assistant", tool_calls=None
-                        ),
-                        finish_reason=None,
-                        index=0,
-                        logprobs=None,
-                    )
-                ],
+                choices=[ChoiceChunk(delta=ChoiceDelta(content="", role="assistant"), index=0)],
                 created=1750076261,
                 model="mistral-small-latest",
                 object="chat.completion.chunk",
-                service_tier=None,
-                system_fingerprint=None,
-                usage=None,
             ),
             ChatCompletionChunk(
                 id="76535283139540de943bc2036121d4c5",
                 choices=[
                     ChoiceChunk(
                         delta=ChoiceDelta(
-                            content=None,
-                            function_call=None,
-                            refusal=None,
-                            role=None,
                             tool_calls=[
                                 ChoiceDeltaToolCall(
                                     index=0,
                                     id="FL1FFlqUG",
                                     function=ChoiceDeltaToolCallFunction(arguments='{"city": "Paris"}', name="weather"),
-                                    type=None,
                                 ),
                                 ChoiceDeltaToolCall(
                                     index=1,
@@ -225,35 +220,92 @@ class TestMistralChatGenerator:
                                     function=ChoiceDeltaToolCallFunction(
                                         arguments='{"city": "Berlin"}', name="weather"
                                     ),
-                                    type=None,
                                 ),
                             ],
                         ),
                         finish_reason="tool_calls",
                         index=0,
-                        logprobs=None,
                     )
                 ],
                 created=1750076261,
                 model="mistral-small-latest",
                 object="chat.completion.chunk",
-                service_tier=None,
-                system_fingerprint=None,
                 usage=CompletionUsage(
                     completion_tokens=35,
                     prompt_tokens=77,
                     total_tokens=112,
-                    completion_tokens_details=None,
-                    prompt_tokens_details=None,
                 ),
             ),
         ]
 
+        collector_callback = CollectorCallback()
         llm = MistralChatGenerator(api_key=Secret.from_token("test-api-key"))
-        result = llm._handle_stream_response(mistral_chunks, callback=lambda _: None)[0]  # type: ignore
+        result = llm._handle_stream_response(mistral_chunks, callback=collector_callback)[0]  # type: ignore
+        import pdb
 
-        assert not result.texts
-        assert not result.text
+        pdb.set_trace()
+
+        # Verify the callback collected the expected number of chunks
+        # We expect 2 chunks: one for the initial empty content and one for the tool calls
+        assert len(collector_callback.chunks) == 2
+        assert collector_callback.chunks[0] == StreamingChunk(
+            content="",
+            meta={
+                "model": "mistral-small-latest",
+                "index": 0,
+                "tool_calls": None,
+                "finish_reason": None,
+                "received_at": ANY,
+            },
+            # TODO Uncomment once new haystack version is released
+            # component_info=ComponentInfo(
+            #     type="haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",
+            #     name=None,
+            # ),
+        )
+        assert collector_callback.chunks[1] == StreamingChunk(
+            content="",
+            meta={
+                "model": "mistral-small-latest",
+                "index": 0,
+                "tool_calls": [
+                    ChoiceDeltaToolCall(
+                        index=0,
+                        id="FL1FFlqUG",
+                        function=ChoiceDeltaToolCallFunction(arguments='{"city": "Paris"}', name="weather"),
+                    ),
+                    ChoiceDeltaToolCall(
+                        index=1,
+                        id="xSuhp66iB",
+                        function=ChoiceDeltaToolCallFunction(arguments='{"city": "Berlin"}', name="weather"),
+                    ),
+                ],
+                "finish_reason": "tool_calls",
+                "received_at": ANY,
+                # TODO Uncomment once new haystack version is released
+                # "usage": {
+                #     "completion_tokens": 35,
+                #     "prompt_tokens": 77,
+                #     "total_tokens": 112,
+                #     "completion_tokens_details": None,
+                #     "prompt_tokens_details": None,
+                # },
+            },
+            # TODO Uncomment once new haystack version is released
+            # component_info=ComponentInfo(
+            #     type="haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",
+            #     name=None,
+            # ),
+            # index=0,
+            # tool_calls=[
+            #     ToolCallDelta(index=0, tool_name="weather", arguments='{"city": "Paris"}', id="FL1FFlqUG"),
+            #     ToolCallDelta(index=1, tool_name="weather", arguments='{"city": "Berlin"}', id="xSuhp66iB"),
+            # ],
+            # start=True
+        )
+
+        # Assert text is empty
+        assert result.text is None
 
         # Verify both tool calls were found and processed
         assert len(result.tool_calls) == 2
