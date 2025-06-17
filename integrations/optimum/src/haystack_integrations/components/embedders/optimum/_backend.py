@@ -61,6 +61,7 @@ class _EmbedderParams:
         out["quantizer_settings"] = self.quantizer_settings.to_dict() if self.quantizer_settings else None
 
         out["model_kwargs"].pop("use_auth_token", None)
+        out["model_kwargs"].pop("token", None)
         serialize_hf_model_kwargs(out["model_kwargs"])
         return out
 
@@ -105,7 +106,7 @@ class _EmbedderBackend:
         # Check if the model_kwargs contain the parameters, otherwise, populate them with values from init parameters
         params.model_kwargs.setdefault("model_id", params.model)
         params.model_kwargs.setdefault("provider", params.onnx_execution_provider)
-        params.model_kwargs.setdefault("use_auth_token", resolved_token)
+        params.model_kwargs.setdefault("token", resolved_token)
 
         self.params = params
         self.model = None
