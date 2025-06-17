@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from unittest.mock import patch, ANY
+from unittest.mock import ANY, patch
 
 import pytest
 import pytz
@@ -241,9 +241,6 @@ class TestMistralChatGenerator:
         collector_callback = CollectorCallback()
         llm = MistralChatGenerator(api_key=Secret.from_token("test-api-key"))
         result = llm._handle_stream_response(mistral_chunks, callback=collector_callback)[0]  # type: ignore
-        import pdb
-
-        pdb.set_trace()
 
         # Verify the callback collected the expected number of chunks
         # We expect 2 chunks: one for the initial empty content and one for the tool calls
