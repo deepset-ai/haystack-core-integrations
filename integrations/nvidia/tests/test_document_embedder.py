@@ -216,6 +216,7 @@ class TestNvidiaDocumentEmbedder:
         embedder.backend = MockBackend(
             model=model,
             api_key=api_key,
+            model_type="embedding",
         )
 
         embeddings, metadata = embedder._embed_batch(texts_to_embed=texts, batch_size=2)
@@ -253,7 +254,7 @@ class TestNvidiaDocumentEmbedder:
         assert "Default model is set as:" in str(record[0].message)
         assert embedder.model == "model1"
 
-        embedder.backend = MockBackend(model=embedder.model, api_key=api_key)
+        embedder.backend = MockBackend(model=embedder.model, api_key=api_key, model_type="embedding")
 
         result = embedder.run(documents=docs)
 
@@ -286,7 +287,7 @@ class TestNvidiaDocumentEmbedder:
         )
 
         embedder.warm_up()
-        embedder.backend = MockBackend(model=model, api_key=api_key)
+        embedder.backend = MockBackend(model=model, api_key=api_key, model_type="embedding")
 
         result = embedder.run(documents=docs)
 
@@ -320,7 +321,7 @@ class TestNvidiaDocumentEmbedder:
         )
 
         embedder.warm_up()
-        embedder.backend = MockBackend(model=model, api_key=api_key)
+        embedder.backend = MockBackend(model=model, api_key=api_key, model_type="embedding")
 
         result = embedder.run(documents=docs)
 
@@ -343,7 +344,7 @@ class TestNvidiaDocumentEmbedder:
         embedder = NvidiaDocumentEmbedder(model, api_key=api_key)
 
         embedder.warm_up()
-        embedder.backend = MockBackend(model=model, api_key=api_key)
+        embedder.backend = MockBackend(model=model, api_key=api_key, model_type="embedding")
 
         string_input = "text"
         list_integers_input = [1, 2, 3]
@@ -360,7 +361,7 @@ class TestNvidiaDocumentEmbedder:
         embedder = NvidiaDocumentEmbedder(model, api_key=api_key)
 
         embedder.warm_up()
-        embedder.backend = MockBackend(model=model, api_key=api_key)
+        embedder.backend = MockBackend(model=model, api_key=api_key, model_type="embedding")
 
         # Write check using caplog that a logger.warning is raised
         with caplog.at_level("WARNING"):
@@ -373,7 +374,7 @@ class TestNvidiaDocumentEmbedder:
         embedder = NvidiaDocumentEmbedder(model, api_key=api_key)
 
         embedder.warm_up()
-        embedder.backend = MockBackend(model=model, api_key=api_key)
+        embedder.backend = MockBackend(model=model, api_key=api_key, model_type="embedding")
 
         empty_list_input = []
         result = embedder.run(documents=empty_list_input)

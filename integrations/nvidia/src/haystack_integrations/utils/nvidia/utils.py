@@ -38,7 +38,7 @@ def url_validation(api_url: str) -> str:
     return api_url
 
 
-def is_hosted(api_url: str):
+def is_hosted(api_url: str) -> bool:
     """Check if the api_url belongs to api catalogue."""
     return urlparse(api_url).netloc in [
         "integrate.api.nvidia.com",

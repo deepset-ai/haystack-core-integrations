@@ -162,7 +162,7 @@ class NvidiaRanker:
         :raises ValueError: If the API key is required for hosted NVIDIA NIMs.
         """
         if not self._initialized:
-            model_kwargs = {}
+            model_kwargs: Dict[str, Any] = {}
             if self.truncate is not None:
                 model_kwargs.update(truncate=str(self.truncate))
             self.backend = NimBackend(
@@ -174,7 +174,7 @@ class NvidiaRanker:
                 timeout=self.timeout,
                 client=self.__class__.__name__,
             )
-            if not self.is_hosted and not self._model:
+            if not self.is_hosted and not self.model:
                 if self.backend.model:
                     self.model = self.backend.model
             self._initialized = True

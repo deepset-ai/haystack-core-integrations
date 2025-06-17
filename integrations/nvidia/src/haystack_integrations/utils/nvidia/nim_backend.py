@@ -21,9 +21,9 @@ REQUEST_TIMEOUT = 60.0
 class NimBackend:
     def __init__(
         self,
-        model: str,
         api_url: str,
-        model_type: Optional[Literal["chat", "embedding", "ranking"]] = None,
+        model_type: Literal["chat", "embedding", "ranking"],
+        model: Optional[str] = None,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_kwargs: Optional[Dict[str, Any]] = None,
         client: Optional[
@@ -50,7 +50,7 @@ class NimBackend:
                     UserWarning,
                     stacklevel=2,
                 )
-            if not model and model_type:  # manually set default model
+            if not model:  # manually set default model
                 model = DEFAULT_MODELS[model_type]
 
             model = validate_hosted_model(model, client)

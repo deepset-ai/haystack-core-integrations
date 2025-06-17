@@ -122,7 +122,9 @@ class NvidiaDocumentEmbedder:
                 UserWarning,
                 stacklevel=2,
             )
-            self.model = self.backend.model = name
+            self.model = name
+            if self.backend:
+                self.backend.model = name
         else:
             error_message = "No locally hosted model was found."
             raise ValueError(error_message)
@@ -232,7 +234,7 @@ class NvidiaDocumentEmbedder:
         return all_embeddings, {"usage": {"prompt_tokens": usage_prompt_tokens, "total_tokens": usage_total_tokens}}
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
-    def run(self, documents: List[Document]):
+    def run(self, documents: List[Document]) -> Dict[str, Union[List[Document], Dict[str, Any]]]:
         """
         Embed a list of Documents.
 

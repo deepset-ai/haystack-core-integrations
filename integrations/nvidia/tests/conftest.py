@@ -12,9 +12,17 @@ from haystack_integrations.utils.nvidia import Model, NimBackend
 
 
 class MockBackend(NimBackend):
-    def __init__(self, model: str, api_key: Optional[Secret] = None, model_kwargs: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        model: str,
+        model_type: str,
+        api_key: Optional[Secret] = None,
+        model_kwargs: Optional[Dict[str, Any]] = None,
+    ):
         api_key = api_key or Secret.from_env_var("NVIDIA_API_KEY")
-        super().__init__(model, api_url="", api_key=api_key, model_kwargs=model_kwargs or {})
+        super().__init__(
+            model=model, model_type=model_type, api_url="", api_key=api_key, model_kwargs=model_kwargs or {}
+        )
 
     def embed(self, texts):
         inputs = texts

@@ -74,12 +74,17 @@ def mock_rank_post_response(*args, **kwargs):  # noqa: ARG001
 class TestNimBackend:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-        backend = NimBackend(model="nvidia/nv-embedqa-e5-v5", api_url=DEFAULT_API_URL, client="NvidiaTextEmbedder")
+        backend = NimBackend(
+            model="nvidia/nv-embedqa-e5-v5",
+            api_url=DEFAULT_API_URL,
+            client="NvidiaTextEmbedder",
+            model_type="embedding",
+        )
         assert backend.api_url == DEFAULT_API_URL
         assert backend.client == "NvidiaTextEmbedder"
         assert backend.model == "nvidia/nv-embedqa-e5-v5"
         assert backend.model_kwargs == {}
-        assert backend.model_type is None
+        assert backend.model_type == "embedding"
         assert backend.session.headers["Content-Type"] == "application/json"
         assert backend.session.headers["accept"] == "application/json"
         assert backend.session.headers["authorization"] == "Bearer fake-api-key"
@@ -98,7 +103,12 @@ class TestNimBackend:
     def test_embed(self, monkeypatch):
         with patch("requests.sessions.Session.post", side_effect=mock_embed_post_response) as mock_post:
             monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-            backend = NimBackend(model="nvidia/nv-embedqa-e5-v5", api_url=DEFAULT_API_URL, client="NvidiaTextEmbedder")
+            backend = NimBackend(
+                model="nvidia/nv-embedqa-e5-v5",
+                api_url=DEFAULT_API_URL,
+                client="NvidiaTextEmbedder",
+                model_type="embedding",
+            )
             texts = ["a", "b", "c"]
             embeddings, meta = backend.embed(texts=texts)
 
@@ -118,7 +128,12 @@ class TestNimBackend:
     def test_generate(self, monkeypatch):
         with patch("requests.sessions.Session.post", side_effect=mock_generate_post_response) as mock_post:
             monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-            backend = NimBackend(model="meta/llama3-8b-instruct", api_url=DEFAULT_API_URL, client="NvidiaGenerator")
+            backend = NimBackend(
+                model="meta/llama3-8b-instruct",
+                api_url=DEFAULT_API_URL,
+                client="NvidiaGenerator",
+                model_type="generation",
+            )
             prompt = "a"
             replies, meta = backend.generate(prompt=prompt)
             assert replies == ["Response 0 to 'a'", "Response 1 to 'a'", "Response 2 to 'a'"]
@@ -159,7 +174,10 @@ class TestNimBackend:
         with patch("requests.sessions.Session.get", side_effect=mock_models_get_response) as mock_get:
             monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
             backend = NimBackend(
-                model="nvidia/nv-embedqa-e5-v5", api_url=DEFAULT_API_URL, client="NvidiaDocumentEmbedder"
+                model="nvidia/nv-embedqa-e5-v5",
+                api_url=DEFAULT_API_URL,
+                client="NvidiaDocumentEmbedder",
+                model_type="embedding",
             )
             models = backend.models()
 
@@ -175,7 +193,10 @@ class TestNimBackend:
         with patch("requests.sessions.Session.post", side_effect=mock_rank_post_response) as mock_post:
             monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
             backend = NimBackend(
-                model="nvidia/llama-3.2-nv-rerankqa-1b-v2", api_url=DEFAULT_API_URL, client="NvidiaRanker"
+                model="nvidia/llama-3.2-nv-rerankqa-1b-v2",
+                api_url=DEFAULT_API_URL,
+                client="NvidiaRanker",
+                model_type="ranking",
             )
             query_text = "query"
             document_texts = ["text1", "text2"]

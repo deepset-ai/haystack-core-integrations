@@ -112,7 +112,9 @@ class NvidiaTextEmbedder:
                 UserWarning,
                 stacklevel=2,
             )
-            self.model = self.backend.model = name
+            self.model = name
+            if self.backend:
+                self.backend.model = name
         else:
             error_message = "No locally hosted model was found."
             raise ValueError(error_message)
@@ -185,7 +187,7 @@ class NvidiaTextEmbedder:
         return default_from_dict(cls, data)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
-    def run(self, text: str):
+    def run(self, text: str) -> Dict[str, Union[List[float], Dict[str, Any]]]:
         """
         Embed a string.
 
