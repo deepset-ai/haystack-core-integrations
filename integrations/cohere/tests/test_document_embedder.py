@@ -106,6 +106,38 @@ class TestCohereDocumentEmbedder:
             },
         }
 
+    def test_from_dict(self):
+        component_dict = {
+            "type": "haystack_integrations.components.embedders.cohere.document_embedder.CohereDocumentEmbedder",
+            "init_parameters": {
+                "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
+                "model": "embed-english-v2.0",
+                "input_type": "search_document",
+                "api_base_url": COHERE_API_URL,
+                "truncate": "END",
+                "timeout": 120,
+                "batch_size": 32,
+                "progress_bar": True,
+                "meta_fields_to_embed": [],
+                "embedding_separator": "\n",
+                "embedding_type": "float",
+                "use_async_client": False,  # legacy parameter
+            },
+        }
+        embedder = CohereDocumentEmbedder.from_dict(component_dict)
+        assert embedder.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
+        assert embedder.model == "embed-english-v2.0"
+        assert embedder.input_type == "search_document"
+        assert embedder.api_base_url == COHERE_API_URL
+        assert embedder.truncate == "END"
+        assert embedder.timeout == 120
+        assert embedder.batch_size == 32
+        assert embedder.progress_bar is True
+        assert embedder.meta_fields_to_embed == []
+        assert embedder.embedding_separator == "\n"
+        assert embedder.embedding_type == EmbeddingTypes.FLOAT
+        assert not hasattr(embedder, "use_async_client")
+
     def test_run_wrong_input_format(self):
         embedder = CohereDocumentEmbedder(api_key=Secret.from_token("test-api-key"))
 

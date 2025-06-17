@@ -133,12 +133,24 @@ class CohereDocumentEmbedder:
                 Deserialized component.
         """
         init_params = data.get("init_parameters", {})
+
+        # drop legacy use_async_client parameter
+        init_params.pop("use_async_client", None)
+
         deserialize_secrets_inplace(init_params, ["api_key"])
 
         # Convert embedding_type string to EmbeddingTypes enum value
         init_params["embedding_type"] = EmbeddingTypes.from_str(init_params["embedding_type"])
 
         return default_from_dict(cls, data)
+
+    def _validate_input(self, documents: List[Document]) -> None:
+        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
+            msg = (
+                "CohereDocumentEmbedder expects a list of Documents as input."
+                "In case you want to embed a string, please use the CohereTextEmbedder."
+            )
+            raise TypeError(msg)
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
         """
@@ -164,12 +176,8 @@ class CohereDocumentEmbedder:
             - `meta`: metadata about the embedding process.
         :raises TypeError: if the input is not a list of `Documents`.
         """
-        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
-            msg = (
-                "CohereDocumentEmbedder expects a list of Documents as input."
-                "In case you want to embed a string, please use the CohereTextEmbedder."
-            )
-            raise TypeError(msg)
+
+        self._validate_input(documents=documents)
 
         if not documents:
             return {"documents": [], "meta": {}}
@@ -204,12 +212,7 @@ class CohereDocumentEmbedder:
         :raises TypeError: if the input is not a list of `Documents`.
         """
 
-        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
-            msg = (
-                "CohereDocumentEmbedder expects a list of Documents as input."
-                "In case you want to embed a string, please use the CohereTextEmbedder."
-            )
-            raise TypeError(msg)
+        self._validate_input(documents=documents)
 
         if not documents:
             return {"documents": [], "meta": {}}

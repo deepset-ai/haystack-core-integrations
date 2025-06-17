@@ -85,15 +85,13 @@ class CohereTextEmbedder:
             client_name="haystack",
         )
 
-    def _prepare_input(self, text: str) -> str:
+    def _validate_input(self, text: str) -> None:
         if not isinstance(text, str):
             msg = (
                 "CohereTextEmbedder expects a string as input."
                 "In case you want to embed a list of Documents, please use the CohereDocumentEmbedder."
             )
             raise TypeError(msg)
-
-        return text
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -124,6 +122,10 @@ class CohereTextEmbedder:
                Deserialized component.
         """
         init_params = data.get("init_parameters", {})
+
+        # drop legacy use_async_client parameter
+        init_params.pop("use_async_client", None)
+
         deserialize_secrets_inplace(init_params, ["api_key"])
 
         # Convert embedding_type string to EmbeddingTypes enum value
@@ -145,7 +147,7 @@ class CohereTextEmbedder:
         :raises TypeError:
             If the input is not a string.
         """
-        text = self._prepare_input(text=text)
+        self._validate_input(text=text)
 
         embedding, metadata = get_response(
             cohere_client=self._client,
@@ -177,7 +179,7 @@ class CohereTextEmbedder:
         :raises TypeError:
             If the input is not a string.
         """
-        text = self._prepare_input(text=text)
+        self._validate_input(text=text)
 
         embedding, metadata = await get_async_response(
             cohere_async_client=self._async_client,
