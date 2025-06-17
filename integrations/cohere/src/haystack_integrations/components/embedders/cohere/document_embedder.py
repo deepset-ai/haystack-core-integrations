@@ -1,15 +1,15 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from cohere import AsyncClientV2, ClientV2
-from haystack_integrations.components.embedders.cohere.embedding_types import EmbeddingTypes
-from haystack_integrations.components.embedders.cohere.utils import get_async_response, get_response
+
+from .embedding_types import EmbeddingTypes
+from .utils import get_async_response, get_response
 
 
 @component
@@ -42,7 +42,6 @@ class CohereDocumentEmbedder:
         input_type: str = "search_document",
         api_base_url: str = "https://api.cohere.com",
         truncate: str = "END",
-        use_async_client: bool = False,
         timeout: int = 120,
         batch_size: int = 32,
         progress_bar: bool = True,
@@ -66,8 +65,6 @@ class CohereDocumentEmbedder:
             Passing "START" will discard the start of the input. "END" will discard the end of the input. In both
             cases, input is discarded until the remaining input is exactly the maximum input token length for the model.
             If "NONE" is selected, when the input exceeds the maximum input token length an error will be returned.
-        :param use_async_client: flag to select the AsyncClient. It is recommended to use
-            AsyncClient for applications with many concurrent calls.
         :param timeout: request timeout in seconds.
         :param batch_size: number of Documents to encode at once.
         :param progress_bar: whether to show a progress bar or not. Can be helpful to disable in production deployments
@@ -83,7 +80,6 @@ class CohereDocumentEmbedder:
         self.input_type = input_type
         self.api_base_url = api_base_url
         self.truncate = truncate
-        self.use_async_client = use_async_client
         self.timeout = timeout
         self.batch_size = batch_size
         self.progress_bar = progress_bar
@@ -91,24 +87,18 @@ class CohereDocumentEmbedder:
         self.embedding_separator = embedding_separator
         self.embedding_type = embedding_type or EmbeddingTypes.FLOAT
 
-    def _prepare_input(self, documents: List[Document]) -> List[Document]:
-        """
-        Prepares the list of documents to embed by appropriate validation.
-
-        :param documents:
-            List of documents to embed.
-        :returns:
-            List of documents to embed if validations pass.
-        :raises TypeError: if the input is not a list of `Documents`.
-        """
-        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
-            msg = (
-                "CohereDocumentEmbedder expects a list of Documents as input. "
-                "In case you want to embed a string, please use the CohereTextEmbedder."
-            )
-            raise TypeError(msg)
-
-        return documents
+        self._client = ClientV2(
+            api_key=self.api_key.resolve_value(),
+            base_url=self.api_base_url,
+            timeout=self.timeout,
+            client_name="haystack",
+        )
+        self._async_client = AsyncClientV2(
+            api_key=self.api_key.resolve_value(),
+            base_url=self.api_base_url,
+            timeout=self.timeout,
+            client_name="haystack",
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -124,7 +114,6 @@ class CohereDocumentEmbedder:
             input_type=self.input_type,
             api_base_url=self.api_base_url,
             truncate=self.truncate,
-            use_async_client=self.use_async_client,
             timeout=self.timeout,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
@@ -144,12 +133,24 @@ class CohereDocumentEmbedder:
                 Deserialized component.
         """
         init_params = data.get("init_parameters", {})
+
+        # drop legacy use_async_client parameter
+        init_params.pop("use_async_client", None)
+
         deserialize_secrets_inplace(init_params, ["api_key"])
 
         # Convert embedding_type string to EmbeddingTypes enum value
         init_params["embedding_type"] = EmbeddingTypes.from_str(init_params["embedding_type"])
 
         return default_from_dict(cls, data)
+
+    def _validate_input(self, documents: List[Document]) -> None:
+        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
+            msg = (
+                "CohereDocumentEmbedder expects a list of Documents as input."
+                "In case you want to embed a string, please use the CohereTextEmbedder."
+            )
+            raise TypeError(msg)
 
     def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
         """
@@ -166,7 +167,7 @@ class CohereDocumentEmbedder:
         return texts_to_embed
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
-    def run(self, documents: List[Document]):
+    def run(self, documents: List[Document]) -> Dict[str, Union[List[Document], Dict[str, Any]]]:
         """Embed a list of `Documents`.
 
         :param documents: documents to embed.
@@ -175,51 +176,24 @@ class CohereDocumentEmbedder:
             - `meta`: metadata about the embedding process.
         :raises TypeError: if the input is not a list of `Documents`.
         """
-        if not documents:
-            # return early if we were passed an empty list
-            return {"documents": [], "meta": {}}
 
-        documents = self._prepare_input(documents)
+        self._validate_input(documents=documents)
+
+        if not documents:
+            return {"documents": [], "meta": {}}
 
         texts_to_embed = self._prepare_texts_to_embed(documents)
 
-        api_key = self.api_key.resolve_value()
-        if api_key is None:
-            err_msg = (
-                "Cohere API key is missing. Pass it via the `api_key` or set the "
-                "`COHERE_API_KEY` or `CO_API_KEY` environment variable."
-            )
-            raise ValueError(err_msg)
-
-        if self.use_async_client:
-            cohere_client = AsyncClientV2(
-                api_key,
-                base_url=self.api_base_url,
-                timeout=self.timeout,
-                client_name="haystack",
-            )
-            all_embeddings, metadata = asyncio.run(
-                get_async_response(
-                    cohere_client, texts_to_embed, self.model, self.input_type, self.truncate, self.embedding_type
-                )
-            )
-        else:
-            cohere_client = ClientV2(
-                api_key,
-                base_url=self.api_base_url,
-                timeout=self.timeout,
-                client_name="haystack",
-            )
-            all_embeddings, metadata = get_response(
-                cohere_client,
-                texts_to_embed,
-                self.model,
-                self.input_type,
-                self.truncate,
-                self.batch_size,
-                self.progress_bar,
-                self.embedding_type,
-            )
+        all_embeddings, metadata = get_response(
+            self._client,
+            texts_to_embed,
+            self.model,
+            self.input_type,
+            self.truncate,
+            self.batch_size,
+            self.progress_bar,
+            self.embedding_type,
+        )
 
         for doc, embeddings in zip(documents, all_embeddings):
             doc.embedding = embeddings
@@ -227,46 +201,31 @@ class CohereDocumentEmbedder:
         return {"documents": documents, "meta": metadata}
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
-    async def run_async(self, documents: List[Document]):
+    async def run_async(self, documents: List[Document]) -> Dict[str, Union[List[Document], Dict[str, Any]]]:
         """
-        Asynchronously embed list of documents.
+        Embed a list of `Documents` asynchronously.
 
-        :param documents:
-            List of documents to embed.
-
-        :returns:
-            A dictionary with the following keys:
-            - `documents`: A list of documents with embeddings.
-            - `meta`: Information about the usage of the model.
-
-        :raises TypeError:
-            If the input is not a list of documents.
+        :param documents: documents to embed.
+        :returns:  A dictionary with the following keys:
+            - `documents`: documents with the `embedding` field set.
+            - `meta`: metadata about the embedding process.
+        :raises TypeError: if the input is not a list of `Documents`.
         """
 
-        documents = self._prepare_input(documents)
+        self._validate_input(documents=documents)
 
         if not documents:
-            # return early if we were passed an empty list
             return {"documents": [], "meta": {}}
 
         texts_to_embed = self._prepare_texts_to_embed(documents)
 
-        api_key = self.api_key.resolve_value()
-        if api_key is None:
-            err_msg = (
-                "Cohere API key is missing. Pass it via the `api_key` or set the "
-                "`COHERE_API_KEY` or `CO_API_KEY` environment variable."
-            )
-            raise ValueError(err_msg)
-
-        cohere_client = AsyncClientV2(
-            api_key,
-            base_url=self.api_base_url,
-            timeout=self.timeout,
-            client_name="haystack",
-        )
         all_embeddings, metadata = await get_async_response(
-            cohere_client, texts_to_embed, self.model, self.input_type, self.truncate, self.embedding_type
+            cohere_async_client=self._async_client,
+            texts=texts_to_embed,
+            model_name=self.model,
+            input_type=self.input_type,
+            truncate=self.truncate,
+            embedding_type=self.embedding_type,
         )
 
         for doc, embeddings in zip(documents, all_embeddings):
