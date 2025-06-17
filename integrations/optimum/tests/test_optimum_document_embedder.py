@@ -374,7 +374,7 @@ class TestOptimumDocumentEmbedder:
             embedder.warm_up()
 
             result = embedder.run(documents=docs)
-            expected = [embedder.run([d]) for d in docs_copy]
+            _ = [embedder.run([d]) for d in docs_copy]
 
         documents_with_embeddings = result["documents"]
 
