@@ -1,5 +1,22 @@
 # Changelog
 
+## [integrations/cohere-v5.0.0] - 2025-06-17
+
+### 🚀 Features
+
+- Add run_async support for CohereTextEmbedder (#1873)
+- Add async support for CohereDocumentEmbedder (#1876)
+
+### 🚜 Refactor
+
+- [**breaking**] Cohere: remove `use_async_client` parameter; fix types and add py.typed  (#1946)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+
+
 ## [integrations/cohere-v4.2.1] - 2025-05-27
 
 ### 🌀 Miscellaneous
