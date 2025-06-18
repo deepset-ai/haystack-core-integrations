@@ -285,7 +285,10 @@ class TestSTACKITChatGenerator:
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
         component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8", tools=tools)
-        results = component.run(messages=initial_messages, generation_kwargs={"tool_choice": "any"})
+        results = component.run(
+            messages=initial_messages,
+            generation_kwargs={"tool_choice": "auto"}
+        )
 
         assert len(results["replies"]) == 1
 
