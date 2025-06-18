@@ -392,7 +392,12 @@ class AstraDocumentStore:
 
         return result
 
-    def delete_documents(self, document_ids: Optional[List[str]] = None, delete_all: Optional[bool] = None) -> None:
+    def delete_documents(
+        self,
+        document_ids: Optional[List[str]] = None,
+        *,
+        delete_all: Optional[bool] = None,
+    ) -> None:
         """
         Deletes documents from the document store.
 

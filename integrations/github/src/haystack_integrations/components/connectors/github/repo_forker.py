@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import re
+import time
 from typing import Any, Dict, Optional
 
 import requests
@@ -274,8 +275,6 @@ class GitHubRepoForker:
 
             # Wait for fork completion if requested
             if self.wait_for_completion:
-                import time
-
                 start_time = time.time()
 
                 while time.time() - start_time < self.max_wait_seconds:

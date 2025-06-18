@@ -144,6 +144,7 @@ class AstraClient:
 
     def query(
         self,
+        *,
         vector: Optional[List[float]] = None,
         query_filter: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
         top_k: Optional[int] = None,
@@ -317,6 +318,7 @@ class AstraClient:
 
     def delete(
         self,
+        *,
         ids: Optional[List[str]] = None,
         delete_all: Optional[bool] = None,
         filters: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
