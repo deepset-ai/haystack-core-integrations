@@ -117,13 +117,6 @@ class MongoDBAtlasDocumentStore:
         if self._connection:
             self._connection.close()
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        """
-        Asynchronous exit method to close MongoDB connections when the instance is destroyed.
-        """
-        if self._connection_async:
-            await self._connection_async.close()
-
     @property
     def connection(self) -> Union[AsyncMongoClient, MongoClient]:
         if self._connection:
@@ -142,53 +135,51 @@ class MongoDBAtlasDocumentStore:
         msg = "The collection is not established yet."
         raise DocumentStoreError(msg)
 
-    def _connection_is_valid(self) -> bool:
+    def _connection_is_valid(self, connection: MongoClient) -> bool:
         """
         Checks if the connection to MongoDB Atlas is valid.
 
         :returns: True if the connection is valid, False otherwise.
         """
         try:
-            self._connection.admin.command("ping")  # type: ignore[union-attr]
+            connection.admin.command("ping")
             return True
         except Exception as e:
             logger.error(f"Connection to MongoDB Atlas failed: {e}")
             return False
 
-    async def _connection_is_valid_async(self) -> bool:
+    async def _connection_is_valid_async(self, connection: AsyncMongoClient) -> bool:
         """
         Asynchronously checks if the connection to MongoDB Atlas is valid.
 
         :returns: True if the connection is valid, False otherwise.
         """
         try:
-            await self._connection_async.admin.command("ping")  # type: ignore[union-attr]
+            await connection.admin.command("ping")
             return True
         except Exception as e:
             logger.error(f"Connection to MongoDB Atlas failed: {e}")
             return False
 
-    def _collection_exists(self) -> bool:
+    def _collection_exists(self, connection: MongoClient, database_name: str, collection_name: str) -> bool:
         """
         Checks if the collection exists in the MongoDB Atlas database.
 
         :returns: True if the collection exists, False otherwise.
         """
-        database = self._connection[self.database_name]  # type: ignore[index]
-        if self.collection_name in database.list_collection_names():
-            return True
-        return False
+        database = connection[database_name]
+        return collection_name in database.list_collection_names()
 
-    async def _collection_exists_async(self) -> bool:
+    async def _collection_exists_async(
+        self, connection: AsyncMongoClient, database_name: str, collection_name: str
+    ) -> bool:
         """
         Asynchronously checks if the collection exists in the MongoDB Atlas database.
 
         :returns: True if the collection exists, False otherwise.
         """
-        database = self._connection_async[self.database_name]  # type: ignore[index]
-        if self.collection_name in await database.list_collection_names():
-            return True
-        return False
+        database = connection[database_name]
+        return collection_name in await database.list_collection_names()
 
     def _ensure_connection_setup(self) -> None:
         """
@@ -202,11 +193,11 @@ class MongoDBAtlasDocumentStore:
                 self.mongo_connection_string.resolve_value(), driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
             )
 
-        if not self._connection_is_valid():
+        if not self._connection_is_valid(self._connection):
             msg = "Connection to MongoDB Atlas failed."
             raise DocumentStoreError(msg)
 
-        if not self._collection_exists():
+        if not self._collection_exists(self._connection, self.database_name, self.collection_name):
             msg = f"Collection '{self.collection_name}' does not exist in database '{self.database_name}'."
             raise DocumentStoreError(msg)
 
@@ -226,11 +217,11 @@ class MongoDBAtlasDocumentStore:
                 self.mongo_connection_string.resolve_value(), driver=DriverInfo(name="MongoDBAtlasHaystackIntegration")
             )
 
-        if not await self._connection_is_valid_async():
+        if not await self._connection_is_valid_async(self._connection_async):
             msg = "Connection to MongoDB Atlas failed."
             raise DocumentStoreError(msg)
 
-        if not await self._collection_exists_async():
+        if not await self._collection_exists_async(self._connection_async, self.database_name, self.collection_name):
             msg = f"Collection '{self.collection_name}' does not exist in database '{self.database_name}'."
             raise DocumentStoreError(msg)
 
@@ -274,7 +265,8 @@ class MongoDBAtlasDocumentStore:
         :returns: The number of documents in the document store.
         """
         self._ensure_connection_setup()
-        return self._collection.count_documents({})  # type: ignore[union-attr]
+        assert self._collection is not None
+        return self._collection.count_documents({})
 
     async def count_documents_async(self) -> int:
         """
@@ -283,7 +275,8 @@ class MongoDBAtlasDocumentStore:
         :returns: The number of documents in the document store.
         """
         await self._ensure_connection_setup_async()
-        return await self._collection_async.count_documents({})  # type: ignore[union-attr]
+        assert self._collection_async is not None
+        return await self._collection_async.count_documents({})
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
@@ -296,8 +289,9 @@ class MongoDBAtlasDocumentStore:
         :returns: A list of Documents that match the given filters.
         """
         self._ensure_connection_setup()
+        assert self._collection is not None
         filters = _normalize_filters(filters) if filters else None
-        documents = list(self._collection.find(filters))  # type: ignore[union-attr]
+        documents = list(self._collection.find(filters))
         return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
 
     async def filter_documents_async(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
@@ -311,8 +305,9 @@ class MongoDBAtlasDocumentStore:
         :returns: A list of Documents that match the given filters.
         """
         await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
         filters = _normalize_filters(filters) if filters else None
-        documents = await self._collection_async.find(filters).to_list()  # type: ignore[union-attr]
+        documents = await self._collection_async.find(filters).to_list()
         return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
@@ -327,7 +322,7 @@ class MongoDBAtlasDocumentStore:
         :returns: The number of documents written to the document store.
         """
         self._ensure_connection_setup()
-
+        assert self._collection is not None
         if len(documents) > 0:
             if not isinstance(documents[0], Document):
                 msg = "param 'documents' must contain a list of objects of type Document"
@@ -342,7 +337,7 @@ class MongoDBAtlasDocumentStore:
 
         if policy == DuplicatePolicy.SKIP:
             operations = [UpdateOne({"id": doc["id"]}, {"$setOnInsert": doc}, upsert=True) for doc in mongo_documents]
-            existing_documents = self._collection.count_documents({"id": {"$in": [doc.id for doc in documents]}})  # type: ignore[union-attr]
+            existing_documents = self._collection.count_documents({"id": {"$in": [doc.id for doc in documents]}})
             written_docs -= existing_documents
         elif policy == DuplicatePolicy.FAIL:
             operations = [InsertOne(doc) for doc in mongo_documents]
@@ -350,7 +345,7 @@ class MongoDBAtlasDocumentStore:
             operations = [ReplaceOne({"id": doc["id"]}, upsert=True, replacement=doc) for doc in mongo_documents]
 
         try:
-            self._collection.bulk_write(operations)  # type: ignore[union-attr]
+            self._collection.bulk_write(operations)
         except BulkWriteError as e:
             msg = f"Duplicate documents found: {e.details['writeErrors']}"
             raise DuplicateDocumentError(msg) from e
@@ -371,7 +366,7 @@ class MongoDBAtlasDocumentStore:
         :returns: The number of documents written to the document store.
         """
         await self._ensure_connection_setup_async()
-
+        assert self._collection_async is not None
         if len(documents) > 0:
             if not isinstance(documents[0], Document):
                 msg = "param 'documents' must contain a list of objects of type Document"
@@ -387,7 +382,9 @@ class MongoDBAtlasDocumentStore:
 
         if policy == DuplicatePolicy.SKIP:
             operations = [UpdateOne({"id": doc["id"]}, {"$setOnInsert": doc}, upsert=True) for doc in mongo_documents]
-            existing_documents = self._collection.count_documents({"id": {"$in": [doc.id for doc in documents]}})  # type: ignore[union-attr]
+            existing_documents = await self._collection_async.count_documents(
+                {"id": {"$in": [doc.id for doc in documents]}}
+            )
             written_docs -= existing_documents
         elif policy == DuplicatePolicy.FAIL:
             operations = [InsertOne(doc) for doc in mongo_documents]
@@ -395,7 +392,7 @@ class MongoDBAtlasDocumentStore:
             operations = [ReplaceOne({"id": doc["id"]}, upsert=True, replacement=doc) for doc in mongo_documents]
 
         try:
-            await self._collection_async.bulk_write(operations)  # type: ignore[union-attr]
+            await self._collection_async.bulk_write(operations)
         except BulkWriteError as e:
             msg = f"Duplicate documents found: {e.details['writeErrors']}"
             raise DuplicateDocumentError(msg) from e
@@ -409,9 +406,10 @@ class MongoDBAtlasDocumentStore:
         :param document_ids: the document ids to delete
         """
         self._ensure_connection_setup()
+        assert self._collection is not None
         if not document_ids:
             return
-        self._collection.delete_many(filter={"id": {"$in": document_ids}})  # type: ignore[union-attr]
+        self._collection.delete_many(filter={"id": {"$in": document_ids}})
 
     async def delete_documents_async(self, document_ids: List[str]) -> None:
         """
@@ -420,9 +418,10 @@ class MongoDBAtlasDocumentStore:
         :param document_ids: the document ids to delete
         """
         await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
         if not document_ids:
             return
-        await self._collection_async.delete_many(filter={"id": {"$in": document_ids}})  # type: ignore[union-attr]
+        await self._collection_async.delete_many(filter={"id": {"$in": document_ids}})
 
     def _embedding_retrieval(
         self,
@@ -441,6 +440,7 @@ class MongoDBAtlasDocumentStore:
         :raises DocumentStoreError: If the retrieval of documents from MongoDB Atlas fails.
         """
         self._ensure_connection_setup()
+        assert self._collection is not None
         if not query_embedding:
             msg = "Query embedding must not be empty"
             raise ValueError(msg)
@@ -462,7 +462,7 @@ class MongoDBAtlasDocumentStore:
             {"$project": {"_id": 0}},
         ]
         try:
-            documents = list(self._collection.aggregate(pipeline))  # type: ignore[union-attr]
+            documents = list(self._collection.aggregate(pipeline))
         except Exception as e:
             msg = f"Retrieval of documents from MongoDB Atlas failed: {e}"
             if filters:
@@ -490,6 +490,7 @@ class MongoDBAtlasDocumentStore:
         :raises DocumentStoreError: If the retrieval of documents from MongoDB Atlas fails.
         """
         await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
         if not query_embedding:
             msg = "Query embedding must not be empty"
             raise ValueError(msg)
@@ -511,7 +512,8 @@ class MongoDBAtlasDocumentStore:
             {"$project": {"_id": 0}},
         ]
         try:
-            documents = await self._collection_async.aggregate(pipeline).to_list()  # type: ignore[union-attr]
+            cursor = await self._collection_async.aggregate(pipeline)
+            documents = await cursor.to_list(length=None)
         except Exception as e:
             msg = f"Retrieval of documents from MongoDB Atlas failed: {e}"
             if filters:
@@ -606,8 +608,9 @@ class MongoDBAtlasDocumentStore:
         ]
 
         self._ensure_connection_setup()
+        assert self._collection is not None
         try:
-            documents = list(self._collection.aggregate(pipeline))  # type: ignore[union-attr]
+            documents = list(self._collection.aggregate(pipeline))
         except Exception as e:
             error_msg = f"Failed to retrieve documents from MongoDB Atlas: {e}"
             if filters:
@@ -698,9 +701,9 @@ class MongoDBAtlasDocumentStore:
         ]
 
         await self._ensure_connection_setup_async()
-
+        assert self._collection_async is not None
         try:
-            cursor = await self._collection_async.aggregate(pipeline)  # type: ignore[union-attr]
+            cursor = await self._collection_async.aggregate(pipeline)
             documents = await cursor.to_list(length=None)
         except Exception as e:
             error_msg = f"Failed to retrieve documents from MongoDB Atlas: {e}"
