@@ -42,6 +42,7 @@ class NimBackend:
         self.session.headers.update(headers)
 
         self.api_url = api_url
+        validated_model: Optional[Model] = None
         if is_hosted(self.api_url):
             if not api_key:
                 warnings.warn(
@@ -52,13 +53,13 @@ class NimBackend:
             if not model:  # manually set default model
                 model = DEFAULT_MODELS[model_type]
 
-            model = validate_hosted_model(model, client)
-            if isinstance(model, Model) and model.endpoint:
+            validated_model = validate_hosted_model(model, client)
+            if validated_model and validated_model.endpoint:
                 # we override the endpoint to use the custom endpoint
-                self.api_url = model.endpoint
-                self.model_type = model.model_type
+                self.api_url = validated_model.endpoint
+                self.model_type = validated_model.model_type
 
-        self.model = model.id if isinstance(model, Model) else model
+        self.model = validated_model.id if validated_model else model
         self.model_kwargs = model_kwargs or {}
         self.client = client
         self.model_type = model_type

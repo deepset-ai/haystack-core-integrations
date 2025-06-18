@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import warnings
-from typing import Any, Optional
+from typing import Optional
 from urllib.parse import urlparse, urlunparse
 
 from .client import Client
@@ -86,18 +86,17 @@ def determine_model(name: str) -> Optional[Model]:
 def validate_hosted_model(
     model_name: str,
     client: Optional[Client] = None,
-) -> Any:
+) -> Model:
     """
     Checks if a given model is compatible with given client.
 
-    Args:
-        model_name (str): The name of the model.
-        client (str): client name, e.g. NvidiaGenerator, NVIDIAEmbeddings,
-                        NVIDIARerank, NvidiaTextEmbedder, NvidiaDocumentEmbedder
+    :param model_name: The name of the model.
+    :param client: client name enum, e.g. Client.NVIDIA_GENERATOR, Client.NVIDIA_RANKER,
+                   Client.NVIDIA_TEXT_EMBEDDER, Client.NVIDIA_DOCUMENT_EMBEDDER
 
-    Raises:
-        ValueError: If the model is incompatible with the client or if the model is unknown.
-        Warning: If no client is provided.
+    :raises ValueError: If the model is incompatible with the client or if the model is unknown.
+
+    :returns: The model if it is compatible with the client.
     """
     supported = {
         Client.NVIDIA_GENERATOR: ("chat",),

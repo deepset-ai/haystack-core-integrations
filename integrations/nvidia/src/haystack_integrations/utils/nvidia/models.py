@@ -11,8 +11,8 @@ class Model:
 
     id: unique identifier for the model, passed as model parameter for requests
     model_type: API type (chat, vlm, embedding, ranking, completions)
-    client: client name, e.g. NvidiaGenerator, NVIDIAEmbeddings,
-            NVIDIARerank, NvidiaTextEmbedder, NvidiaDocumentEmbedder
+    client: client name enum, e.g. Client.NVIDIA_GENERATOR, Client.NVIDIA_RANKER,
+            Client.NVIDIA_TEXT_EMBEDDER, Client.NVIDIA_DOCUMENT_EMBEDDER
     endpoint: custom endpoint for the model
     aliases: list of aliases for the model
 
