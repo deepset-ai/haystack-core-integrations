@@ -9,6 +9,48 @@ from haystack_integrations.components.preprocessors.hanlp import ChineseDocument
 
 
 class TestChineseDocumentSplitter:
+    def test_empty_document(self):
+        """Test that an empty document returns an empty list"""
+        splitter = ChineseDocumentSplitter()
+        doc = Document(content="")
+        splitter.warm_up()
+        results = splitter.run([doc])
+        assert results["documents"] == []
+
+    def test_whitespace_only_document(self):
+        """Test that a document containing only whitespaces is handled correctly"""
+        splitter = ChineseDocumentSplitter()
+        doc = Document(content="  ")
+        splitter.warm_up()
+        results = splitter.run([doc])
+        assert len(results["documents"]) == 0
+
+    def test_copy_metadata(self):
+        """Test that metadata is properly copied to split documents"""
+        splitter = ChineseDocumentSplitter(split_by="word", split_length=5)
+        documents = [
+            Document(content="这是测试文本。", meta={"name": "doc 0"}),
+            Document(content="这是另一个测试文本。", meta={"name": "doc 1"}),
+        ]
+        splitter.warm_up()
+        result = splitter.run(documents=documents)
+        assert len(result["documents"]) > 0
+        for doc, split_doc in zip(documents, result["documents"]):
+            assert doc.meta.items() <= split_doc.meta.items()
+
+    def test_source_id_stored_in_metadata(self):
+        """Test that source document ID is stored in metadata of split documents"""
+        splitter = ChineseDocumentSplitter(split_by="word", split_length=5)
+        doc1 = Document(content="这是第一个测试文本。")
+        doc2 = Document(content="这是第二个测试文本。")
+        splitter.warm_up()
+        result = splitter.run(documents=[doc1, doc2])
+        assert len(result["documents"]) > 0
+        # Check that each split document has a source_id
+        for doc in result["documents"]:
+            assert "source_id" in doc.meta
+            assert doc.meta["source_id"] in [doc1.id, doc2.id]
+
     @pytest.fixture
     def sample_text(self) -> str:
         return (

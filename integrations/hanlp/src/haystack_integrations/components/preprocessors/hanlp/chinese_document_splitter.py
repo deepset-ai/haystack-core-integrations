@@ -272,12 +272,24 @@ class ChineseDocumentSplitter:
         units with the last split, preventing the creation of excessively small splits.
         """
 
+        # If the text is empty or consists only of whitespace, return empty lists
+        if not elements or all(not elem.strip() for elem in elements):
+            return [], [], []
+
+        # If the text is too short to split, return it as a single chunk
+        if len(elements) <= split_length:
+            text = "".join(elements)
+            return [text], [1], [0]
+
+        # Otherwise, proceed as before
+        step = split_length - split_overlap
+        step = max(step, 1)
         text_splits: List[str] = []
         splits_pages: List[int] = []
         splits_start_idxs: List[int] = []
         cur_start_idx = 0
         cur_page = 1
-        segments = windowed(elements, n=split_length, step=split_length - split_overlap)
+        segments = windowed(elements, n=split_length, step=step)
 
         for seg in segments:
             current_units = [unit for unit in seg if unit is not None]
