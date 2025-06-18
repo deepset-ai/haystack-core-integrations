@@ -11,7 +11,10 @@ from haystack_integrations.components.preprocessors.chinese_document_splitter im
 class TestChineseDocumentSplitter:
     @pytest.fixture
     def sample_text(self) -> str:
-        return "这是第一句话，也是故事的开端，紧接着是第二句话，渐渐引出了背景；随后，翻开新/f的一页，我们读到了这一页的第一句话，继续延展出情节的发展，直到这页的第二句话将整段文字温柔地收束于平静之中。"
+        return (
+            "这是第一句话，也是故事的开端，紧接着是第二句话，渐渐引出了背景；随后，翻开新/f的一页，"
+            "我们读到了这一页的第一句话，继续延展出情节的发展，直到这页的第二句话将整段文字温柔地收束于平静之中。"
+        )
 
     @pytest.mark.integration
     def test_split_by_word(self, sample_text):
@@ -29,9 +32,7 @@ class TestChineseDocumentSplitter:
         Therefore, splitting by word means splitting by these multi-character tokens,
         not simply by single characters or spaces.
         """
-        splitter = ChineseDocumentSplitter(
-            split_by="word", particle_size="coarse", split_length=5, split_overlap=0
-        )
+        splitter = ChineseDocumentSplitter(split_by="word", particle_size="coarse", split_length=5, split_overlap=0)
 
         splitter.warm_up()
 
@@ -58,7 +59,11 @@ class TestChineseDocumentSplitter:
     @pytest.mark.integration
     def test_respect_sentence_boundary(self):
         """Test that respect_sentence_boundary=True avoids splitting sentences"""
-        text = "这是第一句话，这是第二句话，这是第三句话。这是第四句话，这是第五句话，这是第六句话！这是第七句话，这是第八句话，这是第九句话？"
+        text = (
+            "这是第一句话，这是第二句话，这是第三句话。"
+            "这是第四句话，这是第五句话，这是第六句话！"
+            "这是第七句话，这是第八句话，这是第九句话？"
+        )
         doc = Document(content=text)
 
         splitter = ChineseDocumentSplitter(
@@ -91,9 +96,7 @@ class TestChineseDocumentSplitter:
         )
         doc = Document(content=text)
 
-        splitter = ChineseDocumentSplitter(
-            split_by="word", split_length=30, split_overlap=10, particle_size="coarse"
-        )
+        splitter = ChineseDocumentSplitter(split_by="word", split_length=30, split_overlap=10, particle_size="coarse")
         splitter.warm_up()
 
         result = splitter.run(documents=[doc])

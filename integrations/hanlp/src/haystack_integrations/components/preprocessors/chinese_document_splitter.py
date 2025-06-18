@@ -32,7 +32,8 @@ class ChineseDocumentSplitter:
         'coarse' represents coarse granularity Chinese word segmentation, 'fine' represents fine granularity word
         segmentation, default is coarse granularity word segmentation.
 
-        :param split_by: The unit by which the text is split. Can be one of: "word", "sentence", "passage", "page", "line", "period", "function".
+        :param split_by: The unit by which the text is split. Can be one of: \
+            "word", "sentence", "passage", "page", "line", "period", "function".
         :param split_length: The maximum number of words in each split.
         :param split_overlap: The number of overlapping words in each split.
         :param split_threshold: The minimum number of words in each split.
@@ -51,12 +52,8 @@ class ChineseDocumentSplitter:
         self.particle_size = particle_size
 
         if particle_size not in ["coarse", "fine"]:
-            msg = (
-                f"Invalid particle_size '{particle_size}'. "
-                "Choose either 'coarse' or 'fine'."
-            )
+            msg = f"Invalid particle_size '{particle_size}'. Choose either 'coarse' or 'fine'."
             raise ValueError(msg)
-
 
     def run(self, documents: List[Document]) -> Dict[str, List[Document]]:
         """
@@ -68,10 +65,7 @@ class ChineseDocumentSplitter:
         :raises RuntimeError: If the Chinese word segmentation model is not loaded.
         """
         if self.split_sent is None:
-            msg = (
-                "The Chinese word segmentation model is not loaded. "
-                "Please run 'warm_up()' before calling 'run()'."
-            )
+            msg = "The Chinese word segmentation model is not loaded. Please run 'warm_up()' before calling 'run()'."
             raise RuntimeError(msg)
 
         split_docs = []
@@ -86,7 +80,6 @@ class ChineseDocumentSplitter:
         if self.particle_size == "fine":
             self.chinese_tokenizer_fine = hanlp.load(hanlp.pretrained.tok.FINE_ELECTRA_SMALL_ZH)
         self.split_sent = hanlp.load(hanlp.pretrained.eos.UD_CTB_EOS_MUL)
-
 
     def _split_by_character(self, doc: Document) -> List[Document]:
         """
