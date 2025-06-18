@@ -4,6 +4,7 @@
 
 import pytest
 from haystack import Document
+
 from haystack_integrations.components.preprocessors.chinese_document_splitter import ChineseDocumentSplitter
 
 
@@ -68,7 +69,7 @@ class TestChineseDocumentSplitter:
         docs = result["documents"]
 
         # print(f"Total chunks created: {len(docs)}.")
-        for i, d in enumerate(docs):
+        for d in enumerate(docs):
             # print(f"\nChunk {i + 1}:\n{d.content}")
             # Optional: check that sentences are not cut off
             assert d.content.strip().endswith(("。", "！", "？")), "Sentence was cut off!"

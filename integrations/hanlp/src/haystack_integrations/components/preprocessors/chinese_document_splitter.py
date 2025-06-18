@@ -1,13 +1,12 @@
 # SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import hanlp
 from copy import deepcopy
-from typing import Any, Dict, List, Literal, Tuple, Optional, Callable
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 
-from more_itertools import windowed
-
+import hanlp
 from haystack import Document, component, logging
+from more_itertools import windowed
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +51,11 @@ class ChineseDocumentSplitter:
         self.particle_size = particle_size
 
         if particle_size not in ["coarse", "fine"]:
-            raise ValueError(f"Invalid particle_size '{particle_size}'. Choose either 'coarse' or 'fine'.")
+            msg = (
+                f"Invalid particle_size '{particle_size}'. "
+                "Choose either 'coarse' or 'fine'."
+            )
+            raise ValueError(msg)
 
 
     def run(self, documents: List[Document]) -> Dict[str, List[Document]]:
@@ -65,8 +68,12 @@ class ChineseDocumentSplitter:
         :raises RuntimeError: If the Chinese word segmentation model is not loaded.
         """
         if self.split_sent is None:
-            raise RuntimeError("The Chinese word segmentation model is not loaded. Please run 'warm_up()' before calling 'run()'.")
-        
+            msg = (
+                "The Chinese word segmentation model is not loaded. "
+                "Please run 'warm_up()' before calling 'run()'."
+            )
+            raise RuntimeError(msg)
+
         split_docs = []
         for doc in documents:
             split_docs.extend(self._split_document(doc))
@@ -403,11 +410,13 @@ class ChineseDocumentSplitter:
         :return: A list of split documents.
         """
         if self.splitting_function is None:
-            raise ValueError("No splitting function provided.")
+            msg = "No splitting function provided."
+            raise ValueError(msg)
 
         splits = self.splitting_function(doc.content)
         if not isinstance(splits, list):
-            raise ValueError("The splitting function must return a list of strings.")
+            msg = "The splitting function must return a list of strings."
+            raise ValueError(msg)
 
         metadata = deepcopy(doc.meta)
         metadata["source_id"] = doc.id
