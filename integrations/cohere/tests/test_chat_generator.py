@@ -161,7 +161,6 @@ class TestUtils:
 
 
 class TestCohereChatGenerator:
-
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
 

@@ -445,7 +445,6 @@ class TestLlamaCppChatGeneratorFunctionary:
 
     @pytest.mark.integration
     def test_function_call(self, generator):
-
         def get_user_info(username: Annotated[str, "The username to retrieve information for."]):
             """Retrieves detailed information about a user."""
             return {"username": username, "age": 25, "location": "San Francisco"}
@@ -503,7 +502,6 @@ class TestLlamaCppChatGeneratorFunctionary:
 
 
 class TestLlamaCppChatGeneratorChatML:
-
     @pytest.fixture
     def generator(self, model_path, capsys):
         gguf_model_path = (
@@ -525,7 +523,6 @@ class TestLlamaCppChatGeneratorChatML:
 
     @pytest.mark.integration
     def test_function_call_chatml(self, generator):
-
         def get_user_detail(name: Annotated[str, "The name of the user"], age: Annotated[int, "The age of the user"]):
             """Retrieves detailed information about a user."""
             pass

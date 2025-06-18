@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# ruff: noqa: FBT001  Boolean-typed positional argument in function definition
+
 from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -152,7 +154,7 @@ class OpenSearchEmbeddingRetriever:
         top_k: Optional[int] = None,
         custom_query: Optional[Dict[str, Any]] = None,
         efficient_filtering: Optional[bool] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Retrieve documents using a vector similarity metric.
 
@@ -251,7 +253,7 @@ class OpenSearchEmbeddingRetriever:
         top_k: Optional[int] = None,
         custom_query: Optional[Dict[str, Any]] = None,
         efficient_filtering: Optional[bool] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Asynchronously retrieve documents using a vector similarity metric.
 

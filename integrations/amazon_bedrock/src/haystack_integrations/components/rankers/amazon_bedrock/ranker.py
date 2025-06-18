@@ -256,15 +256,15 @@ class AmazonBedrockRanker:
                 sorted_docs.append(doc)
 
             return {"documents": sorted_docs}
-        except ClientError as exception:
-            msg = f"Could not inference Amazon Bedrock model {self.model_name} due to: {exception}"
+        except ClientError as client_error:
+            msg = f"Could not perform inference for Amazon Bedrock model {self.model_name} due to:\n{client_error}"
+            raise AmazonBedrockInferenceError(msg) from client_error
+        except KeyError as key_error:
+            msg = f"Unexpected response format from Amazon Bedrock: {key_error}"
+            raise AmazonBedrockInferenceError(msg) from key_error
+        except Exception as exception:
+            msg = f"Error during Amazon Bedrock API call: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
-        except KeyError as e:
-            msg = f"Unexpected response format from Amazon Bedrock: {e!s}"
-            raise AmazonBedrockInferenceError(msg) from e
-        except Exception as e:
-            msg = f"Error during Amazon Bedrock API call: {e!s}"
-            raise AmazonBedrockInferenceError(msg) from e
 
 
 class BedrockRanker(AmazonBedrockRanker):

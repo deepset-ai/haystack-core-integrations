@@ -27,13 +27,15 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
+  "optimum[onnxruntime]>=1.21.0",
   # The main export function of Optimum into ONNX has hidden dependencies.
   # It depends on either "sentence-transformers", "diffusers" or "timm", based
   # on which model is loaded from HF Hub.
   # Ref: https://github.com/huggingface/optimum/blob/8651c0ca1cccf095458bc80329dec9df4601edb4/optimum/exporters/onnx/__main__.py#L164
   # "sentence-transformers" has been added, since most embedding models use it
   "sentence-transformers>=2.3",
-  "optimum[onnxruntime]>=1.17.0",
+  # tokenizers is a dependency of transformers/sentence-transformers. The following version is the first one which supports Python 3.13.
+  "tokenizers>=0.20.2",
 ]
 
 [project.urls]
@@ -54,23 +56,34 @@ git_describe_command = 'git describe --tags --match="integrations/optimum-v[0-9]
 
 [tool.hatch.envs.default]
 installer = "uv"
-dependencies = [
-  "coverage[toml]>=6.5",
-  "pytest",
-  "pytest-rerunfailures",
-  "haystack-pydoc-tools",
-  "databind-core<4.5.0",
-  "setuptools",           # FIXME: the latest 4.5.0 causes loops in pip resolver
-]
-[tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}"
-test-cov = "coverage run -m pytest {args:tests}"
-test-cov-retry = "test-cov --reruns 3 --reruns-delay 30 -x"
-cov-report = ["- coverage combine", "coverage report"]
-cov = ["test-cov", "cov-report"]
-cov-retry = ["test-cov-retry", "cov-report"]
-docs = ["pydoc-markdown pydoc/config.yml"]
+dependencies = ["haystack-pydoc-tools", "ruff"]
 
+[tool.hatch.envs.default.scripts]
+docs = ["pydoc-markdown pydoc/config.yml"]
+fmt = "ruff check --fix {args} && ruff format {args}"
+fmt-check = "ruff check {args} && ruff format --check {args}"
+
+[tool.hatch.envs.test]
+dependencies = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-rerunfailures",
+    "mypy",
+    "pip"
+]
+
+[tool.hatch.envs.test.scripts]
+unit = 'pytest -m "not integration" {args:tests}'
+integration = 'pytest -m "integration" {args:tests}'
+all = 'pytest {args:tests}'
+cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
+
+types = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+
+# TODO: remove lint environment once this integration is properly typed
+# test environment should be used instead
+# https://github.com/deepset-ai/haystack-core-integrations/issues/1771
 [tool.hatch.envs.lint]
 installer = "uv"
 detached = true
@@ -78,9 +91,6 @@ dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
 
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-style = ["ruff check {args:.}", "black --check --diff {args:.}"]
-fmt = ["black {args:.}", "ruff check --fix {args:.}", "style"]
-all = ["style", "typing"]
 
 [tool.hatch.metadata]
 allow-direct-references = true

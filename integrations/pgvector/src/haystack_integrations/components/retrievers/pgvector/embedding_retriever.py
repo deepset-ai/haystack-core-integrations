@@ -140,7 +140,7 @@ class PgvectorEmbeddingRetriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
         vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Retrieve documents from the `PgvectorDocumentStore`, based on their embeddings.
 
@@ -173,7 +173,7 @@ class PgvectorEmbeddingRetriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
         vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Asynchronously retrieve documents from the `PgvectorDocumentStore`, based on their embeddings.
 

@@ -1,5 +1,24 @@
 # Changelog
 
+## [integrations/opensearch-v4.2.0] - 2025-06-12
+
+### 🐛 Bug Fixes
+
+- Fix passing filters and topks to OpenSearchHybridRetriever at runtime (#1936)
+
+
+## [integrations/opensearch-v4.1.0] - 2025-06-11
+
+### 🐛 Bug Fixes
+
+- Fix Opensearch types + add py.typed (#1925)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+
+
 ## [integrations/opensearch-v4.0.2] - 2025-05-30
 
 ### 🚜 Refactor

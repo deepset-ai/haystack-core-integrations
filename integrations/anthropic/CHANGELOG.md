@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/anthropic-v2.6.1] - 2025-06-16
+
+### 🌀 Miscellaneous
+
+- Fix: `AnthropicChatGenerator` now properly can call tools that have no arguments when streaming is enabled (#1950)
+
+## [integrations/anthropic-v2.6.0] - 2025-06-13
+
+### 🐛 Bug Fixes
+
+- Fix Anthropic types + add py.typed (#1940)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+
+
 ## [integrations/anthropic-v2.5.0] - 2025-05-28
 
 ### 🚀 Features

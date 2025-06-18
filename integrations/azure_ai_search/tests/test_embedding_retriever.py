@@ -169,7 +169,6 @@ def test_run_time_params():
 )
 @pytest.mark.integration
 class TestRetriever:
-
     def test_run(self, document_store: AzureAISearchDocumentStore):
         docs = [Document(id="1")]
         document_store.write_documents(docs)

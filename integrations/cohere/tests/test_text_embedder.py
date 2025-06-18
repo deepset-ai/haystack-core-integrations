@@ -24,7 +24,6 @@ class TestCohereTextEmbedder:
         assert embedder.input_type == "search_query"
         assert embedder.api_base_url == COHERE_API_URL
         assert embedder.truncate == "END"
-        assert embedder.use_async_client is False
         assert embedder.timeout == 120
 
     def test_init_with_parameters(self):
@@ -37,7 +36,6 @@ class TestCohereTextEmbedder:
             input_type="classification",
             api_base_url="https://custom-api-base-url.com",
             truncate="START",
-            use_async_client=True,
             timeout=60,
         )
         assert embedder.api_key == Secret.from_token("test-api-key")
@@ -45,7 +43,6 @@ class TestCohereTextEmbedder:
         assert embedder.input_type == "classification"
         assert embedder.api_base_url == "https://custom-api-base-url.com"
         assert embedder.truncate == "START"
-        assert embedder.use_async_client is True
         assert embedder.timeout == 60
         assert embedder.embedding_type == EmbeddingTypes.FLOAT
 
@@ -63,7 +60,6 @@ class TestCohereTextEmbedder:
                 "input_type": "search_query",
                 "api_base_url": COHERE_API_URL,
                 "truncate": "END",
-                "use_async_client": False,
                 "timeout": 120,
                 "embedding_type": "float",
             },
@@ -79,7 +75,6 @@ class TestCohereTextEmbedder:
             input_type="classification",
             api_base_url="https://custom-api-base-url.com",
             truncate="START",
-            use_async_client=True,
             timeout=60,
             embedding_type=EmbeddingTypes.INT8,
         )
@@ -92,11 +87,35 @@ class TestCohereTextEmbedder:
                 "input_type": "classification",
                 "api_base_url": "https://custom-api-base-url.com",
                 "truncate": "START",
-                "use_async_client": True,
                 "timeout": 60,
                 "embedding_type": "int8",
             },
         }
+
+    def test_from_dict(self):
+        component_dict = {
+            "type": "haystack_integrations.components.embedders.cohere.text_embedder.CohereTextEmbedder",
+            "init_parameters": {
+                "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
+                "model": "embed-english-v2.0",
+                "input_type": "search_query",
+                "api_base_url": COHERE_API_URL,
+                "truncate": "END",
+                "timeout": 120,
+                "embedding_type": "float",
+                "use_async_client": False,  # legacy parameter
+            },
+        }
+
+        embedder = CohereTextEmbedder.from_dict(component_dict)
+        assert embedder.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
+        assert embedder.model == "embed-english-v2.0"
+        assert embedder.input_type == "search_query"
+        assert embedder.api_base_url == COHERE_API_URL
+        assert embedder.truncate == "END"
+        assert embedder.timeout == 120
+        assert embedder.embedding_type == EmbeddingTypes.FLOAT
+        assert not hasattr(embedder, "use_async_client")
 
     def test_run_wrong_input_format(self):
         """

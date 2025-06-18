@@ -1,8 +1,9 @@
 import json
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-from haystack.dataclasses import StreamingChunk
+from botocore.eventstream import EventStream
+from haystack.dataclasses import StreamingChunk, SyncStreamingCallbackT
 
 
 class BedrockModelAdapter(ABC):
@@ -23,7 +24,7 @@ class BedrockModelAdapter(ABC):
         self.max_length = max_length
 
     @abstractmethod
-    def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
         """
         Prepares the body for the Amazon Bedrock request.
         Each subclass should implement this method to prepare the request body for the specific model.
@@ -44,7 +45,7 @@ class BedrockModelAdapter(ABC):
         responses = [completion.lstrip() for completion in completions]
         return responses
 
-    def get_stream_responses(self, stream, streaming_callback: Callable[[StreamingChunk], None]) -> List[str]:
+    def get_stream_responses(self, stream: EventStream, streaming_callback: SyncStreamingCallbackT) -> List[str]:
         """
         Extracts the responses from the Amazon Bedrock streaming response.
 
@@ -122,7 +123,7 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
         self.thinking_tag_end = f"</{self.thinking_tag}>\n\n" if self.thinking_tag else "\n\n"
         super().__init__(model_kwargs, max_length)
 
-    def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
         """
         Prepares the body for the Claude model
 
@@ -210,7 +211,7 @@ class MistralAdapter(BedrockModelAdapter):
     Adapter for the Mistral models.
     """
 
-    def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
         """
         Prepares the body for the Mistral model
 
@@ -260,7 +261,7 @@ class CohereCommandAdapter(BedrockModelAdapter):
     Adapter for the Cohere Command model.
     """
 
-    def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
         """
         Prepares the body for the Command model
 
@@ -372,7 +373,7 @@ class AI21LabsJurassic2Adapter(BedrockModelAdapter):
     Model adapter for AI21 Labs' Jurassic 2 models.
     """
 
-    def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
         """Prepares the body for the Jurassic 2 model.
 
         :param prompt: The prompt to be sent to the model.
@@ -410,7 +411,7 @@ class AmazonTitanAdapter(BedrockModelAdapter):
     Adapter for Amazon's Titan models.
     """
 
-    def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
         """
         Prepares the body for the Titan model
 
@@ -456,7 +457,7 @@ class MetaLlamaAdapter(BedrockModelAdapter):
     Adapter for Meta's Llama2 models.
     """
 
-    def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
         """
         Prepares the body for the Llama2 model
 

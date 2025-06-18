@@ -1,198 +1,115 @@
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from haystack.utils.filters import COMPARISON_OPERATORS, LOGICAL_OPERATORS, FilterError
 from qdrant_client.http import models
 
-COMPARISON_OPERATORS = COMPARISON_OPERATORS.keys()
-LOGICAL_OPERATORS = LOGICAL_OPERATORS.keys()
-
 
 def convert_filters_to_qdrant(
-    filter_term: Optional[Union[List[dict], dict, models.Filter]] = None, is_parent_call: bool = True
-) -> Optional[Union[models.Filter, List[models.Filter], List[models.Condition]]]:
+    filter_term: Optional[Union[List[Dict[str, Any]], Dict[str, Any], models.Filter]] = None,
+) -> Optional[models.Filter]:
     """Converts Haystack filters to the format used by Qdrant.
 
     :param filter_term: the haystack filter to be converted to qdrant.
-    :param is_parent_call: indicates if this is the top-level call to the function. If True, the function returns
-      a single models.Filter object; if False, it may return a list of filters or conditions for further processing.
-
-    :returns: a single Qdrant Filter in the parent call or a list of such Filters in recursive calls.
-
-    :raises FilterError: If the invalid filter criteria is provided or if an unknown operator is encountered.
-
+    :returns: a single Qdrant Filter or None.
+    :raises FilterError: If invalid filter criteria is provided.
     """
-
     if isinstance(filter_term, models.Filter):
         return filter_term
     if not filter_term:
         return None
 
-    must_clauses: List[models.Filter] = []
-    should_clauses: List[models.Filter] = []
-    must_not_clauses: List[models.Filter] = []
-    # Indicates if there are multiple same LOGICAL OPERATORS on each level
-    # and prevents them from being combined
-    same_operator_flag = False
-    conditions, qdrant_filter, current_level_operators = (
-        [],
-        [],
-        [],
-    )
-
     if isinstance(filter_term, dict):
         filter_term = [filter_term]
 
-    # ======== IDENTIFY FILTER ITEMS ON EACH LEVEL ========
+    conditions = _process_filter_items(filter_term)
 
-    for item in filter_term:
+    return _build_final_filter(conditions)
+
+
+def _process_filter_items(filter_items: List[Dict[str, Any]]) -> List[models.Condition]:
+    """Process a list of filter items and return all conditions."""
+    all_conditions: List[models.Condition] = []
+
+    for item in filter_items:
         operator = item.get("operator")
-
-        # Check for repeated similar operators on each level
-        same_operator_flag = operator in current_level_operators and operator in LOGICAL_OPERATORS
-        if not same_operator_flag:
-            current_level_operators.append(operator)
-
         if operator is None:
             msg = "Operator not found in filters"
             raise FilterError(msg)
 
-        if operator in LOGICAL_OPERATORS and "conditions" not in item:
-            msg = f"'conditions' not found for '{operator}'"
-            raise FilterError(msg)
-
         if operator in LOGICAL_OPERATORS:
-            # Recursively process nested conditions
-            current_filter = convert_filters_to_qdrant(item.get("conditions", []), is_parent_call=False) or []
-
-            # When same_operator_flag is set to True,
-            # ensure each clause is appended as an independent list to avoid merging distinct clauses.
-            if operator == "AND":
-                must_clauses = [must_clauses, current_filter] if same_operator_flag else must_clauses + current_filter
-            elif operator == "OR":
-                should_clauses = (
-                    [should_clauses, current_filter] if same_operator_flag else should_clauses + current_filter
-                )
-            elif operator == "NOT":
-                must_not_clauses = (
-                    [must_not_clauses, current_filter] if same_operator_flag else must_not_clauses + current_filter
-                )
-
+            condition = _process_logical_operator(item)
+            if condition:
+                all_conditions.append(condition)
         elif operator in COMPARISON_OPERATORS:
-            field = item.get("field")
-            value = item.get("value")
-            if field is None or value is None:
-                msg = f"'field' or 'value' not found for '{operator}'"
-                raise FilterError(msg)
-
-            parsed_conditions = _parse_comparison_operation(comparison_operation=operator, key=field, value=value)
-
-            # check if the parsed_conditions are models.Filter or models.Condition
-            for condition in parsed_conditions:
-                if isinstance(condition, models.Filter):
-                    qdrant_filter.append(condition)
-                else:
-                    conditions.append(condition)
-
+            condition = _process_comparison_operator(item)
+            if condition:
+                all_conditions.append(condition)
         else:
             msg = f"Unknown operator {operator} used in filters"
             raise FilterError(msg)
 
-    # ======== PROCESS FILTER ITEMS ON EACH LEVEL ========
-
-    # If same logical operators have separate clauses, create separate filters
-    if same_operator_flag:
-        qdrant_filter = build_filters_for_repeated_operators(
-            must_clauses, should_clauses, must_not_clauses, qdrant_filter
-        )
-
-    # else append a single Filter for existing clauses
-    elif must_clauses or should_clauses or must_not_clauses:
-        qdrant_filter.append(
-            models.Filter(
-                must=must_clauses or None,
-                should=should_clauses or None,
-                must_not=must_not_clauses or None,
-            )
-        )
-
-    # In case of parent call, a single Filter is returned
-    if is_parent_call:
-        # If qdrant_filter has just a single Filter in parent call,
-        # then it might be returned instead.
-        if len(qdrant_filter) == 1 and isinstance(qdrant_filter[0], models.Filter):
-            return qdrant_filter[0]
-        else:
-            must_clauses.extend(conditions)
-            return models.Filter(
-                must=must_clauses or None,
-                should=should_clauses or None,
-                must_not=must_not_clauses or None,
-            )
-
-    # Store conditions of each level in output of the loop
-    elif conditions:
-        qdrant_filter.extend(conditions)
-
-    return qdrant_filter
+    return all_conditions
 
 
-def build_filters_for_repeated_operators(
-    must_clauses: List,
-    should_clauses: List,
-    must_not_clauses: List,
-    qdrant_filter: List[models.Filter],
-) -> List[models.Filter]:
-    """
-    Flattens the nested lists of clauses by creating separate Filters for each clause of a logical operator.
+def _process_logical_operator(item: Dict[str, Any]) -> Optional[models.Condition]:
+    """Process a logical operator (AND, OR, NOT) and return the corresponding condition."""
+    operator = item["operator"]
+    conditions = item.get("conditions")
 
-    :param must_clauses: a nested list of must clauses or an empty list.
-    :param should_clauses: a nested list of should clauses or an empty list.
-    :param must_not_clauses: a nested list of must_not clauses or an empty list.
-    :param qdrant_filter: a list where the generated Filter objects will be appended.
-      This list will be modified in-place.
+    if not conditions:
+        msg = f"'conditions' not found for '{operator}'"
+        raise FilterError(msg)
 
+    # Recursively process nested conditions
+    nested_conditions = _process_filter_items(conditions)
 
-    :returns: the modified `qdrant_filter` list with appended generated Filter objects.
-    """
+    if not nested_conditions:
+        return None
 
-    if any(isinstance(i, list) for i in must_clauses):
-        for i in must_clauses:
-            qdrant_filter.append(
-                models.Filter(
-                    must=i or None,
-                    should=should_clauses or None,
-                    must_not=must_not_clauses or None,
-                )
-            )
-    if any(isinstance(i, list) for i in should_clauses):
-        for i in should_clauses:
-            qdrant_filter.append(
-                models.Filter(
-                    must=must_clauses or None,
-                    should=i or None,
-                    must_not=must_not_clauses or None,
-                )
-            )
-    if any(isinstance(i, list) for i in must_not_clauses):
-        for i in must_clauses:
-            qdrant_filter.append(
-                models.Filter(
-                    must=must_clauses or None,
-                    should=should_clauses or None,
-                    must_not=i or None,
-                )
-            )
+    # Build the appropriate filter based on operator
+    if operator == "AND":
+        return models.Filter(must=nested_conditions)
+    elif operator == "OR":
+        return models.Filter(should=nested_conditions)
+    elif operator == "NOT":
+        return models.Filter(must_not=nested_conditions)
 
-    return qdrant_filter
+    return None
 
 
-def _parse_comparison_operation(
-    comparison_operation: str, key: str, value: Union[dict, List, str, float]
-) -> List[models.Condition]:
-    conditions: List[models.Condition] = []
+def _process_comparison_operator(item: Dict[str, Any]) -> Optional[models.Condition]:
+    """Process a comparison operator and return the corresponding condition."""
+    operator = item["operator"]
+    field = item.get("field")
+    value = item.get("value")
 
-    condition_builder_mapping = {
+    if field is None or value is None:
+        msg = f"'field' or 'value' not found for '{operator}'"
+        raise FilterError(msg)
+
+    return _build_comparison_condition(operator, field, value)
+
+
+def _build_final_filter(conditions: List[models.Condition]) -> Optional[models.Filter]:
+    """Build the final filter from a list of conditions."""
+    if not conditions:
+        return None
+
+    if len(conditions) == 1:
+        # If single condition and it's already a Filter, return it
+        if isinstance(conditions[0], models.Filter):
+            return conditions[0]
+        # Otherwise wrap it in a Filter
+        return models.Filter(must=[conditions[0]])
+
+    # Multiple conditions - combine with AND logic
+    return models.Filter(must=conditions)
+
+
+def _build_comparison_condition(operator: str, key: str, value: Any) -> models.Condition:
+    """Build a comparison condition based on operator, key, and value."""
+    condition_builders: Dict[str, Callable[[str, Any], models.Condition]] = {
         "==": _build_eq_condition,
         "in": _build_in_condition,
         "!=": _build_ne_condition,
@@ -203,15 +120,12 @@ def _parse_comparison_operation(
         "<=": _build_lte_condition,
     }
 
-    condition_builder = condition_builder_mapping.get(comparison_operation)
+    builder = condition_builders.get(operator)
+    if builder is None:
+        msg = f"Unknown operator {operator} used in filters"
+        raise FilterError(msg)
 
-    if condition_builder is None:
-        msg = f"Unknown operator {comparison_operation} used in filters"
-        raise ValueError(msg)
-
-    conditions.append(condition_builder(key, value))
-
-    return conditions
+    return builder(key, value)
 
 
 def _build_eq_condition(key: str, value: models.ValueVariants) -> models.Condition:
@@ -266,7 +180,8 @@ def _build_nin_condition(key: str, value: List[models.ValueVariants]) -> models.
 
 def _build_lt_condition(key: str, value: Union[str, float, int]) -> models.Condition:
     if isinstance(value, str) and is_datetime_string(value):
-        return models.FieldCondition(key=key, range=models.DatetimeRange(lt=value))
+        dt_value = datetime.fromisoformat(value)
+        return models.FieldCondition(key=key, range=models.DatetimeRange(lt=dt_value))
 
     if isinstance(value, (int, float)):
         return models.FieldCondition(key=key, range=models.Range(lt=value))
@@ -277,7 +192,8 @@ def _build_lt_condition(key: str, value: Union[str, float, int]) -> models.Condi
 
 def _build_lte_condition(key: str, value: Union[str, float, int]) -> models.Condition:
     if isinstance(value, str) and is_datetime_string(value):
-        return models.FieldCondition(key=key, range=models.DatetimeRange(lte=value))
+        dt_value = datetime.fromisoformat(value)
+        return models.FieldCondition(key=key, range=models.DatetimeRange(lte=dt_value))
 
     if isinstance(value, (int, float)):
         return models.FieldCondition(key=key, range=models.Range(lte=value))
@@ -288,7 +204,8 @@ def _build_lte_condition(key: str, value: Union[str, float, int]) -> models.Cond
 
 def _build_gt_condition(key: str, value: Union[str, float, int]) -> models.Condition:
     if isinstance(value, str) and is_datetime_string(value):
-        return models.FieldCondition(key=key, range=models.DatetimeRange(gt=value))
+        dt_value = datetime.fromisoformat(value)
+        return models.FieldCondition(key=key, range=models.DatetimeRange(gt=dt_value))
 
     if isinstance(value, (int, float)):
         return models.FieldCondition(key=key, range=models.Range(gt=value))
@@ -299,7 +216,8 @@ def _build_gt_condition(key: str, value: Union[str, float, int]) -> models.Condi
 
 def _build_gte_condition(key: str, value: Union[str, float, int]) -> models.Condition:
     if isinstance(value, str) and is_datetime_string(value):
-        return models.FieldCondition(key=key, range=models.DatetimeRange(gte=value))
+        dt_value = datetime.fromisoformat(value)
+        return models.FieldCondition(key=key, range=models.DatetimeRange(gte=dt_value))
 
     if isinstance(value, (int, float)):
         return models.FieldCondition(key=key, range=models.Range(gte=value))

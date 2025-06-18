@@ -33,7 +33,7 @@ docker exec ollama ollama pull <your model here>
 Then run tests:
 
 ```console
-hatch run test
+hatch run test:all
 ```
 
 The default model used here is ``orca-mini`` for generation and ``nomic-embed-text`` for embeddings

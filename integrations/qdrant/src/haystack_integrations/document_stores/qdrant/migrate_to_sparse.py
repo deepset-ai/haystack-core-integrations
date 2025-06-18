@@ -1,17 +1,19 @@
-import logging as python_logging
+# mypy: disable-error-code="assignment, arg-type"
+
+import logging
 import time
 
-from haystack import logging
 from qdrant_client.http import models
 
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
+# using Haystack logging is problematic here
 logger = logging.getLogger(__name__)
-logger.addHandler(python_logging.StreamHandler())
-logger.setLevel(python_logging.INFO)
+logger.addHandler(logging.StreamHandler())
+logger.setLevel(logging.INFO)
 
 
-def migrate_to_sparse_embeddings_support(old_document_store: QdrantDocumentStore, new_index: str) -> None:
+def migrate_to_sparse_embeddings_support(old_document_store: QdrantDocumentStore, new_index: str) -> None:  # type: ignore
     """
     Utility function to migrate an existing `QdrantDocumentStore` to a new one with support for sparse embeddings.
 
@@ -61,8 +63,10 @@ def migrate_to_sparse_embeddings_support(old_document_store: QdrantDocumentStore
     init_parameters["recreate_index"] = True
 
     new_document_store = QdrantDocumentStore(**init_parameters)
+    new_document_store._initialize_client()
+    assert new_document_store._client is not None
 
-    client = new_document_store.client
+    client = new_document_store._client
 
     original_indexing_threshold = client.get_collection(
         collection_name=new_index
@@ -115,7 +119,7 @@ def migrate_to_sparse_embeddings_support(old_document_store: QdrantDocumentStore
 
         message = (
             f"Points transmitted: {points_transmitted}/{total_points}\n"
-            f"Percent done {points_transmitted/total_points*100:.2f}%\n"
+            f"Percent done {points_transmitted / total_points * 100:.2f}%\n"
             f"Time elapsed: {time.time() - start:.2f} seconds\n"
             f"Time remaining: {(((time.time() - start) / points_transmitted) * points_remaining) / 60:.2f} minutes\n"
             f"Current offset: {next_page_offset}\n"

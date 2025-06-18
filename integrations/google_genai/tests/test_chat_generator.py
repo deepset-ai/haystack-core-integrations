@@ -9,7 +9,10 @@ from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 
-from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
+from haystack_integrations.components.generators.google_genai.chat.chat_generator import (
+    GoogleGenAIChatGenerator,
+    _convert_message_to_google_genai_format,
+)
 
 
 @pytest.fixture
@@ -112,11 +115,6 @@ class TestGoogleGenAIChatGenerator:
         Test that the GoogleGenAIChatGenerator can convert a complex sequence of ChatMessages to Google GenAI format.
         In particular, we check that different tool results are handled properly in sequence.
         """
-        from haystack.dataclasses import ToolCall
-
-        from haystack_integrations.components.generators.google_genai.chat.chat_generator import (
-            _convert_message_to_google_genai_format,
-        )
 
         messages = [
             ChatMessage.from_system("You are good assistant"),
@@ -284,9 +282,9 @@ class TestGoogleGenAIChatGenerator:
         assert len(final_results["replies"]) == 1
         final_message = final_results["replies"][0]
         assert final_message.text
-        assert (
-            "paris" in final_message.text.lower() or "weather" in final_message.text.lower()
-        ), "Response does not contain Paris or weather"
+        assert "paris" in final_message.text.lower() or "weather" in final_message.text.lower(), (
+            "Response does not contain Paris or weather"
+        )
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
@@ -404,7 +402,7 @@ class TestAsyncGoogleGenAIChatGenerator:
         # Create multiple tasks
         tasks = []
         for i in range(3):
-            messages = [ChatMessage.from_user(f"What's the capital of country number {i+1}? Just say the city name.")]
+            messages = [ChatMessage.from_user(f"What's the capital of country number {i + 1}? Just say the city name.")]
             task = component.run_async(messages)
             tasks.append(task)
 

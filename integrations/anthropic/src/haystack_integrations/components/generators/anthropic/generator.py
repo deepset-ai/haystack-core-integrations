@@ -132,7 +132,7 @@ class AnthropicGenerator:
         prompt: str,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-    ):
+    ) -> Dict[str, Union[List[str], List[Dict[str, Any]]]]:
         """
         Generate replies using the Anthropic API.
 
@@ -218,7 +218,6 @@ class AnthropicGenerator:
             )
         # if streaming is disabled, the response is an Anthropic Message
         elif isinstance(response, Message):
-
             completions = [
                 content_block.text for content_block in response.content if isinstance(content_block, TextBlock)
             ]
