@@ -11,7 +11,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 
 from haystack_integrations.components.embedders.nvidia.truncate import EmbeddingTruncateMode
-from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Model, NimBackend, url_validation
+from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Client, Model, NimBackend, url_validation
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +145,7 @@ class NvidiaDocumentEmbedder:
             api_url=self.api_url,
             api_key=self.api_key,
             model_kwargs=model_kwargs,
-            client=self.__class__.__name__,
+            client=Client.NVIDIA_DOCUMENT_EMBEDDER,
             timeout=self.timeout,
         )
         if not self.model and self.backend.model:

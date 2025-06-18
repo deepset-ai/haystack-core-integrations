@@ -10,7 +10,7 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.embedders.nvidia.truncate import EmbeddingTruncateMode
-from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Model, NimBackend, url_validation
+from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Client, Model, NimBackend, url_validation
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +136,7 @@ class NvidiaTextEmbedder:
             api_key=self.api_key,
             model_kwargs=model_kwargs,
             timeout=self.timeout,
-            client=self.__class__.__name__,
+            client=Client.NVIDIA_TEXT_EMBEDDER,
         )
         self._initialized = True
 

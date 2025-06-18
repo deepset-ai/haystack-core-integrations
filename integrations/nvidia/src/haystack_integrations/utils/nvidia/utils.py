@@ -3,9 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import warnings
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 from urllib.parse import urlparse, urlunparse
 
+from .client import Client
 from .models import MODEL_TABLE, Model
 
 
@@ -84,7 +85,7 @@ def determine_model(name: str) -> Optional[Model]:
 
 def validate_hosted_model(
     model_name: str,
-    client: Optional[Literal["NvidiaGenerator", "NvidiaTextEmbedder", "NvidiaDocumentEmbedder", "NvidiaRanker"]] = None,
+    client: Optional[Client] = None,
 ) -> Any:
     """
     Checks if a given model is compatible with given client.
@@ -99,10 +100,10 @@ def validate_hosted_model(
         Warning: If no client is provided.
     """
     supported = {
-        "NvidiaGenerator": ("chat",),
-        "NvidiaTextEmbedder": ("embedding",),
-        "NvidiaDocumentEmbedder": ("embedding",),
-        "NvidiaRanker": ("ranking",),
+        Client.NVIDIA_GENERATOR: ("chat",),
+        Client.NVIDIA_TEXT_EMBEDDER: ("embedding",),
+        Client.NVIDIA_DOCUMENT_EMBEDDER: ("embedding",),
+        Client.NVIDIA_RANKER: ("ranking",),
     }
 
     if model := determine_model(model_name):

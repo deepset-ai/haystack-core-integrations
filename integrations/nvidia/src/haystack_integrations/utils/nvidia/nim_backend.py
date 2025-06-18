@@ -10,6 +10,7 @@ import requests
 from haystack import logging
 from haystack.utils import Secret
 
+from .client import Client
 from .models import DEFAULT_MODELS, Model
 from .utils import determine_model, is_hosted, validate_hosted_model
 
@@ -26,9 +27,7 @@ class NimBackend:
         model: Optional[str] = None,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_kwargs: Optional[Dict[str, Any]] = None,
-        client: Optional[
-            Literal["NvidiaGenerator", "NvidiaTextEmbedder", "NvidiaDocumentEmbedder", "NvidiaRanker"]
-        ] = None,
+        client: Optional[Client] = None,
         timeout: Optional[float] = None,
     ):
         headers = {

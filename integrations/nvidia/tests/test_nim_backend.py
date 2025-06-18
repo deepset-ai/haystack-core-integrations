@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import requests
 
-from haystack_integrations.utils.nvidia import DEFAULT_API_URL, NimBackend
+from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Client, NimBackend
 from haystack_integrations.utils.nvidia.nim_backend import REQUEST_TIMEOUT
 
 
@@ -77,11 +77,11 @@ class TestNimBackend:
         backend = NimBackend(
             model="nvidia/nv-embedqa-e5-v5",
             api_url=DEFAULT_API_URL,
-            client="NvidiaTextEmbedder",
+            client=Client.NVIDIA_TEXT_EMBEDDER,
             model_type="embedding",
         )
         assert backend.api_url == DEFAULT_API_URL
-        assert backend.client == "NvidiaTextEmbedder"
+        assert backend.client == Client.NVIDIA_TEXT_EMBEDDER
         assert backend.model == "nvidia/nv-embedqa-e5-v5"
         assert backend.model_kwargs == {}
         assert backend.model_type == "embedding"
@@ -95,7 +95,7 @@ class TestNimBackend:
         backend = NimBackend(
             model="nvidia/nv-rerankqa-mistral-4b-v3",
             api_url=DEFAULT_API_URL,
-            client="NvidiaRanker",
+            client=Client.NVIDIA_RANKER,
             model_type="ranking",
         )
         assert backend.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia/nv-rerankqa-mistral-4b-v3/reranking"
@@ -106,7 +106,7 @@ class TestNimBackend:
             backend = NimBackend(
                 model="nvidia/nv-embedqa-e5-v5",
                 api_url=DEFAULT_API_URL,
-                client="NvidiaTextEmbedder",
+                client=Client.NVIDIA_TEXT_EMBEDDER,
                 model_type="embedding",
             )
             texts = ["a", "b", "c"]
@@ -131,7 +131,7 @@ class TestNimBackend:
             backend = NimBackend(
                 model="meta/llama3-8b-instruct",
                 api_url=DEFAULT_API_URL,
-                client="NvidiaGenerator",
+                client=Client.NVIDIA_GENERATOR,
                 model_type="generation",
             )
             prompt = "a"
@@ -176,13 +176,13 @@ class TestNimBackend:
             backend = NimBackend(
                 model="nvidia/nv-embedqa-e5-v5",
                 api_url=DEFAULT_API_URL,
-                client="NvidiaDocumentEmbedder",
+                client=Client.NVIDIA_DOCUMENT_EMBEDDER,
                 model_type="embedding",
             )
             models = backend.models()
 
             assert len(models) == 3
-            assert all(model.client == "NvidiaDocumentEmbedder" for model in models)
+            assert all(model.client == Client.NVIDIA_DOCUMENT_EMBEDDER for model in models)
             expected_url = DEFAULT_API_URL + "/models"
             mock_get.assert_called_once_with(
                 expected_url,
@@ -195,7 +195,7 @@ class TestNimBackend:
             backend = NimBackend(
                 model="nvidia/llama-3.2-nv-rerankqa-1b-v2",
                 api_url=DEFAULT_API_URL,
-                client="NvidiaRanker",
+                client=Client.NVIDIA_RANKER,
                 model_type="ranking",
             )
             query_text = "query"
