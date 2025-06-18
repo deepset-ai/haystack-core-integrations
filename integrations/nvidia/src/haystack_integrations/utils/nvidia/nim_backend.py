@@ -4,7 +4,7 @@
 
 import os
 import warnings
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import requests
 from haystack import logging
@@ -42,7 +42,7 @@ class NimBackend:
         self.session.headers.update(headers)
 
         self.api_url = api_url
-        if isinstance(client, Client):
+        if isinstance(client, str):
             client = Client.from_str(client)
         validated_model: Optional[Model] = None
         if is_hosted(self.api_url):

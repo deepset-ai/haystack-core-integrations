@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 from .client import Client
 
@@ -21,7 +21,7 @@ class Model:
 
     id: str
     model_type: Optional[Literal["chat", "embedding", "ranking"]] = None
-    client: Optional[Client] = None
+    client: Optional[Union[Client, str]] = None
     endpoint: Optional[str] = None
     aliases: Optional[list] = None
     base_model: Optional[str] = None
@@ -33,6 +33,7 @@ class Model:
 
     def validate(self):
         if self.client:
+            client = self.client if isinstance(self.client, Client) else Client.from_str(self.client)
             supported = {
                 Client.NVIDIA_GENERATOR: ("chat",),
                 Client.NVIDIA_TEXT_EMBEDDER: ("embedding",),
@@ -40,8 +41,8 @@ class Model:
                 Client.NVIDIA_RANKER: ("ranking",),
             }
             model_type = self.model_type
-            if model_type not in supported[self.client]:
-                err_msg = f"Model type '{model_type}' not supported by client '{self.client}'"
+            if model_type not in supported[client]:
+                err_msg = f"Model type '{model_type}' not supported by client '{client}'"
                 raise ValueError(err_msg)
 
         return hash(self.id)
