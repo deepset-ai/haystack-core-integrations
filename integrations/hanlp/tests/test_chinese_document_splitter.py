@@ -5,7 +5,7 @@
 import pytest
 from haystack import Document
 
-from haystack_integrations.components.preprocessors.chinese_document_splitter import ChineseDocumentSplitter
+from haystack_integrations.components.preprocessors.hanlp import ChineseDocumentSplitter
 
 
 class TestChineseDocumentSplitter:
