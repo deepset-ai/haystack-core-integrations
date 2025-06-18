@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present Anant Corporation <support@anant.us>
 #
 # SPDX-License-Identifier: Apache-2.0
+import operator
 import os
 from typing import List
 from unittest import mock
@@ -78,8 +79,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
         This can happen for example when the Document Store sets a score to returned Documents.
         Since we can't know what the score will be, we can't compare the Documents reliably.
         """
-        import operator
-
         received.sort(key=operator.attrgetter("id"))
         expected.sort(key=operator.attrgetter("id"))
         assert received == expected
