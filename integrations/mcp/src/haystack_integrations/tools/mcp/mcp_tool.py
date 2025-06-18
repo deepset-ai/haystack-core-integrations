@@ -13,6 +13,7 @@ from contextlib import AsyncExitStack
 from dataclasses import dataclass, fields
 from datetime import timedelta
 from typing import Any, cast
+from exceptiongroup import ExceptionGroup
 
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from haystack import logging
@@ -749,8 +750,6 @@ class MCPTool(Tool):
             self.close()
 
             # Extract more detailed error information from TaskGroup/ExceptionGroup exceptions
-            from exceptiongroup import ExceptionGroup
-
             error_message = str(e)
             # Handle ExceptionGroup to extract more useful error messages
             if isinstance(e, ExceptionGroup):
