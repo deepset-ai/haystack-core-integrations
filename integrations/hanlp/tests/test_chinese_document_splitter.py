@@ -4,7 +4,7 @@
 
 import pytest
 from haystack import Document
-from haystack.components.preprocessors.chinese_document_splitter import ChineseDocumentSplitter
+from haystack_integrations.components.preprocessors.chinese_document_splitter import ChineseDocumentSplitter
 
 
 class TestChineseDocumentSplitter:
@@ -29,10 +29,10 @@ class TestChineseDocumentSplitter:
         not simply by single characters or spaces.
         """
         splitter = ChineseDocumentSplitter(
-            split_by="word", language="zh", particle_size="coarse", split_length=5, split_overlap=0
+            split_by="word", particle_size="coarse", split_length=5, split_overlap=0
         )
-        if hasattr(splitter, "warm_up"):
-            splitter.warm_up()
+
+        splitter.warm_up()
 
         result = splitter.run(documents=[Document(content=sample_text)])
         docs = result["documents"]
@@ -43,10 +43,9 @@ class TestChineseDocumentSplitter:
     @pytest.mark.integration
     def test_split_by_sentence(self, sample_text):
         splitter = ChineseDocumentSplitter(
-            split_by="sentence", language="zh", particle_size="coarse", split_length=10, split_overlap=0
+            split_by="sentence", particle_size="coarse", split_length=10, split_overlap=0
         )
-        if hasattr(splitter, "warm_up"):
-            splitter.warm_up()
+        splitter.warm_up()
 
         result = splitter.run(documents=[Document(content=sample_text)])
         docs = result["documents"]
@@ -62,15 +61,15 @@ class TestChineseDocumentSplitter:
         doc = Document(content=text)
 
         splitter = ChineseDocumentSplitter(
-            split_by="word", split_length=10, split_overlap=3, language="zh", respect_sentence_boundary=True
+            split_by="word", split_length=10, split_overlap=3, respect_sentence_boundary=True
         )
         splitter.warm_up()
         result = splitter.run(documents=[doc])
         docs = result["documents"]
 
-        print(f"Total chunks created: {len(docs)}.")
+        # print(f"Total chunks created: {len(docs)}.")
         for i, d in enumerate(docs):
-            print(f"\nChunk {i + 1}:\n{d.content}")
+            # print(f"\nChunk {i + 1}:\n{d.content}")
             # Optional: check that sentences are not cut off
             assert d.content.strip().endswith(("。", "！", "？")), "Sentence was cut off!"
 
@@ -92,17 +91,16 @@ class TestChineseDocumentSplitter:
         doc = Document(content=text)
 
         splitter = ChineseDocumentSplitter(
-            split_by="word", language="zh", split_length=30, split_overlap=10, particle_size="coarse"
+            split_by="word", split_length=30, split_overlap=10, particle_size="coarse"
         )
-        if hasattr(splitter, "warm_up"):
-            splitter.warm_up()
+        splitter.warm_up()
 
         result = splitter.run(documents=[doc])
         docs = result["documents"]
 
-        print(f"Total chunks generated: {len(docs)}.")
-        for i, d in enumerate(docs):
-            print(f"\nChunk {i + 1}:\n{d.content}")
+        # print(f"Total chunks generated: {len(docs)}.")
+        # for i, d in enumerate(docs):
+        #     print(f"\nChunk {i + 1}:\n{d.content}")
 
         assert len(docs) > 1, "Expected multiple chunks to be generated"
 
