@@ -27,7 +27,7 @@ class NimBackend:
         model: Optional[str] = None,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_kwargs: Optional[Dict[str, Any]] = None,
-        client: Optional[Client] = None,
+        client: Optional[Union[str, Client]] = None,
         timeout: Optional[float] = None,
     ):
         headers = {
@@ -42,6 +42,8 @@ class NimBackend:
         self.session.headers.update(headers)
 
         self.api_url = api_url
+        if isinstance(client, Client):
+            client = Client.from_str(client)
         validated_model: Optional[Model] = None
         if is_hosted(self.api_url):
             if not api_key:
