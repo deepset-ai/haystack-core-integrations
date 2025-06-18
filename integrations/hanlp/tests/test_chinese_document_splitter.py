@@ -74,10 +74,10 @@ class TestChineseDocumentSplitter:
         docs = result["documents"]
 
         # print(f"Total chunks created: {len(docs)}.")
-        for d in enumerate(docs):
-            # print(f"\nChunk {i + 1}:\n{d.content}")
+        for doc in docs:
+            # print(f"\nChunk {i + 1}:\n{doc.content}")
             # Optional: check that sentences are not cut off
-            assert d.content.strip().endswith(("。", "！", "？")), "Sentence was cut off!"
+            assert doc.content.strip().endswith(("。", "！", "？")), "Sentence was cut off!"
 
     @pytest.mark.integration
     def test_overlap_chunks_with_long_text(self):
