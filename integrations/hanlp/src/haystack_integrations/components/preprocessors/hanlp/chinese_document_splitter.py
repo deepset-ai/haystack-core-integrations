@@ -4,9 +4,10 @@
 from copy import deepcopy
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 
-import hanlp
 from haystack import Document, component, logging
 from more_itertools import windowed
+
+import hanlp
 
 logger = logging.getLogger(__name__)
 
