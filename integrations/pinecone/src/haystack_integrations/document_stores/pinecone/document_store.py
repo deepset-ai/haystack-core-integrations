@@ -101,6 +101,7 @@ class PineconeDocumentStore:
         self.dimension = actual_dimension or self.dimension
         self._dummy_vector = [-10.0] * self.dimension
 
+
     async def _initialize_async_index(self):
         if self._async_index is not None:
             return self._async_index
@@ -135,6 +136,23 @@ class PineconeDocumentStore:
         self._dummy_vector = [-10.0] * self.dimension
 
         await async_client.close()
+
+    def close(self):
+        """
+        Close the associated synchronous resources.
+        """
+        if self._index:
+            self._index.close()
+
+    def __del__(self):
+        self.close()
+
+    async def close_async(self):
+        """
+        Close the associated asynchronous resources. To be invoked manually when the Document Store is no longer needed.
+        """
+        if self._async_index:
+            await self._async_index.close()
 
     @staticmethod
     def _convert_dict_spec_to_pinecone_object(spec: Dict[str, Any]):
@@ -306,6 +324,7 @@ class PineconeDocumentStore:
                 f"PineconeDocumentStore can return at most {TOP_K_LIMIT} documents and the query has hit this limit. "
                 f"It is likely that there are more matching documents in the document store. "
             )
+
         return documents
 
     def delete_documents(self, document_ids: List[str]) -> None:
