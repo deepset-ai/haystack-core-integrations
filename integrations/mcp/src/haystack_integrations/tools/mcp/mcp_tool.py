@@ -13,9 +13,9 @@ from contextlib import AsyncExitStack
 from dataclasses import dataclass, fields
 from datetime import timedelta
 from typing import Any, cast
-from exceptiongroup import ExceptionGroup
 
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+from exceptiongroup import ExceptionGroup
 from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.tools import Tool
