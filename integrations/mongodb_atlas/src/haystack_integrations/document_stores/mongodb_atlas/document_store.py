@@ -168,9 +168,7 @@ class MongoDBAtlasDocumentStore:
         :returns: True if the collection exists, False otherwise.
         """
         database = connection[database_name]
-        if collection_name in database.list_collection_names():
-            return True
-        return False
+        return collection_name in database.list_collection_names()
 
     async def _collection_exists_async(
         self, connection: AsyncMongoClient, database_name: str, collection_name: str
@@ -181,9 +179,7 @@ class MongoDBAtlasDocumentStore:
         :returns: True if the collection exists, False otherwise.
         """
         database = connection[database_name]
-        if collection_name in await database.list_collection_names():
-            return True
-        return False
+        return collection_name in await database.list_collection_names()
 
     def _ensure_connection_setup(self) -> None:
         """
