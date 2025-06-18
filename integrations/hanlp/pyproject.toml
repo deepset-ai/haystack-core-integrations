@@ -162,6 +162,7 @@ module = [
   "haystack.*",
   "haystack_integrations.*",
   "pytest.*",
+  "more_itertools.*",
 ]
 ignore_missing_imports = true
 
