@@ -101,7 +101,6 @@ class PineconeDocumentStore:
         self.dimension = actual_dimension or self.dimension
         self._dummy_vector = [-10.0] * self.dimension
 
-
     async def _initialize_async_index(self):
         if self._async_index is not None:
             return self._async_index
