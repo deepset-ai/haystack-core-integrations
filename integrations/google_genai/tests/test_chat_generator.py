@@ -9,7 +9,10 @@ from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 
-from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
+from haystack_integrations.components.generators.google_genai.chat.chat_generator import (
+    GoogleGenAIChatGenerator,
+    _convert_message_to_google_genai_format,
+)
 
 
 @pytest.fixture
@@ -112,11 +115,6 @@ class TestGoogleGenAIChatGenerator:
         Test that the GoogleGenAIChatGenerator can convert a complex sequence of ChatMessages to Google GenAI format.
         In particular, we check that different tool results are handled properly in sequence.
         """
-        from haystack.dataclasses import ToolCall
-
-        from haystack_integrations.components.generators.google_genai.chat.chat_generator import (
-            _convert_message_to_google_genai_format,
-        )
 
         messages = [
             ChatMessage.from_system("You are good assistant"),
