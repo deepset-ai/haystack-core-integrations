@@ -4,8 +4,14 @@
 
 import pytest
 from haystack import Document
+from haystack.utils import deserialize_callable, serialize_callable
 
 from haystack_integrations.components.preprocessors.hanlp import ChineseDocumentSplitter
+
+
+# custom split function for testing
+def custom_split(text: str) -> list[str]:
+    return text.split(".")
 
 
 class TestChineseDocumentSplitter:
@@ -15,6 +21,74 @@ class TestChineseDocumentSplitter:
             "这是第一句话，也是故事的开端，紧接着是第二句话，渐渐引出了背景；随后，翻开新/f的一页，"
             "我们读到了这一页的第一句话，继续延展出情节的发展，直到这页的第二句话将整段文字温柔地收束于平静之中。"
         )
+
+    def test_to_dict(self):
+        """
+        Test the to_dict method of the DocumentSplitter class.
+        """
+        splitter = ChineseDocumentSplitter(split_by="word", split_length=10, split_overlap=2, split_threshold=5)
+        serialized = splitter.to_dict()
+
+        expected_type = (
+            "haystack_integrations.components.preprocessors.hanlp.chinese_document_splitter.ChineseDocumentSplitter"
+        )
+        assert serialized["type"] == expected_type
+        assert serialized["init_parameters"]["split_by"] == "word"
+        assert serialized["init_parameters"]["split_length"] == 10
+        assert serialized["init_parameters"]["split_overlap"] == 2
+        assert serialized["init_parameters"]["split_threshold"] == 5
+        assert "splitting_function" not in serialized["init_parameters"]
+
+    def test_to_dict_with_splitting_function(self):
+        """
+        Test the to_dict method of the DocumentSplitter class when a custom splitting function is provided.
+        """
+
+        splitter = ChineseDocumentSplitter(split_by="function", splitting_function=custom_split)
+        serialized = splitter.to_dict()
+
+        expected_type = (
+            "haystack_integrations.components.preprocessors.hanlp.chinese_document_splitter.ChineseDocumentSplitter"
+        )
+        assert serialized["type"] == expected_type
+        assert serialized["init_parameters"]["split_by"] == "function"
+        assert "splitting_function" in serialized["init_parameters"]
+        assert callable(deserialize_callable(serialized["init_parameters"]["splitting_function"]))
+
+    def test_from_dict(self):
+        """
+        Test the from_dict class method of the DocumentSplitter class.
+        """
+        data = {
+            "type": (
+                "haystack_integrations.components.preprocessors.hanlp.chinese_document_splitter.ChineseDocumentSplitter"
+            ),
+            "init_parameters": {"split_by": "word", "split_length": 10, "split_overlap": 2, "split_threshold": 5},
+        }
+        splitter = ChineseDocumentSplitter.from_dict(data)
+
+        assert splitter.split_by == "word"
+        assert splitter.split_length == 10
+        assert splitter.split_overlap == 2
+        assert splitter.split_threshold == 5
+        assert splitter.splitting_function is None
+
+    def test_from_dict_with_splitting_function(self):
+        """
+        Test the from_dict class method of the DocumentSplitter class when a custom splitting function is provided.
+        """
+
+        data = {
+            "type": (
+                "haystack_integrations.components.preprocessors.hanlp.chinese_document_splitter.ChineseDocumentSplitter"
+            ),
+            "init_parameters": {"split_by": "function", "splitting_function": serialize_callable(custom_split)},
+        }
+        splitter = ChineseDocumentSplitter.from_dict(data)
+
+        assert splitter.split_by == "function"
+        assert callable(splitter.splitting_function)
+        assert splitter.splitting_function("a.b.c") == ["a", "b", "c"]
 
     @pytest.mark.integration
     def test_empty_list(self):
