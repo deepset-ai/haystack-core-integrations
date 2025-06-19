@@ -127,6 +127,9 @@ class ChineseDocumentSplitter:
         :param doc: The document to split.
         :return: A list of split documents.
         """
+        if doc.content is None:
+            return []
+
         split_at = _CHARACTER_SPLIT_BY_MAPPING[self.split_by]
 
         # 'coarse' represents coarse granularity Chinese word segmentation,
@@ -172,7 +175,7 @@ class ChineseDocumentSplitter:
 
     def _split_document(self, doc: Document) -> List[Document]:
         if self.split_by == "sentence" or self.respect_sentence_boundary:
-            return self._split_by_nltk_sentence(doc)
+            return self._split_by_hanlp_sentence(doc)
 
         if self.split_by == "function" and self.splitting_function is not None:
             return self._split_by_function(doc)
@@ -186,7 +189,7 @@ class ChineseDocumentSplitter:
         Groups the sentences into chunks of `split_length` words while respecting sentence boundaries.
 
         This function is only used when splitting by `word` and `respect_sentence_boundary` is set to `True`, i.e.:
-        with NLTK sentence tokenizer.
+        with HanLP sentence tokenizer.
 
         :param sentences: The list of sentences to split.
         :param split_length: The maximum number of words in each split.
@@ -256,13 +259,16 @@ class ChineseDocumentSplitter:
 
         return text_splits, split_start_page_numbers, split_start_indices
 
-    def _split_by_nltk_sentence(self, doc: Document) -> List[Document]:
+    def _split_by_hanlp_sentence(self, doc: Document) -> List[Document]:
         """
         Split Chinese text into sentences.
 
         :param doc: The document to split.
         :return: A list of split documents.
         """
+        if doc.content is None:
+            return []
+
         split_docs = []
         result = self.chinese_sentence_split(doc.content)
         units = [sentence["sentence"] for sentence in result]
@@ -376,7 +382,8 @@ class ChineseDocumentSplitter:
             self._add_split_overlap_information(doc, doc_start_idx, previous_doc, previous_doc_start_idx)
 
         for d in documents:
-            d.content = d.content.replace(" ", "")
+            if d.content is not None:
+                d.content = d.content.replace(" ", "")
         return documents
 
     @staticmethod
@@ -391,6 +398,9 @@ class ChineseDocumentSplitter:
         :param previous_doc: The Document that was split before the current Document.
         :param previous_doc_start_idx: The starting index of the previous Document.
         """
+        if previous_doc.content is None or current_doc.content is None:
+            return
+
         overlapping_range = (current_doc_start_idx - previous_doc_start_idx, len(previous_doc.content))  # type: ignore
 
         if overlapping_range[0] < overlapping_range[1]:
@@ -441,6 +451,9 @@ class ChineseDocumentSplitter:
         :param doc: The document to split.
         :return: A list of split documents.
         """
+        if doc.content is None:
+            return []
+
         if self.splitting_function is None:
             msg = "No splitting function provided."
             raise ValueError(msg)
