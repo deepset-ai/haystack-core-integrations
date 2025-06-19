@@ -90,8 +90,8 @@ class TestChineseDocumentSplitter:
 
     @pytest.mark.integration
     def test_respect_sentence_boundary(self):
-        doc = Document(content=
-            "这是第一句话，这是第二句话，这是第三句话。"
+        doc = Document(
+            content="这是第一句话，这是第二句话，这是第三句话。"
             "这是第四句话，这是第五句话，这是第六句话！"
             "这是第七句话，这是第八句话，这是第九句话？"
         )
@@ -105,8 +105,8 @@ class TestChineseDocumentSplitter:
 
     @pytest.mark.integration
     def test_overlap_chunks_with_long_text(self):
-        doc = Document(content=
-            "月光轻轻洒落，林中传来阵阵狼嚎，夜色悄然笼罩一切。"
+        doc = Document(
+            content="月光轻轻洒落，林中传来阵阵狼嚎，夜色悄然笼罩一切。"
             "树叶在微风中沙沙作响，影子在地面上摇曳不定。"
             "一只猫头鹰静静地眨了眨眼，从枝头注视着四周……"
             "远处的小溪哗啦啦地流淌，仿佛在向石头倾诉着什么。"

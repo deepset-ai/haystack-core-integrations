@@ -48,6 +48,7 @@ class ChineseDocumentSplitter:
     print(result["documents"])
     ```
     """
+
     def __init__(
         self,
         split_by: Literal["word", "sentence", "passage", "page", "line", "period", "function"] = "word",
@@ -213,9 +214,7 @@ class ChineseDocumentSplitter:
             if particle_size in {"coarse", "fine"}:
                 chunk_word_count += len(self.chinese_tokenizer(sentence))
                 next_sentence_word_count = (
-                    len(self.chinese_tokenizer(sentences[sentence_idx + 1]))
-                    if sentence_idx < len(sentences) - 1
-                    else 0
+                    len(self.chinese_tokenizer(sentences[sentence_idx + 1])) if sentence_idx < len(sentences) - 1 else 0
                 )
 
             # Number of words in the current chunk plus the next sentence is larger than the split_length,

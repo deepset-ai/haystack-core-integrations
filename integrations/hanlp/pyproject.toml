@@ -137,6 +137,7 @@ ignore = [
   "ARG002",
   "ARG005",
   "RUF001",
+  "RUF002",
 ]
 unfixable = [
   # Don't touch unused imports
