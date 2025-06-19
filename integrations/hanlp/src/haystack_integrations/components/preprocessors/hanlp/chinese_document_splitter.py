@@ -17,6 +17,37 @@ _CHARACTER_SPLIT_BY_MAPPING = {"page": "\f", "passage": "\n\n", "period": ".", "
 
 @component
 class ChineseDocumentSplitter:
+    """
+    A DocumentSplitter for Chinese text.
+
+    'coarse' represents coarse granularity Chinese word segmentation, 'fine' represents fine granularity word
+    segmentation, default is coarse granularity word segmentation.
+
+    Unlike English where words are usually separated by spaces,
+    Chinese text is written continuously without spaces between words.
+    Chinese words can consist of multiple characters.
+    For example, the English word "America" is translated to "美国" in Chinese,
+    which consists of two characters but is treated as a single word.
+    Similarly, "Portugal" is "葡萄牙" in Chinese, three characters but one word.
+    Therefore, splitting by word means splitting by these multi-character tokens,
+    not simply by single characters or spaces.
+
+    ### Usage example
+    ```python
+    doc = Document(content=
+        "这是第一句话，这是第二句话，这是第三句话。"
+        "这是第四句话，这是第五句话，这是第六句话！"
+        "这是第七句话，这是第八句话，这是第九句话？"
+    )
+
+    splitter = ChineseDocumentSplitter(
+        split_by="word", split_length=10, split_overlap=3, respect_sentence_boundary=True
+    )
+    splitter.warm_up()
+    result = splitter.run(documents=[doc])
+    print(result["documents"])
+    ```
+    """
     def __init__(
         self,
         split_by: Literal["word", "sentence", "passage", "page", "line", "period", "function"] = "word",
@@ -28,18 +59,25 @@ class ChineseDocumentSplitter:
         particle_size: Literal["coarse", "fine"] = "coarse",
     ):
         """
-        A DocumentSplitter for Chinese text.
+        Initialize the ChineseDocumentSplitter component.
 
-        'coarse' represents coarse granularity Chinese word segmentation, 'fine' represents fine granularity word
-        segmentation, default is coarse granularity word segmentation.
+        :param split_by: The unit for splitting your documents. Choose from:
+            - `word` for splitting by spaces (" ")
+            - `period` for splitting by periods (".")
+            - `page` for splitting by form feed ("\\f")
+            - `passage` for splitting by double line breaks ("\\n\\n")
+            - `line` for splitting each line ("\\n")
+            - `sentence` for splitting by HanLP sentence tokenizer
 
-        :param split_by: The unit by which the text is split. Can be one of: \
-            "word", "sentence", "passage", "page", "line", "period", "function".
-        :param split_length: The maximum number of words in each split.
-        :param split_overlap: The number of overlapping words in each split.
-        :param split_threshold: The minimum number of words in each split.
-        :param respect_sentence_boundary: Whether to respect sentence boundaries when splitting.
-        :param splitting_function: A custom function to split the text.
+        :param split_length: The maximum number of units in each split.
+        :param split_overlap: The number of overlapping units for each split.
+        :param split_threshold: The minimum number of units per split. If a split has fewer units
+            than the threshold, it's attached to the previous split.
+        :param respect_sentence_boundary: Choose whether to respect sentence boundaries when splitting by "word".
+            If True, uses HanLP to detect sentence boundaries, ensuring splits occur only between sentences.
+        :param splitting_function: Necessary when `split_by` is set to "function".
+            This is a function which must accept a single `str` as input and return a `list` of `str` as output,
+            representing the chunks after splitting.
         :param particle_size: The granularity of Chinese word segmentation, either 'coarse' or 'fine'.
 
         :raises ValueError: If the particle_size is not 'coarse' or 'fine'.
@@ -77,9 +115,9 @@ class ChineseDocumentSplitter:
     def warm_up(self) -> None:
         """Warm up the component by loading the necessary models."""
         if self.particle_size == "coarse":
-            self.chinese_tokenizer_coarse = hanlp.load(hanlp.pretrained.tok.COARSE_ELECTRA_SMALL_ZH)
+            self.chinese_tokenizer = hanlp.load(hanlp.pretrained.tok.COARSE_ELECTRA_SMALL_ZH)
         if self.particle_size == "fine":
-            self.chinese_tokenizer_fine = hanlp.load(hanlp.pretrained.tok.FINE_ELECTRA_SMALL_ZH)
+            self.chinese_tokenizer = hanlp.load(hanlp.pretrained.tok.FINE_ELECTRA_SMALL_ZH)
         self.split_sent = hanlp.load(hanlp.pretrained.eos.UD_CTB_EOS_MUL)
 
     def _split_by_character(self, doc: Document) -> List[Document]:
@@ -95,11 +133,8 @@ class ChineseDocumentSplitter:
         # 'fine' represents fine granularity word segmentation,
         #  default is coarse granularity word segmentation
 
-        if self.particle_size == "coarse":
-            units = self.chinese_tokenizer_coarse(doc.content)
-
-        if self.particle_size == "fine":
-            units = self.chinese_tokenizer_fine(doc.content)
+        if self.particle_size in {"coarse", "fine"}:
+            units = self.chinese_tokenizer(doc.content)
 
         for i in range(len(units) - 1):  # pylint: disable=possibly-used-before-assignment
             units[i] += split_at
@@ -172,17 +207,10 @@ class ChineseDocumentSplitter:
 
         for sentence_idx, sentence in enumerate(sentences):
             current_chunk.append(sentence)
-            if particle_size == "coarse":
-                chunk_word_count += len(self.chinese_tokenizer_coarse(sentence))
+            if particle_size in {"coarse", "fine"}:
+                chunk_word_count += len(self.chinese_tokenizer(sentence))
                 next_sentence_word_count = (
-                    len(self.chinese_tokenizer_coarse(sentences[sentence_idx + 1]))
-                    if sentence_idx < len(sentences) - 1
-                    else 0
-                )
-            if particle_size == "fine":
-                chunk_word_count += len(self.chinese_tokenizer_fine(sentence))
-                next_sentence_word_count = (
-                    len(self.chinese_tokenizer_fine(sentences[sentence_idx + 1]))
+                    len(self.chinese_tokenizer(sentences[sentence_idx + 1]))
                     if sentence_idx < len(sentences) - 1
                     else 0
                 )
@@ -396,10 +424,8 @@ class ChineseDocumentSplitter:
         num_words = 0
 
         for sent in reversed(sentences[1:]):
-            if particle_size == "coarse":
-                num_words += len(self.chinese_tokenizer_coarse(sent))
-            if particle_size == "fine":
-                num_words += len(self.chinese_tokenizer_fine(sent))
+            if particle_size in {"coarse", "fine"}:
+                num_words += len(self.chinese_tokenizer(sent))
             # If the number of words is larger than the split_length then don't add any more sentences
             if num_words > split_length:
                 break

@@ -9,48 +9,6 @@ from haystack_integrations.components.preprocessors.hanlp import ChineseDocument
 
 
 class TestChineseDocumentSplitter:
-    def test_empty_document(self):
-        """Test that an empty document returns an empty list"""
-        splitter = ChineseDocumentSplitter()
-        doc = Document(content="")
-        splitter.warm_up()
-        results = splitter.run([doc])
-        assert results["documents"] == []
-
-    def test_whitespace_only_document(self):
-        """Test that a document containing only whitespaces is handled correctly"""
-        splitter = ChineseDocumentSplitter()
-        doc = Document(content="  ")
-        splitter.warm_up()
-        results = splitter.run([doc])
-        assert len(results["documents"]) == 0
-
-    def test_copy_metadata(self):
-        """Test that metadata is properly copied to split documents"""
-        splitter = ChineseDocumentSplitter(split_by="word", split_length=5)
-        documents = [
-            Document(content="这是测试文本。", meta={"name": "doc 0"}),
-            Document(content="这是另一个测试文本。", meta={"name": "doc 1"}),
-        ]
-        splitter.warm_up()
-        result = splitter.run(documents=documents)
-        assert len(result["documents"]) > 0
-        for doc, split_doc in zip(documents, result["documents"]):
-            assert doc.meta.items() <= split_doc.meta.items()
-
-    def test_source_id_stored_in_metadata(self):
-        """Test that source document ID is stored in metadata of split documents"""
-        splitter = ChineseDocumentSplitter(split_by="word", split_length=5)
-        doc1 = Document(content="这是第一个测试文本。")
-        doc2 = Document(content="这是第二个测试文本。")
-        splitter.warm_up()
-        result = splitter.run(documents=[doc1, doc2])
-        assert len(result["documents"]) > 0
-        # Check that each split document has a source_id
-        for doc in result["documents"]:
-            assert "source_id" in doc.meta
-            assert doc.meta["source_id"] in [doc1.id, doc2.id]
-
     @pytest.fixture
     def sample_text(self) -> str:
         return (
@@ -59,30 +17,64 @@ class TestChineseDocumentSplitter:
         )
 
     @pytest.mark.integration
-    def test_split_by_word(self, sample_text):
-        """
-        Test splitting by word.
-
-        Note on Chinese words:
-        Unlike English where words are usually separated by spaces,
-        Chinese text is written continuously without spaces between words.
-        Chinese words can consist of multiple characters.
-        For example, the English word "America" is translated to "美国" in Chinese,
-        which consists of two characters but is treated as a single word.
-        Similarly, "Portugal" is "葡萄牙" in Chinese,
-        three characters but one word.
-        Therefore, splitting by word means splitting by these multi-character tokens,
-        not simply by single characters or spaces.
-        """
-        splitter = ChineseDocumentSplitter(split_by="word", particle_size="coarse", split_length=5, split_overlap=0)
-
+    def test_empty_list(self):
+        splitter = ChineseDocumentSplitter()
         splitter.warm_up()
+        results = splitter.run(documents=[])
+        assert results == {"documents": []}
 
+    @pytest.mark.integration
+    def test_empty_document(self):
+        splitter = ChineseDocumentSplitter()
+        documents = [Document(content="")]
+        splitter.warm_up()
+        results = splitter.run(documents=documents)
+        assert results == {"documents": []}
+
+    @pytest.mark.integration
+    def test_whitespace_only_document(self):
+        splitter = ChineseDocumentSplitter()
+        documents = [Document(content="  ")]
+        splitter.warm_up()
+        results = splitter.run(documents=documents)
+        assert len(results["documents"]) == 0
+
+    @pytest.mark.integration
+    def test_metadata_copied_to_split_documents(self):
+        documents = [
+            Document(content="这是测试文本。", meta={"name": "doc 0"}),
+            Document(content="这是另一个测试文本。", meta={"name": "doc 1"}),
+        ]
+        splitter = ChineseDocumentSplitter(split_by="word", split_length=5)
+        splitter.warm_up()
+        result = splitter.run(documents=documents)
+        assert len(result["documents"]) == 2
+        for doc, split_doc in zip(documents, result["documents"]):
+            assert doc.meta.items() <= split_doc.meta.items()
+
+    @pytest.mark.integration
+    def test_source_id_stored_in_metadata(self):
+        documents = [
+            Document(content="这是第一个测试文本。"),
+            Document(content="这是第二个测试文本。"),
+        ]
+        splitter = ChineseDocumentSplitter(split_by="word", split_length=5)
+        splitter.warm_up()
+        result = splitter.run(documents=documents)
+        assert len(result["documents"]) == 2
+        for doc, split_doc in zip(documents, result["documents"]):
+            assert doc.id == split_doc.meta["source_id"]
+
+    @pytest.mark.integration
+    def test_split_by_word(self, sample_text):
+        splitter = ChineseDocumentSplitter(split_by="word", particle_size="coarse", split_length=5, split_overlap=0)
+        splitter.warm_up()
         result = splitter.run(documents=[Document(content=sample_text)])
         docs = result["documents"]
-
         assert all(isinstance(doc, Document) for doc in docs)
-        assert all(len(doc.content.strip()) <= 10 for doc in docs)
+        expected_lengths = [9, 9, 8, 8, 6, 6, 6, 8, 8, 6, 7, 8, 5]
+        actual_lengths = [len(doc.content.strip()) for doc in docs]
+        assert actual_lengths == expected_lengths
 
     @pytest.mark.integration
     def test_split_by_sentence(self, sample_text):
@@ -90,41 +82,30 @@ class TestChineseDocumentSplitter:
             split_by="sentence", particle_size="coarse", split_length=10, split_overlap=0
         )
         splitter.warm_up()
-
         result = splitter.run(documents=[Document(content=sample_text)])
         docs = result["documents"]
-
         assert all(isinstance(doc, Document) for doc in docs)
         assert all(doc.content.strip() != "" for doc in docs)
         assert any("。" in doc.content for doc in docs), "Expected at least one chunk containing a full stop."
 
     @pytest.mark.integration
     def test_respect_sentence_boundary(self):
-        """Test that respect_sentence_boundary=True avoids splitting sentences"""
-        text = (
+        doc = Document(content=
             "这是第一句话，这是第二句话，这是第三句话。"
             "这是第四句话，这是第五句话，这是第六句话！"
             "这是第七句话，这是第八句话，这是第九句话？"
         )
-        doc = Document(content=text)
-
         splitter = ChineseDocumentSplitter(
             split_by="word", split_length=10, split_overlap=3, respect_sentence_boundary=True
         )
         splitter.warm_up()
         result = splitter.run(documents=[doc])
         docs = result["documents"]
-
-        # print(f"Total chunks created: {len(docs)}.")
-        for doc in docs:
-            # print(f"\nChunk {i + 1}:\n{doc.content}")
-            # Optional: check that sentences are not cut off
-            assert doc.content.strip().endswith(("。", "！", "？")), "Sentence was cut off!"
+        assert all(doc.content.strip().endswith(("。", "！", "？")) for doc in docs), "Sentence was cut off!"
 
     @pytest.mark.integration
     def test_overlap_chunks_with_long_text(self):
-        """Test split_overlap parameter to ensure there is clear overlap between chunks of long text"""
-        text = (
+        doc = Document(content=
             "月光轻轻洒落，林中传来阵阵狼嚎，夜色悄然笼罩一切。"
             "树叶在微风中沙沙作响，影子在地面上摇曳不定。"
             "一只猫头鹰静静地眨了眨眼，从枝头注视着四周……"
@@ -136,24 +117,15 @@ class TestChineseDocumentSplitter:
             "时间仿佛停滞了……"
             "万物静候，聆听着夜的呼吸！"
         )
-        doc = Document(content=text)
 
         splitter = ChineseDocumentSplitter(split_by="word", split_length=30, split_overlap=10, particle_size="coarse")
         splitter.warm_up()
-
         result = splitter.run(documents=[doc])
         docs = result["documents"]
-
-        # print(f"Total chunks generated: {len(docs)}.")
-        # for i, d in enumerate(docs):
-        #     print(f"\nChunk {i + 1}:\n{d.content}")
-
-        assert len(docs) > 1, "Expected multiple chunks to be generated"
-
-        max_len_allowed = 80  # Allow a somewhat relaxed max chunk length
-        assert all(len(doc.content) <= max_len_allowed for doc in docs), (
-            f"Some chunks exceed {max_len_allowed} characters"
-        )
+        assert len(docs) == 6
+        expected_lengths = [48, 46, 47, 45, 46, 47]
+        actual_lengths = [len(doc.content) for doc in docs]
+        assert actual_lengths == expected_lengths
 
         def has_any_overlap(suffix: str, prefix: str) -> bool:
             """
