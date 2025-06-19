@@ -226,6 +226,7 @@ class LlamaCppChatGenerator:
         tools = tools or self.tools
         if isinstance(tools, Toolset):
             tools = list(tools)
+        _check_duplicate_tool_names(tools)
 
         llamacpp_tools: List[ChatCompletionTool] = []
         if tools:
