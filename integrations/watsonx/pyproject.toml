@@ -1,0 +1,121 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "watsonx-haystack"
+version = "0.1.0"
+description = "Watsonx integration for Haystack"
+authors = [{ name = "Divya", email = "divyaruhil999@gmail.com" }]
+dependencies = [
+    "haystack-ai",
+    "ibm-watsonx-ai"
+]
+
+[project.urls]
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/watsonx#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/watsonx"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.envs.default]
+installer = "uv"
+dependencies = [
+    "pytest",
+    "pytest-asyncio",
+    "haystack-ai",
+    "ibm-watsonx-ai",
+    "ruff",
+    "haystack-pydoc-tools"
+]
+
+[tool.hatch.envs.default.scripts]
+docs = ["pydoc-markdown pydoc/config.yml"]
+fmt = "ruff check --fix {args} && ruff format {args}"
+fmt-check = "ruff check {args} && ruff format --check {args}"
+test = "pytest"
+
+[tool.hatch.envs.test]
+dependencies = [
+    "pytest",
+    "pytest-asyncio",
+    "anyio",
+    "haystack-ai",
+    "ibm-watsonx-ai",
+    "pytest-mock"
+]
+
+[tool.hatch.envs.docs]
+dependencies = ["haystack-pydoc-tools"]
+
+[tool.hatch.envs.docs.scripts]
+docs = "haystack-pydoc build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
+[tool.hatch.build.targets.editable]
+packages = ["src/haystack_integrations"]
+
+[tool.pytest.ini_options]
+markers = [
+    "asyncio: mark tests as using asyncio",
+    "integration: mark tests as integration tests"
+]
+asyncio_mode = "auto"
+addopts = "--tb=short -v"
+
+[tool.black]
+target-version = ["py38"]
+line-length = 120
+skip-string-normalization = true
+
+[tool.ruff]
+target-version = "py38"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "A", "ARG", "B", "C", "DTZ", "E", "F", "FA", "I", "TID", "UP", "RUF"
+]
+ignore = [
+    "A003",    # Class attribute shadows builtin
+    "ARG001",  # Unused function argument
+    "ARG002",  # Unused method argument
+    "B027",    # Allow empty abstract methods
+    "C901",    # Complex function
+    "DTZ005",  # Missing timezone info
+    "E501",    # Line too long (handled by formatter)
+    "EM101",   # Exception message in string literal
+    "FBT001",  # Boolean positional argument in function definition
+    "FBT002",  # Boolean default positional argument in function definition
+    "G004",    # Logging statement uses f-string
+    "PLR0911", # Too many return statements
+    "PLR0912", # Too many branches
+    "PLR0913", # Too many arguments
+    "PLR2004", # Magic value used in comparison
+    "RET505",  # Unnecessary else after return
+    "S101",    # Use of assert
+    "S105",    # Possible hardcoded password
+    "S106",    # Possible hardcoded password
+    "S107",    # Possible hardcoded password
+    "SLF001",  # Private member accessed
+    "T201",    # Print statement
+    "TRY003",  # Avoid long messages outside exception class
+    "TRY401",  # Redundant exception object in logging.exception call
+    "UP007",   # Use X | Y for type union
+]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/**" = ["T201", "RET505", "INP001"]
+"watsonx/tests/**" = ["ALL"]
+"tests/**" = ["ALL"]
+"**/test_*.py" = ["ALL"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
+[tool.ruff.format]
+quote-style = "single"
