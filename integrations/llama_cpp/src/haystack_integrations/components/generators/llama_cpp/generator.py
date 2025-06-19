@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, logging
 
@@ -62,14 +62,16 @@ class LlamaCppGenerator:
         self.n_batch = n_batch
         self.model_kwargs = model_kwargs
         self.generation_kwargs = generation_kwargs
-        self.model = None
+        self.model: Optional[Llama] = None
 
     def warm_up(self):
         if self.model is None:
             self.model = Llama(**self.model_kwargs)
 
     @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
-    def run(self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None):
+    def run(
+        self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Union[List[str], List[Dict[str, Any]]]]:
         """
         Run the text generation model on the given prompt.
 
@@ -92,6 +94,10 @@ class LlamaCppGenerator:
         updated_generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
         output = self.model.create_completion(prompt=prompt, **updated_generation_kwargs)
+        if not isinstance(output, dict):
+            msg = f"Expected a dictionary response, got a different object: {output}"
+            raise ValueError(msg)
+
         replies = [output["choices"][0]["text"]]
 
-        return {"replies": replies, "meta": [output]}
+        return {"replies": replies, "meta": [dict(output.items())]}
