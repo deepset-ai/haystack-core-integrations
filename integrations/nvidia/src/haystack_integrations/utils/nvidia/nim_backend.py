@@ -23,7 +23,7 @@ class NimBackend:
     def __init__(
         self,
         api_url: str,
-        model_type: Literal["chat", "embedding", "ranking"],
+        model_type: Optional[Literal["chat", "embedding", "ranking"]] = None,
         model: Optional[str] = None,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_kwargs: Optional[Dict[str, Any]] = None,
@@ -52,10 +52,14 @@ class NimBackend:
                     UserWarning,
                     stacklevel=2,
                 )
-            if not model:  # manually set default model
+            if not model:
+                if not model_type:
+                    msg = "`model_type` is required when `model` is not specified and a valid `api_url` is provided."
+                    raise ValueError(msg)
+                # infer the default model for the given model type
                 model = DEFAULT_MODELS[model_type]
 
-            validated_model = validate_hosted_model(model, client)
+            validated_model = validate_hosted_model(model_name=model, client=client)
             if validated_model and validated_model.endpoint:
                 # we override the endpoint to use the custom endpoint
                 self.api_url = validated_model.endpoint

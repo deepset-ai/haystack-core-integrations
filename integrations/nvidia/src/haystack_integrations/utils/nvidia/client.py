@@ -6,10 +6,10 @@ class Client(Enum):
     Client to use for NVIDIA NIMs.
     """
 
-    NVIDIA_GENERATOR = "nvidia_generator"
-    NVIDIA_TEXT_EMBEDDER = "nvidia_text_embedder"
-    NVIDIA_DOCUMENT_EMBEDDER = "nvidia_document_embedder"
-    NVIDIA_RANKER = "nvidia_ranker"
+    NVIDIA_GENERATOR = "NvidiaGenerator"
+    NVIDIA_TEXT_EMBEDDER = "NvidiaTextEmbedder"
+    NVIDIA_DOCUMENT_EMBEDDER = "NvidiaDocumentEmbedder"
+    NVIDIA_RANKER = "NvidiaRanker"
 
     def __str__(self) -> str:
         """Convert a Client enum to a string."""
