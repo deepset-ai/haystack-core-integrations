@@ -144,8 +144,8 @@ class WeaviateDocumentStore:
         self._additional_config = additional_config
         self._grpc_port = grpc_port
         self._grpc_secure = grpc_secure
-        self._client = None
-        self._collection = None
+        self._client: Optional[weaviate.WeaviateClient] = None
+        self._collection: Optional[weaviate.Collection] = None
         # Store the connection settings dictionary
         self._collection_settings = collection_settings or {
             "class": "Default",
@@ -173,9 +173,12 @@ class WeaviateDocumentStore:
             # If we detect that the URL is a Weaviate Cloud URL, we use the utility function to connect
             # instead of using WeaviateClient directly like in other cases.
             # Among other things, the utility function takes care of parsing the URL.
+            if not self._auth_client_secret:
+                msg = "Auth credentials are required for Weaviate Cloud Services"
+                raise ValueError(msg)
             self._client = weaviate.connect_to_weaviate_cloud(
                 self._url,
-                auth_credentials=self._auth_client_secret.resolve_value() if self._auth_client_secret else None,
+                auth_credentials=self._auth_client_secret.resolve_value(),
                 headers=self._additional_headers,
                 additional_config=self._additional_config,
             )
@@ -343,7 +346,7 @@ class WeaviateDocumentStore:
 
         return Document.from_dict(document_data)
 
-    def _query(self) -> List[Dict[str, Any]]:
+    def _query(self) -> List[DataObject[Dict[str, Any], None]]:
         properties = [p.name for p in self.collection.config.get().properties]
         try:
             result = self.collection.iterator(include_vector=True, return_properties=properties)
@@ -352,7 +355,7 @@ class WeaviateDocumentStore:
             raise DocumentStoreError(msg) from e
         return result
 
-    def _query_with_filters(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _query_with_filters(self, filters: Dict[str, Any]) -> List[DataObject[Dict[str, Any], None]]:
         properties = [p.name for p in self.collection.config.get().properties]
         # When querying with filters we need to paginate using limit and offset as using
         # a cursor with after is not possible. See the official docs:
