@@ -136,7 +136,7 @@ class TestNvidiaTextEmbedder:
         assert "Default model is set as:" in str(record[0].message)
         assert embedder.model == "model1"
 
-        embedder.backend = MockBackend(model=embedder.model, api_key=api_key, model_type="embedding")
+        embedder.backend = MockBackend(model=embedder.model, api_key=api_key)
 
         result = embedder.run(text="The food was delicious")
 
@@ -151,7 +151,7 @@ class TestNvidiaTextEmbedder:
         embedder = NvidiaTextEmbedder("playground_nvolveqa_40k", api_key=api_key, prefix="prefix ", suffix=" suffix")
 
         embedder.warm_up()
-        embedder.backend = MockBackend(model="playground_nvolveqa_40k", api_key=api_key, model_type="embedding")
+        embedder.backend = MockBackend(model="playground_nvolveqa_40k", api_key=api_key)
 
         result = embedder.run(text="The food was delicious")
 
@@ -165,7 +165,7 @@ class TestNvidiaTextEmbedder:
         api_key = Secret.from_token("fake-api-key")
         embedder = NvidiaTextEmbedder("playground_nvolveqa_40k", api_key=api_key)
         embedder.warm_up()
-        embedder.backend = MockBackend(model="playground_nvolveqa_40k", api_key=api_key, model_type="embedding")
+        embedder.backend = MockBackend(model="playground_nvolveqa_40k", api_key=api_key)
 
         list_integers_input = [1, 2, 3]
 
@@ -178,7 +178,7 @@ class TestNvidiaTextEmbedder:
         embedder = NvidiaTextEmbedder(model, api_key=api_key)
 
         embedder.warm_up()
-        embedder.backend = MockBackend(model=model, api_key=api_key, model_type="embedding")
+        embedder.backend = MockBackend(model=model, api_key=api_key)
 
         with pytest.raises(ValueError, match="empty string"):
             embedder.run(text="")
