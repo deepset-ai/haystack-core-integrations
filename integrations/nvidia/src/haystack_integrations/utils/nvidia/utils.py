@@ -3,9 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import warnings
-from typing import Any, Literal, Optional
+from typing import Optional
 from urllib.parse import urlparse, urlunparse
 
+from .client import Client
 from .models import MODEL_TABLE, Model
 
 
@@ -38,7 +39,7 @@ def url_validation(api_url: str) -> str:
     return api_url
 
 
-def is_hosted(api_url: str):
+def is_hosted(api_url: str) -> bool:
     """Check if the api_url belongs to api catalogue."""
     return urlparse(api_url).netloc in [
         "integrate.api.nvidia.com",
@@ -84,25 +85,24 @@ def determine_model(name: str) -> Optional[Model]:
 
 def validate_hosted_model(
     model_name: str,
-    client: Optional[Literal["NvidiaGenerator", "NvidiaTextEmbedder", "NvidiaDocumentEmbedder", "NvidiaRanker"]] = None,
-) -> Any:
+    client: Optional[Client] = None,
+) -> Model:
     """
     Checks if a given model is compatible with given client.
 
-    Args:
-        model_name (str): The name of the model.
-        client (str): client name, e.g. NvidiaGenerator, NVIDIAEmbeddings,
-                        NVIDIARerank, NvidiaTextEmbedder, NvidiaDocumentEmbedder
+    :param model_name: The name of the model.
+    :param client: client name enum, e.g. Client.NVIDIA_GENERATOR, Client.NVIDIA_RANKER,
+                   Client.NVIDIA_TEXT_EMBEDDER, Client.NVIDIA_DOCUMENT_EMBEDDER
 
-    Raises:
-        ValueError: If the model is incompatible with the client or if the model is unknown.
-        Warning: If no client is provided.
+    :raises ValueError: If the model is incompatible with the client or if the model is unknown.
+
+    :returns: The model if it is compatible with the client.
     """
     supported = {
-        "NvidiaGenerator": ("chat",),
-        "NvidiaTextEmbedder": ("embedding",),
-        "NvidiaDocumentEmbedder": ("embedding",),
-        "NvidiaRanker": ("ranking",),
+        Client.NVIDIA_GENERATOR: ("chat",),
+        Client.NVIDIA_TEXT_EMBEDDER: ("embedding",),
+        Client.NVIDIA_DOCUMENT_EMBEDDER: ("embedding",),
+        Client.NVIDIA_RANKER: ("ranking",),
     }
 
     if model := determine_model(model_name):
