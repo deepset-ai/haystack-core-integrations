@@ -162,6 +162,30 @@ class GoogleGenAIDocumentEmbedder:
                 meta["model"] = self._model
 
         return all_embeddings, meta
+    
+    async def _embed_batch_async(self, texts_to_embed: List[str], batch_size: int) -> Tuple[List[List[float]], Dict[str, Any]]:
+        """
+        Embed a list of texts in batches asynchronously.
+        """
+
+        all_embeddings = []
+        meta: Dict[str, Any] = {}
+        for batch in tqdm(
+            batched(texts_to_embed, batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
+        ):
+            args: Dict[str, Any] = {"model": self._model, "contents": [b[1] for b in batch]}
+            if self._config:
+                args["config"] = types.EmbedContentConfig(**self._config) if self._config else None
+
+            response = await self._client.aio.models.embed_content(**args)
+
+            embeddings = [el.values for el in response.embeddings]
+            all_embeddings.extend(embeddings)
+
+            if "model" not in meta:
+                meta["model"] = self._model
+
+        return all_embeddings, meta
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
     def run(self, documents: List[Document]) -> Dict[str, Union[List[Document], Dict[str, Any]]]:
@@ -186,6 +210,35 @@ class GoogleGenAIDocumentEmbedder:
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
 
         embeddings, meta = self._embed_batch(texts_to_embed=texts_to_embed, batch_size=self._batch_size)
+
+        for doc, emb in zip(documents, embeddings):
+            doc.embedding = emb
+
+        return {"documents": documents, "meta": meta}
+
+    @component.output_types(documents=List[Document], meta=Dict[str, Any])
+    async def run_async(self, documents: List[Document]) -> Dict[str, Union[List[Document], Dict[str, Any]]]:
+        """
+        Embeds a list of documents asynchronously.
+
+        :param documents:
+            A list of documents to embed.
+
+        :returns:
+            A dictionary with the following keys:
+            - `documents`: A list of documents with embeddings.
+            - `meta`: Information about the usage of the model.
+        """
+        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
+            error_message_documents = (
+                "GoogleGenAIDocumentEmbedder expects a list of Documents as input. "
+                "In case you want to embed a string, please use the GoogleGenAITextEmbedder."
+            )
+            raise TypeError(error_message_documents)
+
+        texts_to_embed = self._prepare_texts_to_embed(documents=documents)
+
+        embeddings, meta = await self._embed_batch_async(texts_to_embed=texts_to_embed, batch_size=self._batch_size)
 
         for doc, emb in zip(documents, embeddings):
             doc.embedding = emb

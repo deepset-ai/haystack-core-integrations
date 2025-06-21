@@ -163,3 +163,22 @@ class TestGoogleGenAITextEmbedder:
         assert "text" in result["meta"]["model"] and "004" in result["meta"]["model"], (
             "The model name does not contain 'text' and '004'"
         )
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
+    @pytest.mark.integration
+    async def test_run_async(self):
+        model = "text-embedding-004"
+
+        embedder = GoogleGenAITextEmbedder(model=model)
+        result = await embedder.run_async(text="The food was delicious")
+
+        assert len(result["embedding"]) == 768
+        assert all(isinstance(x, float) for x in result["embedding"])
+
+        assert "text" in result["meta"]["model"] and "004" in result["meta"]["model"], (
+            "The model name does not contain 'text' and '004'"
+        )

@@ -137,3 +137,23 @@ class GoogleGenAITextEmbedder:
         create_kwargs = self._prepare_input(text=text)
         response = self._client.models.embed_content(**create_kwargs)
         return self._prepare_output(result=response)
+
+    @component.output_types(embedding=List[float], meta=Dict[str, Any])
+    async def run_async(self, text: str):
+        """
+        Asynchronously embed a single string.
+
+        This is the asynchronous version of the `run` method. It has the same parameters and return values
+        but can be used with `await` in async code.
+
+        :param text:
+            Text to embed.
+
+        :returns:
+            A dictionary with the following keys:
+            - `embedding`: The embedding of the input text.
+            - `meta`: Information about the usage of the model.
+        """
+        create_kwargs = self._prepare_input(text=text)
+        response = await self._client.aio.models.embed_content(**create_kwargs)
+        return self._prepare_output(result=response)
