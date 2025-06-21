@@ -170,8 +170,10 @@ class GoogleGenAIDocumentEmbedder:
                 meta["model"] = self._model
 
         return all_embeddings, meta
-    
-    async def _embed_batch_async(self, texts_to_embed: List[str], batch_size: int) -> Tuple[List[List[float]], Dict[str, Any]]:
+
+    async def _embed_batch_async(
+        self, texts_to_embed: List[str], batch_size: int
+    ) -> Tuple[List[List[float]], Dict[str, Any]]:
         """
         Embed a list of texts in batches asynchronously.
         """
