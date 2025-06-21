@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/github-v1.0.1] - 2025-06-12
+
+### 🐛 Bug Fixes
+
+- Prompts and schemas of GitHubIssueCommenterTool and GitHubIssueViewerTool now properly explain url parameter (#1929)
+
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+
 ## [integrations/github-v1.0.0] - 2025-05-28
 
 ### 🚀 Features

@@ -1,5 +1,22 @@
 # Changelog
 
+## [integrations/fastembed-v1.5.0] - 2025-06-17
+
+### 🐛 Bug Fixes
+
+- Fix Fastembed types + add py.typed (#1954)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🧹 Chores
+
+- Fix linting/isort (#1215)
+- Remove Python 3.8 support (#1421)
+- Align core-integrations Hatch scripts (#1898)
+
+
 ## [integrations/fastembed-v1.4.1] - 2024-11-19
 
 ### 🌀 Miscellaneous

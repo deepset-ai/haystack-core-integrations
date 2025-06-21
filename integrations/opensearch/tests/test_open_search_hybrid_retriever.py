@@ -3,7 +3,7 @@ from typing import Any, Dict
 from unittest.mock import Mock
 
 import pytest
-from haystack import Document
+from haystack import Document, Pipeline
 from haystack.components.embedders import SentenceTransformersTextEmbedder
 from haystack.core.component import component
 
@@ -177,3 +177,68 @@ class TestOpenSearchHybridRetriever:
                 invalid_a={"raise_on_failure": True},
                 invalid_b={"raise_on_failure": False},
             )
+
+    def test_run_with_extra_runtime_params(self, mock_embedder):
+        # mocked document store
+        mock_store = Mock(spec=OpenSearchDocumentStore)
+        mock_store._bm25_retrieval.return_value = [Document(content="Test doc BM25")]
+        mock_store._embedding_retrieval.return_value = [Document(content="Test doc Embedding")]
+
+        # use the mocked embedder
+        retriever = OpenSearchHybridRetriever(document_store=mock_store, embedder=mock_embedder)
+        _ = retriever.run(
+            query="test query",
+            filters_bm25={"key": "value"},
+            filters_embedding={"key": "value"},
+            top_k_bm25=1,
+            top_k_embedding=1,
+        )
+
+        mock_store._bm25_retrieval.assert_called_once_with(
+            query="test query",
+            filters={"key": "value"},
+            top_k=1,
+            all_terms_must_match=False,
+            fuzziness="AUTO",
+            scale_score=False,
+            custom_query=None,
+        )
+        mock_store._embedding_retrieval.assert_called_once_with(
+            query_embedding=[0.1, 0.2, 0.3],
+            filters={"key": "value"},
+            top_k=1,
+            custom_query=None,
+            efficient_filtering=False,
+        )
+
+    def test_run_in_pipeline(self, mock_embedder):
+        # mocked document store
+        pipeline = Pipeline()
+        mock_store = Mock(spec=OpenSearchDocumentStore)
+        mock_store._bm25_retrieval.return_value = [Document(content="Test doc BM25")]
+        mock_store._embedding_retrieval.return_value = [Document(content="Test doc Embedding")]
+
+        # use the mocked embedder
+        retriever = OpenSearchHybridRetriever(document_store=mock_store, embedder=mock_embedder)
+        # result = retriever.run(query="test query")
+        pipeline.add_component("retriever", retriever)
+
+        # Should not fail
+        _ = pipeline.run(data={"retriever": {"query": "test query", "filters_bm25": {"param_a": "default"}}})
+
+        mock_store._bm25_retrieval.assert_called_once_with(
+            query="test query",
+            filters={"param_a": "default"},
+            top_k=10,
+            all_terms_must_match=False,
+            fuzziness="AUTO",
+            scale_score=False,
+            custom_query=None,
+        )
+        mock_store._embedding_retrieval.assert_called_once_with(
+            query_embedding=[0.1, 0.2, 0.3],
+            filters={},
+            top_k=10,
+            custom_query=None,
+            efficient_filtering=False,
+        )

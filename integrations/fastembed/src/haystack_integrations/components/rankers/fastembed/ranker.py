@@ -76,7 +76,7 @@ class FastembedRanker:
         self.local_files_only = local_files_only
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.meta_data_separator = meta_data_separator
-        self._model = None
+        self._model: Optional[TextCrossEncoder] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -140,7 +140,7 @@ class FastembedRanker:
         return concatenated_input_list
 
     @component.output_types(documents=List[Document])
-    def run(self, query: str, documents: List[Document], top_k: Optional[int] = None):
+    def run(self, query: str, documents: List[Document], top_k: Optional[int] = None) -> Dict[str, List[Document]]:
         """
         Returns a list of documents ranked by their similarity to the given query, using FastEmbed.
 

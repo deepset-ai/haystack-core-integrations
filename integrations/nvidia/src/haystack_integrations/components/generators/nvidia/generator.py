@@ -4,12 +4,12 @@
 
 import os
 import warnings
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Model, NimBackend, is_hosted, url_validation
+from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Client, Model, NimBackend, is_hosted, url_validation
 
 
 @component
@@ -104,7 +104,9 @@ class NvidiaGenerator:
                 UserWarning,
                 stacklevel=2,
             )
-            self._model = self.backend.model = name
+            self._model = name
+            if self.backend:
+                self.backend.model = name
         else:
             error_message = "No locally hosted model was found."
             raise ValueError(error_message)
@@ -123,7 +125,7 @@ class NvidiaGenerator:
             api_key=self._api_key,
             model_kwargs=self._model_arguments,
             timeout=self.timeout,
-            client=self.__class__.__name__,
+            client=Client.NVIDIA_GENERATOR,
         )
 
         if not self.is_hosted and not self._model:
@@ -169,7 +171,7 @@ class NvidiaGenerator:
         return default_from_dict(cls, data)
 
     @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
-    def run(self, prompt: str):
+    def run(self, prompt: str) -> Dict[str, Union[List[str], List[Dict[str, Any]]]]:
         """
         Queries the model with the provided prompt.
 

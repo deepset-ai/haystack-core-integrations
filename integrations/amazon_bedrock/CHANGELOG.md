@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.7.0] - 2025-06-11
+
+### 🐛 Bug Fixes
+
+- Fix Bedrock types + add py.typed (#1912)
+- Bedrock - do not assume connection issues in case of ClientError (#1921)
+
+### ⚙️ CI
+
+- Bedrock - improve worfklow; skip tests from CI (#1773)
+
+### 🧹 Chores
+
+- Update bedrock_ranker_example.py (#1740)
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+
+
 ## [integrations/amazon_bedrock-v3.6.2] - 2025-05-13
 
 ### 🧹 Chores

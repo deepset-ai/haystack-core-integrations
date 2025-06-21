@@ -57,7 +57,7 @@ class TestGoogleGenAITextEmbedder:
         assert data == {
             "type": "haystack_integrations.components.embedders.google_genai.text_embedder.GoogleGenAITextEmbedder",
             "init_parameters": {
-                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY"], "strict": True},
+                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": True},
                 "model": "text-embedding-004",
                 "prefix": "",
                 "suffix": "",
@@ -91,7 +91,7 @@ class TestGoogleGenAITextEmbedder:
         data = {
             "type": "haystack_integrations.components.embedders.google_genai.text_embedder.GoogleGenAITextEmbedder",
             "init_parameters": {
-                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY"], "strict": True},
+                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": True},
                 "model": "text-embedding-004",
                 "prefix": "",
                 "suffix": "",
@@ -182,3 +182,4 @@ class TestGoogleGenAITextEmbedder:
         assert "text" in result["meta"]["model"] and "004" in result["meta"]["model"], (
             "The model name does not contain 'text' and '004'"
         )
+        assert result["meta"] == {"model": model}

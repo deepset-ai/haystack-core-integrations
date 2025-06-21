@@ -17,7 +17,7 @@ from ollama import ChatResponse, Client
 
 def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any]:
     """
-    Convert a ChatMessage to the format expected by Ollama Chat API.
+    Convert a ChatMessage to the format expected by the Ollama Chat API.
     """
     text_contents = message.texts
     tool_calls = message.tool_calls
@@ -30,7 +30,7 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any
         msg = "A `ChatMessage` can only contain one `TextContent` or one `ToolCallResult`."
         raise ValueError(msg)
 
-    ollama_msg: Dict[str, Any] = {"role": message._role.value}
+    ollama_msg: Dict[str, Any] = {"role": message.role.value}
 
     if tool_call_results:
         # Ollama does not provide a way to communicate errors in tool invocations, so we ignore the error field
@@ -42,15 +42,15 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any
     if tool_calls:
         # Ollama does not support tool call id, so we ignore it
         ollama_msg["tool_calls"] = [
-            {"type": "function", "function": {"name": tc.tool_name, "arguments": tc.arguments}} for tc in tool_calls
+            {"type": "function", "function": {"name": tool_call.tool_name, "arguments": tool_call.arguments}}
+            for tool_call in tool_calls
         ]
     return ollama_msg
 
 
-def _convert_ollama_meta_to_openai_format(intput_response_dict: Dict) -> Dict:
+def _convert_ollama_meta_to_openai_format(input_response_dict: Dict) -> Dict:
     """
-    Internal function to convert Ollama metadata to OpenAI format.
-
+    Map Ollama metadata keys onto the OpenAI-compatible names Haystack expects.
     All fields that are not part of the OpenAI metadata are left unchanged in the returned dict.
 
     Example Ollama metadata:
@@ -66,7 +66,6 @@ def _convert_ollama_meta_to_openai_format(intput_response_dict: Dict) -> Dict:
         'eval_count': 298,
         'eval_duration': 4799921000
     }
-
     Example OpenAI metadata:
     {
         'model': 'phi4:14b-q4_K_M',
@@ -84,7 +83,7 @@ def _convert_ollama_meta_to_openai_format(intput_response_dict: Dict) -> Dict:
         'eval_duration': 4799921000,
     }
     """
-    meta = {key: value for key, value in intput_response_dict.items() if key != "message"}
+    meta = {key: value for key, value in input_response_dict.items() if key != "message"}
 
     if "done_reason" in meta:
         meta["finish_reason"] = meta.pop("done_reason")
@@ -103,49 +102,77 @@ def _convert_ollama_meta_to_openai_format(intput_response_dict: Dict) -> Dict:
 
 def _convert_ollama_response_to_chatmessage(ollama_response: "ChatResponse") -> ChatMessage:
     """
-    Converts the non-streaming response from the Ollama API to a ChatMessage with assistant role.
+    Convert non-streaming Ollama Chat API response to Haystack ChatMessage with the assistant role.
     """
     response_dict = ollama_response.model_dump()
-
     ollama_message = response_dict["message"]
 
     text = ollama_message["content"]
+    tool_calls: List[ToolCall] = []
 
-    tool_calls = []
     if ollama_tool_calls := ollama_message.get("tool_calls"):
         for ollama_tc in ollama_tool_calls:
             tool_calls.append(
-                ToolCall(tool_name=ollama_tc["function"]["name"], arguments=ollama_tc["function"]["arguments"])
+                ToolCall(
+                    tool_name=ollama_tc["function"]["name"],
+                    arguments=ollama_tc["function"]["arguments"],
+                )
             )
 
-    message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls)
-
-    message._meta = _convert_ollama_meta_to_openai_format(response_dict)
-    return message
+    chat_msg = ChatMessage.from_assistant(text=text, tool_calls=tool_calls or None)
+    chat_msg._meta = _convert_ollama_meta_to_openai_format(response_dict)
+    return chat_msg
 
 
 @component
 class OllamaChatGenerator:
     """
-    Supports models running on Ollama, such as llama2 and mixtral.  Find the full list of supported models
-    [here](https://ollama.ai/library).
+    Haystack generator for models served by Ollama (https://ollama.ai).
+
+    * Fully supports streaming.
+    * Correctly passes tool-calls to Haystack when `stream=True`.
 
     Usage example:
     ```python
-    from haystack_integrations.components.generators.ollama import OllamaChatGenerator
+    from haystack.components.generators.utils import print_streaming_chunk
+    from haystack.components.agents import Agent
+    from haystack_integrations.components.generators.ollama.chat import OllamaChatGenerator
     from haystack.dataclasses import ChatMessage
+    from haystack.tools import Tool
 
-    generator = OllamaChatGenerator(model="zephyr",
-                                url = "http://localhost:11434",
-                                generation_kwargs={
-                                "num_predict": 100,
-                                "temperature": 0.9,
-                                })
+    def echo(query: str) -> str:
+        print(f"Tool executed with QUERY: {query}")
+        return query
 
-    messages = [ChatMessage.from_system("\nYou are a helpful, respectful and honest assistant"),
-    ChatMessage.from_user("What's Natural Language Processing?")]
-
-    print(generator.run(messages=messages))
+    echo_tool = Tool(
+        name="echo_tool",
+        description="Echoes the query (demo tool).",
+        function=echo,
+        parameters={"query": {"type": "string", "description": "Search query"}},
+    )
+    agent = Agent(
+        chat_generator=OllamaChatGenerator(model="mistral-small3.1:24b"),
+        tools=[echo_tool],
+        system_prompt=(
+            "Use tool to print the query to test tools. Do not answer the question, just send the query to the tool"
+        ),
+        max_agent_steps=5,
+        raise_on_tool_invocation_failure=True,
+        streaming_callback=print_streaming_chunk,
+    )
+    messages = [ChatMessage.from_user("This is stream test of tool usage")]
+    result = agent.run(messages=messages)
+    for message in result["messages"]:
+        print("\n======")
+        if message.role == "system":
+            continue
+        elif message.role == "tool":
+            print(f"{message.role}:")
+            print(f"Tool Results: {[tool.result for tool in message.tool_call_results]}")
+            print(f"Used Tools: {[tool.origin.tool_name for tool in message.tool_call_results]}\n")
+        else:
+            print(f"{message.role}: {message.text}")
+            print(f"Used Tools: {[tool.tool_name for tool in message.tool_calls]}\n")
     ```
     """
 
@@ -162,15 +189,15 @@ class OllamaChatGenerator:
     ):
         """
         :param model:
-            The name of the model to use. The model should be available in the running Ollama instance.
+            The name of the model to use. The model must already be present (pulled) in the running Ollama instance.
         :param url:
-            The URL of a running Ollama instance.
+            The base URL of the Ollama server (default "http://localhost:11434").
         :param generation_kwargs:
             Optional arguments to pass to the Ollama generation endpoint, such as temperature,
             top_p, and others. See the available arguments in
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :param timeout:
-            The number of seconds before throwing a timeout error from the Ollama API.
+            Socket timeout *in seconds* for HTTP calls to Ollama.
         :param keep_alive:
             The option that controls how long the model will stay loaded into memory following the request.
             If not set, it will use the default value from the Ollama (5 minutes).
@@ -183,27 +210,27 @@ class OllamaChatGenerator:
             A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         :param tools:
-            A list of tools or a Toolset for which the model can prepare calls.
-            This parameter can accept either a list of `Tool` objects or a `Toolset` instance.
+            A list of `haystack.tools.Tool` or a `haystack.tools.Toolset`. Duplicate tool names raise a `ValueError`.
             Not all models support tools. For a list of models compatible with tools, see the
             [models page](https://ollama.com/search?c=tools).
         :param response_format:
             The format for structured model outputs. The value can be:
             - None: No specific structure or format is applied to the response. The response is returned as-is.
             - "json": The response is formatted as a JSON object.
-            - JSON Schema: The response is formatted as a JSON object that adheres to the specified JSON Schema.
+            - JSON Schema: The response is formatted as a JSON object
+                that adheres to the specified JSON Schema. (needs Ollama ≥ 0.1.34)
         """
+        _check_duplicate_tool_names(list(tools or []))
 
-        _check_duplicate_tool_names(tools)
-
-        self.timeout = timeout
-        self.generation_kwargs = generation_kwargs or {}
-        self.url = url
         self.model = model
+        self.url = url
+        self.generation_kwargs = generation_kwargs or {}
+        self.timeout = timeout
         self.keep_alive = keep_alive
         self.streaming_callback = streaming_callback
         self.tools = tools
         self.response_format = response_format
+
         self._client = Client(host=self.url, timeout=self.timeout)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -219,9 +246,9 @@ class OllamaChatGenerator:
             self,
             model=self.model,
             url=self.url,
-            keep_alive=self.keep_alive,
             generation_kwargs=self.generation_kwargs,
             timeout=self.timeout,
+            keep_alive=self.keep_alive,
             streaming_callback=callback_name,
             tools=serialize_tools_or_toolset(self.tools),
             response_format=self.response_format,
@@ -234,52 +261,117 @@ class OllamaChatGenerator:
 
         :param data:
             Dictionary to deserialize from.
+
         :returns:
             Deserialized component.
         """
         deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
-
-        init_params = data.get("init_parameters", {})
-
-        if serialized_callback_handler := init_params.get("streaming_callback"):
-            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
+        if callback_ser := data["init_parameters"].get("streaming_callback"):
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(callback_ser)
         return default_from_dict(cls, data)
 
-    def _build_chunk(self, chunk_response: Any) -> StreamingChunk:
+    @staticmethod
+    def _build_chunk(chunk_response: Any) -> StreamingChunk:
         """
-        Converts the response from the Ollama API to a StreamingChunk.
+        Convert one Ollama stream-chunk to Haystack StreamingChunk.
         """
         chunk_response_dict = chunk_response.model_dump()
 
         content = chunk_response_dict["message"]["content"]
         meta = {key: value for key, value in chunk_response_dict.items() if key != "message"}
         meta["role"] = chunk_response_dict["message"]["role"]
+        if tool_calls := chunk_response_dict["message"].get("tool_calls"):
+            meta["tool_calls"] = tool_calls
 
-        chunk_message = StreamingChunk(content, meta)
-        return chunk_message
+        return StreamingChunk(content, meta)
 
     def _handle_streaming_response(
-        self, response: Any, streaming_callback: Optional[Callable[[StreamingChunk], None]]
-    ) -> Dict[str, List[Any]]:
+        self,
+        response_iter: Any,
+        callback: Optional[Callable[[StreamingChunk], None]],
+    ) -> Dict[str, List[ChatMessage]]:
         """
-        Handles streaming response and converts it to Haystack format
+        Merge an Ollama streaming response into a single ChatMessage, preserving
+        tool calls.  Works even when arguments arrive piecemeal as str fragments
+        or as full JSON dicts.
         """
+
         chunks: List[StreamingChunk] = []
-        for chunk in response:
-            chunk_delta = self._build_chunk(chunk)
-            chunks.append(chunk_delta)
-            if streaming_callback is not None:
-                streaming_callback(chunk_delta)
 
-        # Create the ChatMessage with the combined content
-        combined_text = "".join([c.content for c in chunks])
-        reply = ChatMessage.from_assistant(combined_text)
+        # Accumulators
+        arg_by_id: Dict[str, Union[str, dict]] = {}
+        name_by_id: Dict[str, str] = {}
+        id_order: List[str] = []
 
-        # Convert the last chunk's metadata to OpenAI format and attach it to the ChatMessage
-        if chunks:
-            meta = _convert_ollama_meta_to_openai_format(chunks[-1].meta)
-            reply._meta = meta
+        # Stream
+        for raw in response_iter:
+            chunk = self._build_chunk(raw)
+            chunks.append(chunk)
 
+            if callback:
+                callback(chunk)
+
+            for tool_call in chunk.meta.get("tool_calls", []):
+                # the Ollama server doesn't guarantee an id field in every tool_calls entry.
+                # OpenAI-compatible endpoint (/v1/chat/completions) - recent releases do add an auto-generated id
+                # when the model produces multiple tool calls, so that clients can map results back.
+                # Native Ollama endpoint (/api/chat) and older builds
+                # - the JSON often contains only function.name + arguments;
+                # many users have reported that id is missing even with several calls,
+                # making client-side resolution harder:
+                # https://github.com/ollama/ollama/issues/6708
+                # https://github.com/ollama/ollama/issues/7510
+                # - If id is provided → we can distinguish multiple calls to the same tool.
+                # - If id is missing → fallback to function.name works only when there's one call.
+                # - That's why the deduplication logic is cautious and assumes one logical
+                #   call per name when id is absent.
+                tool_call_id = tool_call.get("id") or tool_call["function"]["name"]
+                args = tool_call["function"].get("arguments")
+
+                # Remember first-seen order and tool name
+                if tool_call_id not in id_order:
+                    id_order.append(tool_call_id)
+                    name_by_id[tool_call_id] = tool_call["function"]["name"]
+
+                # Update the argument accumulator for this tool_call_id.
+                #
+                # • Ollama may stream the same `arguments` field in *two* different forms:
+                #   1) as one or more **str fragments**  -- characters of a JSON string, delivered chunk-by-chunk;
+                #   2) as a complete **dict**            -- fully-parsed JSON in a single chunk.
+                #
+                # • A dict always represents the *final* state (it is already parsed JSON),
+                #   so it should **overwrite** anything collected before.
+                #
+                # • If we are still receiving str fragments *and* we have not yet seen a
+                #   dict, we concatenate them in arrival order.
+                #
+                # • If a dict has already been stored (`prev` is dict) and another string
+                #   fragment arrives, we ignore it by skipping the concat - this prevents
+                #   `TypeError: can only concatenate str (not "dict") to str` and keeps the
+                #   fully-formed JSON intact.
+                if isinstance(args, dict):
+                    # Dict beats anything seen so far (final, authoritative version).
+                    arg_by_id[tool_call_id] = args
+                elif isinstance(args, str):
+                    # Append only when we are still in "string mode".
+                    if not isinstance(arg_by_id.get(tool_call_id), dict):
+                        prev = arg_by_id.get(tool_call_id, "")
+                        arg_by_id[tool_call_id] = f"{prev}{args}"
+
+        # Compose final reply
+        text = "".join(c.content for c in chunks)
+
+        tool_calls = []
+        for tool_call_id in id_order:
+            arguments = arg_by_id.get(tool_call_id, {})
+            assert isinstance(arguments, dict)  # final arguments are a dictionary  # noqa: S101
+            tool_calls.append(ToolCall(tool_name=name_by_id[tool_call_id], arguments=arguments))
+
+        reply = ChatMessage.from_assistant(
+            text=text,
+            tool_calls=tool_calls or None,
+            meta=_convert_ollama_meta_to_openai_format(chunks[-1].meta) if chunks else None,
+        )
         return {"replies": [reply]}
 
     @component.output_types(replies=List[ChatMessage])
@@ -290,62 +382,54 @@ class OllamaChatGenerator:
         tools: Optional[Union[List[Tool], Toolset]] = None,
         *,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-    ):
+    ) -> Dict[str, List[ChatMessage]]:
         """
         Runs an Ollama Model on a given chat history.
 
         :param messages:
             A list of ChatMessage instances representing the input messages.
         :param generation_kwargs:
-            Optional arguments to pass to the Ollama generation endpoint, such as temperature,
-            top_p, etc. See the
+            Per-call overrides for Ollama inference options.
+            These are merged on top of the instance-level `generation_kwargs`.
+            Optional arguments to pass to the Ollama generation endpoint, such as temperature, top_p, etc. See the
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
             list of `Tool` objects or a `Toolset` instance. If set, it will override the `tools` parameter set
             during component initialization.
         :param streaming_callback:
-            A callback function that is called when a new token is received from the stream.
+            A callable to receive `StreamingChunk` objects as they
+            arrive.  Supplying a callback (here or in the constructor) switches
+            the component into streaming mode.
         :returns: A dictionary with the following keys:
-            - `replies`: The responses from the model
+            - `replies`: A list of ChatMessages containing the model's response
         """
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        resolved_streaming_callback = streaming_callback or self.streaming_callback
-
-        stream = resolved_streaming_callback is not None
         tools = tools or self.tools
-        _check_duplicate_tool_names(tools)
+        _check_duplicate_tool_names(list(tools or []))
 
-        if stream and tools:
-            msg = "Ollama does not support tools and streaming at the same time. Please choose one."
-            raise ValueError(msg)
-
-        if self.response_format and tools:
-            msg = "Ollama does not support tools and response_format at the same time. Please choose one."
-            raise ValueError(msg)
-
-        if self.response_format and stream:
-            msg = "Ollama does not support streaming and response_format at the same time. Please choose one."
-            raise ValueError(msg)
-
-        # Convert toolset to list of tools if needed
+        # Convert Toolset → list[Tool] for JSON serialization
         if isinstance(tools, Toolset):
             tools = list(tools)
+        ollama_tools = [{"type": "function", "function": {**tool.tool_spec}} for tool in tools] if tools else None
 
-        ollama_tools = [{"type": "function", "function": {**t.tool_spec}} for t in tools] if tools else None
+        callback = streaming_callback or self.streaming_callback
+        is_stream = callback is not None
 
-        ollama_messages = [_convert_chatmessage_to_ollama_format(msg) for msg in messages]
+        ollama_messages = [_convert_chatmessage_to_ollama_format(m) for m in messages]
+
         response = self._client.chat(
             model=self.model,
             messages=ollama_messages,
             tools=ollama_tools,
-            stream=stream,
+            stream=is_stream,  # type: ignore[call-overload]  # Ollama expects Literal[True] or Literal[False], not bool
             keep_alive=self.keep_alive,
             options=generation_kwargs,
             format=self.response_format,
         )
 
-        if stream:
-            return self._handle_streaming_response(response, resolved_streaming_callback)
+        if is_stream:
+            return self._handle_streaming_response(response, callback)
 
+        # non-stream path
         return {"replies": [_convert_ollama_response_to_chatmessage(response)]}

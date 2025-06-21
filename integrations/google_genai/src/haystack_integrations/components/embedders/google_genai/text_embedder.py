@@ -39,19 +39,19 @@ class GoogleGenAITextEmbedder:
     def __init__(
         self,
         *,
-        api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),
+        api_key: Secret = Secret.from_env_var(["GOOGLE_API_KEY", "GEMINI_API_KEY"]),
         model: str = "text-embedding-004",
         prefix: str = "",
         suffix: str = "",
         config: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """
         Creates an GoogleGenAITextEmbedder component.
 
         :param api_key:
             The Google API key.
-            You can set it with the environment variable `GOOGLE_API_KEY`, or pass it via this parameter
-            during initialization.
+            You can set it with the environment variable `GOOGLE_API_KEY` or `GEMINI_API_KEY`, or pass it via
+            this parameter during initialization.
         :param model:
             The name of the model to use for calculating embeddings.
             The default model is `text-embedding-004`.
@@ -119,7 +119,8 @@ class GoogleGenAITextEmbedder:
         return kwargs
 
     def _prepare_output(self, result: types.EmbedContentResponse) -> Dict[str, Any]:
-        return {"embedding": result.embeddings[0].values, "meta": {"model": self._model_name}}
+        embedding = result.embeddings[0].values if result.embeddings else []
+        return {"embedding": embedding, "meta": {"model": self._model_name}}
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
     def run(self, text: str) -> Union[Dict[str, List[float]], Dict[str, Any]]:

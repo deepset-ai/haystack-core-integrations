@@ -49,7 +49,7 @@ class TestOptimumTextEmbedder:
         assert embedder._backend.parameters.model_kwargs == {
             "model_id": "sentence-transformers/all-mpnet-base-v2",
             "provider": "CPUExecutionProvider",
-            "use_auth_token": "fake-api-token",
+            "token": "fake-api-token",
         }
 
     def test_init_with_parameters(self, mock_check_valid_model):  # noqa: ARG002
@@ -78,7 +78,7 @@ class TestOptimumTextEmbedder:
             "trust_remote_code": True,
             "model_id": "sentence-transformers/all-minilm-l6-v2",
             "provider": "CUDAExecutionProvider",
-            "use_auth_token": "fake-api-token",
+            "token": "fake-api-token",
         }
         assert embedder._backend.parameters.working_dir == "working_dir"
         assert embedder._backend.parameters.optimizer_settings is None
@@ -121,7 +121,7 @@ class TestOptimumTextEmbedder:
         assert embedder._backend.parameters.model_kwargs == {
             "model_id": "sentence-transformers/all-mpnet-base-v2",
             "provider": "CPUExecutionProvider",
-            "use_auth_token": None,
+            "token": None,
         }
         assert embedder._backend.parameters.working_dir is None
         assert embedder._backend.parameters.optimizer_settings is None
@@ -178,7 +178,7 @@ class TestOptimumTextEmbedder:
             "trust_remote_code": True,
             "model_id": "sentence-transformers/all-minilm-l6-v2",
             "provider": "CUDAExecutionProvider",
-            "use_auth_token": None,
+            "token": None,
         }
         assert embedder._backend.parameters.working_dir == "working_dir"
         assert embedder._backend.parameters.optimizer_settings == OptimumEmbedderOptimizationConfig(

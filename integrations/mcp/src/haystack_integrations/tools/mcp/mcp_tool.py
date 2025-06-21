@@ -15,10 +15,13 @@ from datetime import timedelta
 from typing import Any, cast
 
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+from exceptiongroup import ExceptionGroup
 from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.tools import Tool
 from haystack.tools.errors import ToolInvocationError
+from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils.auth import SecretType
 from haystack.utils.url_validation import is_valid_http_url
 
 from mcp import ClientSession, StdioServerParameters, types
@@ -177,22 +180,6 @@ class MCPToolNotFoundError(MCPError):
         self.available_tools = available_tools or []
 
 
-class MCPResponseTypeError(MCPError):
-    """Error when response content type is not supported."""
-
-    def __init__(self, message: str, response: Any, tool_name: str | None = None) -> None:
-        """
-        Initialize the MCPResponseTypeError.
-
-        :param message: Descriptive error message
-        :param response: The response that had the wrong type
-        :param tool_name: Name of the tool that produced the response
-        """
-        super().__init__(message)
-        self.response = response
-        self.tool_name = tool_name
-
-
 class MCPInvocationError(ToolInvocationError):
     """Error during tool invocation."""
 
@@ -233,16 +220,15 @@ class MCPClient(ABC):
         """
         pass
 
-    async def call_tool(self, tool_name: str, tool_args: dict[str, Any]) -> Any:
+    async def call_tool(self, tool_name: str, tool_args: dict[str, Any]) -> str:
         """
         Call a tool on the connected MCP server.
 
         :param tool_name: Name of the tool to call
         :param tool_args: Arguments to pass to the tool
-        :returns: Result of the tool invocation
+        :returns: JSON string representation of the tool invocation result
         :raises MCPConnectionError: If not connected to an MCP server
         :raises MCPInvocationError: If the tool invocation fails
-        :raises MCPResponseTypeError: If response type is not TextContent
         """
         if not self.session:
             message = "Not connected to an MCP server"
@@ -250,8 +236,10 @@ class MCPClient(ABC):
 
         try:
             result = await self.session.call_tool(tool_name, tool_args)
-            validated_result = self._validate_response(tool_name, result)
-            return validated_result
+            if result.isError:
+                message = f"Tool '{tool_name}' returned an error: {result.content!s}"
+                raise MCPInvocationError(message=message, tool_name=tool_name)
+            return result.model_dump_json()
         except MCPError:
             # Re-raise specific MCP errors directly
             raise
@@ -259,44 +247,6 @@ class MCPClient(ABC):
             # Wrap other exceptions with context about which tool failed
             message = f"Failed to invoke tool '{tool_name}' with args: {tool_args} , got error: {e!s}"
             raise MCPInvocationError(message, tool_name, tool_args) from e
-
-    def _validate_response(self, tool_name: str, result: types.CallToolResult) -> types.CallToolResult:
-        """
-        Validate response from an MCP tool call, accepting only TextContent.
-
-        :param tool_name: Name of the called tool (for error messages)
-        :param result: CallToolResult from MCP tool call
-        :returns: The original CallToolResult object
-        :raises MCPResponseTypeError: If content type is not TextContent
-        :raises MCPInvocationError: If the tool call resulted in an error
-        """
-
-        # Check for error response
-        if result.isError:
-            if len(result.content) > 0 and isinstance(result.content[0], types.TextContent):
-                # Get the error message from the first item
-                first_item = result.content[0]
-                message = f"Tool '{tool_name}' returned an error: {first_item.text}"
-            else:
-                message = f"Tool '{tool_name}' returned an error: {result.content!s}"
-            raise MCPInvocationError(
-                message=message,
-                tool_name=tool_name,
-            )
-
-        # Validate content types - only allow TextContent for now
-        if result.content:
-            for item in result.content:
-                if not isinstance(item, types.TextContent):
-                    # Reject any non-TextContent
-                    message = (
-                        f"Unsupported content type in response from tool '{tool_name}'. "
-                        f"Only TextContent is currently supported."
-                    )
-                    raise MCPResponseTypeError(message, result, tool_name)
-
-        # Return the original result object
-        return result
 
     async def aclose(self) -> None:
         """
@@ -356,7 +306,7 @@ class StdioClient(MCPClient):
     MCP client that connects to servers using stdio transport.
     """
 
-    def __init__(self, command: str, args: list[str] | None = None, env: dict[str, str] | None = None) -> None:
+    def __init__(self, command: str, args: list[str] | None = None, env: dict[str, str | Secret] | None = None) -> None:
         """
         Initialize a stdio MCP client.
 
@@ -367,7 +317,12 @@ class StdioClient(MCPClient):
         super().__init__()
         self.command: str = command
         self.args: list[str] = args or []
-        self.env: dict[str, str] | None = env
+        # Resolve Secret values in environment variables
+        self.env: dict[str, str] | None = None
+        if env:
+            self.env = {
+                key: value.resolve_value() if isinstance(value, Secret) else value for key, value in env.items()
+            }
         logger.debug(f"PROCESS: Created StdioClient for command: {command} {' '.join(self.args or [])}")
 
     async def connect(self) -> list[Tool]:
@@ -400,7 +355,9 @@ class SSEClient(MCPClient):
         # in post_init we validate the url and set the url field so it is guaranteed to be valid
         # safely ignore the mypy warning here
         self.url: str = server_info.url  # type: ignore[assignment]
-        self.token: str | None = server_info.token
+        self.token: str | None = (
+            server_info.token.resolve_value() if isinstance(server_info.token, Secret) else server_info.token
+        )
         self.timeout: int = server_info.timeout
 
     async def connect(self) -> list[Tool]:
@@ -431,7 +388,9 @@ class StreamableHttpClient(MCPClient):
         super().__init__()
 
         self.url: str = server_info.url
-        self.token: str | None = server_info.token
+        self.token: str | None = (
+            server_info.token.resolve_value() if isinstance(server_info.token, Secret) else server_info.token
+        )
         self.timeout: int = server_info.timeout
 
     async def connect(self) -> list[Tool]:
@@ -441,6 +400,13 @@ class StreamableHttpClient(MCPClient):
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
         """
+        if streamablehttp_client is None:
+            message = (
+                "Streamable HTTP client is not available. "
+                "This may require a newer version of the mcp package that includes mcp.client.streamable_http"
+            )
+            raise MCPConnectionError(message=message, operation="streamable_http_connect")
+
         headers = {"Authorization": f"Bearer {self.token}"} if self.token else None
         streamablehttp_transport = await self.exit_stack.enter_async_context(
             streamablehttp_client(url=self.url, headers=headers, timeout=timedelta(seconds=self.timeout))
@@ -475,8 +441,16 @@ class MCPServerInfo(ABC):
         result = {"type": generate_qualified_class_name(type(self))}
 
         # Add all fields from the dataclass
-        for field in fields(self):
-            result[field.name] = getattr(self, field.name)
+        for dataclass_field in fields(self):
+            value = getattr(self, dataclass_field.name)
+            if hasattr(value, "to_dict"):
+                result[dataclass_field.name] = value.to_dict()
+            elif isinstance(value, dict):
+                result[dataclass_field.name] = {
+                    k: v.to_dict() if hasattr(v, "to_dict") else v for k, v in value.items()
+                }
+            else:
+                result[dataclass_field.name] = value
 
         return result
 
@@ -492,6 +466,26 @@ class MCPServerInfo(ABC):
         data_copy = data.copy()
         data_copy.pop("type", None)
 
+        secret_types = {e.value for e in SecretType}
+        field_names = {f.name for f in fields(cls)}
+
+        # Iterate over a static list of items to avoid mutation issues
+        for name, value in list(data_copy.items()):
+            if name not in field_names or not isinstance(value, dict):
+                continue
+
+            # Top-level secret?
+            if value.get("type") in secret_types:
+                deserialize_secrets_inplace(data_copy, keys=[name])
+                continue
+
+            # Nested secrets (one level deep)
+            nested_keys: list[str] = [
+                k for k, v in value.items() if isinstance(v, dict) and v.get("type") in secret_types
+            ]
+            if nested_keys:
+                deserialize_secrets_inplace(value, keys=nested_keys)
+
         # Create an instance of the class with the remaining fields
         return cls(**data_copy)
 
@@ -501,6 +495,16 @@ class SSEServerInfo(MCPServerInfo):
     """
     Data class that encapsulates SSE MCP server connection parameters.
 
+    For authentication tokens containing sensitive data, you can use Secret objects
+    for secure handling and serialization:
+
+    ```python
+    server_info = SSEServerInfo(
+        url="https://my-mcp-server.com",
+        token=Secret.from_env_var("API_KEY"),
+    )
+    ```
+
     :param url: Full URL of the MCP server (including /sse endpoint)
     :param base_url: Base URL of the MCP server (deprecated, use url instead)
     :param token: Authentication token for the server (optional)
@@ -509,7 +513,7 @@ class SSEServerInfo(MCPServerInfo):
 
     url: str | None = None
     base_url: str | None = None  # deprecated
-    token: str | None = None
+    token: str | Secret | None = None
     timeout: int = 30
 
     def __post_init__(self):
@@ -553,13 +557,23 @@ class StreamableHttpServerInfo(MCPServerInfo):
     """
     Data class that encapsulates streamable HTTP MCP server connection parameters.
 
+    For authentication tokens containing sensitive data, you can use Secret objects
+    for secure handling and serialization:
+
+    ```python
+    server_info = StreamableHttpServerInfo(
+        url="https://my-mcp-server.com",
+        token=Secret.from_env_var("API_KEY"),
+    )
+    ```
+
     :param url: Full URL of the MCP server (streamable HTTP endpoint)
     :param token: Authentication token for the server (optional)
     :param timeout: Connection timeout in seconds
     """
 
     url: str
-    token: str | None = None
+    token: str | Secret | None = None
     timeout: int = 30
 
     def __post_init__(self):
@@ -585,11 +599,29 @@ class StdioServerInfo(MCPServerInfo):
     :param command: Command to run (e.g., "python", "node")
     :param args: Arguments to pass to the command
     :param env: Environment variables for the command
+
+    For environment variables containing sensitive data, you can use Secret objects
+    for secure handling and serialization:
+
+    ```python
+    server_info = StdioServerInfo(
+        command="uv",
+        args=["run", "my-mcp-server"],
+        env={
+            "WORKSPACE_PATH": "/path/to/workspace",  # Plain string
+            "API_KEY": Secret.from_env_var("API_KEY"),  # Secret object
+        }
+    )
+    ```
+
+    Secret objects will be properly serialized and deserialized without exposing
+    the secret value, while plain strings will be preserved as-is. Use Secret objects
+    for sensitive data that needs to be handled securely.
     """
 
     command: str
     args: list[str] | None = None
-    env: dict[str, str] | None = None
+    env: dict[str, str | Secret] | None = None
 
     def create_client(self) -> MCPClient:
         """
@@ -608,11 +640,13 @@ class MCPTool(Tool):
     compatibility with the Haystack tool ecosystem.
 
     Response handling:
-    - Text content is supported and returned as strings
-    - Unsupported content types (like binary/images) will raise MCPResponseTypeError
+    - Text and image content are supported and returned as JSON strings
+    - The JSON contains the structured response from the MCP server
+    - Use json.loads() to parse the response into a dictionary
 
     Example using HTTP:
     ```python
+    import json
     from haystack.tools import MCPTool, SSEServerInfo
 
     # Create tool instance
@@ -621,12 +655,14 @@ class MCPTool(Tool):
         server_info=SSEServerInfo(url="http://localhost:8000/sse")
     )
 
-    # Use the tool
-    result = tool.invoke(a=5, b=3)
+    # Use the tool and parse result
+    result_json = tool.invoke(a=5, b=3)
+    result = json.loads(result_json)
     ```
 
     Example using stdio:
     ```python
+    import json
     from haystack.tools import MCPTool, StdioServerInfo
 
     # Create tool instance
@@ -635,8 +671,9 @@ class MCPTool(Tool):
         server_info=StdioServerInfo(command="python", args=["path/to/server.py"])
     )
 
-    # Use the tool
-    result = tool.invoke(timezone="America/New_York")
+    # Use the tool and parse result
+    result_json = tool.invoke(timezone="America/New_York")
+    result = json.loads(result_json)
     ```
     """
 
@@ -713,8 +750,6 @@ class MCPTool(Tool):
             self.close()
 
             # Extract more detailed error information from TaskGroup/ExceptionGroup exceptions
-            from exceptiongroup import ExceptionGroup
-
             error_message = str(e)
             # Handle ExceptionGroup to extract more useful error messages
             if isinstance(e, ExceptionGroup):
@@ -732,12 +767,12 @@ class MCPTool(Tool):
             message = f"Failed to initialize MCPTool '{name}': {error_message}"
             raise MCPConnectionError(message=message, server_info=server_info, operation="initialize") from e
 
-    def _invoke_tool(self, **kwargs: Any) -> Any:
+    def _invoke_tool(self, **kwargs: Any) -> str:
         """
         Synchronous tool invocation.
 
         :param kwargs: Arguments to pass to the tool
-        :returns: Result of the tool invocation
+        :returns: JSON string representation of the tool invocation result
         """
         logger.debug(f"TOOL: Invoking tool '{self.name}' with args: {kwargs}")
         try:
@@ -764,14 +799,13 @@ class MCPTool(Tool):
             message = f"Failed to invoke tool '{self.name}' with args: {kwargs} , got error: {e!s}"
             raise MCPInvocationError(message, self.name, kwargs) from e
 
-    async def ainvoke(self, **kwargs: Any) -> Any:
+    async def ainvoke(self, **kwargs: Any) -> str:
         """
         Asynchronous tool invocation.
 
         :param kwargs: Arguments to pass to the tool
-        :returns: Result of the tool invocation, processed based on content type
+        :returns: JSON string representation of the tool invocation result
         :raises MCPInvocationError: If the tool invocation fails
-        :raises MCPResponseTypeError: If response type is not supported
         :raises TimeoutError: If the operation times out
         """
         try:

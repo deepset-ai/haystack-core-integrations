@@ -111,12 +111,18 @@ pip install hatch
 
 With `hatch` installed, run all the tests:
 ```
-hatch run test
+hatch run test:all
 ```
 
-Run the linters `ruff` and `mypy`:
+To format your code and perform linting using Ruff (with automatic fixes), run:
 ```
-hatch run lint:all
+hatch run fmt
+```
+
+To check for static type errors, run:
+
+```console
+$ hatch run test:types
 ```
 
 ## License

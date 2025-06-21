@@ -141,7 +141,7 @@ class FastembedSparseDocumentEmbedder:
         return texts_to_embed
 
     @component.output_types(documents=List[Document])
-    def run(self, documents: List[Document]):
+    def run(self, documents: List[Document]) -> Dict[str, List[Document]]:
         """
         Embeds a list of Documents.
 

@@ -102,7 +102,7 @@ class TestGoogleGenAIDocumentEmbedder:
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
-                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY"], "strict": True},
+                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": True},
                 "config": {"task_type": "SEMANTIC_SIMILARITY"},
             },
         }
@@ -137,6 +137,35 @@ class TestGoogleGenAIDocumentEmbedder:
                 "config": {"task_type": "CLASSIFICATION"},
             },
         }
+
+    def test_from_dict(self, monkeypatch):
+        data = {
+            "type": (
+                "haystack_integrations.components.embedders.google_genai.document_embedder.GoogleGenAIDocumentEmbedder"
+            ),
+            "init_parameters": {
+                "model": "text-embedding-004",
+                "prefix": "",
+                "suffix": "",
+                "batch_size": 32,
+                "progress_bar": True,
+                "meta_fields_to_embed": [],
+                "embedding_separator": "\n",
+                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY"], "strict": True},
+                "config": {"task_type": "SEMANTIC_SIMILARITY"},
+            },
+        }
+        monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
+        embedder = GoogleGenAIDocumentEmbedder.from_dict(data)
+        assert embedder._api_key.resolve_value() == "fake-api-key"
+        assert embedder._model == "text-embedding-004"
+        assert embedder._prefix == ""
+        assert embedder._suffix == ""
+        assert embedder._batch_size == 32
+        assert embedder._progress_bar is True
+        assert embedder._meta_fields_to_embed == []
+        assert embedder._embedding_separator == "\n"
+        assert embedder._config == {"task_type": "SEMANTIC_SIMILARITY"}
 
     def test_prepare_texts_to_embed_w_metadata(self):
         documents = [
@@ -237,3 +266,6 @@ class TestGoogleGenAIDocumentEmbedder:
         assert "text" in result["meta"]["model"] and "004" in result["meta"]["model"], (
             "The model name does not contain 'text' and '004'"
         )
+        assert result["documents"][0].meta == {"topic": "Cuisine"}
+        assert result["documents"][1].meta == {"topic": "ML"}
+        assert result["meta"] == {"model": model}

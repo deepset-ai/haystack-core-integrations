@@ -197,12 +197,6 @@ class AmazonBedrockChatGenerator:
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
 
-        aws_access_key_id = resolve_secret(aws_access_key_id)
-        aws_secret_access_key = resolve_secret(aws_secret_access_key)
-        aws_session_token = resolve_secret(aws_session_token)
-        aws_region_name = resolve_secret(aws_region_name)
-        aws_profile_name = resolve_secret(aws_profile_name)
-
         config: Optional[Config] = None
         if self.boto3_config:
             config = Config(**self.boto3_config)
@@ -210,11 +204,11 @@ class AmazonBedrockChatGenerator:
         try:
             # sync session
             session = get_aws_session(
-                aws_access_key_id=aws_access_key_id,
-                aws_secret_access_key=aws_secret_access_key,
-                aws_session_token=aws_session_token,
-                aws_region_name=aws_region_name,
-                aws_profile_name=aws_profile_name,
+                aws_access_key_id=resolve_secret(aws_access_key_id),
+                aws_secret_access_key=resolve_secret(aws_secret_access_key),
+                aws_session_token=resolve_secret(aws_session_token),
+                aws_region_name=resolve_secret(aws_region_name),
+                aws_profile_name=resolve_secret(aws_profile_name),
             )
             self.client = session.client("bedrock-runtime", config=config)
 
@@ -227,7 +221,7 @@ class AmazonBedrockChatGenerator:
 
         self.generation_kwargs = generation_kwargs or {}
         self.stop_words = stop_words or []
-        self.async_session = None
+        self.async_session: Optional[aioboto3.Session] = None
 
     def _get_async_session(self) -> aioboto3.Session:
         """
@@ -427,12 +421,13 @@ class AmazonBedrockChatGenerator:
                 if not response_stream:
                     msg = "No stream found in the response."
                     raise AmazonBedrockInferenceError(msg)
-                replies = _parse_streaming_response(response_stream, callback, self.model)
+                # the type of streaming callback is checked in _prepare_request_params, but mypy doesn't know
+                replies = _parse_streaming_response(response_stream, callback, self.model)  # type: ignore[arg-type]
             else:
                 response = self.client.converse(**params)
                 replies = _parse_completion_response(response, self.model)
         except ClientError as exception:
-            msg = f"Could not generate inference for Amazon Bedrock model {self.model} due: {exception}"
+            msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
             raise AmazonBedrockInferenceError(msg) from exception
 
         return {"replies": replies}
@@ -483,13 +478,14 @@ class AmazonBedrockChatGenerator:
                     if not response_stream:
                         msg = "No stream found in the response."
                         raise AmazonBedrockInferenceError(msg)
-                    replies = await _parse_streaming_response_async(response_stream, callback, self.model)
+                    # the type of streaming callback is checked in _prepare_request_params, but mypy doesn't know
+                    replies = await _parse_streaming_response_async(response_stream, callback, self.model)  # type: ignore[arg-type]
                 else:
                     response = await async_client.converse(**params)
                     replies = _parse_completion_response(response, self.model)
 
         except ClientError as exception:
-            msg = f"Could not generate inference for Amazon Bedrock model {self.model} due: {exception}"
+            msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
             raise AmazonBedrockInferenceError(msg) from exception
 
         return {"replies": replies}

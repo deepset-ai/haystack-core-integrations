@@ -4,7 +4,7 @@
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from haystack import Pipeline, default_from_dict, default_to_dict, logging, super_component
+from haystack import Document, Pipeline, default_from_dict, default_to_dict, logging, super_component
 from haystack.components.embedders.types import TextEmbedder
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.joiners.document_joiner import JoinMode
@@ -110,8 +110,8 @@ class OpenSearchHybridRetriever:
         top_k: Optional[int] = None,
         sort_by_score: bool = True,
         # extra kwargs
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """
         Initialize the OpenSearchHybridRetriever, a super component to retrieve documents from OpenSearch using
         both embedding-based and keyword-based retrieval methods.
@@ -192,7 +192,7 @@ class OpenSearchHybridRetriever:
         self.top_k = top_k
         self.sort_by_score = sort_by_score
 
-        init_args = {
+        init_args: Dict[str, Any] = {
             "bm25_retriever": {
                 "document_store": self.document_store,
                 "filters": self.filters_bm25,
@@ -239,7 +239,14 @@ class OpenSearchHybridRetriever:
 
         def warm_up(self) -> None: ...
 
-        def run(self, query: str, filters_bm25=None, filters_embedding=None) -> Dict[str, Any]: ...
+        def run(
+            self,
+            query: str,
+            filters_bm25: Optional[Dict[str, Any]] = None,
+            filters_embedding: Optional[Dict[str, Any]] = None,
+            top_k_bm25: Optional[int] = None,
+            top_k_embedding: Optional[int] = None,
+        ) -> Dict[str, List[Document]]: ...
 
     def _create_pipeline(self, data: dict[str, Any]) -> Pipeline:
         """
@@ -263,6 +270,10 @@ class OpenSearchHybridRetriever:
         self.input_mapping = {
             # The pipeline input "query" feeds into each of the retrievers
             "query": ["text_embedder.text", "bm25_retriever.query"],
+            "filters_bm25": ["bm25_retriever.filters"],
+            "filters_embedding": ["embedding_retriever.filters"],
+            "top_k_bm25": ["bm25_retriever.top_k"],
+            "top_k_embedding": ["embedding_retriever.top_k"],
         }
         self.output_mapping = {"document_joiner.documents": "documents"}
 
@@ -285,15 +296,23 @@ class OpenSearchHybridRetriever:
             top_k_bm25=self.top_k_bm25,
             scale_score=self.scale_score,
             all_terms_must_match=self.all_terms_must_match,
-            filter_policy_bm25=self.filter_policy_bm25.value,
+            filter_policy_bm25=(
+                self.filter_policy_bm25.value
+                if isinstance(self.filter_policy_bm25, FilterPolicy)
+                else self.filter_policy_bm25
+            ),
             custom_query_bm25=self.custom_query_bm25,
             # OpenSearchEmbeddingRetriever
             filters_embedding=self.filters_embedding,
             top_k_embedding=self.top_k_embedding,
-            filter_policy_embedding=self.filter_policy_embedding.value,
+            filter_policy_embedding=(
+                self.filter_policy_embedding.value
+                if isinstance(self.filter_policy_embedding, FilterPolicy)
+                else self.filter_policy_embedding
+            ),
             custom_query_embedding=self.custom_query_embedding,
             # DocumentJoiner
-            join_mode=self.join_mode.value,
+            join_mode=(self.join_mode.value if isinstance(self.join_mode, JoinMode) else self.join_mode),
             weights=self.weights,
             top_k=self.top_k,
             sort_by_score=self.sort_by_score,

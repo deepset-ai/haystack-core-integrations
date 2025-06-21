@@ -1,6 +1,9 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
+# ruff: noqa: FBT001  Boolean-typed positional argument in function definition
+
 from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -197,7 +200,7 @@ class OpenSearchBM25Retriever:
         fuzziness: Optional[Union[int, str]] = None,
         scale_score: Optional[bool] = None,
         custom_query: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Retrieve documents using BM25 retrieval.
 
@@ -286,7 +289,7 @@ class OpenSearchBM25Retriever:
         fuzziness: Optional[Union[int, str]] = None,
         scale_score: Optional[bool] = None,
         custom_query: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Asynchronously retrieve documents using BM25 retrieval.
 

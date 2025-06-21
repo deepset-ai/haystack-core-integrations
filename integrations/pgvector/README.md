@@ -28,13 +28,7 @@ docker run -d -p 5432:5432 -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgr
 then run the tests:
 
 ```console
-hatch run test
-```
-
-To run the coverage report:
-
-```console
-hatch run cov
+hatch run test:all
 ```
 
 ## License

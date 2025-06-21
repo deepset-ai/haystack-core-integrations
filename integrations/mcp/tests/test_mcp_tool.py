@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from haystack.tools.errors import ToolInvocationError
 from haystack.tools.from_function import tool
@@ -66,15 +68,13 @@ class TestMCPTool:
         """Test invoking MCPTools connected to in-memory servers."""
         # Test add tool invocation
         add_result = mcp_add_tool.invoke(a=25, b=17)
-        assert not add_result.isError
-        assert len(add_result.content) == 1
-        assert add_result.content[0].text == "42"  # 25 + 17
+        add_result = json.loads(add_result)
+        assert add_result["content"][0]["text"] == "42"
 
         # Test echo tool invocation
         echo_result = mcp_echo_tool.invoke(text="Hello MCP!")
-        assert not echo_result.isError
-        assert len(echo_result.content) == 1
-        assert echo_result.content[0].text == "Hello MCP!"
+        echo_result = json.loads(echo_result)
+        assert echo_result["content"][0]["text"] == "Hello MCP!"
 
     def test_mcp_tool_error_handling(self, mcp_error_tool):
         """Test error handling with the in-memory server."""

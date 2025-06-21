@@ -5,16 +5,14 @@ from collections.abc import Mapping
 from typing import Any, Dict, List, Literal, Optional, Union
 
 import numpy as np
-
-# There are no import stubs for elastic_transport and elasticsearch so mypy fails
-from elastic_transport import NodeConfig  # type: ignore[import-not-found]
+from elastic_transport import NodeConfig
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.version import __version__ as haystack_version
 
-from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers  # type: ignore[import-not-found]
+from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
 
 from .filters import _normalize_filters
 
@@ -66,7 +64,7 @@ class ElasticsearchDocumentStore:
         custom_mapping: Optional[Dict[str, Any]] = None,
         index: str = "default",
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
-        **kwargs,
+        **kwargs: Any,
     ):
         """
         Creates a new ElasticsearchDocumentStore instance.
@@ -93,8 +91,8 @@ class ElasticsearchDocumentStore:
         :param **kwargs: Optional arguments that `Elasticsearch` takes.
         """
         self._hosts = hosts
-        self._client = None
-        self._async_client = None
+        self._client: Optional[Elasticsearch] = None
+        self._async_client: Optional[AsyncElasticsearch] = None
         self._index = index
         self._embedding_similarity_function = embedding_similarity_function
         self._custom_mapping = custom_mapping
@@ -166,6 +164,7 @@ class ElasticsearchDocumentStore:
         Returns the synchronous Elasticsearch client, initializing it if necessary.
         """
         self._ensure_initialized()
+        assert self._client is not None  # noqa: S101
         return self._client
 
     @property
@@ -174,6 +173,7 @@ class ElasticsearchDocumentStore:
         Returns the asynchronous Elasticsearch client, initializing it if necessary.
         """
         self._ensure_initialized()
+        assert self._async_client is not None  # noqa: S101
         return self._async_client
 
     def to_dict(self) -> Dict[str, Any]:
@@ -226,7 +226,7 @@ class ElasticsearchDocumentStore:
         result = await self._async_client.count(index=self._index)  # type: ignore
         return result["count"]
 
-    def _search_documents(self, **kwargs) -> List[Document]:
+    def _search_documents(self, **kwargs: Any) -> List[Document]:
         """
         Calls the Elasticsearch client's search method and handles pagination.
         """
@@ -253,7 +253,7 @@ class ElasticsearchDocumentStore:
                 break
         return documents
 
-    async def _search_documents_async(self, **kwargs) -> List[Document]:
+    async def _search_documents_async(self, **kwargs: Any) -> List[Document]:
         """
         Asynchronously calls the Elasticsearch client's search method and handles pagination.
         """
@@ -379,9 +379,12 @@ class ElasticsearchDocumentStore:
             refresh="wait_for",
             index=self._index,
             raise_on_error=False,
+            stats_only=False,
         )
 
         if errors:
+            # with stats_only=False, errors is guaranteed to be a list of dicts
+            assert isinstance(errors, list)  # noqa: S101
             duplicate_errors_ids = []
             other_errors = []
             for e in errors:
@@ -451,13 +454,16 @@ class ElasticsearchDocumentStore:
 
         try:
             success, failed = await helpers.async_bulk(
-                client=self._async_client,
+                client=self.async_client,
                 actions=actions,
                 index=self._index,
                 refresh=True,
                 raise_on_error=False,
+                stats_only=False,
             )
             if failed:
+                # with stats_only=False, failed is guaranteed to be a list of dicts
+                assert isinstance(failed, list)  # noqa: S101
                 if policy == DuplicatePolicy.FAIL:
                     for error in failed:
                         if "create" in error and error["create"]["status"] == DOC_ALREADY_EXISTS:
@@ -494,7 +500,7 @@ class ElasticsearchDocumentStore:
 
         try:
             await helpers.async_bulk(
-                client=self._async_client,
+                client=self.async_client,
                 actions=({"_op_type": "delete", "_id": id_} for id_ in document_ids),
                 index=self._index,
                 refresh=True,
@@ -551,6 +557,8 @@ class ElasticsearchDocumentStore:
 
         if scale_score:
             for doc in documents:
+                if doc.score is None:
+                    continue
                 doc.score = float(1 / (1 + np.exp(-np.asarray(doc.score / BM25_SCALING_FACTOR))))
 
         return documents

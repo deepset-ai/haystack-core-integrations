@@ -8,6 +8,11 @@ from qdrant_client.http import models
 
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
+FILTER_POLICY_MERGE_ERROR_MESSAGE = (
+    "Native Qdrant filters cannot be used with filter_policy set to MERGE. "
+    "Set filter_policy to REPLACE or use Haystack filters instead."
+)
+
 
 @component
 class QdrantEmbeddingRetriever:
@@ -153,8 +158,19 @@ class QdrantEmbeddingRetriever:
         :returns:
             The retrieved documents.
 
+        :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
         """
-        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        if self._filter_policy == FilterPolicy.MERGE and (
+            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
+        ):
+            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
+
+        # Replacing filters works with native Qdrant filters even if the type is wrong
+        filters = apply_filter_policy(
+            filter_policy=self._filter_policy,
+            init_filters=self._filters,  # type: ignore[arg-type]
+            runtime_filters=filters,  # type: ignore[arg-type]
+        )
 
         docs = self._document_store._query_by_embedding(
             query_embedding=query_embedding,
@@ -197,8 +213,19 @@ class QdrantEmbeddingRetriever:
         :returns:
             The retrieved documents.
 
+        :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
         """
-        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        if self._filter_policy == FilterPolicy.MERGE and (
+            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
+        ):
+            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
+
+        # Replacing filters works with native Qdrant filters even if the type is wrong
+        filters = apply_filter_policy(
+            filter_policy=self._filter_policy,
+            init_filters=self._filters,  # type: ignore[arg-type]
+            runtime_filters=filters,  # type: ignore[arg-type]
+        )
 
         docs = await self._document_store._query_by_embedding_async(
             query_embedding=query_embedding,
@@ -364,8 +391,19 @@ class QdrantSparseEmbeddingRetriever:
         :returns:
             The retrieved documents.
 
+        :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
         """
-        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        if self._filter_policy == FilterPolicy.MERGE and (
+            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
+        ):
+            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
+
+        # Replacing filters works with native Qdrant filters even if the type is wrong
+        filters = apply_filter_policy(
+            filter_policy=self._filter_policy,
+            init_filters=self._filters,  # type: ignore[arg-type]
+            runtime_filters=filters,  # type: ignore[arg-type]
+        )
 
         docs = self._document_store._query_by_sparse(
             query_sparse_embedding=query_sparse_embedding,
@@ -413,8 +451,19 @@ class QdrantSparseEmbeddingRetriever:
         :returns:
             The retrieved documents.
 
+        :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
         """
-        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        if self._filter_policy == FilterPolicy.MERGE and (
+            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
+        ):
+            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
+
+        # Replacing filters works with native Qdrant filters even if the type is wrong
+        filters = apply_filter_policy(
+            filter_policy=self._filter_policy,
+            init_filters=self._filters,  # type: ignore[arg-type]
+            runtime_filters=filters,  # type: ignore[arg-type]
+        )
 
         docs = await self._document_store._query_by_sparse_async(
             query_sparse_embedding=query_sparse_embedding,
@@ -579,8 +628,19 @@ class QdrantHybridRetriever:
         :returns:
             The retrieved documents.
 
+        :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
         """
-        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        if self._filter_policy == FilterPolicy.MERGE and (
+            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
+        ):
+            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
+
+        # Replacing filters works with native Qdrant filters even if the type is wrong
+        filters = apply_filter_policy(
+            filter_policy=self._filter_policy,
+            init_filters=self._filters,  # type: ignore[arg-type]
+            runtime_filters=filters,  # type: ignore[arg-type]
+        )
 
         docs = self._document_store._query_hybrid(
             query_embedding=query_embedding,
@@ -628,8 +688,19 @@ class QdrantHybridRetriever:
         :returns:
             The retrieved documents.
 
+        :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
         """
-        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        if self._filter_policy == FilterPolicy.MERGE and (
+            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
+        ):
+            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
+
+        # Replacing filters works with native Qdrant filters even if the type is wrong
+        filters = apply_filter_policy(
+            filter_policy=self._filter_policy,
+            init_filters=self._filters,  # type: ignore[arg-type]
+            runtime_filters=filters,  # type: ignore[arg-type]
+        )
 
         docs = await self._document_store._query_hybrid_async(
             query_embedding=query_embedding,

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field, fields
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Optional, Type, TypeVar
 
 from haystack import default_from_dict, default_to_dict
 from haystack.document_stores.errors import DocumentStoreError
@@ -10,7 +10,6 @@ from opensearchpy import AWSV4SignerAsyncAuth, Urllib3AWSV4SignerAuth
 with LazyImport("Run 'pip install \"boto3\"' to install boto3.") as boto3_import:
     import boto3
     from botocore.exceptions import BotoCoreError
-from typing import TypeVar
 
 TSignerAuth = TypeVar("TSignerAuth", Urllib3AWSV4SignerAuth, AWSV4SignerAsyncAuth)
 
@@ -38,8 +37,8 @@ def _get_aws_session(
     aws_session_token: Optional[str] = None,
     aws_region_name: Optional[str] = None,
     aws_profile_name: Optional[str] = None,
-    **kwargs,
-):
+    **kwargs: Any,
+) -> "boto3.Session":
     """
     Creates an AWS Session with the given parameters.
     Checks if the provided AWS credentials are valid and can be used to connect to AWS.
@@ -69,7 +68,7 @@ def _get_aws_session(
         raise AWSConfigurationError(msg) from e
 
 
-@dataclass()
+@dataclass
 class AWSAuth:
     """
     Auth credentials for AWS OpenSearch services.
@@ -151,7 +150,12 @@ class AWSAuth:
                 aws_profile_name=_resolve_secret(self.aws_profile_name),
             )
             credentials = session.get_credentials()
-            return signer_auth_class(credentials, region_name, self.aws_service)
+            return signer_auth_class(
+                credentials=credentials,
+                # if region is None, the underlying classes raise a clear error at initialization time
+                region=region_name,  # type: ignore[arg-type]
+                service=self.aws_service,
+            )
         except Exception as exception:
             msg = (
                 "Could not connect to AWS OpenSearch. Make sure the AWS environment is configured correctly. "
