@@ -140,7 +140,7 @@ class GoogleGenAITextEmbedder:
         return self._prepare_output(result=response)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
-    async def run_async(self, text: str):
+    async def run_async(self, text: str) -> Union[Dict[str, List[float]], Dict[str, Any]]:
         """
         Asynchronously embed a single string.
 
