@@ -1,19 +1,17 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union, overload
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
-from psycopg import AsyncConnection, Connection, Error, IntegrityError
-from psycopg.abc import Query
-from psycopg.connection_async import AsyncCursor
-from psycopg.cursor import Cursor
-from psycopg.rows import dict_row
-from psycopg.sql import SQL, Identifier
+from psycopg import AsyncConnection, Connection, Cursor, Error, IntegrityError
+from psycopg.cursor_async import AsyncCursor
+from psycopg.rows import DictRow, dict_row
+from psycopg.sql import SQL, Composed, Identifier
 from psycopg.sql import Literal as SQLLiteral
 
 from pgvector.psycopg import register_vector, register_vector_async
@@ -174,12 +172,12 @@ class PgvectorDocumentStore:
         self.keyword_index_name = keyword_index_name
         self.language = language
 
-        self._connection = None
-        self._async_connection = None
-        self._cursor = None
-        self._async_cursor = None
-        self._dict_cursor = None
-        self._async_dict_cursor = None
+        self._connection: Optional[Connection] = None
+        self._async_connection: Optional[AsyncConnection] = None
+        self._cursor: Optional[Cursor] = None
+        self._async_cursor: Optional[AsyncCursor] = None
+        self._dict_cursor: Optional[Cursor[DictRow]] = None
+        self._async_dict_cursor: Optional[AsyncCursor[DictRow]] = None
         self._table_initialized = False
 
     def to_dict(self) -> Dict[str, Any]:
@@ -247,20 +245,33 @@ class PgvectorDocumentStore:
             return False
         return True
 
+    @overload
     def _execute_sql(
-        self, sql_query: Query, params: Optional[tuple] = None, error_msg: str = "", cursor: Optional[Cursor] = None
-    ):
+        self, cursor: Cursor, sql_query: Composed, params: Optional[tuple] = None, error_msg: str = ""
+    ) -> Cursor: ...
+
+    @overload
+    def _execute_sql(
+        self, cursor: Cursor[DictRow], sql_query: Composed, params: Optional[tuple] = None, error_msg: str = ""
+    ) -> Cursor[DictRow]: ...
+
+    def _execute_sql(
+        self,
+        cursor: Union[Cursor, Cursor[DictRow]],
+        sql_query: Composed,
+        params: Optional[tuple] = None,
+        error_msg: str = "",
+    ) -> Union[Cursor, Cursor[DictRow]]:
         """
         Internal method to execute SQL statements and handle exceptions.
 
         :param sql_query: The SQL query to execute.
         :param params: The parameters to pass to the SQL query.
         :param error_msg: The error message to use if an exception is raised.
-        :param cursor: The cursor to use to execute the SQL query. Defaults to self._cursor.
+        :param cursor: The cursor to use to execute the SQL query.
         """
 
         params = params or ()
-        cursor = cursor or self._cursor
 
         if cursor is None or self._connection is None:
             message = (
@@ -269,7 +280,7 @@ class PgvectorDocumentStore:
             )
             raise ValueError(message)
 
-        sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
+        sql_query_str = sql_query.as_string(cursor)
         logger.debug("SQL query: {query}\nParameters: {parameters}", query=sql_query_str, parameters=params)
 
         try:
@@ -283,24 +294,33 @@ class PgvectorDocumentStore:
 
         return result
 
+    @overload
+    async def _execute_sql_async(
+        self, cursor: AsyncCursor, sql_query: Composed, params: Optional[tuple] = None, error_msg: str = ""
+    ) -> AsyncCursor: ...
+
+    @overload
+    async def _execute_sql_async(
+        self, cursor: AsyncCursor[DictRow], sql_query: Composed, params: Optional[tuple] = None, error_msg: str = ""
+    ) -> AsyncCursor[DictRow]: ...
+
     async def _execute_sql_async(
         self,
-        sql_query: Query,
+        cursor: Union[AsyncCursor, AsyncCursor[DictRow]],
+        sql_query: Composed,
         params: Optional[tuple] = None,
         error_msg: str = "",
-        cursor: Optional[AsyncCursor] = None,
-    ):
+    ) -> Union[AsyncCursor, AsyncCursor[DictRow]]:
         """
         Internal method to asynchronously execute SQL statements and handle exceptions.
 
         :param sql_query: The SQL query to execute.
         :param params: The parameters to pass to the SQL query.
         :param error_msg: The error message to use if an exception is raised.
-        :param cursor: The cursor to use to execute the SQL query. Defaults to self._async_cursor.
+        :param cursor: The cursor to use to execute the SQL query.
         """
 
         params = params or ()
-        cursor = cursor or self._async_cursor
 
         if cursor is None or self._async_connection is None:
             message = (
@@ -309,7 +329,7 @@ class PgvectorDocumentStore:
             )
             raise ValueError(message)
 
-        sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
+        sql_query_str = sql_query.as_string(cursor)
         logger.debug("SQL query: {query}\nParameters: {parameters}", query=sql_query_str, parameters=params)
 
         try:
@@ -425,23 +445,33 @@ class PgvectorDocumentStore:
             self._build_table_creation_queries()
         )
 
+        assert self._cursor is not None
+
         table_exists = bool(
             self._execute_sql(
-                sql_table_exists, (self.schema_name, self.table_name), "Could not check if table exists"
+                cursor=self._cursor,
+                sql_query=sql_table_exists,
+                params=(self.schema_name, self.table_name),
+                error_msg="Could not check if table exists",
             ).fetchone()
         )
         if not table_exists:
-            self._execute_sql(sql_create_table, error_msg="Could not create table")
+            self._execute_sql(cursor=self._cursor, sql_query=sql_create_table, error_msg="Could not create table")
 
         index_exists = bool(
             self._execute_sql(
-                sql_keyword_index_exists,
-                (self.schema_name, self.table_name, self.keyword_index_name),
-                "Could not check if keyword index exists",
+                cursor=self._cursor,
+                sql_query=sql_keyword_index_exists,
+                params=(self.schema_name, self.table_name, self.keyword_index_name),
+                error_msg="Could not check if keyword index exists",
             ).fetchone()
         )
         if not index_exists:
-            self._execute_sql(sql_create_keyword_index, error_msg="Could not create keyword index on table")
+            self._execute_sql(
+                cursor=self._cursor,
+                sql_query=sql_create_keyword_index,
+                error_msg="Could not create keyword index on table",
+            )
 
         if self.search_strategy == "hnsw":
             self._handle_hnsw()
@@ -459,31 +489,39 @@ class PgvectorDocumentStore:
             self._build_table_creation_queries()
         )
 
+        assert self._async_cursor is not None
+
         table_exists = bool(
             await (
                 await self._execute_sql_async(
-                    sql_table_exists,
-                    (self.schema_name, self.table_name),
-                    "Could not check if table exists",
-                    self._async_cursor,
+                    cursor=self._async_cursor,
+                    sql_query=sql_table_exists,
+                    params=(self.schema_name, self.table_name),
+                    error_msg="Could not check if table exists",
                 )
             ).fetchone()
         )
         if not table_exists:
-            await self._execute_sql_async(sql_create_table, error_msg="Could not create table")
+            await self._execute_sql_async(
+                cursor=self._async_cursor, sql_query=sql_create_table, error_msg="Could not create table"
+            )
 
         index_exists = bool(
             await (
                 await self._execute_sql_async(
-                    sql_keyword_index_exists,
-                    (self.schema_name, self.table_name, self.keyword_index_name),
-                    "Could not check if keyword index exists",
-                    self._async_cursor,
+                    cursor=self._async_cursor,
+                    sql_query=sql_keyword_index_exists,
+                    params=(self.schema_name, self.table_name, self.keyword_index_name),
+                    error_msg="Could not check if keyword index exists",
                 )
             ).fetchone()
         )
         if not index_exists:
-            await self._execute_sql_async(sql_create_keyword_index, error_msg="Could not create keyword index on table")
+            await self._execute_sql_async(
+                cursor=self._async_cursor,
+                sql_query=sql_create_keyword_index,
+                error_msg="Could not create keyword index on table",
+            )
 
         if self.search_strategy == "hnsw":
             await self._handle_hnsw_async()
@@ -501,8 +539,11 @@ class PgvectorDocumentStore:
             table_name=Identifier(self.table_name),
         )
 
+        assert self._cursor is not None
+
         self._execute_sql(
-            delete_sql,
+            cursor=self._cursor,
+            sql_query=delete_sql,
             error_msg=f"Could not delete table {self.schema_name}.{self.table_name} in PgvectorDocumentStore",
         )
 
@@ -515,8 +556,11 @@ class PgvectorDocumentStore:
             table_name=Identifier(self.table_name),
         )
 
+        assert self._async_cursor is not None
+
         await self._execute_sql_async(
-            delete_sql,
+            cursor=self._async_cursor,
+            sql_query=delete_sql,
             error_msg=f"Could not delete table {self.schema_name}.{self.table_name} in PgvectorDocumentStore",
         )
 
@@ -578,14 +622,19 @@ class PgvectorDocumentStore:
             self._build_hnsw_queries()
         )
 
+        assert self._cursor is not None
+
         if self.hnsw_ef_search:
-            self._execute_sql(sql_set_hnsw_ef_search, error_msg="Could not set hnsw.ef_search")
+            self._execute_sql(
+                cursor=self._cursor, sql_query=sql_set_hnsw_ef_search, error_msg="Could not set hnsw.ef_search"
+            )
 
         index_exists = bool(
             self._execute_sql(
-                sql_hnsw_index_exists,
-                (self.schema_name, self.table_name, self.hnsw_index_name),
-                "Could not check if HNSW index exists",
+                cursor=self._cursor,
+                sql_query=sql_hnsw_index_exists,
+                params=(self.schema_name, self.table_name, self.hnsw_index_name),
+                error_msg="Could not check if HNSW index exists",
             ).fetchone()
         )
 
@@ -597,9 +646,9 @@ class PgvectorDocumentStore:
             )
             return
 
-        self._execute_sql(sql_drop_hnsw_index, error_msg="Could not drop HNSW index")
+        self._execute_sql(cursor=self._cursor, sql_query=sql_drop_hnsw_index, error_msg="Could not drop HNSW index")
 
-        self._execute_sql(sql_create_hnsw_index, error_msg="Could not create HNSW index")
+        self._execute_sql(cursor=self._cursor, sql_query=sql_create_hnsw_index, error_msg="Could not create HNSW index")
 
     async def _handle_hnsw_async(self):
         """
@@ -610,16 +659,20 @@ class PgvectorDocumentStore:
             self._build_hnsw_queries()
         )
 
+        assert self._async_cursor is not None
+
         if self.hnsw_ef_search:
-            await self._execute_sql_async(sql_set_hnsw_ef_search, error_msg="Could not set hnsw.ef_search")
+            await self._execute_sql_async(
+                cursor=self._async_cursor, sql_query=sql_set_hnsw_ef_search, error_msg="Could not set hnsw.ef_search"
+            )
 
         index_exists = bool(
             await (
                 await self._execute_sql_async(
-                    sql_hnsw_index_exists,
-                    (self.schema_name, self.table_name, self.hnsw_index_name),
-                    "Could not check if HNSW index exists",
-                    self._async_cursor,
+                    cursor=self._async_cursor,
+                    sql_query=sql_hnsw_index_exists,
+                    params=(self.schema_name, self.table_name, self.hnsw_index_name),
+                    error_msg="Could not check if HNSW index exists",
                 )
             ).fetchone()
         )
@@ -632,9 +685,13 @@ class PgvectorDocumentStore:
             )
             return
 
-        await self._execute_sql_async(sql_drop_hnsw_index, error_msg="Could not drop HNSW index")
+        await self._execute_sql_async(
+            cursor=self._async_cursor, sql_query=sql_drop_hnsw_index, error_msg="Could not drop HNSW index"
+        )
 
-        await self._execute_sql_async(sql_create_hnsw_index, error_msg="Could not create HNSW index")
+        await self._execute_sql_async(
+            cursor=self._async_cursor, sql_query=sql_create_hnsw_index, error_msg="Could not create HNSW index"
+        )
 
     def count_documents(self) -> int:
         """
@@ -648,10 +705,13 @@ class PgvectorDocumentStore:
         )
 
         self._ensure_db_setup()
-        count = self._execute_sql(sql_count, error_msg="Could not count documents in PgvectorDocumentStore").fetchone()[
-            0
-        ]
-        return count
+        assert self._cursor is not None
+        result = self._execute_sql(
+            cursor=self._cursor, sql_query=sql_count, error_msg="Could not count documents in PgvectorDocumentStore"
+        ).fetchone()
+        if result is not None:
+            return result[0]
+        return 0
 
     async def count_documents_async(self) -> int:
         """
@@ -665,12 +725,18 @@ class PgvectorDocumentStore:
         )
 
         await self._ensure_db_setup_async()
-
+        assert self._async_cursor is not None
         result = await (
-            await self._execute_sql_async(sql_count, error_msg="Could not count documents in PgvectorDocumentStore")
+            await self._execute_sql_async(
+                cursor=self._async_cursor,
+                sql_query=sql_count,
+                error_msg="Could not count documents in PgvectorDocumentStore",
+            )
         ).fetchone()
 
-        return result[0]
+        if result is not None:
+            return result[0]
+        return 0
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
@@ -696,11 +762,13 @@ class PgvectorDocumentStore:
             sql_filter += sql_where_clause
 
         self._ensure_db_setup()
+        assert self._dict_cursor is not None
+
         result = self._execute_sql(
-            sql_filter,
-            params,
-            error_msg="Could not filter documents from PgvectorDocumentStore.",
             cursor=self._dict_cursor,
+            sql_query=sql_filter,
+            params=params,
+            error_msg="Could not filter documents from PgvectorDocumentStore.",
         )
 
         records = result.fetchall()
@@ -732,18 +800,20 @@ class PgvectorDocumentStore:
             sql_filter += sql_where_clause
 
         await self._ensure_db_setup_async()
+        assert self._async_dict_cursor is not None
+
         result = await self._execute_sql_async(
-            sql_filter,
-            params,
-            error_msg="Could not filter documents from PgvectorDocumentStore.",
             cursor=self._async_dict_cursor,
+            sql_query=sql_filter,
+            params=params,
+            error_msg="Could not filter documents from PgvectorDocumentStore.",
         )
 
         records = await result.fetchall()
         docs = _from_pg_to_haystack_documents(records)
         return docs
 
-    def _build_insert_statement(self, policy: DuplicatePolicy):
+    def _build_insert_statement(self, policy: DuplicatePolicy) -> Composed:
         """
         Builds the SQL insert statement to write documents.
         """
@@ -885,7 +955,10 @@ class PgvectorDocumentStore:
         )
 
         self._ensure_db_setup()
-        self._execute_sql(delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore")
+        assert self._cursor is not None
+        self._execute_sql(
+            cursor=self._cursor, sql_query=delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore"
+        )
 
     async def delete_documents_async(self, document_ids: List[str]) -> None:
         """
@@ -905,9 +978,16 @@ class PgvectorDocumentStore:
         )
 
         await self._ensure_db_setup_async()
-        await self._execute_sql_async(delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore")
+        assert self._async_cursor is not None
+        await self._execute_sql_async(
+            cursor=self._async_cursor,
+            sql_query=delete_sql,
+            error_msg="Could not delete documents from PgvectorDocumentStore",
+        )
 
-    def _build_keyword_retrieval_query(self, query: str, top_k: int, filters: Optional[Dict[str, Any]] = None):
+    def _build_keyword_retrieval_query(
+        self, query: str, top_k: int, filters: Optional[Dict[str, Any]] = None
+    ) -> Tuple[Composed, tuple]:
         """
         Builds the SQL query and the where parameters for keyword retrieval.
         """
@@ -919,7 +999,7 @@ class PgvectorDocumentStore:
         )
 
         where_params = ()
-        sql_where_clause = SQL("")
+        sql_where_clause: Union[Composed, SQL] = SQL("")
         if filters:
             sql_where_clause, where_params = _convert_filters_to_where_clause_and_params(
                 filters=filters, operator="AND"
@@ -954,11 +1034,12 @@ class PgvectorDocumentStore:
         sql_query, where_params = self._build_keyword_retrieval_query(query=query, top_k=top_k, filters=filters)
 
         self._ensure_db_setup()
+        assert self._dict_cursor is not None
         result = self._execute_sql(
-            sql_query,
-            (query, *where_params),
-            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
             cursor=self._dict_cursor,
+            sql_query=sql_query,
+            params=(query, *where_params),
+            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
         )
 
         records = result.fetchall()
@@ -982,11 +1063,12 @@ class PgvectorDocumentStore:
         sql_query, where_params = self._build_keyword_retrieval_query(query=query, top_k=top_k, filters=filters)
 
         await self._ensure_db_setup_async()
+        assert self._async_dict_cursor is not None
         result = await self._execute_sql_async(
-            sql_query,
-            (query, *where_params),
-            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
             cursor=self._async_dict_cursor,
+            sql_query=sql_query,
+            params=(query, *where_params),
+            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
         )
 
         records = await result.fetchall()
@@ -999,7 +1081,7 @@ class PgvectorDocumentStore:
         vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]],
         top_k: int,
         filters: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> Tuple[Composed, tuple]:
         """
         Performs checks and builds the SQL query and the where parameters for embedding retrieval.
         """
@@ -1038,7 +1120,7 @@ class PgvectorDocumentStore:
             score=SQL(score_definition),
         )
 
-        sql_where_clause = SQL("")
+        sql_where_clause: Union[Composed, SQL] = SQL("")
         params = ()
         if filters:
             sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
@@ -1078,11 +1160,12 @@ class PgvectorDocumentStore:
             query_embedding=query_embedding, vector_function=vector_function, top_k=top_k, filters=filters
         )
         self._ensure_db_setup()
+        assert self._dict_cursor is not None
         result = self._execute_sql(
-            sql_query,
-            params,
-            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
             cursor=self._dict_cursor,
+            sql_query=sql_query,
+            params=params,
+            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
         )
 
         records = result.fetchall()
@@ -1107,11 +1190,12 @@ class PgvectorDocumentStore:
         )
 
         await self._ensure_db_setup_async()
+        assert self._async_dict_cursor is not None
         result = await self._execute_sql_async(
-            sql_query,
-            params,
-            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
             cursor=self._async_dict_cursor,
+            sql_query=sql_query,
+            params=params,
+            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
         )
 
         records = await result.fetchall()

@@ -46,7 +46,7 @@ def _format_tool_call_message(tool_call_message: ChatMessage) -> Dict[str, Any]:
     :returns:
         Dictionary representing the tool call message in Bedrock's expected format
     """
-    content = []
+    content: List[Dict[str, Any]] = []
     # Tool call message can contain text
     if tool_call_message.text:
         content.append({"text": tool_call_message.text})

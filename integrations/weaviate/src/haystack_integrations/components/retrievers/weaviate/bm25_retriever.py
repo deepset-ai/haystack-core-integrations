@@ -89,7 +89,9 @@ class WeaviateBM25Retriever:
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
-    def run(self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
+    def run(
+        self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> Dict[str, List[Document]]:
         """
         Retrieves documents from Weaviate using the BM25 algorithm.
 

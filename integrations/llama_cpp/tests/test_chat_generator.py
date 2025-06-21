@@ -11,7 +11,7 @@ from haystack.components.builders import ChatPromptBuilder
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage, ChatRole, TextContent, ToolCall
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack.tools import create_tool_from_function
+from haystack.tools import Tool, Toolset, create_tool_from_function
 
 from haystack_integrations.components.generators.llama_cpp.chat.chat_generator import (
     LlamaCppChatGenerator,
@@ -22,6 +22,24 @@ from haystack_integrations.components.generators.llama_cpp.chat.chat_generator i
 @pytest.fixture
 def model_path():
     return Path(__file__).parent / "models"
+
+
+def get_current_temperature(location: Annotated[str, "The city and state, e.g. San Francisco, CA"]):
+    """Get the current temperature in a given location"""
+
+    if "tokyo" in location.lower():
+        return {"location": "Tokyo", "temperature": "10", "unit": "celsius"}
+    if "san francisco" in location.lower():
+        return {"location": "San Francisco", "temperature": "72", "unit": "fahrenheit"}
+    if "paris" in location.lower():
+        return {"location": "Paris", "temperature": "22", "unit": "celsius"}
+
+    return {"location": location, "temperature": "unknown"}
+
+
+@pytest.fixture
+def temperature_tool():
+    return create_tool_from_function(get_current_temperature)
 
 
 def download_file(file_link, filename, capsys):
@@ -76,7 +94,7 @@ def test_convert_message_to_llamacpp_format():
     assert _convert_message_to_llamacpp_format(message) == {
         "role": "function",
         "content": tool_result,
-        "tool_call_id": "123",
+        "name": "weather",
     }
 
 
@@ -156,6 +174,11 @@ class TestLlamaCppChatGenerator:
         assert generator.model_kwargs == {"model_path": "test_model.gguf", "n_ctx": 8192, "n_batch": 512}
         assert generator.generation_kwargs == {}
 
+    def test_init_with_toolset(self, temperature_tool):
+        toolset = Toolset([temperature_tool])
+        generator = LlamaCppChatGenerator(model="test_model.gguf", tools=toolset)
+        assert generator.tools == toolset
+
     def test_to_dict(self):
         generator = LlamaCppChatGenerator(model="test_model.gguf", n_ctx=8192, n_batch=512)
         assert generator.to_dict() == {
@@ -169,6 +192,25 @@ class TestLlamaCppChatGenerator:
                 "tools": None,
             },
         }
+
+    def test_to_dict_with_toolset(self, temperature_tool):
+        toolset = Toolset([temperature_tool])
+        generator = LlamaCppChatGenerator(model="test_model.gguf", tools=toolset)
+
+        data = generator.to_dict()
+
+        assert "tools" in data["init_parameters"]["tools"]["data"]
+        assert data["init_parameters"]["tools"]["type"] == "haystack.tools.toolset.Toolset"
+
+    def test_from_dict_with_toolset(self, temperature_tool):
+        toolset = Toolset([temperature_tool])
+        generator = LlamaCppChatGenerator(model="test_model.gguf", tools=toolset)
+        data = generator.to_dict()
+
+        deserialized_component = LlamaCppChatGenerator.from_dict(data)
+
+        assert isinstance(deserialized_component.tools, Toolset)
+        assert all(isinstance(tool, Tool) for tool in deserialized_component.tools)
 
     def test_from_dict(self):
         serialized = {
@@ -410,18 +452,6 @@ class TestLlamaCppChatGenerator:
 
 
 class TestLlamaCppChatGeneratorFunctionary:
-    def get_current_temperature(self, location: Annotated[str, "The city and state, e.g. San Francisco, CA"]):
-        """Get the current temperature in a given location"""
-
-        if "tokyo" in location.lower():
-            return {"location": "Tokyo", "temperature": "10", "unit": "celsius"}
-        if "san francisco" in location.lower():
-            return {"location": "San Francisco", "temperature": "72", "unit": "fahrenheit"}
-        if "paris" in location.lower():
-            return {"location": "Paris", "temperature": "22", "unit": "celsius"}
-
-        return {"location": location, "temperature": "unknown"}
-
     @pytest.fixture
     def generator(self, model_path, capsys):
         gguf_model_path = (
@@ -468,9 +498,7 @@ class TestLlamaCppChatGeneratorFunctionary:
         assert tool_calls[0].arguments == {"username": "john_doe"}
 
     @pytest.mark.integration
-    def test_function_call_and_execute(self, generator):
-        temperature_tool = create_tool_from_function(self.get_current_temperature)
-
+    def test_function_call_and_execute(self, generator, temperature_tool):
         user_message = ChatMessage.from_user("What's the weather like in San Francisco?")
 
         tool_choice = {"type": "function", "function": {"name": "get_current_temperature"}}
@@ -492,7 +520,6 @@ class TestLlamaCppChatGeneratorFunctionary:
         tool_message = ChatMessage.from_tool(tool_result=tool_response, origin=tool_call)
 
         all_messages = [user_message, first_reply, tool_message]
-        print(all_messages)
 
         second_response = generator.run(messages=all_messages)
         assert "replies" in second_response

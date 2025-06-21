@@ -27,39 +27,30 @@ pip install hatch
 
 With `hatch` installed, to run all the tests:
 ```
-hatch run test
+hatch run test:all
 ```
 > Note: integration tests will be skipped unless the env var COHERE_API_KEY is set. The api key needs to be valid
 > in order to pass the tests.
 
 To only run unit tests:
 ```
-hatch run test -m"not integration"
+hatch run test:unit
 ```
 
-To only run embedders tests:
+For integration tests, run:
 ```
-hatch run test -m"embedders"
-```
-
-To only run generators tests:
-```
-hatch run test -m"generators"
+hatch run test:integration
 ```
 
-To only run ranker tests:
+To format your code and perform linting using Ruff (with automatic fixes), run:
 ```
-hatch run test -m"ranker"
-```
-
-Markers can be combined, for example you can run only integration tests for embedders with:
-```
-hatch run test -m"integrations and embedders"
+hatch run fmt
 ```
 
-To run the linters `ruff` and `mypy`:
-```
-hatch run lint:all
+To check for static type errors, run:
+
+```console
+$ hatch run test:types
 ```
 
 ## License

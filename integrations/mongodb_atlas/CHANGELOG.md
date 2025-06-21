@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/mongodb_atlas-v3.3.0] - 2025-06-18
+
+### 🐛 Bug Fixes
+
+- Fix MongoDB types + add py.typed (#1967)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+
+
 ## [integrations/mongodb_atlas-v3.2.2] - 2025-05-27
 
 ### 🌀 Miscellaneous

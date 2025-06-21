@@ -239,7 +239,7 @@ class OllamaGenerator:
         generation_kwargs: Optional[Dict[str, Any]] = None,
         *,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-    ):
+    ) -> Dict[str, List[Any]]:
         """
         Runs an Ollama Model on the given prompt.
 
@@ -263,7 +263,7 @@ class OllamaGenerator:
         response = self._client.generate(
             model=self.model,
             prompt=prompt,
-            stream=stream,
+            stream=stream,  # type: ignore[call-overload]  # Ollama expects Literal[True] or Literal[False], not bool
             keep_alive=self.keep_alive,
             options=generation_kwargs,
         )

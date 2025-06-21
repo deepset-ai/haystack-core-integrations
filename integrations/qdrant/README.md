@@ -20,7 +20,7 @@ pip install qdrant-haystack
 The test suites use Qdrant's in-memory instance. No additional steps required.
 
 ```console
-hatch run test
+hatch run test:all
 ```
 
 ## License

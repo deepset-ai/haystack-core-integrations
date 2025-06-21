@@ -114,7 +114,9 @@ class ElasticsearchEmbeddingRetriever:
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
-    def run(self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
+    def run(
+        self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> Dict[str, List[Document]]:
         """
         Retrieve documents using a vector similarity metric.
 
@@ -139,7 +141,7 @@ class ElasticsearchEmbeddingRetriever:
     @component.output_types(documents=List[Document])
     async def run_async(
         self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Asynchronously retrieve documents using a vector similarity metric.
 

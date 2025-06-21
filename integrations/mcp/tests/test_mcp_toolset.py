@@ -1,5 +1,9 @@
+import json
 import os
+import socket
+import subprocess
 import sys
+import tempfile
 import time
 from unittest.mock import patch
 
@@ -210,9 +214,6 @@ class TestMCPToolsetIntegration:
     @pytest.mark.skipif(sys.platform == "win32", reason="Windows fails for some reason")
     def test_toolset_with_sse_connection(self):
         """Test MCPToolset with an SSE connection to a simple server."""
-        import socket
-        import subprocess
-        import tempfile
 
         # Find an available port
         def find_free_port():
@@ -270,13 +271,19 @@ if __name__ == "__main__":
 
             # Test the add tool
             add_tool = next(tool for tool in toolset.tools if tool.name == "add")
-            result = add_tool.invoke(a=5, b=3)
-            assert result.content[0].text == "8"
+            result_json = add_tool.invoke(a=5, b=3)
+
+            # Parse the JSON result
+            result = json.loads(result_json)
+            assert result["content"][0]["text"] == "8"
 
             # Test the subtract tool
             subtract_tool = next(tool for tool in toolset.tools if tool.name == "subtract")
-            result = subtract_tool.invoke(a=10, b=4)
-            assert result.content[0].text == "6"
+            result_json = subtract_tool.invoke(a=10, b=4)
+
+            # Parse the JSON result
+            result = json.loads(result_json)
+            assert result["content"][0]["text"] == "6"
 
         except Exception:
             # Check server output for clues
@@ -308,9 +315,6 @@ if __name__ == "__main__":
     @pytest.mark.skipif(sys.platform == "win32", reason="Windows fails for some reason")
     def test_toolset_with_streamable_http_connection(self):
         """Test MCPToolset with a streamable-http connection to a simple server."""
-        import socket
-        import subprocess
-        import tempfile
 
         # Find an available port
         def find_free_port():
@@ -369,13 +373,19 @@ if __name__ == "__main__":
 
             # Test the add tool
             add_tool = next(tool for tool in toolset.tools if tool.name == "add")
-            result = add_tool.invoke(a=5, b=3)
-            assert result.content[0].text == "8"
+            result_json = add_tool.invoke(a=5, b=3)
+
+            # Parse the JSON result
+            result = json.loads(result_json)
+            assert result["content"][0]["text"] == "8"
 
             # Test the subtract tool
             subtract_tool = next(tool for tool in toolset.tools if tool.name == "subtract")
-            result = subtract_tool.invoke(a=10, b=4)
-            assert result.content[0].text == "6"
+            result_json = subtract_tool.invoke(a=10, b=4)
+
+            # Parse the JSON result
+            result = json.loads(result_json)
+            assert result["content"][0]["text"] == "6"
 
         except Exception:
             # Check server output for clues

@@ -37,7 +37,7 @@ def convert_haystack_documents_to_qdrant_points(
 
         else:
             vector = payload.pop("embedding") or {}
-        _id = convert_id(payload.get("id"))
+        _id = convert_id(document.id)
 
         point = rest.PointStruct(
             payload=payload,
@@ -62,19 +62,21 @@ QdrantPoint = Union[rest.ScoredPoint, rest.Record]
 
 
 def convert_qdrant_point_to_haystack_document(point: QdrantPoint, use_sparse_embeddings: bool) -> Document:
-    payload = {**point.payload}
+    payload = point.payload or {}
     payload["score"] = point.score if hasattr(point, "score") else None
 
     if not use_sparse_embeddings:
         payload["embedding"] = point.vector if hasattr(point, "vector") else None
-    elif hasattr(point, "vector") and point.vector is not None:
+    elif hasattr(point, "vector") and point.vector is not None and isinstance(point.vector, dict):
         payload["embedding"] = point.vector.get(DENSE_VECTORS_NAME)
 
         if SPARSE_VECTORS_NAME in point.vector:
-            parse_vector_dict = {
-                "indices": point.vector[SPARSE_VECTORS_NAME].indices,
-                "values": point.vector[SPARSE_VECTORS_NAME].values,
-            }
-            payload["sparse_embedding"] = parse_vector_dict
+            sparse_vector = point.vector[SPARSE_VECTORS_NAME]
+            if isinstance(sparse_vector, rest.SparseVector):
+                sparse_vector_dict = {
+                    "indices": sparse_vector.indices,
+                    "values": sparse_vector.values,
+                }
+                payload["sparse_embedding"] = sparse_vector_dict
 
     return Document.from_dict(payload)

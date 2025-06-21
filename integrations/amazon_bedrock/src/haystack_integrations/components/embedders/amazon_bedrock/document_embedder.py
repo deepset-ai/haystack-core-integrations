@@ -74,7 +74,7 @@ class AmazonBedrockDocumentEmbedder:
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
         boto3_config: Optional[Dict[str, Any]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """
         Initializes the AmazonBedrockDocumentEmbedder with the provided parameters. The parameters are passed to the
@@ -186,11 +186,7 @@ class AmazonBedrockDocumentEmbedder:
                     body=json.dumps(body), modelId=self.model, accept="*/*", contentType="application/json"
                 )
             except ClientError as exception:
-                msg = (
-                    f"Could not connect to Amazon Bedrock model {self.model}. "
-                    f"Make sure your AWS environment is configured correctly, "
-                    f"the model is available in the configured AWS region, and you have access."
-                )
+                msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
                 raise AmazonBedrockInferenceError(msg) from exception
 
             response_body = json.loads(response.get("body").read())
@@ -217,11 +213,7 @@ class AmazonBedrockDocumentEmbedder:
                     body=json.dumps(body), modelId=self.model, accept="*/*", contentType="application/json"
                 )
             except ClientError as exception:
-                msg = (
-                    f"Could not connect to Amazon Bedrock model {self.model}. "
-                    f"Make sure your AWS environment is configured correctly, "
-                    f"the model is available in the configured AWS region, and you have access."
-                )
+                msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
                 raise AmazonBedrockInferenceError(msg) from exception
 
             response_body = json.loads(response.get("body").read())
