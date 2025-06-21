@@ -228,7 +228,7 @@ class GoogleGenAIDocumentEmbedder:
         return {"documents": documents, "meta": meta}
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
-    async def run_async(self, documents: List[Document]) -> Dict[str, Union[List[Document], Dict[str, Any]]]:
+    async def run_async(self, documents: List[Document]) -> Union[Dict[str, List[Document]], Dict[str, Any]]:
         """
         Embeds a list of documents asynchronously.
 
