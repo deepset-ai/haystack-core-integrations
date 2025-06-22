@@ -10,7 +10,7 @@ from haystack import Document, component, default_from_dict, default_to_dict, lo
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.rankers.nvidia.truncate import RankerTruncateMode
-from haystack_integrations.utils.nvidia import DEFAULT_API_URL, NimBackend, is_hosted, url_validation
+from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Client, NimBackend, is_hosted, url_validation
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +162,7 @@ class NvidiaRanker:
         :raises ValueError: If the API key is required for hosted NVIDIA NIMs.
         """
         if not self._initialized:
-            model_kwargs = {}
+            model_kwargs: Dict[str, Any] = {}
             if self.truncate is not None:
                 model_kwargs.update(truncate=str(self.truncate))
             self.backend = NimBackend(
@@ -172,9 +172,9 @@ class NvidiaRanker:
                 api_key=self.api_key,
                 model_kwargs=model_kwargs,
                 timeout=self.timeout,
-                client=self.__class__.__name__,
+                client=Client.NVIDIA_RANKER,
             )
-            if not self.is_hosted and not self._model:
+            if not self.is_hosted and not self.model:
                 if self.backend.model:
                     self.model = self.backend.model
             self._initialized = True

@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/nvidia-v0.3.0] - 2025-06-20
+
+### 🐛 Bug Fixes
+
+- Fix Nvidia types + add py.typed (#1970)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+
 ## [integrations/nvidia-v0.2.0] - 2025-06-05
 
 ### 🚀 Features
