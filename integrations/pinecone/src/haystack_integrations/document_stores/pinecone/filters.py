@@ -161,10 +161,7 @@ def _in(field: str, value: Any) -> Dict[str, Any]:
     supported_types = (int, float, str)
     for v in value:
         if not isinstance(v, supported_types):
-            msg = (
-                f"Unsupported type for 'in' comparison: {type(v)}. "
-                f"Types supported by Pinecone are: {supported_types}"
-            )
+            msg = f"Unsupported type for 'in' comparison: {type(v)}. Types supported by Pinecone are: {supported_types}"
             raise FilterError(msg)
 
     return {field: {"$in": value}}
