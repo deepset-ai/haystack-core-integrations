@@ -1,0 +1,68 @@
+name: Test / watsonx
+
+on:
+  schedule:
+    - cron: "0 0 * * *"  
+  pull_request:
+    paths:
+      - "integrations/watsonx/**"
+      - "!integrations/watsonx/*.md"
+      - ".github/workflows/watsonx.yml"
+
+defaults:
+  run:
+    working-directory: integrations/watsonx
+
+concurrency:
+  group: watsonx-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  FORCE_COLOR: "1"
+  WATSONX_API_KEY: ${{ secrets.WATSONX_API_KEY }}
+  WATSONX_PROJECT_ID: ${{ secrets.WATSONX_PROJECT_ID }}
+
+jobs:
+  run:
+    name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]  # Start with Linux only, add others later
+        python-version: ["3.9", "3.10", "3.11", "3.12"]  # Watsonx supported versions
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Hatch
+        run: pip install --upgrade hatch
+
+      - name: Install dependencies
+        run: hatch env create
+
+      - name: Lint
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        run: hatch run lint
+
+      - name: Run tests
+        run: hatch run test
+
+      - name: Run unit tests with lowest direct dependencies
+        run: |
+          hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
+          hatch run uv pip install -r requirements_lowest_direct.txt
+          hatch run test:unit
+
+      - name: Nightly - run tests with Haystack main
+        if: github.event_name == 'schedule'
+        run: |
+          hatch env prune
+          hatch run uv pip install git+https://github.com/deepset-ai/haystack.git@main
+          hatch run test
