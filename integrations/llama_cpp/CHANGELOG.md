@@ -1,5 +1,30 @@
 # Changelog
 
+## [integrations/llama_cpp-v1.1.0] - 2025-06-19
+
+### 🐛 Bug Fixes
+
+- Fix llama.cpp types; add py.typed; Toolset support (#1973)
+
+### 🧪 Testing
+
+- Test llama.cpp with python 3.12 (#1601)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+- Use Haystack logging across integrations (#1484)
+- Update ChatGenerators with `deserialize_tools_or_toolset_inplace` (#1623)
+- Align core-integrations Hatch scripts (#1898)
+
+### 🌀 Miscellaneous
+
+- Chore: remove `jsonschema` dependency from `default` environment (#1368)
+
 ## [integrations/llama_cpp-v1.0.0] - 2025-02-07
 
 ### 🚀 Features
