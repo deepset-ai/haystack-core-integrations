@@ -73,7 +73,7 @@ types = "mypy --install-types --non-interactive --explicit-package-bases {args:s
 # https://github.com/deepset-ai/haystack-core-integrations/issues/1771
 [tool.hatch.envs.lint]
 detached = true
-dependencies = ["black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
+dependencies = ["mypy>=1.0.0", "ruff>=0.0.243"]
 
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
@@ -81,10 +81,6 @@ typing = "mypy --install-types --non-interactive --explicit-package-bases {args:
 [tool.hatch.metadata]
 allow-direct-references = true
 
-[tool.black]
-target-version = ["py38"]
-line-length = 120
-skip-string-normalization = true
 
 [tool.ruff]
 target-version = "py38"
