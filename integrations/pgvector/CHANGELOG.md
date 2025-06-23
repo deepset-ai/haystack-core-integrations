@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/pgvector-v3.4.1] - 2025-06-20
+
+### 🐛 Bug Fixes
+
+- Pgvector - do not pass null `meta` to `Document.from_dict` (#1980)
+
+
 ## [integrations/pgvector-v3.4.0] - 2025-06-10
 
 ### 🐛 Bug Fixes

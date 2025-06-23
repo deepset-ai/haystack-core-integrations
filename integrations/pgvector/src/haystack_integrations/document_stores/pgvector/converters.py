@@ -57,6 +57,9 @@ def _from_pg_to_haystack_documents(documents: List[Dict[str, Any]]) -> List[Docu
                 haystack_dict["embedding"] = document["embedding"].tolist()
             else:  # halfvec
                 haystack_dict["embedding"] = document["embedding"].to_list()
+        # Document.from_dict expects the meta field to be a a dict or not be present (not None)
+        if "meta" in haystack_dict and haystack_dict["meta"] is None:
+            haystack_dict.pop("meta")
 
         haystack_document = Document.from_dict(haystack_dict)
 

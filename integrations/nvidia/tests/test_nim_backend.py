@@ -4,10 +4,11 @@
 import json
 from unittest.mock import patch
 
+import pytest
 import requests
 
-from haystack_integrations.utils.nvidia import DEFAULT_API_URL, NimBackend
-from haystack_integrations.utils.nvidia.nim_backend import REQUEST_TIMEOUT
+from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Client, NimBackend
+from haystack_integrations.utils.nvidia.nim_backend import DEFAULT_MODELS, REQUEST_TIMEOUT
 
 
 def mock_embed_post_response(*args, **kwargs):  # noqa: ARG001
@@ -76,7 +77,7 @@ class TestNimBackend:
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         backend = NimBackend(model="nvidia/nv-embedqa-e5-v5", api_url=DEFAULT_API_URL, client="NvidiaTextEmbedder")
         assert backend.api_url == DEFAULT_API_URL
-        assert backend.client == "NvidiaTextEmbedder"
+        assert backend.client == Client.NVIDIA_TEXT_EMBEDDER
         assert backend.model == "nvidia/nv-embedqa-e5-v5"
         assert backend.model_kwargs == {}
         assert backend.model_type is None
@@ -85,7 +86,29 @@ class TestNimBackend:
         assert backend.session.headers["authorization"] == "Bearer fake-api-key"
         assert backend.timeout == REQUEST_TIMEOUT
 
-    def test_init_overrides_endpoint(self, monkeypatch):
+    def test_init_with_client_enum(self):
+        backend = NimBackend(model="custom-model", api_url="http://localhost:8000", client=Client.NVIDIA_TEXT_EMBEDDER)
+        assert backend.client == Client.NVIDIA_TEXT_EMBEDDER
+
+    def test_init_without_client(self):
+        backend = NimBackend(model="custom-model", api_url="http://localhost:8000")
+        assert backend.client is None
+        assert backend.model_type is None
+        assert backend.model == "custom-model"
+
+    def test_init_hosted_missing_model_and_model_type_raises_error(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+
+        with pytest.raises(ValueError, match="`model_type` is required when `model` is not specified"):
+            NimBackend(api_url=DEFAULT_API_URL, client="NvidiaTextEmbedder")
+
+    def test_init_hosted_with_model_type_uses_default_model(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+
+        backend = NimBackend(model_type="embedding", api_url=DEFAULT_API_URL, client="NvidiaTextEmbedder")
+        assert backend.model == DEFAULT_MODELS["embedding"]
+
+    def test_init_hosted_model_with_custom_endpoint_overrides_api_url(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         backend = NimBackend(
             model="nvidia/nv-rerankqa-mistral-4b-v3",
@@ -94,6 +117,41 @@ class TestNimBackend:
             model_type="ranking",
         )
         assert backend.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia/nv-rerankqa-mistral-4b-v3/reranking"
+
+    def test_init_hosted_model_without_custom_endpoint_keeps_original_url(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+
+        backend = NimBackend(
+            model="nvidia/nv-embedqa-e5-v5",  # This model has no custom endpoint
+            api_url=DEFAULT_API_URL,
+            client="NvidiaTextEmbedder",
+        )
+        assert backend.api_url == DEFAULT_API_URL
+        assert backend.model == "nvidia/nv-embedqa-e5-v5"
+
+    def test_init_with_unknown_hosted_model_raises_error(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+
+        with pytest.raises(ValueError, match="Model unknown-model is unknown"):
+            NimBackend(model="unknown-model", api_url=DEFAULT_API_URL, client="NvidiaTextEmbedder")
+
+    def test_init_with_incompatible_client_raises_error(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+
+        with pytest.raises(ValueError, match="Model nvidia/nv-embedqa-e5-v5 is incompatible with client"):
+            NimBackend(
+                model="nvidia/nv-embedqa-e5-v5",  # embedding model
+                api_url=DEFAULT_API_URL,
+                client="NvidiaGenerator",  # chat client
+            )
+
+    def test_init_with_non_hosted_model(self):
+        backend = NimBackend(model="unknown-model", api_url="http://localhost:8000", client="NvidiaTextEmbedder")
+
+        # validation is skipped for non-hosted models
+        assert backend.model == "unknown-model"
+        assert backend.api_url == "http://localhost:8000"
+        assert backend.model_type is None
 
     def test_embed(self, monkeypatch):
         with patch("requests.sessions.Session.post", side_effect=mock_embed_post_response) as mock_post:
@@ -164,7 +222,7 @@ class TestNimBackend:
             models = backend.models()
 
             assert len(models) == 3
-            assert all(model.client == "NvidiaDocumentEmbedder" for model in models)
+            assert all(model.client == Client.NVIDIA_DOCUMENT_EMBEDDER for model in models)
             expected_url = DEFAULT_API_URL + "/models"
             mock_get.assert_called_once_with(
                 expected_url,

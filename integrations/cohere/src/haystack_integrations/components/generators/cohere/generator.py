@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from haystack import component, logging
 from haystack.dataclasses import ChatMessage
@@ -35,7 +35,7 @@ class CohereGenerator(CohereChatGenerator):
         model: str = "command-r",
         streaming_callback: Optional[Callable] = None,
         api_base_url: Optional[str] = None,
-        **kwargs,
+        **kwargs: Any,
     ):
         """
         Instantiates a `CohereGenerator` component.
@@ -54,7 +54,10 @@ class CohereGenerator(CohereChatGenerator):
         super(CohereGenerator, self).__init__(api_key, model, streaming_callback, api_base_url, None, **kwargs)  # noqa
 
     @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
-    def run(self, prompt: str):
+    def run(  # type: ignore[override] # due to incompatible signature with ChatGenerator
+        self,
+        prompt: str,
+    ) -> Dict[str, Union[List[str], List[Dict[str, Any]]]]:
         """
         Queries the LLM with the prompts to produce replies.
 
@@ -66,13 +69,18 @@ class CohereGenerator(CohereChatGenerator):
         chat_message = ChatMessage.from_user(prompt)
         # Note we have to call super() like this because of the way components are dynamically built with the decorator
         results = super(CohereGenerator, self).run([chat_message])  # noqa
+
+        reply = results["replies"][0]
         return {
-            "replies": [results["replies"][0].text],
-            "meta": [results["replies"][0].meta],
+            "replies": [reply.text or ""],
+            "meta": [reply.meta],
         }
 
     @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
-    async def run_async(self, prompt: str):
+    async def run_async(  # type: ignore[override] # due to incompatible signature with ChatGenerator
+        self,
+        prompt: str,
+    ) -> Dict[str, Union[List[str], List[Dict[str, Any]]]]:
         """
         Queries the LLM asynchronously with the prompts to produce replies.
         :param prompt: the prompt to be sent to the generative model.
@@ -83,7 +91,9 @@ class CohereGenerator(CohereChatGenerator):
         chat_message = ChatMessage.from_user(prompt)
         # Note we have to call super() like this because of the way components are dynamically built with the decorator
         results = await super(CohereGenerator, self).run_async([chat_message])  # noqa
+
+        reply = results["replies"][0]
         return {
-            "replies": [results["replies"][0].text],
-            "meta": [results["replies"][0].meta],
+            "replies": [reply.text or ""],
+            "meta": [reply.meta],
         }
