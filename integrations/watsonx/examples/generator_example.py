@@ -8,18 +8,18 @@ from haystack_integrations.components.generators.watsonx.generator import Watson
 
 # Basic Usage of WatsonxGenerator
 generator = WatsonxGenerator(
-    model='ibm/granite-13b-instruct-v2',
-    api_key=Secret.from_env_var('WATSONX_API_KEY'),
-    project_id=os.getenv('WATSONX_PROJECT_ID'),
+    model="ibm/granite-13b-instruct-v2",
+    api_key=Secret.from_env_var("WATSONX_API_KEY"),
+    project_id=os.getenv("WATSONX_PROJECT_ID"),
     generation_kwargs={
-        'max_new_tokens': 100,
-        'temperature': 0.7,
-        'top_p': 0.9,
-        'decoding_method': 'sample',
-        'concurrency_limit': 5,
+        "max_new_tokens": 100,
+        "temperature": 0.7,
+        "top_p": 0.9,
+        "decoding_method": "sample",
+        "concurrency_limit": 5,
     },
 )
-prompts = ['Who is the president of the USA?', 'What is the tallest mountain?']
+prompts = ["Who is the president of the USA?", "What is the tallest mountain?"]
 
 for prompt in prompts:
     result = generator.run(prompt)
@@ -32,19 +32,19 @@ for prompt in prompts:
 
 # Initialize with streaming enabled
 streaming_generator = WatsonxGenerator(
-    api_key=Secret.from_token(os.environ['WATSONX_API_KEY']),
-    model='ibm/granite-13b-instruct-v2',
-    project_id=os.environ['WATSONX_PROJECT_ID'],
-    generation_kwargs={'max_new_tokens': 450, 'temperature': 0.9, 'top_p': 0.9, 'repetition_penalty': 1.2},
+    api_key=Secret.from_token(os.environ["WATSONX_API_KEY"]),
+    model="ibm/granite-13b-instruct-v2",
+    project_id=os.environ["WATSONX_PROJECT_ID"],
+    generation_kwargs={"max_new_tokens": 450, "temperature": 0.9, "top_p": 0.9, "repetition_penalty": 1.2},
 )
 
 # Create pipeline
 streaming_pipeline = Pipeline()
-streaming_pipeline.add_component('generator', streaming_generator)
+streaming_pipeline.add_component("generator", streaming_generator)
 
 # Run with streaming
-prompt = 'Write a short story about an AI assistant.'
-result = streaming_pipeline.run({'generator': {'prompt': prompt, 'stream': True}})
+prompt = "Write a short story about an AI assistant."
+result = streaming_pipeline.run({"generator": {"prompt": prompt, "stream": True}})
 
 # Process streaming results
 

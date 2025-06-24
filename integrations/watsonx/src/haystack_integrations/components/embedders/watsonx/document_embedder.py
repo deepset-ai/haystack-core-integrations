@@ -1,6 +1,10 @@
+# SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -17,7 +21,7 @@ class WatsonXDocumentEmbedder:
 
     ```python
     from haystack import Document
-    from haystack.components.embedders import WatsonXDocumentEmbedder
+    from haystack_integrations.components.embedders.watsonx.document_embedder import WatsonXDocumentEmbedder
 
     documents = [
         Document(content='I love pizza!'),
@@ -40,14 +44,14 @@ class WatsonXDocumentEmbedder:
 
     def __init__(
         self,
-        model: str = 'ibm/slate-30m-english-rtrvr',
+        model: str = "ibm/slate-30m-english-rtrvr",
         api_key: Secret | None = None,
-        url: str = 'https://us-south.ml.cloud.ibm.com',
+        url: str = "https://us-south.ml.cloud.ibm.com",
         project_id: str | None = None,
         space_id: str | None = None,
         truncate_input_tokens: int | None = None,
-        prefix: str = '',
-        suffix: str = '',
+        prefix: str = "",
+        suffix: str = "",
         batch_size: int = 1000,
         concurrency_limit: int = 5,
         timeout: float | None = None,
@@ -84,10 +88,10 @@ class WatsonXDocumentEmbedder:
             Maximum number of retries for API requests.
         """
         if api_key is None:
-            api_key = Secret.from_env_var('WATSONX_API_KEY')
+            api_key = Secret.from_env_var("WATSONX_API_KEY")
 
         if not project_id and not space_id:
-            msg = 'Either project_id or space_id must be provided'
+            msg = "Either project_id or space_id must be provided"
             raise ValueError(msg)
 
         self.model = model
@@ -108,7 +112,7 @@ class WatsonXDocumentEmbedder:
 
         params = {}
         if truncate_input_tokens is not None:
-            params['truncate_input_tokens'] = truncate_input_tokens
+            params["truncate_input_tokens"] = truncate_input_tokens
 
         self.embedder = Embeddings(
             model_id=model,
@@ -125,7 +129,7 @@ class WatsonXDocumentEmbedder:
         """
         Data that is sent to Posthog for usage analytics.
         """
-        return {'model': self.model}
+        return {"model": self.model}
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -152,7 +156,7 @@ class WatsonXDocumentEmbedder:
         """
         Deserializes the component from a dictionary.
         """
-        deserialize_secrets_inplace(data['init_parameters'], keys=['api_key'])
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     def _prepare_text(self, text: str) -> str:
@@ -161,7 +165,7 @@ class WatsonXDocumentEmbedder:
         """
         return self.prefix + text + self.suffix
 
-    @component.output_types(documents=List[Document], meta=Dict[str, Any])
+    @component.output_types(documents=list[Document], meta=dict[str, Any])
     def run(self, documents: list[Document]):
         """
         Embeds a list of documents.
@@ -175,22 +179,22 @@ class WatsonXDocumentEmbedder:
         """
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
-                'WatsonXDocumentEmbedder expects a list of Documents as input.'
-                'In case you want to embed a string, please use the WatsonXTextEmbedder.'
+                "WatsonXDocumentEmbedder expects a list of Documents as input."
+                "In case you want to embed a string, please use the WatsonXTextEmbedder."
             )
             raise TypeError(msg)
 
-        texts_to_embed = [self._prepare_text(doc.content or '') for doc in documents]
+        texts_to_embed = [self._prepare_text(doc.content or "") for doc in documents]
         embeddings = self.embedder.embed_documents(texts_to_embed)
 
         for doc, emb in zip(documents, embeddings):
             doc.embedding = emb
 
         return {
-            'documents': documents,
-            'meta': {
-                'model': self.model,
-                'truncate_input_tokens': self.truncate_input_tokens,
-                'batch_size': self.batch_size,
+            "documents": documents,
+            "meta": {
+                "model": self.model,
+                "truncate_input_tokens": self.truncate_input_tokens,
+                "batch_size": self.batch_size,
             },
         }

@@ -1,6 +1,9 @@
+# SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingChunk
@@ -39,7 +42,7 @@ class WatsonxGenerator:
     ### Usage example
 
     ```python
-    from haystack.components.generators import WatsonxGenerator
+    from haystack_integrations.components.generators.watsonx.generator import WatsonxGenerator
     from haystack.utils import Secret
 
     # Initialize with default model
@@ -79,7 +82,7 @@ class WatsonxGenerator:
     def __init__(
         self,
         api_key: Secret | None = None,
-        model: str = 'ibm/granite-13b-instruct-v2',
+        model: str = "ibm/granite-13b-instruct-v2",
         project_id: str | None = None,
         space_id: str | None = None,
         api_base_url: str | None = None,
@@ -124,7 +127,7 @@ class WatsonxGenerator:
         - WATSONX_SPACE_ID: Space ID if not provided directly
 
         """
-        self.api_key = api_key or Secret.from_env_var('WATSONX_API_KEY')
+        self.api_key = api_key or Secret.from_env_var("WATSONX_API_KEY")
         self.model = model
         self.project_id = project_id
         self.space_id = space_id
@@ -133,7 +136,7 @@ class WatsonxGenerator:
         self.generation_kwargs = generation_kwargs or {}
 
         if not project_id and not space_id:
-            msg = 'Either project_id or space_id must be provided'
+            msg = "Either project_id or space_id must be provided"
             raise ValueError(msg)
 
         self._initialize_client()
@@ -141,7 +144,7 @@ class WatsonxGenerator:
     def _initialize_client(self):
         """Initialize the Watsonx client with the configured credentials."""
         credentials = Credentials(
-            api_key=self.api_key.resolve_value(), url=self.api_base_url or 'https://us-south.ml.cloud.ibm.com'
+            api_key=self.api_key.resolve_value(), url=self.api_base_url or "https://us-south.ml.cloud.ibm.com"
         )
         self.client = ModelInference(
             model_id=self.model,
@@ -168,10 +171,10 @@ class WatsonxGenerator:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> WatsonxGenerator:
         """Deserialize the component from a dictionary."""
-        deserialize_secrets_inplace(data['init_parameters'], keys=['api_key'])
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    @component.output_types(replies=List[str], meta=List[Dict[str, Any]], chunks=List[StreamingChunk])
+    @component.output_types(replies=list[str], meta=list[dict[str, Any]], chunks=list[StreamingChunk])
     def run(
         self,
         prompt: str,
@@ -204,7 +207,7 @@ class WatsonxGenerator:
                 return self._handle_streaming(prompt, merged_kwargs, guardrails)
             return self._handle_standard(prompt, merged_kwargs, guardrails)
         except Exception as e:
-            logger.exception(f'Generation failed: {e!s}')
+            logger.exception(f"Generation failed: {e!s}")
             return self._create_error_response(str(e))
 
     def _handle_streaming(self, prompt: str, generation_kwargs: dict[str, Any], guardrails: bool) -> dict[str, Any]:
@@ -215,29 +218,29 @@ class WatsonxGenerator:
             )
 
             chunks = []
-            full_text = ''
+            full_text = ""
 
             for chunk in stream:
                 if not isinstance(chunk, dict):
                     continue
 
-                chunk_text = chunk.get('results', [{}])[0].get('generated_text', '')
+                chunk_text = chunk.get("results", [{}])[0].get("generated_text", "")
                 if chunk_text:
                     full_text += chunk_text
                     chunks.append(
                         StreamingChunk(
                             content=chunk_text,
-                            meta={'model': self.model, 'finish_reason': chunk.get('stop_reason', 'streaming')},
+                            meta={"model": self.model, "finish_reason": chunk.get("stop_reason", "streaming")},
                         )
                     )
 
             return {
-                'replies': [full_text] if full_text else ['[No content]'],
-                'meta': [{'model': self.model, 'finish_reason': 'completed', 'chunk_count': len(chunks)}],
-                'chunks': chunks,
+                "replies": [full_text] if full_text else ["[No content]"],
+                "meta": [{"model": self.model, "finish_reason": "completed", "chunk_count": len(chunks)}],
+                "chunks": chunks,
             }
         except Exception as e:
-            logger.exception(f'Streaming generation failed: {e!s}')
+            logger.exception(f"Streaming generation failed: {e!s}")
             return self._create_error_response(str(e))
 
     def _handle_standard(self, prompt: str, generation_kwargs: dict[str, Any], guardrails: bool) -> dict[str, Any]:
@@ -247,24 +250,24 @@ class WatsonxGenerator:
                 prompt=prompt, params=generation_kwargs, guardrails=guardrails, raw_response=True
             )
 
-            reply = response.get('results', [{}])[0].get('generated_text', '')
+            reply = response.get("results", [{}])[0].get("generated_text", "")
             return {
-                'replies': [reply] if reply.strip() else ['[Empty response]'],
-                'meta': [{'model': self.model, 'finish_reason': response.get('stop_reason', 'completed')}],
-                'chunks': [],
+                "replies": [reply] if reply.strip() else ["[Empty response]"],
+                "meta": [{"model": self.model, "finish_reason": response.get("stop_reason", "completed")}],
+                "chunks": [],
             }
         except Exception as e:
-            logger.exception(f'Generation failed: {e!s}')
+            logger.exception(f"Generation failed: {e!s}")
             return self._create_error_response(str(e))
 
     def _create_empty_response(self) -> dict[str, Any]:
         """Create response for empty input."""
-        return {'replies': [''], 'meta': [{'model': self.model, 'finish_reason': 'empty_input'}], 'chunks': []}
+        return {"replies": [""], "meta": [{"model": self.model, "finish_reason": "empty_input"}], "chunks": []}
 
     def _create_error_response(self, error_msg: str) -> dict[str, Any]:
         """Create response for error cases."""
         return {
-            'replies': [f'[Error: {error_msg}]'],
-            'meta': [{'model': self.model, 'finish_reason': 'error', 'error': error_msg}],
-            'chunks': [],
+            "replies": [f"[Error: {error_msg}]"],
+            "meta": [{"model": self.model, "finish_reason": "error", "error": error_msg}],
+            "chunks": [],
         }

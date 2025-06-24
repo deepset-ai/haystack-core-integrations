@@ -2,6 +2,7 @@
 import asyncio
 import os
 
+import nest_asyncio
 from haystack.dataclasses import ChatMessage
 from haystack.utils.auth import Secret
 
@@ -9,25 +10,25 @@ from haystack_integrations.components.generators.watsonx.chat.chat_generator imp
 
 # Initialize the generator
 generator = WatsonxChatGenerator(
-    api_key=Secret.from_env_var('WATSONX_API_KEY'),  # Or use from_token("<apikey>")
-    model='meta-llama/llama-3-2-1b-instruct',
-    project_id=os.getenv('WATSONX_PROJECT_ID'),
+    api_key=Secret.from_env_var("WATSONX_API_KEY"),  # Or use from_token("<apikey>")
+    model="meta-llama/llama-3-2-1b-instruct",
+    project_id=os.getenv("WATSONX_PROJECT_ID"),
     generation_kwargs={
-        'max_tokens': 500,
-        'temperature': 0.7,
-        'top_p': 0.9,
+        "max_tokens": 500,
+        "temperature": 0.7,
+        "top_p": 0.9,
     },
     tools=[
         {
-            'name': 'get_weather',
-            'description': 'Get the current weather in a given location',
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'location': {'type': 'string', 'description': 'The city and state, e.g. San Francisco, CA'},
-                    'unit': {'type': 'string', 'enum': ['celsius', 'fahrenheit'], 'default': 'celsius'},
+            "name": "get_weather",
+            "description": "Get the current weather in a given location",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {"type": "string", "description": "The city and state, e.g. San Francisco, CA"},
+                    "unit": {"type": "string", "enum": ["celsius", "fahrenheit"], "default": "celsius"},
                 },
-                'required': ['location'],
+                "required": ["location"],
             },
         }
     ],
@@ -39,8 +40,8 @@ generator = WatsonxChatGenerator(
 # Example 1: Basic synchronous chat
 def basic_chat():
     messages = [
-        ChatMessage.from_system('You are a helpful assistant.'),
-        ChatMessage.from_user('Explain quantum computing in simple terms'),
+        ChatMessage.from_system("You are a helpful assistant."),
+        ChatMessage.from_user("Explain quantum computing in simple terms"),
     ]
     generator.run(messages)
 
@@ -49,7 +50,7 @@ def basic_chat():
 def tool_calling_chat():
     messages = [ChatMessage.from_user("What's the weather in Berlin today?")]
     response = generator.run(messages)
-    reply = response['replies'][0]
+    reply = response["replies"][0]
     if reply.tool_calls:
         for _tool_call in reply.tool_calls:
             pass
@@ -59,14 +60,14 @@ def tool_calling_chat():
 
 # Example 3: Streaming chat (sync)
 def streaming_chat():
-    messages = [ChatMessage.from_user('Write a short poem about artificial intelligence')]
+    messages = [ChatMessage.from_user("Write a short poem about artificial intelligence")]
     generator.run(messages, stream=True)
 
 
 # Example 4: Asynchronous chat
 def run_async_chat():
     async def _async_chat():
-        messages = [ChatMessage.from_user('Tell me about the history of the internet')]
+        messages = [ChatMessage.from_user("Tell me about the history of the internet")]
         await generator.run_async(messages)
 
     _run_async(_async_chat)
@@ -75,7 +76,7 @@ def run_async_chat():
 # Example 5: Asynchronous streaming chat
 def run_async_streaming_chat():
     async def _async_streaming_chat():
-        messages = [ChatMessage.from_user('Explain blockchain technology')]
+        messages = [ChatMessage.from_user("Explain blockchain technology")]
         await generator.run_async(messages, stream=True)
 
     _run_async(_async_streaming_chat)
@@ -90,8 +91,6 @@ def _run_async(coro_func):
         else:
             return loop.run_until_complete(coro_func())
     except RuntimeError:
-        import nest_asyncio
-
         nest_asyncio.apply()
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -99,7 +98,7 @@ def _run_async(coro_func):
 
 
 # Main
-if __name__ == '__main__':
+if __name__ == "__main__":
     basic_chat()
     tool_calling_chat()
     streaming_chat()

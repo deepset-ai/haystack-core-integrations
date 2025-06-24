@@ -1,9 +1,12 @@
+# SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
 import json
 import os
 from datetime import datetime, timezone
-from typing import Any, List
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
@@ -39,7 +42,7 @@ class WatsonxChatGenerator:
     ### Usage example
 
     ```python
-    from haystack.components.generators.chat import WatsonxChatGenerator
+    from haystack_integrations.components.generators.watsonx.chat.chat_generator import WatsonxChatGenerator
     from haystack.dataclasses import ChatMessage
 
     messages = [ChatMessage.from_user('Explain quantum computing in simple terms')]
@@ -69,7 +72,7 @@ class WatsonxChatGenerator:
     def __init__(
         self,
         api_key: Secret | None = None,
-        model: str = 'ibm/granite-13b-chat-v2',
+        model: str = "ibm/granite-13b-chat-v2",
         project_id: str | None = None,
         space_id: str | None = None,
         api_base_url: str | None = None,
@@ -120,19 +123,19 @@ class WatsonxChatGenerator:
             - False: Skip verification (insecure)
             - Path to CA bundle for custom certificates
         """
-        self.api_key = api_key or Secret.from_env_var('WATSONX_API_KEY')
+        self.api_key = api_key or Secret.from_env_var("WATSONX_API_KEY")
         self.model = model
         self.project_id = project_id
         self.space_id = space_id
-        self.api_base_url = api_base_url or 'https://us-south.ml.cloud.ibm.com'
+        self.api_base_url = api_base_url or "https://us-south.ml.cloud.ibm.com"
         self.generation_kwargs = generation_kwargs or {}
-        self.timeout = timeout or float(os.environ.get('WATSONX_TIMEOUT', '30.0'))
-        self.max_retries = max_retries or int(os.environ.get('WATSONX_MAX_RETRIES', '5'))
+        self.timeout = timeout or float(os.environ.get("WATSONX_TIMEOUT", "30.0"))
+        self.max_retries = max_retries or int(os.environ.get("WATSONX_MAX_RETRIES", "5"))
         self.tools = tools
         self.verify = verify
 
         if not project_id and not space_id:
-            msg = 'Either project_id or space_id must be provided'
+            msg = "Either project_id or space_id must be provided"
             raise ValueError(msg)
 
         self._initialize_client()
@@ -170,10 +173,10 @@ class WatsonxChatGenerator:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> WatsonxChatGenerator:
         """Deserialize the component from a dictionary."""
-        deserialize_secrets_inplace(data['init_parameters'], keys=['api_key'])
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     def run(self, messages: list[ChatMessage], generation_kwargs: dict[str, Any] | None = None, stream: bool = False):
         """
         Generate chat completions synchronously.
@@ -184,7 +187,7 @@ class WatsonxChatGenerator:
         :return: Dictionary with generated replies
         """
         if not messages:
-            return {'replies': []}
+            return {"replies": []}
 
         api_args = self._prepare_api_call(messages=messages, generation_kwargs=generation_kwargs)
 
@@ -192,7 +195,7 @@ class WatsonxChatGenerator:
             return self._handle_streaming(api_args)
         return self._handle_standard(api_args)
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self, messages: list[ChatMessage], generation_kwargs: dict[str, Any] | None = None, stream: bool = False
     ):
@@ -205,7 +208,7 @@ class WatsonxChatGenerator:
         :return: Dictionary with generated replies
         """
         if not messages:
-            return {'replies': []}
+            return {"replies": []}
 
         api_args = self._prepare_api_call(messages=messages, generation_kwargs=generation_kwargs)
 
@@ -220,104 +223,104 @@ class WatsonxChatGenerator:
 
         watsonx_messages = []
         for msg in messages:
-            if msg.is_from('user'):
+            if msg.is_from("user"):
                 content = msg.text
-            elif msg.is_from('assistant'):
+            elif msg.is_from("assistant"):
                 content = msg.text
                 if msg.tool_calls:
-                    merged_kwargs['tools'] = [
-                        {'name': tc.tool_name, 'description': '', 'parameters': tc.arguments} for tc in msg.tool_calls
+                    merged_kwargs["tools"] = [
+                        {"name": tc.tool_name, "description": "", "parameters": tc.arguments} for tc in msg.tool_calls
                     ]
-            elif msg.is_from('tool'):
+            elif msg.is_from("tool"):
                 content = {
-                    'tool_call_id': msg.tool_call_results[0].origin.id,
-                    'content': msg.tool_call_results[0].result,
+                    "tool_call_id": msg.tool_call_results[0].origin.id,
+                    "content": msg.tool_call_results[0].result,
                 }
             else:
                 content = msg.text
 
-            watsonx_msg = {'role': msg.role.value, 'content': content}
+            watsonx_msg = {"role": msg.role.value, "content": content}
             if msg.name:
-                watsonx_msg['name'] = msg.name
+                watsonx_msg["name"] = msg.name
             watsonx_messages.append(watsonx_msg)
 
-        merged_kwargs.pop('stream', None)
+        merged_kwargs.pop("stream", None)
 
-        return {'messages': watsonx_messages, 'params': merged_kwargs}
+        return {"messages": watsonx_messages, "params": merged_kwargs}
 
     def _handle_streaming(self, api_args: dict[str, Any]) -> dict[str, Any]:
         """Handle synchronous streaming response."""
         chunks: list[StreamingChunk] = []
-        full_text = ''
+        full_text = ""
 
-        stream = self.client.chat_stream(messages=api_args['messages'], params=api_args['params'])
+        stream = self.client.chat_stream(messages=api_args["messages"], params=api_args["params"])
 
         for chunk in stream:
-            if not isinstance(chunk, dict) or not chunk.get('choices'):
+            if not isinstance(chunk, dict) or not chunk.get("choices"):
                 continue
 
-            content = chunk['choices'][0].get('delta', {}).get('content', '')
+            content = chunk["choices"][0].get("delta", {}).get("content", "")
             if content:
                 full_text += content
                 chunk_meta = {
-                    'model': self.model,
-                    'index': chunk['choices'][0].get('index', 0),
-                    'finish_reason': chunk['choices'][0].get('finish_reason'),
-                    'received_at': datetime.now(timezone.utc).isoformat(),
+                    "model": self.model,
+                    "index": chunk["choices"][0].get("index", 0),
+                    "finish_reason": chunk["choices"][0].get("finish_reason"),
+                    "received_at": datetime.now(timezone.utc).isoformat(),
                 }
                 chunks.append(StreamingChunk(content=content, meta=chunk_meta))
 
         return {
-            'replies': [
+            "replies": [
                 ChatMessage.from_assistant(
                     text=full_text,
                     meta={
-                        'model': self.model,
-                        'finish_reason': chunks[-1].meta['finish_reason'] if chunks else 'completed',
+                        "model": self.model,
+                        "finish_reason": chunks[-1].meta["finish_reason"] if chunks else "completed",
                     },
                 )
             ],
-            'chunks': chunks,
+            "chunks": chunks,
         }
 
     def _handle_standard(self, api_args: dict[str, Any]) -> dict[str, Any]:
         """Handle synchronous standard response."""
-        response = self.client.chat(messages=api_args['messages'], params=api_args['params'])
+        response = self.client.chat(messages=api_args["messages"], params=api_args["params"])
         return self._process_response(response)
 
     async def _handle_async_streaming(self, api_args: dict[str, Any]) -> dict[str, Any]:
         """Handle asynchronous streaming response."""
         chunks: list[StreamingChunk] = []
-        full_text = ''
+        full_text = ""
 
-        stream = await self.client.achat_stream(messages=api_args['messages'], params=api_args['params'])
+        stream = await self.client.achat_stream(messages=api_args["messages"], params=api_args["params"])
 
         async for chunk in stream:
-            if not isinstance(chunk, dict) or not chunk.get('choices'):
+            if not isinstance(chunk, dict) or not chunk.get("choices"):
                 continue
 
-            content = chunk['choices'][0].get('delta', {}).get('content', '')
+            content = chunk["choices"][0].get("delta", {}).get("content", "")
             if content:
                 full_text += content
                 chunk_meta = {
-                    'model': self.model,
-                    'index': chunk['choices'][0].get('index', 0),
-                    'finish_reason': chunk['choices'][0].get('finish_reason'),
-                    'received_at': datetime.now(timezone.utc).isoformat(),
+                    "model": self.model,
+                    "index": chunk["choices"][0].get("index", 0),
+                    "finish_reason": chunk["choices"][0].get("finish_reason"),
+                    "received_at": datetime.now(timezone.utc).isoformat(),
                 }
                 chunks.append(StreamingChunk(content=content, meta=chunk_meta))
 
         return {
-            'replies': [
+            "replies": [
                 ChatMessage.from_assistant(
                     text=full_text,
                     meta={
-                        'model': self.model,
-                        'finish_reason': chunks[-1].meta['finish_reason'] if chunks else 'completed',
+                        "model": self.model,
+                        "finish_reason": chunks[-1].meta["finish_reason"] if chunks else "completed",
                     },
                 )
             ],
-            'chunks': chunks,
+            "chunks": chunks,
         }
 
     async def _handle_async_standard(self, api_args: dict[str, Any]) -> dict[str, Any]:
@@ -327,35 +330,35 @@ class WatsonxChatGenerator:
 
     def _process_response(self, response: dict[str, Any]) -> dict[str, Any]:
         """Process standard response into Haystack format."""
-        if not response.get('choices'):
-            return {'replies': []}
+        if not response.get("choices"):
+            return {"replies": []}
 
-        choice = response['choices'][0]
-        message = choice.get('message', {})
-        content = message.get('content', '')
+        choice = response["choices"][0]
+        message = choice.get("message", {})
+        content = message.get("content", "")
         tool_calls = []
 
-        if 'tool_calls' in message:
-            for tc in message['tool_calls']:
-                if tc['type'] == 'function':
+        if "tool_calls" in message:
+            for tc in message["tool_calls"]:
+                if tc["type"] == "function":
                     try:
-                        arguments = json.loads(tc['function']['arguments'])
+                        arguments = json.loads(tc["function"]["arguments"])
                         tool_calls.append(
-                            ToolCall(id=tc.get('id'), tool_name=tc['function']['name'], arguments=arguments)
+                            ToolCall(id=tc.get("id"), tool_name=tc["function"]["name"], arguments=arguments)
                         )
                     except json.JSONDecodeError:
-                        logger.warning('Failed to parse tool call arguments: %s', tc['function']['arguments'])
+                        logger.warning("Failed to parse tool call arguments: %s", tc["function"]["arguments"])
 
         return {
-            'replies': [
+            "replies": [
                 ChatMessage.from_assistant(
                     text=content,
                     tool_calls=tool_calls,
                     meta={
-                        'model': self.model,
-                        'index': choice.get('index', 0),
-                        'finish_reason': choice.get('finish_reason'),
-                        'usage': response.get('usage', {}),
+                        "model": self.model,
+                        "index": choice.get("index", 0),
+                        "finish_reason": choice.get("finish_reason"),
+                        "usage": response.get("usage", {}),
                     },
                 )
             ]

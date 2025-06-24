@@ -7,14 +7,16 @@ name = "watsonx-haystack"
 version = "0.1.0" 
 description = "Watsonx integration for Haystack"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "Apache-2.0"
-authors = [{ name = "Divya", email = "divyaruhil999@gmail.com" }]
+authors = [
+    { name = "Divya", email = "divyaruhil999@gmail.com" },
+    { name = "deepset GmbH", email = "info@deepset.ai" },
+]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Development Status :: 4 - Beta",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -47,7 +49,6 @@ dependencies = [
 docs = ["pydoc-markdown pydoc/config.yml"]
 fmt = "ruff check --fix {args:.} && ruff format {args:.}"
 fmt-check = "ruff check {args:.} && ruff format --check {args:.}"
-test = "pytest"
 
 [tool.hatch.envs.test]
 dependencies = [
@@ -69,6 +70,12 @@ all = 'pytest {args:tests}'
 cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
 types = "mypy -p haystack_integrations.components.generators.watsonx {args}"
 
+[tool.mypy]
+install_types = true
+non_interactive = true
+check_untyped_defs = true
+disallow_incomplete_defs = true
+
 [tool.hatch.envs.docs]
 dependencies = ["haystack-pydoc-tools"]
 
@@ -88,6 +95,7 @@ markers = [
     "integration: mark tests as integration tests"
 ]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "class"
 addopts = "--tb=short -v"
 
 [tool.black]
@@ -138,13 +146,8 @@ ignore = [
 known-first-party = ["haystack_integrations"]
 
 [tool.ruff.lint.per-file-ignores]
-"examples/**" = ["T201", "RET505", "INP001"]
-"watsonx/tests/**" = ["ALL"]
-"tests/**" = ["ALL"]
-"**/test_*.py" = ["ALL"]
+# Tests can use magic values, assertions, and relative imports
+"tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "parents"
-
-[tool.ruff.format]
-quote-style = "single"

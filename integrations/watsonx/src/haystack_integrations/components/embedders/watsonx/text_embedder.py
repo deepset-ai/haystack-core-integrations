@@ -1,6 +1,9 @@
+# SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -18,7 +21,7 @@ class WatsonXTextEmbedder:
     ### Usage example
 
     ```python
-    from haystack.components.embedders import WatsonXTextEmbedder
+    from haystack_integrations.components.embedders.watsonx.text_embedder import WatsonXTextEmbedder
 
     text_to_embed = 'I love pizza!'
 
@@ -39,14 +42,14 @@ class WatsonXTextEmbedder:
 
     def __init__(
         self,
-        model: str = 'ibm/slate-30m-english-rtrvr',
+        model: str = "ibm/slate-30m-english-rtrvr",
         api_key: Secret | None = None,
-        url: str = 'https://us-south.ml.cloud.ibm.com',
+        url: str = "https://us-south.ml.cloud.ibm.com",
         project_id: str | None = None,
         space_id: str | None = None,
         truncate_input_tokens: int | None = None,
-        prefix: str = '',
-        suffix: str = '',
+        prefix: str = "",
+        suffix: str = "",
         timeout: float | None = None,
         max_retries: int | None = None,
     ):
@@ -77,10 +80,10 @@ class WatsonXTextEmbedder:
             Maximum number of retries for API requests.
         """
         if api_key is None:
-            api_key = Secret.from_env_var('WATSONX_API_KEY')
+            api_key = Secret.from_env_var("WATSONX_API_KEY")
 
         if not project_id and not space_id:
-            msg = 'Either project_id or space_id must be provided'
+            msg = "Either project_id or space_id must be provided"
             raise ValueError(msg)
 
         self.model = model
@@ -99,7 +102,7 @@ class WatsonXTextEmbedder:
 
         params = {}
         if truncate_input_tokens is not None:
-            params['truncate_input_tokens'] = truncate_input_tokens
+            params["truncate_input_tokens"] = truncate_input_tokens
 
         self.embedder = Embeddings(
             model_id=model,
@@ -113,7 +116,7 @@ class WatsonXTextEmbedder:
         """
         Data that is sent to Posthog for usage analytics.
         """
-        return {'model': self.model}
+        return {"model": self.model}
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -138,25 +141,25 @@ class WatsonXTextEmbedder:
         """
         Deserializes the component from a dictionary.
         """
-        deserialize_secrets_inplace(data['init_parameters'], keys=['api_key'])
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     def _prepare_input(self, text: str) -> str:
         if not isinstance(text, str):
             msg = (
-                'WatsonXTextEmbedder expects a string as an input. '
-                'In case you want to embed a list of Documents, please use the WatsonXDocumentEmbedder.'
+                "WatsonXTextEmbedder expects a string as an input. "
+                "In case you want to embed a list of Documents, please use the WatsonXDocumentEmbedder."
             )
             raise TypeError(msg)
         return self.prefix + text + self.suffix
 
     def _prepare_output(self, embedding: list[float]) -> dict[str, Any]:
         return {
-            'embedding': embedding,
-            'meta': {'model': self.model, 'truncated_input_tokens': self.truncate_input_tokens},
+            "embedding": embedding,
+            "meta": {"model": self.model, "truncated_input_tokens": self.truncate_input_tokens},
         }
 
-    @component.output_types(embedding=List[float], meta=Dict[str, Any])
+    @component.output_types(embedding=list[float], meta=dict[str, Any])
     def run(self, text: str):
         """
         Embeds a single string.

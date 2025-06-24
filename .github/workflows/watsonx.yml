@@ -30,8 +30,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]  # Start with Linux only, add others later
-        python-version: ["3.9", "3.10", "3.11", "3.12"]  # Watsonx supported versions
+        os: [ubuntu-latest, windows-latest, macos-latest] 
+        python-version: ["3.10", "3.12"]  
 
     steps:
       - uses: actions/checkout@v4
@@ -49,10 +49,10 @@ jobs:
 
       - name: Lint
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
-        run: hatch run lint
+        run: hatch run fmt-check && hatch run test:types
 
       - name: Run tests
-        run: hatch run test
+        run: hatch run test:cov-retry
 
       - name: Run unit tests with lowest direct dependencies
         run: |
