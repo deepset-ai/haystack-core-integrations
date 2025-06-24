@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/google_genai-v1.1.0] - 2025-06-24
+
+### 🚀 Features
+
+- Add asynchronous embedding methods for GoogleGenAIDocumentEmbedder and GoogleGenAITextEmbedder (#1983)
+
+### 🧹 Chores
+
+- Fix linting for ruff 0.12.0 (#1969)
+
+
 ## [integrations/google_genai-v1.0.2] - 2025-06-12
 
 ### 🚀 Features
