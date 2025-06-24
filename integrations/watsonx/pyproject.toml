@@ -76,6 +76,12 @@ non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
 
+[[tool.mypy.overrides]]
+module = [
+"ibm_watsonx_ai.*",
+]
+ignore_missing_imports = true
+
 [tool.hatch.envs.docs]
 dependencies = ["haystack-pydoc-tools"]
 
