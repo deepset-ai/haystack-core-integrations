@@ -188,7 +188,7 @@ class GoogleGenAIDocumentEmbedder:
                 args["config"] = types.EmbedContentConfig(**self._config) if self._config else None
 
             response = await self._client.aio.models.embed_content(**args)
-            
+
             embeddings = []
             if response.embeddings:
                 for el in response.embeddings:
