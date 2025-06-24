@@ -173,7 +173,7 @@ class GoogleGenAIDocumentEmbedder:
 
     async def _embed_batch_async(
         self, texts_to_embed: List[str], batch_size: int
-    ) -> Tuple[List[List[float]], Dict[str, Any]]:
+    ) -> Tuple[List[Optional[List[float]]], Dict[str, Any]]:
         """
         Embed a list of texts in batches asynchronously.
         """
@@ -188,9 +188,14 @@ class GoogleGenAIDocumentEmbedder:
                 args["config"] = types.EmbedContentConfig(**self._config) if self._config else None
 
             response = await self._client.aio.models.embed_content(**args)
-
-            embeddings = [el.values for el in response.embeddings]
-            all_embeddings.extend(embeddings)
+            
+            embeddings = []
+            if response.embeddings:
+                for el in response.embeddings:
+                    embeddings.append(el.values if el.values else None)
+                all_embeddings.extend(embeddings)
+            else:
+                all_embeddings.extend([None] * len(batch))
 
             if "model" not in meta:
                 meta["model"] = self._model
