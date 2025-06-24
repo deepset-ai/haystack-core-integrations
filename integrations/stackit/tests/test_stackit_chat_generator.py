@@ -284,11 +284,21 @@ class TestSTACKITChatGenerator:
         Integration test that the MistralChatGenerator component can run with tools and get a response.
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
-        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8", tools=tools)
+        component = STACKITChatGenerator(
+            # This one does indeed run, but for some reason the tool call is put into
+            # chat_completion.choices[0].message.content instead chat_completion.choices[0].message.tool_calls
+            model="cortecs/Llama-3.3-70B-Instruct-FP8-Dynamic",
+            # Doesn't work get the "auto" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be
+            # set
+            # model="google/gemma-3-27b-it",
+            # model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
+            tools=tools
+        )
         results = component.run(
             messages=initial_messages,
             generation_kwargs={"tool_choice": "auto"}
         )
+        import pdb;pdb.set_trace()
 
         assert len(results["replies"]) == 1
 
