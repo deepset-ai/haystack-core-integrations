@@ -164,7 +164,7 @@ class WatsonXDocumentEmbedder:
         return self.prefix + text + self.suffix
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
-    def run(self, documents: list[Document]):
+    def run(self, documents: list[Document]) -> dict[str, list[Document] | dict[str, Any]]:
         """
         Embeds a list of documents.
 

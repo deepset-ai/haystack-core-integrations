@@ -159,7 +159,7 @@ class WatsonXTextEmbedder:
         }
 
     @component.output_types(embedding=list[float], meta=dict[str, Any])
-    def run(self, text: str):
+    def run(self, text: str) -> dict[str, list[float] | dict[str, Any]]:
         """
         Embeds a single string.
 

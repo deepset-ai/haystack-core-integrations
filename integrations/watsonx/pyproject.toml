@@ -69,7 +69,8 @@ unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
-types = "mypy -p haystack_integrations.components.generators.watsonx {args}"
+types = """mypy -p haystack_integrations.components.generators.watsonx \
+-p haystack_integrations.components.embedders.watsonx  {args}"""
 
 [tool.mypy]
 install_types = true
@@ -82,11 +83,6 @@ module = [
   "ibm_watsonx_ai.*",
 ]
 ignore_missing_imports = true
-
-[tool.black]
-target-version = ["py310"]
-line-length = 120
-skip-string-normalization = true
 
 [tool.ruff]
 target-version = "py310"
@@ -169,7 +165,6 @@ asyncio_default_fixture_loop_scope = "class"
 asyncio_mode = "auto"
 log_cli = true
 markers = [
-    "unit: unit tests",
     "asyncio: mark tests as using asyncio",
     "integration: mark tests as integration tests"
 ]
