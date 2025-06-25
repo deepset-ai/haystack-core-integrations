@@ -1,8 +1,10 @@
+# This workflow comes from https://github.com/ofek/hatch-mypyc
+# https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
 name: Test / watsonx
 
 on:
   schedule:
-    - cron: "0 0 * * *"  
+    - cron: "0 0 * * *"
   pull_request:
     paths:
       - "integrations/watsonx/**"
@@ -30,10 +32,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest] 
-        python-version: ["3.10", "3.12"]  
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.9", "3.13"]
 
     steps:
+      - name: Support longpaths
+        if: matrix.os == 'windows-latest'
+        working-directory: .
+        run: git config --system core.longpaths true
+
       - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
@@ -43,9 +50,6 @@ jobs:
 
       - name: Install Hatch
         run: pip install --upgrade hatch
-
-      - name: Install dependencies
-        run: hatch env create
 
       - name: Lint
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
@@ -60,9 +64,17 @@ jobs:
           hatch run uv pip install -r requirements_lowest_direct.txt
           hatch run test:unit
 
-      - name: Nightly - run tests with Haystack main
+      - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
           hatch env prune
           hatch run uv pip install git+https://github.com/deepset-ai/haystack.git@main
-          hatch run test
+          hatch run test:unit
+
+      - name: Send event to Datadog for nightly failures
+        if: failure() && github.event_name == 'schedule'
+        uses: ./.github/actions/send_failure
+        with:
+          title: |
+            Core integrations nightly tests failure: ${{ github.workflow }}
+          api-key: ${{ secrets.CORE_DATADOG_API_KEY }}

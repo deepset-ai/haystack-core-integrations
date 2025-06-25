@@ -58,6 +58,7 @@ dependencies = [
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
+    "pip",
     "anyio",
     "pytest-mock"
 ]
