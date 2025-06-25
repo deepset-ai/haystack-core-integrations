@@ -783,7 +783,7 @@ class TestAnthropicChatGenerator:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        component = AnthropicChatGenerator(streaming_callback=callback)
+        component = AnthropicChatGenerator(streaming_callback=callback, timeout=30.0, max_retries=1)
         results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1
