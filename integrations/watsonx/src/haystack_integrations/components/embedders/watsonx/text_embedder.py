@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from __future__ import annotations
 
 from typing import Any
 
@@ -137,7 +136,7 @@ class WatsonXTextEmbedder:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> WatsonXTextEmbedder:
+    def from_dict(cls, data: dict[str, Any]) -> "WatsonXTextEmbedder":
         """
         Deserializes the component from a dictionary.
         """

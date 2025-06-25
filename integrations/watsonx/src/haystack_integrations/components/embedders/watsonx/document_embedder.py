@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from __future__ import annotations
-
 from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict
@@ -152,7 +150,7 @@ class WatsonXDocumentEmbedder:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> WatsonXDocumentEmbedder:
+    def from_dict(cls, data: dict[str, Any]) -> "WatsonXDocumentEmbedder":
         """
         Deserializes the component from a dictionary.
         """
@@ -187,7 +185,7 @@ class WatsonXDocumentEmbedder:
         texts_to_embed = [self._prepare_text(doc.content or "") for doc in documents]
         embeddings = self.embedder.embed_documents(texts_to_embed)
 
-        for doc, emb in zip(documents, embeddings):
+        for doc, emb in zip(documents, embeddings, strict=True):
             doc.embedding = emb
 
         return {

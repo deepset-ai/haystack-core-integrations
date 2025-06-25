@@ -1,9 +1,8 @@
 # SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from __future__ import annotations
 
-from typing import Any, Dict, List, Union
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingChunk
@@ -169,7 +168,7 @@ class WatsonxGenerator:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> WatsonxGenerator:
+    def from_dict(cls, data: dict[str, Any]) -> "WatsonxGenerator":
         """Deserialize the component from a dictionary."""
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
@@ -181,7 +180,7 @@ class WatsonxGenerator:
         generation_kwargs: dict[str, Any] | None = None,
         guardrails: bool = False,
         stream: bool = False,
-    ) -> Dict[str, Union[List[str],  List[Dict[str, Any]], List[StreamingChunk]]]:
+    ) -> dict[str, list[str] | list[dict[str, Any]] | list[StreamingChunk]]:
         """
         Generate text using the watsonx.ai model.
 

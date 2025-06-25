@@ -1,12 +1,11 @@
 # SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from __future__ import annotations
 
 import json
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
@@ -171,7 +170,7 @@ class WatsonxChatGenerator:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> WatsonxChatGenerator:
+    def from_dict(cls, data: dict[str, Any]) -> "WatsonxChatGenerator":
         """Deserialize the component from a dictionary."""
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
@@ -179,7 +178,7 @@ class WatsonxChatGenerator:
     @component.output_types(replies=list[ChatMessage])
     def run(
         self, messages: list[ChatMessage], generation_kwargs: dict[str, Any] | None = None, stream: bool = False
-    ) -> Dict[str, List[ChatMessage]]:
+    ) -> dict[str, list[ChatMessage]]:
         """
         Generate chat completions synchronously.
 
@@ -200,7 +199,7 @@ class WatsonxChatGenerator:
     @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self, messages: list[ChatMessage], generation_kwargs: dict[str, Any] | None = None, stream: bool = False
-    ) -> Dict[str, List[ChatMessage]]:
+    ) -> dict[str, list[ChatMessage]]:
         """
         Generate chat completions asynchronously.
 
@@ -224,7 +223,7 @@ class WatsonxChatGenerator:
         merged_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
         watsonx_messages = []
-        content: Union[Optional[str], Dict[str, Any]]
+        content: str | None | dict[str, Any]
         for msg in messages:
             if msg.is_from("user"):
                 content = msg.text
@@ -352,7 +351,7 @@ class WatsonxChatGenerator:
                     except json.JSONDecodeError:
                         logger.warning(
                             "Failed to parse tool call arguments: {tool_call_args}",
-                            tool_call_args=tc["function"]["arguments"]
+                            tool_call_args=tc["function"]["arguments"],
                         )
 
         return {
