@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Dict, List, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingChunk
@@ -181,7 +181,7 @@ class WatsonxGenerator:
         generation_kwargs: dict[str, Any] | None = None,
         guardrails: bool = False,
         stream: bool = False,
-    ):
+    ) -> Dict[str, Union[List[str],  List[Dict[str, Any]], List[StreamingChunk]]]:
         """
         Generate text using the watsonx.ai model.
 
