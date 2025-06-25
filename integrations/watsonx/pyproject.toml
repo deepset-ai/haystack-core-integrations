@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "watsonx-haystack"
-version = "0.1.0" 
+dynamic = ["version"]
 description = "Watsonx integration for Haystack"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -21,45 +21,44 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
-dependencies = [
-    "haystack-ai>=2.0.0",  
-    "ibm-watsonx-ai>=0.0.5"  
-]
+dependencies = ["haystack-ai>=2.0.0", "ibm-watsonx-ai>=0.0.5"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/watsonx#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/watsonx"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
+[tool.hatch.version]
+source = "vcs"
+tag-pattern = 'integrations\/watsonx-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/watsonx-v[0-9]*"'
+
 [tool.hatch.metadata]
 allow-direct-references = true
 
 [tool.hatch.envs.default]
 installer = "uv"
-dependencies = [
-    "pytest",
-    "pytest-asyncio",
-    "haystack-ai",
-    "ibm-watsonx-ai",
-    "ruff",
-    "haystack-pydoc-tools"
-]
+dependencies = ["haystack-pydoc-tools", "ruff"]
 
 [tool.hatch.envs.default.scripts]
 docs = ["pydoc-markdown pydoc/config.yml"]
-fmt = "ruff check --fix {args:.} && ruff format {args:.}"
-fmt-check = "ruff check {args:.} && ruff format --check {args:.}"
+fmt = "ruff check --fix {args} && ruff format {args}"
+fmt-check = "ruff check {args} && ruff format --check {args}"
 
 [tool.hatch.envs.test]
 dependencies = [
     "pytest",
     "pytest-asyncio",
-    "pytest-cov",  
-    "pytest-rerunfailures",  
-    "mypy",  
+    "pytest-cov",
+    "pytest-rerunfailures",
+    "mypy",
     "anyio",
-    "haystack-ai",
-    "ibm-watsonx-ai",
     "pytest-mock"
 ]
 
@@ -76,39 +75,11 @@ non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
 
-[tool.mypy]
-install_types = true
-non_interactive = true
-check_untyped_defs = true
-disallow_incomplete_defs = true
-
 [[tool.mypy.overrides]]
 module = [
-"ibm_watsonx_ai.*",
+  "ibm_watsonx_ai.*",
 ]
 ignore_missing_imports = true
-
-[tool.hatch.envs.docs]
-dependencies = ["haystack-pydoc-tools"]
-
-[tool.hatch.envs.docs.scripts]
-docs = "haystack-pydoc build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/haystack_integrations"]
-
-[tool.hatch.build.targets.editable]
-packages = ["src/haystack_integrations"]
-
-[tool.pytest.ini_options]
-markers = [
-    "unit: unit tests",
-    "asyncio: mark tests as using asyncio",
-    "integration: mark tests as integration tests"
-]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "class"
-addopts = "--tb=short -v"
 
 [tool.black]
 target-version = ["py38"]
@@ -116,50 +87,87 @@ line-length = 120
 skip-string-normalization = true
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py38"
 line-length = 120
 
 [tool.ruff.lint]
 select = [
-    "A", "ARG", "B", "C", "DTZ", "E", "EM", "F", 
-    "I", "ICN", "ISC", "N", "PLC", "PLE", "PLR", 
-    "PLW", "Q", "RUF", "S", "T", "TID", "UP", "W", "YTT"
+  "A",
+  "ARG",
+  "B",
+  "C",
+  "DTZ",
+  "E",
+  "EM",
+  "F",
+  "I",
+  "ICN",
+  "ISC",
+  "N",
+  "PLC",
+  "PLE",
+  "PLR",
+  "PLW",
+  "Q",
+  "RUF",
+  "S",
+  "T",
+  "TID",
+  "UP",
+  "W",
+  "YTT",
 ]
 ignore = [
-    "A003",    # Class attribute shadows builtin
-    "ARG001",  # Unused function argument
-    "ARG002",  # Unused method argument
-    "B027",    # Allow empty abstract methods
-    "C901",    # Complex function
-    "DTZ005",  # Missing timezone info
-    "E501",    # Line too long (handled by formatter)
-    "EM101",   # Exception message in string literal
-    "FBT001",  # Boolean positional argument in function definition
-    "FBT002",  # Boolean default positional argument in function definition
-    "G004",    # Logging statement uses f-string
-    "PLR0911", # Too many return statements
-    "PLR0912", # Too many branches
-    "PLR0913", # Too many arguments
-    "PLR2004", # Magic value used in comparison
-    "RET505",  # Unnecessary else after return
-    "S101",    # Use of assert
-    "S105",    # Possible hardcoded password
-    "S106",    # Possible hardcoded password
-    "S107",    # Possible hardcoded password
-    "SLF001",  # Private member accessed
-    "T201",    # Print statement
-    "TRY003",  # Avoid long messages outside exception class
-    "TRY401",  # Redundant exception object in logging.exception call
-    "UP007",   # Use X | Y for type union
-    "Q000",
+  "T201", # print statements
+  # Allow non-abstract empty methods in abstract base classes
+  "B027",
+  # Ignore checks for possible passwords
+  "S105",
+  "S106",
+  "S107",
+  # Ignore complexity
+  "C901",
+  "PLR0911",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+  # Ignore unused params
+  "ARG001",
+  "ARG002",
+  "ARG005",
+]
+unfixable = [
+  # Don't touch unused imports
+  "F401",
 ]
 
 [tool.ruff.lint.isort]
 known-first-party = ["haystack_integrations"]
 
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
 
-[tool.ruff.lint.flake8-tidy-imports]
-ban-relative-imports = "parents"
+[tool.coverage.run]
+source = ["haystack_integrations"]
+branch = true
+parallel = true
+
+[tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing = true
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
+
+[tool.pytest.ini_options]
+addopts = "--tb=short -v"
+asyncio_default_fixture_loop_scope = "class"
+asyncio_mode = "auto"
+log_cli = true
+markers = [
+    "unit: unit tests",
+    "asyncio: mark tests as using asyncio",
+    "integration: mark tests as integration tests"
+]

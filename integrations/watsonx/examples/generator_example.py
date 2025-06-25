@@ -50,5 +50,7 @@ result = streaming_pipeline.run({"generator": {"prompt": prompt, "stream": True}
 
 
 ##Result for steaming generator
-##Full response: The AI assistant is a friendly and helpful robot that can help you with many tasks, such as setting reminders,
-## managing your calendar, and creating to-do lists. You can also use the AI assistant to search for information online, or just have fun conversations with it.
+##Full response: The AI assistant is a friendly and helpful robot that can help you with many tasks, such as setting
+# reminders,
+## managing your calendar, and creating to-do lists. You can also use the AI assistant to search for information
+# online, or just have fun conversations with it.

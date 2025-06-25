@@ -53,4 +53,5 @@ result = query_pipeline.run({"text_embedder": {"text": query}})
 # Step 7: Print result
 
 ### Result
-# Document(id=62fad790ad2af927af9432c87330ed2ea5e31332cdec8e9d6235a5105ab0aaf5, content: 'My name is Wolfgang and I live in Berlin', score: 0.7287276769333577)
+# Document(id=62fad790ad2af927af9432c87330ed2ea5e31332cdec8e9d6235a5105ab0aaf5, content: 'My name is Wolfgang and I
+# live in Berlin', score: 0.7287276769333577)

@@ -17,22 +17,22 @@ class TestWatsonXTextEmbedder:
         """Fixture for setting up common mocks"""
         monkeypatch.setenv("WATSONX_API_KEY", "fake-api-key")
 
-        with (
-            patch("haystack_integrations.components.embedders.watsonx.text_embedder.Embeddings") as mock_embeddings,
-            patch("haystack_integrations.components.embedders.watsonx.text_embedder.Credentials") as mock_credentials,
-        ):
-            mock_creds_instance = MagicMock()
-            mock_credentials.return_value = mock_creds_instance
+        with patch("haystack_integrations.components.embedders.watsonx.text_embedder.Embeddings") as mock_embeddings:
+            with patch(
+                "haystack_integrations.components.embedders.watsonx.text_embedder.Credentials"
+            ) as mock_credentials:
+                mock_creds_instance = MagicMock()
+                mock_credentials.return_value = mock_creds_instance
 
-            mock_embeddings_instance = MagicMock()
-            mock_embeddings.return_value = mock_embeddings_instance
+                mock_embeddings_instance = MagicMock()
+                mock_embeddings.return_value = mock_embeddings_instance
 
-            yield {
-                "credentials": mock_credentials,
-                "embeddings": mock_embeddings,
-                "creds_instance": mock_creds_instance,
-                "embeddings_instance": mock_embeddings_instance,
-            }
+                yield {
+                    "credentials": mock_credentials,
+                    "embeddings": mock_embeddings,
+                    "creds_instance": mock_creds_instance,
+                    "embeddings_instance": mock_embeddings_instance,
+                }
 
     def test_init_default(self, mock_watsonx):
         embedder = WatsonXTextEmbedder(project_id="fake-project-id")
@@ -147,7 +147,8 @@ class TestWatsonXTextEmbedder:
         embedder = WatsonXTextEmbedder(project_id="fake-project-id")
         with pytest.raises(
             TypeError,
-            match="WatsonXTextEmbedder expects a string as an input. In case you want to embed a list of Documents, please use the WatsonXDocumentEmbedder.",
+            match="WatsonXTextEmbedder expects a string as an input. In case you want to embed a list of Documents, "
+            "please use the WatsonXDocumentEmbedder.",
         ):
             embedder.run(text=[1, 2, 3])
 

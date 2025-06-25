@@ -17,24 +17,24 @@ class TestWatsonXDocumentEmbedder:
         """Fixture for setting up common mocks"""
         monkeypatch.setenv("WATSONX_API_KEY", "fake-api-key")
 
-        with (
-            patch("haystack_integrations.components.embedders.watsonx.document_embedder.Embeddings") as mock_embeddings,
-            patch(
+        with patch(
+            "haystack_integrations.components.embedders.watsonx.document_embedder.Embeddings"
+        ) as mock_embeddings:
+            with patch(
                 "haystack_integrations.components.embedders.watsonx.document_embedder.Credentials"
-            ) as mock_credentials,
-        ):
-            mock_creds_instance = MagicMock()
-            mock_credentials.return_value = mock_creds_instance
+            ) as mock_credentials:
+                mock_creds_instance = MagicMock()
+                mock_credentials.return_value = mock_creds_instance
 
-            mock_embeddings_instance = MagicMock()
-            mock_embeddings.return_value = mock_embeddings_instance
+                mock_embeddings_instance = MagicMock()
+                mock_embeddings.return_value = mock_embeddings_instance
 
-            yield {
-                "credentials": mock_credentials,
-                "embeddings": mock_embeddings,
-                "creds_instance": mock_creds_instance,
-                "embeddings_instance": mock_embeddings_instance,
-            }
+                yield {
+                    "credentials": mock_credentials,
+                    "embeddings": mock_embeddings,
+                    "creds_instance": mock_creds_instance,
+                    "embeddings_instance": mock_embeddings_instance,
+                }
 
     def test_init_default(self, mock_watsonx):
         embedder = WatsonXDocumentEmbedder(project_id="fake-project-id")
