@@ -2,26 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from collections.abc import Callable
 from typing import Any
-from urllib.parse import urlparse
 
-import httpx
-from exceptiongroup import ExceptionGroup
 from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.tools import Tool, Toolset
 
 from .mcp_tool import (
-    AsyncExecutor,
-    MCPClient,
     MCPConnectionError,
+    MCPConnectionManager,
     MCPServerInfo,
-    MCPToolNotFoundError,
-    SSEServerInfo,
-    StdioServerInfo,
-    StreamableHttpServerInfo,
-    _MCPClientSessionManager,
+    _create_connection_error_message,
 )
 
 logger = logging.getLogger(__name__)
@@ -126,46 +117,17 @@ class MCPToolset(Toolset):
 
         # Connect and load tools
         try:
-            # Create the client and spin up a worker so open/close happen in the
-            # same coroutine, avoiding AnyIO cancel-scope issues.
-            client = self.server_info.create_client()
-            self._worker = _MCPClientSessionManager(client, timeout=self.connection_timeout)
-
-            tools = self._worker.tools()
+            # Use shared connection logic
+            self._connection_manager = MCPConnectionManager(server_info, connection_timeout)
+            available_tools = self._connection_manager.connect_and_discover_tools()
 
             # If tool_names is provided, validate that all requested tools exist
             if self.tool_names:
-                available_tools = {tool.name for tool in tools}
-                missing_tools = set(self.tool_names) - available_tools
-                if missing_tools:
-                    message = (
-                        f"The following tools were not found: {', '.join(missing_tools)}. "
-                        f"Available tools: {', '.join(available_tools)}"
-                    )
-                    raise MCPToolNotFoundError(
-                        message=message, tool_name=next(iter(missing_tools)), available_tools=list(available_tools)
-                    )
+                self._connection_manager.validate_requested_tools(self.tool_names, available_tools)
 
-            # This is a factory that creates the invocation function for the Tool
-            def create_invoke_tool(
-                owner_toolset: "MCPToolset",
-                mcp_client: MCPClient,
-                tool_name: str,
-                tool_timeout: float,
-            ) -> Callable[..., Any]:
-                """Return a closure that keeps a strong reference to *owner_toolset* alive."""
-
-                def invoke_tool(**kwargs) -> Any:
-                    _ = owner_toolset  # strong reference so GC can't collect the toolset too early
-                    return AsyncExecutor.get_instance().run(
-                        mcp_client.call_tool(tool_name, kwargs), timeout=tool_timeout
-                    )
-
-                return invoke_tool
-
-            # Create Tool instances not MCPTool for each available tool
+            # Create Tool instances using shared invoke function creation
             haystack_tools = []
-            for tool_info in tools:
+            for tool_info in available_tools:
                 # Skip tools not in the tool_names list if tool_names is provided
                 if self.tool_names is not None and tool_info.name not in self.tool_names:
                     logger.debug(
@@ -173,12 +135,14 @@ class MCPToolset(Toolset):
                     )
                     continue
 
-                # Use the helper function to create the invoke_tool function
+                # Use shared function creation instead of local closure
+                invoke_func = self._connection_manager.create_tool_invoke_function(tool_info.name, invocation_timeout)
+
                 tool = Tool(
                     name=tool_info.name,
                     description=tool_info.description,
                     parameters=tool_info.inputSchema,
-                    function=create_invoke_tool(self, client, tool_info.name, self.invocation_timeout),
+                    function=invoke_func,
                 )
                 haystack_tools.append(tool)
 
@@ -190,59 +154,11 @@ class MCPToolset(Toolset):
             # fail because of an MCPToolNotFoundError
             self.close()
 
-            # Create informative error message for SSE connection errors
-            # Common error handling for HTTP-based transports
-            if isinstance(self.server_info, (SSEServerInfo | StreamableHttpServerInfo)):
-                # Determine transport type for messages
-                transport_name = "SSE" if isinstance(self.server_info, SSEServerInfo) else "streamable HTTP"
-                server_url = self.server_info.url
-
-                base_message = f"Failed to connect to MCP server via {transport_name}"
-                checks = [
-                    f"1. The server URL is correct (attempted: {server_url})",
-                    "2. The server is running and accessible",
-                    "3. Authentication token is correct (if required)",
-                ]
-
-                # Add specific connection error details for network issues
-                has_connect_error = isinstance(e, httpx.ConnectError) or (
-                    isinstance(e, ExceptionGroup) and any(isinstance(exc, httpx.ConnectError) for exc in e.exceptions)
-                )
-
-                if has_connect_error:
-                    # Use urlparse to reliably get scheme, hostname, and port
-                    parsed_url = urlparse(server_url)
-                    port_str = ""
-                    if parsed_url.port:
-                        port_str = str(parsed_url.port)
-                    elif parsed_url.scheme == "http":
-                        port_str = "80 (default)"
-                    elif parsed_url.scheme == "https":
-                        port_str = "443 (default)"
-                    else:
-                        port_str = "unknown (scheme not http/https or missing)"
-
-                    # Ensure hostname is handled correctly (it might be None)
-                    hostname_str = str(parsed_url.hostname) if parsed_url.hostname else "<unknown>"
-
-                    # Replace generic accessible message with specific network details
-                    checks[1] = f"2. The address '{hostname_str}' and port '{port_str}' are correct"
-                    checks.append("4. There are no firewall or network connectivity issues")
-
-                message = f"{base_message}. Please check if:\n" + "\n".join(checks)
-
-            # and for stdio connection errors
-            elif isinstance(self.server_info, StdioServerInfo):  # stdio connection
-                base_message = "Failed to start MCP server process"
-                stdio_info = self.server_info
-                args_str = " ".join(stdio_info.args) if stdio_info.args else ""
-                cmd = f"{stdio_info.command}{' ' + args_str if args_str else ''}"
-                checks = [f"1. The command and arguments are correct (attempted: {cmd})"]
-                message = f"{base_message}. Please check if:\n" + "\n".join(checks)
-            else:
-                message = f"Unsupported server info type: {type(self.server_info)}"
-
-            raise MCPConnectionError(message=message, server_info=self.server_info, operation="initialize") from e
+            # Use shared error handling
+            error_message = _create_connection_error_message(
+                server_info=self.server_info, exception=e, operation="initialize", context="MCPToolset"
+            )
+            raise MCPConnectionError(message=error_message, server_info=self.server_info, operation="initialize") from e
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -285,11 +201,11 @@ class MCPToolset(Toolset):
 
     def close(self):
         """Close the underlying MCP client safely."""
-        if hasattr(self, "_worker") and self._worker:
+        if hasattr(self, "_connection_manager") and self._connection_manager:
             try:
-                self._worker.stop()
+                self._connection_manager.close()
             except Exception as e:
-                logger.debug(f"TOOLSET: error during worker stop: {e!s}")
+                logger.debug(f"TOOLSET: error during connection manager close: {e!s}")
 
     def __del__(self):
         self.close()
