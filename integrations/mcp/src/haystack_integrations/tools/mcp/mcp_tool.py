@@ -13,7 +13,9 @@ from contextlib import AsyncExitStack
 from dataclasses import dataclass, fields
 from datetime import timedelta
 from typing import Any, cast
+from urllib.parse import urlparse
 
+import httpx
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from exceptiongroup import ExceptionGroup
 from haystack import logging
@@ -687,8 +689,6 @@ def _create_http_connection_error_message(
     ]
 
     # Check if exception indicates a network connection error
-    import httpx
-
     has_connect_error = isinstance(exception, httpx.ConnectError) or (
         isinstance(exception, ExceptionGroup)
         and any(isinstance(exc, httpx.ConnectError) for exc in exception.exceptions)
@@ -696,8 +696,6 @@ def _create_http_connection_error_message(
 
     # Add network-specific guidance for connection errors
     if has_connect_error:
-        from urllib.parse import urlparse
-
         # Use urlparse to reliably get scheme, hostname, and port
         parsed_url = urlparse(server_url)
         port_str = ""
