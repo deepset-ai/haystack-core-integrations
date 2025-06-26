@@ -37,8 +37,6 @@ def document_store(request):
         client.delete_index(index_name)
 
     store = AzureAISearchDocumentStore(
-        api_key=api_key,
-        azure_endpoint=azure_endpoint,
         index_name=index_name,
         create_index=True,
         embedding_dimension=768,

@@ -157,7 +157,7 @@ class AzureAISearchDocumentStore:
         try:
             if not self._index_client:
                 self._index_client = SearchIndexClient(
-                    # resolve_value, when used with Secret.from_env_var (strict=True), returns a string or raises an error
+                    # resolve_value, with Secret.from_env_var (strict=True), returns a string or raises an error
                     endpoint=resolved_endpoint,  # type: ignore[arg-type]
                     credential=credential,
                     user_agent=ua_policy,
