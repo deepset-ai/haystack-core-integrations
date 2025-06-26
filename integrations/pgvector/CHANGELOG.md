@@ -1,5 +1,12 @@
 # Changelog
 
+## [unreleased]
+
+### 🧹 Chores
+
+- Remove black (#1985)
+
+
 ## [integrations/pgvector-v3.4.1] - 2025-06-20
 
 ### 🐛 Bug Fixes
