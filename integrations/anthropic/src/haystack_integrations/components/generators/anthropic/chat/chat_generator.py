@@ -414,7 +414,29 @@ class AnthropicChatGenerator:
 
         # Update meta information
         last_chunk_meta = chunks[-1].meta
-        usage = self._get_openai_compatible_usage(last_chunk_meta)
+
+        # Combine usage from first chunk (input_tokens) and last chunk (output_tokens)
+        combined_usage = {}
+
+        # Get input tokens from first chunk (message_start)
+        if chunks and chunks[0].meta.get("type") == "message_start":
+            first_chunk_usage = chunks[0].meta.get("message", {}).get("usage", {})
+            if "input_tokens" in first_chunk_usage:
+                combined_usage["input_tokens"] = first_chunk_usage["input_tokens"]
+
+        # Get output tokens from last chunk (message_delta)
+        last_chunk_usage = last_chunk_meta.get("usage", {})
+        if "output_tokens" in last_chunk_usage:
+            combined_usage["output_tokens"] = last_chunk_usage["output_tokens"]
+        elif "completion_tokens" in last_chunk_usage:
+            combined_usage["output_tokens"] = last_chunk_usage["completion_tokens"]
+
+        # Add any other usage fields from the last chunk
+        for key, value in last_chunk_usage.items():
+            if key not in combined_usage:
+                combined_usage[key] = value
+
+        usage = self._get_openai_compatible_usage({"usage": combined_usage})
         message._meta.update(
             {
                 "model": model,

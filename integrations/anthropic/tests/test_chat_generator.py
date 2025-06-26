@@ -403,6 +403,23 @@ class TestAnthropicChatGenerator:
         """
         # Create a sequence of streaming chunks that simulate Anthropic's response
         chunks = [
+            # Message start with input tokens
+            StreamingChunk(
+                content="",
+                meta={
+                    "type": "message_start",
+                    "message": {
+                        "id": "msg_123",
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [],
+                        "model": "claude-3-sonnet",
+                        "stop_reason": None,
+                        "stop_sequence": None,
+                        "usage": {"input_tokens": 25, "output_tokens": 0},
+                    },
+                },
+            ),
             # Initial text content
             StreamingChunk(
                 content="",
@@ -479,7 +496,7 @@ class TestAnthropicChatGenerator:
         assert message._meta["model"] == "claude-3-sonnet"
         assert message._meta["index"] == 0
         assert message._meta["finish_reason"] == "tool_use"
-        assert message._meta["usage"] == {"completion_tokens": 40}
+        assert message._meta["usage"] == {"prompt_tokens": 25, "completion_tokens": 40}
 
     def test_convert_streaming_chunks_to_chat_message_malformed_json(self, caplog):
         """
@@ -558,6 +575,23 @@ class TestAnthropicChatGenerator:
         Test converting streaming chunks with an empty tool call arguments
         """
         chunks = [
+            # Message start with input tokens
+            StreamingChunk(
+                content="",
+                meta={
+                    "type": "message_start",
+                    "message": {
+                        "id": "msg_456",
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [],
+                        "model": "claude-3-sonnet",
+                        "stop_reason": None,
+                        "stop_sequence": None,
+                        "usage": {"input_tokens": 50, "output_tokens": 0},
+                    },
+                },
+            ),
             StreamingChunk(
                 content="",
                 meta={
@@ -659,7 +693,7 @@ class TestAnthropicChatGenerator:
             "cache_creation_input_tokens": None,
             "cache_read_input_tokens": None,
             "completion_tokens": 69,
-            "prompt_tokens": None,
+            "prompt_tokens": 50,
             "server_tool_use": None,
         }
 
