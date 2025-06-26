@@ -1,6 +1,9 @@
 # Changelog
 
-## [unreleased]
+## [integrations/pgvector-v5.2.0] - 2025-06-26
+
+Note: Version 5.2.0 was released by mistake.
+It is functionally identical to version 3.4.1 and does not introduce any new features or changes.
 
 ### 🧹 Chores
 
