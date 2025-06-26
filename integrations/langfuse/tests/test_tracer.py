@@ -3,15 +3,21 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import datetime
+import json
 import logging
 import sys
-from unittest.mock import MagicMock, Mock, patch
 from typing import Optional
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+from haystack import Pipeline, component
 from haystack.dataclasses import ChatMessage, ToolCall
-from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer, LangfuseSpan, SpanContext, DefaultSpanHandler
-from haystack_integrations.tracing.langfuse.tracer import _COMPONENT_OUTPUT_KEY
+
+from haystack_integrations.components.connectors.langfuse import \
+LangfuseConnector
+from haystack_integrations.tracing.langfuse.tracer import (
+    _COMPONENT_OUTPUT_KEY, DefaultSpanHandler, LangfuseSpan, LangfuseTracer,
+    SpanContext)
 
 
 class MockSpan:
@@ -367,7 +373,8 @@ class TestLangfuseTracer:
         monkeypatch.setenv("HAYSTACK_LANGFUSE_ENFORCE_FLUSH", "false")
         tracer_mock = Mock()
 
-        from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer
+        from haystack_integrations.tracing.langfuse.tracer import \
+            LangfuseTracer
 
         tracer = LangfuseTracer(tracer=tracer_mock, name="Haystack", public=False)
         with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
@@ -397,3 +404,61 @@ class TestLangfuseTracer:
 
             LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
             assert "tracing is disabled" in caplog.text
+
+    def test_context_cleanup_after_nested_failures(self):
+        """
+        Test that tracer context is properly cleaned up even when nested operations fail.
+
+        This test addresses a critical bug where failing nested operations (like inner pipelines)
+        could corrupt the tracing context, leaving stale spans that affect subsequent operations.
+        The fix ensures proper cleanup through try/finally blocks.
+
+        Before the fix: context would retain spans after failures (length > 0)
+        After the fix: context is always cleaned up (length == 0)
+        """
+
+
+        @component
+        class FailingParser:
+            @component.output_types(result=str)
+            def run(self, data: str):
+                # This will fail with ValueError when data is not valid JSON
+                parsed = json.loads(data)
+                return {"result": parsed["key"]}
+
+        @component
+        class ComponentWithNestedPipeline:
+            def __init__(self):
+                # This simulates IntentClassifier's internal pipeline
+                self.internal_pipeline = Pipeline()
+                self.internal_pipeline.add_component("parser", FailingParser())
+
+            @component.output_types(result=str)
+            def run(self, input_data: str):
+                # Run nested pipeline - this is where corruption occurs
+                result = self.internal_pipeline.run({"parser": {"data": input_data}})
+                return {"result": result["parser"]["result"]}
+
+        tracer = LangfuseConnector("test")
+
+        main_pipeline = Pipeline()
+        main_pipeline.add_component("nested_component", ComponentWithNestedPipeline())
+        main_pipeline.add_component("tracer", tracer)
+
+        # Test 1: First run will fail and should clean up context
+        try:
+            main_pipeline.run({"nested_component": {"input_data": "invalid json"}})
+        except Exception:
+            pass  # Expected to fail
+
+        # Critical assertion: context should be empty after failed operation
+        assert len(tracer.tracer._context) == 0
+
+        # Test 2: Second run should work normally with clean context
+        try:
+            result = main_pipeline.run({"nested_component": {"input_data": '{"key": "valid"}'}})
+        except Exception:
+            assert False, "Second run should not fail"
+
+        # Critical assertion: context should be empty after successful operation
+        assert len(tracer.tracer._context) == 0
