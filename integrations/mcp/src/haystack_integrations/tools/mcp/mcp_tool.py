@@ -747,7 +747,7 @@ class MCPConnectionManager:
         self.server_info = server_info
         self.connection_timeout = connection_timeout
         self._client: MCPClient | None = None
-        self._worker: "_MCPClientSessionManager | None" = None
+        self._worker: _MCPClientSessionManager | None = None
 
     def connect_and_discover_tools(self) -> list[Tool]:
         """
