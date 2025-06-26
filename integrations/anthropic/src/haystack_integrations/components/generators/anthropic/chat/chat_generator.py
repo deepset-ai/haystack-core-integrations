@@ -419,10 +419,12 @@ class AnthropicChatGenerator:
         combined_usage = {}
 
         # Get input tokens from first chunk (message_start)
-        if chunks and chunks[0].meta.get("type") == "message_start":
-            first_chunk_usage = chunks[0].meta.get("message", {}).get("usage", {})
-            if "input_tokens" in first_chunk_usage:
-                combined_usage["input_tokens"] = first_chunk_usage["input_tokens"]
+        if chunks:
+            first_chunk_meta = chunks[0].meta
+            if first_chunk_meta.get("type") == "message_start":
+                first_chunk_usage = first_chunk_meta.get("message", {}).get("usage", {})
+                if "input_tokens" in first_chunk_usage:
+                    combined_usage["input_tokens"] = first_chunk_usage["input_tokens"]
 
         # Get output tokens from last chunk (message_delta)
         last_chunk_usage = last_chunk_meta.get("usage", {})
