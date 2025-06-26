@@ -463,18 +463,14 @@ class LangfuseTracer(Tracer):
                     raw_span.end()
             except Exception as cleanup_error:
                 # Log cleanup errors but don't let them corrupt context
-                logger.warning(
-                    f"Error during span cleanup for {operation_name}: {cleanup_error}"
-                )
+                logger.warning(f"Error during span cleanup for {operation_name}: {cleanup_error}")
             finally:
                 # CRITICAL: Always pop context to prevent corruption
                 # This is especially important for nested pipeline scenarios
                 if self._context and self._context[-1] == span:
                     self._context.pop()
                 else:
-                    logger.error(
-                        f"Context corruption detected: expected {span} at top of stack"
-                    )
+                    logger.error(f"Context corruption detected: expected {span} at top of stack")
 
             if self.enforce_flush:
                 self.flush()
