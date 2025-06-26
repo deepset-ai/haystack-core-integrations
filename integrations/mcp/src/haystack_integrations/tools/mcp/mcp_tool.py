@@ -746,8 +746,8 @@ class MCPConnectionManager:
     def __init__(self, server_info: MCPServerInfo, connection_timeout: float):
         self.server_info = server_info
         self.connection_timeout = connection_timeout
-        self._client = None
-        self._worker = None
+        self._client: MCPClient | None = None
+        self._worker: "_MCPClientSessionManager | None" = None
 
     def connect_and_discover_tools(self) -> list[Tool]:
         """
@@ -794,6 +794,9 @@ class MCPConnectionManager:
 
                 async def invoke():
                     logger.debug(f"Inside invoke coroutine for '{tool_name}'")
+                    if self._client is None:
+                        message = "MCP client is not connected"
+                        raise MCPConnectionError(message=message, operation="invoke")
                     result = await asyncio.wait_for(
                         self._client.call_tool(tool_name, kwargs), timeout=invocation_timeout
                     )
@@ -816,7 +819,7 @@ class MCPConnectionManager:
 
         return invoke_tool
 
-    def get_client(self):
+    def get_client(self) -> MCPClient | None:
         """Allow direct access to client for MCPTool's async method access"""
         return self._client
 
@@ -961,6 +964,9 @@ class MCPTool(Tool):
         """
         try:
             client = self._connection_manager.get_client()
+            if client is None:
+                message = "MCP client is not connected"
+                raise MCPConnectionError(message=message, operation="ainvoke")
             return await asyncio.wait_for(client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
         except asyncio.TimeoutError as e:
             message = f"Tool invocation timed out after {self._invocation_timeout} seconds"
