@@ -47,6 +47,8 @@ class TestAnthropicGenerator:
                 "streaming_callback": None,
                 "system_prompt": None,
                 "generation_kwargs": {},
+                "timeout": None,
+                "max_retries": None,
             },
         }
 
@@ -57,6 +59,8 @@ class TestAnthropicGenerator:
             streaming_callback=print_streaming_chunk,
             system_prompt="test-prompt",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
+            timeout=10.0,
+            max_retries=1,
         )
         data = component.to_dict()
         assert data == {
@@ -67,6 +71,8 @@ class TestAnthropicGenerator:
                 "system_prompt": "test-prompt",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+                "timeout": 10.0,
+                "max_retries": 1,
             },
         }
 
@@ -80,6 +86,8 @@ class TestAnthropicGenerator:
                 "system_prompt": "test-prompt",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+                "timeout": None,
+                "max_retries": None,
             },
         }
         component = AnthropicGenerator.from_dict(data)
@@ -88,6 +96,8 @@ class TestAnthropicGenerator:
         assert component.system_prompt == "test-prompt"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
         assert component.api_key == Secret.from_env_var("ANTHROPIC_API_KEY")
+        assert component.timeout is None
+        assert component.max_retries is None
 
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -99,6 +109,8 @@ class TestAnthropicGenerator:
                 "system_prompt": "test-prompt",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+                "timeout": None,
+                "max_retries": None,
             },
         }
         with pytest.raises(ValueError, match="None of the .* environment variables are set"):

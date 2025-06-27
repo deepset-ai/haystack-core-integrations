@@ -53,9 +53,8 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        working-directory: integrations/pinecone
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
-        run: hatch run lint:all
+        run: hatch run fmt-check && hatch run test:types
 
       - name: Generate docs
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
