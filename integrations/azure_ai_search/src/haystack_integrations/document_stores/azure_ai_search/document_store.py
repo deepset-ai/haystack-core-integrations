@@ -2,9 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging as python_logging
-import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import ClientAuthenticationError, HttpResponseError, ResourceNotFoundError
@@ -12,6 +11,7 @@ from azure.core.pipeline.policies import UserAgentPolicy
 from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
+from azure.search.documents.indexes._generated._serialization import Model
 from azure.search.documents.indexes.models import (
     CharFilter,
     CorsOptions,
@@ -53,7 +53,7 @@ type_mapping = {
 }
 
 # Map of expected field names to their corresponding classes
-AZURE_CLASS_MAPPING = {
+AZURE_CLASS_MAPPING: Dict[str, Type[Model]] = {
     "suggesters": SearchSuggester,
     "analyzers": LexicalAnalyzer,
     "tokenizers": LexicalTokenizer,
@@ -94,7 +94,7 @@ class AzureAISearchDocumentStore:
         embedding_dimension: int = 768,
         metadata_fields: Optional[Dict[str, Union[SearchField, type]]] = None,
         vector_search_configuration: Optional[VectorSearch] = None,
-        **index_creation_kwargs,
+        **index_creation_kwargs: Any,
     ):
         """
         A document store using [Azure AI Search](https://azure.microsoft.com/products/ai-services/ai-search/)
@@ -133,16 +133,8 @@ class AzureAISearchDocumentStore:
 
         For more information on parameters, see the [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/).
         """
-
-        azure_endpoint = azure_endpoint or os.environ.get("AZURE_AI_SEARCH_ENDPOINT") or None
-        if not azure_endpoint:
-            msg = "Please provide an Azure endpoint or set the environment variable AZURE_AI_SEARCH_ENDPOINT."
-            raise ValueError(msg)
-
-        api_key = api_key or os.environ.get("AZURE_AI_SEARCH_API_KEY") or None
-
-        self._client = None
-        self._index_client = None
+        self._client: Optional[SearchClient] = None
+        self._index_client: Optional[SearchIndexClient] = None
         self._index_fields = []  # type: List[Any]  # stores all fields in the final schema of index
         self._api_key = api_key
         self._azure_endpoint = azure_endpoint
@@ -155,11 +147,8 @@ class AzureAISearchDocumentStore:
 
     @property
     def client(self) -> SearchClient:
-        # resolve secrets for authentication
-        resolved_endpoint = (
-            self._azure_endpoint.resolve_value() if isinstance(self._azure_endpoint, Secret) else self._azure_endpoint
-        )
-        resolved_key = self._api_key.resolve_value() if isinstance(self._api_key, Secret) else self._api_key
+        resolved_endpoint = self._azure_endpoint.resolve_value()
+        resolved_key = self._api_key.resolve_value()
 
         credential = AzureKeyCredential(resolved_key) if resolved_key else DefaultAzureCredential()
 
@@ -168,8 +157,9 @@ class AzureAISearchDocumentStore:
         try:
             if not self._index_client:
                 self._index_client = SearchIndexClient(
-                    resolved_endpoint,
-                    credential,
+                    # resolve_value, with Secret.from_env_var (strict=True), returns a string or raises an error
+                    endpoint=resolved_endpoint,  # type: ignore[arg-type]
+                    credential=credential,
                     user_agent=ua_policy,
                 )
             if not self._index_exists(self._index_name):
@@ -287,7 +277,7 @@ class AzureAISearchDocumentStore:
         """
         Deserializes the index creation kwargs to the original classes.
         """
-        result = {}
+        result: Dict[str, Union[List[Model], Model]] = {}
         for key, value in data.items():
             if key in AZURE_CLASS_MAPPING:
                 if isinstance(value, list):
@@ -337,7 +327,7 @@ class AzureAISearchDocumentStore:
         else:
             data["init_parameters"]["metadata_fields"] = {}
 
-        for key, _value in AZURE_CLASS_MAPPING.items():
+        for key in AZURE_CLASS_MAPPING:
             if key in data["init_parameters"]:
                 param_value = data["init_parameters"].get(key)
                 data["init_parameters"][key] = cls._deserialize_index_creation_kwargs({key: param_value})
@@ -421,7 +411,7 @@ class AzureAISearchDocumentStore:
         if filters:
             normalized_filters = _normalize_filters(filters)
             result = self.client.search(filter=normalized_filters)
-            return self._convert_search_result_to_documents(result)
+            return self._convert_search_result_to_documents(list(result))
         else:
             return self.search_documents()
 
@@ -465,7 +455,7 @@ class AzureAISearchDocumentStore:
             msg = "Index name is required to check if the index exists."
             raise ValueError(msg)
 
-    def _get_raw_documents_by_id(self, document_ids: List[str]):
+    def _get_raw_documents_by_id(self, document_ids: List[str]) -> List[Dict]:
         """
         Retrieves all Azure documents with a matching document_ids from the document store.
 
@@ -499,7 +489,7 @@ class AzureAISearchDocumentStore:
         *,
         top_k: int = 10,
         filters: Optional[str] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
@@ -533,7 +523,7 @@ class AzureAISearchDocumentStore:
         query: str,
         top_k: int = 10,
         filters: Optional[str] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to `query`, using the BM25 algorithm.
@@ -566,7 +556,7 @@ class AzureAISearchDocumentStore:
         query_embedding: List[float],
         top_k: int = 10,
         filters: Optional[str] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> List[Document]:
         """
         Retrieves documents similar to query using the vector configuration in the document store and
