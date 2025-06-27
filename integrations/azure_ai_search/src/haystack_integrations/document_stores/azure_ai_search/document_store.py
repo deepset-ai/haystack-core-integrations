@@ -94,6 +94,7 @@ class AzureAISearchDocumentStore:
         embedding_dimension: int = 768,
         metadata_fields: Optional[Dict[str, Union[SearchField, type]]] = None,
         vector_search_configuration: Optional[VectorSearch] = None,
+        include_search_metadata: bool = False,
         **index_creation_kwargs: Any,
     ):
         """
@@ -123,6 +124,10 @@ class AzureAISearchDocumentStore:
         :param vector_search_configuration: Configuration option related to vector search.
             Default configuration uses the HNSW algorithm with cosine similarity to handle vector searches.
 
+        :param include_search_metadata: Whether to include Azure AI Search metadata fields
+            in the returned documents. When set to True, the `meta` field of the returned
+            documents will contain the @search.score, @search.reranker_score, @search.highlights,
+            @search.captions, and other fields returned by Azure AI Search.
         :param index_creation_kwargs: Optional keyword parameters to be passed to `SearchIndex` class
             during index creation. Some of the supported parameters:
                 - `semantic_search`: Defines semantic configuration of the search index. This parameter is needed
@@ -143,6 +148,7 @@ class AzureAISearchDocumentStore:
         self._dummy_vector = [-10.0] * self._embedding_dimension
         self._metadata_fields = self._normalize_metadata_index_fields(metadata_fields)
         self._vector_search_configuration = vector_search_configuration or DEFAULT_VECTOR_SEARCH
+        self._include_search_metadata = include_search_metadata
         self._index_creation_kwargs = index_creation_kwargs
 
     @property
@@ -427,9 +433,14 @@ class AzureAISearchDocumentStore:
                 embedding = None
 
             # Anything besides default fields (id, content, and embedding) is considered metadata
-            # meta will also contain the @search.score, @search.reranker_score,
-            # @search.highlights, @search.captions, and other fields returned by Azure AI Search
-            meta = {key: value for key, value in azure_doc.items() if key not in ["id", "content", "embedding"]}
+            if self._include_search_metadata:
+                meta = {key: value for key, value in azure_doc.items() if key not in ["id", "content", "embedding"]}
+            else:
+                meta = {
+                key: value
+                for key, value in azure_doc.items()
+                if key not in ["id", "content", "embedding"] and key in self._index_fields and value is not None
+            }
 
             # Create the document with meta only if it's non-empty
             doc = Document(

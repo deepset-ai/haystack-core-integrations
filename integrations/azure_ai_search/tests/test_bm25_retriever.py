@@ -160,6 +160,20 @@ class TestRetriever:
         retriever = AzureAISearchBM25Retriever(document_store=document_store)
         res = retriever.run(query="Test document")
         assert res["documents"] == docs
+    
+    @pytest.mark.parametrize(
+        "document_store",
+        [
+            {"include_search_metadata": True},
+        ],
+        indirect=True,
+    )
+    def test_run_with_search_metadata(self, document_store: AzureAISearchDocumentStore):
+        docs = [Document(id="1", content="Test document")]
+        document_store.write_documents(docs)
+        retriever = AzureAISearchBM25Retriever(document_store=document_store)
+        res = retriever.run(query="Test document")
+        assert all(key.startswith("@search") for key in res["documents"][0].meta.keys())
 
     def test_document_retrieval(self, document_store: AzureAISearchDocumentStore):
         docs = [

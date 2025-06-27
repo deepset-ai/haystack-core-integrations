@@ -28,6 +28,7 @@ def document_store(request):
     """
     index_name = f"haystack_test_{uuid.uuid4().hex}"
     metadata_fields = getattr(request, "param", {}).get("metadata_fields", None)
+    include_search_metadata = getattr(request, "param", {}).get("include_search_metadata", False)
 
     azure_endpoint = os.environ["AZURE_AI_SEARCH_ENDPOINT"]
     api_key = os.environ["AZURE_AI_SEARCH_API_KEY"]
@@ -41,6 +42,7 @@ def document_store(request):
         create_index=True,
         embedding_dimension=768,
         metadata_fields=metadata_fields,
+        include_search_metadata=include_search_metadata,
     )
 
     # Override some methods to wait for the documents to be available
