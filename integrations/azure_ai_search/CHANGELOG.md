@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/azure_ai_search-v2.2.0] - 2025-06-27
+
+### 🐛 Bug Fixes
+
+- Fix Azure AI types + add py.typed (#2003)
+
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Remove black (#1985)
+
 ## [integrations/azure_ai_search-v2.1.1] - 2025-06-04
 
 ### 🐛 Bug Fixes
@@ -11,7 +23,7 @@
 
 ### 🚀 Features
 
-- Feat: Allow full metadata field customization.`SearchField` can now be passed in `metadata_fields`. (#1893)
+- Allow full metadata field customization (#1893)
 
 
 ## [integrations/azure_ai_search-v2.0.2] - 2025-05-14
@@ -32,7 +44,12 @@
 
 ### 🐛 Bug Fixes
 
-- [**breaking**] The environment variables for AzureAIDocumentStore have been renamed for clarity. (#1597)
+- [**breaking**] Rename env variables for Azure AI (#1597)
+
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
 
 ## [integrations/azure_ai_search-v1.0.0] - 2025-03-11
 
