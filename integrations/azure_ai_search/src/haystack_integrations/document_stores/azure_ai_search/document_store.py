@@ -437,10 +437,10 @@ class AzureAISearchDocumentStore:
                 meta = {key: value for key, value in azure_doc.items() if key not in ["id", "content", "embedding"]}
             else:
                 meta = {
-                key: value
-                for key, value in azure_doc.items()
-                if key not in ["id", "content", "embedding"] and key in self._index_fields and value is not None
-            }
+                    key: value
+                    for key, value in azure_doc.items()
+                    if key not in ["id", "content", "embedding"] and key in self._index_fields and value is not None
+                }
 
             # Create the document with meta only if it's non-empty
             doc = Document(
