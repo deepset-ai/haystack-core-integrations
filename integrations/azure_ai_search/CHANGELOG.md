@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/azure_ai_search-v2.3.0] - 2025-06-27
+
+### 🚀 Features
+
+- Allow the scores returned by AI Search to be populated in the Document.meta (#1907)
+
+
 ## [integrations/azure_ai_search-v2.2.0] - 2025-06-27
 
 ### 🐛 Bug Fixes
