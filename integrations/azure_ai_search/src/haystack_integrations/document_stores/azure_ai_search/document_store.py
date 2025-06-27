@@ -441,6 +441,7 @@ class AzureAISearchDocumentStore:
             score = azure_doc.get("@search.score", None)
             if embedding == self._dummy_vector:
                 embedding = None
+            meta = {}
 
             # Anything besides default fields (id, content, and embedding) is considered metadata
             if self._include_search_metadata:
@@ -457,7 +458,7 @@ class AzureAISearchDocumentStore:
                 id=azure_doc["id"],
                 content=azure_doc["content"],
                 embedding=embedding,
-                meta=meta if meta else {},
+                meta=meta,
                 score=score,
             )
 
