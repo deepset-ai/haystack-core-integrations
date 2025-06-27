@@ -528,11 +528,10 @@ class CohereChatGenerator:
                 messages=formatted_messages,
                 **generation_kwargs,
             )
-            # we know that streaming_callback is sync but mypy doesn't
             chat_message = _parse_streaming_response(
                 response=streamed_response,
                 model=self.model,
-                streaming_callback=streaming_callback,  # type: ignore[arg-type]
+                streaming_callback=streaming_callback,
             )
         else:
             response = self.client.chat(
@@ -590,11 +589,10 @@ class CohereChatGenerator:
                 messages=formatted_messages,
                 **generation_kwargs,
             )
-            # we know that streaming_callback is async but mypy doesn't
             chat_message = await _parse_async_streaming_response(
                 response=streamed_response,
                 model=self.model,
-                streaming_callback=streaming_callback,  # type: ignore[arg-type]
+                streaming_callback=streaming_callback,
             )
         else:
             response = await self.async_client.chat(
