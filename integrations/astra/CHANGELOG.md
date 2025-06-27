@@ -1,10 +1,20 @@
 # Changelog
 
+## [integrations/astra-v2.1.0] - 2025-06-27
+
+### 🐛 Bug Fixes
+
+- Astra - fix types + add py.typed (#2011)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Fix linting for ruff 0.12.0 (#1969)
+- Remove black (#1985)
+
+
 ## [integrations/astra-v2.0.1] - 2025-04-03
 
-### 📚 Documentation
-
-- Update changelog for integrations/astra (#1503)
 
 ### ⚙️ CI
 
