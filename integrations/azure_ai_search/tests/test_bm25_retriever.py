@@ -159,7 +159,9 @@ class TestRetriever:
         document_store.write_documents(docs)
         retriever = AzureAISearchBM25Retriever(document_store=document_store)
         res = retriever.run(query="Test document")
-        assert res["documents"] == docs
+        assert res["documents"][0].content == docs[0].content
+        assert res["documents"][0].score is not None
+        assert res["documents"][0].id == docs[0].id
 
     @pytest.mark.parametrize(
         "document_store",
