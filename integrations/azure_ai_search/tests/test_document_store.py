@@ -237,7 +237,6 @@ def test_init(_mock_azure_search_client):
     reason="Missing AZURE_AI_SEARCH_ENDPOINT or AZURE_AI_SEARCH_API_KEY.",
 )
 class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
-
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
         Assert that two lists of Documents are equal.
@@ -250,7 +249,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         sorted_received = sorted(received, key=lambda doc: doc.id)
         sorted_expected = sorted(expected, key=lambda doc: doc.id)
         assert len(sorted_received) == len(sorted_expected)
-        
+
         for received_doc, expected_doc in zip(sorted_received, sorted_expected):
             # Compare all attributes except score
             assert received_doc.id == expected_doc.id
@@ -377,7 +376,7 @@ class TestFilters(FilterDocumentsTest):
         sorted_received = sorted(received, key=lambda doc: doc.id)
         sorted_expected = sorted(expected, key=lambda doc: doc.id)
         assert len(sorted_received) == len(sorted_expected)
-        
+
         for received_doc, expected_doc in zip(sorted_received, sorted_expected):
             # Compare all attributes except score
             assert received_doc.id == expected_doc.id
