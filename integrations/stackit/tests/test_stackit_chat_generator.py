@@ -281,20 +281,19 @@ class TestSTACKITChatGenerator:
     @pytest.mark.integration
     def test_live_run_with_tools_and_response(self, tools):
         """
-        Integration test that the MistralChatGenerator component can run with tools and get a response.
+        Integration test that the STACKITChatGenerator component can run with tools and get a response.
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
         component = STACKITChatGenerator(
             # Only model that supports tool calls at the moment
             # This one does indeed run, but for some reason the tool call is put into
             # chat_completion.choices[0].message.content instead chat_completion.choices[0].message.tool_calls
+            # NOTE: If you only induce one tool call it works as expected, but with multiple tool calls
+            #       it stores the result in the content field.
             model="cortecs/Llama-3.3-70B-Instruct-FP8-Dynamic",
             tools=tools
         )
-        results = component.run(
-            messages=initial_messages,
-            generation_kwargs={"tool_choice": "auto"}
-        )
+        results = component.run(messages=initial_messages, generation_kwargs={"tool_choice": "auto"})
 
         assert len(results["replies"]) == 1
 
