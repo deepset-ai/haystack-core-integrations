@@ -633,8 +633,7 @@ class AnthropicChatGenerator:
             **generation_kwargs,
         )
 
-        # select_streaming_callback returns a StreamingCallbackT, but we know it's SyncStreamingCallbackT
-        return self._process_response(response=response, streaming_callback=streaming_callback)  # type: ignore[arg-type]
+        return self._process_response(response=response, streaming_callback=streaming_callback)
 
     @component.output_types(replies=List[ChatMessage])
     async def run_async(
@@ -675,5 +674,4 @@ class AnthropicChatGenerator:
             **generation_kwargs,
         )
 
-        # select_streaming_callback returns a StreamingCallbackT, but we know it's AsyncStreamingCallbackT
-        return await self._process_response_async(response, streaming_callback)  # type: ignore[arg-type]
+        return await self._process_response_async(response, streaming_callback)
