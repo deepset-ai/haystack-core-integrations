@@ -95,10 +95,8 @@ class AzureAISearchDocumentStore:
     def __init__(
         self,
         *,
-        api_key: Secret = Secret.from_env_var("AZURE_AI_SEARCH_API_KEY", strict=False),
-        azure_endpoint: Secret = Secret.from_env_var(
-            "AZURE_AI_SEARCH_ENDPOINT", strict=True
-        ),
+        api_key: Secret = Secret.from_env_var("AZURE_AI_SEARCH_API_KEY", strict=False),  # noqa: B008
+        azure_endpoint: Secret = Secret.from_env_var("AZURE_AI_SEARCH_ENDPOINT", strict=True),  # noqa: B008
         index_name: str = "default",
         embedding_dimension: int = 768,
         metadata_fields: Optional[Dict[str, Union[SearchField, type]]] = None,
