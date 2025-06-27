@@ -6,7 +6,11 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Type, Union
 
 from azure.core.credentials import AzureKeyCredential
-from azure.core.exceptions import ClientAuthenticationError, HttpResponseError, ResourceNotFoundError
+from azure.core.exceptions import (
+    ClientAuthenticationError,
+    HttpResponseError,
+    ResourceNotFoundError,
+)
 from azure.core.pipeline.policies import UserAgentPolicy
 from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
@@ -67,7 +71,10 @@ AZURE_CLASS_MAPPING: Dict[str, Type[Model]] = {
 
 DEFAULT_VECTOR_SEARCH = VectorSearch(
     profiles=[
-        VectorSearchProfile(name="default-vector-config", algorithm_configuration_name="cosine-algorithm-config")
+        VectorSearchProfile(
+            name="default-vector-config",
+            algorithm_configuration_name="cosine-algorithm-config",
+        )
     ],
     algorithms=[
         HnswAlgorithmConfiguration(
@@ -94,6 +101,7 @@ class AzureAISearchDocumentStore:
         embedding_dimension: int = 768,
         metadata_fields: Optional[Dict[str, Union[SearchField, type]]] = None,
         vector_search_configuration: Optional[VectorSearch] = None,
+        include_search_metadata: bool = False,
         **index_creation_kwargs: Any,
     ):
         """
@@ -123,6 +131,10 @@ class AzureAISearchDocumentStore:
         :param vector_search_configuration: Configuration option related to vector search.
             Default configuration uses the HNSW algorithm with cosine similarity to handle vector searches.
 
+        :param include_search_metadata: Whether to include Azure AI Search metadata fields
+            in the returned documents. When set to True, the `meta` field of the returned
+            documents will contain the @search.score, @search.reranker_score, @search.highlights,
+            @search.captions, and other fields returned by Azure AI Search.
         :param index_creation_kwargs: Optional keyword parameters to be passed to `SearchIndex` class
             during index creation. Some of the supported parameters:
                 - `semantic_search`: Defines semantic configuration of the search index. This parameter is needed
@@ -143,6 +155,7 @@ class AzureAISearchDocumentStore:
         self._dummy_vector = [-10.0] * self._embedding_dimension
         self._metadata_fields = self._normalize_metadata_index_fields(metadata_fields)
         self._vector_search_configuration = vector_search_configuration or DEFAULT_VECTOR_SEARCH
+        self._include_search_metadata = include_search_metadata
         self._index_creation_kwargs = index_creation_kwargs
 
     @property
@@ -256,7 +269,9 @@ class AzureAISearchDocumentStore:
             self._index_client.create_index(index)
 
     @staticmethod
-    def _serialize_index_creation_kwargs(index_creation_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    def _serialize_index_creation_kwargs(
+        index_creation_kwargs: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """
         Serializes the index creation kwargs to a dictionary.
         This is needed to handle serialization of Azure AI Search classes
@@ -300,7 +315,7 @@ class AzureAISearchDocumentStore:
         """
         return default_to_dict(
             self,
-            azure_endpoint=self._azure_endpoint.to_dict() if self._azure_endpoint else None,
+            azure_endpoint=(self._azure_endpoint.to_dict() if self._azure_endpoint else None),
             api_key=self._api_key.to_dict() if self._api_key else None,
             index_name=self._index_name,
             embedding_dimension=self._embedding_dimension,
@@ -423,19 +438,28 @@ class AzureAISearchDocumentStore:
 
         for azure_doc in azure_docs:
             embedding = azure_doc.get("embedding")
+            score = azure_doc.get("@search.score", None)
             if embedding == self._dummy_vector:
                 embedding = None
+            meta = {}
 
             # Anything besides default fields (id, content, and embedding) is considered metadata
-            meta = {
-                key: value
-                for key, value in azure_doc.items()
-                if key not in ["id", "content", "embedding"] and key in self._index_fields and value is not None
-            }
+            if self._include_search_metadata:
+                meta = {key: value for key, value in azure_doc.items() if key not in ["id", "content", "embedding"]}
+            else:
+                meta = {
+                    key: value
+                    for key, value in azure_doc.items()
+                    if key not in ["id", "content", "embedding"] and key in self._index_fields and value is not None
+                }
 
             # Create the document with meta only if it's non-empty
             doc = Document(
-                id=azure_doc["id"], content=azure_doc["content"], embedding=embedding, meta=meta if meta else {}
+                id=azure_doc["id"],
+                content=azure_doc["content"],
+                embedding=embedding,
+                meta=meta,
+                score=score,
             )
 
             documents.append(doc)

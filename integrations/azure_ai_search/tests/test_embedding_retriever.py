@@ -174,7 +174,7 @@ class TestRetriever:
         document_store.write_documents(docs)
         retriever = AzureAISearchEmbeddingRetriever(document_store=document_store)
         res = retriever.run(query_embedding=[0.1] * 768)
-        assert res["documents"] == docs
+        assert res["documents"][0].id == docs[0].id
 
     def test_embedding_retrieval(self, document_store: AzureAISearchDocumentStore):
         query_embedding = [0.1] * 768
