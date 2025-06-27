@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/google_genai-v1.2.0] - 2025-06-27
+
+### 🐛 Bug Fixes
+
+- Fix Google GenAI types + add py.typed (#2005)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+
+
 ## [integrations/google_genai-v1.1.0] - 2025-06-24
 
 ### 🚀 Features
