@@ -438,14 +438,13 @@ class AzureAISearchDocumentStore:
 
         for azure_doc in azure_docs:
             embedding = azure_doc.get("embedding")
+            score = azure_doc.get("@search.score", None)
             if embedding == self._dummy_vector:
                 embedding = None
 
-            score = None
             # Anything besides default fields (id, content, and embedding) is considered metadata
             if self._include_search_metadata:
                 meta = {key: value for key, value in azure_doc.items() if key not in ["id", "content", "embedding"]}
-                score = azure_doc.get("@search.score")
             else:
                 meta = {
                     key: value
