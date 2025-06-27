@@ -371,7 +371,9 @@ class AmazonBedrockChatGenerator:
         if additional_fields:
             params["additionalModelRequestFields"] = additional_fields
 
-        callback = select_streaming_callback(
+        # overloads that exhaust finite Literals(bool) not treated as exhaustive
+        # see https://github.com/python/mypy/issues/14764
+        callback = select_streaming_callback(  # type: ignore[call-overload]
             init_callback=self.streaming_callback,
             runtime_callback=streaming_callback,
             requires_async=requires_async,
