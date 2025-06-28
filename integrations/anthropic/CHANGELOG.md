@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/anthropic-v2.7.0] - 2025-06-25
+
+### 🚀 Features
+
+- Add `timeout`, `max_retries` to all generators and async support to `AnthropicVertexChatGenerator` (#1952)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+
+
 ## [integrations/anthropic-v2.6.1] - 2025-06-16
 
 ### 🌀 Miscellaneous

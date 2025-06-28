@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
 
 from google import genai
 from google.genai import types
@@ -103,13 +103,17 @@ def _sanitize_tool_schema(tool_schema: Dict[str, Any]) -> Dict[str, Any]:
     :returns: The sanitized tool schema.
     """
     # google Gemini does not support additionalProperties in the tool schema
-    tool_schema = remove_key_from_schema(tool_schema, "additionalProperties")
+    sanitized_schema = remove_key_from_schema(tool_schema, "additionalProperties")
     # expand $refs in the tool schema
-    tool_schema = replace_refs(tool_schema)
+    expanded_schema = replace_refs(sanitized_schema)
     # and remove the $defs key leaving the rest of the schema
-    tool_schema = remove_key_from_schema(tool_schema, "$defs")
+    final_schema = remove_key_from_schema(expanded_schema, "$defs")
 
-    return tool_schema
+    if not isinstance(final_schema, dict):
+        msg = "Tool schema must be a dictionary after sanitization"
+        raise ValueError(msg)
+
+    return final_schema
 
 
 def _convert_tools_to_google_genai_format(tools: Union[List[Tool], Toolset]) -> List[types.Tool]:
@@ -123,15 +127,19 @@ def _convert_tools_to_google_genai_format(tools: Union[List[Tool], Toolset]) -> 
     if isinstance(tools, Toolset):
         tools = list(tools)
 
-    function_declarations = []
+    function_declarations: List[types.FunctionDeclaration] = []
     for tool in tools:
         parameters = _sanitize_tool_schema(tool.parameters)
-        function_declarations.append({"name": tool.name, "description": tool.description, "parameters": parameters})
+        function_declarations.append(
+            types.FunctionDeclaration(
+                name=tool.name, description=tool.description, parameters=types.Schema(**parameters)
+            )
+        )
 
     # Return a single Tool object with all function declarations as in the Google GenAI docs
     # we could also return multiple Tool objects, doesn't seem to make a difference
     # revisit this decision
-    return [types.Tool(function_declarations=function_declarations)]  # type: ignore[arg-type]
+    return [types.Tool(function_declarations=function_declarations)]
 
 
 def _convert_google_genai_response_to_chatmessage(response: types.GenerateContentResponse, model: str) -> ChatMessage:
@@ -150,19 +158,22 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
     if response.candidates:
         candidate = response.candidates[0]
         finish_reason = getattr(candidate, "finish_reason", None)
-        for part in candidate.content.parts:
-            if part.text is not None:
-                text_parts.append(part.text)
-            if part.function_call is not None:
-                tool_call = ToolCall(
-                    tool_name=part.function_call.name,
-                    arguments=dict(part.function_call.args) if part.function_call.args else {},
-                    id=part.function_call.id,
-                )
-                tool_calls.append(tool_call)
+        if candidate.content is not None and candidate.content.parts is not None:
+            for part in candidate.content.parts:
+                if part.text is not None:
+                    text_parts.append(part.text)
+                if part.function_call is not None:
+                    tool_call = ToolCall(
+                        tool_name=part.function_call.name or "",
+                        arguments=dict(part.function_call.args) if part.function_call.args else {},
+                        id=part.function_call.id,
+                    )
+                    tool_calls.append(tool_call)
 
     # Combine text parts
     text = " ".join(text_parts) if text_parts else ""
+
+    usage_metadata = response.usage_metadata
 
     # Create ChatMessage
     message = ChatMessage.from_assistant(
@@ -172,9 +183,9 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
             "model": model,
             "finish_reason": str(finish_reason) if finish_reason else None,
             "usage": {
-                "prompt_tokens": response.usage_metadata.prompt_token_count or 0,
-                "completion_tokens": response.usage_metadata.candidates_token_count or 0,
-                "total_tokens": response.usage_metadata.total_token_count or 0,
+                "prompt_tokens": getattr(usage_metadata, "prompt_token_count", 0),
+                "completion_tokens": getattr(usage_metadata, "candidates_token_count", 0),
+                "total_tokens": getattr(usage_metadata, "total_token_count", 0),
             },
         },
     )
@@ -293,7 +304,9 @@ class GoogleGenAIChatGenerator:
             init_params["streaming_callback"] = deserialize_callable(init_params["streaming_callback"])
         return default_from_dict(cls, data)
 
-    def _process_streaming_chunk(self, chunk, all_text_parts: List[str], all_tool_calls: List[ToolCall]) -> str:
+    def _process_streaming_chunk(
+        self, chunk: types.GenerateContentResponse, all_text_parts: List[str], all_tool_calls: List[ToolCall]
+    ) -> str:
         """
         Process a single streaming chunk and extract text and tool calls.
 
@@ -316,7 +329,7 @@ class GoogleGenAIChatGenerator:
                         all_text_parts.append(part.text)
                     elif part.function_call:
                         tool_call = ToolCall(
-                            tool_name=part.function_call.name,
+                            tool_name=part.function_call.name or "",
                             arguments=dict(part.function_call.args) if part.function_call.args else {},
                             id=part.function_call.id,
                         )
@@ -328,9 +341,9 @@ class GoogleGenAIChatGenerator:
         self,
         all_text_parts: List[str],
         all_tool_calls: List[ToolCall],
-        final_finish_reason,
+        final_finish_reason: Optional[str],
         first_chunk_received_at: Optional[str],
-        last_chunk,
+        last_chunk: Optional[types.GenerateContentResponse],
     ) -> ChatMessage:
         """
         Build the final ChatMessage from collected streaming data.
@@ -343,23 +356,27 @@ class GoogleGenAIChatGenerator:
         :returns: The final ChatMessage.
         """
         final_text = "".join(all_text_parts)
+
+        usage_metadata = last_chunk.usage_metadata if last_chunk else None
+        usage = {
+            "prompt_tokens": getattr(usage_metadata, "prompt_token_count", 0) if usage_metadata else 0,
+            "completion_tokens": getattr(usage_metadata, "candidates_token_count", 0) if usage_metadata else 0,
+            "total_tokens": getattr(usage_metadata, "total_token_count", 0) if usage_metadata else 0,
+        }
+
         return ChatMessage.from_assistant(
             text=final_text,
             tool_calls=all_tool_calls,
             meta={
                 "model": self._model,
                 "completion_start_time": first_chunk_received_at,
-                "usage": {
-                    "prompt_tokens": last_chunk.usage_metadata.prompt_token_count or 0,
-                    "completion_tokens": last_chunk.usage_metadata.candidates_token_count or 0,
-                    "total_tokens": last_chunk.usage_metadata.total_token_count or 0,
-                },
+                "usage": usage,
                 "finish_reason": str(final_finish_reason) if final_finish_reason else None,
             },
         )
 
     def _handle_streaming_response_direct(
-        self, response_stream, streaming_callback: StreamingCallbackT
+        self, response_stream: Iterator[types.GenerateContentResponse], streaming_callback: StreamingCallbackT
     ) -> Dict[str, Any]:
         """
         Handle streaming response from Google Gen AI generate_content_stream.
@@ -404,7 +421,7 @@ class GoogleGenAIChatGenerator:
             raise RuntimeError(msg) from e
 
     async def _handle_streaming_response_direct_async(
-        self, response_stream, streaming_callback: AsyncStreamingCallbackT
+        self, response_stream: AsyncIterator[types.GenerateContentResponse], streaming_callback: AsyncStreamingCallbackT
     ) -> Dict[str, Any]:
         """
         Handle async streaming response from Google Gen AI generate_content_stream.
@@ -532,8 +549,8 @@ class GoogleGenAIChatGenerator:
                 return {"replies": [reply]}
 
         except Exception as e:
-            msg = f"Error in Google Gen AI chat generation: {e}"
-            raise RuntimeError(msg) from e
+            error_msg = f"Error in Google Gen AI chat generation: {e}"
+            raise RuntimeError(error_msg) from e
 
     @component.output_types(replies=List[ChatMessage])
     async def run_async(
@@ -612,7 +629,7 @@ class GoogleGenAIChatGenerator:
                 response_stream = await self._client.aio.models.generate_content_stream(
                     model=self._model, contents=contents, config=config
                 )
-                return await self._handle_streaming_response_direct_async(response_stream, streaming_callback)  # type: ignore[arg-type]
+                return await self._handle_streaming_response_direct_async(response_stream, streaming_callback)
             else:
                 # Use async non-streaming
                 response = await self._client.aio.models.generate_content(
@@ -622,5 +639,5 @@ class GoogleGenAIChatGenerator:
                 return {"replies": [reply]}
 
         except Exception as e:
-            msg = f"Error in async Google Gen AI chat generation: {e}"
-            raise RuntimeError(msg) from e
+            error_msg = f"Error in async Google Gen AI chat generation: {e}"
+            raise RuntimeError(error_msg) from e
