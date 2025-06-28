@@ -24,8 +24,6 @@ class GitHubRepoForkerTool(ComponentTool):
         description: Optional[str] = REPO_FORKER_PROMPT,
         parameters: Optional[Dict[str, Any]] = REPO_FORKER_SCHEMA,
         github_token: Optional[Secret] = None,
-        repo: Optional[str] = None,
-        branch: str = "main",
         raise_on_failure: bool = True,
         outputs_to_string: Optional[Dict[str, Union[str, Callable[[Any], str]]]] = None,
         inputs_from_state: Optional[Dict[str, str]] = None,
@@ -38,8 +36,6 @@ class GitHubRepoForkerTool(ComponentTool):
         :param description: Optional description.
         :param parameters: Optional JSON schema defining the parameters expected by the Tool.
         :param github_token: GitHub personal access token for API authentication
-        :param repo: Default repository in owner/repo format
-        :param branch: Default branch to work with
         :param raise_on_failure: If True, raises exceptions on API errors
         :param outputs_to_string:
             Optional dictionary defining how a tool outputs should be converted into a string.
@@ -66,8 +62,6 @@ class GitHubRepoForkerTool(ComponentTool):
         self.description = description
         self.parameters = parameters
         self.github_token = github_token
-        self.repo = repo
-        self.branch = branch
         self.raise_on_failure = raise_on_failure
         self.outputs_to_string = outputs_to_string
         self.inputs_from_state = inputs_from_state
@@ -100,8 +94,6 @@ class GitHubRepoForkerTool(ComponentTool):
             "description": self.description,
             "parameters": self.parameters,
             "github_token": self.github_token.to_dict() if self.github_token else None,
-            "repo": self.repo,
-            "branch": self.branch,
             "raise_on_failure": self.raise_on_failure,
             "outputs_to_string": self.outputs_to_string,
             "inputs_from_state": self.inputs_from_state,

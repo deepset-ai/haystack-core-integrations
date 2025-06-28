@@ -15,8 +15,6 @@ class TestGitHubRepoForkerTool:
         assert tool.description == REPO_FORKER_PROMPT
         assert tool.parameters == REPO_FORKER_SCHEMA
         assert tool.github_token is None
-        assert tool.repo is None
-        assert tool.branch == "main"
         assert tool.raise_on_failure is True
         assert tool.outputs_to_string is None
         assert tool.inputs_from_state is None
@@ -31,8 +29,6 @@ class TestGitHubRepoForkerTool:
                 "description": REPO_FORKER_PROMPT,
                 "parameters": REPO_FORKER_SCHEMA,
                 "github_token": None,
-                "repo": None,
-                "branch": "main",
                 "raise_on_failure": True,
                 "outputs_to_string": None,
                 "inputs_from_state": None,
@@ -44,8 +40,6 @@ class TestGitHubRepoForkerTool:
         assert tool.description == REPO_FORKER_PROMPT
         assert tool.parameters == REPO_FORKER_SCHEMA
         assert tool.github_token is None
-        assert tool.repo is None
-        assert tool.branch == "main"
         assert tool.raise_on_failure is True
         assert tool.outputs_to_string is None
         assert tool.inputs_from_state is None
@@ -60,8 +54,6 @@ class TestGitHubRepoForkerTool:
         assert tool_dict["data"]["description"] == REPO_FORKER_PROMPT
         assert tool_dict["data"]["parameters"] == REPO_FORKER_SCHEMA
         assert tool_dict["data"]["github_token"] is None
-        assert tool_dict["data"]["repo"] is None
-        assert tool_dict["data"]["branch"] == "main"
         assert tool_dict["data"]["raise_on_failure"] is True
         assert tool_dict["data"]["outputs_to_string"] is None
         assert tool_dict["data"]["inputs_from_state"] is None
@@ -71,8 +63,6 @@ class TestGitHubRepoForkerTool:
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
         tool = GitHubRepoForkerTool(
             github_token=None,
-            repo="owner/repo",
-            branch="dev",
             raise_on_failure=False,
             outputs_to_string={"source": "docs", "handler": message_handler},
             inputs_from_state={"repository": "repo"},
@@ -84,8 +74,6 @@ class TestGitHubRepoForkerTool:
         assert tool_dict["data"]["description"] == REPO_FORKER_PROMPT
         assert tool_dict["data"]["parameters"] == REPO_FORKER_SCHEMA
         assert tool_dict["data"]["github_token"] is None
-        assert tool_dict["data"]["repo"] == "owner/repo"
-        assert tool_dict["data"]["branch"] == "dev"
         assert tool_dict["data"]["raise_on_failure"] is False
         assert (
             tool_dict["data"]["outputs_to_string"]["handler"]
@@ -107,8 +95,6 @@ class TestGitHubRepoForkerTool:
                 "description": REPO_FORKER_PROMPT,
                 "parameters": REPO_FORKER_SCHEMA,
                 "github_token": None,
-                "repo": "owner/repo",
-                "branch": "dev",
                 "raise_on_failure": False,
                 "outputs_to_string": {"handler": "haystack_integrations.tools.github.utils.message_handler"},
                 "inputs_from_state": {"repository": "repo"},
@@ -125,8 +111,6 @@ class TestGitHubRepoForkerTool:
         assert tool.description == REPO_FORKER_PROMPT
         assert tool.parameters == REPO_FORKER_SCHEMA
         assert tool.github_token is None
-        assert tool.repo == "owner/repo"
-        assert tool.branch == "dev"
         assert tool.raise_on_failure is False
         assert tool.outputs_to_string["handler"] == message_handler
         assert tool.inputs_from_state == {"repository": "repo"}
