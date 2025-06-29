@@ -8,7 +8,7 @@ import pytest
 from haystack import logging
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils import Secret
-
+from haystack_integrations.components.generators.watsonx.chat.chat_generator import WatsonxChatGenerator
 from haystack_integrations.components.generators.watsonx.generator import WatsonxGenerator
 
 logger = logging.getLogger(__name__)
