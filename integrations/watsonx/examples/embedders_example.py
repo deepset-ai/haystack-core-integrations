@@ -7,7 +7,7 @@ from haystack.utils.auth import Secret
 from haystack_integrations.components.embedders.watsonx.document_embedder import WatsonXDocumentEmbedder
 from haystack_integrations.components.embedders.watsonx.text_embedder import WatsonXTextEmbedder
 
-# Step 1: Set your credentials as env var 
+# Step 1: Set your credentials as env var
 
 # Step 2: Create document store
 document_store = InMemoryDocumentStore(embedding_similarity_function="cosine")

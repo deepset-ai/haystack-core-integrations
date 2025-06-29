@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import json
 import os
-import asyncio
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import (
@@ -48,15 +48,17 @@ class WatsonxChatGenerator:
     ### Usage example
 
     ```python
-    from haystack_integrations.components.generators.watsonx.chat.chat_generator import WatsonxChatGenerator
+    from haystack_integrations.components.generators.watsonx.chat.chat_generator import (
+        WatsonxChatGenerator,
+    )
     from haystack.dataclasses import ChatMessage
 
-    messages = [ChatMessage.from_user('Explain quantum computing in simple terms')]
+    messages = [ChatMessage.from_user("Explain quantum computing in simple terms")]
 
     client = WatsonxChatGenerator(
-        api_key=Secret.from_env_var('WATSONX_API_KEY'),
-        model='ibm/granite-13b-chat-v2',
-        project_id=Secret.from_env_var('WATSONX_PROJECT_ID'),
+        api_key=Secret.from_env_var("WATSONX_API_KEY"),
+        model="ibm/granite-13b-chat-v2",
+        project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
     )
     response = client.run(messages)
     print(response)
@@ -190,7 +192,10 @@ class WatsonxChatGenerator:
 
     @component.output_types(replies=list[ChatMessage])
     def run(
-        self, messages: list[ChatMessage], generation_kwargs: dict[str, Any] | None = None, streaming_callback: Optional[StreamingCallbackT] = None
+        self,
+        messages: list[ChatMessage],
+        generation_kwargs: dict[str, Any] | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Generate chat completions synchronously.
@@ -204,15 +209,18 @@ class WatsonxChatGenerator:
             return {"replies": []}
 
         api_args = self._prepare_api_call(messages=messages, generation_kwargs=generation_kwargs)
-        
+
         if streaming_callback is not None:
             return self._handle_streaming(api_args, streaming_callback)
-        
+
         return self._handle_standard(api_args)
-    
+
     @component.output_types(replies=list[ChatMessage])
     async def run_async(
-        self, messages: list[ChatMessage], generation_kwargs: dict[str, Any] | None = None, streaming_callback: Optional[StreamingCallbackT] = None
+        self,
+        messages: list[ChatMessage],
+        generation_kwargs: dict[str, Any] | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Generate chat completions asynchronously.
@@ -226,12 +234,12 @@ class WatsonxChatGenerator:
             return {"replies": []}
 
         api_args = self._prepare_api_call(messages=messages, generation_kwargs=generation_kwargs)
-        
+
         if streaming_callback is not None:
             return await self._handle_async_streaming(api_args, streaming_callback)
-        
+
         return await self._handle_async_standard(api_args)
-    
+
     def _prepare_api_call(
         self, *, messages: list[ChatMessage], generation_kwargs: dict[str, Any] | None = None
     ) -> dict[str, Any]:
@@ -304,11 +312,8 @@ class WatsonxChatGenerator:
     ) -> dict[str, Any]:
         """Handle asynchronous streaming response."""
         chunks: list[StreamingChunk] = []
-        stream_generator = await self.client.achat_stream(
-            messages=api_args["messages"], 
-            params=api_args["params"]
-        )
-        
+        stream_generator = await self.client.achat_stream(messages=api_args["messages"], params=api_args["params"])
+
         async for chunk in stream_generator:
             if not isinstance(chunk, dict) or not chunk.get("choices"):
                 continue
@@ -336,10 +341,10 @@ class WatsonxChatGenerator:
         """Convert list of streaming chunks to a single ChatMessage."""
         if not chunks:
             return ChatMessage.from_assistant("")
-        
+
         content = "".join(chunk.content for chunk in chunks)
         last_chunk_meta = chunks[-1].meta if chunks else {}
-        
+
         return ChatMessage.from_assistant(
             text=content,
             meta={
@@ -347,9 +352,9 @@ class WatsonxChatGenerator:
                 "finish_reason": last_chunk_meta.get("finish_reason"),
                 "usage": {},
                 "chunks_count": len(chunks),
-            }
+            },
         )
-    
+
     async def _handle_async_standard(self, api_args: dict[str, Any]) -> dict[str, Any]:
         """Handle asynchronous standard response."""
         response = await self.client.achat(messages=api_args["messages"], params=api_args["params"])

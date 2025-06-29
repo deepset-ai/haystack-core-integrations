@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, List
+from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -21,22 +21,24 @@ class WatsonXDocumentEmbedder:
 
     ```python
     from haystack import Document
-    from haystack_integrations.components.embedders.watsonx.document_embedder import WatsonXDocumentEmbedder
+    from haystack_integrations.components.embedders.watsonx.document_embedder import (
+        WatsonXDocumentEmbedder,
+    )
 
     documents = [
-        Document(content='I love pizza!'),
-        Document(content='Pasta is great too'),
+        Document(content="I love pizza!"),
+        Document(content="Pasta is great too"),
     ]
 
     document_embedder = WatsonXDocumentEmbedder(
-        model='ibm/slate-30m-english-rtrvr',
-        api_key=Secret.from_env_var('WATSONX_API_KEY'),
-        url='https://us-south.ml.cloud.ibm.com',
-        project_id=Secret.from_env_var('WATSONX_PROJECT_ID'),
+        model="ibm/slate-30m-english-rtrvr",
+        api_key=Secret.from_env_var("WATSONX_API_KEY"),
+        url="https://us-south.ml.cloud.ibm.com",
+        project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
     )
 
     result = document_embedder.run(documents=documents)
-    print(result['documents'][0].embedding)
+    print(result["documents"][0].embedding)
 
     # [0.017020374536514282, -0.023255806416273117, ...]
     ```
@@ -57,7 +59,7 @@ class WatsonXDocumentEmbedder:
         concurrency_limit: int = 5,
         timeout: float | None = None,
         max_retries: int | None = None,
-        meta_fields_to_embed: Optional[List[str]] = None,
+        meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
     ):
         """
@@ -126,14 +128,14 @@ class WatsonXDocumentEmbedder:
 
         project_id_value = None
         space_id_value = None
-        
+
         if project_id:
             project_id_value = project_id.resolve_value() if isinstance(project_id, Secret) else project_id
             # When project_id is provided, space_id should be None
             space_id_value = None
         elif space_id:
             space_id_value = space_id.resolve_value() if isinstance(space_id, Secret) else space_id
-            
+
         self.embedder = Embeddings(
             model_id=model,
             credentials=credentials,
@@ -172,7 +174,7 @@ class WatsonXDocumentEmbedder:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "WatsonXDocumentEmbedder":
+    def from_dict(cls, data: dict[str, Any]) -> WatsonXDocumentEmbedder:
         """
         Deserializes the component from a dictionary.
         """

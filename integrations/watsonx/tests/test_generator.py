@@ -120,15 +120,15 @@ class TestWatsonxGenerator:
     def test_init_fails_without_project_or_space(self, mock_watsonx):
         os.environ.pop("WATSONX_PROJECT_ID", None)
         os.environ.pop("WATSONX_SPACE_ID", None)
-        
+
         with pytest.raises(ValueError, match="Either project_id or space_id must be provided"):
             WatsonxGenerator(api_key=Secret.from_token("test-api-key"), model="ibm/granite-3-2b-instruct")
 
     def test_to_dict(self, mock_watsonx):
         generator = WatsonxGenerator(
-            model="ibm/granite-3-2b-instruct", 
-            project_id=Secret.from_env_var("WATSONX_PROJECT_ID"), 
-            generation_kwargs={"max_tokens": 100}
+            model="ibm/granite-3-2b-instruct",
+            project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
+            generation_kwargs={"max_tokens": 100},
         )
 
         data = generator.to_dict()
@@ -169,9 +169,9 @@ class TestWatsonxGenerator:
 
     def test_run_with_prompt_only(self, mock_watsonx):
         generator = WatsonxGenerator(
-            api_key=Secret.from_token("test-api-key"), 
-            model="ibm/granite-3-2b-instruct", 
-            project_id=Secret.from_token("test-project")
+            api_key=Secret.from_token("test-api-key"),
+            model="ibm/granite-3-2b-instruct",
+            project_id=Secret.from_token("test-project"),
         )
 
         result = generator.run(prompt="Test prompt")
@@ -185,33 +185,26 @@ class TestWatsonxGenerator:
         assert "usage" in result["meta"][0]
 
         mock_watsonx["model_instance"].chat.assert_called_once_with(
-            messages=[{"role": "user", "content": "Test prompt"}], 
-            params={}
+            messages=[{"role": "user", "content": "Test prompt"}], params={}
         )
 
     def test_run_with_system_prompt(self, mock_watsonx):
         generator = WatsonxGenerator(
-            api_key=Secret.from_token("test-api-key"), 
-            model="ibm/granite-3-2b-instruct", 
-            project_id=Secret.from_token("test-project")
+            api_key=Secret.from_token("test-api-key"),
+            model="ibm/granite-3-2b-instruct",
+            project_id=Secret.from_token("test-project"),
         )
 
-        result = generator.run(
-            prompt="Test prompt", 
-            system_prompt="You are a helpful assistant."
-        )
+        result = generator.run(prompt="Test prompt", system_prompt="You are a helpful assistant.")
 
         assert len(result["replies"]) == 1
         assert result["replies"][0] == "This is a generated response"
 
         expected_messages = [
             {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "Test prompt"}
+            {"role": "user", "content": "Test prompt"},
         ]
-        mock_watsonx["model_instance"].chat.assert_called_once_with(
-            messages=expected_messages, 
-            params={}
-        )
+        mock_watsonx["model_instance"].chat.assert_called_once_with(messages=expected_messages, params={})
 
     def test_run_with_generation_kwargs(self, mock_watsonx):
         generator = WatsonxGenerator(
@@ -221,10 +214,7 @@ class TestWatsonxGenerator:
             generation_kwargs={"max_tokens": 100, "temperature": 0.7},
         )
 
-        result = generator.run(
-            prompt="Test prompt",
-            generation_kwargs={"top_p": 0.9}
-        )
+        result = generator.run(prompt="Test prompt", generation_kwargs={"top_p": 0.9})
 
         assert len(result["replies"]) == 1
         mock_watsonx["model_instance"].chat.assert_called_once_with(
@@ -233,46 +223,34 @@ class TestWatsonxGenerator:
         )
 
     def test_run_with_streaming(self, mock_watsonx):
-        generator = WatsonxGenerator(
-            model="ibm/granite-13b-instruct-v2",
-            project_id=Secret.from_token("test-project")
-        )
+        generator = WatsonxGenerator(model="ibm/granite-13b-instruct-v2", project_id=Secret.from_token("test-project"))
 
         mock_callback = MagicMock()
-        result = generator.run(
-            prompt="Test prompt",
-            streaming_callback=mock_callback
-        )
-        
+        result = generator.run(prompt="Test prompt", streaming_callback=mock_callback)
+
         assert mock_callback.call_count == 2
-        
+
         first_call_arg = mock_callback.call_args_list[0].args[0]
         assert isinstance(first_call_arg, StreamingChunk)
         assert first_call_arg.content == "Streaming"
-        
+
         assert len(result["replies"]) == 1
         assert result["replies"][0] == "Streaming response"
 
     def test_prepare_messages_user_only(self, mock_watsonx):
-        generator = WatsonxGenerator(
-            model="ibm/granite-3-2b-instruct", 
-            project_id=Secret.from_token("test-project")
-        )
+        generator = WatsonxGenerator(model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project"))
 
         messages = generator._prepare_messages("Hello world")
-        
+
         assert len(messages) == 1
         assert messages[0].role.value == "user"
         assert messages[0].text == "Hello world"
 
     def test_prepare_messages_with_system(self, mock_watsonx):
-        generator = WatsonxGenerator(
-            model="ibm/granite-3-2b-instruct", 
-            project_id=Secret.from_token("test-project")
-        )
+        generator = WatsonxGenerator(model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project"))
 
         messages = generator._prepare_messages("Hello world", "You are helpful")
-        
+
         assert len(messages) == 2
         assert messages[0].role.value == "system"
         assert messages[0].text == "You are helpful"
@@ -280,21 +258,12 @@ class TestWatsonxGenerator:
         assert messages[1].text == "Hello world"
 
     def test_convert_chat_response_to_generator_format(self, mock_watsonx):
-        generator = WatsonxGenerator(
-            model="ibm/granite-3-2b-instruct", 
-            project_id=Secret.from_token("test-project")
-        )
+        generator = WatsonxGenerator(model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project"))
 
         chat_response = {
             "replies": [
-                ChatMessage.from_assistant(
-                    "First response", 
-                    meta={"model": "test-model", "tokens": 10}
-                ),
-                ChatMessage.from_assistant(
-                    "Second response", 
-                    meta={"model": "test-model", "tokens": 15}
-                )
+                ChatMessage.from_assistant("First response", meta={"model": "test-model", "tokens": 10}),
+                ChatMessage.from_assistant("Second response", meta={"model": "test-model", "tokens": 15}),
             ]
         }
 
@@ -310,10 +279,7 @@ class TestWatsonxGenerator:
         assert result["meta"][1]["tokens"] == 15
 
     def test_convert_empty_chat_response(self, mock_watsonx):
-        generator = WatsonxGenerator(
-            model="ibm/granite-3-2b-instruct", 
-            project_id=Secret.from_token("test-project")
-        )
+        generator = WatsonxGenerator(model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project"))
 
         chat_response = {"replies": []}
         result = generator._convert_chat_response_to_generator_format(chat_response)
@@ -324,9 +290,9 @@ class TestWatsonxGenerator:
     @pytest.mark.asyncio
     async def test_run_async_with_prompt_only(self, mock_watsonx):
         generator = WatsonxGenerator(
-            api_key=Secret.from_token("test-api-key"), 
-            model="ibm/granite-3-2b-instruct", 
-            project_id=Secret.from_token("test-project")
+            api_key=Secret.from_token("test-api-key"),
+            model="ibm/granite-3-2b-instruct",
+            project_id=Secret.from_token("test-project"),
         )
 
         result = await generator.run_async(prompt="Test prompt")
@@ -339,73 +305,60 @@ class TestWatsonxGenerator:
         assert result["meta"][0]["finish_reason"] == "completed"
 
         mock_watsonx["model_instance"].achat.assert_called_once_with(
-            messages=[{"role": "user", "content": "Test prompt"}], 
-            params={}
+            messages=[{"role": "user", "content": "Test prompt"}], params={}
         )
 
     @pytest.mark.asyncio
     async def test_run_async_with_system_prompt(self, mock_watsonx):
         generator = WatsonxGenerator(
-            api_key=Secret.from_token("test-api-key"), 
-            model="ibm/granite-3-2b-instruct", 
-            project_id=Secret.from_token("test-project")
+            api_key=Secret.from_token("test-api-key"),
+            model="ibm/granite-3-2b-instruct",
+            project_id=Secret.from_token("test-project"),
         )
 
-        result = await generator.run_async(
-            prompt="Test prompt", 
-            system_prompt="You are a helpful assistant."
-        )
+        result = await generator.run_async(prompt="Test prompt", system_prompt="You are a helpful assistant.")
 
         assert len(result["replies"]) == 1
         assert result["replies"][0] == "Async generated response"
 
         expected_messages = [
             {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "Test prompt"}
+            {"role": "user", "content": "Test prompt"},
         ]
-        mock_watsonx["model_instance"].achat.assert_called_once_with(
-            messages=expected_messages, 
-            params={}
-        )
+        mock_watsonx["model_instance"].achat.assert_called_once_with(messages=expected_messages, params={})
 
     @pytest.mark.asyncio
     async def test_run_async_streaming(self, mock_watsonx):
         generator = WatsonxGenerator(
-            api_key=Secret.from_token("test-api-key"), 
-            model="ibm/granite-3-2b-instruct", 
-            project_id=Secret.from_token("test-project")
+            api_key=Secret.from_token("test-api-key"),
+            model="ibm/granite-3-2b-instruct",
+            project_id=Secret.from_token("test-project"),
         )
-        
+
         mock_callback = AsyncMock()
-        result = await generator.run_async(
-            prompt="Test prompt", 
-            streaming_callback=mock_callback
-        )
-        
+        result = await generator.run_async(prompt="Test prompt", streaming_callback=mock_callback)
+
         assert mock_callback.await_count == 2
-        
+
         first_chunk = mock_callback.call_args_list[0].args[0]
         assert isinstance(first_chunk, StreamingChunk)
         assert first_chunk.content == "Async streaming"
-        
+
         assert len(result["replies"]) == 1
         assert result["replies"][0] == "Async streaming response"
 
     def test_inheritance_from_chat_generator(self, mock_watsonx):
         """Test that WatsonxGenerator properly inherits from WatsonxChatGenerator"""
         from haystack_integrations.components.generators.watsonx.chat.chat_generator import WatsonxChatGenerator
-        
-        generator = WatsonxGenerator(
-            model="ibm/granite-3-2b-instruct", 
-            project_id=Secret.from_token("test-project")
-        )
-        
+
+        generator = WatsonxGenerator(model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project"))
+
         assert isinstance(generator, WatsonxChatGenerator)
-        
-        assert hasattr(generator, '_initialize_client')
-        assert hasattr(generator, '_prepare_api_call')
-        assert hasattr(generator, '_handle_streaming')
-        assert hasattr(generator, '_handle_standard')
+
+        assert hasattr(generator, "_initialize_client")
+        assert hasattr(generator, "_prepare_api_call")
+        assert hasattr(generator, "_handle_streaming")
+        assert hasattr(generator, "_handle_standard")
 
 
 @pytest.mark.integration
@@ -420,7 +373,7 @@ class TestWatsonxGeneratorIntegration:
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             generation_kwargs={"max_tokens": 50, "temperature": 0.7, "top_p": 0.9},
         )
-        
+
         result = generator.run(prompt="What's the capital of France?")
 
         assert isinstance(result, dict)
@@ -443,10 +396,9 @@ class TestWatsonxGeneratorIntegration:
             model="ibm/granite-3-2b-instruct",
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
         )
-        
+
         result = generator.run(
-            prompt="What's the capital of France?",
-            system_prompt="You are a geography expert. Answer concisely."
+            prompt="What's the capital of France?", system_prompt="You are a geography expert. Answer concisely."
         )
 
         assert isinstance(result, dict)
@@ -462,18 +414,15 @@ class TestWatsonxGeneratorIntegration:
     )
     def test_live_streaming(self):
         generator = WatsonxGenerator(
-            model="ibm/granite-3-2b-instruct", 
-            project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
+            model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
         )
-        
+
         collected_chunks = []
+
         def callback(chunk: StreamingChunk):
             collected_chunks.append(chunk)
-            
-        result = generator.run(
-            prompt="Explain quantum computing", 
-            streaming_callback=callback
-        )
+
+        result = generator.run(prompt="Explain quantum computing", streaming_callback=callback)
 
         assert isinstance(result, dict)
         assert "replies" in result
@@ -482,7 +431,7 @@ class TestWatsonxGeneratorIntegration:
         assert isinstance(result["replies"][0], str)
         assert len(collected_chunks) > 0
         assert all(isinstance(chunk, StreamingChunk) for chunk in collected_chunks)
-        
+
         complete_text = "".join(chunk.content for chunk in collected_chunks)
         assert result["replies"][0] == complete_text
 
@@ -493,10 +442,9 @@ class TestWatsonxGeneratorIntegration:
     )
     async def test_live_async(self):
         generator = WatsonxGenerator(
-            model="ibm/granite-3-2b-instruct", 
-            project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
+            model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
         )
-        
+
         result = await generator.run_async(prompt="What's the capital of Germany?")
 
         assert isinstance(result, dict)

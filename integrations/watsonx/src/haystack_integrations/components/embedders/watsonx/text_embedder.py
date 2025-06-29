@@ -20,15 +20,17 @@ class WatsonXTextEmbedder:
     ### Usage example
 
     ```python
-    from haystack_integrations.components.embedders.watsonx.text_embedder import WatsonXTextEmbedder
+    from haystack_integrations.components.embedders.watsonx.text_embedder import (
+        WatsonXTextEmbedder,
+    )
 
-    text_to_embed = 'I love pizza!'
+    text_to_embed = "I love pizza!"
 
     text_embedder = WatsonXTextEmbedder(
-        model='ibm/slate-30m-english-rtrvr',
-        api_key=Secret.from_env_var('WATSONX_API_KEY'),
-        url='https://us-south.ml.cloud.ibm.com',
-        project_id=Secret.from_env_var('WATSONX_PROJECT_ID'),
+        model="ibm/slate-30m-english-rtrvr",
+        api_key=Secret.from_env_var("WATSONX_API_KEY"),
+        url="https://us-south.ml.cloud.ibm.com",
+        project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
     )
 
     print(text_embedder.run(text_to_embed))
@@ -113,7 +115,7 @@ class WatsonXTextEmbedder:
             model_id=model,
             credentials=credentials,
             project_id=project_id.resolve_value() if project_id else None,
-            space_id=self.space_id.resolve_value() if self.space_id else None, 
+            space_id=self.space_id.resolve_value() if self.space_id else None,
             params=params if params else None,
         )
 

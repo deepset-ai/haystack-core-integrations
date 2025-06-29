@@ -64,7 +64,7 @@ class TestWatsonXDocumentEmbedder:
         assert embedder.project_id.resolve_value() == "fake-project-id"
 
     def test_init_with_parameters(self, mock_watsonx):
-        embedder= WatsonXDocumentEmbedder(
+        embedder = WatsonXDocumentEmbedder(
             api_key=Secret.from_token("fake-api-key"),
             model="ibm/slate-125m-english-rtrvr",
             url="https://custom-url.ibm.com",
@@ -104,7 +104,7 @@ class TestWatsonXDocumentEmbedder:
         monkeypatch.setenv("WATSONX_API_KEY", "fake-api-key")
         monkeypatch.delenv("WATSONX_PROJECT_ID", raising=False)
         monkeypatch.delenv("WATSONX_SPACE_ID", raising=False)
-        
+
         with pytest.raises(ValueError, match="Either project_id or space_id must be provided"):
             WatsonXDocumentEmbedder()
 
@@ -157,7 +157,9 @@ class TestWatsonXDocumentEmbedder:
         assert component.concurrency_limit == 3
 
     def test_prepare_text(self, mock_watsonx):
-        embedder = WatsonXDocumentEmbedder(project_id=Secret.from_token("fake-project-id"), prefix="prefix ", suffix=" suffix")
+        embedder = WatsonXDocumentEmbedder(
+            project_id=Secret.from_token("fake-project-id"), prefix="prefix ", suffix=" suffix"
+        )
         prepared_text = embedder._prepare_text("The food was delicious")
         assert prepared_text == "prefix The food was delicious suffix"
 

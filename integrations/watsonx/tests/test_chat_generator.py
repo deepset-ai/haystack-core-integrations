@@ -78,7 +78,9 @@ class TestWatsonxChatGenerator:
             yield {"model": mock_model, "model_instance": mock_model_instance}
 
     def test_init_default(self, mock_watsonx):
-        generator = WatsonxChatGenerator(model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("fake-project-id"))
+        generator = WatsonxChatGenerator(
+            model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("fake-project-id")
+        )
 
         _, kwargs = mock_watsonx["model"].call_args
         assert kwargs["model_id"] == "ibm/granite-3-2b-instruct"
@@ -93,7 +95,7 @@ class TestWatsonxChatGenerator:
         assert generator.api_base_url == "https://us-south.ml.cloud.ibm.com"
 
     def test_init_with_all_params(self, mock_watsonx):
-        generator= WatsonxChatGenerator(
+        generator = WatsonxChatGenerator(
             api_key=Secret.from_token("test-api-key"),
             model="ibm/granite-3-2b-instruct",
             project_id=Secret.from_token("test-project"),
@@ -116,13 +118,15 @@ class TestWatsonxChatGenerator:
     def test_init_fails_without_project_or_space(self, mock_watsonx):
         os.environ.pop("WATSONX_PROJECT_ID", None)
         os.environ.pop("WATSONX_SPACE_ID", None)
-        
+
         with pytest.raises(ValueError, match="Either project_id or space_id must be provided"):
             WatsonxChatGenerator(api_key=Secret.from_token("test-api-key"), model="ibm/granite-3-2b-instruct")
 
     def test_to_dict(self, mock_watsonx):
         generator = WatsonxChatGenerator(
-            model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID"), generation_kwargs={"max_tokens": 100}
+            model="ibm/granite-3-2b-instruct",
+            project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
+            generation_kwargs={"max_tokens": 100},
         )
 
         data = generator.to_dict()
@@ -164,7 +168,9 @@ class TestWatsonxChatGenerator:
 
     def test_run_single_message(self, mock_watsonx):
         generator = WatsonxChatGenerator(
-            api_key=Secret.from_token("test-api-key"), model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project")
+            api_key=Secret.from_token("test-api-key"),
+            model="ibm/granite-3-2b-instruct",
+            project_id=Secret.from_token("test-project"),
         )
 
         messages = [ChatMessage.from_user("Test prompt")]
@@ -198,29 +204,27 @@ class TestWatsonxChatGenerator:
     def test_run_with_streaming(self, mock_watsonx):
         """Test streaming with callback through parent class"""
         generator = WatsonxChatGenerator(
-            model="ibm/granite-13b-instruct-v2",
-            project_id=Secret.from_token("test-project")
+            model="ibm/granite-13b-instruct-v2", project_id=Secret.from_token("test-project")
         )
 
         mock_callback = MagicMock()
         messages = [ChatMessage.from_user("Test prompt")]
-        result = generator.run(
-            messages=messages,
-            streaming_callback=mock_callback
-        )
-        
+        result = generator.run(messages=messages, streaming_callback=mock_callback)
+
         assert mock_callback.call_count == 2
-        
+
         first_call_arg = mock_callback.call_args_list[0].args[0]
         assert isinstance(first_call_arg, StreamingChunk)
         assert first_call_arg.content == "Streaming"
-        
+
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "Streaming response"
 
     def test_run_with_empty_messages(self, mock_watsonx):
         generator = WatsonxChatGenerator(
-            api_key=Secret.from_token("test-api-key"), model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project")
+            api_key=Secret.from_token("test-api-key"),
+            model="ibm/granite-3-2b-instruct",
+            project_id=Secret.from_token("test-project"),
         )
 
         result = generator.run([])
@@ -245,7 +249,9 @@ class TestWatsonxChatGenerator:
         }
 
         generator = WatsonxChatGenerator(
-            api_key=Secret.from_token("test-api-key"), model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project")
+            api_key=Secret.from_token("test-api-key"),
+            model="ibm/granite-3-2b-instruct",
+            project_id=Secret.from_token("test-project"),
         )
 
         messages = [ChatMessage.from_user("What's the weather in Berlin?")]
@@ -259,7 +265,9 @@ class TestWatsonxChatGenerator:
     @pytest.mark.asyncio
     async def test_run_async_single_message(self, mock_watsonx):
         generator = WatsonxChatGenerator(
-            api_key=Secret.from_token("test-api-key"), model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project")
+            api_key=Secret.from_token("test-api-key"),
+            model="ibm/granite-3-2b-instruct",
+            project_id=Secret.from_token("test-project"),
         )
 
         messages = [ChatMessage.from_user("Test prompt")]
@@ -272,22 +280,24 @@ class TestWatsonxChatGenerator:
     @pytest.mark.asyncio
     async def test_run_async_streaming(self, mock_watsonx):
         generator = WatsonxChatGenerator(
-            api_key=Secret.from_token("test-api-key"), model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project")
+            api_key=Secret.from_token("test-api-key"),
+            model="ibm/granite-3-2b-instruct",
+            project_id=Secret.from_token("test-project"),
         )
         received_chunks = []
-        
+
         async def mock_callback(chunk: StreamingChunk):
             received_chunks.append(chunk)
-            
+
         messages = [ChatMessage.from_user("Test prompt")]
-        
+
         result = await generator.run_async(messages, streaming_callback=mock_callback)
-        
+
         assert len(received_chunks) == 2
-        
+
         assert received_chunks[0].content == "Async streaming"
         assert received_chunks[1].content == " response"
-        
+
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "Async streaming response"
 
@@ -320,10 +330,14 @@ class TestWatsonxChatGeneratorIntegration:
         reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
     )
     def test_live_streaming(self):
-        generator = WatsonxChatGenerator(model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID"))
+        generator = WatsonxChatGenerator(
+            model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
+        )
         collected_chunks = []
+
         def callback(chunk: StreamingChunk):
             collected_chunks.append(chunk)
+
         messages = [ChatMessage.from_user("Explain quantum computing")]
         results = generator.run(messages, streaming_callback=callback)
 
@@ -341,7 +355,9 @@ class TestWatsonxChatGeneratorIntegration:
         reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
     )
     async def test_live_async(self):
-        generator = WatsonxChatGenerator(model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID"))
+        generator = WatsonxChatGenerator(
+            model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
+        )
         messages = [ChatMessage.from_user("What's the capital of Germany?")]
         results = await generator.run_async(messages)
 

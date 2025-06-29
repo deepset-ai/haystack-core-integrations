@@ -56,7 +56,7 @@ class TestWatsonXTextEmbedder:
         assert embedder.suffix == ""
 
     def test_init_with_parameters(self, mock_watsonx):
-        embedder= WatsonXTextEmbedder(
+        embedder = WatsonXTextEmbedder(
             api_key=Secret.from_token("fake-api-key"),
             model="ibm/slate-125m-english-rtrvr",
             url="https://custom-url.ibm.com",
@@ -89,7 +89,7 @@ class TestWatsonXTextEmbedder:
     def test_init_fail_wo_project_or_space_id(self, monkeypatch):
         monkeypatch.setenv("WATSONX_API_KEY", "fake-api-key")
         monkeypatch.delenv("WATSONX_PROJECT_ID", raising=False)
-        monkeypatch.delenv("WATSONX_SPACE_ID", raising=False) 
+        monkeypatch.delenv("WATSONX_SPACE_ID", raising=False)
         with pytest.raises(ValueError, match="Either project_id or space_id must be provided"):
             WatsonXTextEmbedder()
 
@@ -136,14 +136,18 @@ class TestWatsonXTextEmbedder:
         assert component.suffix == " suffix"
 
     def test_prepare_input(self, mock_watsonx):
-        embedder = WatsonXTextEmbedder(project_id=Secret.from_token("fake-project-id"), prefix="prefix ", suffix=" suffix")
+        embedder = WatsonXTextEmbedder(
+            project_id=Secret.from_token("fake-project-id"), prefix="prefix ", suffix=" suffix"
+        )
         input_text = "The food was delicious"
         prepared_input = embedder._prepare_input(input_text)
         assert prepared_input == "prefix The food was delicious suffix"
 
     def test_prepare_output(self, mock_watsonx):
         embedder = WatsonXTextEmbedder(
-            project_id=Secret.from_token("fake-project-id"), model="ibm/slate-125m-english-rtrvr", truncate_input_tokens=128
+            project_id=Secret.from_token("fake-project-id"),
+            model="ibm/slate-125m-english-rtrvr",
+            truncate_input_tokens=128,
         )
         embedding = [0.1, 0.2, 0.3]
         result = embedder._prepare_output(embedding)
