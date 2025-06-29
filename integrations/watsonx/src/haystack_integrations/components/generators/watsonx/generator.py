@@ -77,7 +77,7 @@ class WatsonxGenerator(WatsonxChatGenerator):
     """
 
     @component.output_types(replies=list[str], meta=list[dict[str, Any]])
-    def run(
+    def run(  # type: ignore[override]
         self,
         prompt: str,
         system_prompt: str | None = None,
@@ -102,7 +102,7 @@ class WatsonxGenerator(WatsonxChatGenerator):
         return self._convert_chat_response_to_generator_format(chat_response)
 
     @component.output_types(replies=list[str], meta=list[dict[str, Any]])
-    async def run_async(
+    async def run_async(  # type: ignore[override]
         self,
         prompt: str,
         system_prompt: str | None = None,

@@ -13,7 +13,6 @@ from haystack.dataclasses import (
     ChatMessage,
     StreamingCallbackT,
     StreamingChunk,
-    SyncStreamingCallbackT,
     ToolCall,
 )
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -276,8 +275,8 @@ class WatsonxChatGenerator:
     def _handle_streaming(
         self,
         api_args: dict[str, Any],
-        callback: SyncStreamingCallbackT,
-    ) -> dict[str, Any]:
+        callback: StreamingCallbackT,
+    ) -> dict[str, list[ChatMessage]]:
         """Handle synchronous streaming response."""
         chunks: list[StreamingChunk] = []
         stream = self.client.chat_stream(messages=api_args["messages"], params=api_args["params"])
@@ -300,7 +299,7 @@ class WatsonxChatGenerator:
 
         return {"replies": [self._convert_streaming_chunks_to_chat_message(chunks)]}
 
-    def _handle_standard(self, api_args: dict[str, Any]) -> dict[str, Any]:
+    def _handle_standard(self, api_args: dict[str, Any]) -> dict[str, list[ChatMessage]]:
         """Handle synchronous standard response."""
         response = self.client.chat(messages=api_args["messages"], params=api_args["params"])
         return self._process_response(response)
@@ -308,8 +307,8 @@ class WatsonxChatGenerator:
     async def _handle_async_streaming(
         self,
         api_args: dict[str, Any],
-        callback: SyncStreamingCallbackT,
-    ) -> dict[str, Any]:
+        callback: StreamingCallbackT,
+    ) -> dict[str, list[ChatMessage]]:
         """Handle asynchronous streaming response."""
         chunks: list[StreamingChunk] = []
         stream_generator = await self.client.achat_stream(messages=api_args["messages"], params=api_args["params"])
@@ -355,12 +354,12 @@ class WatsonxChatGenerator:
             },
         )
 
-    async def _handle_async_standard(self, api_args: dict[str, Any]) -> dict[str, Any]:
+    async def _handle_async_standard(self, api_args: dict[str, Any]) -> dict[str, list[ChatMessage]]:
         """Handle asynchronous standard response."""
         response = await self.client.achat(messages=api_args["messages"], params=api_args["params"])
         return self._process_response(response)
 
-    def _process_response(self, response: dict[str, Any]) -> dict[str, Any]:
+    def _process_response(self, response: dict[str, Any]) -> dict[str, list[ChatMessage]]:
         """Process standard response into Haystack format."""
         if not response.get("choices"):
             return {"replies": []}
