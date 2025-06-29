@@ -349,7 +349,6 @@ class TestWatsonxGenerator:
 
     def test_inheritance_from_chat_generator(self, mock_watsonx):
         """Test that WatsonxGenerator properly inherits from WatsonxChatGenerator"""
-        from haystack_integrations.components.generators.watsonx.chat.chat_generator import WatsonxChatGenerator
 
         generator = WatsonxGenerator(model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project"))
 
