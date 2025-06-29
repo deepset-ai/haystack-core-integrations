@@ -16,6 +16,8 @@ class TestWatsonXDocumentEmbedder:
     def mock_watsonx(self, monkeypatch):
         """Fixture for setting up common mocks"""
         monkeypatch.setenv("WATSONX_API_KEY", "fake-api-key")
+        monkeypatch.setenv("WATSONX_PROJECT_ID", "fake-project-id")
+        monkeypatch.setenv("WATSONX_SPACE_ID", "fake-space-id")
 
         with patch(
             "haystack_integrations.components.embedders.watsonx.document_embedder.Embeddings"
@@ -37,7 +39,7 @@ class TestWatsonXDocumentEmbedder:
                 }
 
     def test_init_default(self, mock_watsonx):
-        embedder = WatsonXDocumentEmbedder(project_id="fake-project-id")
+        embedder = WatsonXDocumentEmbedder(project_id=Secret.from_token("fake-project-id"))
 
         mock_watsonx["credentials"].assert_called_once_with(
             api_key="fake-api-key", url="https://us-south.ml.cloud.ibm.com"
@@ -58,14 +60,16 @@ class TestWatsonXDocumentEmbedder:
         assert embedder.suffix == ""
         assert embedder.batch_size == 1000
         assert embedder.concurrency_limit == 5
+        assert isinstance(embedder.project_id, Secret)
+        assert embedder.project_id.resolve_value() == "fake-project-id"
 
     def test_init_with_parameters(self, mock_watsonx):
-        WatsonXDocumentEmbedder(
+        embedder= WatsonXDocumentEmbedder(
             api_key=Secret.from_token("fake-api-key"),
             model="ibm/slate-125m-english-rtrvr",
             url="https://custom-url.ibm.com",
-            project_id="custom-project-id",
-            space_id="custom-space-id",
+            project_id=Secret.from_token("custom-project-id"),
+            space_id=Secret.from_token("custom-space-id"),
             truncate_input_tokens=128,
             prefix="prefix ",
             suffix=" suffix",
@@ -80,25 +84,32 @@ class TestWatsonXDocumentEmbedder:
             model_id="ibm/slate-125m-english-rtrvr",
             credentials=mock_watsonx["creds_instance"],
             project_id="custom-project-id",
-            space_id="custom-space-id",
+            space_id=None,
             params={"truncate_input_tokens": 128},
             batch_size=500,
             concurrency_limit=3,
             max_retries=5,
         )
 
+        assert isinstance(embedder.project_id, Secret)
+        assert embedder.project_id.resolve_value() == "custom-project-id"
+        assert embedder.space_id is None
+
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("WATSONX_API_KEY", raising=False)
         with pytest.raises(ValueError, match="None of the .* environment variables are set"):
-            WatsonXDocumentEmbedder(project_id="fake-project-id")
+            WatsonXDocumentEmbedder(project_id=Secret.from_token("fake-project-id"))
 
     def test_init_fail_wo_project_or_space_id(self, monkeypatch):
         monkeypatch.setenv("WATSONX_API_KEY", "fake-api-key")
+        monkeypatch.delenv("WATSONX_PROJECT_ID", raising=False)
+        monkeypatch.delenv("WATSONX_SPACE_ID", raising=False)
+        
         with pytest.raises(ValueError, match="Either project_id or space_id must be provided"):
             WatsonXDocumentEmbedder()
 
     def test_to_dict(self, mock_watsonx):
-        component = WatsonXDocumentEmbedder(project_id="fake-project-id")
+        component = WatsonXDocumentEmbedder(project_id=Secret.from_env_var("WATSONX_PROJECT_ID"))
         data = component.to_dict()
 
         assert data == {
@@ -107,7 +118,7 @@ class TestWatsonXDocumentEmbedder:
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "ibm/slate-30m-english-rtrvr",
                 "url": "https://us-south.ml.cloud.ibm.com",
-                "project_id": "fake-project-id",
+                "project_id": {"env_vars": ["WATSONX_PROJECT_ID"], "strict": True, "type": "env_var"},
                 "space_id": None,
                 "truncate_input_tokens": None,
                 "prefix": "",
@@ -126,7 +137,7 @@ class TestWatsonXDocumentEmbedder:
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "ibm/slate-125m-english-rtrvr",
                 "url": "https://custom-url.ibm.com",
-                "project_id": "custom-project-id",
+                "project_id": {"env_vars": ["WATSONX_PROJECT_ID"], "strict": True, "type": "env_var"},
                 "prefix": "prefix ",
                 "suffix": " suffix",
                 "batch_size": 500,
@@ -138,24 +149,25 @@ class TestWatsonXDocumentEmbedder:
 
         assert component.model == "ibm/slate-125m-english-rtrvr"
         assert component.url == "https://custom-url.ibm.com"
-        assert component.project_id == "custom-project-id"
+        assert isinstance(component.project_id, Secret)
+        assert component.project_id.resolve_value() == "fake-project-id"
         assert component.prefix == "prefix "
         assert component.suffix == " suffix"
         assert component.batch_size == 500
         assert component.concurrency_limit == 3
 
     def test_prepare_text(self, mock_watsonx):
-        embedder = WatsonXDocumentEmbedder(project_id="fake-project-id", prefix="prefix ", suffix=" suffix")
+        embedder = WatsonXDocumentEmbedder(project_id=Secret.from_token("fake-project-id"), prefix="prefix ", suffix=" suffix")
         prepared_text = embedder._prepare_text("The food was delicious")
         assert prepared_text == "prefix The food was delicious suffix"
 
     def test_run_wrong_input_format(self, mock_watsonx):
-        embedder = WatsonXDocumentEmbedder(project_id="fake-project-id")
+        embedder = WatsonXDocumentEmbedder(project_id=Secret.from_token("fake-project-id"))
         with pytest.raises(TypeError, match="WatsonXDocumentEmbedder expects a list of Documents as input."):
             embedder.run(documents="not a list")  # type: ignore
 
     def test_run_empty_documents(self, mock_watsonx):
-        embedder = WatsonXDocumentEmbedder(project_id="fake-project-id")
+        embedder = WatsonXDocumentEmbedder(project_id=Secret.from_token("fake-project-id"))
         result = embedder.run(documents=[])
         assert result == {
             "documents": [],
@@ -184,7 +196,7 @@ class TestWatsonXDocumentEmbedderIntegration:
         embedder = WatsonXDocumentEmbedder(
             model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
-            project_id=os.environ["WATSONX_PROJECT_ID"],
+            project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             truncate_input_tokens=128,
         )
         result = embedder.run(test_documents)
@@ -209,7 +221,7 @@ class TestWatsonXDocumentEmbedderIntegration:
         embedder = WatsonXDocumentEmbedder(
             model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
-            project_id=os.environ["WATSONX_PROJECT_ID"],
+            project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             batch_size=50,
             truncate_input_tokens=128,
         )
@@ -222,7 +234,7 @@ class TestWatsonXDocumentEmbedderIntegration:
         not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
         reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
     )
-    def test_text_truncation(self, test_documents):
+    def test_text_truncation(self):
         """Test that truncation works with long documents"""
         # Create a document with very long content
         long_content = "This is a very long document. " * 1000
@@ -231,7 +243,7 @@ class TestWatsonXDocumentEmbedderIntegration:
         embedder = WatsonXDocumentEmbedder(
             model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
-            project_id=os.environ["WATSONX_PROJECT_ID"],
+            project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             truncate_input_tokens=128,
         )
 
@@ -248,7 +260,7 @@ class TestWatsonXDocumentEmbedderIntegration:
         embedder = WatsonXDocumentEmbedder(
             model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
-            project_id=os.environ["WATSONX_PROJECT_ID"],
+            project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             prefix="PREFIX: ",
             suffix=" :SUFFIX",
             truncate_input_tokens=128,
@@ -266,7 +278,7 @@ class TestWatsonXDocumentEmbedderIntegration:
         embedder = WatsonXDocumentEmbedder(
             model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
-            project_id=os.environ["WATSONX_PROJECT_ID"],
+            project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             concurrency_limit=2,
             batch_size=1,  # Force multiple batches to test concurrency
         )

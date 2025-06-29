@@ -28,7 +28,7 @@ class WatsonXTextEmbedder:
         model='ibm/slate-30m-english-rtrvr',
         api_key=Secret.from_env_var('WATSONX_API_KEY'),
         url='https://us-south.ml.cloud.ibm.com',
-        project_id='your-project-id',
+        project_id=Secret.from_env_var('WATSONX_PROJECT_ID'),
     )
 
     print(text_embedder.run(text_to_embed))
@@ -41,11 +41,12 @@ class WatsonXTextEmbedder:
 
     def __init__(
         self,
+        *,
         model: str = "ibm/slate-30m-english-rtrvr",
         api_key: Secret | None = None,
         url: str = "https://us-south.ml.cloud.ibm.com",
-        project_id: str | None = None,
-        space_id: str | None = None,
+        project_id: Secret | None = None,
+        space_id: Secret | None = None,
         truncate_input_tokens: int | None = None,
         prefix: str = "",
         suffix: str = "",
@@ -65,8 +66,10 @@ class WatsonXTextEmbedder:
             Default is "https://us-south.ml.cloud.ibm.com".
         :param project_id:
             The ID of the Watson Studio project. Either project_id or space_id must be provided.
+            Can be set via environment variable WATSONX_PROJECT_ID.
         :param space_id:
             The ID of the Watson Studio space. Either project_id or space_id must be provided.
+            Can be set via environment variable WATSONX_SPACE_ID.
         :param truncate_input_tokens:
             Maximum number of tokens to use from the input text.
         :param prefix:
@@ -89,7 +92,10 @@ class WatsonXTextEmbedder:
         self.api_key = api_key
         self.url = url
         self.project_id = project_id
-        self.space_id = space_id
+        if project_id:
+            self.space_id = None
+        else:
+            self.space_id = space_id or Secret.from_env_var("WATSONX_SPACE_ID")
         self.truncate_input_tokens = truncate_input_tokens
         self.prefix = prefix
         self.suffix = suffix
@@ -106,8 +112,8 @@ class WatsonXTextEmbedder:
         self.embedder = Embeddings(
             model_id=model,
             credentials=credentials,
-            project_id=project_id,
-            space_id=space_id,
+            project_id=project_id.resolve_value() if project_id else None,
+            space_id=self.space_id.resolve_value() if self.space_id else None, 
             params=params if params else None,
         )
 
@@ -126,8 +132,8 @@ class WatsonXTextEmbedder:
             model=self.model,
             api_key=self.api_key.to_dict(),
             url=self.url,
-            project_id=self.project_id,
-            space_id=self.space_id,
+            project_id=self.project_id.to_dict() if self.project_id else None,
+            space_id=self.space_id.to_dict() if self.space_id else None,
             truncate_input_tokens=self.truncate_input_tokens,
             prefix=self.prefix,
             suffix=self.suffix,
@@ -140,7 +146,7 @@ class WatsonXTextEmbedder:
         """
         Deserializes the component from a dictionary.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id", "space_id"])
         return default_from_dict(cls, data)
 
     def _prepare_input(self, text: str) -> str:

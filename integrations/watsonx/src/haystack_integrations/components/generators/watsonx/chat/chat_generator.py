@@ -4,11 +4,18 @@
 
 import json
 import os
+import asyncio
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
+from haystack.dataclasses import (
+    ChatMessage,
+    StreamingCallbackT,
+    StreamingChunk,
+    SyncStreamingCallbackT,
+    ToolCall,
+)
 from haystack.utils import Secret, deserialize_secrets_inplace
 from ibm_watsonx_ai import Credentials
 from ibm_watsonx_ai.foundation_models import ModelInference
@@ -47,7 +54,9 @@ class WatsonxChatGenerator:
     messages = [ChatMessage.from_user('Explain quantum computing in simple terms')]
 
     client = WatsonxChatGenerator(
-        model='ibm/granite-13b-chat-v2', project_id='your-project-id'
+        api_key=Secret.from_env_var('WATSONX_API_KEY'),
+        model='ibm/granite-13b-chat-v2',
+        project_id=Secret.from_env_var('WATSONX_PROJECT_ID'),
     )
     response = client.run(messages)
     print(response)
@@ -70,10 +79,11 @@ class WatsonxChatGenerator:
 
     def __init__(
         self,
+        *,
         api_key: Secret | None = None,
         model: str = "ibm/granite-13b-chat-v2",
-        project_id: str | None = None,
-        space_id: str | None = None,
+        project_id: Secret | None = None,
+        space_id: Secret | None = None,
         api_base_url: str | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         timeout: float | None = None,
@@ -124,8 +134,11 @@ class WatsonxChatGenerator:
         """
         self.api_key = api_key or Secret.from_env_var("WATSONX_API_KEY")
         self.model = model
-        self.project_id = project_id
-        self.space_id = space_id
+        self.project_id = project_id or Secret.from_env_var("WATSONX_PROJECT_ID")
+        if project_id:
+            self.space_id = None
+        else:
+            self.space_id = space_id or Secret.from_env_var("WATSONX_SPACE_ID")
         self.api_base_url = api_base_url or "https://us-south.ml.cloud.ibm.com"
         self.generation_kwargs = generation_kwargs or {}
         self.timeout = timeout or float(os.environ.get("WATSONX_TIMEOUT", "30.0"))
@@ -146,8 +159,8 @@ class WatsonxChatGenerator:
         self.client = ModelInference(
             model_id=self.model,
             credentials=credentials,
-            project_id=self.project_id,
-            space_id=self.space_id,
+            project_id=self.project_id.resolve_value() if self.project_id else None,
+            space_id=self.space_id.resolve_value() if self.space_id else None,
             verify=self.verify,
             max_retries=self.max_retries,
             delay_time=0.5,
@@ -158,8 +171,8 @@ class WatsonxChatGenerator:
         return default_to_dict(
             self,
             model=self.model,
-            project_id=self.project_id,
-            space_id=self.space_id,
+            project_id=self.project_id.to_dict() if self.project_id else None,
+            space_id=self.space_id.to_dict() if self.space_id else None,
             api_base_url=self.api_base_url,
             generation_kwargs=self.generation_kwargs,
             api_key=self.api_key.to_dict(),
@@ -172,51 +185,53 @@ class WatsonxChatGenerator:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WatsonxChatGenerator":
         """Deserialize the component from a dictionary."""
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id", "space_id"])
         return default_from_dict(cls, data)
 
     @component.output_types(replies=list[ChatMessage])
     def run(
-        self, messages: list[ChatMessage], generation_kwargs: dict[str, Any] | None = None, stream: bool = False
+        self, messages: list[ChatMessage], generation_kwargs: dict[str, Any] | None = None, streaming_callback: Optional[StreamingCallbackT] = None
     ) -> dict[str, list[ChatMessage]]:
         """
         Generate chat completions synchronously.
 
         :param messages: List of ChatMessage objects
         :param generation_kwargs: Additional generation parameters
-        :param stream: Enable streaming response
+        :param streaming_callback: Callback function for streaming responses
         :return: Dictionary with generated replies
         """
         if not messages:
             return {"replies": []}
 
         api_args = self._prepare_api_call(messages=messages, generation_kwargs=generation_kwargs)
-
-        if stream:
-            return self._handle_streaming(api_args)
+        
+        if streaming_callback is not None:
+            return self._handle_streaming(api_args, streaming_callback)
+        
         return self._handle_standard(api_args)
-
+    
     @component.output_types(replies=list[ChatMessage])
     async def run_async(
-        self, messages: list[ChatMessage], generation_kwargs: dict[str, Any] | None = None, stream: bool = False
+        self, messages: list[ChatMessage], generation_kwargs: dict[str, Any] | None = None, streaming_callback: Optional[StreamingCallbackT] = None
     ) -> dict[str, list[ChatMessage]]:
         """
         Generate chat completions asynchronously.
 
         :param messages: List of ChatMessage objects
         :param generation_kwargs: Additional generation parameters
-        :param stream: Enable streaming response
+        :param streaming_callback: Callback function for streaming responses
         :return: Dictionary with generated replies
         """
         if not messages:
             return {"replies": []}
 
         api_args = self._prepare_api_call(messages=messages, generation_kwargs=generation_kwargs)
-
-        if stream:
-            return await self._handle_async_streaming(api_args)
+        
+        if streaming_callback is not None:
+            return await self._handle_async_streaming(api_args, streaming_callback)
+        
         return await self._handle_async_standard(api_args)
-
+    
     def _prepare_api_call(
         self, *, messages: list[ChatMessage], generation_kwargs: dict[str, Any] | None = None
     ) -> dict[str, Any]:
@@ -250,11 +265,13 @@ class WatsonxChatGenerator:
 
         return {"messages": watsonx_messages, "params": merged_kwargs}
 
-    def _handle_streaming(self, api_args: dict[str, Any]) -> dict[str, Any]:
+    def _handle_streaming(
+        self,
+        api_args: dict[str, Any],
+        callback: SyncStreamingCallbackT,
+    ) -> dict[str, Any]:
         """Handle synchronous streaming response."""
         chunks: list[StreamingChunk] = []
-        full_text = ""
-
         stream = self.client.chat_stream(messages=api_args["messages"], params=api_args["params"])
 
         for chunk in stream:
@@ -263,71 +280,79 @@ class WatsonxChatGenerator:
 
             content = chunk["choices"][0].get("delta", {}).get("content", "")
             if content:
-                full_text += content
                 chunk_meta = {
                     "model": self.model,
                     "index": chunk["choices"][0].get("index", 0),
                     "finish_reason": chunk["choices"][0].get("finish_reason"),
                     "received_at": datetime.now(timezone.utc).isoformat(),
                 }
-                chunks.append(StreamingChunk(content=content, meta=chunk_meta))
+                streaming_chunk = StreamingChunk(content=content, meta=chunk_meta)
+                chunks.append(streaming_chunk)
+                callback(streaming_chunk)
 
-        return {
-            "replies": [
-                ChatMessage.from_assistant(
-                    text=full_text,
-                    meta={
-                        "model": self.model,
-                        "finish_reason": chunks[-1].meta["finish_reason"] if chunks else "completed",
-                    },
-                )
-            ],
-            "chunks": chunks,
-        }
+        return {"replies": [self._convert_streaming_chunks_to_chat_message(chunks)]}
 
     def _handle_standard(self, api_args: dict[str, Any]) -> dict[str, Any]:
         """Handle synchronous standard response."""
         response = self.client.chat(messages=api_args["messages"], params=api_args["params"])
         return self._process_response(response)
 
-    async def _handle_async_streaming(self, api_args: dict[str, Any]) -> dict[str, Any]:
+    async def _handle_async_streaming(
+        self,
+        api_args: dict[str, Any],
+        callback: SyncStreamingCallbackT,
+    ) -> dict[str, Any]:
         """Handle asynchronous streaming response."""
         chunks: list[StreamingChunk] = []
-        full_text = ""
-
-        stream = await self.client.achat_stream(messages=api_args["messages"], params=api_args["params"])
-
-        async for chunk in stream:
+        stream_generator = await self.client.achat_stream(
+            messages=api_args["messages"], 
+            params=api_args["params"]
+        )
+        
+        async for chunk in stream_generator:
             if not isinstance(chunk, dict) or not chunk.get("choices"):
                 continue
 
             content = chunk["choices"][0].get("delta", {}).get("content", "")
             if content:
-                full_text += content
                 chunk_meta = {
                     "model": self.model,
                     "index": chunk["choices"][0].get("index", 0),
                     "finish_reason": chunk["choices"][0].get("finish_reason"),
                     "received_at": datetime.now(timezone.utc).isoformat(),
                 }
-                chunks.append(StreamingChunk(content=content, meta=chunk_meta))
+                streaming_chunk = StreamingChunk(content=content, meta=chunk_meta)
+                chunks.append(streaming_chunk)
+                try:
+                    result = callback(streaming_chunk)
+                    if asyncio.iscoroutine(result):
+                        await result
+                except Exception:
+                    # Fallback to sync call if async fails
+                    callback(streaming_chunk)
+        return {"replies": [self._convert_streaming_chunks_to_chat_message(chunks)]}
 
-        return {
-            "replies": [
-                ChatMessage.from_assistant(
-                    text=full_text,
-                    meta={
-                        "model": self.model,
-                        "finish_reason": chunks[-1].meta["finish_reason"] if chunks else "completed",
-                    },
-                )
-            ],
-            "chunks": chunks,
-        }
-
+    def _convert_streaming_chunks_to_chat_message(self, chunks: list[StreamingChunk]) -> ChatMessage:
+        """Convert list of streaming chunks to a single ChatMessage."""
+        if not chunks:
+            return ChatMessage.from_assistant("")
+        
+        content = "".join(chunk.content for chunk in chunks)
+        last_chunk_meta = chunks[-1].meta if chunks else {}
+        
+        return ChatMessage.from_assistant(
+            text=content,
+            meta={
+                "model": self.model,
+                "finish_reason": last_chunk_meta.get("finish_reason"),
+                "usage": {},
+                "chunks_count": len(chunks),
+            }
+        )
+    
     async def _handle_async_standard(self, api_args: dict[str, Any]) -> dict[str, Any]:
         """Handle asynchronous standard response."""
-        response = await self.client.achat(**api_args)
+        response = await self.client.achat(messages=api_args["messages"], params=api_args["params"])
         return self._process_response(response)
 
     def _process_response(self, response: dict[str, Any]) -> dict[str, Any]:

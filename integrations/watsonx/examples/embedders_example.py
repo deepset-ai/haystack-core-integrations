@@ -7,9 +7,7 @@ from haystack.utils.auth import Secret
 from haystack_integrations.components.embedders.watsonx.document_embedder import WatsonXDocumentEmbedder
 from haystack_integrations.components.embedders.watsonx.text_embedder import WatsonXTextEmbedder
 
-# Step 1: Set your credentials
-api_key = "<api-key>"
-project_id = "<project-id>"
+# Step 1: Set your credentials as env var 
 
 # Step 2: Create document store
 document_store = InMemoryDocumentStore(embedding_similarity_function="cosine")
@@ -24,8 +22,8 @@ documents = [
 # Step 4: Embed documents
 document_embedder = WatsonXDocumentEmbedder(
     model="ibm/slate-125m-english-rtrvr",
-    api_key=Secret.from_token(api_key),
-    project_id=project_id,
+    api_key=Secret.from_env_var("WATSONX_API_KEY"),
+    project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
     url="https://us-south.ml.cloud.ibm.com",
 )
 documents_with_embeddings = document_embedder.run(documents)["documents"]
@@ -38,8 +36,8 @@ query_pipeline.add_component(
     "text_embedder",
     WatsonXTextEmbedder(
         model="ibm/slate-125m-english-rtrvr",
-        api_key=Secret.from_token(api_key),
-        project_id=project_id,
+        api_key=Secret.from_env_var("WATSONX_API_KEY"),
+        project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
         url="https://us-south.ml.cloud.ibm.com",
     ),
 )
@@ -51,7 +49,11 @@ query = "Who lives in Berlin?"
 result = query_pipeline.run({"text_embedder": {"text": query}})
 
 # Step 7: Print result
-
-### Result
-# Document(id=62fad790ad2af927af9432c87330ed2ea5e31332cdec8e9d6235a5105ab0aaf5, content: 'My name is Wolfgang and I
-# live in Berlin', score: 0.7287276769333577)
+doc = result["retriever"]["documents"][0]
+print("\nTop Result:")
+print(f"Content: {doc.content}")
+print(f"Score: {doc.score}")
+### Expected Result
+# Top Result:
+# Content: My name is Wolfgang and I live in Berlin
+# Score: 0.7287276769333577
