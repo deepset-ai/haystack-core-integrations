@@ -7,7 +7,7 @@ import pytz
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, ToolCall, ToolCallDelta
 from haystack.tools import Tool
 from haystack.utils.auth import Secret
 from openai import OpenAIError
@@ -254,11 +254,10 @@ class TestMistralChatGenerator:
                 "finish_reason": None,
                 "received_at": ANY,
             },
-            # TODO Uncomment once new haystack version is released
-            # component_info=ComponentInfo(
-            #     type="haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",
-            #     name=None,
-            # ),
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",
+                name=None,
+            ),
         )
         assert collector_callback.chunks[1] == StreamingChunk(
             content="",
@@ -279,26 +278,24 @@ class TestMistralChatGenerator:
                 ],
                 "finish_reason": "tool_calls",
                 "received_at": ANY,
-                # TODO Uncomment once new haystack version is released
-                # "usage": {
-                #     "completion_tokens": 35,
-                #     "prompt_tokens": 77,
-                #     "total_tokens": 112,
-                #     "completion_tokens_details": None,
-                #     "prompt_tokens_details": None,
-                # },
+                "usage": {
+                    "completion_tokens": 35,
+                    "prompt_tokens": 77,
+                    "total_tokens": 112,
+                    "completion_tokens_details": None,
+                    "prompt_tokens_details": None,
+                },
             },
-            # TODO Uncomment once new haystack version is released
-            # component_info=ComponentInfo(
-            #     type="haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",
-            #     name=None,
-            # ),
-            # index=0,
-            # tool_calls=[
-            #     ToolCallDelta(index=0, tool_name="weather", arguments='{"city": "Paris"}', id="FL1FFlqUG"),
-            #     ToolCallDelta(index=1, tool_name="weather", arguments='{"city": "Berlin"}', id="xSuhp66iB"),
-            # ],
-            # start=True
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=[
+                ToolCallDelta(index=0, tool_name="weather", arguments='{"city": "Paris"}', id="FL1FFlqUG"),
+                ToolCallDelta(index=1, tool_name="weather", arguments='{"city": "Berlin"}', id="xSuhp66iB"),
+            ],
+            start=True
         )
 
         # Assert text is empty
