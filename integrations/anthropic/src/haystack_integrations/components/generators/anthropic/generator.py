@@ -35,7 +35,7 @@ class AnthropicGenerator:
     ```python
     from haystack_integrations.components.generators.anthropic import AnthropicGenerator
 
-    client = AnthropicGenerator(model="claude-3-sonnet-20240229")
+    client = AnthropicGenerator(model="claude-3-7-sonnet-latest")
     response = client.run("What's Natural Language Processing? Be brief.")
     print(response)
     >>{'replies': ['Natural language processing (NLP) is a branch of artificial intelligence focused on enabling
@@ -60,7 +60,7 @@ class AnthropicGenerator:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("ANTHROPIC_API_KEY"),  # noqa: B008
-        model: str = "claude-3-sonnet-20240229",
+        model: str = "claude-3-7-sonnet-latest",
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         system_prompt: Optional[str] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,

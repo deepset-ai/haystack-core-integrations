@@ -168,7 +168,7 @@ class TestAnthropicVertexChatGenerator:
     @pytest.mark.integration
     def test_default_inference_params(self, chat_messages):
         client = AnthropicVertexChatGenerator(
-            region=os.environ.get("REGION"), project_id=os.environ.get("PROJECT_ID"), model="claude-3-sonnet@20240229"
+            region=os.environ.get("REGION"), project_id=os.environ.get("PROJECT_ID"), model="claude-3-7-sonnet@20250219"
         )
         response = client.run(chat_messages)
 

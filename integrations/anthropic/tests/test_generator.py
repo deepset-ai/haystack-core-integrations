@@ -14,7 +14,7 @@ class TestAnthropicGenerator:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
         component = AnthropicGenerator()
         assert component.client.api_key == "test-api-key"
-        assert component.model == "claude-3-sonnet-20240229"
+        assert component.model == "claude-3-7-sonnet-latest"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
 
@@ -26,12 +26,12 @@ class TestAnthropicGenerator:
     def test_init_with_parameters(self):
         component = AnthropicGenerator(
             api_key=Secret.from_token("test-api-key"),
-            model="claude-3-sonnet-20240229",
+            model="claude-3-7-sonnet-latest",
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
         assert component.client.api_key == "test-api-key"
-        assert component.model == "claude-3-sonnet-20240229"
+        assert component.model == "claude-3-7-sonnet-latest"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
@@ -43,7 +43,7 @@ class TestAnthropicGenerator:
             "type": "haystack_integrations.components.generators.anthropic.generator.AnthropicGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "claude-3-sonnet-20240229",
+                "model": "claude-3-7-sonnet-latest",
                 "streaming_callback": None,
                 "system_prompt": None,
                 "generation_kwargs": {},
@@ -67,7 +67,7 @@ class TestAnthropicGenerator:
             "type": "haystack_integrations.components.generators.anthropic.generator.AnthropicGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
-                "model": "claude-3-sonnet-20240229",
+                "model": "claude-3-7-sonnet-latest",
                 "system_prompt": "test-prompt",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -82,7 +82,7 @@ class TestAnthropicGenerator:
             "type": "haystack_integrations.components.generators.anthropic.generator.AnthropicGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "claude-3-sonnet-20240229",
+                "model": "claude-3-7-sonnet-latest",
                 "system_prompt": "test-prompt",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -91,7 +91,7 @@ class TestAnthropicGenerator:
             },
         }
         component = AnthropicGenerator.from_dict(data)
-        assert component.model == "claude-3-sonnet-20240229"
+        assert component.model == "claude-3-7-sonnet-latest"
         assert component.streaming_callback is print_streaming_chunk
         assert component.system_prompt == "test-prompt"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -105,7 +105,7 @@ class TestAnthropicGenerator:
             "type": "haystack_integrations.components.generators.anthropic.generator.AnthropicGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "claude-3-sonnet-20240229",
+                "model": "claude-3-7-sonnet-latest",
                 "system_prompt": "test-prompt",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
