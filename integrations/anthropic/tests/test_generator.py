@@ -242,7 +242,7 @@ class TestAnthropicGenerator:
     @pytest.mark.integration
     def test_extended_thinking_mode(self):
         client = AnthropicGenerator(
-            model="claude-sonnet-4-20250514-20250219",
+            model="claude-sonnet-4-20250514",
             generation_kwargs={"thinking": {"type": "enabled", "budget_tokens": 1024}, "max_tokens": 1536},
         )
         response = client.run("What is the capital of France?")
@@ -290,7 +290,7 @@ class TestAnthropicGenerator:
                 thinking_end_tag_found = "</thinking>" in chunk.content
 
         client = AnthropicGenerator(
-            model="claude-sonnet-4-20250514-20250219",
+            model="claude-sonnet-4-20250514",
             generation_kwargs={"thinking": {"type": "enabled", "budget_tokens": 1024}, "max_tokens": 1536},
             streaming_callback=streaming_callback,
         )
@@ -336,7 +336,7 @@ class TestAnthropicGenerator:
                 thinking_end_tag_found = "</thinking>" in chunk.content
 
         client = AnthropicGenerator(
-            model="claude-sonnet-4-20250514-20250219",
+            model="claude-sonnet-4-20250514",
             generation_kwargs={
                 "thinking": {"type": "enabled", "budget_tokens": 1024},
                 "max_tokens": 1536,
