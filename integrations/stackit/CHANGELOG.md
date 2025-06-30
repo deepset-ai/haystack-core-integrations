@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/stackit-v1.2.0] - 2025-06-30
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Remove black (#1985)
+- Stackit - improve type checking + add py.typed (#2031)
+
+### 🌀 Miscellaneous
+
+- Test: Remove `test_check_abnormal_completions` - already tested in Haystack (#1842)
+
 ## [integrations/stackit-v1.1.0] - 2025-05-23
 
 ### 🚀 Features
