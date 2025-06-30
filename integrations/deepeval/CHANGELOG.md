@@ -1,5 +1,18 @@
 # Changelog
 
+## [integrations/deepeval-v0.2.0] - 2025-06-30
+
+### 🐛 Bug Fixes
+
+- Fix deepeval types + add py.typed (#2028)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+- Remove black (#1985)
+
+
 ## [integrations/deepeval-v0.1.3] - 2025-05-27
 
 ### 🧪 Testing
