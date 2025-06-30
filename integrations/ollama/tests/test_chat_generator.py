@@ -567,7 +567,7 @@ class TestOllamaChatGenerator:
 
     @pytest.mark.integration
     def test_live_run_with_thinking(self):
-        chat_generator = OllamaChatGenerator(model="qwen3:1.7b", think=True)
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b", think=True)
 
         message = ChatMessage.from_user("How many times does the letter 'r' appear in the word 'strawberry'?")
         response = chat_generator.run([message])

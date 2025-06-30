@@ -188,11 +188,11 @@ class OllamaChatGenerator:
         url: str = "http://localhost:11434",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: int = 120,
-        think=False,
         keep_alive: Optional[Union[float, str]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
         response_format: Optional[Union[None, Literal["json"], JsonSchemaValue]] = None,
+        think=False,
     ):
         """
         :param model:
@@ -204,7 +204,11 @@ class OllamaChatGenerator:
             top_p, and others. See the available arguments in
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :param timeout:
-            Socket timeout *in seconds* for HTTP calls to Ollama.
+            The number of seconds before throwing a timeout error from the Ollama API.
+        :param think
+            If True, the modell will "think" before producing a response.
+            Only [thinking models](https://ollama.com/search?c=thinking) support this feature.
+            The intermediate "thinking" output can be found in the `meta` property of the returned `ChatMessage`.
         :param keep_alive:
             The option that controls how long the model will stay loaded into memory following the request.
             If not set, it will use the default value from the Ollama (5 minutes).
