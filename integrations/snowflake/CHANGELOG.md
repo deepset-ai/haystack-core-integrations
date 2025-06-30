@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/snowflake-v1.1.0] - 2025-06-30
+
+### 🐛 Bug Fixes
+
+- Fix Snowflake types + add py.typed (#2021)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Remove black (#1985)
+
+
 ## [integrations/snowflake-v1.0.1] - 2025-05-28
 
 ### 🌀 Miscellaneous
