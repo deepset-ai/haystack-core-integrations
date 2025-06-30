@@ -21,7 +21,7 @@ class TestAnthropicVertexChatGenerator:
         component = AnthropicVertexChatGenerator(region="us-central1", project_id="test-project-id")
         assert component.region == "us-central1"
         assert component.project_id == "test-project-id"
-        assert component.model == "claude-3-7-sonnet@20250219"
+        assert component.model == "claude-sonnet-4@20250514"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
         assert component.ignore_tools_thinking_messages
@@ -30,14 +30,14 @@ class TestAnthropicVertexChatGenerator:
         component = AnthropicVertexChatGenerator(
             region="us-central1",
             project_id="test-project-id",
-            model="claude-3-7-sonnet@20250219",
+            model="claude-sonnet-4@20250514",
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
             ignore_tools_thinking_messages=False,
         )
         assert component.region == "us-central1"
         assert component.project_id == "test-project-id"
-        assert component.model == "claude-3-7-sonnet@20250219"
+        assert component.model == "claude-sonnet-4@20250514"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
         assert component.ignore_tools_thinking_messages is False
@@ -53,7 +53,7 @@ class TestAnthropicVertexChatGenerator:
             "init_parameters": {
                 "region": "us-central1",
                 "project_id": "test-project-id",
-                "model": "claude-3-7-sonnet@20250219",
+                "model": "claude-sonnet-4@20250514",
                 "streaming_callback": None,
                 "generation_kwargs": {},
                 "ignore_tools_thinking_messages": True,
@@ -82,7 +82,7 @@ class TestAnthropicVertexChatGenerator:
             "init_parameters": {
                 "region": "us-central1",
                 "project_id": "test-project-id",
-                "model": "claude-3-7-sonnet@20250219",
+                "model": "claude-sonnet-4@20250514",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "ignore_tools_thinking_messages": False,
@@ -101,7 +101,7 @@ class TestAnthropicVertexChatGenerator:
             "init_parameters": {
                 "region": "us-central1",
                 "project_id": "test-project-id",
-                "model": "claude-3-7-sonnet@20250219",
+                "model": "claude-sonnet-4@20250514",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "ignore_tools_thinking_messages": True,
@@ -111,7 +111,7 @@ class TestAnthropicVertexChatGenerator:
             },
         }
         component = AnthropicVertexChatGenerator.from_dict(data)
-        assert component.model == "claude-3-7-sonnet@20250219"
+        assert component.model == "claude-sonnet-4@20250514"
         assert component.region == "us-central1"
         assert component.project_id == "test-project-id"
         assert component.streaming_callback is print_streaming_chunk
@@ -168,7 +168,7 @@ class TestAnthropicVertexChatGenerator:
     @pytest.mark.integration
     def test_default_inference_params(self, chat_messages):
         client = AnthropicVertexChatGenerator(
-            region=os.environ.get("REGION"), project_id=os.environ.get("PROJECT_ID"), model="claude-3-7-sonnet@20250219"
+            region=os.environ.get("REGION"), project_id=os.environ.get("PROJECT_ID"), model="claude-sonnet-4@20250514"
         )
         response = client.run(chat_messages)
 
@@ -202,13 +202,13 @@ class TestAnthropicVertexChatGeneratorAsync:
         component = AnthropicVertexChatGenerator(
             region=os.environ.get("REGION"),
             project_id=os.environ.get("PROJECT_ID"),
-            model="claude-3-7-sonnet@20250219",
+            model="claude-sonnet-4@20250514",
         )
         results = await component.run_async(messages=[ChatMessage.from_user("What's the capital of France?")])
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "claude-3-7-sonnet" in message.meta["model"]
+        assert "claude-sonnet-4-20250514" in message.meta["model"]
         assert message.meta["finish_reason"] == "end_turn"
 
     # Anthropic messages API is similar for AnthropicVertex and Anthropic endpoint,
