@@ -20,7 +20,6 @@ class TestWatsonxChatGenerator:
         """Fixture for setting up common mocks"""
         monkeypatch.setenv("WATSONX_API_KEY", "fake-api-key")
         monkeypatch.setenv("WATSONX_PROJECT_ID", "fake-project-id")
-        monkeypatch.setenv("WATSONX_SPACE_ID", "fake-space-id")
 
         with patch(
             "haystack_integrations.components.generators.watsonx.chat.chat_generator.ModelInference"
@@ -85,13 +84,11 @@ class TestWatsonxChatGenerator:
         _, kwargs = mock_watsonx["model"].call_args
         assert kwargs["model_id"] == "ibm/granite-3-2b-instruct"
         assert kwargs["project_id"] == "fake-project-id"
-        assert kwargs["space_id"] is None
         assert kwargs["verify"] is None
 
         assert generator.model == "ibm/granite-3-2b-instruct"
         assert isinstance(generator.project_id, Secret)
         assert generator.project_id.resolve_value() == "fake-project-id"
-        assert generator.space_id is None
         assert generator.api_base_url == "https://us-south.ml.cloud.ibm.com"
 
     def test_init_with_all_params(self, mock_watsonx):
@@ -99,7 +96,6 @@ class TestWatsonxChatGenerator:
             api_key=Secret.from_token("test-api-key"),
             model="ibm/granite-3-2b-instruct",
             project_id=Secret.from_token("test-project"),
-            space_id=Secret.from_token("test-space"),
             api_base_url="https://custom-url.com",
             generation_kwargs={"max_tokens": 100, "temperature": 0.7, "top_p": 0.9},
             verify=False,
@@ -108,18 +104,15 @@ class TestWatsonxChatGenerator:
         _, kwargs = mock_watsonx["model"].call_args
         assert kwargs["model_id"] == "ibm/granite-3-2b-instruct"
         assert kwargs["project_id"] == "test-project"
-        assert "space_id" not in kwargs or kwargs["space_id"] is None
         assert kwargs["verify"] is False
 
         assert isinstance(generator.project_id, Secret)
         assert generator.project_id.resolve_value() == "test-project"
-        assert generator.space_id is None
 
-    def test_init_fails_without_project_or_space(self, mock_watsonx):
+    def test_init_fails_without_project(self, mock_watsonx):
         os.environ.pop("WATSONX_PROJECT_ID", None)
-        os.environ.pop("WATSONX_SPACE_ID", None)
 
-        with pytest.raises(ValueError, match="Either project_id or space_id must be provided"):
+        with pytest.raises(ValueError, match="project_id must be provided"):
             WatsonxChatGenerator(api_key=Secret.from_token("test-api-key"), model="ibm/granite-3-2b-instruct")
 
     def test_to_dict(self, mock_watsonx):
@@ -137,7 +130,6 @@ class TestWatsonxChatGenerator:
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "ibm/granite-3-2b-instruct",
                 "project_id": {"env_vars": ["WATSONX_PROJECT_ID"], "strict": True, "type": "env_var"},
-                "space_id": None,
                 "api_base_url": "https://us-south.ml.cloud.ibm.com",
                 "generation_kwargs": {"max_tokens": 100},
                 "verify": None,

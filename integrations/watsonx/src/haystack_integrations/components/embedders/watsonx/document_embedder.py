@@ -51,7 +51,6 @@ class WatsonXDocumentEmbedder:
         api_key: Secret | None = None,
         url: str = "https://us-south.ml.cloud.ibm.com",
         project_id: Secret | None = None,
-        space_id: Secret | None = None,
         truncate_input_tokens: int | None = None,
         prefix: str = "",
         suffix: str = "",
@@ -74,11 +73,8 @@ class WatsonXDocumentEmbedder:
             The WATSONX URL for the watsonx.ai service.
             Default is "https://us-south.ml.cloud.ibm.com".
         :param project_id:
-            The ID of the Watson Studio project. Either project_id or space_id must be provided.
+            The ID of the Watson Studio project.
             Can be set via environment variable WATSONX_PROJECT_ID.
-        :param space_id:
-            The ID of the Watson Studio space. Either project_id or space_id must be provided.
-            Can be set via environment variable WATSONX_SPACE_ID.
         :param truncate_input_tokens:
             Maximum number of tokens to use from the input text.
         :param prefix:
@@ -97,18 +93,14 @@ class WatsonXDocumentEmbedder:
         if api_key is None:
             api_key = Secret.from_env_var("WATSONX_API_KEY")
 
-        if not project_id and not space_id:
-            msg = "Either project_id or space_id must be provided"
+        if not project_id:
+            msg = "project_id must be provided"
             raise ValueError(msg)
 
         self.model = model
         self.api_key = api_key
         self.url = url
         self.project_id = project_id
-        if project_id:
-            self.space_id = None
-        else:
-            self.space_id = space_id or Secret.from_env_var("WATSONX_SPACE_ID")
         self.truncate_input_tokens = truncate_input_tokens
         self.prefix = prefix
         self.suffix = suffix
@@ -126,21 +118,12 @@ class WatsonXDocumentEmbedder:
         if truncate_input_tokens is not None:
             params["truncate_input_tokens"] = truncate_input_tokens
 
-        project_id_value = None
-        space_id_value = None
-
-        if project_id:
-            project_id_value = project_id.resolve_value() if isinstance(project_id, Secret) else project_id
-            # When project_id is provided, space_id should be None
-            space_id_value = None
-        elif space_id:
-            space_id_value = space_id.resolve_value() if isinstance(space_id, Secret) else space_id
+        project_id_value = project_id.resolve_value() if isinstance(project_id, Secret) else project_id
 
         self.embedder = Embeddings(
             model_id=model,
             credentials=credentials,
             project_id=project_id_value,
-            space_id=space_id_value,
             params=params if params else None,
             batch_size=batch_size,
             concurrency_limit=concurrency_limit,
@@ -163,7 +146,6 @@ class WatsonXDocumentEmbedder:
             api_key=self.api_key.to_dict(),
             url=self.url,
             project_id=self.project_id.to_dict() if self.project_id else None,
-            space_id=self.space_id.to_dict() if self.space_id else None,
             truncate_input_tokens=self.truncate_input_tokens,
             prefix=self.prefix,
             suffix=self.suffix,
@@ -178,7 +160,7 @@ class WatsonXDocumentEmbedder:
         """
         Deserializes the component from a dictionary.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id", "space_id"])
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id"])
         return default_from_dict(cls, data)
 
     def _prepare_text(self, text: str) -> str:

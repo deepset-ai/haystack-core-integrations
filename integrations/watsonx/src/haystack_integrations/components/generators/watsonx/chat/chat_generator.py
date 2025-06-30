@@ -84,7 +84,6 @@ class WatsonxChatGenerator:
         api_key: Secret | None = None,
         model: str = "ibm/granite-13b-chat-v2",
         project_id: Secret | None = None,
-        space_id: Secret | None = None,
         api_base_url: str | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         timeout: float | None = None,
@@ -103,8 +102,7 @@ class WatsonxChatGenerator:
             Can be set via `WATSONX_API_KEY` environment variable or passed directly.
         :param model: The model ID to use for completions. Defaults to "ibm/granite-13b-chat-v2".
             Available models can be found in your IBM Cloud account.
-        :param project_id: IBM Cloud project ID (required if space_id is not provided).
-        :param space_id: watsonx.ai deployment space ID (required if project_id is not provided).
+        :param project_id: IBM Cloud project ID
         :param api_base_url: Custom base URL for the API endpoint.
             Defaults to "https://us-south.ml.cloud.ibm.com".
         :param generation_kwargs: Additional parameters to control text generation.
@@ -136,10 +134,6 @@ class WatsonxChatGenerator:
         self.api_key = api_key or Secret.from_env_var("WATSONX_API_KEY")
         self.model = model
         self.project_id = project_id or Secret.from_env_var("WATSONX_PROJECT_ID")
-        if project_id:
-            self.space_id = None
-        else:
-            self.space_id = space_id or Secret.from_env_var("WATSONX_SPACE_ID")
         self.api_base_url = api_base_url or "https://us-south.ml.cloud.ibm.com"
         self.generation_kwargs = generation_kwargs or {}
         self.timeout = timeout or float(os.environ.get("WATSONX_TIMEOUT", "30.0"))
@@ -147,8 +141,8 @@ class WatsonxChatGenerator:
         self.tools = tools
         self.verify = verify
 
-        if not project_id and not space_id:
-            msg = "Either project_id or space_id must be provided"
+        if not project_id:
+            msg = "project_id must be provided"
             raise ValueError(msg)
 
         self._initialize_client()
@@ -161,7 +155,6 @@ class WatsonxChatGenerator:
             model_id=self.model,
             credentials=credentials,
             project_id=self.project_id.resolve_value() if self.project_id else None,
-            space_id=self.space_id.resolve_value() if self.space_id else None,
             verify=self.verify,
             max_retries=self.max_retries,
             delay_time=0.5,
@@ -173,7 +166,6 @@ class WatsonxChatGenerator:
             self,
             model=self.model,
             project_id=self.project_id.to_dict() if self.project_id else None,
-            space_id=self.space_id.to_dict() if self.space_id else None,
             api_base_url=self.api_base_url,
             generation_kwargs=self.generation_kwargs,
             api_key=self.api_key.to_dict(),
@@ -186,7 +178,7 @@ class WatsonxChatGenerator:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WatsonxChatGenerator":
         """Deserialize the component from a dictionary."""
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id", "space_id"])
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id"])
         return default_from_dict(cls, data)
 
     @component.output_types(replies=list[ChatMessage])

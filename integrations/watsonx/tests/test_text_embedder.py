@@ -17,7 +17,6 @@ class TestWatsonXTextEmbedder:
         """Fixture for setting up common mocks"""
         monkeypatch.setenv("WATSONX_API_KEY", "fake-api-key")
         monkeypatch.setenv("WATSONX_PROJECT_ID", "fake-project-id")
-        monkeypatch.setenv("WATSONX_SPACE_ID", "fake-space-id")
 
         with patch("haystack_integrations.components.embedders.watsonx.text_embedder.Embeddings") as mock_embeddings:
             with patch(
@@ -46,7 +45,6 @@ class TestWatsonXTextEmbedder:
             model_id="ibm/slate-30m-english-rtrvr",
             credentials=mock_watsonx["creds_instance"],
             project_id="fake-project-id",
-            space_id=None,
             params=None,
         )
         assert isinstance(embedder.project_id, Secret)
@@ -61,7 +59,6 @@ class TestWatsonXTextEmbedder:
             model="ibm/slate-125m-english-rtrvr",
             url="https://custom-url.ibm.com",
             project_id=Secret.from_token("custom-project-id"),
-            space_id=Secret.from_token("custom-space-id"),
             truncate_input_tokens=128,
             prefix="prefix ",
             suffix=" suffix",
@@ -70,14 +67,12 @@ class TestWatsonXTextEmbedder:
         )
         assert isinstance(embedder.project_id, Secret)
         assert embedder.project_id.resolve_value() == "custom-project-id"
-        assert embedder.space_id is None
 
         mock_watsonx["credentials"].assert_called_once_with(api_key="fake-api-key", url="https://custom-url.ibm.com")
         mock_watsonx["embeddings"].assert_called_once_with(
             model_id="ibm/slate-125m-english-rtrvr",
             credentials=mock_watsonx["creds_instance"],
             project_id="custom-project-id",
-            space_id=None,
             params={"truncate_input_tokens": 128},
         )
 
@@ -86,11 +81,10 @@ class TestWatsonXTextEmbedder:
         with pytest.raises(ValueError, match="None of the .* environment variables are set"):
             WatsonXTextEmbedder(project_id=Secret.from_env_var("WATSONX_PROJECT_ID"))
 
-    def test_init_fail_wo_project_or_space_id(self, monkeypatch):
+    def test_init_fail_wo_project_id(self, monkeypatch):
         monkeypatch.setenv("WATSONX_API_KEY", "fake-api-key")
         monkeypatch.delenv("WATSONX_PROJECT_ID", raising=False)
-        monkeypatch.delenv("WATSONX_SPACE_ID", raising=False)
-        with pytest.raises(ValueError, match="Either project_id or space_id must be provided"):
+        with pytest.raises(ValueError, match="project_id must be provided"):
             WatsonXTextEmbedder()
 
     def test_to_dict(self, mock_watsonx):
@@ -104,7 +98,6 @@ class TestWatsonXTextEmbedder:
                 "model": "ibm/slate-30m-english-rtrvr",
                 "url": "https://us-south.ml.cloud.ibm.com",
                 "project_id": {"env_vars": ["WATSONX_PROJECT_ID"], "strict": True, "type": "env_var"},
-                "space_id": None,
                 "truncate_input_tokens": None,
                 "prefix": "",
                 "suffix": "",
