@@ -11,7 +11,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 
 from haystack_integrations.components.embedders.nvidia.truncate import EmbeddingTruncateMode
-from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Model, NimBackend, url_validation
+from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Client, Model, NimBackend, url_validation
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +122,9 @@ class NvidiaDocumentEmbedder:
                 UserWarning,
                 stacklevel=2,
             )
-            self.model = self.backend.model = name
+            self.model = name
+            if self.backend:
+                self.backend.model = name
         else:
             error_message = "No locally hosted model was found."
             raise ValueError(error_message)
@@ -143,7 +145,7 @@ class NvidiaDocumentEmbedder:
             api_url=self.api_url,
             api_key=self.api_key,
             model_kwargs=model_kwargs,
-            client=self.__class__.__name__,
+            client=Client.NVIDIA_DOCUMENT_EMBEDDER,
             timeout=self.timeout,
         )
         if not self.model and self.backend.model:
@@ -232,7 +234,7 @@ class NvidiaDocumentEmbedder:
         return all_embeddings, {"usage": {"prompt_tokens": usage_prompt_tokens, "total_tokens": usage_total_tokens}}
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
-    def run(self, documents: List[Document]):
+    def run(self, documents: List[Document]) -> Dict[str, Union[List[Document], Dict[str, Any]]]:
         """
         Embed a list of Documents.
 

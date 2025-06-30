@@ -30,7 +30,7 @@ class SupportedAuthTypes(Enum):
         return self.value
 
     @staticmethod
-    def from_class(auth_class) -> "SupportedAuthTypes":
+    def from_class(auth_class: Type["AuthCredentials"]) -> "SupportedAuthTypes":
         auth_types = {
             AuthApiKey: SupportedAuthTypes.API_KEY,
             AuthBearerToken: SupportedAuthTypes.BEARER,
@@ -80,7 +80,7 @@ class AuthCredentials(ABC):
 
     @classmethod
     @abstractmethod
-    def _from_dict(cls, data: Dict[str, Any]):
+    def _from_dict(cls, data: Dict[str, Any]) -> "AuthCredentials":
         """
         Internal method to convert a dictionary representation to an auth credentials object.
         All subclasses must implement this method.
@@ -109,7 +109,8 @@ class AuthApiKey(AuthCredentials):
         return cls(**data["init_parameters"])
 
     def resolve_value(self) -> WeaviateAuthApiKey:
-        return WeaviateAuthApiKey(api_key=self.api_key.resolve_value())
+        # resolve_value, when used with Secret.from_env_var (strict=True), returns a string or raises an error
+        return WeaviateAuthApiKey(api_key=self.api_key.resolve_value())  # type: ignore[arg-type]
 
 
 @dataclass(frozen=True)
@@ -136,9 +137,11 @@ class AuthBearerToken(AuthCredentials):
         refresh_token = self.refresh_token.resolve_value()
 
         return WeaviateAuthBearerToken(
-            access_token=access_token,
+            # resolve_value, when used with Secret.from_env_var (strict=True), returns a string or raises an error
+            access_token=access_token,  # type: ignore[arg-type]
             expires_in=self.expires_in,
-            refresh_token=refresh_token,
+            # resolve_value, when used with Secret.from_env_var (strict=False), returns a string or None
+            refresh_token=refresh_token,  # type: ignore[arg-type]
         )
 
 
@@ -162,8 +165,10 @@ class AuthClientCredentials(AuthCredentials):
 
     def resolve_value(self) -> WeaviateAuthClientCredentials:
         return WeaviateAuthClientCredentials(
-            client_secret=self.client_secret.resolve_value(),
-            scope=self.scope.resolve_value(),
+            # resolve_value, when used with Secret.from_env_var (strict=True), returns a string or raises an error
+            client_secret=self.client_secret.resolve_value(),  # type: ignore[arg-type]
+            # resolve_value, when used with Secret.from_env_var (strict=False), returns a string or None
+            scope=self.scope.resolve_value(),  # type: ignore[arg-type]
         )
 
 
@@ -189,7 +194,9 @@ class AuthClientPassword(AuthCredentials):
 
     def resolve_value(self) -> WeaviateAuthClientPassword:
         return WeaviateAuthClientPassword(
-            username=self.username.resolve_value(),
-            password=self.password.resolve_value(),
-            scope=self.scope.resolve_value(),
+            # resolve_value, when used with Secret.from_env_var (strict=True), returns a string or raises an error
+            username=self.username.resolve_value(),  # type: ignore[arg-type]
+            password=self.password.resolve_value(),  # type: ignore[arg-type]
+            # resolve_value, when used with Secret.from_env_var (strict=False), returns a string or None
+            scope=self.scope.resolve_value(),  # type: ignore[arg-type]
         )

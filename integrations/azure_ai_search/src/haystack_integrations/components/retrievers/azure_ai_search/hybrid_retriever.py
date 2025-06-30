@@ -24,7 +24,7 @@ class AzureAISearchHybridRetriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
-        **kwargs,
+        **kwargs: Any,
     ):
         """
         Create the AzureAISearchHybridRetriever component.
@@ -102,7 +102,7 @@ class AzureAISearchHybridRetriever:
         query_embedding: List[float],
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """Retrieve documents from the AzureAISearchDocumentStore.
 
         :param query: Text of the query.
@@ -118,11 +118,11 @@ class AzureAISearchHybridRetriever:
 
         top_k = top_k or self._top_k
         filters = filters or self._filters
-        if filters:
-            applied_filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+
+        normalized_filters = ""
+        applied_filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        if applied_filters:
             normalized_filters = _normalize_filters(applied_filters)
-        else:
-            normalized_filters = ""
 
         try:
             docs = self._document_store._hybrid_retrieval(

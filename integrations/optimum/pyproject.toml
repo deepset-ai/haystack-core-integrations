@@ -27,13 +27,15 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai",
+  "optimum[onnxruntime]>=1.21.0",
   # The main export function of Optimum into ONNX has hidden dependencies.
   # It depends on either "sentence-transformers", "diffusers" or "timm", based
   # on which model is loaded from HF Hub.
   # Ref: https://github.com/huggingface/optimum/blob/8651c0ca1cccf095458bc80329dec9df4601edb4/optimum/exporters/onnx/__main__.py#L164
   # "sentence-transformers" has been added, since most embedding models use it
   "sentence-transformers>=2.3",
-  "optimum[onnxruntime]>=1.17.0",
+  # tokenizers is a dependency of transformers/sentence-transformers. The following version is the first one which supports Python 3.13.
+  "tokenizers>=0.20.2",
 ]
 
 [project.urls]
@@ -85,7 +87,7 @@ types = "mypy --install-types --non-interactive --explicit-package-bases {args:s
 [tool.hatch.envs.lint]
 installer = "uv"
 detached = true
-dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
+dependencies = ["pip", "mypy>=1.0.0", "ruff>=0.0.243"]
 
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
@@ -96,10 +98,6 @@ allow-direct-references = true
 [tool.ruff.lint.isort]
 known-first-party = ["haystack_integrations"]
 
-[tool.black]
-target-version = ["py38"]
-line-length = 120
-skip-string-normalization = true
 
 [tool.ruff]
 target-version = "py38"

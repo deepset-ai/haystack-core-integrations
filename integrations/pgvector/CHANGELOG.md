@@ -1,5 +1,22 @@
 # Changelog
 
+## [integrations/pgvector-v5.2.0] - 2025-06-26
+
+Note: Version 5.2.0 was released by mistake.
+It is functionally identical to version 3.4.1 and does not introduce any new features or changes.
+
+### 🧹 Chores
+
+- Remove black (#1985)
+
+
+## [integrations/pgvector-v3.4.1] - 2025-06-20
+
+### 🐛 Bug Fixes
+
+- Pgvector - do not pass null `meta` to `Document.from_dict` (#1980)
+
+
 ## [integrations/pgvector-v3.4.0] - 2025-06-10
 
 ### 🐛 Bug Fixes

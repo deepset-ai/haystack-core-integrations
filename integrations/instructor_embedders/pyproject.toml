@@ -96,7 +96,7 @@ types = "mypy --install-types --non-interactive --explicit-package-bases {args:s
 [tool.hatch.envs.lint]
 installer = "uv"
 detached = true
-dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
+dependencies = ["pip", "mypy>=1.0.0", "ruff>=0.0.243"]
 
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
@@ -179,8 +179,6 @@ addopts = "--strict-markers"
 markers = ["integration: integration tests"]
 log_cli = true
 
-[tool.black]
-line-length = 120
 
 [[tool.mypy.overrides]]
 module = [

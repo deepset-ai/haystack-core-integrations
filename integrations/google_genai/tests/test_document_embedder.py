@@ -233,6 +233,39 @@ class TestGoogleGenAIDocumentEmbedder:
             assert len(doc.embedding) == 768
             assert all(isinstance(x, float) for x in doc.embedding)
 
+        assert "text" in result["meta"]["model"] and "004" in result["meta"]["model"], (
+            "The model name does not contain 'text' and '004'"
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
+    @pytest.mark.integration
+    async def test_run_async(self):
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        model = "text-embedding-004"
+
+        embedder = GoogleGenAIDocumentEmbedder(model=model, meta_fields_to_embed=["topic"], embedding_separator=" | ")
+
+        result = await embedder.run_async(documents=docs)
+        documents_with_embeddings = result["documents"]
+        assert isinstance(documents_with_embeddings, list)
+        assert len(documents_with_embeddings) == len(docs)
+        for doc in documents_with_embeddings:
+            assert isinstance(doc, Document)
+            assert isinstance(doc.embedding, list)
+            assert len(doc.embedding) == 768
+            assert all(isinstance(x, float) for x in doc.embedding)
+
+        assert "text" in result["meta"]["model"] and "004" in result["meta"]["model"], (
+            "The model name does not contain 'text' and '004'"
+        )
         assert result["documents"][0].meta == {"topic": "Cuisine"}
         assert result["documents"][1].meta == {"topic": "ML"}
         assert result["meta"] == {"model": model}

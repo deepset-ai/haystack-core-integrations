@@ -4,7 +4,7 @@
 
 import pytest
 
-from haystack_integrations.utils.nvidia import is_hosted
+from haystack_integrations.utils.nvidia import Client, is_hosted
 from haystack_integrations.utils.nvidia.models import CHAT_MODEL_TABLE, EMBEDDING_MODEL_TABLE, RANKING_MODEL_TABLE
 from haystack_integrations.utils.nvidia.utils import (
     determine_model,
@@ -88,25 +88,25 @@ def test_validate_hosted_model_no_model_client() -> None:
 
 def test_validate_hosted_model_client_incompatible() -> None:
     with pytest.raises(ValueError, match="is incompatible"):
-        assert validate_hosted_model("snowflake/arctic-embed-l", "NvidiaGenerator")  # has no client
+        assert validate_hosted_model("snowflake/arctic-embed-l", Client.NVIDIA_GENERATOR)  # has no client
 
     with pytest.raises(ValueError, match="is incompatible"):
-        assert validate_hosted_model("meta/codellama-70b", "NvidiaRanker")
+        assert validate_hosted_model("meta/codellama-70b", Client.NVIDIA_RANKER)
 
 
 def test_validate_hosted_model_is_unknown() -> None:
     with pytest.raises(ValueError, match="is unknown"):
-        assert validate_hosted_model("not-a-model", "NvidiaGenerator")
+        assert validate_hosted_model("not-a-model", Client.NVIDIA_GENERATOR)
     with pytest.raises(ValueError, match="is unknown"):
         assert validate_hosted_model("not-a-model")
 
 
 def test_validate_hosted_model_without_client() -> None:
-    assert validate_hosted_model("snowflake/arctic-embed-l", "NvidiaTextEmbedder")
+    assert validate_hosted_model("snowflake/arctic-embed-l", Client.NVIDIA_TEXT_EMBEDDER)
 
 
 def test_validate_hosted_model_with_client() -> None:
     """Test when model's client matches the provided client."""
-    model = validate_hosted_model("meta/codellama-70b", "NvidiaGenerator")
+    model = validate_hosted_model("meta/codellama-70b", Client.NVIDIA_GENERATOR)
     assert model is not None
-    assert model.client == "NvidiaGenerator"
+    assert model.client == Client.NVIDIA_GENERATOR
