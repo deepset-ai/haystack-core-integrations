@@ -1,5 +1,5 @@
 import json
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List, Optional, Union
 
 import boto3
 import requests
@@ -192,7 +192,9 @@ class SagemakerGenerator:
             raise AWSConfigurationError(msg) from e
 
     @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
-    def run(self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None) -> Dict[str, List[Any]]:
+    def run(
+        self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Union[List[str], List[Dict[str, Any]]]]:
         """
         Invoke the text generation inference based on the provided prompt and generation parameters.
 
