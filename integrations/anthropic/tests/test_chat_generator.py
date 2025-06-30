@@ -1187,7 +1187,7 @@ class TestAnthropicChatGenerator:
         Integration test that the AnthropicChatGenerator component can run with parallel tools.
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
-        
+
         # using claude-sonnet-4-20250514 because it supports parallel tool use better than claude-3-7-sonnet
         component = AnthropicChatGenerator(model="claude-sonnet-4-20250514", tools=tools)
         results = component.run(messages=initial_messages)
