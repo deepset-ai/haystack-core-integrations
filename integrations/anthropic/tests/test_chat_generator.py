@@ -413,7 +413,7 @@ class TestAnthropicChatGenerator:
                         "type": "message",
                         "role": "assistant",
                         "content": [],
-                        "model": "claude-3-sonnet",
+                        "model": "claude-3-7-sonnet",
                         "stop_reason": None,
                         "stop_sequence": None,
                         "usage": {"input_tokens": 25, "output_tokens": 0},
@@ -480,7 +480,7 @@ class TestAnthropicChatGenerator:
         ]
 
         component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
-        message = component._convert_streaming_chunks_to_chat_message(chunks, model="claude-3-sonnet")
+        message = component._convert_streaming_chunks_to_chat_message(chunks, model="claude-3-7-sonnet")
 
         # Verify the message content
         assert message.text == "Let me check the weather"
@@ -493,7 +493,7 @@ class TestAnthropicChatGenerator:
         assert tool_call.arguments == {"city": "Paris"}
 
         # Verify meta information
-        assert message._meta["model"] == "claude-3-sonnet"
+        assert message._meta["model"] == "claude-3-7-sonnet"
         assert message._meta["index"] == 0
         assert message._meta["finish_reason"] == "tool_use"
         assert message._meta["usage"] == {"prompt_tokens": 25, "completion_tokens": 40}
@@ -558,7 +558,7 @@ class TestAnthropicChatGenerator:
         ]
 
         component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
-        message = component._convert_streaming_chunks_to_chat_message(chunks, model="claude-3-sonnet")
+        message = component._convert_streaming_chunks_to_chat_message(chunks, model="claude-3-7-sonnet")
 
         # Verify the message content is preserve
         assert message.text == "Let me check the weather"
@@ -585,7 +585,7 @@ class TestAnthropicChatGenerator:
                         "type": "message",
                         "role": "assistant",
                         "content": [],
-                        "model": "claude-3-sonnet",
+                        "model": "claude-3-7-sonnet",
                         "stop_reason": None,
                         "stop_sequence": None,
                         "usage": {"input_tokens": 50, "output_tokens": 0},
@@ -670,7 +670,7 @@ class TestAnthropicChatGenerator:
         ]
 
         component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
-        message = component._convert_streaming_chunks_to_chat_message(chunks, model="claude-3-sonnet")
+        message = component._convert_streaming_chunks_to_chat_message(chunks, model="claude-3-7-sonnet")
 
         # Verify the message content
         assert message.text == (
@@ -686,7 +686,7 @@ class TestAnthropicChatGenerator:
         assert tool_call.arguments == {}
 
         # Verify meta information
-        assert message._meta["model"] == "claude-3-sonnet"
+        assert message._meta["model"] == "claude-3-7-sonnet"
         assert message._meta["index"] == 0
         assert message._meta["finish_reason"] == "tool_use"
         assert message._meta["usage"] == {
@@ -784,7 +784,7 @@ class TestAnthropicChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "claude-3-7-sonnet-latest" in message.meta["model"]
+        assert "claude-3-7-sonnet" in message.meta["model"]
         assert message.meta["finish_reason"] == "end_turn"
 
     @pytest.mark.skipif(
@@ -824,7 +824,7 @@ class TestAnthropicChatGenerator:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "claude-3-7-sonnet-latest" in message.meta["model"]
+        assert "claude-3-7-sonnet" in message.meta["model"]
         assert message.meta["finish_reason"] == "end_turn"
 
         assert callback.counter > 1
@@ -1449,7 +1449,7 @@ class TestAnthropicChatGeneratorAsync:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "claude-3-7-sonnet-latest" in message.meta["model"]
+        assert "claude-3-7-sonnet" in message.meta["model"]
         assert message.meta["finish_reason"] == "end_turn"
 
     @pytest.mark.asyncio
@@ -1482,7 +1482,7 @@ class TestAnthropicChatGeneratorAsync:
         assert len(results["replies"]) == 1
         message = results["replies"][0]
         assert "paris" in message.text.lower()
-        assert "claude-3-7-sonnet-latest" in message.meta["model"]
+        assert "claude-3-7-sonnet" in message.meta["model"]
         assert message.meta["finish_reason"] == "end_turn"
 
         # Verify streaming behavior
