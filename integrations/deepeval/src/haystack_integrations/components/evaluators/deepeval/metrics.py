@@ -175,7 +175,7 @@ class InputConverters:
             raise ValueError(msg)
 
     @staticmethod
-    def validate_input_parameters(metric: DeepEvalMetric, expected: Dict[str, Any], received: Dict[str, Any]):
+    def validate_input_parameters(metric: DeepEvalMetric, expected: Dict[str, Any], received: Dict[str, Any]) -> None:
         for param, _ in expected.items():
             if param not in received:
                 msg = f"DeepEval evaluator expected input parameter '{param}' for metric '{metric}'"

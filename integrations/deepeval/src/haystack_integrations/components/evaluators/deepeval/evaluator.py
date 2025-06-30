@@ -72,7 +72,7 @@ class DeepEvalEvaluator:
         component.set_input_types(self, **expected_inputs)
 
     @component.output_types(results=List[List[Dict[str, Any]]])
-    def run(self, **inputs) -> Dict[str, Any]:
+    def run(self, **inputs: Any) -> Dict[str, Any]:
         """
         Run the DeepEval evaluator on the provided inputs.
 
@@ -107,7 +107,7 @@ class DeepEvalEvaluator:
             If the component cannot be serialized.
         """
 
-        def check_serializable(obj: Any):
+        def check_serializable(obj: Any) -> bool:
             try:
                 json.dumps(obj)
                 return True
