@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/optimum-v1.2.0] - 2025-06-30
+
+### 🐛 Bug Fixes
+
+- Fix Optimum types + add py.typed (#2018)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+
+
 ## [integrations/optimum-v1.1.0] - 2025-06-17
 
 ### 🐛 Bug Fixes
