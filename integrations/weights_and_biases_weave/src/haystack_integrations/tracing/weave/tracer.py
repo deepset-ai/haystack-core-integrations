@@ -53,7 +53,7 @@ class WeaveSpan(Span):
             return {}
         return {"weave.call_id": self._call.id, "weave.run_id": getattr(self._call, "run_id", "")}
 
-    def set_call(self, call: "weave.Call") -> None:
+    def set_call(self, call: Call) -> None:
         self._call = call
 
     def get_attributes(self) -> dict[str, Any]:
