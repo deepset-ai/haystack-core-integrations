@@ -6,6 +6,7 @@ from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
+    ComponentInfo,
     StreamingChunk,
     TextContent,
     ToolCall,
@@ -366,6 +367,31 @@ class TestOllamaChatGenerator:
         }
 
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
+    def test_build_chunk(self):
+        generator = OllamaChatGenerator()
+
+        mock_chunk_response = Mock()
+        mock_chunk_response.model_dump.return_value = {
+            "message": {"role": "assistant", "content": "Hello world"},
+            "model": "llama2",
+            "created_at": "2023-12-12T14:13:43.416799Z",
+            "done": False,
+        }
+
+        component_info = ComponentInfo.from_component(generator)
+
+        chunk = generator._build_chunk(mock_chunk_response, component_info)
+
+        assert isinstance(chunk, StreamingChunk)
+        assert chunk.content == "Hello world"
+        assert chunk.component_info == component_info
+        assert chunk.meta["role"] == "assistant"
+        assert chunk.meta["model"] == "llama2"
+        assert chunk.meta["created_at"] == "2023-12-12T14:13:43.416799Z"
+        assert chunk.meta["done"] is False
+        assert "tool_calls" not in chunk.meta
+
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run(self, mock_client):
         generator = OllamaChatGenerator()
 
@@ -407,11 +433,10 @@ class TestOllamaChatGenerator:
 
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run_streaming(self, mock_client):
-        streaming_callback_called = False
+        collected_chunks = []
 
-        def streaming_callback(_: StreamingChunk) -> None:
-            nonlocal streaming_callback_called
-            streaming_callback_called = True
+        def streaming_callback(chunk: StreamingChunk) -> None:
+            collected_chunks.append(chunk)
 
         generator = OllamaChatGenerator(streaming_callback=streaming_callback)
 
@@ -443,7 +468,16 @@ class TestOllamaChatGenerator:
 
         result = generator.run(messages=[ChatMessage.from_user("irrelevant")])
 
-        assert streaming_callback_called
+        assert len(collected_chunks) == 2
+        assert collected_chunks[0].content == "first chunk "
+        assert collected_chunks[1].content == "second chunk"
+
+        for chunk in collected_chunks:
+            assert (
+                chunk.component_info.type
+                == "haystack_integrations.components.generators.ollama.chat.chat_generator.OllamaChatGenerator"
+            )
+            assert chunk.component_info.name is None  # not in a pipeline
 
         assert "replies" in result
         assert len(result["replies"]) == 1
