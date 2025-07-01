@@ -473,8 +473,6 @@ class LangfuseTracer(Tracer):
                 # This is especially important for nested pipeline scenarios
                 if self._context and self._context[-1] == span:
                     self._context.pop()
-                else:
-                    logger.error(f"Context corruption detected: expected {span} at top of stack")
 
             if self.enforce_flush:
                 self.flush()
