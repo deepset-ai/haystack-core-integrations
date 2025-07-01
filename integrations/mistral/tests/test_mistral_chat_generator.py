@@ -253,6 +253,7 @@ class TestMistralChatGenerator:
                 "tool_calls": None,
                 "finish_reason": None,
                 "received_at": ANY,
+                "usage": None,
             },
             component_info=ComponentInfo(
                 type="haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",
@@ -295,7 +296,8 @@ class TestMistralChatGenerator:
                 ToolCallDelta(index=0, tool_name="weather", arguments='{"city": "Paris"}', id="FL1FFlqUG"),
                 ToolCallDelta(index=1, tool_name="weather", arguments='{"city": "Berlin"}', id="xSuhp66iB"),
             ],
-            start=True
+            start=True,
+            finish_reason="tool_calls",
         )
 
         # Assert text is empty
