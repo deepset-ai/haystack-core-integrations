@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlparse
 
@@ -13,6 +14,7 @@ from haystack.tools import Tool, Toolset
 
 from .mcp_tool import (
     AsyncExecutor,
+    MCPClient,
     MCPConnectionError,
     MCPServerInfo,
     MCPToolNotFoundError,
@@ -145,7 +147,12 @@ class MCPToolset(Toolset):
                     )
 
             # This is a factory that creates the invocation function for the Tool
-            def create_invoke_tool(owner_toolset, mcp_client, tool_name, tool_timeout):
+            def create_invoke_tool(
+                owner_toolset: "MCPToolset",
+                mcp_client: MCPClient,
+                tool_name: str,
+                tool_timeout: float,
+            ) -> Callable[..., Any]:
                 """Return a closure that keeps a strong reference to *owner_toolset* alive."""
 
                 def invoke_tool(**kwargs) -> Any:
