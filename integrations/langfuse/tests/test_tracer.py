@@ -455,10 +455,7 @@ class TestLangfuseTracer:
         assert len(tracer.tracer._context) == 0
 
         # Test 2: Second run should work normally with clean context
-        try:
-            result = main_pipeline.run({"nested_component": {"input_data": '{"key": "valid"}'}})
-        except Exception:
-            assert False, "Second run should not fail"
-
+        main_pipeline.run({"nested_component": {"input_data": '{"key": "valid"}'}})
+        
         # Critical assertion: context should be empty after successful operation
         assert len(tracer.tracer._context) == 0
