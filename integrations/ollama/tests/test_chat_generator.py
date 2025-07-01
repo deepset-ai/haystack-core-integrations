@@ -288,6 +288,9 @@ class TestOllamaChatGenerator:
                                     "type": "string",
                                 },
                             },
+                            "outputs_to_string": None,
+                            "inputs_from_state": None,
+                            "outputs_to_state": None,
                         },
                     },
                 ],
@@ -297,15 +300,6 @@ class TestOllamaChatGenerator:
                 },
             },
         }
-
-        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
-        # haystack-ai>=2.12.0
-        if hasattr(tool, "outputs_to_string"):
-            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_string"] = tool.outputs_to_string
-        if hasattr(tool, "inputs_from_state"):
-            expected_dict["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = tool.inputs_from_state
-        if hasattr(tool, "outputs_to_state"):
-            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = tool.outputs_to_state
 
         assert data == expected_dict
 
@@ -366,7 +360,6 @@ class TestOllamaChatGenerator:
             "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
         }
 
-    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_build_chunk(self):
         generator = OllamaChatGenerator()
 
