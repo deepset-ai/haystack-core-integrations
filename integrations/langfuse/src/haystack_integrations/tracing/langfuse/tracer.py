@@ -449,22 +449,33 @@ class LangfuseTracer(Tracer):
         self._context.append(span)
         span.set_tags(tags)
 
-        yield span
+        try:
+            yield span
+        finally:
+            # Always clean up context, even if nested operations fail
+            try:
+                # Process span data (may fail with nested pipeline exceptions)
+                self._span_handler.handle(span, component_type)
 
-        # Let the span handler process the span
-        self._span_handler.handle(span, component_type)
+                # End span (may fail if span data is corrupted)
+                raw_span = span.raw_span()
+                if isinstance(raw_span, (StatefulSpanClient, StatefulGenerationClient)):
+                    raw_span.end()
+            except Exception as cleanup_error:
+                # Log cleanup errors but don't let them corrupt context
+                logger.warning(
+                    "Error during span cleanup for {operation_name}: {cleanup_error}",
+                    operation_name=operation_name,
+                    cleanup_error=cleanup_error,
+                )
+            finally:
+                # CRITICAL: Always pop context to prevent corruption
+                # This is especially important for nested pipeline scenarios
+                if self._context and self._context[-1] == span:
+                    self._context.pop()
 
-        # In this section, we finalize both regular spans and generation spans created using the LangfuseSpan class.
-        # It's important to end() these spans to ensure they are properly closed and all relevant data is recorded.
-        # Note that we do not call end() on the main trace span itself (StatefulTraceClient), as its lifecycle is
-        # managed differently.
-        raw_span = span.raw_span()
-        if isinstance(raw_span, (StatefulSpanClient, StatefulGenerationClient)):
-            raw_span.end()
-        self._context.pop()
-
-        if self.enforce_flush:
-            self.flush()
+            if self.enforce_flush:
+                self.flush()
 
     def flush(self) -> None:
         self._tracer.flush()
