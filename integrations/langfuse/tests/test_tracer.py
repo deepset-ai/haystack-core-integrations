@@ -13,8 +13,7 @@ import pytest
 from haystack import Pipeline, component
 from haystack.dataclasses import ChatMessage, ToolCall
 
-from haystack_integrations.components.connectors.langfuse import \
-LangfuseConnector
+from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 from haystack_integrations.tracing.langfuse.tracer import (
     _COMPONENT_OUTPUT_KEY, DefaultSpanHandler, LangfuseSpan, LangfuseTracer,
     SpanContext)
