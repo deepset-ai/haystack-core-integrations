@@ -5,7 +5,7 @@ from haystack.components.rankers import TransformersSimilarityRanker
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever, InMemoryEmbeddingRetriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
-from haystack_integrations.components.connectors import WeaveConnector
+from haystack_integrations.components.connectors.weave import WeaveConnector
 
 
 def index():
