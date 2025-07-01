@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/openrouter-v0.2.0] - 2025-07-01
+
+### 🐛 Bug Fixes
+
+- Fix openrouter types + add py.typed (#2029)
+
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Remove black (#1985)
+
+### 🌀 Miscellaneous
+
+- Test: Remove `test_check_abnormal_completions` - already tested in Haystack (#1842)
+
 ## [integrations/openrouter-v1.0.0] - 2025-05-19
 
 ### 🚀 Features
