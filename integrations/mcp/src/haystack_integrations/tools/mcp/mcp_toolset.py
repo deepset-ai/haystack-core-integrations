@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlparse
 
@@ -13,6 +14,7 @@ from haystack.tools import Tool, Toolset
 
 from .mcp_tool import (
     AsyncExecutor,
+    MCPClient,
     MCPConnectionError,
     MCPServerInfo,
     MCPToolNotFoundError,
@@ -145,13 +147,19 @@ class MCPToolset(Toolset):
                     )
 
             # This is a factory that creates the invocation function for the Tool
-            def create_invoke_tool(mcp_client, tool_name, tool_timeout):
+            def create_invoke_tool(
+                owner_toolset: "MCPToolset",
+                mcp_client: MCPClient,
+                tool_name: str,
+                tool_timeout: float,
+            ) -> Callable[..., Any]:
+                """Return a closure that keeps a strong reference to *owner_toolset* alive."""
+
                 def invoke_tool(**kwargs) -> Any:
-                    """Invoke a tool using the existing client and AsyncExecutor."""
-                    result = AsyncExecutor.get_instance().run(
+                    _ = owner_toolset  # strong reference so GC can't collect the toolset too early
+                    return AsyncExecutor.get_instance().run(
                         mcp_client.call_tool(tool_name, kwargs), timeout=tool_timeout
                     )
-                    return result
 
                 return invoke_tool
 
@@ -170,7 +178,7 @@ class MCPToolset(Toolset):
                     name=tool_info.name,
                     description=tool_info.description,
                     parameters=tool_info.inputSchema,
-                    function=create_invoke_tool(client, tool_info.name, self.invocation_timeout),
+                    function=create_invoke_tool(self, client, tool_info.name, self.invocation_timeout),
                 )
                 haystack_tools.append(tool)
 
