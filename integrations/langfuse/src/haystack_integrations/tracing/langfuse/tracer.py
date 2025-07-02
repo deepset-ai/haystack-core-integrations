@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import contextlib
-import json
 import os
 from abc import ABC, abstractmethod
 from collections import Counter
