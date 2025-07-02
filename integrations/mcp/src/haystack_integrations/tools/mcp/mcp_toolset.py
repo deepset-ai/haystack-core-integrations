@@ -104,7 +104,7 @@ class MCPToolset(Toolset):
 
         :param server_info: Connection information for the MCP server
         :param tool_names: Optional list of tool names to include. If provided, only tools with
-                          matching names will be added to the toolset.
+                          matching names will be added to the toolset
         :param connection_timeout: Timeout in seconds for server connection
         :param invocation_timeout: Default timeout in seconds for tool invocations
         :raises MCPToolNotFoundError: If any of the specified tool names are not found on the server

@@ -49,7 +49,7 @@ class AsyncExecutor:
             return cls._singleton_instance
 
     def __init__(self):
-        """Initialize a dedicated event loop"""
+        """Initialize a dedicated event loop."""
         self._loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()
         self._thread: threading.Thread = threading.Thread(target=self._run_loop, daemon=True)
         self._started = threading.Event()
@@ -59,7 +59,7 @@ class AsyncExecutor:
             raise RuntimeError(message)
 
     def _run_loop(self):
-        """Run the event loop"""
+        """Run the event loop."""
         asyncio.set_event_loop(self._loop)
         self._started.set()
         self._loop.run_forever()
@@ -70,7 +70,7 @@ class AsyncExecutor:
 
         :param coro: Coroutine to execute
         :param timeout: Optional timeout in seconds
-        :return: Result of the coroutine
+        :returns: Result of the coroutine
         :raises TimeoutError: If execution exceeds timeout
         """
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
@@ -93,16 +93,11 @@ class AsyncExecutor:
         self, coro_factory: Callable[[asyncio.Event], Coroutine[Any, Any, Any]], timeout: float | None = None
     ) -> tuple[concurrent.futures.Future[Any], asyncio.Event]:
         """
-        Schedule `coro_factory` to run in the executor's event loop **without** blocking the
-        caller thread.
+        Schedule a coroutine factory to run in the executor's event loop without blocking the caller thread.
 
-        The factory receives an :class:`asyncio.Event` that can be used to cooperatively shut
-        the coroutine down. The method returns **both** the concurrent future (to observe
-        completion or failure) and the created *stop_event* so that callers can signal termination.
-
-        :param coro_factory: A callable receiving the stop_event and returning the coroutine to execute.
-        :param timeout: Optional timeout while waiting for the stop_event to be created.
-        :returns: Tuple ``(future, stop_event)``.
+        :param coro_factory: A callable receiving the stop_event and returning the coroutine to execute
+        :param timeout: Optional timeout while waiting for the stop_event to be created
+        :returns: Tuple of (future, stop_event)
         """
         # A promise that will be fulfilled from inside the coroutine_with_stop_event coroutine once the
         # stop_event is created *inside* the target event loop to ensure it is bound to the
@@ -636,8 +631,10 @@ class StdioServerInfo(MCPServerInfo):
 
 def _extract_error_message(exception: Exception) -> str:
     """
-    Extracts meaningful error message from various exception types.
-    Handles ExceptionGroup, empty messages, etc.
+    Extract meaningful error message from various exception types.
+
+    :param exception: Exception to extract message from
+    :returns: Meaningful error message string
     """
     error_message = str(exception)
     # Handle ExceptionGroup to extract more useful error messages
@@ -656,7 +653,12 @@ def _extract_error_message(exception: Exception) -> str:
 
 def _create_stdio_connection_error_message(server_info: StdioServerInfo, operation: str, context: str) -> str:
     """
-    Creates stdio-specific error messages with command troubleshooting.
+    Create stdio-specific error messages with command troubleshooting.
+
+    :param server_info: Stdio server configuration
+    :param operation: Operation that failed
+    :param context: Context description
+    :returns: Formatted error message with troubleshooting guidance
     """
     base_message = f"Failed to {operation} {context} via stdio"
 
@@ -673,7 +675,13 @@ def _create_http_connection_error_message(
     server_info: SSEServerInfo | StreamableHttpServerInfo, exception: Exception, operation: str, context: str
 ) -> str:
     """
-    Creates HTTP-specific error messages with troubleshooting guidance.
+    Create HTTP-specific error messages with troubleshooting guidance.
+
+    :param server_info: HTTP server configuration
+    :param exception: Original exception that occurred
+    :param operation: Operation that failed
+    :param context: Context description
+    :returns: Formatted error message with troubleshooting guidance
     """
     # Determine transport type
     transport_name = "SSE" if isinstance(server_info, SSEServerInfo) else "streamable HTTP"
@@ -721,8 +729,13 @@ def _create_connection_error_message(
     server_info: MCPServerInfo, exception: Exception, operation: str, context: str = ""
 ) -> str:
     """
-    Creates contextual error messages based on server type and failure details.
-    This replaces the duplicate error handling blocks in both classes.
+    Create contextual error messages based on server type and failure details.
+
+    :param server_info: Server configuration
+    :param exception: Original exception that occurred
+    :param operation: Operation that failed
+    :param context: Context description
+    :returns: Formatted error message with troubleshooting guidance
     """
 
     # Generate server-type specific guidance
@@ -749,8 +762,10 @@ class MCPConnectionManager:
 
     def connect_and_discover_tools(self) -> list[Tool]:
         """
-        Establishes connection and returns available tools.
-        This replaces the duplicate connection logic in both classes.
+        Establish connection and return available tools.
+
+        :returns: List of available tools on the server
+        :raises MCPConnectionError: If connection fails
         """
         try:
             # Create the client and spin up a worker so open/close happen in the
@@ -765,8 +780,11 @@ class MCPConnectionManager:
 
     def validate_requested_tools(self, requested_tool_names: list[str], available_tools: list[Tool]) -> None:
         """
-        Validates that requested tools exist on the server.
-        Shared validation logic between both classes.
+        Validate that requested tools exist on the server.
+
+        :param requested_tool_names: List of tool names that were requested
+        :param available_tools: List of tools available on the server
+        :raises MCPToolNotFoundError: If any requested tools are not found
         """
         available_tool_names = {tool.name for tool in available_tools}
         missing_tools = set(requested_tool_names) - available_tool_names
@@ -781,8 +799,11 @@ class MCPConnectionManager:
 
     def create_tool_invoke_function(self, tool_name: str, invocation_timeout: float):
         """
-        Creates the invoke function that both classes use.
-        MCPTool uses this directly, MCPToolset uses this in its closure factory.
+        Create the invoke function for a specific tool.
+
+        :param tool_name: Name of the tool to create invoke function for
+        :param invocation_timeout: Timeout for tool invocations
+        :returns: Invoke function that can be called with tool arguments
         """
 
         def invoke_tool(**kwargs) -> str:
@@ -818,11 +839,15 @@ class MCPConnectionManager:
         return invoke_tool
 
     def get_client(self) -> MCPClient | None:
-        """Allow direct access to client for MCPTool's async method access"""
+        """
+        Get direct access to the MCP client.
+
+        :returns: The MCP client instance or None if not connected
+        """
         return self._client
 
     def close(self):
-        """Shared cleanup logic"""
+        """Close the connection and clean up resources."""
         if hasattr(self, "_worker") and self._worker:
             try:
                 self._worker.stop()
@@ -977,14 +1002,9 @@ class MCPTool(Tool):
 
     def to_dict(self) -> dict[str, Any]:
         """
-        Serializes the MCPTool to a dictionary.
+        Serialize the MCPTool to a dictionary.
 
-        The serialization preserves all information needed to recreate the tool,
-        including server connection parameters and timeout settings. Note that the
-        active connection is not maintained.
-
-        :returns: Dictionary with serialized data in the format:
-                  {"type": fully_qualified_class_name, "data": {parameters}}
+        :returns: Dictionary with serialized data
         """
         serialized = {
             "name": self.name,
@@ -1001,15 +1021,10 @@ class MCPTool(Tool):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Tool":
         """
-        Deserializes the MCPTool from a dictionary.
-
-        This method reconstructs an MCPTool instance from a serialized dictionary,
-        including recreating the server_info object. A new connection will be established
-        to the MCP server during initialization.
+        Deserialize the MCPTool from a dictionary.
 
         :param data: Dictionary containing serialized tool data
         :returns: A fully initialized MCPTool instance
-        :raises: Various exceptions if connection fails
         """
         # Extract the tool parameters from the data dictionary
         inner_data = data["data"]
@@ -1087,7 +1102,11 @@ class _MCPClientSessionManager:
             raise
 
     def tools(self) -> list[Tool]:
-        """Return the tool list already collected during startup."""
+        """
+        Return the tool list already collected during startup.
+
+        :returns: List of available tools
+        """
 
         return self._tools_promise.result()
 
