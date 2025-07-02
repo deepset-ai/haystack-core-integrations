@@ -200,6 +200,42 @@ def _initialize_streaming_state():
     }
 
 
+def _validate_cohere_chunk(cohere_chunk: StreamedChatResponseV2) -> bool:
+    """Validate that the Cohere chunk has the required structure."""
+    return cohere_chunk is not None
+
+
+def _extract_chunk_content(cohere_chunk: StreamedChatResponseV2) -> Optional[str]:
+    """Extract text content from a Cohere streaming chunk."""
+    if cohere_chunk.type == "content-delta":
+        return cohere_chunk.delta.message.content.text
+    elif cohere_chunk.type == "tool-plan-delta":
+        return cohere_chunk.delta.message.tool_plan
+    return None
+
+
+def _process_tool_call_delta(
+    cohere_chunk: StreamedChatResponseV2, current_tool_call: Optional[ToolCall]
+) -> Optional[ToolCall]:
+    """Process tool call information from a chunk delta."""
+    if cohere_chunk.type == "tool-call-start":
+        tool_call = cohere_chunk.delta.message.tool_calls
+        return ToolCall(
+            id=tool_call.id,
+            tool_name=tool_call.function.name,
+            arguments={},
+        )
+    return current_tool_call
+
+
+def _finalize_tool_call(tool_call: ToolCall, tool_arguments: str) -> Optional[ToolCall]:
+    """Finalize and validate a completed tool call."""
+    if tool_call:
+        tool_call.arguments = json.loads(tool_arguments)
+        return tool_call
+    return None
+
+
 def _process_streaming_chunk(chunk, state, model):
     """
     Process a single streaming chunk and update the parsing state.
@@ -209,30 +245,27 @@ def _process_streaming_chunk(chunk, state, model):
     :param model: Model name for metadata
     :return: Content to stream (if any), None otherwise
     """
-    if not chunk:
+    if not _validate_cohere_chunk(chunk):
         return None
 
-    if chunk.type == "content-delta":
-        content = chunk.delta.message.content.text
-        state["response_text"] += content
+    # Extract content for streaming
+    content = _extract_chunk_content(chunk)
+    if content is not None:
+        if chunk.type == "content-delta":
+            state["response_text"] += content
+        elif chunk.type == "tool-plan-delta":
+            state["tool_plan"] += content
         return content
-    elif chunk.type == "tool-plan-delta":
-        content = chunk.delta.message.tool_plan
-        state["tool_plan"] += content
-        return content
-    elif chunk.type == "tool-call-start":
-        tool_call = chunk.delta.message.tool_calls
-        state["current_tool_call"] = ToolCall(
-            id=tool_call.id,
-            tool_name=tool_call.function.name,
-            arguments={},
-        )
+
+    # Handle tool call processing
+    if chunk.type == "tool-call-start":
+        state["current_tool_call"] = _process_tool_call_delta(chunk, state["current_tool_call"])
     elif chunk.type == "tool-call-delta":
         state["current_tool_arguments"] += chunk.delta.message.tool_calls.function.arguments
     elif chunk.type == "tool-call-end":
-        if state["current_tool_call"]:
-            state["current_tool_call"].arguments = json.loads(state["current_tool_arguments"])
-            state["tool_calls"].append(state["current_tool_call"])
+        finalized_tool_call = _finalize_tool_call(state["current_tool_call"], state["current_tool_arguments"])
+        if finalized_tool_call:
+            state["tool_calls"].append(finalized_tool_call)
             state["current_tool_call"] = None
             state["current_tool_arguments"] = ""
     elif chunk.type == "message-end":

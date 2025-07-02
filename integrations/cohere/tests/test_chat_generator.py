@@ -14,10 +14,14 @@ from haystack_integrations.components.generators.cohere import (
     CohereChatGenerator,
 )
 from haystack_integrations.components.generators.cohere.chat.chat_generator import (
+    _extract_chunk_content,
     _finalize_streaming_message,
+    _finalize_tool_call,
     _format_message,
     _initialize_streaming_state,
     _process_streaming_chunk,
+    _process_tool_call_delta,
+    _validate_cohere_chunk,
 )
 
 
@@ -158,6 +162,77 @@ class TestUtils:
         assert message.text == "Simple response text"
         assert len(message.tool_calls) == 0
         assert message.meta["model"] == "test-model"
+
+    # Tests for the new decomposed functions
+    def test_validate_cohere_chunk(self):
+        """Test chunk validation function."""
+        # Test with None chunk
+        assert not _validate_cohere_chunk(None)
+
+        # Test with valid chunk
+        chunk = Mock()
+        assert _validate_cohere_chunk(chunk)
+
+    def test_extract_chunk_content(self):
+        """Test content extraction function."""
+        # Test content-delta
+        chunk = Mock()
+        chunk.type = "content-delta"
+        chunk.delta.message.content.text = "Hello"
+
+        result = _extract_chunk_content(chunk)
+        assert result == "Hello"
+
+        # Test tool-plan-delta
+        chunk = Mock()
+        chunk.type = "tool-plan-delta"
+        chunk.delta.message.tool_plan = "Plan text"
+
+        result = _extract_chunk_content(chunk)
+        assert result == "Plan text"
+
+        # Test unknown type
+        chunk = Mock()
+        chunk.type = "unknown-type"
+
+        result = _extract_chunk_content(chunk)
+        assert result is None
+
+    def test_process_tool_call_delta(self):
+        """Test tool call delta processing."""
+        # Test tool-call-start
+        chunk = Mock()
+        chunk.type = "tool-call-start"
+        chunk.delta.message.tool_calls.id = "test-id"
+        chunk.delta.message.tool_calls.function.name = "test_function"
+
+        result = _process_tool_call_delta(chunk, None)
+        assert result is not None
+        assert result.id == "test-id"
+        assert result.tool_name == "test_function"
+        assert result.arguments == {}
+
+        # Test non-tool-call-start
+        chunk = Mock()
+        chunk.type = "content-delta"
+
+        existing_tool_call = Mock()
+        result = _process_tool_call_delta(chunk, existing_tool_call)
+        assert result == existing_tool_call
+
+    def test_finalize_tool_call(self):
+        """Test tool call finalization."""
+        # Test with valid tool call
+        tool_call = ToolCall(id="test-id", tool_name="test_function", arguments={})
+        tool_arguments = '{"key": "value"}'
+
+        result = _finalize_tool_call(tool_call, tool_arguments)
+        assert result is not None
+        assert result.arguments == {"key": "value"}
+
+        # Test with None tool call
+        result = _finalize_tool_call(None, '{"key": "value"}')
+        assert result is None
 
 
 class TestCohereChatGenerator:
