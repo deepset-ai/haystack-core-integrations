@@ -629,28 +629,6 @@ class StdioServerInfo(MCPServerInfo):
         return StdioClient(self.command, self.args, self.env)
 
 
-def _extract_error_message(exception: Exception) -> str:
-    """
-    Extract meaningful error message from various exception types.
-
-    :param exception: Exception to extract message from
-    :returns: Meaningful error message string
-    """
-    error_message = str(exception)
-    # Handle ExceptionGroup to extract more useful error messages
-    if isinstance(exception, ExceptionGroup):
-        if exception.exceptions:
-            first_exception = exception.exceptions[0]
-            error_message = first_exception.message if hasattr(first_exception, "message") else str(first_exception)
-
-    # Ensure we always have a meaningful error message
-    if not error_message or error_message.strip() == "":
-        # Provide platform-independent fallback message for connection errors
-        error_message = "Connection failed to MCP server"
-
-    return error_message
-
-
 def _create_stdio_connection_error_message(server_info: StdioServerInfo, operation: str, context: str) -> str:
     """
     Create stdio-specific error messages with command troubleshooting.
@@ -744,7 +722,18 @@ def _create_connection_error_message(
     elif isinstance(server_info, StdioServerInfo):
         return _create_stdio_connection_error_message(server_info, operation, context)
     else:
-        error_message = _extract_error_message(exception)
+        error_message = str(exception)
+        # Handle ExceptionGroup to extract more useful error messages
+        if isinstance(exception, ExceptionGroup):
+            if exception.exceptions:
+                first_exception = exception.exceptions[0]
+                error_message = first_exception.message if hasattr(first_exception, "message") else str(first_exception)
+
+        # Ensure we always have a meaningful error message
+        if not error_message or error_message.strip() == "":
+            # Provide platform-independent fallback message for connection errors
+            error_message = "Connection failed to MCP server"
+
         return f"Failed to {operation} {context}: {error_message}"
 
 
