@@ -24,7 +24,7 @@ document_embedder = WatsonXDocumentEmbedder(
     model="ibm/slate-125m-english-rtrvr",
     api_key=Secret.from_env_var("WATSONX_API_KEY"),
     project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
-    url="https://us-south.ml.cloud.ibm.com",
+    api_base_url="https://us-south.ml.cloud.ibm.com",
 )
 documents_with_embeddings = document_embedder.run(documents)["documents"]
 
@@ -38,7 +38,7 @@ query_pipeline.add_component(
         model="ibm/slate-125m-english-rtrvr",
         api_key=Secret.from_env_var("WATSONX_API_KEY"),
         project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
-        url="https://us-south.ml.cloud.ibm.com",
+        api_base_url="https://us-south.ml.cloud.ibm.com",
     ),
 )
 query_pipeline.add_component("retriever", InMemoryEmbeddingRetriever(document_store=document_store))

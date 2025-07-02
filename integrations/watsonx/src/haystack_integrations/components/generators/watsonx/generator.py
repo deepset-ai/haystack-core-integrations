@@ -5,7 +5,7 @@
 from typing import Any
 
 from haystack import component, logging
-from haystack.dataclasses import ChatMessage, StreamingCallbackT
+from haystack.dataclasses import ChatMessage, StreamingCallbackT, select_streaming_callback
 
 from .chat.chat_generator import WatsonxChatGenerator
 
@@ -71,14 +71,12 @@ class WatsonxGenerator(WatsonxChatGenerator):
         ],
     }
     ```
-
-    The component also supports streaming responses and function calling through
-    watsonx.ai's tools parameter.
     """
 
     @component.output_types(replies=list[str], meta=list[dict[str, Any]])
     def run(  # type: ignore[override]
         self,
+        *,
         prompt: str,
         system_prompt: str | None = None,
         streaming_callback: StreamingCallbackT | None = None,
@@ -87,12 +85,26 @@ class WatsonxGenerator(WatsonxChatGenerator):
         """
         Generate text completions synchronously.
 
-        :param prompt: The input prompt for text generation
-        :param system_prompt: Optional system prompt to set context/instructions
-        :param streaming_callback: Optional callback function for streaming responses
-        :param generation_kwargs: Additional generation parameters
-        :return: Dictionary with 'replies' (List[str]) and 'meta' (List[Dict[str, Any]])
+        :param prompt:
+            The input prompt string for text generation.
+        :param system_prompt:
+            An optional system prompt to provide context or instructions for the generation.
+        :param streaming_callback:
+            A callback function that is called when a new token is received from the stream.
+            If provided, this will override the `streaming_callback` set in the `__init__` method.
+        :param generation_kwargs:
+            Additional keyword arguments for text generation. These parameters will potentially override the parameters
+            passed in the `__init__` method. Supported parameters include temperature, max_new_tokens, top_p, etc.
+        :returns:
+            A dictionary with the following keys:
+            - `replies`: A list of generated text completions as strings.
+            - `meta`: A list of metadata dictionaries containing information about each generation,
+            including model name, finish reason, and token usage statistics.
         """
+        streaming_callback = select_streaming_callback(
+            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
+        )
+
         messages = self._prepare_messages(prompt, system_prompt)
 
         chat_response = WatsonxChatGenerator.run(
@@ -104,6 +116,7 @@ class WatsonxGenerator(WatsonxChatGenerator):
     @component.output_types(replies=list[str], meta=list[dict[str, Any]])
     async def run_async(  # type: ignore[override]
         self,
+        *,
         prompt: str,
         system_prompt: str | None = None,
         streaming_callback: StreamingCallbackT | None = None,
@@ -112,12 +125,25 @@ class WatsonxGenerator(WatsonxChatGenerator):
         """
         Generate text completions asynchronously.
 
-        :param prompt: The input prompt for text generation
-        :param system_prompt: Optional system prompt to set context/instructions
-        :param streaming_callback: Optional callback function for streaming responses
-        :param generation_kwargs: Additional generation parameters
-        :return: Dictionary with 'replies' (List[str]) and 'meta' (List[Dict[str, Any]])
+        :param prompt:
+            The input prompt string for text generation.
+        :param system_prompt:
+            An optional system prompt to provide context or instructions for the generation.
+        :param streaming_callback:
+            A callback function that is called when a new token is received from the stream.
+            If provided, this will override the `streaming_callback` set in the `__init__` method.
+        :param generation_kwargs:
+            Additional keyword arguments for text generation. These parameters will potentially override the parameters
+            passed in the `__init__` method. Supported parameters include temperature, max_new_tokens, top_p, etc.
+        :returns:
+            A dictionary with the following keys:
+            - `replies`: A list of generated text completions as strings.
+            - `meta`: A list of metadata dictionaries containing information about each generation,
+            including model name, finish reason, and token usage statistics.
         """
+        streaming_callback = select_streaming_callback(
+            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=True
+        )
         messages = self._prepare_messages(prompt, system_prompt)
 
         chat_response = await WatsonxChatGenerator.run_async(

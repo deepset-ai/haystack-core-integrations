@@ -2,20 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import asyncio
-import json
-import os
 from datetime import datetime, timezone
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import (
+    AsyncStreamingCallbackT,
     ChatMessage,
     StreamingCallbackT,
     StreamingChunk,
-    ToolCall,
+    select_streaming_callback,
 )
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 from ibm_watsonx_ai import Credentials
 from ibm_watsonx_ai.foundation_models import ModelInference
 
@@ -73,23 +71,20 @@ class WatsonxChatGenerator:
         ]
     }
     ```
-
-    The component also supports streaming responses and function calling through
-    watsonx.ai's tools parameter.
     """
 
     def __init__(
         self,
         *,
-        api_key: Secret | None = None,
-        model: str = "ibm/granite-13b-chat-v2",
-        project_id: Secret | None = None,
-        api_base_url: str | None = None,
+        api_key: Secret = Secret.from_env_var("WATSONX_API_KEY"),  # noqa: B008
+        model: str = "ibm/granite-3-2b-instruct",
+        project_id: Secret = Secret.from_env_var("WATSONX_PROJECT_ID"),  # noqa: B008
+        api_base_url: str = "https://us-south.ml.cloud.ibm.com",
         generation_kwargs: dict[str, Any] | None = None,
         timeout: float | None = None,
         max_retries: int | None = None,
-        tools: list[dict[str, Any]] | None = None,
         verify: bool | str | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
     ):
         """
         Initializes the WatsonxChatGenerator with connection and generation parameters.
@@ -121,29 +116,21 @@ class WatsonxChatGenerator:
             Defaults to environment variable `WATSONX_TIMEOUT` or 30 seconds.
         :param max_retries: Maximum number of retry attempts for failed requests.
             Defaults to environment variable `WATSONX_MAX_RETRIES` or 5.
-        :param tools: List of tools in Watsonx format for function calling.
-            Each tool should be a dictionary with:
-            - `name`: Tool name
-            - `description`: Tool description
-            - `parameters`: JSON schema for parameters
         :param verify: SSL verification setting. Can be:
             - True: Verify SSL certificates (default)
             - False: Skip verification (insecure)
             - Path to CA bundle for custom certificates
+        :param streaming_callback: A callback function for streaming responses.
         """
-        self.api_key = api_key or Secret.from_env_var("WATSONX_API_KEY")
+        self.api_key = api_key
         self.model = model
-        self.project_id = project_id or Secret.from_env_var("WATSONX_PROJECT_ID")
-        self.api_base_url = api_base_url or "https://us-south.ml.cloud.ibm.com"
+        self.project_id = project_id
+        self.api_base_url = api_base_url
         self.generation_kwargs = generation_kwargs or {}
-        self.timeout = timeout or float(os.environ.get("WATSONX_TIMEOUT", "30.0"))
-        self.max_retries = max_retries or int(os.environ.get("WATSONX_MAX_RETRIES", "5"))
-        self.tools = tools
+        self.timeout = timeout
+        self.max_retries = max_retries
         self.verify = verify
-
-        if not project_id:
-            msg = "project_id must be provided"
-            raise ValueError(msg)
+        self.streaming_callback = streaming_callback
 
         self._initialize_client()
 
@@ -154,36 +141,41 @@ class WatsonxChatGenerator:
         self.client = ModelInference(
             model_id=self.model,
             credentials=credentials,
-            project_id=self.project_id.resolve_value() if self.project_id else None,
+            project_id=self.project_id.resolve_value(),
             verify=self.verify,
             max_retries=self.max_retries,
-            delay_time=0.5,
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the component to a dictionary."""
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         return default_to_dict(
             self,
             model=self.model,
-            project_id=self.project_id.to_dict() if self.project_id else None,
+            project_id=self.project_id.to_dict(),
             api_base_url=self.api_base_url,
             generation_kwargs=self.generation_kwargs,
             api_key=self.api_key.to_dict(),
             timeout=self.timeout,
             max_retries=self.max_retries,
-            tools=self.tools,
             verify=self.verify,
+            streaming_callback=callback_name,
         )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WatsonxChatGenerator":
         """Deserialize the component from a dictionary."""
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id"])
+        init_params = data.get("init_parameters", {})
+        serialized_callback = init_params.get("streaming_callback")
+        if serialized_callback:
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback)
         return default_from_dict(cls, data)
 
     @component.output_types(replies=list[ChatMessage])
     def run(
         self,
+        *,
         messages: list[ChatMessage],
         generation_kwargs: dict[str, Any] | None = None,
         streaming_callback: StreamingCallbackT | None = None,
@@ -191,24 +183,36 @@ class WatsonxChatGenerator:
         """
         Generate chat completions synchronously.
 
-        :param messages: List of ChatMessage objects
-        :param generation_kwargs: Additional generation parameters
-        :param streaming_callback: Callback function for streaming responses
-        :return: Dictionary with generated replies
+        :param messages:
+            A list of ChatMessage instances representing the input messages.
+        :param generation_kwargs:
+            Additional keyword arguments for text generation. These parameters will potentially override the parameters
+            passed in the `__init__` method.
+        :param streaming_callback:
+            A callback function that is called when a new token is received from the stream.
+            If provided this will override the `streaming_callback` set in the `__init__` method.
+        :returns:
+            A dictionary with the following key:
+            - `replies`: A list containing the generated responses as ChatMessage instances.
         """
         if not messages:
             return {"replies": []}
 
+        streaming_callback = select_streaming_callback(
+            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
+        )
+
         api_args = self._prepare_api_call(messages=messages, generation_kwargs=generation_kwargs)
 
-        if streaming_callback is not None:
-            return self._handle_streaming(api_args, streaming_callback)
+        if streaming_callback:
+            return self._handle_streaming(api_args=api_args, callback=streaming_callback)
 
         return self._handle_standard(api_args)
 
     @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
+        *,
         messages: list[ChatMessage],
         generation_kwargs: dict[str, Any] | None = None,
         streaming_callback: StreamingCallbackT | None = None,
@@ -216,20 +220,32 @@ class WatsonxChatGenerator:
         """
         Generate chat completions asynchronously.
 
-        :param messages: List of ChatMessage objects
-        :param generation_kwargs: Additional generation parameters
-        :param streaming_callback: Callback function for streaming responses
-        :return: Dictionary with generated replies
+        :param messages:
+            A list of ChatMessage instances representing the input messages.
+        :param generation_kwargs:
+            Additional keyword arguments for text generation. These parameters will potentially override the parameters
+            passed in the `__init__` method.
+        :param streaming_callback:
+            A callback function that is called when a new token is received from the stream.
+            If provided this will override the `streaming_callback` set in the `__init__` method.
+        :returns:
+            A dictionary with the following key:
+            - `replies`: A list containing the generated responses as ChatMessage instances.
         """
         if not messages:
             return {"replies": []}
 
+        streaming_callback = select_streaming_callback(
+            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=True
+        )
+
         api_args = self._prepare_api_call(messages=messages, generation_kwargs=generation_kwargs)
 
-        if streaming_callback is not None:
-            return await self._handle_async_streaming(api_args, streaming_callback)
-
-        return await self._handle_async_standard(api_args)
+        if streaming_callback:
+            async_callback: AsyncStreamingCallbackT = streaming_callback  # type: ignore[assignment]
+            return await self._handle_async_streaming(api_args=api_args, callback=async_callback)
+        else:
+            return await self._handle_async_standard(api_args)
 
     def _prepare_api_call(
         self, *, messages: list[ChatMessage], generation_kwargs: dict[str, Any] | None = None
@@ -243,15 +259,9 @@ class WatsonxChatGenerator:
                 content = msg.text
             elif msg.is_from("assistant"):
                 content = msg.text
-                if msg.tool_calls:
-                    merged_kwargs["tools"] = [
-                        {"name": tc.tool_name, "description": "", "parameters": tc.arguments} for tc in msg.tool_calls
-                    ]
             elif msg.is_from("tool"):
-                content = {
-                    "tool_call_id": msg.tool_call_results[0].origin.id,
-                    "content": msg.tool_call_results[0].result,
-                }
+                logger.debug("Skipping tool message - tool calls are not currently supported")
+                continue
             else:
                 content = msg.text
 
@@ -266,6 +276,7 @@ class WatsonxChatGenerator:
 
     def _handle_streaming(
         self,
+        *,
         api_args: dict[str, Any],
         callback: StreamingCallbackT,
     ) -> dict[str, list[ChatMessage]]:
@@ -298,8 +309,9 @@ class WatsonxChatGenerator:
 
     async def _handle_async_streaming(
         self,
+        *,
         api_args: dict[str, Any],
-        callback: StreamingCallbackT,
+        callback: AsyncStreamingCallbackT,
     ) -> dict[str, list[ChatMessage]]:
         """Handle asynchronous streaming response."""
         chunks: list[StreamingChunk] = []
@@ -319,13 +331,8 @@ class WatsonxChatGenerator:
                 }
                 streaming_chunk = StreamingChunk(content=content, meta=chunk_meta)
                 chunks.append(streaming_chunk)
-                try:
-                    result = callback(streaming_chunk)
-                    if asyncio.iscoroutine(result):
-                        await result
-                except Exception:
-                    # Fallback to sync call if async fails
-                    callback(streaming_chunk)
+                await callback(streaming_chunk)
+
         return {"replies": [self._convert_streaming_chunks_to_chat_message(chunks)]}
 
     def _convert_streaming_chunks_to_chat_message(self, chunks: list[StreamingChunk]) -> ChatMessage:
@@ -341,7 +348,7 @@ class WatsonxChatGenerator:
             meta={
                 "model": self.model,
                 "finish_reason": last_chunk_meta.get("finish_reason"),
-                "usage": {},
+                "usage": last_chunk_meta.get("usage", {}),
                 "chunks_count": len(chunks),
             },
         )
@@ -358,28 +365,10 @@ class WatsonxChatGenerator:
 
         choice = response["choices"][0]
         message = choice.get("message", {})
-        content = message.get("content", "")
-        tool_calls = []
-
-        if "tool_calls" in message:
-            for tc in message["tool_calls"]:
-                if tc["type"] == "function":
-                    try:
-                        arguments = json.loads(tc["function"]["arguments"])
-                        tool_calls.append(
-                            ToolCall(id=tc.get("id"), tool_name=tc["function"]["name"], arguments=arguments)
-                        )
-                    except json.JSONDecodeError:
-                        logger.warning(
-                            "Failed to parse tool call arguments: {tool_call_args}",
-                            tool_call_args=tc["function"]["arguments"],
-                        )
-
         return {
             "replies": [
                 ChatMessage.from_assistant(
-                    text=content,
-                    tool_calls=tool_calls,
+                    text=message.get("content", ""),
                     meta={
                         "model": self.model,
                         "index": choice.get("index", 0),

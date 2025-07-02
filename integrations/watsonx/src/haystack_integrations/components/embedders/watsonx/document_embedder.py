@@ -33,7 +33,7 @@ class WatsonXDocumentEmbedder:
     document_embedder = WatsonXDocumentEmbedder(
         model="ibm/slate-30m-english-rtrvr",
         api_key=Secret.from_env_var("WATSONX_API_KEY"),
-        url="https://us-south.ml.cloud.ibm.com",
+        api_base_url="https://us-south.ml.cloud.ibm.com",
         project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
     )
 
@@ -48,9 +48,9 @@ class WatsonXDocumentEmbedder:
         self,
         *,
         model: str = "ibm/slate-30m-english-rtrvr",
-        api_key: Secret | None = None,
-        url: str = "https://us-south.ml.cloud.ibm.com",
-        project_id: Secret | None = None,
+        api_key: Secret = Secret.from_env_var("WATSONX_API_KEY"),  # noqa: B008
+        api_base_url: str = "https://us-south.ml.cloud.ibm.com",
+        project_id: Secret = Secret.from_env_var("WATSONX_PROJECT_ID"),  # noqa: B008
         truncate_input_tokens: int | None = None,
         prefix: str = "",
         suffix: str = "",
@@ -69,7 +69,7 @@ class WatsonXDocumentEmbedder:
             Default is "ibm/slate-30m-english-rtrvr".
         :param api_key:
             The WATSONX API key. Can be set via environment variable WATSONX_API_KEY.
-        :param url:
+        :param api_base_url:
             The WATSONX URL for the watsonx.ai service.
             Default is "https://us-south.ml.cloud.ibm.com".
         :param project_id:
@@ -77,6 +77,7 @@ class WatsonXDocumentEmbedder:
             Can be set via environment variable WATSONX_PROJECT_ID.
         :param truncate_input_tokens:
             Maximum number of tokens to use from the input text.
+            If set to `None` (or not provided), the full input text is used, up to the model's maximum token limit.
         :param prefix:
             A string to add at the beginning of each text.
         :param suffix:
@@ -90,16 +91,10 @@ class WatsonXDocumentEmbedder:
         :param max_retries:
             Maximum number of retries for API requests.
         """
-        if api_key is None:
-            api_key = Secret.from_env_var("WATSONX_API_KEY")
-
-        if not project_id:
-            msg = "project_id must be provided"
-            raise ValueError(msg)
 
         self.model = model
         self.api_key = api_key
-        self.url = url
+        self.api_base_url = api_base_url
         self.project_id = project_id
         self.truncate_input_tokens = truncate_input_tokens
         self.prefix = prefix
@@ -112,18 +107,16 @@ class WatsonXDocumentEmbedder:
         self.embedding_separator = embedding_separator
 
         # Initialize the embeddings client
-        credentials = Credentials(api_key=api_key.resolve_value(), url=url)
+        credentials = Credentials(api_key=api_key.resolve_value(), url=api_base_url)
 
         params = {}
         if truncate_input_tokens is not None:
             params["truncate_input_tokens"] = truncate_input_tokens
 
-        project_id_value = project_id.resolve_value() if isinstance(project_id, Secret) else project_id
-
         self.embedder = Embeddings(
             model_id=model,
             credentials=credentials,
-            project_id=project_id_value,
+            project_id=project_id.resolve_value(),
             params=params if params else None,
             batch_size=batch_size,
             concurrency_limit=concurrency_limit,
@@ -144,8 +137,8 @@ class WatsonXDocumentEmbedder:
             self,
             model=self.model,
             api_key=self.api_key.to_dict(),
-            url=self.url,
-            project_id=self.project_id.to_dict() if self.project_id else None,
+            api_base_url=self.api_base_url,
+            project_id=self.project_id.to_dict(),
             truncate_input_tokens=self.truncate_input_tokens,
             prefix=self.prefix,
             suffix=self.suffix,
@@ -153,6 +146,8 @@ class WatsonXDocumentEmbedder:
             concurrency_limit=self.concurrency_limit,
             timeout=self.timeout,
             max_retries=self.max_retries,
+            meta_fields_to_embed=self.meta_fields_to_embed,
+            embedding_separator=self.embedding_separator,
         )
 
     @classmethod

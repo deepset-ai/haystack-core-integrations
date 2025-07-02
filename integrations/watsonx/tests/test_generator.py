@@ -115,7 +115,7 @@ class TestWatsonxGenerator:
     def test_init_fails_without_project_id(self, mock_watsonx):
         os.environ.pop("WATSONX_PROJECT_ID", None)
 
-        with pytest.raises(ValueError, match="project_id must be provided"):
+        with pytest.raises(ValueError, match="None of the following authentication environment variables are set"):
             WatsonxGenerator(api_key=Secret.from_token("test-api-key"), model="ibm/granite-3-2b-instruct")
 
     def test_to_dict(self, mock_watsonx):
@@ -136,9 +136,9 @@ class TestWatsonxGenerator:
                 "api_base_url": "https://us-south.ml.cloud.ibm.com",
                 "generation_kwargs": {"max_tokens": 100},
                 "verify": None,
-                "timeout": 30.0,
-                "max_retries": 5,
-                "tools": None,
+                "timeout": None,
+                "max_retries": None,
+                "streaming_callback": None,
             },
         }
         assert data == expected
