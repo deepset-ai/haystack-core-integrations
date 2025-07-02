@@ -1264,8 +1264,7 @@ class TestAnthropicChatGenerator:
         component.run(messages)
 
         # Check caplog for the warning message that should have been logged
-        assert any("Prompt caching" in record.message for record in caplog.records)
-
+        assert not any("Prompt caching is not enabled" in record.message for record in caplog.records)
         # Check that the Anthropic API was called without cache_control in messages so that it does not raise an error
         _, kwargs = mock_chat_completion.call_args
         for msg in kwargs["messages"]:
@@ -1324,7 +1323,74 @@ class TestAnthropicChatGenerator:
         component = AnthropicChatGenerator.from_dict(data)
         assert component.generation_kwargs["extra_headers"]["anthropic-beta"] == "prompt-caching-2024-07-31"
 
-    @pytest.mark.integration
+    def test_cache_control_fallback_to_5m_without_beta_header(
+       self, monkeypatch, mock_chat_completion, caplog
+    ):
+        """
+        The user requested cache_control.ttl='1h' but did not provide the 'extended-cache-ttl-2025-04-11' beta header.
+        Expected behavior
+        The logger should write a warning.
+        The code should downgrade the TTL from 1h to 5m, but should not remove the cache_control field..
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        component = AnthropicChatGenerator()
+
+        messages = [
+            ChatMessage.from_system("System message"),
+            ChatMessage.from_user("User message"),
+        ]
+        for msg in messages:
+            msg._meta["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
+
+        with caplog.at_level(logging.WARNING):
+            component.run(messages)
+
+        assert any(
+            "You used cache_control.ttl='1h'" in rec.message for rec in caplog.records
+        )
+
+        _, kwargs   = mock_chat_completion.call_args
+        sent_blocks = kwargs.get("system", []) + kwargs.get("messages", [])
+
+        for blk in sent_blocks:
+            if "cache_control" in blk:
+                assert blk["cache_control"]["ttl"] == "5m"
+                assert blk["cache_control"]["type"] == "ephemeral"
+
+
+
+    @pytest.mark.parametrize(
+        "beta_header, expect_warning",
+        [
+            ("featureA, extended-cache-ttl-2025-04-11,featureB", False),   # exits
+            ("featureA ,  featureB", True),                               # none
+        ],
+    )
+    def test_multi_beta_header_handling(self, monkeypatch, mock_chat_completion, caplog, beta_header, expect_warning):
+        """
+        When the user sends multiple beta features:
+        If 1h TTL is requested and 'extended-cache-ttl' is not present, we should issue a warning.
+        If it is present, no warning should be issued.
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        generation_kwargs = {"extra_headers": {"anthropic-beta": beta_header}}
+        component = AnthropicChatGenerator(generation_kwargs=generation_kwargs)
+
+        sys_msg = ChatMessage.from_system("System")
+        sys_msg._meta["cache_control"] = {"ttl": "1h"}
+
+        with caplog.at_level(logging.WARNING):
+            component.run([sys_msg, ChatMessage.from_user("Hi")])
+
+        if expect_warning:
+            assert any("ttl='1h' but did not include" in rec.message for rec in caplog.records)
+        else:
+           assert not any("ttl='1h' but did not include" in rec.message for rec in caplog.records)
+        _, kwargs = mock_chat_completion.call_args
+
+        assert kwargs.get("extra_headers", {}).get("anthropic-beta", "") == beta_header
+    
     @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY", None), reason="ANTHROPIC_API_KEY not set")
     @pytest.mark.parametrize("cache_enabled", [True, False])
     def test_prompt_caching_live_run(self, cache_enabled):

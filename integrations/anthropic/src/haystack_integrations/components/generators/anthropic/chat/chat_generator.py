@@ -485,20 +485,20 @@ class AnthropicChatGenerator:
 
         # prompt caching
         extra_headers = generation_kwargs.get("extra_headers", {})
-        prompt_caching_on = "anthropic-beta" in extra_headers and "prompt-caching" in extra_headers["anthropic-beta"]
-        has_cached_messages = any(m.get("cache_control") is not None for m in system_messages) or any(
-            m.get("cache_control") is not None for m in non_system_messages
-        )
-        if has_cached_messages and not prompt_caching_on:
-            # this avoids Anthropic errors when prompt caching is not enabled
-            # but user requested individual messages to be cached
-            logger.warn(
-                "Prompt caching is not enabled but you requested individual messages to be cached. "
-                "Messages will be sent to the API without prompt caching."
-            )
-            for message in system_messages:
-                if message.get("cache_control"):
-                    del message["cache_control"]
+        raw_header = extra_headers.get("anthropic-beta", "")
+        beta_features = {f.strip() for f in raw_header.split(",") if f.strip()}
+        def _needs_extended_ttl(blocks) -> bool:
+            return any(b.get("cache_control", {}).get("ttl") == "1h" for b in blocks)
+
+        if _needs_extended_ttl(system_messages + non_system_messages) and "extended-cache-ttl-2025-04-11" not in beta_features:
+          logger.warn(
+            "You used cache_control.ttl='1h' but did not include the 'extended-cache-ttl-2025-04-11' "
+            "beta feature in extra_headers – falling back to the default 5-minute TTL to avoid an API error."
+          )
+          for message in system_messages + non_system_messages:
+            cache_control = message.get("cache_control")
+            if cache_control and cache_control.get("ttl") == "1h":
+                cache_control["ttl"] = "5m"
 
         # tools management
         tools = tools or self.tools
