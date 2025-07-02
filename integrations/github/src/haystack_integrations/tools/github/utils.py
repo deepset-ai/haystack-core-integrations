@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Callable, Dict, List, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from haystack import Document
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
@@ -20,10 +20,10 @@ def message_handler(documents: List[Document], max_length: int = 150_000) -> str
     result_str = ""
     for document in documents:
         if document.meta["type"] in ["file", "dir", "error"]:
-            result_str += document.content + "\n"
+            result_str += document.content or "" + "\n"
         else:
             result_str += f"File Content for {document.meta['path']}\n\n"
-            result_str += document.content
+            result_str += document.content or ""
 
     if len(result_str) > max_length:
         result_str = result_str[:max_length] + "...(large file can't be fully displayed)"
@@ -33,8 +33,8 @@ def message_handler(documents: List[Document], max_length: int = 150_000) -> str
 
 def serialize_handlers(
     serialized: Dict[str, Any],
-    outputs_to_state: Dict[str, Dict[str, Union[str, Callable]]],
-    outputs_to_string: Dict[str, Union[str, Callable[[Any], str]]],
+    outputs_to_state: Optional[Dict[str, Dict[str, Union[str, Callable]]]],
+    outputs_to_string: Optional[Dict[str, Union[str, Callable[[Any], str]]]],
 ) -> None:
     """
     Serializes callable handlers in outputs_to_state and outputs_to_string.
@@ -48,12 +48,18 @@ def serialize_handlers(
         for key, config in outputs_to_state.items():
             serialized_config = config.copy()
             if "handler" in config:
+                if not callable(config["handler"]):
+                    msg = f"Handler for outputs_to_state[{key}] is not a callable"
+                    raise ValueError(msg)
                 serialized_config["handler"] = serialize_callable(config["handler"])
             serialized_outputs[key] = serialized_config
         serialized["outputs_to_state"] = serialized_outputs
 
     if outputs_to_string is not None and "handler" in outputs_to_string:
         serialized_string = outputs_to_string.copy()
+        if not callable(outputs_to_string["handler"]):
+            msg = "Handler for outputs_to_string is not a callable"
+            raise ValueError(msg)
         serialized_string["handler"] = serialize_callable(outputs_to_string["handler"])
         serialized["outputs_to_string"] = serialized_string
 

@@ -10,7 +10,7 @@ from haystack.core.errors import PipelineRuntimeError
 from haystack.tracing import tracer as haystack_configured_tracer
 from weave.trace.autopatch import AutopatchSettings
 
-from haystack_integrations.components.connectors import WeaveConnector
+from haystack_integrations.components.connectors.weave import WeaveConnector
 from haystack_integrations.tracing.weave import WeaveTracer
 
 
@@ -53,7 +53,7 @@ class TestWeaveConnector:
 
         assert serialized["init_parameters"]["pipeline_name"] == "test_pipeline"
         assert "type" in serialized
-        assert serialized["type"] == "haystack_integrations.components.connectors.weave_connector.WeaveConnector"
+        assert serialized["type"] == "haystack_integrations.components.connectors.weave.weave_connector.WeaveConnector"
 
         deserialized = WeaveConnector.from_dict(serialized)
 
@@ -73,7 +73,7 @@ class TestWeaveConnector:
         assert serialized["init_parameters"]["pipeline_name"] == "test_pipeline"
         assert serialized["init_parameters"]["weave_init_kwargs"] == {"autopatch_settings": {"disable_autopatch": True}}
         assert "type" in serialized
-        assert serialized["type"] == "haystack_integrations.components.connectors.weave_connector.WeaveConnector"
+        assert serialized["type"] == "haystack_integrations.components.connectors.weave.weave_connector.WeaveConnector"
 
         deserialized = WeaveConnector.from_dict(serialized)
 

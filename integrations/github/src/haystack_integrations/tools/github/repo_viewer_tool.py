@@ -67,9 +67,6 @@ class GitHubRepoViewerTool(ComponentTool):
                 "documents": {"handler": custom_handler}
             }
         """
-        self.name = name
-        self.description = description
-        self.parameters = parameters
         self.github_token = github_token
         self.repo = repo
         self.branch = branch

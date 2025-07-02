@@ -1,9 +1,9 @@
 from typing import Any, Optional
 
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
-from weave.trace.autopatch import AutopatchSettings
 
 from haystack_integrations.tracing.weave import WeaveTracer
+from weave.trace.autopatch import AutopatchSettings
 
 logger = logging.getLogger(__name__)
 

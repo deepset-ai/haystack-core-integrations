@@ -1,7 +1,7 @@
-from typing import Any, Callable, Dict, List, Literal, Optional, Union
+from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
-from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
+from haystack.dataclasses import ChatMessage, ComponentInfo, StreamingChunk, ToolCall
 from haystack.tools import (
     Tool,
     _check_duplicate_tool_names,
@@ -100,7 +100,7 @@ def _convert_ollama_meta_to_openai_format(input_response_dict: Dict) -> Dict:
     return meta
 
 
-def _convert_ollama_response_to_chatmessage(ollama_response: "ChatResponse") -> ChatMessage:
+def _convert_ollama_response_to_chatmessage(ollama_response: ChatResponse) -> ChatMessage:
     """
     Convert non-streaming Ollama Chat API response to Haystack ChatMessage with the assistant role.
     """
@@ -271,7 +271,7 @@ class OllamaChatGenerator:
         return default_from_dict(cls, data)
 
     @staticmethod
-    def _build_chunk(chunk_response: Any) -> StreamingChunk:
+    def _build_chunk(chunk_response: ChatResponse, component_info: ComponentInfo) -> StreamingChunk:
         """
         Convert one Ollama stream-chunk to Haystack StreamingChunk.
         """
@@ -283,11 +283,11 @@ class OllamaChatGenerator:
         if tool_calls := chunk_response_dict["message"].get("tool_calls"):
             meta["tool_calls"] = tool_calls
 
-        return StreamingChunk(content, meta)
+        return StreamingChunk(content=content, meta=meta, component_info=component_info)
 
     def _handle_streaming_response(
         self,
-        response_iter: Any,
+        response_iter: Iterator[ChatResponse],
         callback: Optional[Callable[[StreamingChunk], None]],
     ) -> Dict[str, List[ChatMessage]]:
         """
@@ -295,6 +295,8 @@ class OllamaChatGenerator:
         tool calls.  Works even when arguments arrive piecemeal as str fragments
         or as full JSON dicts.
         """
+
+        component_info = ComponentInfo.from_component(self)
 
         chunks: List[StreamingChunk] = []
 
@@ -305,7 +307,7 @@ class OllamaChatGenerator:
 
         # Stream
         for raw in response_iter:
-            chunk = self._build_chunk(raw)
+            chunk = self._build_chunk(chunk_response=raw, component_info=component_info)
             chunks.append(chunk)
 
             if callback:
@@ -428,8 +430,8 @@ class OllamaChatGenerator:
             format=self.response_format,
         )
 
-        if is_stream:
-            return self._handle_streaming_response(response, callback)
+        if isinstance(response, Iterator):
+            return self._handle_streaming_response(response_iter=response, callback=callback)
 
         # non-stream path
-        return {"replies": [_convert_ollama_response_to_chatmessage(response)]}
+        return {"replies": [_convert_ollama_response_to_chatmessage(ollama_response=response)]}
