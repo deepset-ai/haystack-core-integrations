@@ -487,18 +487,22 @@ class AnthropicChatGenerator:
         extra_headers = generation_kwargs.get("extra_headers", {})
         raw_header = extra_headers.get("anthropic-beta", "")
         beta_features = {f.strip() for f in raw_header.split(",") if f.strip()}
+
         def _needs_extended_ttl(blocks) -> bool:
             return any(b.get("cache_control", {}).get("ttl") == "1h" for b in blocks)
 
-        if _needs_extended_ttl(system_messages + non_system_messages) and "extended-cache-ttl-2025-04-11" not in beta_features:
-          logger.warn(
-            "You used cache_control.ttl='1h' but did not include the 'extended-cache-ttl-2025-04-11' "
-            "beta feature in extra_headers – falling back to the default 5-minute TTL to avoid an API error."
-          )
-          for message in system_messages + non_system_messages:
-            cache_control = message.get("cache_control")
-            if cache_control and cache_control.get("ttl") == "1h":
-                cache_control["ttl"] = "5m"
+        if (
+            _needs_extended_ttl(system_messages + non_system_messages)
+            and "extended-cache-ttl-2025-04-11" not in beta_features
+        ):
+            logger.warn(
+                "You used cache_control.ttl='1h' but did not include the 'extended-cache-ttl-2025-04-11' "
+                "beta feature in extra_headers - falling back to the default 5-minute TTL to avoid an API error."
+            )
+            for message in system_messages + non_system_messages:
+                cache_control = message.get("cache_control")
+                if cache_control and cache_control.get("ttl") == "1h":
+                    cache_control["ttl"] = "5m"
 
         # tools management
         tools = tools or self.tools
