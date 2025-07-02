@@ -61,7 +61,7 @@ class GitHubRepoForker:
         :param create_branch: If True, creates a fix branch based on the issue number
         """
         error_message = "github_token must be a Secret"
-        if github_token is not None and not isinstance(github_token, Secret):
+        if not isinstance(github_token, Secret):
             raise TypeError(error_message)
 
         self.github_token = github_token
