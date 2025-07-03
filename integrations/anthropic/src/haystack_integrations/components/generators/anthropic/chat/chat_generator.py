@@ -5,6 +5,7 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole, ToolCall, ToolCallResult
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
+    ComponentInfo,
     StreamingCallbackT,
     StreamingChunk,
     SyncStreamingCallbackT,
@@ -344,8 +345,7 @@ class AnthropicChatGenerator:
         )
         return message
 
-    @staticmethod
-    def _convert_anthropic_chunk_to_streaming_chunk(chunk: Any) -> StreamingChunk:
+    def _convert_anthropic_chunk_to_streaming_chunk(self, chunk: Any) -> StreamingChunk:
         """
         Converts an Anthropic StreamEvent to a StreamingChunk.
         """
@@ -353,7 +353,9 @@ class AnthropicChatGenerator:
         if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
             content = chunk.delta.text
 
-        return StreamingChunk(content=content, meta=chunk.model_dump())
+        component_info = ComponentInfo.from_component(self)
+
+        return StreamingChunk(content=content, meta=chunk.model_dump(), component_info=component_info)
 
     def _convert_streaming_chunks_to_chat_message(
         self, chunks: List[StreamingChunk], model: Optional[str] = None

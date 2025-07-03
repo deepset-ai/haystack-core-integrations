@@ -20,7 +20,7 @@ from anthropic.types import (
 )
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, ToolCall
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 
@@ -396,6 +396,7 @@ class TestAnthropicChatGenerator:
             "index": 1,
             "content_block": {"type": "tool_use", "id": "toolu_123", "name": "weather", "input": {"city": "Paris"}},
         }
+        assert streaming_chunk.component_info.type.endswith("chat_generator.AnthropicChatGenerator")
 
     def test_convert_streaming_chunks_to_chat_message(self):
         """
@@ -419,11 +420,13 @@ class TestAnthropicChatGenerator:
                         "usage": {"input_tokens": 25, "output_tokens": 0},
                     },
                 },
+                component_info=ComponentInfo.from_component(self),
             ),
             # Initial text content
             StreamingChunk(
                 content="",
                 meta={"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
+                component_info=ComponentInfo.from_component(self),
             ),
             StreamingChunk(
                 content="Let me check",
@@ -432,6 +435,7 @@ class TestAnthropicChatGenerator:
                     "index": 0,
                     "delta": {"type": "text_delta", "text": "Let me check"},
                 },
+                component_info=ComponentInfo.from_component(self),
             ),
             StreamingChunk(
                 content=" the weather",
