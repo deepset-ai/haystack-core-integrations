@@ -242,7 +242,7 @@ def test_create_table_if_not_exists():
 @pytest.mark.integration
 def test_delete_table_first_call(document_store):
     """
-    should be able to call _ensure_db_setup() inside itself while the connection is not yet established, and
-    should not throw any exceptions.
+    Test that delete_table can be executed as the initial operation on the Document Store
+    without triggering errors due to an uninitialized state.
     """
     document_store.delete_table()  # if throw error, test fails

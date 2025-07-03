@@ -212,7 +212,7 @@ async def test_create_table_if_not_exists():
 @pytest.mark.asyncio
 async def test_delete_table_async_first_call(document_store):
     """
-    should be able to call _ensure_db_setup_async() inside itself while the connection is not yet established, and
-    should not throw any exceptions.
+    Test that delete_table_async can be executed as the initial operation on the Document Store
+    without triggering errors due to an uninitialized state.
     """
     await document_store.delete_table_async()  # if throw error, test fails
