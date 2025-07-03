@@ -19,7 +19,7 @@ class TestOllamaGenerator:
             ("What is the capital of Ghana?", "Accra"),
         ]
 
-        component = OllamaGenerator(model="llama3.2:3b")
+        component = OllamaGenerator(model="qwen3:0.6b")
 
         for prompt, answer in prompts_and_answers:
             results = component.run(prompt=prompt)
@@ -147,7 +147,7 @@ class TestOllamaGenerator:
                 return chunk
 
         callback = Callback()
-        component = OllamaGenerator(model="llama3.2:3b", streaming_callback=callback)
+        component = OllamaGenerator(model="qwen3:0.6b", streaming_callback=callback)
         results = component.run(prompt="What's the capital of Netherlands?")
 
         assert len(results["replies"]) == 1
@@ -169,7 +169,7 @@ class TestOllamaGenerator:
                 return chunk
 
         callback = Callback()
-        component = OllamaGenerator(model="llama3.2:3b", streaming_callback=None)
+        component = OllamaGenerator(model="qwen3:0.6b", streaming_callback=None)
         results = component.run(prompt="What's the capital of Netherlands?", streaming_callback=callback)
 
         assert len(results["replies"]) == 1
