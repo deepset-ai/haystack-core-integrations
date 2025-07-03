@@ -13,7 +13,7 @@ from ibm_watsonx_ai.foundation_models import Embeddings
 
 
 @component
-class WatsonXDocumentEmbedder:
+class WatsonxDocumentEmbedder:
     """
     Computes document embeddings using IBM watsonx.ai models.
 
@@ -21,14 +21,14 @@ class WatsonXDocumentEmbedder:
 
     ```python
     from haystack import Document
-    from haystack_integrations.components.embedders.watsonx.document_embedder import WatsonXDocumentEmbedder
+    from haystack_integrations.components.embedders.watsonx.document_embedder import WatsonxDocumentEmbedder
 
     documents = [
         Document(content="I love pizza!"),
         Document(content="Pasta is great too"),
     ]
 
-    document_embedder = WatsonXDocumentEmbedder(
+    document_embedder = WatsonxDocumentEmbedder(
         model="ibm/slate-30m-english-rtrvr",
         api_key=Secret.from_env_var("WATSONX_API_KEY"),
         api_base_url="https://us-south.ml.cloud.ibm.com",
@@ -60,7 +60,7 @@ class WatsonXDocumentEmbedder:
         embedding_separator: str = "\n",
     ):
         """
-        Creates a WatsonXDocumentEmbedder component.
+        Creates a WatsonxDocumentEmbedder component.
 
         :param model:
             The name of the model to use for calculating embeddings.
@@ -152,7 +152,7 @@ class WatsonXDocumentEmbedder:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "WatsonXDocumentEmbedder":  # noqa: UP037
+    def from_dict(cls, data: dict[str, Any]) -> "WatsonxDocumentEmbedder":  # noqa: UP037
         """
         Deserializes the component from a dictionary.
 
@@ -196,8 +196,8 @@ class WatsonXDocumentEmbedder:
         """
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
-                "WatsonXDocumentEmbedder expects a list of Documents as input."
-                " In case you want to embed a string, please use the WatsonXTextEmbedder."
+                "WatsonxDocumentEmbedder expects a list of Documents as input."
+                " In case you want to embed a string, please use the WatsonxTextEmbedder."
             )
             raise TypeError(msg)
 

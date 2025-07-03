@@ -11,7 +11,7 @@ from ibm_watsonx_ai.foundation_models import Embeddings
 
 
 @component
-class WatsonXTextEmbedder:
+class WatsonxTextEmbedder:
     """
     Embeds strings using IBM watsonx.ai foundation models.
 
@@ -20,11 +20,11 @@ class WatsonXTextEmbedder:
     ### Usage example
 
     ```python
-    from haystack_integrations.components.embedders.watsonx.text_embedder import WatsonXTextEmbedder
+    from haystack_integrations.components.embedders.watsonx.text_embedder import WatsonxTextEmbedder
 
     text_to_embed = "I love pizza!"
 
-    text_embedder = WatsonXTextEmbedder(
+    text_embedder = WatsonxTextEmbedder(
         model="ibm/slate-30m-english-rtrvr",
         api_key=Secret.from_env_var("WATSONX_API_KEY"),
         api_base_url="https://us-south.ml.cloud.ibm.com",
@@ -53,7 +53,7 @@ class WatsonXTextEmbedder:
         max_retries: int | None = None,
     ):
         """
-        Creates an WatsonXTextEmbedder component.
+        Creates an WatsonxTextEmbedder component.
 
         :param model:
             The name of the IBM watsonx model to use for calculating embeddings.
@@ -131,7 +131,7 @@ class WatsonXTextEmbedder:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "WatsonXTextEmbedder":
+    def from_dict(cls, data: dict[str, Any]) -> "WatsonxTextEmbedder":
         """
         Deserializes the component from a dictionary.
 
@@ -146,8 +146,8 @@ class WatsonXTextEmbedder:
     def _prepare_input(self, text: str) -> str:
         if not isinstance(text, str):
             msg = (
-                "WatsonXTextEmbedder expects a string as an input. "
-                "In case you want to embed a list of Documents, please use the WatsonXDocumentEmbedder."
+                "WatsonxTextEmbedder expects a string as an input. "
+                "In case you want to embed a list of Documents, please use the WatsonxDocumentEmbedder."
             )
             raise TypeError(msg)
         return self.prefix + text + self.suffix

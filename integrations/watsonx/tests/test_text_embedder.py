@@ -8,10 +8,10 @@ import pytest
 from haystack.utils.auth import Secret
 from ibm_watsonx_ai.wml_client_error import ApiRequestFailure
 
-from haystack_integrations.components.embedders.watsonx.text_embedder import WatsonXTextEmbedder
+from haystack_integrations.components.embedders.watsonx.text_embedder import WatsonxTextEmbedder
 
 
-class TestWatsonXTextEmbedder:
+class TestWatsonxTextEmbedder:
     @pytest.fixture
     def mock_watsonx(self, monkeypatch):
         """Fixture for setting up common mocks"""
@@ -36,7 +36,7 @@ class TestWatsonXTextEmbedder:
                 }
 
     def test_init_default(self, mock_watsonx):
-        embedder = WatsonXTextEmbedder(project_id=Secret.from_token("fake-project-id"))
+        embedder = WatsonxTextEmbedder(project_id=Secret.from_token("fake-project-id"))
 
         mock_watsonx["credentials"].assert_called_once_with(
             api_key="fake-api-key", url="https://us-south.ml.cloud.ibm.com"
@@ -55,7 +55,7 @@ class TestWatsonXTextEmbedder:
         assert embedder.suffix == ""
 
     def test_init_with_parameters(self, mock_watsonx):
-        embedder = WatsonXTextEmbedder(
+        embedder = WatsonxTextEmbedder(
             api_key=Secret.from_token("fake-api-key"),
             model="ibm/slate-125m-english-rtrvr",
             api_base_url="https://custom-url.ibm.com",
@@ -81,20 +81,20 @@ class TestWatsonXTextEmbedder:
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("WATSONX_API_KEY", raising=False)
         with pytest.raises(ValueError, match="None of the .* environment variables are set"):
-            WatsonXTextEmbedder(project_id=Secret.from_env_var("WATSONX_PROJECT_ID"))
+            WatsonxTextEmbedder(project_id=Secret.from_env_var("WATSONX_PROJECT_ID"))
 
     def test_init_fail_wo_project_id(self, monkeypatch):
         monkeypatch.setenv("WATSONX_API_KEY", "fake-api-key")
         monkeypatch.delenv("WATSONX_PROJECT_ID", raising=False)
         with pytest.raises(ValueError, match="None of the .* environment variables are set"):
-            WatsonXTextEmbedder()
+            WatsonxTextEmbedder()
 
     def test_to_dict(self, mock_watsonx):
-        component = WatsonXTextEmbedder(project_id=Secret.from_env_var("WATSONX_PROJECT_ID"))
+        component = WatsonxTextEmbedder(project_id=Secret.from_env_var("WATSONX_PROJECT_ID"))
         data = component.to_dict()
 
         assert data == {
-            "type": "haystack_integrations.components.embedders.watsonx.text_embedder.WatsonXTextEmbedder",
+            "type": "haystack_integrations.components.embedders.watsonx.text_embedder.WatsonxTextEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "ibm/slate-30m-english-rtrvr",
@@ -110,7 +110,7 @@ class TestWatsonXTextEmbedder:
 
     def test_from_dict(self, mock_watsonx):
         data = {
-            "type": "haystack_integrations.components.embedders.watsonx.text_embedder.WatsonXTextEmbedder",
+            "type": "haystack_integrations.components.embedders.watsonx.text_embedder.WatsonxTextEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "ibm/slate-125m-english-rtrvr",
@@ -121,7 +121,7 @@ class TestWatsonXTextEmbedder:
             },
         }
 
-        component = WatsonXTextEmbedder.from_dict(data)
+        component = WatsonxTextEmbedder.from_dict(data)
 
         assert component.model == "ibm/slate-125m-english-rtrvr"
         assert component.api_base_url == "https://custom-url.ibm.com"
@@ -131,7 +131,7 @@ class TestWatsonXTextEmbedder:
         assert component.suffix == " suffix"
 
     def test_prepare_input(self, mock_watsonx):
-        embedder = WatsonXTextEmbedder(
+        embedder = WatsonxTextEmbedder(
             project_id=Secret.from_token("fake-project-id"), prefix="prefix ", suffix=" suffix"
         )
         input_text = "The food was delicious"
@@ -139,17 +139,17 @@ class TestWatsonXTextEmbedder:
         assert prepared_input == "prefix The food was delicious suffix"
 
     def test_run_wrong_input_format(self, mock_watsonx):
-        embedder = WatsonXTextEmbedder(project_id=Secret.from_token("fake-project-id"))
+        embedder = WatsonxTextEmbedder(project_id=Secret.from_token("fake-project-id"))
         with pytest.raises(
             TypeError,
-            match="WatsonXTextEmbedder expects a string as an input. In case you want to embed a list of Documents, "
-            "please use the WatsonXDocumentEmbedder.",
+            match="WatsonxTextEmbedder expects a string as an input. In case you want to embed a list of Documents, "
+            "please use the WatsonxDocumentEmbedder.",
         ):
             embedder.run(text=[1, 2, 3])
 
 
-class TestWatsonXTextEmbedderIntegration:
-    """Integration tests for WatsonXTextEmbedder (requires real credentials)"""
+class TestWatsonxTextEmbedderIntegration:
+    """Integration tests for WatsonxTextEmbedder (requires real credentials)"""
 
     @pytest.mark.integration
     @pytest.mark.skipif(
@@ -158,7 +158,7 @@ class TestWatsonXTextEmbedderIntegration:
     )
     def test_run(self):
         """Test real API call with simple text"""
-        embedder = WatsonXTextEmbedder(
+        embedder = WatsonxTextEmbedder(
             model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
@@ -181,7 +181,7 @@ class TestWatsonXTextEmbedderIntegration:
     )
     def test_long_text(self):
         """Test with longer text input"""
-        embedder = WatsonXTextEmbedder(
+        embedder = WatsonxTextEmbedder(
             model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
@@ -200,7 +200,7 @@ class TestWatsonXTextEmbedderIntegration:
     )
     def test_different_model(self):
         """Test with a different model if available"""
-        embedder = WatsonXTextEmbedder(
+        embedder = WatsonxTextEmbedder(
             model="ibm/slate-125m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
@@ -218,7 +218,7 @@ class TestWatsonXTextEmbedderIntegration:
     )
     def test_text_too_long(self):
         """Test handling of text that exceeds token limit when truncation is disabled"""
-        embedder = WatsonXTextEmbedder(
+        embedder = WatsonxTextEmbedder(
             model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
@@ -240,7 +240,7 @@ class TestWatsonXTextEmbedderIntegration:
     )
     def test_text_truncation(self):
         """Test that truncation works with long text"""
-        embedder = WatsonXTextEmbedder(
+        embedder = WatsonxTextEmbedder(
             model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),

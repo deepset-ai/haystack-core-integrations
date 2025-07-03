@@ -4,8 +4,8 @@ from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.utils.auth import Secret
 
-from haystack_integrations.components.embedders.watsonx.document_embedder import WatsonXDocumentEmbedder
-from haystack_integrations.components.embedders.watsonx.text_embedder import WatsonXTextEmbedder
+from haystack_integrations.components.embedders.watsonx.document_embedder import WatsonxDocumentEmbedder
+from haystack_integrations.components.embedders.watsonx.text_embedder import WatsonxTextEmbedder
 
 # Step 1: Set your credentials as env var
 
@@ -20,7 +20,7 @@ documents = [
 ]
 
 # Step 4: Embed documents
-document_embedder = WatsonXDocumentEmbedder(
+document_embedder = WatsonxDocumentEmbedder(
     model="ibm/slate-125m-english-rtrvr",
     api_key=Secret.from_env_var("WATSONX_API_KEY"),
     project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
@@ -34,7 +34,7 @@ document_store.write_documents(documents_with_embeddings)
 query_pipeline = Pipeline()
 query_pipeline.add_component(
     "text_embedder",
-    WatsonXTextEmbedder(
+    WatsonxTextEmbedder(
         model="ibm/slate-125m-english-rtrvr",
         api_key=Secret.from_env_var("WATSONX_API_KEY"),
         project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
