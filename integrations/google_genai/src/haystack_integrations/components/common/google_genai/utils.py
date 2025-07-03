@@ -52,7 +52,7 @@ def _get_client(
             return Client(vertexai=True, project=vertex_ai_project, location=vertex_ai_location)
 
         logger.info(
-            "No vertex_ai_project or vertex_ai_location provided for Vertex AI.Using the API key for authentication."
+            "No vertex_ai_project or vertex_ai_location provided for Vertex AI. Using the API key for authentication."
         )
         return Client(vertexai=True, api_key=resolved_api_key)
 
