@@ -237,3 +237,12 @@ def test_create_table_if_not_exists():
     # Clean up: drop the schema after the test
     with psycopg.connect(connection_string, autocommit=True) as conn:
         conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
+
+
+@pytest.mark.integration
+def test_delete_table_first_call(document_store):
+    """
+    Test that delete_table can be executed as the initial operation on the Document Store
+    without triggering errors due to an uninitialized state.
+    """
+    document_store.delete_table()  # if throw error, test fails
