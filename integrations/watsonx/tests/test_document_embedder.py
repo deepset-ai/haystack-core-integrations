@@ -121,7 +121,7 @@ class TestWatsonXDocumentEmbedder:
                 "timeout": None,
                 "max_retries": None,
                 "embedding_separator": "\n",
-                "meta_fields_to_embed": None,
+                "meta_fields_to_embed": [],
             },
         }
 
@@ -156,7 +156,7 @@ class TestWatsonXDocumentEmbedder:
             project_id=Secret.from_token("fake-project-id"),
             prefix="prefix ",
             suffix=" suffix",
-            meta_fields_to_embed=["source"]
+            meta_fields_to_embed=["source"],
         )
         prepared_text = embedder._prepare_texts_to_embed(
             [Document(content="The food was delicious", meta={"source": "test"})]

@@ -21,9 +21,7 @@ class WatsonXDocumentEmbedder:
 
     ```python
     from haystack import Document
-    from haystack_integrations.components.embedders.watsonx.document_embedder import (
-        WatsonXDocumentEmbedder,
-    )
+    from haystack_integrations.components.embedders.watsonx.document_embedder import WatsonXDocumentEmbedder
 
     documents = [
         Document(content="I love pizza!"),
@@ -103,7 +101,7 @@ class WatsonXDocumentEmbedder:
         self.concurrency_limit = concurrency_limit
         self.timeout = timeout
         self.max_retries = max_retries
-        self.meta_fields_to_embed = meta_fields_to_embed
+        self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
 
         # Initialize the embeddings client
@@ -131,7 +129,10 @@ class WatsonXDocumentEmbedder:
 
     def to_dict(self) -> dict[str, Any]:
         """
-        Serializes the component to a dictionary.
+        Serialize the component to a dictionary.
+
+        :returns:
+            The serialized component as a dictionary.
         """
         return default_to_dict(
             self,
@@ -151,9 +152,14 @@ class WatsonXDocumentEmbedder:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "WatsonXDocumentEmbedder":
+    def from_dict(cls, data: dict[str, Any]) -> "WatsonXDocumentEmbedder":  # noqa: UP037
         """
         Deserializes the component from a dictionary.
+
+        :param data:
+            The dictionary representation of this component.
+        :returns:
+            The deserialized component instance.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id"])
         return default_from_dict(cls, data)
@@ -165,10 +171,12 @@ class WatsonXDocumentEmbedder:
         texts_to_embed = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key]
+                str(doc.meta[key])
+                for key in self.meta_fields_to_embed
+                if key in doc.meta and doc.meta[key]  # noqa: RUF019
             ]
             text_to_embed = (
-                self.prefix + self.embedding_separator.join(meta_values_to_embed + [doc.content or ""]) + self.suffix
+                self.prefix + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""]) + self.suffix
             )
             texts_to_embed.append(text_to_embed)
 

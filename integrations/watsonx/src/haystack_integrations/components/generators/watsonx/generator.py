@@ -5,7 +5,7 @@
 from typing import Any, cast
 
 from haystack import component, logging
-from haystack.dataclasses import ChatMessage, StreamingCallbackT, select_streaming_callback
+from haystack.dataclasses import ChatMessage, StreamingCallbackT
 from haystack.utils import Secret
 
 from .chat.chat_generator import WatsonxChatGenerator
@@ -69,6 +69,7 @@ class WatsonxGenerator(WatsonxChatGenerator):
     }
     ```
     """
+
     def __init__(
         self,
         *,
@@ -120,7 +121,7 @@ class WatsonxGenerator(WatsonxChatGenerator):
             - Path to CA bundle for custom certificates
         :param streaming_callback: A callback function for streaming responses.
         """
-        super(WatsonxGenerator, self).__init__(
+        super(WatsonxGenerator, self).__init__(  # noqa: UP008
             api_key=api_key,
             model=model,
             project_id=project_id,
@@ -140,7 +141,7 @@ class WatsonxGenerator(WatsonxChatGenerator):
         :returns:
             The serialized component as a dictionary.
         """
-        data = super(WatsonxGenerator, self).to_dict()
+        data = super(WatsonxGenerator, self).to_dict()  # noqa: UP008
         data["init_parameters"]["system_prompt"] = self.system_prompt
         return data
 
@@ -154,7 +155,7 @@ class WatsonxGenerator(WatsonxChatGenerator):
         :returns:
             The deserialized component instance.
         """
-        return cast(WatsonxGenerator, super(WatsonxGenerator, cls).from_dict(data))
+        return cast(WatsonxGenerator, super(WatsonxGenerator, cls).from_dict(data))  # noqa: UP008
 
     @component.output_types(replies=list[str], meta=list[dict[str, Any]])
     def run(  # type: ignore[override]
@@ -188,7 +189,7 @@ class WatsonxGenerator(WatsonxChatGenerator):
         resolved_system_prompt = system_prompt or self.system_prompt
         messages = self._prepare_messages(prompt=prompt, system_prompt=resolved_system_prompt)
         # streaming_callback is verified and selected in the parent class
-        chat_response = super(WatsonxGenerator, self).run(
+        chat_response = super(WatsonxGenerator, self).run(  # noqa: UP008
             messages=messages, generation_kwargs=generation_kwargs, streaming_callback=streaming_callback
         )
         replies = chat_response["replies"]
@@ -225,7 +226,7 @@ class WatsonxGenerator(WatsonxChatGenerator):
         resolved_system_prompt = system_prompt or self.system_prompt
         messages = self._prepare_messages(prompt=prompt, system_prompt=resolved_system_prompt)
         # streaming_callback is verified and selected in the parent class
-        chat_response = await super(WatsonxGenerator, self).run_async(
+        chat_response = await super(WatsonxGenerator, self).run_async(  # noqa: UP008
             messages=messages, generation_kwargs=generation_kwargs, streaming_callback=streaming_callback
         )
         replies = chat_response["replies"]
@@ -248,7 +249,7 @@ class WatsonxGenerator(WatsonxChatGenerator):
 
     def _convert_chat_response_to_generator_format(
         self, chat_messages: list[ChatMessage]
-    ) -> dict[str, str | list[dict[str, Any]]]:
+    ) -> dict[str, list[str] | list[dict[str, Any]]]:
         """
         Convert ChatGenerator response format to Generator format.
 
@@ -259,6 +260,6 @@ class WatsonxGenerator(WatsonxChatGenerator):
         replies = []
         meta = []
         for chat_message in chat_messages:
-            replies.append(chat_message.text)
+            replies.append(chat_message.text or "")
             meta.append(chat_message.meta)
         return {"replies": replies, "meta": meta}

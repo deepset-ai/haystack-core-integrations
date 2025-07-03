@@ -46,6 +46,7 @@ class TestWatsonXTextEmbedder:
             credentials=mock_watsonx["creds_instance"],
             project_id="fake-project-id",
             params=None,
+            max_retries=None,
         )
         assert isinstance(embedder.project_id, Secret)
         assert embedder.project_id.resolve_value() == "fake-project-id"
@@ -74,6 +75,7 @@ class TestWatsonXTextEmbedder:
             credentials=mock_watsonx["creds_instance"],
             project_id="custom-project-id",
             params={"truncate_input_tokens": 128},
+            max_retries=5,
         )
 
     def test_init_fail_wo_api_key(self, monkeypatch):

@@ -11,6 +11,7 @@ from haystack.dataclasses import (
     ChatMessage,
     StreamingCallbackT,
     StreamingChunk,
+    SyncStreamingCallbackT,
     select_streaming_callback,
 )
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
@@ -214,7 +215,7 @@ class WatsonxChatGenerator:
 
         api_args = self._prepare_api_call(messages=messages, generation_kwargs=generation_kwargs)
 
-        if streaming_callback:
+        if resolved_streaming_callback:
             return self._handle_streaming(api_args=api_args, callback=resolved_streaming_callback)
 
         return self._handle_standard(api_args)
@@ -251,7 +252,7 @@ class WatsonxChatGenerator:
 
         api_args = self._prepare_api_call(messages=messages, generation_kwargs=generation_kwargs)
 
-        if streaming_callback:
+        if resolved_streaming_callback:
             return await self._handle_async_streaming(api_args=api_args, callback=resolved_streaming_callback)
 
         return await self._handle_async_standard(api_args)
@@ -287,7 +288,7 @@ class WatsonxChatGenerator:
         self,
         *,
         api_args: dict[str, Any],
-        callback: StreamingCallbackT,
+        callback: SyncStreamingCallbackT,
     ) -> dict[str, list[ChatMessage]]:
         """
         Handle synchronous streaming response.

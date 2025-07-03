@@ -20,9 +20,7 @@ class WatsonXTextEmbedder:
     ### Usage example
 
     ```python
-    from haystack_integrations.components.embedders.watsonx.text_embedder import (
-        WatsonXTextEmbedder,
-    )
+    from haystack_integrations.components.embedders.watsonx.text_embedder import WatsonXTextEmbedder
 
     text_to_embed = "I love pizza!"
 
@@ -114,7 +112,10 @@ class WatsonXTextEmbedder:
 
     def to_dict(self) -> dict[str, Any]:
         """
-        Serializes the component to a dictionary.
+        Serialize the component to a dictionary.
+
+        :returns:
+            The serialized component as a dictionary.
         """
         return default_to_dict(
             self,
@@ -133,6 +134,11 @@ class WatsonXTextEmbedder:
     def from_dict(cls, data: dict[str, Any]) -> "WatsonXTextEmbedder":
         """
         Deserializes the component from a dictionary.
+
+        :param data:
+            The dictionary representation of this component.
+        :returns:
+            The deserialized component instance.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id"])
         return default_from_dict(cls, data)
