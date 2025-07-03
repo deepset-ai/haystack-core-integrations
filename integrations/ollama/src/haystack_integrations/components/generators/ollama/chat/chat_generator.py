@@ -192,7 +192,7 @@ class OllamaChatGenerator:
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
         response_format: Optional[Union[None, Literal["json"], JsonSchemaValue]] = None,
-        think=False,
+        think: bool = False,
     ):
         """
         :param model:
@@ -240,6 +240,7 @@ class OllamaChatGenerator:
         self.keep_alive = keep_alive
         self.streaming_callback = streaming_callback
         self.tools = tools
+        self.think = think
         self.response_format = response_format
 
         self._client = Client(host=self.url, timeout=self.timeout)
@@ -437,6 +438,7 @@ class OllamaChatGenerator:
             keep_alive=self.keep_alive,
             options=generation_kwargs,
             format=self.response_format,
+            think=self.think,
         )
 
         if is_stream:

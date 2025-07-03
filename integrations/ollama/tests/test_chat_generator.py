@@ -398,6 +398,7 @@ class TestOllamaChatGenerator:
             options={},
             keep_alive=None,
             format=None,
+            think=False,
         )
 
         assert "replies" in result
@@ -457,6 +458,54 @@ class TestOllamaChatGenerator:
         assert result["replies"][0]._meta["usage"]["prompt_tokens"] == 26
         assert result["replies"][0]._meta["usage"]["completion_tokens"] == 282
         assert result["replies"][0]._meta["usage"]["total_tokens"] == 308
+
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
+    def test_run_with_thinking(self, mock_client):
+        generator = OllamaChatGenerator(think=True)
+
+        mock_response = ChatResponse(
+            model="qwen3:0.6b",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={
+                "role": "assistant",
+                "content": "There are three 'r's in the word 'strawberry'",
+                "thinking": "I'm tired of answering this question for the thousandth time.",
+            },
+            done=True,
+            total_duration=5191566416,
+            load_duration=2154458,
+            prompt_eval_count=26,
+            prompt_eval_duration=383809000,
+            eval_count=298,
+            eval_duration=4799921000,
+        )
+
+        mock_client_instance = mock_client.return_value
+        mock_client_instance.chat.return_value = mock_response
+
+        result = generator.run(
+            messages=[ChatMessage.from_user("How many times does the letter 'r' appear in the word 'strawberry'?")]
+        )
+
+        mock_client_instance.chat.assert_called_once_with(
+            model="orca-mini",
+            messages=[
+                {"role": "user", "content": "How many times does the letter 'r' appear in the word 'strawberry'?"}
+            ],
+            stream=False,
+            tools=None,
+            options={},
+            keep_alive=None,
+            format=None,
+            think=True,
+        )
+
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+        assert result["replies"][0].text == "There are three 'r's in the word 'strawberry'"
+        assert result["replies"][0].role == "assistant"
+        assert "thinking" in result["replies"][0].meta
+        assert result["replies"][0].meta["thinking"] == "I'm tired of answering this question for the thousandth time."
 
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run_streaming_at_runtime(self, mock_client):
@@ -574,7 +623,7 @@ class TestOllamaChatGenerator:
 
         assert isinstance(response, dict)
         assert isinstance(response["replies"], list)
-        assert "thinking" in response["replies"][0]._meta
+        assert "thinking" in response["replies"][0].meta
 
     @pytest.mark.integration
     def test_run_model_unavailable(self):
