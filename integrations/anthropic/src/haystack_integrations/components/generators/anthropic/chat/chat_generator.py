@@ -345,15 +345,13 @@ class AnthropicChatGenerator:
         )
         return message
 
-    def _convert_anthropic_chunk_to_streaming_chunk(self, chunk: Any) -> StreamingChunk:
+    def _convert_anthropic_chunk_to_streaming_chunk(self, chunk: Any, component_info: ComponentInfo) -> StreamingChunk:
         """
         Converts an Anthropic StreamEvent to a StreamingChunk.
         """
         content = ""
         if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
             content = chunk.delta.text
-
-        component_info = ComponentInfo.from_component(self)
 
         return StreamingChunk(content=content, meta=chunk.model_dump(), component_info=component_info)
 
@@ -536,12 +534,13 @@ class AnthropicChatGenerator:
             for chunk in response:
                 if chunk.type == "message_start":
                     model = chunk.message.model
+                    component_info = ComponentInfo.from_component(self)
                 elif chunk.type in [
                     "content_block_start",
                     "content_block_delta",
                     "message_delta",
                 ]:
-                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk)
+                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, component_info)
                     chunks.append(streaming_chunk)
                     if streaming_callback:
                         streaming_callback(streaming_chunk)

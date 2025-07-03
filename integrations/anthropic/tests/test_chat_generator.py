@@ -329,12 +329,13 @@ class TestAnthropicChatGenerator:
         Test converting Anthropic stream events to Haystack StreamingChunks
         """
         component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component_info = ComponentInfo.from_component(component)
 
         # Test text delta chunk
         text_delta_chunk = ContentBlockDeltaEvent(
             type="content_block_delta", index=0, delta=TextDelta(type="text_delta", text="Hello, world!")
         )
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(text_delta_chunk)
+        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(text_delta_chunk, component_info)
         assert streaming_chunk.content == "Hello, world!"
         assert streaming_chunk.meta == {
             "type": "content_block_delta",
@@ -356,7 +357,7 @@ class TestAnthropicChatGenerator:
                 "usage": {"input_tokens": 25, "output_tokens": 1},
             },
         )
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(message_start_chunk)
+        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(message_start_chunk, component_info)
         assert streaming_chunk.content == ""
 
         # remove fields not present in the pinned version of the Anthropic SDK.
@@ -389,7 +390,7 @@ class TestAnthropicChatGenerator:
             index=1,
             content_block={"type": "tool_use", "id": "toolu_123", "name": "weather", "input": {"city": "Paris"}},
         )
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(tool_use_chunk)
+        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(tool_use_chunk, component_info)
         assert streaming_chunk.content == ""
         assert streaming_chunk.meta == {
             "type": "content_block_start",
