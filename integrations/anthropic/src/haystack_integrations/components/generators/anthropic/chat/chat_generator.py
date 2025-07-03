@@ -488,8 +488,11 @@ class AnthropicChatGenerator:
         raw_header = extra_headers.get("anthropic-beta", "")
         beta_features = {f.strip() for f in raw_header.split(",") if f.strip()}
 
-        def _needs_extended_ttl(blocks) -> bool:
-            return any(b.get("cache_control", {}).get("ttl") == "1h" for b in blocks)
+        def _needs_extended_ttl(messages: List[Any]) -> bool:  # dar tip yerine Any
+            for message in messages:
+                if isinstance(message, dict) and message.get("cache_control", {}).get("ttl") == "1h":
+                    return True
+            return False
 
         if (
             _needs_extended_ttl(system_messages + non_system_messages)
@@ -500,9 +503,10 @@ class AnthropicChatGenerator:
                 "beta feature in extra_headers - falling back to the default 5-minute TTL to avoid an API error."
             )
             for message in system_messages + non_system_messages:
-                cache_control = message.get("cache_control")
-                if cache_control and cache_control.get("ttl") == "1h":
-                    cache_control["ttl"] = "5m"
+                if isinstance(message, dict):
+                    cache_control = message.get("cache_control")
+                    if isinstance(cache_control, dict) and cache_control.get("ttl") == "1h":
+                        cache_control["ttl"] = "5m"
 
         # tools management
         tools = tools or self.tools
