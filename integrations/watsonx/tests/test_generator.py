@@ -114,7 +114,6 @@ class TestWatsonxGenerator:
 
     def test_init_fails_without_project_id(self, mock_watsonx):
         os.environ.pop("WATSONX_PROJECT_ID", None)
-
         with pytest.raises(ValueError, match="None of the following authentication environment variables are set"):
             WatsonxGenerator(api_key=Secret.from_token("test-api-key"), model="ibm/granite-3-2b-instruct")
 
@@ -124,9 +123,7 @@ class TestWatsonxGenerator:
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             generation_kwargs={"max_tokens": 100},
         )
-
         data = generator.to_dict()
-
         expected = {
             "type": "haystack_integrations.components.generators.watsonx.generator.WatsonxGenerator",
             "init_parameters": {
@@ -136,6 +133,7 @@ class TestWatsonxGenerator:
                 "api_base_url": "https://us-south.ml.cloud.ibm.com",
                 "generation_kwargs": {"max_tokens": 100},
                 "verify": None,
+                "system_prompt": None,
                 "timeout": None,
                 "max_retries": None,
                 "streaming_callback": None,
@@ -150,15 +148,27 @@ class TestWatsonxGenerator:
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "ibm/granite-3-2b-instruct",
                 "project_id": {"env_vars": ["WATSONX_PROJECT_ID"], "strict": True, "type": "env_var"},
+                "api_base_url": "https://us-south.ml.cloud.ibm.com",
                 "generation_kwargs": {"max_tokens": 100},
+                "verify": None,
+                "system_prompt": None,
+                "timeout": None,
+                "max_retries": None,
+                "streaming_callback": None,
             },
         }
 
         generator = WatsonxGenerator.from_dict(data)
+        assert generator.api_key == Secret.from_env_var("WATSONX_API_KEY")
         assert generator.model == "ibm/granite-3-2b-instruct"
-        assert isinstance(generator.project_id, Secret)
-        assert generator.project_id.resolve_value() == "fake-project-id"
+        assert generator.project_id == Secret.from_env_var("WATSONX_PROJECT_ID")
+        assert generator.api_base_url == "https://us-south.ml.cloud.ibm.com"
         assert generator.generation_kwargs == {"max_tokens": 100}
+        assert generator.verify is None
+        assert generator.system_prompt is None
+        assert generator.timeout is None
+        assert generator.max_retries is None
+        assert generator.streaming_callback is None
 
     def test_run_with_prompt_only(self, mock_watsonx):
         generator = WatsonxGenerator(
@@ -252,16 +262,13 @@ class TestWatsonxGenerator:
 
     def test_convert_chat_response_to_generator_format(self, mock_watsonx):
         generator = WatsonxGenerator(model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project"))
-
         chat_response = {
             "replies": [
                 ChatMessage.from_assistant("First response", meta={"model": "test-model", "tokens": 10}),
                 ChatMessage.from_assistant("Second response", meta={"model": "test-model", "tokens": 15}),
             ]
         }
-
-        result = generator._convert_chat_response_to_generator_format(chat_response)
-
+        result = generator._convert_chat_response_to_generator_format(chat_response["replies"])
         assert "replies" in result
         assert "meta" in result
         assert len(result["replies"]) == 2
@@ -273,10 +280,7 @@ class TestWatsonxGenerator:
 
     def test_convert_empty_chat_response(self, mock_watsonx):
         generator = WatsonxGenerator(model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project"))
-
-        chat_response = {"replies": []}
-        result = generator._convert_chat_response_to_generator_format(chat_response)
-
+        result = generator._convert_chat_response_to_generator_format([])
         assert result["replies"] == []
         assert result["meta"] == []
 

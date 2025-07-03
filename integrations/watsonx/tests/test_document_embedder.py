@@ -50,7 +50,7 @@ class TestWatsonXDocumentEmbedder:
             params=None,
             batch_size=1000,
             concurrency_limit=5,
-            max_retries=10,
+            max_retries=None,
         )
 
         assert embedder.model == "ibm/slate-30m-english-rtrvr"
@@ -151,12 +151,17 @@ class TestWatsonXDocumentEmbedder:
         assert component.batch_size == 500
         assert component.concurrency_limit == 3
 
-    def test_prepare_text(self, mock_watsonx):
+    def test_prepare_texts_to_embed(self, mock_watsonx):
         embedder = WatsonXDocumentEmbedder(
-            project_id=Secret.from_token("fake-project-id"), prefix="prefix ", suffix=" suffix"
+            project_id=Secret.from_token("fake-project-id"),
+            prefix="prefix ",
+            suffix=" suffix",
+            meta_fields_to_embed=["source"]
         )
-        prepared_text = embedder._prepare_text("The food was delicious")
-        assert prepared_text == "prefix The food was delicious suffix"
+        prepared_text = embedder._prepare_texts_to_embed(
+            [Document(content="The food was delicious", meta={"source": "test"})]
+        )
+        assert prepared_text == ["prefix test\nThe food was delicious suffix"]
 
     def test_run_wrong_input_format(self, mock_watsonx):
         embedder = WatsonXDocumentEmbedder(project_id=Secret.from_token("fake-project-id"))

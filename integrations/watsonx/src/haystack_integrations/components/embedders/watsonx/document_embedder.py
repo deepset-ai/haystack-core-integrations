@@ -120,7 +120,7 @@ class WatsonXDocumentEmbedder:
             params=params if params else None,
             batch_size=batch_size,
             concurrency_limit=concurrency_limit,
-            max_retries=max_retries or 10,
+            max_retries=max_retries,
         )
 
     def _get_telemetry_data(self) -> dict[str, Any]:
@@ -151,18 +151,28 @@ class WatsonXDocumentEmbedder:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> WatsonXDocumentEmbedder:
+    def from_dict(cls, data: dict[str, Any]) -> "WatsonXDocumentEmbedder":
         """
         Deserializes the component from a dictionary.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id"])
         return default_from_dict(cls, data)
 
-    def _prepare_text(self, text: str) -> str:
+    def _prepare_texts_to_embed(self, documents: list[Document]) -> list[str]:
         """
-        Prepares text for embedding by adding prefix and suffix.
+        Prepare the texts to embed by concatenating the Document text with the metadata fields to embed.
         """
-        return self.prefix + text + self.suffix
+        texts_to_embed = []
+        for doc in documents:
+            meta_values_to_embed = [
+                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key]
+            ]
+            text_to_embed = (
+                self.prefix + self.embedding_separator.join(meta_values_to_embed + [doc.content or ""]) + self.suffix
+            )
+            texts_to_embed.append(text_to_embed)
+
+        return texts_to_embed
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
     def run(self, documents: list[Document]) -> dict[str, list[Document] | dict[str, Any]]:
@@ -183,7 +193,7 @@ class WatsonXDocumentEmbedder:
             )
             raise TypeError(msg)
 
-        texts_to_embed = [self._prepare_text(doc.content or "") for doc in documents]
+        texts_to_embed = self._prepare_texts_to_embed(documents=documents)
         embeddings = self.embedder.embed_documents(texts_to_embed)
 
         for doc, emb in zip(documents, embeddings, strict=True):

@@ -103,6 +103,7 @@ class WatsonXTextEmbedder:
             credentials=credentials,
             project_id=project_id.resolve_value(),
             params=params if params else None,
+            max_retries=max_retries,
         )
 
     def _get_telemetry_data(self) -> dict[str, Any]:
@@ -145,12 +146,6 @@ class WatsonXTextEmbedder:
             raise TypeError(msg)
         return self.prefix + text + self.suffix
 
-    def _prepare_output(self, embedding: list[float]) -> dict[str, Any]:
-        return {
-            "embedding": embedding,
-            "meta": {"model": self.model, "truncated_input_tokens": self.truncate_input_tokens},
-        }
-
     @component.output_types(embedding=list[float], meta=dict[str, Any])
     def run(self, text: str) -> dict[str, list[float] | dict[str, Any]]:
         """
@@ -163,4 +158,7 @@ class WatsonXTextEmbedder:
         """
         text_to_embed = self._prepare_input(text=text)
         embedding = self.embedder.embed_query(text_to_embed)
-        return self._prepare_output(embedding)
+        return {
+            "embedding": embedding,
+            "meta": {"model": self.model, "truncated_input_tokens": self.truncate_input_tokens},
+        }

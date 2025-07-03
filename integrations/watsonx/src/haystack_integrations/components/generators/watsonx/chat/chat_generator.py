@@ -25,9 +25,9 @@ class WatsonxChatGenerator:
     """
     Enables chat completions using IBM's watsonx.ai foundation models.
 
-    This component interacts with IBM's watsonx.ai platform to generate chat responses
-    using various foundation models. It supports the [ChatMessage](https://docs.haystack.deepset.ai/docs/chatmessage)
-    format for both input and output.
+    This component interacts with IBM's watsonx.ai platform to generate chat responses using various foundation
+    models. It supports the [ChatMessage](https://docs.haystack.deepset.ai/docs/chatmessage) format for both input
+    and output.
 
     The generator works with IBM's foundation models including:
     - granite-13b-chat-v2
@@ -35,9 +35,8 @@ class WatsonxChatGenerator:
     - llama-3-70b-instruct
     - Other watsonx.ai chat models
 
-    You can customize the generation behavior by passing parameters to the
-    watsonx.ai API through the `generation_kwargs` argument. These parameters
-    are passed directly to the watsonx.ai inference endpoint.
+    You can customize the generation behavior by passing parameters to the watsonx.ai API through the
+    `generation_kwargs` argument. These parameters are passed directly to the watsonx.ai inference endpoint.
 
     For details on watsonx.ai API parameters, see
     [IBM watsonx.ai documentation](https://dataplatform.cloud.ibm.com/docs/content/wsj/analyze-data/fm-parameters.html).
@@ -45,10 +44,9 @@ class WatsonxChatGenerator:
     ### Usage example
 
     ```python
-    from haystack_integrations.components.generators.watsonx.chat.chat_generator import (
-        WatsonxChatGenerator,
-    )
+    from haystack_integrations.components.generators.watsonx.chat.chat_generator import WatsonxChatGenerator
     from haystack.dataclasses import ChatMessage
+    from haystack.utils import Secret
 
     messages = [ChatMessage.from_user("Explain quantum computing in simple terms")]
 
@@ -85,9 +83,9 @@ class WatsonxChatGenerator:
         max_retries: int | None = None,
         verify: bool | str | None = None,
         streaming_callback: StreamingCallbackT | None = None,
-    ):
+    ) -> None:
         """
-        Initializes the WatsonxChatGenerator with connection and generation parameters.
+        Creates an instance of WatsonxChatGenerator.
 
         Before initializing the component, you can set environment variables:
         - `WATSONX_TIMEOUT` to override the default timeout
@@ -134,7 +132,7 @@ class WatsonxChatGenerator:
 
         self._initialize_client()
 
-    def _initialize_client(self):
+    def _initialize_client(self) -> None:
         """Initialize the Watsonx client with configured credentials."""
         credentials = Credentials(api_key=self.api_key.resolve_value(), url=self.api_base_url)
 
@@ -147,7 +145,12 @@ class WatsonxChatGenerator:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize the component to a dictionary."""
+        """
+        Serialize the component to a dictionary.
+
+        :returns:
+            The serialized component as a dictionary.
+        """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         return default_to_dict(
             self,
@@ -164,7 +167,14 @@ class WatsonxChatGenerator:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WatsonxChatGenerator":
-        """Deserialize the component from a dictionary."""
+        """
+        Deserialize this component from a dictionary.
+
+        :param data:
+            The dictionary representation of this component.
+        :returns:
+            The deserialized component instance.
+        """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id"])
         init_params = data.get("init_parameters", {})
         serialized_callback = init_params.get("streaming_callback")
@@ -198,14 +208,14 @@ class WatsonxChatGenerator:
         if not messages:
             return {"replies": []}
 
-        streaming_callback = select_streaming_callback(
+        resolved_streaming_callback = select_streaming_callback(
             init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
         )
 
         api_args = self._prepare_api_call(messages=messages, generation_kwargs=generation_kwargs)
 
         if streaming_callback:
-            return self._handle_streaming(api_args=api_args, callback=streaming_callback)
+            return self._handle_streaming(api_args=api_args, callback=resolved_streaming_callback)
 
         return self._handle_standard(api_args)
 
@@ -235,17 +245,16 @@ class WatsonxChatGenerator:
         if not messages:
             return {"replies": []}
 
-        streaming_callback = select_streaming_callback(
+        resolved_streaming_callback = select_streaming_callback(
             init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=True
         )
 
         api_args = self._prepare_api_call(messages=messages, generation_kwargs=generation_kwargs)
 
         if streaming_callback:
-            async_callback: AsyncStreamingCallbackT = streaming_callback  # type: ignore[assignment]
-            return await self._handle_async_streaming(api_args=api_args, callback=async_callback)
-        else:
-            return await self._handle_async_standard(api_args)
+            return await self._handle_async_streaming(api_args=api_args, callback=resolved_streaming_callback)
+
+        return await self._handle_async_standard(api_args)
 
     def _prepare_api_call(
         self, *, messages: list[ChatMessage], generation_kwargs: dict[str, Any] | None = None
@@ -280,7 +289,14 @@ class WatsonxChatGenerator:
         api_args: dict[str, Any],
         callback: StreamingCallbackT,
     ) -> dict[str, list[ChatMessage]]:
-        """Handle synchronous streaming response."""
+        """
+        Handle synchronous streaming response.
+
+        :param api_args: Arguments for the API call, including messages and parameters.
+        :param callback: A callback function to handle streaming chunks.
+        :returns:
+            A dictionary with the generated responses as ChatMessage instances.
+        """
         chunks: list[StreamingChunk] = []
         stream = self.client.chat_stream(messages=api_args["messages"], params=api_args["params"])
 

@@ -136,19 +136,6 @@ class TestWatsonXTextEmbedder:
         prepared_input = embedder._prepare_input(input_text)
         assert prepared_input == "prefix The food was delicious suffix"
 
-    def test_prepare_output(self, mock_watsonx):
-        embedder = WatsonXTextEmbedder(
-            project_id=Secret.from_token("fake-project-id"),
-            model="ibm/slate-125m-english-rtrvr",
-            truncate_input_tokens=128,
-        )
-        embedding = [0.1, 0.2, 0.3]
-        result = embedder._prepare_output(embedding)
-        assert result == {
-            "embedding": [0.1, 0.2, 0.3],
-            "meta": {"model": "ibm/slate-125m-english-rtrvr", "truncated_input_tokens": 128},
-        }
-
     def test_run_wrong_input_format(self, mock_watsonx):
         embedder = WatsonXTextEmbedder(project_id=Secret.from_token("fake-project-id"))
         with pytest.raises(
@@ -159,10 +146,10 @@ class TestWatsonXTextEmbedder:
             embedder.run(text=[1, 2, 3])
 
 
-@pytest.mark.integration
 class TestWatsonXTextEmbedderIntegration:
     """Integration tests for WatsonXTextEmbedder (requires real credentials)"""
 
+    @pytest.mark.integration
     @pytest.mark.skipif(
         not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
         reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
@@ -185,6 +172,7 @@ class TestWatsonXTextEmbedderIntegration:
         assert "slate" in result["meta"]["model"].lower()
         assert "30m" in result["meta"]["model"].lower()
 
+    @pytest.mark.integration
     @pytest.mark.skipif(
         not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
         reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
@@ -203,6 +191,7 @@ class TestWatsonXTextEmbedderIntegration:
         assert len(result["embedding"]) > 0
         assert "model" in result["meta"]
 
+    @pytest.mark.integration
     @pytest.mark.skipif(
         not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
         reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
@@ -220,6 +209,7 @@ class TestWatsonXTextEmbedderIntegration:
         assert len(result["embedding"]) > 0
         assert "125m" in result["meta"]["model"]
 
+    @pytest.mark.integration
     @pytest.mark.skipif(
         not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
         reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
@@ -241,6 +231,7 @@ class TestWatsonXTextEmbedderIntegration:
         assert "exceeds the maximum sequence length" in str(exc_info.value)
         assert "512" in str(exc_info.value)
 
+    @pytest.mark.integration
     @pytest.mark.skipif(
         not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
         reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
