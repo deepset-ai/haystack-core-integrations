@@ -206,3 +206,13 @@ async def test_create_table_if_not_exists():
     # Clean up: drop the schema after the test
     async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:
         await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_delete_table_async_first_call(document_store):
+    """
+    should be able to call _ensure_db_setup_async() inside itself while the connection is not yet established, and
+    should not throw any exceptions.
+    """
+    await document_store.delete_table_async()  # if throw error, test fails
