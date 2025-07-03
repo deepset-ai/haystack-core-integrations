@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/cohere-v5.1.0] - 2025-07-02
+
+### 🚀 Features
+
+- Cohere - add support for ComponentInfo + refactor streaming (#2043)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+- Improve typing for select_streaming_callback (#2008)
+
+
 ## [integrations/cohere-v5.0.0] - 2025-06-17
 
 ### 🚀 Features
