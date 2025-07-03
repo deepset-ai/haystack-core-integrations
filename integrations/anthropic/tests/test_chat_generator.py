@@ -820,11 +820,13 @@ class TestAnthropicChatGenerator:
             def __call__(self, chunk: StreamingChunk) -> None:
                 self.counter += 1
                 self.responses += chunk.content if chunk.content else ""
+                assert chunk.component_info is not None
+                assert chunk.component_info.type.endswith("chat_generator.AnthropicChatGenerator")
 
         callback = Callback()
+
         component = AnthropicChatGenerator(streaming_callback=callback, timeout=30.0, max_retries=1)
         results = component.run([ChatMessage.from_user("What's the capital of France?")])
-
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
@@ -1479,6 +1481,8 @@ class TestAnthropicChatGeneratorAsync:
             nonlocal responses
             counter += 1
             responses += chunk.content if chunk.content else ""
+            assert chunk.component_info is not None
+            assert chunk.component_info.type.endswith("chat_generator.AnthropicChatGenerator")
 
         # Run the async streaming test
         results = await component.run_async(messages=initial_messages, streaming_callback=callback)
