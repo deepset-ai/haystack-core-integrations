@@ -5,7 +5,7 @@ from botocore.config import Config
 from botocore.eventstream import EventStream
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.dataclasses import ChatMessage, StreamingCallbackT, select_streaming_callback
+from haystack.dataclasses import ChatMessage, ComponentInfo, StreamingCallbackT, select_streaming_callback
 from haystack.tools import (
     Tool,
     Toolset,
@@ -408,6 +408,8 @@ class AmazonBedrockChatGenerator:
         :raises AmazonBedrockInferenceError:
             If the Bedrock inference API call fails.
         """
+        component_info = ComponentInfo.from_component(self)
+
         params, callback = self._prepare_request_params(
             messages=messages,
             streaming_callback=streaming_callback,
@@ -424,7 +426,12 @@ class AmazonBedrockChatGenerator:
                     msg = "No stream found in the response."
                     raise AmazonBedrockInferenceError(msg)
                 # the type of streaming callback is checked in _prepare_request_params, but mypy doesn't know
-                replies = _parse_streaming_response(response_stream, callback, self.model)  # type: ignore[arg-type]
+                replies = _parse_streaming_response(
+                    response_stream=response_stream,
+                    streaming_callback=callback,  # type: ignore[arg-type]
+                    model=self.model,
+                    component_info=component_info,
+                )
             else:
                 response = self.client.converse(**params)
                 replies = _parse_completion_response(response, self.model)
@@ -461,6 +468,8 @@ class AmazonBedrockChatGenerator:
         :raises AmazonBedrockInferenceError:
             If the Bedrock inference API call fails.
         """
+        component_info = ComponentInfo.from_component(self)
+
         params, callback = self._prepare_request_params(
             messages=messages,
             streaming_callback=streaming_callback,
@@ -481,7 +490,12 @@ class AmazonBedrockChatGenerator:
                         msg = "No stream found in the response."
                         raise AmazonBedrockInferenceError(msg)
                     # the type of streaming callback is checked in _prepare_request_params, but mypy doesn't know
-                    replies = await _parse_streaming_response_async(response_stream, callback, self.model)  # type: ignore[arg-type]
+                    replies = await _parse_streaming_response_async(
+                        response_stream=response_stream,
+                        streaming_callback=callback,  # type: ignore[arg-type]
+                        model=self.model,
+                        component_info=component_info,
+                    )
                 else:
                     response = await async_client.converse(**params)
                     replies = _parse_completion_response(response, self.model)
