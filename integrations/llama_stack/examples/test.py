@@ -13,6 +13,7 @@ from haystack.tools import Tool
 
 from haystack_integrations.components.generators.llama_stack.chat.chat_generator import LlamaStackChatGenerator
 
+
 # Define a tool that models can call
 def weather(city: str):
     """Return mock weather info for the given city."""

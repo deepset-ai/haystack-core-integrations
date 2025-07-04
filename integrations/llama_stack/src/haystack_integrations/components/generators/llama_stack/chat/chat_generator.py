@@ -9,53 +9,12 @@ from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage, StreamingCallbackT
 from haystack.tools import Tool, Toolset, _check_duplicate_tool_names
 from haystack.utils import serialize_callable
-from haystack.utils.auth import Secret
-from llama_stack_client import LlamaStackClient
 
 logger = logging.getLogger(__name__)
 
 
 @component
 class LlamaStackChatGenerator(OpenAIChatGenerator):
-    """
-    Enables text generation using LlamaStack generative models.
-    For supported models, see [OpenRouter docs](https://openrouter.ai/models).
-
-    Users can pass any text generation parameters valid for the OpenRouter chat completion API
-    directly to this component using the `generation_kwargs` parameter in `__init__` or the `generation_kwargs`
-    parameter in `run` method.
-
-    Key Features and Compatibility:
-    - **Primary Compatibility**: Designed to work seamlessly with the OpenRouter chat completion endpoint.
-    - **Streaming Support**: Supports streaming responses from the OpenRouter chat completion endpoint.
-    - **Customizability**: Supports all parameters supported by the OpenRouter chat completion endpoint.
-
-    This component uses the ChatMessage format for structuring both input and output,
-    ensuring coherent and contextually relevant responses in chat-based text generation scenarios.
-    Details on the ChatMessage format can be found in the
-    [Haystack docs](https://docs.haystack.deepset.ai/docs/chatmessage)
-
-    For more details on the parameters supported by the OpenRouter API, refer to the
-    [OpenRouter API Docs](https://openrouter.ai/docs/quickstart).
-
-    Usage example:
-    ```python
-    from haystack_integrations.components.generators.openrouter import OpenRouterChatGenerator
-    from haystack.dataclasses import ChatMessage
-
-    messages = [ChatMessage.from_user("What's Natural Language Processing?")]
-
-    client = OpenRouterChatGenerator()
-    response = client.run(messages)
-    print(response)
-
-    >>{'replies': [ChatMessage(_content='Natural Language Processing (NLP) is a branch of artificial intelligence
-    >>that focuses on enabling computers to understand, interpret, and generate human language in a way that is
-    >>meaningful and useful.', _role=<ChatRole.ASSISTANT: 'assistant'>, _name=None,
-    >>_meta={'model': 'openai/gpt-4o-mini', 'index': 0, 'finish_reason': 'stop',
-    >>'usage': {'prompt_tokens': 15, 'completion_tokens': 36, 'total_tokens': 51}})]}
-    ```
-    """
 
     def __init__(
         self,
@@ -69,22 +28,20 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         http_client_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
-        Creates an instance of OpenRouterChatGenerator. Unless specified otherwise,
-        the default model is `openai/gpt-4o-mini`.
+        Creates an instance of LlamaStackChatGenerator. Unless specified otherwise,
+        the default model is `llama3.2:3b`.
 
-        :param api_key:
-            The OpenRouter API key.
+
         :param model:
-            The name of the OpenRouter chat completion model to use.
+            The name of the LlamaStack chat completion model to use.
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         :param api_base_url:
-            The OpenRouter API Base url.
-            For more details, see OpenRouter [docs](https://openrouter.ai/docs/quickstart).
+            The LlamaStack API Base url.
         :param generation_kwargs:
             Other parameters to use for the model. These parameters are all sent directly to
-            the OpenRouter endpoint. See [OpenRouter API docs](https://openrouter.ai/docs/quickstart) for more details.
+            the LlamaStack endpoint. See [LlamaStack API docs](https://llama-stack.readthedocs.io/) for more details.
             Some of the supported parameters:
             - `max_tokens`: The maximum number of tokens the output text can have.
             - `temperature`: What sampling temperature to use. Higher values mean the model will take more risks.
