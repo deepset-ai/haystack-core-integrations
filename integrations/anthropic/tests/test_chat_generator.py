@@ -1323,67 +1323,73 @@ class TestAnthropicChatGenerator:
         component = AnthropicChatGenerator.from_dict(data)
         assert component.generation_kwargs["extra_headers"]["anthropic-beta"] == "prompt-caching-2024-07-31"
 
-    def test_cache_control_fallback_to_5m_without_beta_header(self, monkeypatch, mock_chat_completion, caplog):
-        """
-        The user requested cache_control.ttl='1h' but did not provide the 'extended-cache-ttl-2025-04-11' beta header.
-        Expected behavior
-        The logger should write a warning.
-        The code should downgrade the TTL from 1h to 5m, but should not remove the cache_control field..
-        """
+    def test_cache_control_forwarded_for_all_block_types(self, monkeypatch, mock_chat_completion):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
         component = AnthropicChatGenerator()
 
-        messages = [
-            ChatMessage.from_system("System message"),
-            ChatMessage.from_user("User message"),
-        ]
-        for msg in messages:
-            msg._meta["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
+        sys_msg = ChatMessage.from_system("sys")
+        sys_msg._meta["cache_control"] = {"type": "ephemeral"}
 
-        with caplog.at_level(logging.WARNING):
-            component.run(messages)
+        usr_msg = ChatMessage.from_user(
+            "doc chunk",
+            meta={"cache_control": {"type": "ephemeral"}},
+        )
 
-        assert any("You used cache_control.ttl='1h'" in rec.message for rec in caplog.records)
+        tool_call = ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
+        asst_msg = ChatMessage.from_assistant(
+            tool_calls=[tool_call],
+            meta={"cache_control": {"type": "ephemeral"}},
+        )
+
+        tool_res = ChatMessage.from_tool(
+            origin=tool_call,
+            tool_result="sunny",
+            meta={"cache_control": {"type": "ephemeral"}},
+        )
+
+        component.run([sys_msg, usr_msg, asst_msg, tool_res])
 
         _, kwargs = mock_chat_completion.call_args
-        sent_blocks = kwargs.get("system", []) + kwargs.get("messages", [])
 
-        for blk in sent_blocks:
-            if "cache_control" in blk:
-                assert blk["cache_control"]["ttl"] == "5m"
-                assert blk["cache_control"]["type"] == "ephemeral"
+        for blk in kwargs["system"]:
+            assert blk.get("cache_control") == {"type": "ephemeral"}
+
+        assert all("cache_control" not in msg for msg in kwargs["messages"])
+
+        for msg in kwargs["messages"]:
+            for cblk in msg["content"]:
+                assert cblk.get("cache_control") == {"type": "ephemeral"}
 
     @pytest.mark.parametrize(
-        "beta_header, expect_warning",
+        "beta_header",
         [
-            ("featureA, extended-cache-ttl-2025-04-11,featureB", False),  # exits
-            ("featureA ,  featureB", True),  # none
+            "featureA,extended-cache-ttl-2025-04-11",
+            "featureA , featureB , new-fancy-stuff",
         ],
     )
-    def test_multi_beta_header_handling(self, monkeypatch, mock_chat_completion, caplog, beta_header, expect_warning):
-        """
-        When the user sends multiple beta features:
-        If 1h TTL is requested and 'extended-cache-ttl' is not present, we should issue a warning.
-        If it is present, no warning should be issued.
-        """
+    def test_extra_headers_pass_through(self, monkeypatch, mock_chat_completion, beta_header):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
 
-        generation_kwargs = {"extra_headers": {"anthropic-beta": beta_header}}
-        component = AnthropicChatGenerator(generation_kwargs=generation_kwargs)
+        component = AnthropicChatGenerator(generation_kwargs={"extra_headers": {"anthropic-beta": beta_header}})
+        component.run([ChatMessage.from_user("ping")])
 
-        sys_msg = ChatMessage.from_system("System")
-        sys_msg._meta["cache_control"] = {"ttl": "1h"}
-
-        with caplog.at_level(logging.WARNING):
-            component.run([sys_msg, ChatMessage.from_user("Hi")])
-
-        if expect_warning:
-            assert any("ttl='1h' but did not include" in rec.message for rec in caplog.records)
-        else:
-            assert not any("ttl='1h' but did not include" in rec.message for rec in caplog.records)
         _, kwargs = mock_chat_completion.call_args
+        assert kwargs["extra_headers"]["anthropic-beta"] == beta_header
 
-        assert kwargs.get("extra_headers", {}).get("anthropic-beta", "") == beta_header
+    def test_convert_messages_attaches_cache_control(self):
+        user = ChatMessage.from_user(
+            "hello",
+            meta={
+                "cache_control": {
+                    "type": "ephemeral",
+                }
+            },
+        )
+        sys = ChatMessage.from_system("hi", meta={"cache_control": {"type": "ephemeral", "example_key": "example_val"}})
+        sys_blocks, non_sys = _convert_messages_to_anthropic_format([sys, user])
+
+        assert sys_blocks[0]["cache_control"] == {"type": "ephemeral", "example_key": "example_val"}
+        assert non_sys[0]["content"][0]["cache_control"]["type"] == "ephemeral"
 
     @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY", None), reason="ANTHROPIC_API_KEY not set")
     @pytest.mark.parametrize("cache_enabled", [True, False])
