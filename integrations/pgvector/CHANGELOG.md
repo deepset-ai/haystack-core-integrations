@@ -1,13 +1,16 @@
 # Changelog
 
-## [integrations/pgvector-v5.2.0] - 2025-06-26
+## [integrations/pgvector-v5.2.1] - 2025-07-03
 
-Note: Version 5.2.0 was released by mistake.
-It is functionally identical to version 3.4.1 and does not introduce any new features or changes.
+### 🐛 Bug Fixes
+
+- Pgvector - ensure DB is initialized when calling `delete_table` (#2055)
+
 
 ### 🧹 Chores
 
 - Remove black (#1985)
+- Pgvector - update docker image in examples (#1995)
 
 
 ## [integrations/pgvector-v3.4.1] - 2025-06-20
