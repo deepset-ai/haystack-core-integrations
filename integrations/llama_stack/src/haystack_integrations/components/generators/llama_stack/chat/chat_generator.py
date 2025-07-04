@@ -65,8 +65,6 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
-        timeout: Optional[float] = None,
-        extra_headers: Optional[Dict[str, Any]] = None,
         max_retries: Optional[int] = None,
         http_client_kwargs: Optional[Dict[str, Any]] = None,
     ):
@@ -101,12 +99,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
             list of `Tool` objects or a `Toolset` instance.
-        :param timeout:
-            The timeout for the OpenRouter API call.
-        :param extra_headers:
-            Additional HTTP headers to include in requests to the OpenRouter API.
-            This can be useful for adding site URL or title for rankings on openrouter.ai
-            For more details, see OpenRouter [docs](https://openrouter.ai/docs/quickstart).
+
         :param max_retries:
             Maximum number of retries to contact OpenAI after an internal error.
             If not set, it defaults to either the `OPENAI_MAX_RETRIES` environment variable, or set to 5.
@@ -121,11 +114,9 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
             api_base_url=api_base_url,
             generation_kwargs=generation_kwargs,
             tools=tools,
-            timeout=timeout,
             max_retries=max_retries,
             http_client_kwargs=http_client_kwargs,
         )
-        self.extra_headers = extra_headers
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -146,10 +137,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
             streaming_callback=callback_name,
             api_base_url=self.api_base_url,
             generation_kwargs=self.generation_kwargs,
-            api_key=self.api_key.to_dict(),
             tools=[tool.to_dict() for tool in self.tools] if self.tools else None,
-            extra_headers=self.extra_headers,
-            timeout=self.timeout,
             max_retries=self.max_retries,
             http_client_kwargs=self.http_client_kwargs,
         )
@@ -165,7 +153,6 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
     ) -> Dict[str, Any]:
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        extra_headers = {**(self.extra_headers or {})}
 
         # adapt ChatMessage(s) to the format expected by the OpenAI API
         openai_formatted_messages = [message.to_openai_dict_format() for message in messages]
@@ -195,5 +182,4 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
             "n": num_responses,
             **openai_tools,
             "extra_body": {**generation_kwargs},
-            "extra_headers": {**extra_headers},
         }
