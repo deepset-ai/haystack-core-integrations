@@ -408,7 +408,7 @@ class TestWatsonxChatGeneratorIntegration:
         not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
         reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
     )
-    def test_live_streaming(self):
+    def test_live_run_streaming(self):
         generator = WatsonxChatGenerator(
             model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
         )
@@ -433,7 +433,7 @@ class TestWatsonxChatGeneratorIntegration:
         not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
         reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
     )
-    async def test_live_async(self):
+    async def test_live_run_async(self):
         generator = WatsonxChatGenerator(
             model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
         )
