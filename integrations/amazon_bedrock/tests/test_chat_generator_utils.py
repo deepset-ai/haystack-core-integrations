@@ -1,5 +1,5 @@
 import pytest
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, ToolCall
 from haystack.tools import Tool
 
 from haystack_integrations.components.generators.amazon_bedrock.chat.utils import (
@@ -339,6 +339,9 @@ class TestAmazonBedrockChatGeneratorUtils:
         Test that process_streaming_response correctly handles streaming events and accumulates responses
         """
         model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        type_ = (
+            "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+        )
         streaming_chunks = []
 
         def test_callback(chunk: StreamingChunk):
@@ -379,7 +382,11 @@ class TestAmazonBedrockChatGeneratorUtils:
             },
         ]
 
-        replies = _parse_streaming_response(events, test_callback, model)
+        component_info = ComponentInfo(
+            type=type_,
+        )
+
+        replies = _parse_streaming_response(events, test_callback, model, component_info)
         # Pop completion_start_time since it will always change
         replies[0].meta.pop("completion_start_time")
         expected_messages = [
@@ -413,6 +420,9 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "type": "function",
             }
         ]
+        for chunk in streaming_chunks:
+            assert chunk.component_info.type == type_
+            assert chunk.component_info.name is None  # not in a pipeline
 
         # Verify final replies
         assert len(replies) == 1
@@ -420,6 +430,9 @@ class TestAmazonBedrockChatGeneratorUtils:
 
     def test_parse_streaming_response_with_two_tool_calls(self, mock_boto3_session):
         model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        type_ = (
+            "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+        )
         streaming_chunks = []
 
         def test_callback(chunk: StreamingChunk):
@@ -468,7 +481,11 @@ class TestAmazonBedrockChatGeneratorUtils:
             },
         ]
 
-        replies = _parse_streaming_response(events, test_callback, model)
+        component_info = ComponentInfo(
+            type=type_,
+        )
+
+        replies = _parse_streaming_response(events, test_callback, model, component_info)
         # Pop completion_start_time since it will always change
         replies[0].meta.pop("completion_start_time")
         expected_messages = [
