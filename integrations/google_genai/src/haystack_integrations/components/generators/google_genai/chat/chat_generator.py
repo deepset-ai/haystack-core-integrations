@@ -97,13 +97,14 @@ def _sanitize_tool_schema(tool_schema: Dict[str, Any]) -> Dict[str, Any]:
     """
     Sanitizes a tool schema to remove any keys that are not supported by Google Gen AI.
 
-    Google Gen AI does not support additionalProperties, $defs, or $ref in the tool schema.
+    Google Gen AI does not support additionalProperties, $schema, $defs, or $ref in the tool schema.
 
     :param tool_schema: The tool schema to sanitize.
     :returns: The sanitized tool schema.
     """
-    # google Gemini does not support additionalProperties in the tool schema
+    # google Gemini does not support additionalProperties and $schema in the tool schema
     sanitized_schema = remove_key_from_schema(tool_schema, "additionalProperties")
+    sanitized_schema = remove_key_from_schema(sanitized_schema, "$schema")
     # expand $refs in the tool schema
     expanded_schema = replace_refs(sanitized_schema)
     # and remove the $defs key leaving the rest of the schema
