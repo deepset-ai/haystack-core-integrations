@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.8.0] - 2025-07-04
+
+### 🚀 Features
+
+- Pass component_info to StreamingChunk in AmazonBedrockChatGenerator (#2042)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+- Improve typing for select_streaming_callback (#2008)
+
+
 ## [integrations/amazon_bedrock-v3.7.0] - 2025-06-11
 
 ### 🐛 Bug Fixes
