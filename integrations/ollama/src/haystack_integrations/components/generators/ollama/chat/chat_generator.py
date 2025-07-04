@@ -106,7 +106,6 @@ def _convert_ollama_response_to_chatmessage(ollama_response: ChatResponse) -> Ch
     """
     response_dict = ollama_response.model_dump()
     ollama_message = response_dict["message"]
-
     text = ollama_message["content"]
     tool_calls: List[ToolCall] = []
 
@@ -119,8 +118,15 @@ def _convert_ollama_response_to_chatmessage(ollama_response: ChatResponse) -> Ch
                 )
             )
 
-    chat_msg = ChatMessage.from_assistant(text=text, tool_calls=tool_calls or None)
+    chat_msg = ChatMessage.from_assistant(text=text, tool_calls=tool_calls)
+
     chat_msg._meta = _convert_ollama_meta_to_openai_format(response_dict)
+
+    thinking = ollama_message.get("thinking", None)
+
+    if thinking is not None:
+        chat_msg._meta["thinking"] = thinking
+
     return chat_msg
 
 
@@ -186,6 +192,7 @@ class OllamaChatGenerator:
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
         response_format: Optional[Union[None, Literal["json"], JsonSchemaValue]] = None,
+        think: bool = False,
     ):
         """
         :param model:
@@ -197,7 +204,11 @@ class OllamaChatGenerator:
             top_p, and others. See the available arguments in
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :param timeout:
-            Socket timeout *in seconds* for HTTP calls to Ollama.
+            The number of seconds before throwing a timeout error from the Ollama API.
+        :param think
+            If True, the modell will "think" before producing a response.
+            Only [thinking models](https://ollama.com/search?c=thinking) support this feature.
+            The intermediate "thinking" output can be found in the `meta` property of the returned `ChatMessage`.
         :param keep_alive:
             The option that controls how long the model will stay loaded into memory following the request.
             If not set, it will use the default value from the Ollama (5 minutes).
@@ -229,6 +240,7 @@ class OllamaChatGenerator:
         self.keep_alive = keep_alive
         self.streaming_callback = streaming_callback
         self.tools = tools
+        self.think = think
         self.response_format = response_format
 
         self._client = Client(host=self.url, timeout=self.timeout)
@@ -428,6 +440,7 @@ class OllamaChatGenerator:
             keep_alive=self.keep_alive,
             options=generation_kwargs,
             format=self.response_format,
+            think=self.think,
         )
 
         if isinstance(response, Iterator):
