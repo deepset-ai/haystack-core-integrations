@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/anthropic-v3.1.0] - 2025-07-04
+
+### 🚀 Features
+
+- Pass `component_info`to `StreamingChunk` in `AnthropicChatGenerator` (#2056)
+
+
 ## [integrations/anthropic-v3.0.0] - 2025-06-30
 
 ### 🚀 Features
