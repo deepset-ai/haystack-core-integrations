@@ -4,10 +4,11 @@
 
 from typing import Any, Dict, List, Optional, Union
 
-from google import genai
 from google.genai import types
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
+
+from haystack_integrations.components.common.google_genai.utils import _get_client
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,40 @@ class GoogleGenAITextEmbedder:
     Embeds strings using Google AI models.
 
     You can use it to embed user query and send it to an embedding Retriever.
+
+    ### Authentication examples
+
+    **1. Gemini Developer API (API Key Authentication)**
+    ```python
+    from haystack_integrations.components.embedders.google_genai import GoogleGenAITextEmbedder
+
+    # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
+    text_embedder = GoogleGenAITextEmbedder(model="text-embedding-004")
+
+    **2. Vertex AI (Application Default Credentials)**
+    ```python
+    from haystack_integrations.components.embedders.google_genai import GoogleGenAITextEmbedder
+
+    # Using Application Default Credentials (requires gcloud auth setup)
+    text_embedder = GoogleGenAITextEmbedder(
+        use_vertex_ai=True,
+        vertex_ai_project="my-project",
+        vertex_ai_location="us-central1",
+        model="text-embedding-004"
+    )
+    ```
+
+    **3. Vertex AI (API Key Authentication)**
+    ```python
+    from haystack_integrations.components.embedders.google_genai import GoogleGenAITextEmbedder
+
+    # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
+    text_embedder = GoogleGenAITextEmbedder(
+        use_vertex_ai=True,
+        model="text-embedding-004"
+    )
+    ```
+
 
     ### Usage example
 
@@ -39,7 +74,10 @@ class GoogleGenAITextEmbedder:
     def __init__(
         self,
         *,
-        api_key: Secret = Secret.from_env_var(["GOOGLE_API_KEY", "GEMINI_API_KEY"]),
+        api_key: Secret = Secret.from_env_var(["GOOGLE_API_KEY", "GEMINI_API_KEY"], strict=False),
+        use_vertex_ai: bool = False,
+        vertex_ai_project: Optional[str] = None,
+        vertex_ai_location: Optional[str] = None,
         model: str = "text-embedding-004",
         prefix: str = "",
         suffix: str = "",
@@ -48,10 +86,15 @@ class GoogleGenAITextEmbedder:
         """
         Creates an GoogleGenAITextEmbedder component.
 
-        :param api_key:
-            The Google API key.
-            You can set it with the environment variable `GOOGLE_API_KEY` or `GEMINI_API_KEY`, or pass it via
-            this parameter during initialization.
+        :param api_key: Google API key, defaults to the `GOOGLE_API_KEY` and `GEMINI_API_KEY` environment variables.
+            Not needed if using Vertex AI with Application Default Credentials.
+            Go to https://aistudio.google.com/app/apikey for a Gemini API key.
+            Go to https://cloud.google.com/vertex-ai/generative-ai/docs/start/api-keys for a Vertex AI API key.
+        :param use_vertex_ai: Whether to use Vertex AI instead of the Gemini API.
+        :param vertex_ai_project: Google Cloud project ID for Vertex AI. Required when using Vertex AI with
+            Application Default Credentials.
+        :param vertex_ai_location: Google Cloud location for Vertex AI (e.g., "us-central1", "europe-west1").
+            Required when using Vertex AI with Application Default Credentials.
         :param model:
             The name of the model to use for calculating embeddings.
             The default model is `text-embedding-004`.
@@ -66,11 +109,19 @@ class GoogleGenAITextEmbedder:
         """
 
         self._api_key = api_key
+        self._use_vertex_ai = use_vertex_ai
+        self._vertex_ai_project = vertex_ai_project
+        self._vertex_ai_location = vertex_ai_location
         self._model_name = model
         self._prefix = prefix
         self._suffix = suffix
         self._config = config if config is not None else {"task_type": "SEMANTIC_SIMILARITY"}
-        self._client = genai.Client(api_key=api_key.resolve_value())
+        self._client = _get_client(
+            api_key=api_key,
+            use_vertex_ai=use_vertex_ai,
+            vertex_ai_project=vertex_ai_project,
+            vertex_ai_location=vertex_ai_location,
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -83,6 +134,9 @@ class GoogleGenAITextEmbedder:
             self,
             model=self._model_name,
             api_key=self._api_key.to_dict(),
+            use_vertex_ai=self._use_vertex_ai,
+            vertex_ai_project=self._vertex_ai_project,
+            vertex_ai_location=self._vertex_ai_location,
             prefix=self._prefix,
             suffix=self._suffix,
             config=self._config,
