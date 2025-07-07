@@ -1429,6 +1429,35 @@ class TestAnthropicChatGenerator:
             assert token_usage["cache_creation_input_tokens"] == 0
             assert token_usage["cache_read_input_tokens"] == 0
 
+    @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
+    @pytest.mark.parametrize("cache_enabled", [True, False])
+    def test_prompt_caching_live_run_with_user_message(self, cache_enabled):
+        claude_llm = AnthropicChatGenerator(
+            api_key=Secret.from_env_var("ANTHROPIC_API_KEY"),
+        )
+
+        system_message = ChatMessage.from_system("Hello from system. Just a generic instruction.")
+
+        user_message = ChatMessage.from_user("This is a user message that should be long enough to cache. " * 100)
+        if cache_enabled:
+            user_message._meta["cache_control"] = {"type": "ephemeral"}
+
+        messages = [system_message, user_message]
+        result = claude_llm.run(messages)
+
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+        token_usage = result["replies"][0].meta.get("usage")
+
+        if cache_enabled:
+            assert (
+                token_usage.get("cache_creation_input_tokens", 0) > 1024
+                or token_usage.get("cache_read_input_tokens", 0) > 1024
+            ), f"Unexpected usage stats: {token_usage}"
+        else:
+            assert token_usage.get("cache_creation_input_tokens", 0) == 0
+            assert token_usage.get("cache_read_input_tokens", 0) == 0
+
 
 class TestAnthropicChatGeneratorAsync:
     @pytest.fixture
