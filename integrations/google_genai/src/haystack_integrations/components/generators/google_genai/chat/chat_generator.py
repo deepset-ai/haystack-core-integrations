@@ -38,6 +38,10 @@ FINISH_REASON_MAPPING = {
     "STOP": "stop",
     "MAX_TOKENS": "length",
     "SAFETY": "content_filter",
+    "BLOCKLIST": "content_filter",
+    "PROHIBITED_CONTENT": "content_filter",
+    "SPII": "content_filter",
+    "IMAGE_SAFETY": "content_filter",
     "FUNCTION_CALL": "tool_calls",
 }
 
