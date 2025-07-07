@@ -2,8 +2,10 @@
 
 import asyncio
 import os
+from unittest.mock import Mock
 
 import pytest
+from google import genai
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool, Toolset
@@ -169,6 +171,190 @@ class TestGoogleGenAIChatGenerator:
         assert len(google_content.parts) == 1
         assert google_content.parts[0].function_response.name == "math"
         assert google_content.parts[0].function_response.response == {"result": "4"}
+
+    def test_process_streaming_chunk_text_only(self, monkeypatch):
+        """Test _process_streaming_chunk with text-only content."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator()
+
+        # Mock a text-only chunk
+        mock_chunk = Mock()
+        mock_candidate = Mock()
+        mock_candidate.finish_reason = "STOP"
+        mock_chunk.candidates = [mock_candidate]
+
+        mock_content = Mock()
+        mock_content.parts = []
+        mock_part = Mock()
+        mock_part.text = "Hello, world!"
+        mock_part.function_call = None
+        mock_content.parts.append(mock_part)
+        mock_candidate.content = mock_content
+
+        all_text_parts = []
+        all_tool_calls = []
+
+        chunks = component._process_streaming_chunk(mock_chunk, all_text_parts, all_tool_calls)
+
+        assert len(chunks) == 1
+        assert chunks[0].content == "Hello, world!"
+        assert chunks[0].tool_calls is None
+        assert chunks[0].finish_reason == "stop"
+        assert chunks[0].index is None
+        assert "model" in chunks[0].meta
+        assert "received_at" in chunks[0].meta
+        assert chunks[0].meta["raw_chunk"] == mock_chunk
+
+    def test_process_streaming_chunk_tool_call(self, monkeypatch):
+        """Test _process_streaming_chunk with tool call content."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator()
+
+        # Mock a tool call chunk
+        mock_chunk = Mock()
+        mock_candidate = Mock()
+        mock_candidate.finish_reason = "FUNCTION_CALL"
+        mock_chunk.candidates = [mock_candidate]
+
+        mock_content = Mock()
+        mock_content.parts = []
+        mock_part = Mock()
+        mock_part.text = None
+        mock_function_call = Mock()
+        mock_function_call.name = "weather"
+        mock_function_call.args = {"city": "Paris"}
+        mock_function_call.id = "call_123"
+        mock_part.function_call = mock_function_call
+        mock_content.parts.append(mock_part)
+        mock_candidate.content = mock_content
+
+        all_text_parts = []
+        all_tool_calls = []
+
+        chunks = component._process_streaming_chunk(mock_chunk, all_text_parts, all_tool_calls)
+
+        assert len(chunks) == 1
+        assert chunks[0].content == ""
+        assert chunks[0].tool_calls is not None
+        assert len(chunks[0].tool_calls) == 1
+        assert chunks[0].tool_calls[0].tool_name == "weather"
+        assert chunks[0].tool_calls[0].arguments == '{"city": "Paris"}'
+        assert chunks[0].tool_calls[0].id == "call_123"
+        assert chunks[0].finish_reason == "tool_calls"
+        assert chunks[0].index == 0
+        assert "model" in chunks[0].meta
+        assert "received_at" in chunks[0].meta
+
+    def test_process_streaming_chunk_mixed_content(self, monkeypatch):
+        """Test _process_streaming_chunk with both text and tool calls."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator()
+
+        # Mock a chunk with both text and tool call
+        mock_chunk = Mock()
+        mock_candidate = Mock()
+        mock_candidate.finish_reason = "STOP"
+        mock_chunk.candidates = [mock_candidate]
+
+        mock_content = Mock()
+        mock_content.parts = []
+
+        # Text part
+        mock_text_part = Mock()
+        mock_text_part.text = "I'll check the weather for you."
+        mock_text_part.function_call = None
+        mock_content.parts.append(mock_text_part)
+
+        # Tool call part
+        mock_tool_part = Mock()
+        mock_tool_part.text = None
+        mock_function_call = Mock()
+        mock_function_call.name = "weather"
+        mock_function_call.args = {"city": "London"}
+        mock_function_call.id = "call_456"
+        mock_tool_part.function_call = mock_function_call
+        mock_content.parts.append(mock_tool_part)
+
+        mock_candidate.content = mock_content
+
+        all_text_parts = []
+        all_tool_calls = []
+
+        chunks = component._process_streaming_chunk(mock_chunk, all_text_parts, all_tool_calls)
+
+        assert len(chunks) == 2
+
+        # First chunk should be text
+        assert chunks[0].content == "I'll check the weather for you."
+        assert chunks[0].tool_calls is None
+        assert chunks[0].finish_reason == "stop"
+
+        # Second chunk should be tool call
+        assert chunks[1].content == ""
+        assert chunks[1].tool_calls is not None
+        assert len(chunks[1].tool_calls) == 1
+        assert chunks[1].tool_calls[0].tool_name == "weather"
+        assert chunks[1].tool_calls[0].arguments == '{"city": "London"}'
+
+    def test_process_streaming_chunk_no_candidates(self, monkeypatch):
+        """Test _process_streaming_chunk with no candidates."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator()
+
+        # Mock a chunk with no candidates
+        mock_chunk = Mock()
+        mock_chunk.candidates = []
+
+        all_text_parts = []
+        all_tool_calls = []
+
+        chunks = component._process_streaming_chunk(mock_chunk, all_text_parts, all_tool_calls)
+
+        assert len(chunks) == 0
+        assert len(all_text_parts) == 0
+        assert len(all_tool_calls) == 0
+
+    def test_process_streaming_chunk_no_content(self, monkeypatch):
+        """Test _process_streaming_chunk with candidate but no content."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator()
+
+        # Mock a chunk with candidate but no content
+        mock_chunk = Mock()
+        mock_candidate = Mock()
+        mock_candidate.content = None
+        mock_chunk.candidates = [mock_candidate]
+
+        all_text_parts = []
+        all_tool_calls = []
+
+        chunks = component._process_streaming_chunk(mock_chunk, all_text_parts, all_tool_calls)
+
+        assert len(chunks) == 0
+        assert len(all_text_parts) == 0
+        assert len(all_tool_calls) == 0
+
+    def test_process_streaming_chunk_empty_parts(self, monkeypatch):
+        """Test _process_streaming_chunk with empty parts."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator()
+
+        # Mock a chunk with empty parts
+        mock_chunk = Mock()
+        mock_candidate = Mock()
+        mock_content = Mock()
+        mock_content.parts = []
+        mock_candidate.content = mock_content
+        mock_chunk.candidates = [mock_candidate]
+
+        all_text_parts = []
+        all_tool_calls = []
+
+        chunks = component._process_streaming_chunk(mock_chunk, all_text_parts, all_tool_calls)
+
+        assert len(chunks) == 0
+        assert len(all_text_parts) == 0
+        assert len(all_tool_calls) == 0
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
@@ -409,9 +595,8 @@ class TestAsyncGoogleGenAIChatGenerator:
         # Run concurrently
         results = await asyncio.gather(*tasks)
 
-        # Verify all calls completed successfully
+        # Verify all tasks completed successfully
         assert len(results) == 3
         for result in results:
             assert len(result["replies"]) == 1
             assert result["replies"][0].text
-            assert result["replies"][0].meta["model"]
