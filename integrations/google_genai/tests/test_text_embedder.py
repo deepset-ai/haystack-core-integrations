@@ -21,7 +21,7 @@ class TestGoogleGenAITextEmbedder:
         assert embedder._prefix == ""
         assert embedder._suffix == ""
         assert embedder._config == {"task_type": "SEMANTIC_SIMILARITY"}
-        assert embedder._use_vertex_ai is False
+        assert embedder._api == "gemini"
         assert embedder._vertex_ai_project is None
         assert embedder._vertex_ai_location is None
 
@@ -51,7 +51,7 @@ class TestGoogleGenAITextEmbedder:
                 "prefix": "",
                 "suffix": "",
                 "config": {"task_type": "SEMANTIC_SIMILARITY"},
-                "use_vertex_ai": False,
+                "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
             },
@@ -75,7 +75,7 @@ class TestGoogleGenAITextEmbedder:
                 "prefix": "prefix",
                 "suffix": "suffix",
                 "config": {"task_type": "CLASSIFICATION"},
-                "use_vertex_ai": False,
+                "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
             },
@@ -91,7 +91,7 @@ class TestGoogleGenAITextEmbedder:
                 "prefix": "",
                 "suffix": "",
                 "config": {"task_type": "CLASSIFICATION"},
-                "use_vertex_ai": False,
+                "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
             },

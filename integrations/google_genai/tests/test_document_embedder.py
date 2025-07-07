@@ -28,7 +28,7 @@ class TestGoogleGenAIDocumentEmbedder:
         monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
         embedder = GoogleGenAIDocumentEmbedder()
         assert embedder._api_key.resolve_value() == "fake-api-key"
-        assert embedder._use_vertex_ai is False
+        assert embedder._api == "gemini"
         assert embedder._vertex_ai_project is None
         assert embedder._vertex_ai_location is None
         assert embedder._model == "text-embedding-004"
@@ -86,7 +86,7 @@ class TestGoogleGenAIDocumentEmbedder:
                 "embedding_separator": "\n",
                 "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": False},
                 "config": {"task_type": "SEMANTIC_SIMILARITY"},
-                "use_vertex_ai": False,
+                "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
             },
@@ -120,7 +120,7 @@ class TestGoogleGenAIDocumentEmbedder:
                 "embedding_separator": " | ",
                 "api_key": {"type": "env_var", "env_vars": ["ENV_VAR"], "strict": False},
                 "config": {"task_type": "CLASSIFICATION"},
-                "use_vertex_ai": False,
+                "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
             },
@@ -141,7 +141,7 @@ class TestGoogleGenAIDocumentEmbedder:
                 "embedding_separator": "\n",
                 "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": False},
                 "config": {"task_type": "SEMANTIC_SIMILARITY"},
-                "use_vertex_ai": False,
+                "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
             },
@@ -157,7 +157,7 @@ class TestGoogleGenAIDocumentEmbedder:
         assert embedder._meta_fields_to_embed == []
         assert embedder._embedding_separator == "\n"
         assert embedder._config == {"task_type": "SEMANTIC_SIMILARITY"}
-        assert embedder._use_vertex_ai is False
+        assert embedder._api == "gemini"
         assert embedder._vertex_ai_project is None
         assert embedder._vertex_ai_location is None
 

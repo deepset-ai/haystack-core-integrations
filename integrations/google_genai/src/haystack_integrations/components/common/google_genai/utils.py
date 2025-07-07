@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Optional
+from typing import Literal, Optional
 
 from google.genai import Client
 from haystack import logging
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 def _get_client(
     api_key: Secret,
-    use_vertex_ai: bool,  # noqa: FBT001
+    api: Literal["gemini", "vertex"],
     vertex_ai_project: Optional[str],
     vertex_ai_location: Optional[str],
 ) -> Client:
@@ -26,7 +26,7 @@ def _get_client(
     - Vertex AI (API Key Authentication).
 
     :param api_key: Google API key, defaults to the `GOOGLE_API_KEY` and `GEMINI_API_KEY` environment variables.
-    :param use_vertex_ai: Whether to use Vertex AI instead of the Gemini API.
+    :param api: Which API to use. Either "gemini" for the Gemini Developer API or "vertex" for Vertex AI.
     :param vertex_ai_project: Google Cloud project ID for Vertex AI. Required when using Vertex AI with
         Application Default Credentials.
     :param vertex_ai_location: Google Cloud location for Vertex AI (e.g., "us-central1", "europe-west1"). Required
@@ -39,7 +39,7 @@ def _get_client(
     """
     resolved_api_key = api_key.resolve_value()
 
-    if use_vertex_ai:
+    if api == "vertex":
         if not resolved_api_key and not (vertex_ai_project and vertex_ai_location):
             msg = (
                 "To use Vertex AI, you must provide both vertex_ai_project and vertex_ai_location or export "

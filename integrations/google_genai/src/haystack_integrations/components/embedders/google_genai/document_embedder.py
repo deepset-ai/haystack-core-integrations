@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from google.genai import types
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -35,7 +35,7 @@ class GoogleGenAIDocumentEmbedder:
 
     # Using Application Default Credentials (requires gcloud auth setup)
     document_embedder = GoogleGenAIDocumentEmbedder(
-        use_vertex_ai=True,
+        api="vertex",
         vertex_ai_project="my-project",
         vertex_ai_location="us-central1",
         model="text-embedding-004"
@@ -48,7 +48,7 @@ class GoogleGenAIDocumentEmbedder:
 
     # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
     document_embedder = GoogleGenAIDocumentEmbedder(
-        use_vertex_ai=True,
+        api="vertex",
         model="text-embedding-004"
     )
     ```
@@ -74,7 +74,7 @@ class GoogleGenAIDocumentEmbedder:
         self,
         *,
         api_key: Secret = Secret.from_env_var(["GOOGLE_API_KEY", "GEMINI_API_KEY"], strict=False),
-        use_vertex_ai: bool = False,
+        api: Literal["gemini", "vertex"] = "gemini",
         vertex_ai_project: Optional[str] = None,
         vertex_ai_location: Optional[str] = None,
         model: str = "text-embedding-004",
@@ -93,7 +93,7 @@ class GoogleGenAIDocumentEmbedder:
             Not needed if using Vertex AI with Application Default Credentials.
             Go to https://aistudio.google.com/app/apikey for a Gemini API key.
             Go to https://cloud.google.com/vertex-ai/generative-ai/docs/start/api-keys for a Vertex AI API key.
-        :param use_vertex_ai: Whether to use Vertex AI instead of the Gemini API.
+        :param api: Which API to use. Either "gemini" for the Gemini Developer API or "vertex" for Vertex AI.
         :param vertex_ai_project: Google Cloud project ID for Vertex AI. Required when using Vertex AI with
             Application Default Credentials.
         :param vertex_ai_location: Google Cloud location for Vertex AI (e.g., "us-central1", "europe-west1").
@@ -119,7 +119,7 @@ class GoogleGenAIDocumentEmbedder:
             For more information, see the [Google AI Task types](https://ai.google.dev/gemini-api/docs/embeddings#task-types).
         """
         self._api_key = api_key
-        self._use_vertex_ai = use_vertex_ai
+        self._api = api
         self._vertex_ai_project = vertex_ai_project
         self._vertex_ai_location = vertex_ai_location
         self._model = model
@@ -133,7 +133,7 @@ class GoogleGenAIDocumentEmbedder:
 
         self._client = _get_client(
             api_key=api_key,
-            use_vertex_ai=use_vertex_ai,
+            api=api,
             vertex_ai_project=vertex_ai_project,
             vertex_ai_location=vertex_ai_location,
         )
@@ -155,7 +155,7 @@ class GoogleGenAIDocumentEmbedder:
             meta_fields_to_embed=self._meta_fields_to_embed,
             embedding_separator=self._embedding_separator,
             api_key=self._api_key.to_dict(),
-            use_vertex_ai=self._use_vertex_ai,
+            api=self._api,
             vertex_ai_project=self._vertex_ai_project,
             vertex_ai_location=self._vertex_ai_location,
             config=self._config,
