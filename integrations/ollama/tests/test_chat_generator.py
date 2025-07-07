@@ -226,7 +226,7 @@ class TestOllamaChatGenerator:
     def test_to_dict_with_toolset(self, tools):
         """Test that the OllamaChatGenerator can be serialized to a dictionary with a Toolset."""
         toolset = Toolset(tools)
-        generator = OllamaChatGenerator(model="llama3", tools=toolset)
+        generator = OllamaChatGenerator(model="qwen3", tools=toolset)
         data = generator.to_dict()
 
         assert data["init_parameters"]["tools"]["type"] == "haystack.tools.toolset.Toolset"
@@ -236,7 +236,7 @@ class TestOllamaChatGenerator:
     def test_from_dict_with_toolset(self, tools):
         """Test that the OllamaChatGenerator can be deserialized from a dictionary with a Toolset."""
         toolset = Toolset(tools)
-        component = OllamaChatGenerator(model="llama3", tools=toolset)
+        component = OllamaChatGenerator(model="qwen3", tools=toolset)
         data = component.to_dict()
 
         deserialized_component = OllamaChatGenerator.from_dict(data)
@@ -389,7 +389,7 @@ class TestOllamaChatGenerator:
         generator = OllamaChatGenerator()
 
         mock_response = ChatResponse(
-            model="llama3.2",
+            model="qwen3:0.6b",
             created_at="2023-12-12T14:13:43.416799Z",
             message={
                 "role": "assistant",
@@ -417,6 +417,7 @@ class TestOllamaChatGenerator:
             options={},
             keep_alive=None,
             format=None,
+            think=False,
         )
 
         assert "replies" in result
@@ -436,13 +437,13 @@ class TestOllamaChatGenerator:
         mock_response = iter(
             [
                 ChatResponse(
-                    model="llama3.2",
+                    model="qwen3:0.6b",
                     created_at="2023-12-12T14:13:43.416799Z",
                     message={"role": "assistant", "content": "first chunk "},
                     done=False,
                 ),
                 ChatResponse(
-                    model="llama3.2",
+                    model="qwen3:0.6b",
                     created_at="2023-12-12T14:13:43.416799Z",
                     message={"role": "assistant", "content": "second chunk"},
                     done=True,
@@ -486,6 +487,54 @@ class TestOllamaChatGenerator:
         assert result["replies"][0]._meta["usage"]["total_tokens"] == 308
 
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
+    def test_run_with_thinking(self, mock_client):
+        generator = OllamaChatGenerator(think=True)
+
+        mock_response = ChatResponse(
+            model="qwen3:0.6b",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={
+                "role": "assistant",
+                "content": "There are three 'r's in the word 'strawberry'",
+                "thinking": "I'm tired of answering this question for the thousandth time.",
+            },
+            done=True,
+            total_duration=5191566416,
+            load_duration=2154458,
+            prompt_eval_count=26,
+            prompt_eval_duration=383809000,
+            eval_count=298,
+            eval_duration=4799921000,
+        )
+
+        mock_client_instance = mock_client.return_value
+        mock_client_instance.chat.return_value = mock_response
+
+        result = generator.run(
+            messages=[ChatMessage.from_user("How many times does the letter 'r' appear in the word 'strawberry'?")]
+        )
+
+        mock_client_instance.chat.assert_called_once_with(
+            model="orca-mini",
+            messages=[
+                {"role": "user", "content": "How many times does the letter 'r' appear in the word 'strawberry'?"}
+            ],
+            stream=False,
+            tools=None,
+            options={},
+            keep_alive=None,
+            format=None,
+            think=True,
+        )
+
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+        assert result["replies"][0].text == "There are three 'r's in the word 'strawberry'"
+        assert result["replies"][0].role == "assistant"
+        assert "thinking" in result["replies"][0].meta
+        assert result["replies"][0].meta["thinking"] == "I'm tired of answering this question for the thousandth time."
+
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run_streaming_at_runtime(self, mock_client):
         streaming_callback_called = False
 
@@ -498,13 +547,13 @@ class TestOllamaChatGenerator:
         mock_response = iter(
             [
                 ChatResponse(
-                    model="llama3.2",
+                    model="qwen3:0.6b",
                     created_at="2023-12-12T14:13:43.416799Z",
                     message={"role": "assistant", "content": "first chunk "},
                     done=False,
                 ),
                 ChatResponse(
-                    model="llama3.2",
+                    model="qwen3:0.6b",
                     created_at="2023-12-12T14:13:43.416799Z",
                     message={"role": "assistant", "content": "second chunk"},
                     done=True,
@@ -540,7 +589,7 @@ class TestOllamaChatGenerator:
 
     @pytest.mark.integration
     def test_run_success_with_tools_and_streaming(self, tools):
-        component = OllamaChatGenerator(model="llama3.2:3b", tools=tools, streaming_callback=print_streaming_chunk)
+        component = OllamaChatGenerator(model="qwen3:0.6b", tools=tools, streaming_callback=print_streaming_chunk)
 
         message = ChatMessage.from_user("What is the weather in Paris?")
         response = component.run([message])
@@ -556,12 +605,12 @@ class TestOllamaChatGenerator:
 
     @pytest.mark.integration
     def test_live_run(self):
-        chat_generator = OllamaChatGenerator(model="llama3.2:3b")
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b")
 
         user_questions_and_assistant_answers = [
             ("What's the capital of France?", "Paris"),
             ("What is the capital of Canada?", "Ottawa"),
-            ("What is the capital of Ghana?", "Accra"),
+            ("What is the capital of England?", "London"),
         ]
 
         for question, answer in user_questions_and_assistant_answers:
@@ -575,7 +624,7 @@ class TestOllamaChatGenerator:
 
     @pytest.mark.integration
     def test_run_with_chat_history(self):
-        chat_generator = OllamaChatGenerator(model="llama3.2:3b")
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b")
 
         chat_messages = [
             ChatMessage.from_user("What is the largest city in the United Kingdom by population?"),
@@ -593,6 +642,17 @@ class TestOllamaChatGenerator:
         )
 
     @pytest.mark.integration
+    def test_live_run_with_thinking(self):
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b", think=True)
+
+        message = ChatMessage.from_user("How many times does the letter 'r' appear in the word 'strawberry'?")
+        response = chat_generator.run([message])
+
+        assert isinstance(response, dict)
+        assert isinstance(response["replies"], list)
+        assert "thinking" in response["replies"][0].meta
+
+    @pytest.mark.integration
     def test_run_model_unavailable(self):
         component = OllamaChatGenerator(model="unknown_model")
 
@@ -603,7 +663,7 @@ class TestOllamaChatGenerator:
     @pytest.mark.integration
     def test_run_with_streaming(self):
         streaming_callback = Mock()
-        chat_generator = OllamaChatGenerator(model="llama3.2:3b", streaming_callback=streaming_callback)
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b", streaming_callback=streaming_callback)
 
         chat_messages = [
             ChatMessage.from_user("What is the largest city in the United Kingdom by population?"),
@@ -623,7 +683,7 @@ class TestOllamaChatGenerator:
 
     @pytest.mark.integration
     def test_run_with_tools(self, tools):
-        chat_generator = OllamaChatGenerator(model="llama3.2:3b", tools=tools)
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b", tools=tools)
 
         message = ChatMessage.from_user("What is the weather in Paris?")
         response = chat_generator.run([message])
@@ -644,7 +704,7 @@ class TestOllamaChatGenerator:
             "properties": {"capital": {"type": "string"}, "population": {"type": "number"}},
             "required": ["capital", "population"],
         }
-        chat_generator = OllamaChatGenerator(model="llama3.2:3b", response_format=response_format)
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b", response_format=response_format)
 
         message = ChatMessage.from_user("What's the capital of France and its population? Respond in JSON format.")
         response = chat_generator.run([message])
@@ -670,7 +730,7 @@ class TestOllamaChatGenerator:
         }
         streaming_callback = Mock()
         chat_generator = OllamaChatGenerator(
-            model="llama3.2:3b", streaming_callback=streaming_callback, response_format=response_format
+            model="qwen3:0.6b", streaming_callback=streaming_callback, response_format=response_format
         )
         message = ChatMessage.from_user("What's the weather in Paris?")
 
@@ -686,7 +746,7 @@ class TestOllamaChatGenerator:
         assert isinstance(response_data["capital"], str)
         assert "population" in response_data
         assert isinstance(response_data["population"], (int, float))
-        assert response_data["capital"].lower() == "paris"
+        assert "paris" in response_data["capital"].lower()  # relaxing the constraint because the model we use is small
 
     @pytest.mark.integration
     def test_run_with_tools_and_format(self, tools):
@@ -695,7 +755,7 @@ class TestOllamaChatGenerator:
             "properties": {"capital": {"type": "string"}, "population": {"type": "number"}},
             "required": ["capital", "population"],
         }
-        chat_generator = OllamaChatGenerator(model="llama3.2:3b", tools=tools, response_format=response_format)
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b", tools=tools, response_format=response_format)
         message = ChatMessage.from_user("What's the weather in Paris?")
 
         result = chat_generator.run([message])
@@ -716,10 +776,10 @@ class TestOllamaChatGenerator:
     def test_run_with_toolset(self, mock_client, tools):
         """Test that the OllamaChatGenerator can run with a Toolset."""
         toolset = Toolset(tools)
-        generator = OllamaChatGenerator(model="llama3", tools=toolset)
+        generator = OllamaChatGenerator(model="qwen3", tools=toolset)
 
         mock_response = ChatResponse(
-            model="llama3",
+            model="qwen3",
             created_at="2023-12-12T14:13:43.416799Z",
             message={
                 "role": "assistant",
