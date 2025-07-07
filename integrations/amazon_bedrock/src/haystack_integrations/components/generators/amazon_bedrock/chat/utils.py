@@ -8,6 +8,7 @@ from haystack.dataclasses import (
     AsyncStreamingCallbackT,
     ChatMessage,
     ChatRole,
+    ComponentInfo,
     StreamingChunk,
     SyncStreamingCallbackT,
     ToolCall,
@@ -235,7 +236,9 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
 
 
 # Bedrock streaming to Haystack util methods
-def _convert_event_to_streaming_chunk(event: Dict[str, Any], model: str) -> StreamingChunk:
+def _convert_event_to_streaming_chunk(
+    event: Dict[str, Any], model: str, component_info: ComponentInfo
+) -> StreamingChunk:
     """
     Convert a Bedrock streaming event to a Haystack StreamingChunk.
 
@@ -244,6 +247,7 @@ def _convert_event_to_streaming_chunk(event: Dict[str, Any], model: str) -> Stre
 
     :param event: Dictionary containing a Bedrock streaming event.
     :param model: The model ID used for generation, included in chunk metadata.
+    :param component_info: ComponentInfo object
     :returns: StreamingChunk object containing the content and metadata extracted from the event.
     """
     # Initialize an empty StreamingChunk to return if no relevant event is found
@@ -358,6 +362,8 @@ def _convert_event_to_streaming_chunk(event: Dict[str, Any], model: str) -> Stre
             },
         )
 
+    streaming_chunk.component_info = component_info
+
     return streaming_chunk
 
 
@@ -438,6 +444,7 @@ def _parse_streaming_response(
     response_stream: EventStream,
     streaming_callback: SyncStreamingCallbackT,
     model: str,
+    component_info: ComponentInfo,
 ) -> List[ChatMessage]:
     """
     Parse a streaming response from Bedrock.
@@ -445,11 +452,12 @@ def _parse_streaming_response(
     :param response_stream: EventStream from Bedrock API
     :param streaming_callback: Callback for streaming chunks
     :param model: The model ID used for generation
+    :param component_info: ComponentInfo object
     :return: List of ChatMessage objects
     """
     chunks: List[StreamingChunk] = []
     for event in response_stream:
-        streaming_chunk = _convert_event_to_streaming_chunk(event=event, model=model)
+        streaming_chunk = _convert_event_to_streaming_chunk(event=event, model=model, component_info=component_info)
         streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
     replies = [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
@@ -460,6 +468,7 @@ async def _parse_streaming_response_async(
     response_stream: EventStream,
     streaming_callback: AsyncStreamingCallbackT,
     model: str,
+    component_info: ComponentInfo,
 ) -> List[ChatMessage]:
     """
     Parse a streaming response from Bedrock.
@@ -467,11 +476,12 @@ async def _parse_streaming_response_async(
     :param response_stream: EventStream from Bedrock API
     :param streaming_callback: Callback for streaming chunks
     :param model: The model ID used for generation
+    :param component_info: ComponentInfo object
     :return: List of ChatMessage objects
     """
     chunks: List[StreamingChunk] = []
     async for event in response_stream:
-        streaming_chunk = _convert_event_to_streaming_chunk(event=event, model=model)
+        streaming_chunk = _convert_event_to_streaming_chunk(event=event, model=model, component_info=component_info)
         await streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
     replies = [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
