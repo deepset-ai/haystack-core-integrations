@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v1.3.0] - 2025-07-07
+
+### 🚀 Features
+
+- Google GenAI - add support for Vertex API (#2058)
+
+
 ## [integrations/google_genai-v1.2.0] - 2025-06-27
 
 ### 🐛 Bug Fixes
