@@ -229,7 +229,7 @@ class VertexAIDocumentEmbedder:
             while total_tokens > self.max_tokens_total:
                 batch_size = max(batch_size - 3, 1)  # math.ceil(batch_size / 2)
                 logger.debug(f"Batch {batch_number} Reducing batch size to {batch_size}")
-                logger.info("due to token limit (total_tokens = {total_tokens})")
+                logger.debug(f"due to token limit (total_tokens = {total_tokens})")
                 batch = documents[i : i + batch_size]
                 batch_text = self._prepare_texts_to_embed(batch)
                 total_tokens = self.embedder.count_tokens(batch_text).total_tokens
