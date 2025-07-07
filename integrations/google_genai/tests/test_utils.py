@@ -6,6 +6,13 @@ from haystack.utils import Secret
 from haystack_integrations.components.common.google_genai.utils import _get_client
 
 
+def test_get_client_invalid_api_raises():
+    with pytest.raises(ValueError):
+        _get_client(
+            api_key=Secret.from_token("test-api-key"), api="invalid", vertex_ai_project=None, vertex_ai_location=None
+        )
+
+
 def test_get_client_vertex_no_credentials_raises(monkeypatch):
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     api_key = Secret.from_env_var("GOOGLE_API_KEY", strict=False)

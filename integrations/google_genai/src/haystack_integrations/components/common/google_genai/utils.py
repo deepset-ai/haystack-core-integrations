@@ -37,6 +37,11 @@ def _get_client(
     :raises: ValueError if Gemini API is used without providing an API key or if Vertex AI is used without providing
         an API key or both vertex_ai_project and vertex_ai_location.
     """
+
+    if api not in ["gemini", "vertex"]:
+        msg = f"Invalid API: {api}. Must be either 'gemini' or 'vertex'."
+        raise ValueError(msg)
+
     resolved_api_key = api_key.resolve_value()
 
     if api == "vertex":
