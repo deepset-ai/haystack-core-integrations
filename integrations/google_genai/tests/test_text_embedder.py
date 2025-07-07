@@ -21,22 +21,11 @@ class TestGoogleGenAITextEmbedder:
         assert embedder._prefix == ""
         assert embedder._suffix == ""
         assert embedder._config == {"task_type": "SEMANTIC_SIMILARITY"}
+        assert embedder._api == "gemini"
+        assert embedder._vertex_ai_project is None
+        assert embedder._vertex_ai_location is None
 
     def test_init_with_parameters(self):
-        embedder = GoogleGenAITextEmbedder(
-            api_key=Secret.from_token("fake-api-key"),
-            model="model",
-            prefix="prefix",
-            suffix="suffix",
-            config={"task_type": "CLASSIFICATION"},
-        )
-        assert embedder._api_key.resolve_value() == "fake-api-key"
-        assert embedder._model_name == "model"
-        assert embedder._prefix == "prefix"
-        assert embedder._suffix == "suffix"
-        assert embedder._config == {"task_type": "CLASSIFICATION"}
-
-    def test_init_with_parameters_and_env_vars(self, monkeypatch):
         embedder = GoogleGenAITextEmbedder(
             api_key=Secret.from_token("fake-api-key"),
             model="model",
@@ -57,11 +46,14 @@ class TestGoogleGenAITextEmbedder:
         assert data == {
             "type": "haystack_integrations.components.embedders.google_genai.text_embedder.GoogleGenAITextEmbedder",
             "init_parameters": {
-                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": True},
+                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": False},
                 "model": "text-embedding-004",
                 "prefix": "",
                 "suffix": "",
                 "config": {"task_type": "SEMANTIC_SIMILARITY"},
+                "api": "gemini",
+                "vertex_ai_project": None,
+                "vertex_ai_location": None,
             },
         }
 
@@ -83,6 +75,9 @@ class TestGoogleGenAITextEmbedder:
                 "prefix": "prefix",
                 "suffix": "suffix",
                 "config": {"task_type": "CLASSIFICATION"},
+                "api": "gemini",
+                "vertex_ai_project": None,
+                "vertex_ai_location": None,
             },
         }
 
@@ -91,11 +86,14 @@ class TestGoogleGenAITextEmbedder:
         data = {
             "type": "haystack_integrations.components.embedders.google_genai.text_embedder.GoogleGenAITextEmbedder",
             "init_parameters": {
-                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": True},
+                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": False},
                 "model": "text-embedding-004",
                 "prefix": "",
                 "suffix": "",
                 "config": {"task_type": "CLASSIFICATION"},
+                "api": "gemini",
+                "vertex_ai_project": None,
+                "vertex_ai_location": None,
             },
         }
         component = GoogleGenAITextEmbedder.from_dict(data)
