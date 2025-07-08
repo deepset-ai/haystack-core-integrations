@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/deepeval-v0.3.0] - 2025-07-08
+
+### 🚀 Features
+
+- Update deepeval integration to be unpinned (#2068)
+
+
 ## [integrations/deepeval-v0.2.0] - 2025-06-30
 
 ### 🐛 Bug Fixes

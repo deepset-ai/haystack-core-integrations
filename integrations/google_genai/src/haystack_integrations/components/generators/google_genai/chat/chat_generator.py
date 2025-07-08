@@ -4,9 +4,8 @@
 
 import json
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
+from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Union
 
-from google import genai
 from google.genai import types
 from haystack import logging
 from haystack.core.component import component
@@ -31,6 +30,7 @@ from haystack.tools import (
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 from jsonref import replace_refs
 
+from haystack_integrations.components.common.google_genai.utils import _get_client
 from haystack_integrations.components.generators.google_genai.chat.utils import remove_key_from_schema
 
 # Mapping from Google GenAI finish reasons to Haystack FinishReason values
@@ -112,13 +112,14 @@ def _sanitize_tool_schema(tool_schema: Dict[str, Any]) -> Dict[str, Any]:
     """
     Sanitizes a tool schema to remove any keys that are not supported by Google Gen AI.
 
-    Google Gen AI does not support additionalProperties, $defs, or $ref in the tool schema.
+    Google Gen AI does not support additionalProperties, $schema, $defs, or $ref in the tool schema.
 
     :param tool_schema: The tool schema to sanitize.
     :returns: The sanitized tool schema.
     """
-    # google Gemini does not support additionalProperties in the tool schema
+    # google Gemini does not support additionalProperties and $schema in the tool schema
     sanitized_schema = remove_key_from_schema(tool_schema, "additionalProperties")
+    sanitized_schema = remove_key_from_schema(sanitized_schema, "$schema")
     # expand $refs in the tool schema
     expanded_schema = replace_refs(sanitized_schema)
     # and remove the $defs key leaving the rest of the schema
@@ -216,6 +217,39 @@ class GoogleGenAIChatGenerator:
     This component provides an interface to Google's Gemini models through the new google-genai SDK,
     supporting models like gemini-2.0-flash and other Gemini variants.
 
+    ### Authentication Examples
+
+    **1. Gemini Developer API (API Key Authentication)**
+    ```python
+    from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
+
+    # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
+    chat_generator = GoogleGenAIChatGenerator(model="gemini-2.0-flash")
+
+    **2. Vertex AI (Application Default Credentials)**
+    ```python
+    from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
+
+    # Using Application Default Credentials (requires gcloud auth setup)
+    chat_generator = GoogleGenAIChatGenerator(
+        api="vertex",
+        vertex_ai_project="my-project",
+        vertex_ai_location="us-central1",
+        model="gemini-2.0-flash"
+    )
+    ```
+
+    **3. Vertex AI (API Key Authentication)**
+    ```python
+    from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
+
+    # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
+    chat_generator = GoogleGenAIChatGenerator(
+        api="vertex",
+        model="gemini-2.0-flash"
+    )
+    ```
+
     ### Usage example
 
     ```python
@@ -256,7 +290,10 @@ class GoogleGenAIChatGenerator:
     def __init__(
         self,
         *,
-        api_key: Secret = Secret.from_env_var(["GOOGLE_API_KEY", "GEMINI_API_KEY"]),
+        api_key: Secret = Secret.from_env_var(["GOOGLE_API_KEY", "GEMINI_API_KEY"], strict=False),
+        api: Literal["gemini", "vertex"] = "gemini",
+        vertex_ai_project: Optional[str] = None,
+        vertex_ai_location: Optional[str] = None,
         model: str = "gemini-2.0-flash",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         safety_settings: Optional[List[Dict[str, Any]]] = None,
@@ -266,8 +303,15 @@ class GoogleGenAIChatGenerator:
         """
         Initialize a GoogleGenAIChatGenerator instance.
 
-        :param api_key: Google API key, defaults to the `GOOGLE_API_KEY` and `GEMINI_API_KEY` environment variables,
-        see https://ai.google.dev/gemini-api/docs/api-key for more information.
+        :param api_key: Google API key, defaults to the `GOOGLE_API_KEY` and `GEMINI_API_KEY` environment variables.
+            Not needed if using Vertex AI with Application Default Credentials.
+            Go to https://aistudio.google.com/app/apikey for a Gemini API key.
+            Go to https://cloud.google.com/vertex-ai/generative-ai/docs/start/api-keys for a Vertex AI API key.
+        :param api: Which API to use. Either "gemini" for the Gemini Developer API or "vertex" for Vertex AI.
+        :param vertex_ai_project: Google Cloud project ID for Vertex AI. Required when using Vertex AI with
+            Application Default Credentials.
+        :param vertex_ai_location: Google Cloud location for Vertex AI (e.g., "us-central1", "europe-west1").
+            Required when using Vertex AI with Application Default Credentials.
         :param model: Name of the model to use (e.g., "gemini-2.0-flash")
         :param generation_kwargs: Configuration for generation (temperature, max_tokens, etc.)
         :param safety_settings: Safety settings for content filtering
@@ -276,15 +320,22 @@ class GoogleGenAIChatGenerator:
         """
         _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
 
+        self._client = _get_client(
+            api_key=api_key,
+            api=api,
+            vertex_ai_project=vertex_ai_project,
+            vertex_ai_location=vertex_ai_location,
+        )
+
         self._api_key = api_key
+        self._api = api
+        self._vertex_ai_project = vertex_ai_project
+        self._vertex_ai_location = vertex_ai_location
         self._model = model
         self._generation_kwargs = generation_kwargs or {}
         self._safety_settings = safety_settings or []
         self._streaming_callback = streaming_callback
         self._tools = tools
-
-        # Initialize the client
-        self._client = genai.Client(api_key=api_key.resolve_value())
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -297,6 +348,9 @@ class GoogleGenAIChatGenerator:
         return default_to_dict(
             self,
             api_key=self._api_key.to_dict(),
+            api=self._api,
+            vertex_ai_project=self._vertex_ai_project,
+            vertex_ai_location=self._vertex_ai_location,
             model=self._model,
             generation_kwargs=self._generation_kwargs,
             safety_settings=self._safety_settings,
