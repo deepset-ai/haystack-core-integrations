@@ -83,7 +83,7 @@ class MetricResult:
     """
 
     name: str
-    score: float
+    score: Optional[float] = None
     explanation: Optional[str] = None
 
     def to_dict(self):
@@ -216,7 +216,6 @@ class OutputConverters:
             assert output.metrics_data
             assert len(output.metrics_data) == 1
             metric_result = output.metrics_data[0]
-            assert metric_result.score
             out = [MetricResult(name=metric_name, score=metric_result.score, explanation=metric_result.reason)]
             return out
 
