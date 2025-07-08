@@ -12,7 +12,6 @@ from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import (
     AsyncStreamingCallbackT,
-    FinishReason,
     StreamingCallbackT,
     StreamingChunk,
     ToolCall,
@@ -393,7 +392,6 @@ class GoogleGenAIChatGenerator:
 
             if candidate.content and candidate.content.parts:
                 for part in candidate.content.parts:
-                    # Text streaming
                     if part.text:
                         all_text_parts.append(part.text)
                         streaming_chunks.append(
@@ -408,7 +406,7 @@ class GoogleGenAIChatGenerator:
                                 },
                             )
                         )
-                    # Tool call streaming
+
                     elif part.function_call:
                         tool_call = ToolCall(
                             tool_name=part.function_call.name or "",
@@ -421,13 +419,14 @@ class GoogleGenAIChatGenerator:
                                 content="",
                                 tool_calls=[
                                     ToolCallDelta(
-                                        index=0,  # Google GenAI does not provide index, so use 0 or None
+                                        # Google GenAI does not provide index, but it is required for tool calls
+                                        index=0,
                                         id=tool_call.id,
                                         tool_name=tool_call.tool_name,
                                         arguments=json.dumps(tool_call.arguments) if tool_call.arguments else None,
                                     )
                                 ],
-                                index=0,  # Required when tool_calls is set
+                                index=0,  # Google GenAI does not provide index, but it is required for tool calls
                                 finish_reason=FINISH_REASON_MAPPING.get(finish_reason),
                                 meta={
                                     "model": getattr(chunk, "model", None),

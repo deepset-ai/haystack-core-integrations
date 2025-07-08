@@ -5,7 +5,6 @@ import os
 from unittest.mock import Mock
 
 import pytest
-from google import genai
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool, Toolset
