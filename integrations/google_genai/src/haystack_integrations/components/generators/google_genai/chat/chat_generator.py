@@ -12,11 +12,11 @@ from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import (
     AsyncStreamingCallbackT,
+    FinishReason,
     StreamingCallbackT,
     StreamingChunk,
     ToolCall,
     ToolCallDelta,
-    FinishReason,
     select_streaming_callback,
 )
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
@@ -374,7 +374,11 @@ class GoogleGenAIChatGenerator:
         return default_from_dict(cls, data)
 
     def _process_streaming_chunk(
-        self, chunk: types.GenerateContentResponse, index: int, all_text_parts: List[str], all_tool_calls: List[ToolCall],
+        self,
+        chunk: types.GenerateContentResponse,
+        index: int,
+        all_text_parts: List[str],
+        all_tool_calls: List[ToolCall],
     ) -> StreamingChunk:
         """
         Process a single streaming chunk and extract text and tool calls.
@@ -488,24 +492,28 @@ class GoogleGenAIChatGenerator:
             all_tool_calls: List[ToolCall] = []
             final_finish_reason = None
             first_chunk_received_at = None
-            last_chunk = None
 
+            chunk = None
             for i, chunk in enumerate(response_stream):
                 if first_chunk_received_at is None:
                     first_chunk_received_at = datetime.now(timezone.utc).isoformat()
 
-                last_chunk = chunk
-                streaming_chunk = self._process_streaming_chunk(chunk=chunk, index=i, all_text_parts=all_text_parts, all_tool_calls=all_tool_calls)
+                streaming_chunk = self._process_streaming_chunk(
+                    chunk=chunk, index=i, all_text_parts=all_text_parts, all_tool_calls=all_tool_calls
+                )
 
-                # Update finish reason (keep the last non-None value)
-                if chunk.candidates and chunk.candidates[0].finish_reason:
-                    final_finish_reason = chunk.candidates[0].finish_reason
+                if streaming_chunk.finish_reason:
+                    final_finish_reason = streaming_chunk.finish_reason
 
                 # Stream the chunk
                 streaming_callback(streaming_chunk)
 
             message = self._build_final_message(
-                all_text_parts, all_tool_calls, final_finish_reason, first_chunk_received_at, last_chunk
+                all_text_parts=all_text_parts,
+                all_tool_calls=all_tool_calls,
+                final_finish_reason=final_finish_reason,
+                first_chunk_received_at=first_chunk_received_at,
+                last_chunk=chunk,
             )
             return {"replies": [message]}
 
@@ -521,26 +529,30 @@ class GoogleGenAIChatGenerator:
             all_tool_calls: List[ToolCall] = []
             final_finish_reason = None
             first_chunk_received_at = None
-            last_chunk = None
 
             i = 0
+            chunk = None
             async for chunk in response_stream:
                 i += 1
                 if first_chunk_received_at is None:
                     first_chunk_received_at = datetime.now(timezone.utc).isoformat()
 
-                last_chunk = chunk
-                streaming_chunk = self._process_streaming_chunk(chunk=chunk, index=i, all_text_parts=all_text_parts, all_tool_calls=all_tool_calls)
+                streaming_chunk = self._process_streaming_chunk(
+                    chunk=chunk, index=i, all_text_parts=all_text_parts, all_tool_calls=all_tool_calls
+                )
 
-                # Update finish reason (keep the last non-None value)
-                if chunk.candidates and chunk.candidates[0].finish_reason:
-                    final_finish_reason = chunk.candidates[0].finish_reason
+                if streaming_chunk.finish_reason:
+                    final_finish_reason = streaming_chunk.finish_reason
 
                 # Stream the chunk
                 await streaming_callback(streaming_chunk)
 
             message = self._build_final_message(
-                all_text_parts, all_tool_calls, final_finish_reason, first_chunk_received_at, last_chunk
+                all_text_parts=all_text_parts,
+                all_tool_calls=all_tool_calls,
+                final_finish_reason=final_finish_reason,
+                first_chunk_received_at=first_chunk_received_at,
+                last_chunk=chunk,
             )
             return {"replies": [message]}
 

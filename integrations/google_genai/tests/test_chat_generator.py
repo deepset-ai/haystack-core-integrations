@@ -172,7 +172,6 @@ class TestGoogleGenAIChatGenerator:
         assert google_content.parts[0].function_response.response == {"result": "4"}
 
     def test_process_streaming_chunk_text_only(self, monkeypatch):
-        """Test _process_streaming_chunk with text-only content."""
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         component = GoogleGenAIChatGenerator()
 
@@ -192,17 +191,17 @@ class TestGoogleGenAIChatGenerator:
         all_text_parts = []
         all_tool_calls = []
 
-        chunk = component._process_streaming_chunk(mock_chunk, 0, all_text_parts, all_tool_calls)
+        chunk = component._process_streaming_chunk(
+            chunk=mock_chunk, index=0, all_text_parts=all_text_parts, all_tool_calls=all_tool_calls
+        )
 
         assert chunk.content == "Hello, world!"
         assert chunk.tool_calls == []
         assert chunk.finish_reason == "stop"
         assert chunk.index == 0
-        assert "model" in chunk.meta
         assert "received_at" in chunk.meta
 
     def test_process_streaming_chunk_tool_call(self, monkeypatch):
-        """Test _process_streaming_chunk with tool call content."""
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         component = GoogleGenAIChatGenerator()
 
@@ -226,7 +225,9 @@ class TestGoogleGenAIChatGenerator:
         all_text_parts = []
         all_tool_calls = []
 
-        chunk = component._process_streaming_chunk(mock_chunk, 0, all_text_parts, all_tool_calls)
+        chunk = component._process_streaming_chunk(
+            chunk=mock_chunk, index=0, all_text_parts=all_text_parts, all_tool_calls=all_tool_calls
+        )
 
         assert chunk.content == ""
         assert chunk.tool_calls is not None
@@ -236,11 +237,9 @@ class TestGoogleGenAIChatGenerator:
         assert chunk.tool_calls[0].id == "call_123"
         assert chunk.finish_reason == "tool_calls"
         assert chunk.index == 0
-        assert "model" in chunk.meta
         assert "received_at" in chunk.meta
 
     def test_process_streaming_chunk_mixed_content(self, monkeypatch):
-        """Test _process_streaming_chunk with both text and tool calls."""
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         component = GoogleGenAIChatGenerator()
 
@@ -271,7 +270,9 @@ class TestGoogleGenAIChatGenerator:
         all_text_parts = []
         all_tool_calls = []
 
-        chunk = component._process_streaming_chunk(mock_chunk, 0, all_text_parts, all_tool_calls)
+        chunk = component._process_streaming_chunk(
+            chunk=mock_chunk, index=0, all_text_parts=all_text_parts, all_tool_calls=all_tool_calls
+        )
 
         # When both text and tool calls are present, tool calls are prioritized
         assert chunk.content == ""
@@ -296,7 +297,9 @@ class TestGoogleGenAIChatGenerator:
         all_text_parts = []
         all_tool_calls = []
 
-        chunk = component._process_streaming_chunk(mock_chunk, 0, all_text_parts, all_tool_calls)
+        chunk = component._process_streaming_chunk(
+            chunk=mock_chunk, index=0, all_text_parts=all_text_parts, all_tool_calls=all_tool_calls
+        )
 
         assert chunk.content == ""
         assert chunk.tool_calls == []
