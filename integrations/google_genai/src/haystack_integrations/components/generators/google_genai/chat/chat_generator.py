@@ -423,28 +423,16 @@ class GoogleGenAIChatGenerator:
                         )
 
         # Prioritize tool calls over content when both are present
-        if tool_calls:
-            return StreamingChunk(
-                content="",
-                tool_calls=tool_calls,
-                index=index,
-                start=index == 0,
-                finish_reason=FINISH_REASON_MAPPING.get(finish_reason) if finish_reason else None,
-                meta={
-                    "received_at": datetime.now(timezone.utc).isoformat(),
-                },
-            )
-        else:
-            return StreamingChunk(
-                content=content,
-                tool_calls=[],
-                index=index,
-                start=index == 0,
-                finish_reason=FINISH_REASON_MAPPING.get(finish_reason) if finish_reason else None,
-                meta={
-                    "received_at": datetime.now(timezone.utc).isoformat(),
-                },
-            )
+        return StreamingChunk(
+            content="" if tool_calls else content,
+            tool_calls=tool_calls,
+            index=index,
+            start=index == 0,
+            finish_reason=FINISH_REASON_MAPPING.get(finish_reason) if finish_reason else None,
+            meta={
+                "received_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
 
     def _build_final_message(
         self,
@@ -486,7 +474,13 @@ class GoogleGenAIChatGenerator:
 
     def _handle_streaming_response_direct(
         self, response_stream: Iterator[types.GenerateContentResponse], streaming_callback: StreamingCallbackT
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, List[ChatMessage]]:
+        """
+        Handle streaming response from Google Gen AI generate_content_stream.
+        :param response_stream: The streaming response from generate_content_stream.
+        :param streaming_callback: The callback function for streaming chunks.
+        :returns: A dictionary with the replies.
+        """
         try:
             all_text_parts: List[str] = []
             all_tool_calls: List[ToolCall] = []
@@ -523,7 +517,13 @@ class GoogleGenAIChatGenerator:
 
     async def _handle_streaming_response_direct_async(
         self, response_stream: AsyncIterator[types.GenerateContentResponse], streaming_callback: AsyncStreamingCallbackT
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, List[ChatMessage]]:
+        """
+        Handle streaming response from Google Gen AI generate_content_stream.
+        :param response_stream: The streaming response from generate_content_stream.
+        :param streaming_callback: The callback function for streaming chunks.
+        :returns: A dictionary with the replies.
+        """
         try:
             all_text_parts: List[str] = []
             all_tool_calls: List[ToolCall] = []
