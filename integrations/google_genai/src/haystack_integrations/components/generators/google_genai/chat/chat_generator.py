@@ -16,6 +16,7 @@ from haystack.dataclasses import (
     StreamingChunk,
     ToolCall,
     ToolCallDelta,
+    FinishReason,
     select_streaming_callback,
 )
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
@@ -33,7 +34,7 @@ from haystack_integrations.components.common.google_genai.utils import _get_clie
 from haystack_integrations.components.generators.google_genai.chat.utils import remove_key_from_schema
 
 # Mapping from Google GenAI finish reasons to Haystack FinishReason values
-FINISH_REASON_MAPPING = {
+FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
     "STOP": "stop",
     "MAX_TOKENS": "length",
     "SAFETY": "content_filter",
@@ -373,17 +374,19 @@ class GoogleGenAIChatGenerator:
         return default_from_dict(cls, data)
 
     def _process_streaming_chunk(
-        self, chunk: types.GenerateContentResponse, all_text_parts: List[str], all_tool_calls: List[ToolCall]
-    ) -> list:
+        self, chunk: types.GenerateContentResponse, index: int, all_text_parts: List[str], all_tool_calls: List[ToolCall],
+    ) -> StreamingChunk:
         """
-        Process a single streaming chunk and extract text and tool calls, streaming both.
+        Process a single streaming chunk and extract text and tool calls.
 
         :param chunk: The streaming chunk from Google Gen AI.
+        :param index: The index of the chunk.
         :param all_text_parts: List to collect text parts.
         :param all_tool_calls: List to collect tool calls.
-        :returns: A list of StreamingChunk objects for this chunk.
+        :returns: A single StreamingChunk object for this chunk.
         """
-        streaming_chunks = []
+        content = ""
+        tool_calls = []
         finish_reason = None
 
         if chunk.candidates:
@@ -391,51 +394,53 @@ class GoogleGenAIChatGenerator:
             finish_reason = getattr(candidate, "finish_reason", None)
 
             if candidate.content and candidate.content.parts:
+                tc_index = -1
                 for part in candidate.content.parts:
                     if part.text:
                         all_text_parts.append(part.text)
-                        streaming_chunks.append(
-                            StreamingChunk(
-                                content=part.text,
-                                index=None,
-                                finish_reason=FINISH_REASON_MAPPING.get(finish_reason),
-                                meta={
-                                    "model": getattr(chunk, "model", None),
-                                    "received_at": datetime.now(timezone.utc).isoformat(),
-                                    "raw_chunk": chunk,
-                                },
-                            )
-                        )
+                        content += part.text
 
                     elif part.function_call:
+                        tc_index += 1
                         tool_call = ToolCall(
                             tool_name=part.function_call.name or "",
-                            arguments=dict(part.function_call.args) if part.function_call.args else {},
+                            arguments=part.function_call.args if part.function_call.args else {},
                             id=part.function_call.id,
                         )
                         all_tool_calls.append(tool_call)
-                        streaming_chunks.append(
-                            StreamingChunk(
-                                content="",
-                                tool_calls=[
-                                    ToolCallDelta(
-                                        # Google GenAI does not provide index, but it is required for tool calls
-                                        index=0,
-                                        id=tool_call.id,
-                                        tool_name=tool_call.tool_name,
-                                        arguments=json.dumps(tool_call.arguments) if tool_call.arguments else None,
-                                    )
-                                ],
-                                index=0,  # Google GenAI does not provide index, but it is required for tool calls
-                                finish_reason=FINISH_REASON_MAPPING.get(finish_reason),
-                                meta={
-                                    "model": getattr(chunk, "model", None),
-                                    "received_at": datetime.now(timezone.utc).isoformat(),
-                                    "raw_chunk": chunk,
-                                },
+                        tool_calls.append(
+                            ToolCallDelta(
+                                # Google GenAI does not provide index, but it is required for tool calls
+                                index=tc_index,
+                                id=tool_call.id,
+                                tool_name=tool_call.tool_name,
+                                arguments=json.dumps(tool_call.arguments) if tool_call.arguments else None,
                             )
                         )
-        return streaming_chunks
+
+        # Prioritize tool calls over content when both are present
+        if tool_calls:
+            return StreamingChunk(
+                content="",
+                tool_calls=tool_calls,
+                index=index,
+                start=index == 0,
+                finish_reason=FINISH_REASON_MAPPING.get(finish_reason) if finish_reason else None,
+                meta={
+                    "received_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+        else:
+            return StreamingChunk(
+                content=content,
+                tool_calls=[],
+                index=index,
+                start=index == 0,
+                finish_reason=FINISH_REASON_MAPPING.get(finish_reason) if finish_reason else None,
+                meta={
+                    "received_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
 
     def _build_final_message(
         self,
@@ -485,20 +490,19 @@ class GoogleGenAIChatGenerator:
             first_chunk_received_at = None
             last_chunk = None
 
-            for chunk in response_stream:
+            for i, chunk in enumerate(response_stream):
                 if first_chunk_received_at is None:
                     first_chunk_received_at = datetime.now(timezone.utc).isoformat()
 
                 last_chunk = chunk
-                streaming_chunks = self._process_streaming_chunk(chunk, all_text_parts, all_tool_calls)
+                streaming_chunk = self._process_streaming_chunk(chunk=chunk, index=i, all_text_parts=all_text_parts, all_tool_calls=all_tool_calls)
 
                 # Update finish reason (keep the last non-None value)
                 if chunk.candidates and chunk.candidates[0].finish_reason:
                     final_finish_reason = chunk.candidates[0].finish_reason
 
-                # Stream all chunks (text and tool calls)
-                for streaming_chunk in streaming_chunks:
-                    streaming_callback(streaming_chunk)
+                # Stream the chunk
+                streaming_callback(streaming_chunk)
 
             message = self._build_final_message(
                 all_text_parts, all_tool_calls, final_finish_reason, first_chunk_received_at, last_chunk
@@ -519,20 +523,21 @@ class GoogleGenAIChatGenerator:
             first_chunk_received_at = None
             last_chunk = None
 
+            i = 0
             async for chunk in response_stream:
+                i += 1
                 if first_chunk_received_at is None:
                     first_chunk_received_at = datetime.now(timezone.utc).isoformat()
 
                 last_chunk = chunk
-                streaming_chunks = self._process_streaming_chunk(chunk, all_text_parts, all_tool_calls)
+                streaming_chunk = self._process_streaming_chunk(chunk=chunk, index=i, all_text_parts=all_text_parts, all_tool_calls=all_tool_calls)
 
                 # Update finish reason (keep the last non-None value)
                 if chunk.candidates and chunk.candidates[0].finish_reason:
                     final_finish_reason = chunk.candidates[0].finish_reason
 
-                # Stream all chunks (text and tool calls)
-                for streaming_chunk in streaming_chunks:
-                    await streaming_callback(streaming_chunk)
+                # Stream the chunk
+                await streaming_callback(streaming_chunk)
 
             message = self._build_final_message(
                 all_text_parts, all_tool_calls, final_finish_reason, first_chunk_received_at, last_chunk
