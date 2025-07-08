@@ -8,7 +8,8 @@ from deepeval.metrics import BaseMetric
 from deepeval.evaluate.types import EvaluationResult, TestResult
 from haystack import DeserializationError
 
-from haystack_integrations.components.evaluators.deepeval import DeepEvalEvaluator, DeepEvalMetric
+from haystack_integrations.components.evaluators.deepeval import DeepEvalEvaluator
+from haystack_integrations.components.evaluators.deepeval.metrics import DeepEvalMetric, InputConverters
 
 DEFAULT_QUESTIONS = [
     "Which is the most popular global sport?",
@@ -148,7 +149,7 @@ def test_evaluator_valid_inputs(metric, inputs, params, monkeypatch):
         "metric_params": params,
     }
     evaluator = DeepEvalEvaluator(**init_params)
-    _ = evaluator.run(**inputs)
+    InputConverters.validate_input_parameters(evaluator.metric, evaluator.descriptor.input_parameters, inputs)
 
 
 @pytest.mark.parametrize(
