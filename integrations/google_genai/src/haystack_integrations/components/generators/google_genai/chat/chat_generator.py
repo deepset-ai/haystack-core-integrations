@@ -519,9 +519,9 @@ class GoogleGenAIChatGenerator:
         self, response_stream: AsyncIterator[types.GenerateContentResponse], streaming_callback: AsyncStreamingCallbackT
     ) -> Dict[str, List[ChatMessage]]:
         """
-        Handle streaming response from Google Gen AI generate_content_stream.
-        :param response_stream: The streaming response from generate_content_stream.
-        :param streaming_callback: The callback function for streaming chunks.
+        Handle async streaming response from Google Gen AI generate_content_stream.
+        :param response_stream: The async streaming response from generate_content_stream.
+        :param streaming_callback: The async callback function for streaming chunks.
         :returns: A dictionary with the replies.
         """
         try:
