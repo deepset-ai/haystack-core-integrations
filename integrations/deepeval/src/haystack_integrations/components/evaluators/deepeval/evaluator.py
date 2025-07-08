@@ -4,7 +4,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from haystack import DeserializationError, component, default_from_dict, default_to_dict
 
 from deepeval.evaluate import evaluate
-from deepeval.evaluate.types import TestResult, EvaluationResult
+from deepeval.evaluate.types import EvaluationResult
 from deepeval.metrics import BaseMetric
 from deepeval.test_case import LLMTestCase
 
