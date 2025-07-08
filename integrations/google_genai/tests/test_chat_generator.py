@@ -545,8 +545,9 @@ class TestAsyncGoogleGenAIChatGenerator:
         # Run concurrently
         results = await asyncio.gather(*tasks)
 
-        # Verify all tasks completed successfully
+        # Verify all calls completed successfully
         assert len(results) == 3
         for result in results:
             assert len(result["replies"]) == 1
             assert result["replies"][0].text
+            assert result["replies"][0].meta["model"]
