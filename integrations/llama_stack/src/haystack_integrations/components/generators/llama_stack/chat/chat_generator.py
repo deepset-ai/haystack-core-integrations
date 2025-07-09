@@ -15,22 +15,54 @@ logger = logging.getLogger(__name__)
 
 @component
 class LlamaStackChatGenerator(OpenAIChatGenerator):
+    """
+    Enables text generation using LlamaStack client server model.
+    Llama Stack Server supports multiple inference providers, including Ollama, Together, and Fireworks and other cloud providers.
+    For a complete list of inference providers, see [LlamaStack docs](https://llama-stack.readthedocs.io/en/latest/providers/inference/index.html).
+
+    Users can pass any text generation parameters valid for the OpenAI chat completion API
+    directly to this component using the `generation_kwargs` parameter in `__init__` or the `generation_kwargs` parameter in `run` method.
+
+    This component uses the ChatMessage format for structuring both input and output,
+    ensuring coherent and contextually relevant responses in chat-based text generation scenarios.
+    Details on the ChatMessage format can be found in the
+    [Haystack docs](https://docs.haystack.deepset.ai/docs/chatmessage)
+
+    Usage example:
+    You need to setup Llama Stack Server before running this example. For a quick start on how to setup server with Ollama, see [LlamaStack docs](https://llama-stack.readthedocs.io/en/latest/getting_started/index.html).
+
+    ```python
+    from haystack_integrations.components.generators.llama_stack import LlamaStackChatGenerator
+    from haystack.dataclasses import ChatMessage
+
+    messages = [ChatMessage.from_user("What's Natural Language Processing?")]
+
+    client = LlamaStackChatGenerator()
+    response = client.run(messages)
+    print(response)
+
+    >>{'replies': [ChatMessage(_content=[TextContent(text='Natural Language Processing (NLP) is a branch of artificial intelligence
+    >>that focuses on enabling computers to understand, interpret, and generate human language in a way that is
+    >>meaningful and useful.')], _role=<ChatRole.ASSISTANT: 'assistant'>, _name=None,
+    >>_meta={'model': 'llama3.2:3b', 'index': 0, 'finish_reason': 'stop',
+    >>'usage': {'prompt_tokens': 15, 'completion_tokens': 36, 'total_tokens': 51}})]}
+    """
 
     def __init__(
         self,
         *,
         model: str = "llama3.2:3b",
         api_base_url: str = "http://localhost:8321/v1/openai/v1",
+        organization: Optional[str] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
+        timeout: Optional[int] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
         max_retries: Optional[int] = None,
         http_client_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
-        Creates an instance of LlamaStackChatGenerator. Unless specified otherwise,
-        the default model is `llama3.2:3b`.
-
+        Creates an instance of LlamaStackChatGenerator. You need to setup Llama Stack Server and have a model available. By default, the model is set to `llama3.2:3b`, that is available on Ollama as inference provider.
 
         :param model:
             The name of the LlamaStack chat completion model to use.
@@ -38,7 +70,8 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
             A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         :param api_base_url:
-            The LlamaStack API Base url.
+            The LlamaStack API Base url. If not specified, the localhost is used with the default port 8321.
+        :param organization: Your organization ID, defaults to `None`. 
         :param generation_kwargs:
             Other parameters to use for the model. These parameters are all sent directly to
             the LlamaStack endpoint. See [LlamaStack API docs](https://llama-stack.readthedocs.io/) for more details.
@@ -53,6 +86,9 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
                 events as they become available, with the stream terminated by a data: [DONE] message.
             - `safe_prompt`: Whether to inject a safety prompt before all conversations.
             - `random_seed`: The seed to use for random sampling.
+        :param timeout:
+            Timeout for OpenAI client calls. If not set, it defaults to either the
+            `OPENAI_TIMEOUT` environment variable, or 30 seconds.
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
             list of `Tool` objects or a `Toolset` instance.
@@ -69,7 +105,9 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
             model=model,
             streaming_callback=streaming_callback,
             api_base_url=api_base_url,
+            organization=organization,
             generation_kwargs=generation_kwargs,
+            timeout=timeout,
             tools=tools,
             max_retries=max_retries,
             http_client_kwargs=http_client_kwargs,
@@ -93,50 +131,26 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
             model=self.model,
             streaming_callback=callback_name,
             api_base_url=self.api_base_url,
+            organization=self.organization,
+            timeout=self.timeout,
             generation_kwargs=self.generation_kwargs,
             tools=[tool.to_dict() for tool in self.tools] if self.tools else None,
             max_retries=self.max_retries,
             http_client_kwargs=self.http_client_kwargs,
         )
 
-    def _prepare_api_call(
-        self,
-        *,
-        messages: List[ChatMessage],
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
-        tools_strict: Optional[bool] = None,
-    ) -> Dict[str, Any]:
-        # update generation kwargs by merging with the generation kwargs passed to the run method
-        generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "LlamaStackChatGenerator":
+        """
+        Deserialize this component from a dictionary.
 
-        # adapt ChatMessage(s) to the format expected by the OpenAI API
-        openai_formatted_messages = [message.to_openai_dict_format() for message in messages]
-
-        tools = tools or self.tools
-        tools_strict = tools_strict if tools_strict is not None else self.tools_strict
-        _check_duplicate_tool_names(list(tools or []))
-
-        openai_tools = {}
-        if tools:
-            tool_definitions = [
-                {"type": "function", "function": {**t.tool_spec, **({"strict": tools_strict} if tools_strict else {})}}
-                for t in tools
-            ]
-            openai_tools = {"tools": tool_definitions}
-
-        is_streaming = streaming_callback is not None
-        num_responses = generation_kwargs.pop("n", 1)
-        if is_streaming and num_responses > 1:
-            msg = "Cannot stream multiple responses, please set n=1."
-            raise ValueError(msg)
-
-        return {
-            "model": self.model,
-            "messages": openai_formatted_messages,  # type: ignore[arg-type] # openai expects list of specific message types
-            "stream": streaming_callback is not None,
-            "n": num_responses,
-            **openai_tools,
-            "extra_body": {**generation_kwargs},
-        }
+        :param data: The dictionary representation of this component.
+        :returns:
+            The deserialized component instance.
+        """
+        deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
+        init_params = data.get("init_parameters", {})
+        serialized_callback_handler = init_params.get("streaming_callback")
+        if serialized_callback_handler:
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
+        return default_from_dict(cls, data)

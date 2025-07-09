@@ -3,15 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # This example demonstrates how to use the LlamaStackChatGenerator component
-# with tools and model routing.
+# with tools.
 # To run this example, you will need to
-# start the llama-stack server
+# set up LlamaStack Server through an inference provider and have a model available.
+# For a quick start on how to setup server with Ollama, see [LlamaStack docs](https://llama-stack.readthedocs.io/en/latest/getting_started/index.html).
 
 from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage
 from haystack.tools import Tool
 
-from haystack_integrations.components.generators.llama_stack.chat.chat_generator import LlamaStackChatGenerator
+from .components.generators.llama_stack.chat.chat_generator import LlamaStackChatGenerator
 
 
 # Define a tool that models can call
@@ -34,7 +35,6 @@ tool_invoker = ToolInvoker(tools=[weather_tool])
 
 client = LlamaStackChatGenerator(
     api_base_url="http://localhost:8321/v1/openai/v1",
-    model="llama3.2:3b",
 )
 messages = [ChatMessage.from_user("What's the weather in Tokyo?")]
 
