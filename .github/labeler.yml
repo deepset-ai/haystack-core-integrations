@@ -9,10 +9,20 @@ integration:amazon-sagemaker:
       - any-glob-to-any-file: "integrations/amazon_sagemaker/**/*"
       - any-glob-to-any-file: ".github/workflows/amazon_sagemaker.yml"
 
+integration:anthropic:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/anthropic/**/*"
+      - any-glob-to-any-file: ".github/workflows/anthropic.yml"
+
 integration:astra:
   - changed-files:
       - any-glob-to-any-file: "integrations/astra/**/*"
       - any-glob-to-any-file: ".github/workflows/astra.yml"
+
+integration:azure-ai-search:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/azure_ai_search/**/*"
+      - any-glob-to-any-file: ".github/workflows/azure_ai_search.yml"
 
 integration:chroma:
   - changed-files:
@@ -24,6 +34,11 @@ integration:cohere:
       - any-glob-to-any-file: "integrations/cohere/**/*"
       - any-glob-to-any-file: ".github/workflows/cohere.yml"
 
+integration:deepeval:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/deepeval/**/*"
+      - any-glob-to-any-file: ".github/workflows/deepeval.yml"
+
 integration:elasticsearch:
   - changed-files:
       - any-glob-to-any-file: "integrations/elasticsearch/**/*"
@@ -34,20 +49,25 @@ integration:fastembed:
       - any-glob-to-any-file: "integrations/fastembed/**/*"
       - any-glob-to-any-file: ".github/workflows/fastembed.yml"
 
+integration:github:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/github/**/*"
+      - any-glob-to-any-file: ".github/workflows/github.yml"
+
 integration:google-ai:
   - changed-files:
       - any-glob-to-any-file: "integrations/google_ai/**/*"
       - any-glob-to-any-file: ".github/workflows/google_ai.yml"
 
+integration:google-genai:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/google_genai/**/*"
+      - any-glob-to-any-file: ".github/workflows/google_genai.yml"
+
 integration:google-vertex:
   - changed-files:
       - any-glob-to-any-file: "integrations/google_vertex/**/*"
       - any-glob-to-any-file: ".github/workflows/google_vertex.yml"
-
-integration:gradient:
-  - changed-files:
-      - any-glob-to-any-file: "integrations/gradient/**/*"
-      - any-glob-to-any-file: ".github/workflows/gradient.yml"
 
 integration:instructor-embedders:
   - changed-files:
@@ -59,10 +79,25 @@ integration:jina:
       - any-glob-to-any-file: "integrations/jina/**/*"
       - any-glob-to-any-file: ".github/workflows/jina.yml"
 
+integration:langfuse:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/langfuse/**/*"
+      - any-glob-to-any-file: ".github/workflows/langfuse.yml"
+
 integration:llama_cpp:
   - changed-files:
       - any-glob-to-any-file: "integrations/llama_cpp/**/*"
       - any-glob-to-any-file: ".github/workflows/llama_cpp.yml"
+
+integration:mcp:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/mcp/**/*"
+      - any-glob-to-any-file: ".github/workflows/mcp.yml"
+
+integration:meta-llama:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/meta_llama/**/*"
+      - any-glob-to-any-file: ".github/workflows/meta_llama.yml"
 
 integration:mistral:
   - changed-files:
@@ -83,6 +118,11 @@ integration:ollama:
   - changed-files:
       - any-glob-to-any-file: "integrations/ollama/**/*"
       - any-glob-to-any-file: ".github/workflows/ollama.yml"
+
+integration:openrouter:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/openrouter/**/*"
+      - any-glob-to-any-file: ".github/workflows/openrouter.yml"
 
 integration:opensearch:
   - changed-files:
@@ -114,25 +154,30 @@ integration:ragas:
       - any-glob-to-any-file: "integrations/ragas/**/*"
       - any-glob-to-any-file: ".github/workflows/ragas.yml"
 
+integration:snowflake:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/snowflake/**/*"
+      - any-glob-to-any-file: ".github/workflows/snowflake.yml"
+
+integration:stackit:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/stackit/**/*"
+      - any-glob-to-any-file: ".github/workflows/stackit.yml"
+
 integration:unstructured-fileconverter:
   - changed-files:
       - any-glob-to-any-file: "integrations/unstructured/**/*"
       - any-glob-to-any-file: ".github/workflows/unstructured.yml"
-
-integration:uptrain:
-  - changed-files:
-      - any-glob-to-any-file: "integrations/uptrain/**/*"
-      - any-glob-to-any-file: ".github/workflows/uptrain.yml"
 
 integration:weaviate:
   - changed-files:
       - any-glob-to-any-file: "integrations/weaviate/**/*"
       - any-glob-to-any-file: ".github/workflows/weaviate.yml"
 
-integration:deepeval:
+integration:weights_and_biases_weave:
   - changed-files:
-      - any-glob-to-any-file: "integrations/deepeval/**/*"
-      - any-glob-to-any-file: ".github/workflows/deepeval.yml"
+      - any-glob-to-any-file: "integrations/weights_and_biases_weave/**/*"
+      - any-glob-to-any-file: ".github/workflows/weights_and_biases_weave.yml"
 
 # Topics
 topic:CI:

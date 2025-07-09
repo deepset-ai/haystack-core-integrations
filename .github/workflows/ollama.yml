@@ -1,0 +1,117 @@
+# This workflow comes from https://github.com/ofek/hatch-mypyc
+# https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
+name: Test / ollama
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  pull_request:
+    paths:
+      - "integrations/ollama/**"
+      - "!integrations/ollama/*.md"
+      - ".github/workflows/ollama.yml"
+
+defaults:
+  run:
+    working-directory: integrations/ollama
+
+concurrency:
+  group: ollama-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  FORCE_COLOR: "1"
+  LLM_FOR_TESTS: "qwen3:0.6b"
+  EMBEDDER_FOR_TESTS: "nomic-embed-text"
+
+jobs:
+  run:
+    name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]  # to test on other Operating Systems, we need to install Ollama differently
+        python-version: ["3.9", "3.13"]  
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install and run Ollama
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 2
+          max_attempts: 3
+          command: |
+            curl -fsSL https://ollama.com/install.sh | sh
+            ollama serve &
+
+            # Check if the service is up and running with a timeout of 60 seconds
+            timeout=60
+            while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:11434/ > /dev/null; do
+              echo "Waiting for Ollama service to start..."
+              sleep 5
+              ((timeout-=5))
+            done
+
+            if [ $timeout -eq 0 ]; then
+              echo "Timed out waiting for Ollama service to start."
+              exit 1
+            fi
+
+            echo "Ollama service started successfully."
+      
+      - name: Pull models
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 2
+          max_attempts: 5
+          command: |
+            ollama pull ${{ env.LLM_FOR_TESTS }}
+            ollama list | grep -q "${{ env.LLM_FOR_TESTS }}" || { echo "Model ${{ env.LLM_FOR_TESTS }} not pulled."; exit 1; }
+
+            ollama pull ${{ env.EMBEDDER_FOR_TESTS }}
+            ollama list | grep -q "${{ env.EMBEDDER_FOR_TESTS }}" || { echo "Model ${{ env.EMBEDDER_FOR_TESTS }} not pulled."; exit 1; }
+
+            echo "Models pulled successfully."
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Hatch
+        run: pip install --upgrade hatch
+
+      - name: Lint
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        run: hatch run fmt-check && hatch run test:types
+
+      - name: Generate docs
+        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        run: hatch run docs
+
+      - name: Run tests
+        run: hatch run test:cov-retry
+
+      - name: Run unit tests with lowest direct dependencies
+        run: |
+          hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
+          hatch run uv pip install -r requirements_lowest_direct.txt
+          hatch run test:unit
+
+      - name: Nightly - run unit tests with Haystack main branch
+        if: github.event_name == 'schedule'
+        run: |
+          hatch env prune
+          hatch run uv pip install git+https://github.com/deepset-ai/haystack.git@main
+          hatch run test:unit
+
+      - name: Send event to Datadog for nightly failures
+        if: failure() && github.event_name == 'schedule'
+        uses: ./.github/actions/send_failure
+        with:
+          title: |
+            Core integrations nightly tests failure: ${{ github.workflow }}
+          api-key: ${{ secrets.CORE_DATADOG_API_KEY }}

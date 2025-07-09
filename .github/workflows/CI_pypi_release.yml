@@ -20,6 +20,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.HAYSTACK_BOT_TOKEN }}
+          fetch-depth: 0
 
       - name: Install Hatch
         run: pip install hatch
@@ -43,3 +46,33 @@ jobs:
           HATCH_INDEX_USER: __token__
           HATCH_INDEX_AUTH: ${{ secrets.PYPI_API_TOKEN }}
         run: hatch publish -y
+
+      - name: Generate changelog
+        uses: orhun/git-cliff-action@v4
+        env:
+          OUTPUT: "${{ steps.pathfinder.outputs.project_path }}/CHANGELOG.md"
+        with:
+          config: cliff.toml
+          args: >
+            --include-path "${{ steps.pathfinder.outputs.project_path }}/**/*"
+            --tag-pattern "${{ steps.pathfinder.outputs.project_path }}-v*"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.HAYSTACK_BOT_TOKEN }}
+          commit-message: "Update changelog for ${{ steps.pathfinder.outputs.project_path }}"
+          branch: update-changelog-${{ steps.pathfinder.outputs.project_path }}
+          base: main
+          title: "docs: update changelog for ${{ steps.pathfinder.outputs.project_path }}"
+          add-paths: |
+            ${{ steps.pathfinder.outputs.project_path }}/CHANGELOG.md
+          body: |
+            This PR updates the changelog for ${{ steps.pathfinder.outputs.project_path }} integration
+            with the latest changes just released on PyPi. Please review the changelog diff below and adjust it
+            if necessary.
+
+            A good changelog diff simply lists these latest changes on top of the CHANGELOG.md file.
+            If there are some diffs that seem out of place, please adjust the CHANGELOG.md file manually.
+            Either way, please merge this PR as soon as possible.
+

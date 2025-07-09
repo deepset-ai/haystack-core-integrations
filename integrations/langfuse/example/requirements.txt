@@ -1,3 +1,0 @@
-langfuse-haystack
-datasets
-sentence-transformers
