@@ -93,13 +93,13 @@ def _convert_messages_to_anthropic_format(
     i = 0
     while i < len(messages):
         message = messages[i]
-
+        cache_control = message.meta.get("cache_control")
         # system messages have special format requirements for Anthropic API
         # they can have only type and text fields, and they need to be passed separately
         # to the Anthropic API endpoint
         if message.is_from(ChatRole.SYSTEM) and message.text:
             sys_message = TextBlockParam(type="text", text=message.text)
-            if cache_control := message.meta.get("cache_control"):
+            if cache_control:
                 sys_message["cache_control"] = cache_control
             anthropic_system_messages.append(sys_message)
             i += 1
@@ -109,10 +109,15 @@ def _convert_messages_to_anthropic_format(
 
         if message.texts and message.texts[0]:
             text_block = TextBlockParam(type="text", text=message.texts[0])
+            if cache_control:
+                text_block["cache_control"] = cache_control
             content.append(text_block)
 
         if message.tool_calls:
             tool_use_blocks = _convert_tool_calls_to_anthropic_format(message.tool_calls)
+            if cache_control:
+                for tool_use_block in tool_use_blocks:
+                    tool_use_block["cache_control"] = cache_control
             content.extend(tool_use_blocks)
 
         if message.tool_call_results:
@@ -123,6 +128,10 @@ def _convert_messages_to_anthropic_format(
                 results.extend(messages[i].tool_call_results)
 
             _update_anthropic_message_with_tool_call_results(results, content)
+            if cache_control:
+                for blk in content:
+                    if blk.get("type") == "tool_result":
+                        blk["cache_control"] = cache_control
 
         if not content:
             msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
@@ -426,8 +435,7 @@ class AnthropicChatGenerator:
             first_chunk_meta = chunks[0].meta
             if first_chunk_meta.get("type") == "message_start":
                 first_chunk_usage = first_chunk_meta.get("message", {}).get("usage", {})
-                if "input_tokens" in first_chunk_usage:
-                    combined_usage["input_tokens"] = first_chunk_usage["input_tokens"]
+                combined_usage = first_chunk_usage
 
         # Get output tokens from last chunk (message_delta)
         last_chunk_usage = last_chunk_meta.get("usage", {})
@@ -487,21 +495,6 @@ class AnthropicChatGenerator:
         system_messages, non_system_messages = _convert_messages_to_anthropic_format(messages)
 
         # prompt caching
-        extra_headers = generation_kwargs.get("extra_headers", {})
-        prompt_caching_on = "anthropic-beta" in extra_headers and "prompt-caching" in extra_headers["anthropic-beta"]
-        has_cached_messages = any(m.get("cache_control") is not None for m in system_messages) or any(
-            m.get("cache_control") is not None for m in non_system_messages
-        )
-        if has_cached_messages and not prompt_caching_on:
-            # this avoids Anthropic errors when prompt caching is not enabled
-            # but user requested individual messages to be cached
-            logger.warn(
-                "Prompt caching is not enabled but you requested individual messages to be cached. "
-                "Messages will be sent to the API without prompt caching."
-            )
-            for message in system_messages:
-                if message.get("cache_control"):
-                    del message["cache_control"]
 
         # tools management
         tools = tools or self.tools
