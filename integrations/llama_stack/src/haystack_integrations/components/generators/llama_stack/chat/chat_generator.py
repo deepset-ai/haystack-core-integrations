@@ -67,11 +67,12 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         http_client_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
-        Creates an instance of LlamaStackChatGenerator. To use this chat generator, you need to setup Llama Stack Server with an inference provider and have a model available.
+        Creates an instance of LlamaStackChatGenerator. To use this chat generator,
+        you need to setup Llama Stack Server with an inference provider and have a model available.
 
         :param model:
-            The name of the model to use for chat completion. The model depends on the inference provider used for the Llama Stack Server.
-            
+            The name of the model to use for chat completion.
+            The model depends on the inference provider used for the Llama Stack Server.
         :param api_key:
             The openai api key for OpenAI client. You can set it with an environment variable `OPENAI_API_KEY`,
             or pass with this parameter during initialization.

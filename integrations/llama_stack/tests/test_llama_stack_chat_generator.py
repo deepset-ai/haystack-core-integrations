@@ -180,10 +180,8 @@ class TestLlamaStackChatGenerator:
         assert component.timeout == 10
         assert component.max_retries == 10
 
-
     def test_inheritance_from_openai_chat_generator(self):
         component = LlamaStackChatGenerator(model="llama3.2:3b")
-
 
     def test_run(self, chat_messages, mock_chat_completion):  # noqa: ARG002
         component = LlamaStackChatGenerator(model="llama3.2:3b")
@@ -197,7 +195,9 @@ class TestLlamaStackChatGenerator:
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
     def test_run_with_params(self, chat_messages, mock_chat_completion):
-        component = LlamaStackChatGenerator(model="llama3.2:3b", generation_kwargs={"max_tokens": 10, "temperature": 0.5})
+        component = LlamaStackChatGenerator(
+            model="llama3.2:3b", generation_kwargs={"max_tokens": 10, "temperature": 0.5}
+        )
         response = component.run(chat_messages)
 
         # check that the component calls the OpenAI API with the correct parameters
@@ -211,7 +211,6 @@ class TestLlamaStackChatGenerator:
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
-
 
     @pytest.mark.integration
     def test_live_run(self):
@@ -249,7 +248,6 @@ class TestLlamaStackChatGenerator:
         assert callback.counter > 1
         assert "Paris" in callback.responses
 
-
     @pytest.mark.integration
     def test_live_run_with_tools(self, tools):
         chat_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
@@ -265,7 +263,6 @@ class TestLlamaStackChatGenerator:
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
         assert message.meta["finish_reason"] == "tool_calls"
-
 
     @pytest.mark.integration
     def test_live_run_with_tools_and_response(self, tools):
