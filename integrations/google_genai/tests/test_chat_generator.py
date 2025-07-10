@@ -294,24 +294,36 @@ class TestGoogleGenAIChatGenerator:
 
         # Chunk 1: Text only
         chunk1_parts = [
-            types.Part(text="I'll get the weather information for Paris and Berlin",
-            function_call=None, function_response=None)
+            types.Part(
+                text="I'll get the weather information for Paris and Berlin", function_call=None, function_response=None
+            )
         ]
         chunk1_content = types.Content(role="model", parts=chunk1_parts)
         chunk1_candidate = types.Candidate(
             content=chunk1_content,
             finish_reason=None,
-            index=None, safety_ratings=None, citation_metadata=None,
-            grounding_metadata=None, finish_message=None, token_count=None,
-            logprobs_result=None, avg_logprobs=None, url_context_metadata=None
+            index=None,
+            safety_ratings=None,
+            citation_metadata=None,
+            grounding_metadata=None,
+            finish_message=None,
+            token_count=None,
+            logprobs_result=None,
+            avg_logprobs=None,
+            url_context_metadata=None,
         )
         chunk1_usage = types.GenerateContentResponseUsageMetadata(
             prompt_token_count=217, candidates_token_count=None, total_token_count=217
         )
         chunk1 = types.GenerateContentResponse(
-            candidates=[chunk1_candidate], usage_metadata=chunk1_usage,
-            model_version="gemini-2.0-flash", response_id=None, create_time=None,
-            prompt_feedback=None, automatic_function_calling_history=None, parsed=None
+            candidates=[chunk1_candidate],
+            usage_metadata=chunk1_usage,
+            model_version="gemini-2.0-flash",
+            response_id=None,
+            create_time=None,
+            prompt_feedback=None,
+            automatic_function_calling_history=None,
+            parsed=None,
         )
 
         streaming_chunk1 = component._convert_google_chunk_to_streaming_chunk(chunk=chunk1, index=0)
@@ -334,17 +346,28 @@ class TestGoogleGenAIChatGenerator:
         chunk2_candidate = types.Candidate(
             content=chunk2_content,
             finish_reason=None,
-            index=None, safety_ratings=None, citation_metadata=None,
-            grounding_metadata=None, finish_message=None, token_count=None,
-            logprobs_result=None, avg_logprobs=None, url_context_metadata=None
+            index=None,
+            safety_ratings=None,
+            citation_metadata=None,
+            grounding_metadata=None,
+            finish_message=None,
+            token_count=None,
+            logprobs_result=None,
+            avg_logprobs=None,
+            url_context_metadata=None,
         )
         chunk2_usage = types.GenerateContentResponseUsageMetadata(
             prompt_token_count=217, candidates_token_count=None, total_token_count=217
         )
         chunk2 = types.GenerateContentResponse(
-            candidates=[chunk2_candidate], usage_metadata=chunk2_usage,
-            model_version="gemini-2.0-flash", response_id=None, create_time=None,
-            prompt_feedback=None, automatic_function_calling_history=None, parsed=None
+            candidates=[chunk2_candidate],
+            usage_metadata=chunk2_usage,
+            model_version="gemini-2.0-flash",
+            response_id=None,
+            create_time=None,
+            prompt_feedback=None,
+            automatic_function_calling_history=None,
+            parsed=None,
         )
 
         streaming_chunk2 = component._convert_google_chunk_to_streaming_chunk(chunk=chunk2, index=1)
@@ -373,25 +396,36 @@ class TestGoogleGenAIChatGenerator:
             types.Part(text=None, function_call=fc3, function_response=None),
             types.Part(text=None, function_call=fc4, function_response=None),
             types.Part(text=None, function_call=fc5, function_response=None),
-            types.Part(text=None, function_call=fc6, function_response=None)
+            types.Part(text=None, function_call=fc6, function_response=None),
         ]
 
         content = types.Content(role="model", parts=parts)
         candidate = types.Candidate(
             content=content,
             finish_reason=types.FinishReason.STOP,
-            index=None, safety_ratings=None, citation_metadata=None,
-            grounding_metadata=None, finish_message=None, token_count=None,
-            logprobs_result=None, avg_logprobs=None, url_context_metadata=None
+            index=None,
+            safety_ratings=None,
+            citation_metadata=None,
+            grounding_metadata=None,
+            finish_message=None,
+            token_count=None,
+            logprobs_result=None,
+            avg_logprobs=None,
+            url_context_metadata=None,
         )
 
         usage_metadata = types.GenerateContentResponseUsageMetadata(
             prompt_token_count=144, candidates_token_count=121, total_token_count=265
         )
         chunk = types.GenerateContentResponse(
-            candidates=[candidate], usage_metadata=usage_metadata,
-            model_version="gemini-2.0-flash", response_id=None, create_time=None,
-            prompt_feedback=None, automatic_function_calling_history=None, parsed=None
+            candidates=[candidate],
+            usage_metadata=usage_metadata,
+            model_version="gemini-2.0-flash",
+            response_id=None,
+            create_time=None,
+            prompt_feedback=None,
+            automatic_function_calling_history=None,
+            parsed=None,
         )
 
         streaming_chunk = component._convert_google_chunk_to_streaming_chunk(chunk=chunk, index=2)

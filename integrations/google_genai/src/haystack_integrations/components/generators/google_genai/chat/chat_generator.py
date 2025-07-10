@@ -420,13 +420,12 @@ class GoogleGenAIChatGenerator:
                         )
                     )
 
-
         # start is only used by print_streaming_chunk. We try to make a reasonable assumption here but it should not be
         # a problem if we change it in the future.
-        start = index == 0 or len(tool_calls)>0
+        start = index == 0 or len(tool_calls) > 0
 
         return StreamingChunk(
-            content="" if tool_calls else content, # prioritize tool calls over content when both are present
+            content="" if tool_calls else content,  # prioritize tool calls over content when both are present
             tool_calls=tool_calls,
             index=index,
             start=start,
