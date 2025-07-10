@@ -13,6 +13,7 @@ from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import (
     AsyncStreamingCallbackT,
+    ComponentInfo,
     FinishReason,
     StreamingCallbackT,
     StreamingChunk,
@@ -378,12 +379,14 @@ class GoogleGenAIChatGenerator:
         self,
         chunk: types.GenerateContentResponse,
         index: int,
+        component_info: ComponentInfo,
     ) -> StreamingChunk:
         """
         Convert a chunk from Google Gen AI to a Haystack StreamingChunk.
 
         :param chunk: The chunk from Google Gen AI.
         :param index: The index of the chunk.
+        :param component_info: The component info.
         :returns: A StreamingChunk object.
         """
         content = ""
@@ -427,6 +430,7 @@ class GoogleGenAIChatGenerator:
         return StreamingChunk(
             content="" if tool_calls else content,  # prioritize tool calls over content when both are present
             tool_calls=tool_calls,
+            component_info=component_info,
             index=index,
             start=start,
             finish_reason=FINISH_REASON_MAPPING.get(finish_reason) if finish_reason else None,
@@ -446,14 +450,16 @@ class GoogleGenAIChatGenerator:
         :param streaming_callback: The callback function for streaming chunks.
         :returns: A dictionary with the replies.
         """
+        component_info = ComponentInfo.from_component(self)
+
         try:
             chunks = []
 
             chunk = None
             for i, chunk in enumerate(response_stream):
-                streaming_chunk = self._convert_google_chunk_to_streaming_chunk(chunk=chunk, index=i)
-                with open("streaming_chunk.json", "a") as f:
-                    f.write(chunk.model_dump_json() + "\n")
+                streaming_chunk = self._convert_google_chunk_to_streaming_chunk(
+                    chunk=chunk, index=i, component_info=component_info
+                )
                 chunks.append(streaming_chunk)
 
                 # Stream the chunk
@@ -475,6 +481,8 @@ class GoogleGenAIChatGenerator:
         :param streaming_callback: The async callback function for streaming chunks.
         :returns: A dictionary with the replies.
         """
+        component_info = ComponentInfo.from_component(self)
+
         try:
             chunks = []
 
@@ -483,7 +491,9 @@ class GoogleGenAIChatGenerator:
             async for chunk in response_stream:
                 i += 1
 
-                streaming_chunk = self._convert_google_chunk_to_streaming_chunk(chunk=chunk, index=i)
+                streaming_chunk = self._convert_google_chunk_to_streaming_chunk(
+                    chunk=chunk, index=i, component_info=component_info
+                )
                 chunks.append(streaming_chunk)
 
                 # Stream the chunk
