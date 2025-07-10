@@ -99,7 +99,7 @@ class TestLlamaStackChatGenerator:
 
         expected_params = {
             "model": "llama3.2:3b",
-            "api_key": {"env_vars": ["OPENAI_API_KEY"], "strict": False, "type": "env_var"},
+            "api_key": {"env_vars": ["OPENAI_API_KEY"], "strict": True, "type": "env_var"},
             "streaming_callback": None,
             "api_base_url": "http://localhost:8321/v1/openai/v1",
             "generation_kwargs": {},
@@ -116,7 +116,7 @@ class TestLlamaStackChatGenerator:
         monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
         component = LlamaStackChatGenerator(
             model="llama3.2:3b",
-            api_key=Secret.from_env_var("OPENAI_API_KEY", strict=False),
+            api_key=Secret.from_env_var("OPENAI_API_KEY"),
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
@@ -134,7 +134,7 @@ class TestLlamaStackChatGenerator:
 
         expected_params = {
             "model": "llama3.2:3b",
-            "api_key": {"env_vars": ["OPENAI_API_KEY"], "strict": False, "type": "env_var"},
+            "api_key": {"env_vars": ["OPENAI_API_KEY"], "strict": True, "type": "env_var"},
             "api_base_url": "test-base-url",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -176,11 +176,8 @@ class TestLlamaStackChatGenerator:
         assert component.timeout == 10
         assert component.max_retries == 10
 
-    def test_inheritance_from_openai_chat_generator(self):
-        component = LlamaStackChatGenerator(model="llama3.2:3b")
-
     def test_run(self, chat_messages, mock_chat_completion):  # noqa: ARG002
-        component = LlamaStackChatGenerator(model="llama3.2:3b")
+        component = LlamaStackChatGenerator(model="llama3.2:3b", api_key=Secret.from_token("test-api-key"))
         response = component.run(chat_messages)
 
         # check that the component returns the correct ChatMessage response
@@ -192,7 +189,9 @@ class TestLlamaStackChatGenerator:
 
     def test_run_with_params(self, chat_messages, mock_chat_completion):
         component = LlamaStackChatGenerator(
-            model="llama3.2:3b", generation_kwargs={"max_tokens": 10, "temperature": 0.5}
+            model="llama3.2:3b",
+            generation_kwargs={"max_tokens": 10, "temperature": 0.5},
+            api_key=Secret.from_token("test-api-key"),
         )
         response = component.run(chat_messages)
 

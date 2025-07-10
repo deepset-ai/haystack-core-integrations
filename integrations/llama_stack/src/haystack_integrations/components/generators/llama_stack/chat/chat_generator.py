@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, logging
@@ -56,7 +57,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         self,
         *,
         model: str,
-        api_key: Secret = Secret.from_env_var("OPENAI_API_KEY", strict=False),
+        api_key: Optional[Secret] = None,
         api_base_url: str = "http://localhost:8321/v1/openai/v1",
         organization: Optional[str] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
@@ -75,7 +76,8 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
             The model depends on the inference provider used for the Llama Stack Server.
         :param api_key:
             The openai api key for OpenAI client. You can set it with an environment variable `OPENAI_API_KEY`,
-            or pass with this parameter during initialization.
+            or pass with this parameter during initialization. If not provided and no environment variable is set,
+            a placeholder key will be used (suitable for LlamaStack server).
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
@@ -111,6 +113,13 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
             For more information, see the [HTTPX documentation](https://www.python-httpx.org/api/#client).
 
         """
+        if api_key is None:
+            if os.environ.get("OPENAI_API_KEY") is not None:
+                api_key = Secret.from_env_var("OPENAI_API_KEY")
+            else:
+                # Use placeholder key for a LlamaStack server running locally
+                api_key = Secret.from_token("placeholder-api-key")
+
         super(LlamaStackChatGenerator, self).__init__(  # noqa: UP008
             model=model,
             api_key=api_key,
