@@ -4,11 +4,12 @@
 
 from typing import Any, Dict, List, Optional, Union
 
-from haystack import component, default_to_dict, logging
+from haystack import component, default_to_dict, default_from_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage, StreamingCallbackT
-from haystack.tools import Tool, Toolset, _check_duplicate_tool_names
-from haystack.utils import serialize_callable
+from haystack.tools import Tool, Toolset, deserialize_tools_or_toolset_inplace
+from haystack.utils import serialize_callable, deserialize_callable
+
 
 logger = logging.getLogger(__name__)
 
