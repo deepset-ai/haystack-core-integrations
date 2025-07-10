@@ -5,6 +5,7 @@ import os
 from unittest.mock import Mock
 
 import pytest
+from google.genai import types
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool, Toolset
@@ -171,7 +172,7 @@ class TestGoogleGenAIChatGenerator:
         assert google_content.parts[0].function_response.name == "math"
         assert google_content.parts[0].function_response.response == {"result": "4"}
 
-    def test_process_streaming_chunk_text_only(self, monkeypatch):
+    def test_convert_google_chunk_to_streaming_chunk_text_only(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         component = GoogleGenAIChatGenerator()
 
@@ -188,7 +189,7 @@ class TestGoogleGenAIChatGenerator:
         mock_content.parts.append(mock_part)
         mock_candidate.content = mock_content
 
-        chunk = component._process_streaming_chunk(
+        chunk = component._convert_google_chunk_to_streaming_chunk(
             chunk=mock_chunk,
             index=0,
         )
@@ -199,7 +200,7 @@ class TestGoogleGenAIChatGenerator:
         assert chunk.index == 0
         assert "received_at" in chunk.meta
 
-    def test_process_streaming_chunk_tool_call(self, monkeypatch):
+    def test_convert_google_chunk_to_streaming_chunk_tool_call(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         component = GoogleGenAIChatGenerator()
 
@@ -220,7 +221,7 @@ class TestGoogleGenAIChatGenerator:
         mock_content.parts.append(mock_part)
         mock_candidate.content = mock_content
 
-        chunk = component._process_streaming_chunk(chunk=mock_chunk, index=0)
+        chunk = component._convert_google_chunk_to_streaming_chunk(chunk=mock_chunk, index=0)
 
         assert chunk.content == ""
         assert chunk.tool_calls is not None
@@ -232,7 +233,7 @@ class TestGoogleGenAIChatGenerator:
         assert chunk.index == 0
         assert "received_at" in chunk.meta
 
-    def test_process_streaming_chunk_mixed_content(self, monkeypatch):
+    def test_convert_google_chunk_to_streaming_chunk_mixed_content(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         component = GoogleGenAIChatGenerator()
 
@@ -260,7 +261,7 @@ class TestGoogleGenAIChatGenerator:
 
         mock_candidate.content = mock_content
 
-        chunk = component._process_streaming_chunk(chunk=mock_chunk, index=0)
+        chunk = component._convert_google_chunk_to_streaming_chunk(chunk=mock_chunk, index=0)
 
         # When both text and tool calls are present, tool calls are prioritized
         assert chunk.content == ""
@@ -270,7 +271,7 @@ class TestGoogleGenAIChatGenerator:
         assert chunk.tool_calls[0].arguments == '{"city": "London"}'
         assert chunk.finish_reason == "stop"
 
-    def test_process_streaming_chunk_empty_parts(self, monkeypatch):
+    def test_convert_google_chunk_to_streaming_chunk_empty_parts(self, monkeypatch):
         """Test _process_streaming_chunk with empty parts."""
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         component = GoogleGenAIChatGenerator()
@@ -282,10 +283,161 @@ class TestGoogleGenAIChatGenerator:
         mock_candidate.content = mock_content
         mock_chunk.candidates = [mock_candidate]
 
-        chunk = component._process_streaming_chunk(chunk=mock_chunk, index=0)
+        chunk = component._convert_google_chunk_to_streaming_chunk(chunk=mock_chunk, index=0)
 
         assert chunk.content == ""
         assert chunk.tool_calls == []
+
+    def test_convert_google_chunk_to_streaming_chunk_real_example(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator()
+
+        # Chunk 1: Text only
+        chunk1_parts = [
+            types.Part(text="I'll get the weather information for Paris and Berlin",
+            function_call=None, function_response=None)
+        ]
+        chunk1_content = types.Content(role="model", parts=chunk1_parts)
+        chunk1_candidate = types.Candidate(
+            content=chunk1_content,
+            finish_reason=None,
+            index=None, safety_ratings=None, citation_metadata=None,
+            grounding_metadata=None, finish_message=None, token_count=None,
+            logprobs_result=None, avg_logprobs=None, url_context_metadata=None
+        )
+        chunk1_usage = types.GenerateContentResponseUsageMetadata(
+            prompt_token_count=217, candidates_token_count=None, total_token_count=217
+        )
+        chunk1 = types.GenerateContentResponse(
+            candidates=[chunk1_candidate], usage_metadata=chunk1_usage,
+            model_version="gemini-2.0-flash", response_id=None, create_time=None,
+            prompt_feedback=None, automatic_function_calling_history=None, parsed=None
+        )
+
+        streaming_chunk1 = component._convert_google_chunk_to_streaming_chunk(chunk=chunk1, index=0)
+        assert streaming_chunk1.content == "I'll get the weather information for Paris and Berlin"
+        assert streaming_chunk1.tool_calls == []
+        assert streaming_chunk1.finish_reason is None
+        assert streaming_chunk1.index == 0
+        assert "received_at" in streaming_chunk1.meta
+        assert streaming_chunk1.meta["model"] == "gemini-2.0-flash"
+        assert "usage" in streaming_chunk1.meta
+        assert streaming_chunk1.meta["usage"]["prompt_tokens"] == 217
+        assert streaming_chunk1.meta["usage"]["completion_tokens"] is None
+        assert streaming_chunk1.meta["usage"]["total_tokens"] == 217
+
+        # Chunk 2: Text only
+        chunk2_parts = [
+            types.Part(text=" and present it in a structured format.", function_call=None, function_response=None)
+        ]
+        chunk2_content = types.Content(role="model", parts=chunk2_parts)
+        chunk2_candidate = types.Candidate(
+            content=chunk2_content,
+            finish_reason=None,
+            index=None, safety_ratings=None, citation_metadata=None,
+            grounding_metadata=None, finish_message=None, token_count=None,
+            logprobs_result=None, avg_logprobs=None, url_context_metadata=None
+        )
+        chunk2_usage = types.GenerateContentResponseUsageMetadata(
+            prompt_token_count=217, candidates_token_count=None, total_token_count=217
+        )
+        chunk2 = types.GenerateContentResponse(
+            candidates=[chunk2_candidate], usage_metadata=chunk2_usage,
+            model_version="gemini-2.0-flash", response_id=None, create_time=None,
+            prompt_feedback=None, automatic_function_calling_history=None, parsed=None
+        )
+
+        streaming_chunk2 = component._convert_google_chunk_to_streaming_chunk(chunk=chunk2, index=1)
+        assert streaming_chunk2.content == " and present it in a structured format."
+        assert streaming_chunk2.tool_calls == []
+        assert streaming_chunk2.finish_reason is None
+        assert streaming_chunk2.index == 1
+        assert "received_at" in streaming_chunk2.meta
+        assert streaming_chunk2.meta["model"] == "gemini-2.0-flash"
+        assert "usage" in streaming_chunk2.meta
+        assert streaming_chunk2.meta["usage"]["prompt_tokens"] == 217
+        assert streaming_chunk2.meta["usage"]["completion_tokens"] is None
+        assert streaming_chunk2.meta["usage"]["total_tokens"] == 217
+
+        # Chunk 3: Multiple tool calls (6 function calls) for 2 cities with 3 tools each
+        fc1 = types.FunctionCall(id=None, name="get_weather", args={"city": "Paris"})
+        fc2 = types.FunctionCall(id=None, name="get_population", args={"city": "Paris"})
+        fc3 = types.FunctionCall(id=None, name="get_time", args={"city": "Paris"})
+        fc4 = types.FunctionCall(id=None, name="get_weather", args={"city": "Berlin"})
+        fc5 = types.FunctionCall(id=None, name="get_population", args={"city": "Berlin"})
+        fc6 = types.FunctionCall(id=None, name="get_time", args={"city": "Berlin"})
+
+        parts = [
+            types.Part(text=None, function_call=fc1, function_response=None),
+            types.Part(text=None, function_call=fc2, function_response=None),
+            types.Part(text=None, function_call=fc3, function_response=None),
+            types.Part(text=None, function_call=fc4, function_response=None),
+            types.Part(text=None, function_call=fc5, function_response=None),
+            types.Part(text=None, function_call=fc6, function_response=None)
+        ]
+
+        content = types.Content(role="model", parts=parts)
+        candidate = types.Candidate(
+            content=content,
+            finish_reason=types.FinishReason.STOP,
+            index=None, safety_ratings=None, citation_metadata=None,
+            grounding_metadata=None, finish_message=None, token_count=None,
+            logprobs_result=None, avg_logprobs=None, url_context_metadata=None
+        )
+
+        usage_metadata = types.GenerateContentResponseUsageMetadata(
+            prompt_token_count=144, candidates_token_count=121, total_token_count=265
+        )
+        chunk = types.GenerateContentResponse(
+            candidates=[candidate], usage_metadata=usage_metadata,
+            model_version="gemini-2.0-flash", response_id=None, create_time=None,
+            prompt_feedback=None, automatic_function_calling_history=None, parsed=None
+        )
+
+        streaming_chunk = component._convert_google_chunk_to_streaming_chunk(chunk=chunk, index=2)
+
+        assert streaming_chunk.content == ""
+        assert streaming_chunk.tool_calls is not None
+        assert len(streaming_chunk.tool_calls) == 6
+        assert streaming_chunk.finish_reason == "stop"
+        assert streaming_chunk.index == 2
+        assert "received_at" in streaming_chunk.meta
+        assert streaming_chunk.meta["model"] == "gemini-2.0-flash"
+
+        assert "usage" in streaming_chunk.meta
+        assert streaming_chunk.meta["usage"]["prompt_tokens"] == 144
+        assert streaming_chunk.meta["usage"]["completion_tokens"] == 121
+        assert streaming_chunk.meta["usage"]["total_tokens"] == 265
+
+        assert streaming_chunk.tool_calls[0].tool_name == "get_weather"
+        assert streaming_chunk.tool_calls[0].arguments == '{"city": "Paris"}'
+        assert streaming_chunk.tool_calls[0].id is None
+        assert streaming_chunk.tool_calls[0].index == 0
+
+        assert streaming_chunk.tool_calls[1].tool_name == "get_population"
+        assert streaming_chunk.tool_calls[1].arguments == '{"city": "Paris"}'
+        assert streaming_chunk.tool_calls[1].id is None
+        assert streaming_chunk.tool_calls[1].index == 1
+
+        assert streaming_chunk.tool_calls[2].tool_name == "get_time"
+        assert streaming_chunk.tool_calls[2].arguments == '{"city": "Paris"}'
+        assert streaming_chunk.tool_calls[2].id is None
+        assert streaming_chunk.tool_calls[2].index == 2
+
+        assert streaming_chunk.tool_calls[3].tool_name == "get_weather"
+        assert streaming_chunk.tool_calls[3].arguments == '{"city": "Berlin"}'
+        assert streaming_chunk.tool_calls[3].id is None
+        assert streaming_chunk.tool_calls[3].index == 3
+
+        assert streaming_chunk.tool_calls[4].tool_name == "get_population"
+        assert streaming_chunk.tool_calls[4].arguments == '{"city": "Berlin"}'
+        assert streaming_chunk.tool_calls[4].id is None
+        assert streaming_chunk.tool_calls[4].index == 4
+
+        assert streaming_chunk.tool_calls[5].tool_name == "get_time"
+        assert streaming_chunk.tool_calls[5].arguments == '{"city": "Berlin"}'
+        assert streaming_chunk.tool_calls[5].id is None
+        assert streaming_chunk.tool_calls[5].index == 5
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),

@@ -374,17 +374,17 @@ class GoogleGenAIChatGenerator:
             init_params["streaming_callback"] = deserialize_callable(init_params["streaming_callback"])
         return default_from_dict(cls, data)
 
-    def _process_streaming_chunk(
+    def _convert_google_chunk_to_streaming_chunk(
         self,
         chunk: types.GenerateContentResponse,
         index: int,
     ) -> StreamingChunk:
         """
-        Process a single streaming chunk and extract text and tool calls.
+        Convert a chunk from Google Gen AI to a Haystack StreamingChunk.
 
-        :param chunk: The streaming chunk from Google Gen AI.
+        :param chunk: The chunk from Google Gen AI.
         :param index: The index of the chunk.
-        :returns: A single StreamingChunk object for this chunk.
+        :returns: A StreamingChunk object.
         """
         content = ""
         tool_calls = []
@@ -420,12 +420,16 @@ class GoogleGenAIChatGenerator:
                         )
                     )
 
-        # Prioritize tool calls over content when both are present
+
+        # start is only used by print_streaming_chunk. We try to make a reasonable assumption here but it should not be
+        # a problem if we change it in the future.
+        start = index == 0 or len(tool_calls)>0
+
         return StreamingChunk(
-            content="" if tool_calls else content,
+            content="" if tool_calls else content, # prioritize tool calls over content when both are present
             tool_calls=tool_calls,
             index=index,
-            start=index == 0,
+            start=start,
             finish_reason=FINISH_REASON_MAPPING.get(finish_reason) if finish_reason else None,
             meta={
                 "received_at": datetime.now(timezone.utc).isoformat(),
@@ -448,7 +452,9 @@ class GoogleGenAIChatGenerator:
 
             chunk = None
             for i, chunk in enumerate(response_stream):
-                streaming_chunk = self._process_streaming_chunk(chunk=chunk, index=i)
+                streaming_chunk = self._convert_google_chunk_to_streaming_chunk(chunk=chunk, index=i)
+                with open("streaming_chunk.json", "a") as f:
+                    f.write(chunk.model_dump_json() + "\n")
                 chunks.append(streaming_chunk)
 
                 # Stream the chunk
@@ -478,7 +484,7 @@ class GoogleGenAIChatGenerator:
             async for chunk in response_stream:
                 i += 1
 
-                streaming_chunk = self._process_streaming_chunk(chunk=chunk, index=i)
+                streaming_chunk = self._convert_google_chunk_to_streaming_chunk(chunk=chunk, index=i)
                 chunks.append(streaming_chunk)
 
                 # Stream the chunk
