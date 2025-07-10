@@ -410,18 +410,13 @@ class GoogleGenAIChatGenerator:
 
                 elif part.function_call:
                     tc_index += 1
-                    tool_call = ToolCall(
-                        tool_name=part.function_call.name or "",
-                        arguments=part.function_call.args if part.function_call.args else {},
-                        id=part.function_call.id,
-                    )
                     tool_calls.append(
                         ToolCallDelta(
                             # Google GenAI does not provide index, but it is required for tool calls
                             index=tc_index,
-                            id=tool_call.id,
-                            tool_name=tool_call.tool_name,
-                            arguments=json.dumps(tool_call.arguments) if tool_call.arguments else None,
+                            id=part.function_call.id,
+                            tool_name=part.function_call.name or "",
+                            arguments=json.dumps(part.function_call.args) if part.function_call.args else None,
                         )
                     )
 
@@ -439,7 +434,7 @@ class GoogleGenAIChatGenerator:
             },
         )
 
-    def _handle_streaming_response_direct(
+    def _handle_streaming_response(
         self, response_stream: Iterator[types.GenerateContentResponse], streaming_callback: StreamingCallbackT
     ) -> Dict[str, List[ChatMessage]]:
         """
@@ -466,7 +461,7 @@ class GoogleGenAIChatGenerator:
             msg = f"Error in streaming response: {e}"
             raise RuntimeError(msg) from e
 
-    async def _handle_streaming_response_direct_async(
+    async def _handle_streaming_response_async(
         self, response_stream: AsyncIterator[types.GenerateContentResponse], streaming_callback: AsyncStreamingCallbackT
     ) -> Dict[str, List[ChatMessage]]:
         """
@@ -573,7 +568,7 @@ class GoogleGenAIChatGenerator:
                 response_stream = self._client.models.generate_content_stream(
                     model=self._model, contents=contents, config=config
                 )
-                return self._handle_streaming_response_direct(response_stream, streaming_callback)
+                return self._handle_streaming_response(response_stream, streaming_callback)
             else:
                 # Use non-streaming
                 response = self._client.models.generate_content(model=self._model, contents=contents, config=config)
@@ -661,7 +656,7 @@ class GoogleGenAIChatGenerator:
                 response_stream = await self._client.aio.models.generate_content_stream(
                     model=self._model, contents=contents, config=config
                 )
-                return await self._handle_streaming_response_direct_async(response_stream, streaming_callback)
+                return await self._handle_streaming_response_async(response_stream, streaming_callback)
             else:
                 # Use async non-streaming
                 response = await self._client.aio.models.generate_content(

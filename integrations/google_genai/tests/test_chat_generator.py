@@ -188,11 +188,9 @@ class TestGoogleGenAIChatGenerator:
         mock_content.parts.append(mock_part)
         mock_candidate.content = mock_content
 
-        all_text_parts = []
-        all_tool_calls = []
-
         chunk = component._process_streaming_chunk(
-            chunk=mock_chunk, index=0,
+            chunk=mock_chunk,
+            index=0,
         )
 
         assert chunk.content == "Hello, world!"
@@ -222,12 +220,7 @@ class TestGoogleGenAIChatGenerator:
         mock_content.parts.append(mock_part)
         mock_candidate.content = mock_content
 
-        all_text_parts = []
-        all_tool_calls = []
-
-        chunk = component._process_streaming_chunk(
-            chunk=mock_chunk, index=0, all_text_parts=all_text_parts, all_tool_calls=all_tool_calls
-        )
+        chunk = component._process_streaming_chunk(chunk=mock_chunk, index=0)
 
         assert chunk.content == ""
         assert chunk.tool_calls is not None
@@ -267,12 +260,7 @@ class TestGoogleGenAIChatGenerator:
 
         mock_candidate.content = mock_content
 
-        all_text_parts = []
-        all_tool_calls = []
-
-        chunk = component._process_streaming_chunk(
-            chunk=mock_chunk, index=0, all_text_parts=all_text_parts, all_tool_calls=all_tool_calls
-        )
+        chunk = component._process_streaming_chunk(chunk=mock_chunk, index=0)
 
         # When both text and tool calls are present, tool calls are prioritized
         assert chunk.content == ""
@@ -294,17 +282,10 @@ class TestGoogleGenAIChatGenerator:
         mock_candidate.content = mock_content
         mock_chunk.candidates = [mock_candidate]
 
-        all_text_parts = []
-        all_tool_calls = []
-
-        chunk = component._process_streaming_chunk(
-            chunk=mock_chunk, index=0, all_text_parts=all_text_parts, all_tool_calls=all_tool_calls
-        )
+        chunk = component._process_streaming_chunk(chunk=mock_chunk, index=0)
 
         assert chunk.content == ""
         assert chunk.tool_calls == []
-        assert len(all_text_parts) == 0
-        assert len(all_tool_calls) == 0
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
