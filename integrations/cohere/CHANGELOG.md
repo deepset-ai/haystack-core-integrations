@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/cohere-v5.2.0] - 2025-07-10
+
+### 🐛 Bug Fixes
+
+- Update Cohere to client 5.16.0 (#2086)
+
+
 ## [integrations/cohere-v5.1.1] - 2025-07-10
 
 ### 🌀 Miscellaneous
