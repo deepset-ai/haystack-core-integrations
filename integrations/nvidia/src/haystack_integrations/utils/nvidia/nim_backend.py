@@ -4,12 +4,13 @@
 
 import os
 import warnings
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import requests
 from haystack import logging
 from haystack.utils import Secret
 
+from .client import Client
 from .models import DEFAULT_MODELS, Model
 from .utils import determine_model, is_hosted, validate_hosted_model
 
@@ -21,14 +22,12 @@ REQUEST_TIMEOUT = 60.0
 class NimBackend:
     def __init__(
         self,
-        model: str,
         api_url: str,
         model_type: Optional[Literal["chat", "embedding", "ranking"]] = None,
+        model: Optional[str] = None,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_kwargs: Optional[Dict[str, Any]] = None,
-        client: Optional[
-            Literal["NvidiaGenerator", "NvidiaTextEmbedder", "NvidiaDocumentEmbedder", "NvidiaRanker"]
-        ] = None,
+        client: Optional[Union[str, Client]] = None,
         timeout: Optional[float] = None,
     ):
         headers = {
@@ -43,6 +42,9 @@ class NimBackend:
         self.session.headers.update(headers)
 
         self.api_url = api_url
+        if isinstance(client, str):
+            client = Client.from_str(client)
+        validated_model: Optional[Model] = None
         if is_hosted(self.api_url):
             if not api_key:
                 warnings.warn(
@@ -50,16 +52,20 @@ class NimBackend:
                     UserWarning,
                     stacklevel=2,
                 )
-            if not model and model_type:  # manually set default model
+            if not model:
+                if not model_type:
+                    msg = "`model_type` is required when `model` is not specified and a valid `api_url` is provided."
+                    raise ValueError(msg)
+                # infer the default model for the given model type
                 model = DEFAULT_MODELS[model_type]
 
-            model = validate_hosted_model(model, client)
-            if isinstance(model, Model) and model.endpoint:
+            validated_model = validate_hosted_model(model_name=model, client=client)
+            if validated_model and validated_model.endpoint:
                 # we override the endpoint to use the custom endpoint
-                self.api_url = model.endpoint
-                self.model_type = model.model_type
+                self.api_url = validated_model.endpoint
+                self.model_type = validated_model.model_type
 
-        self.model = model.id if isinstance(model, Model) else model
+        self.model = validated_model.id if validated_model else model
         self.model_kwargs = model_kwargs or {}
         self.client = client
         self.model_type = model_type

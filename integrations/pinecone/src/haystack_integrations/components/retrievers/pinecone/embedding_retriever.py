@@ -116,7 +116,7 @@ class PineconeEmbeddingRetriever:
         query_embedding: List[float],
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Retrieve documents from the `PineconeDocumentStore`, based on their dense embeddings.
 
@@ -145,7 +145,7 @@ class PineconeEmbeddingRetriever:
         query_embedding: List[float],
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Asynchronously retrieve documents from the `PineconeDocumentStore`, based on their dense embeddings.
 

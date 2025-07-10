@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from copy import copy
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -10,6 +10,7 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from pinecone import Pinecone, PineconeAsyncio, PodSpec, ServerlessSpec
+from pinecone.db_data import _Index, _IndexAsyncio
 
 from .filters import _normalize_filters, _validate_filters
 
@@ -70,8 +71,8 @@ class PineconeDocumentStore:
         self.dimension = dimension
         self.index_name = index
 
-        self._index = None
-        self._async_index = None
+        self._index: Optional[_Index] = None
+        self._async_index: Optional[_IndexAsyncio] = None
         self._dummy_vector = [-10.0] * self.dimension
 
     def _initialize_index(self):
@@ -137,7 +138,7 @@ class PineconeDocumentStore:
         await async_client.close()
 
     @staticmethod
-    def _convert_dict_spec_to_pinecone_object(spec: Dict[str, Any]):
+    def _convert_dict_spec_to_pinecone_object(spec: Dict[str, Any]) -> Union[ServerlessSpec, PodSpec]:
         """Convert the spec dictionary to a Pinecone spec object"""
 
         if "serverless" in spec:
@@ -447,12 +448,12 @@ class PineconeDocumentStore:
         return documents
 
     @staticmethod
-    def _discard_invalid_meta(document: Document):
+    def _discard_invalid_meta(document: Document) -> None:
         """
         Remove metadata fields with unsupported types from the document.
         """
 
-        def valid_type(value: Any):
+        def valid_type(value: Any) -> bool:
             return isinstance(value, METADATA_SUPPORTED_TYPES) or (
                 isinstance(value, list) and all(isinstance(i, str) for i in value)
             )
@@ -475,8 +476,6 @@ class PineconeDocumentStore:
 
             document.meta = new_meta
 
-        return document
-
     def _convert_documents_to_pinecone_format(self, documents: List[Document]) -> List[Dict[str, Any]]:
         documents_for_pinecone = []
         for document in documents:
@@ -491,7 +490,7 @@ class PineconeDocumentStore:
             if document.meta:
                 self._discard_invalid_meta(document)
 
-            doc_for_pinecone = {"id": document.id, "values": embedding, "metadata": dict(document.meta)}
+            doc_for_pinecone: Dict[str, Any] = {"id": document.id, "values": embedding, "metadata": dict(document.meta)}
 
             # we save content as metadata
             if document.content is not None:
@@ -506,10 +505,10 @@ class PineconeDocumentStore:
                 )
             if hasattr(document, "sparse_embedding") and document.sparse_embedding is not None:
                 logger.warning(
-                    "Document %s has the `sparse_embedding` field set,"
+                    "Document {document_id} has the `sparse_embedding` field set,"
                     "but storing sparse embeddings in Pinecone is not currently supported."
                     "The `sparse_embedding` field will be ignored.",
-                    document.id,
+                    document_id=document.id,
                 )
 
             documents_for_pinecone.append(doc_for_pinecone)

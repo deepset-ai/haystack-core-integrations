@@ -96,7 +96,7 @@ class FastembedTextEmbedder:
             )
 
     @component.output_types(embedding=List[float])
-    def run(self, text: str):
+    def run(self, text: str) -> Dict[str, List[float]]:
         """
         Embeds text using the Fastembed model.
 

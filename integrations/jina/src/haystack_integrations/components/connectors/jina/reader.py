@@ -104,7 +104,7 @@ class JinaReaderConnector:
         return document
 
     @component.output_types(documents=List[Document])
-    def run(self, query: str, headers: Optional[Dict[str, str]] = None):
+    def run(self, query: str, headers: Optional[Dict[str, str]] = None) -> Dict[str, List[Document]]:
         """
         Process the query/URL using the Jina AI reader service.
 
@@ -131,7 +131,7 @@ class JinaReaderConnector:
         # raw response: we just return a single Document with text
         if not self.json_response:
             meta = {"content_type": response.headers["Content-Type"], "query": query}
-            return {"documents": [Document(content=response.content, meta=meta)]}
+            return {"documents": [Document(content=response.text, meta=meta)]}
 
         response_json = json.loads(response.content).get("data", {})
         if self.mode == JinaReaderMode.SEARCH:

@@ -1,25 +1,32 @@
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, ToolCall
-from haystack.tools import Tool, _check_duplicate_tool_names
-
-# Compatibility with Haystack 2.12.0 and 2.13.0 - remove after 2.13.0 is released
-try:
-    from haystack.tools import deserialize_tools_or_toolset_inplace
-except ImportError:
-    from haystack.tools import deserialize_tools_inplace as deserialize_tools_or_toolset_inplace
-
-from llama_cpp import ChatCompletionResponseChoice, CreateChatCompletionResponse, Llama
+from haystack.tools import (
+    Tool,
+    Toolset,
+    _check_duplicate_tool_names,
+    deserialize_tools_or_toolset_inplace,
+    serialize_tools_or_toolset,
+)
+from llama_cpp import (
+    ChatCompletionMessageToolCall,
+    ChatCompletionRequestAssistantMessage,
+    ChatCompletionRequestMessage,
+    ChatCompletionResponseChoice,
+    ChatCompletionTool,
+    CreateChatCompletionResponse,
+    Llama,
+)
 from llama_cpp.llama_tokenizer import LlamaHFTokenizer
 
 logger = logging.getLogger(__name__)
 
 
-def _convert_message_to_llamacpp_format(message: ChatMessage) -> Dict[str, Any]:
+def _convert_message_to_llamacpp_format(message: ChatMessage) -> ChatCompletionRequestMessage:
     """
-    Convert a ChatMessage to the format expected by Ollama Chat API.
+    Convert a ChatMessage to the format expected by llama.cpp Chat API.
     """
     text_contents = message.texts
     tool_calls = message.tool_calls
@@ -33,38 +40,51 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> Dict[str, Any]:
         raise ValueError(msg)
 
     role = message._role.value
-    if role == "tool":
-        role = "function"
 
-    llamacpp_msg: Dict[str, Any] = {"role": role}
-
-    if tool_call_results:
+    if role == "tool" and tool_call_results:
         if tool_call_results[0].origin.id is None:
             msg = "`ToolCall` must have a non-null `id` attribute to be used with llama.cpp."
             raise ValueError(msg)
-        llamacpp_msg["content"] = tool_call_results[0].result
-        llamacpp_msg["tool_call_id"] = tool_call_results[0].origin.id
-        # Llama.cpp does not provide a way to communicate errors in tool invocations, so we ignore the error field
-        return llamacpp_msg
+        return {
+            "role": "function",
+            "content": tool_call_results[0].result,
+            "name": tool_call_results[0].origin.tool_name,
+        }
 
-    if text_contents:
-        llamacpp_msg["content"] = text_contents[0]
-    if tool_calls:
-        llamacpp_tool_calls = []
-        for tc in tool_calls:
-            if tc.id is None:
-                msg = "`ToolCall` must have a non-null `id` attribute to be used with llama.cpp."
-                raise ValueError(msg)
-            llamacpp_tool_calls.append(
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    # We disable ensure_ascii so special chars like emojis are not converted
-                    "function": {"name": tc.tool_name, "arguments": json.dumps(tc.arguments, ensure_ascii=False)},
-                }
-            )
-        llamacpp_msg["tool_calls"] = llamacpp_tool_calls
-    return llamacpp_msg
+    if role == "system":
+        content = text_contents[0] if text_contents else None
+        return {"role": "system", "content": content}
+
+    if role == "user":
+        content = text_contents[0] if text_contents else None
+        return {"role": "user", "content": content}
+
+    if role == "assistant":
+        result: ChatCompletionRequestAssistantMessage = {"role": "assistant"}
+
+        if text_contents:
+            result["content"] = text_contents[0]
+
+        if tool_calls:
+            llamacpp_tool_calls: List[ChatCompletionMessageToolCall] = []
+            for tc in tool_calls:
+                if tc.id is None:
+                    msg = "`ToolCall` must have a non-null `id` attribute to be used with llama.cpp."
+                    raise ValueError(msg)
+                llamacpp_tool_calls.append(
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        # We disable ensure_ascii so special chars like emojis are not converted
+                        "function": {"name": tc.tool_name, "arguments": json.dumps(tc.arguments, ensure_ascii=False)},
+                    }
+                )
+            result["tool_calls"] = llamacpp_tool_calls
+
+        return result
+
+    error_msg = f"Unknown role: {role}"
+    raise ValueError(error_msg)
 
 
 @component
@@ -94,7 +114,7 @@ class LlamaCppChatGenerator:
         model_kwargs: Optional[Dict[str, Any]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         *,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
     ):
         """
         :param model: The path of a quantized model for text generation, for example, "zephyr-7b-beta.Q4_0.gguf".
@@ -110,7 +130,8 @@ class LlamaCppChatGenerator:
             For more information on the available kwargs, see
             [llama.cpp documentation](https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.Llama.create_chat_completion).
         :param tools:
-            A list of tools for which the model can prepare calls.
+            A list of tools or a Toolset for which the model can prepare calls.
+            This parameter can accept either a list of `Tool` objects or a `Toolset` instance.
         """
 
         model_kwargs = model_kwargs or {}
@@ -122,14 +143,14 @@ class LlamaCppChatGenerator:
         model_kwargs.setdefault("n_ctx", n_ctx)
         model_kwargs.setdefault("n_batch", n_batch)
 
-        _check_duplicate_tool_names(tools)
+        _check_duplicate_tool_names(list(tools or []))
 
         self.model_path = model
         self.n_ctx = n_ctx
         self.n_batch = n_batch
         self.model_kwargs = model_kwargs
         self.generation_kwargs = generation_kwargs
-        self._model = None
+        self._model: Optional[Llama] = None
         self.tools = tools
 
     def warm_up(self):
@@ -147,7 +168,6 @@ class LlamaCppChatGenerator:
         :returns:
               Dictionary with serialized data.
         """
-        serialized_tools = [tool.to_dict() for tool in self.tools] if self.tools else None
         return default_to_dict(
             self,
             model=self.model_path,
@@ -155,7 +175,7 @@ class LlamaCppChatGenerator:
             n_batch=self.n_batch,
             model_kwargs=self.model_kwargs,
             generation_kwargs=self.generation_kwargs,
-            tools=serialized_tools,
+            tools=serialize_tools_or_toolset(self.tools),
         )
 
     @classmethod
@@ -177,8 +197,8 @@ class LlamaCppChatGenerator:
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
         *,
-        tools: Optional[List[Tool]] = None,
-    ):
+        tools: Optional[Union[List[Tool], Toolset]] = None,
+    ) -> Dict[str, List[ChatMessage]]:
         """
         Run the text generation model on the given list of ChatMessages.
 
@@ -188,8 +208,8 @@ class LlamaCppChatGenerator:
             For more information on the available kwargs, see
             [llama.cpp documentation](https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.Llama.create_chat_completion).
         :param tools:
-            A list of tools for which the model can prepare calls. If set, it will override the `tools` parameter set
-            during component initialization.
+            A list of tools or a Toolset for which the model can prepare calls. If set, it will override the `tools`
+            parameter set during component initialization.
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
         """
@@ -204,16 +224,33 @@ class LlamaCppChatGenerator:
         formatted_messages = [_convert_message_to_llamacpp_format(msg) for msg in messages]
 
         tools = tools or self.tools
-        llamacpp_tools = {}
+        if isinstance(tools, Toolset):
+            tools = list(tools)
+        _check_duplicate_tool_names(tools)
+
+        llamacpp_tools: List[ChatCompletionTool] = []
         if tools:
-            tool_definitions = [{"type": "function", "function": {**t.tool_spec}} for t in tools]
-            llamacpp_tools = {"tools": tool_definitions}
+            for t in tools:
+                llamacpp_tools.append(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": t.tool_spec["name"],
+                            "description": t.tool_spec.get("description", ""),
+                            "parameters": t.tool_spec.get("parameters", {}),
+                        },
+                    }
+                )
 
         response = self._model.create_chat_completion(
-            messages=formatted_messages, **updated_generation_kwargs, **llamacpp_tools
+            messages=formatted_messages, tools=llamacpp_tools, **updated_generation_kwargs
         )
 
         replies = []
+        if not isinstance(response, dict):
+            msg = f"Expected a dictionary response, got a different object: {response}"
+            raise ValueError(msg)
+
         for choice in response["choices"]:
             chat_message = self._convert_chat_completion_choice_to_chat_message(choice, response)
             replies.append(chat_message)
@@ -239,10 +276,10 @@ class LlamaCppChatGenerator:
                 except json.JSONDecodeError:
                     logger.warning(
                         "Llama.cpp returned a malformed JSON string for tool call arguments. This tool call "
-                        "will be skipped. Tool call ID: %s, Tool name: %s, Arguments: %s",
-                        llamacpp_tc["id"],
-                        llamacpp_tc["function"]["name"],
-                        arguments_str,
+                        "will be skipped. Tool call ID: {tc_id}, Tool name: {tc_name}, Arguments: {tc_args}",
+                        tc_id=llamacpp_tc["id"],
+                        tc_name=llamacpp_tc["function"]["name"],
+                        tc_args=arguments_str,
                     )
 
         meta = {

@@ -2,7 +2,7 @@ loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
     modules: [
-      "haystack_integrations.components.connectors.weave_connector",
+      "haystack_integrations.components.connectors.weave.weave_connector",
       "haystack_integrations.tracing.weave.tracer",
     ]
     ignore_when_discovered: ["__init__"]

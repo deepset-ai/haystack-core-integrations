@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/mistral-v0.3.0] - 2025-06-27
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Remove black (#1985)
+- Mistral - improve type checking + add py.typed (#2009)
+
+### 🌀 Miscellaneous
+
+- Test: Remove `test_check_abnormal_completions` - already tested in Haystack (#1842)
+
 ## [integrations/mistral-v0.2.0] - 2025-05-23
 
 ### 🐛 Bug Fixes

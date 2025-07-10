@@ -94,7 +94,7 @@ class FastembedSparseTextEmbedder:
             )
 
     @component.output_types(sparse_embedding=SparseEmbedding)
-    def run(self, text: str):
+    def run(self, text: str) -> Dict[str, SparseEmbedding]:
         """
         Embeds text using the Fastembed model.
 

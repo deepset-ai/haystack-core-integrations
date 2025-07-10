@@ -24,7 +24,7 @@ class AzureAISearchBM25Retriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
-        **kwargs,
+        **kwargs: Any,
     ):
         """
         Create the AzureAISearchBM25Retriever component.
@@ -96,7 +96,9 @@ class AzureAISearchBM25Retriever:
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
-    def run(self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
+    def run(
+        self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> Dict[str, List[Document]]:
         """Retrieve documents from the AzureAISearchDocumentStore.
 
         :param query: Text of the query.
@@ -111,11 +113,11 @@ class AzureAISearchBM25Retriever:
 
         top_k = top_k or self._top_k
         filters = filters or self._filters
-        if filters:
-            applied_filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+
+        normalized_filters = ""
+        applied_filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        if applied_filters:
             normalized_filters = _normalize_filters(applied_filters)
-        else:
-            normalized_filters = ""
 
         try:
             docs = self._document_store._bm25_retrieval(

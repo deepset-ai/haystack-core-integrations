@@ -9,7 +9,7 @@ from haystack.document_stores.errors import DuplicateDocumentError, MissingDocum
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from .astra_client import AstraClient
+from .astra_client import AstraClient, QueryResponse
 from .errors import AstraDocumentStoreFilterError
 from .filters import _convert_filters
 
@@ -150,7 +150,7 @@ class AstraDocumentStore:
         self,
         documents: List[Document],
         policy: DuplicatePolicy = DuplicatePolicy.NONE,
-    ):
+    ) -> int:
         """
         Indexes documents for later queries.
 
@@ -176,7 +176,7 @@ class AstraDocumentStore:
 
         batch_size = MAX_BATCH_SIZE
 
-        def _convert_input_document(document: Union[dict, Document]):
+        def _convert_input_document(document: Union[dict, Document]) -> Dict[str, Any]:
             if isinstance(document, Document):
                 document_dict = document.to_dict(flatten=False)
             elif isinstance(document, dict):
@@ -217,7 +217,7 @@ class AstraDocumentStore:
         documents_to_write = [_convert_input_document(doc) for doc in documents]
 
         duplicate_documents = []
-        new_documents: List[Document] = []
+        new_documents: List[Dict] = []
         i = 0
         while i < len(documents_to_write):
             doc = documents_to_write[i]
@@ -238,7 +238,7 @@ class AstraDocumentStore:
         if policy == DuplicatePolicy.SKIP:
             if len(new_documents) > 0:
                 for batch in _batches(new_documents, batch_size):
-                    inserted_ids = self.index.insert(batch)  # type: ignore
+                    inserted_ids = self.index.insert(batch)
                     insertion_counter += len(inserted_ids)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
@@ -247,7 +247,7 @@ class AstraDocumentStore:
         elif policy == DuplicatePolicy.OVERWRITE:
             if len(new_documents) > 0:
                 for batch in _batches(new_documents, batch_size):
-                    inserted_ids = self.index.insert(batch)  # type: ignore
+                    inserted_ids = self.index.insert(batch)
                     insertion_counter += len(inserted_ids)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
@@ -256,7 +256,7 @@ class AstraDocumentStore:
             if len(duplicate_documents) > 0:
                 updated_ids = []
                 for duplicate_doc in duplicate_documents:
-                    updated = self.index.update_document(duplicate_doc, "_id")  # type: ignore
+                    updated = self.index.update_document(duplicate_doc, "_id")
                     if updated:
                         updated_ids.append(duplicate_doc["_id"])
                 insertion_counter = insertion_counter + len(updated_ids)
@@ -267,7 +267,7 @@ class AstraDocumentStore:
         elif policy == DuplicatePolicy.FAIL:
             if len(new_documents) > 0:
                 for batch in _batches(new_documents, batch_size):
-                    inserted_ids = self.index.insert(batch)  # type: ignore
+                    inserted_ids = self.index.insert(batch)
                     insertion_counter = insertion_counter + len(inserted_ids)
                     logger.info(f"write_documents inserted documents with id {inserted_ids}")
             else:
@@ -326,15 +326,18 @@ class AstraDocumentStore:
         return documents
 
     @staticmethod
-    def _get_result_to_documents(results) -> List[Document]:
+    def _get_result_to_documents(results: QueryResponse) -> List[Document]:
         documents = []
         for match in results.matches:
+            metadata = match.metadata
+            blob = metadata.pop("blob", None) if metadata else None
+            meta = metadata.pop("meta", {}) if metadata else {}
             document = Document(
                 content=match.text,
                 id=match.document_id,
                 embedding=match.values,
-                blob=match.metadata.pop("blob", None),
-                meta=match.metadata.pop("meta", None),
+                blob=blob,
+                meta=meta,
                 score=match.score,
             )
             documents.append(document)
@@ -392,7 +395,12 @@ class AstraDocumentStore:
 
         return result
 
-    def delete_documents(self, document_ids: Optional[List[str]] = None, delete_all: Optional[bool] = None) -> None:
+    def delete_documents(
+        self,
+        document_ids: Optional[List[str]] = None,
+        *,
+        delete_all: Optional[bool] = None,
+    ) -> None:
         """
         Deletes documents from the document store.
 

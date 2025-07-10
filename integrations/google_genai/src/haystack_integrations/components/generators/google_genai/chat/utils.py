@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Union
 
 
 def remove_key_from_schema(
-    schema: Union[Dict[str, Any], List[Any]], target_key: str
+    schema: Union[Dict[str, Any], List[Any], Any], target_key: str
 ) -> Union[Dict[str, Any], List[Any], Any]:
     """
     Recursively traverse a schema and remove all occurrences of the target key.
@@ -24,5 +24,4 @@ def remove_key_from_schema(
     elif isinstance(schema, list):
         return [remove_key_from_schema(item, target_key) for item in schema]
 
-    else:
-        return schema
+    return schema

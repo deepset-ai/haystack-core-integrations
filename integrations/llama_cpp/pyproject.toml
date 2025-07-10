@@ -26,7 +26,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.9.0", "llama-cpp-python>=0.2.87"]
+dependencies = ["haystack-ai>=2.13.0", "llama-cpp-python>=0.2.87"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/llama_cpp#readme"
@@ -68,18 +68,13 @@ unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
-types = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+types = "mypy -p haystack_integrations.components.generators.llama_cpp {args}"
 
-# TODO: remove lint environment once this integration is properly typed
-# test environment should be used instead
-# https://github.com/deepset-ai/haystack-core-integrations/issues/1771
-[tool.hatch.envs.lint]
-installer = "uv"
-detached = true
-dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
-
-[tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+[tool.mypy]
+install_types = true
+non_interactive = true
+check_untyped_defs = true
+disallow_incomplete_defs = true
 
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -87,10 +82,6 @@ allow-direct-references = true
 [tool.ruff.lint.isort]
 known-first-party = ["haystack_integrations"]
 
-[tool.black]
-target-version = ["py38"]
-line-length = 120
-skip-string-normalization = true
 
 [tool.ruff]
 target-version = "py38"
@@ -169,7 +160,3 @@ markers = [
     "integration: marks tests as slow (deselect with '-m \"not integration\"')",
 ]
 addopts = ["--import-mode=importlib"]
-
-[[tool.mypy.overrides]]
-module = ["haystack.*", "haystack_integrations.*", "pytest.*", "llama_cpp.*"]
-ignore_missing_imports = true

@@ -20,7 +20,7 @@ class _FastembedEmbeddingBackendFactory:
         cache_dir: Optional[str] = None,
         threads: Optional[int] = None,
         local_files_only: bool = False,
-    ):
+    ) -> "_FastembedEmbeddingBackend":
         embedding_backend_id = f"{model_name}{cache_dir}{threads}"
 
         if embedding_backend_id in _FastembedEmbeddingBackendFactory._instances:
@@ -49,7 +49,7 @@ class _FastembedEmbeddingBackend:
             model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only
         )
 
-    def embed(self, data: List[str], progress_bar=True, **kwargs) -> List[List[float]]:
+    def embed(self, data: List[str], progress_bar: bool = True, **kwargs: Any) -> List[List[float]]:
         # the embed method returns a Iterable[np.ndarray], so we convert it to a list of lists
         embeddings = []
         embeddings_iterable = self.model.embed(data, **kwargs)
@@ -74,7 +74,7 @@ class _FastembedSparseEmbeddingBackendFactory:
         threads: Optional[int] = None,
         local_files_only: bool = False,
         model_kwargs: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> "_FastembedSparseEmbeddingBackend":
         embedding_backend_id = f"{model_name}{cache_dir}{threads}{local_files_only}{model_kwargs}"
 
         if embedding_backend_id in _FastembedSparseEmbeddingBackendFactory._instances:
@@ -114,7 +114,7 @@ class _FastembedSparseEmbeddingBackend:
             **model_kwargs,
         )
 
-    def embed(self, data: List[List[str]], progress_bar=True, **kwargs) -> List[SparseEmbedding]:
+    def embed(self, data: List[str], progress_bar: bool = True, **kwargs: Any) -> List[SparseEmbedding]:
         # The embed method returns a Iterable[SparseEmbedding], so we convert to Haystack SparseEmbedding type.
         # Each SparseEmbedding contains an `indices` key containing a list of int and
         # an `values` key containing a list of floats.

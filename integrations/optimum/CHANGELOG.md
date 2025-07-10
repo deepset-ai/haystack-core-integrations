@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/optimum-v1.2.0] - 2025-06-30
+
+### 🐛 Bug Fixes
+
+- Fix Optimum types + add py.typed (#2018)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+
+
+## [integrations/optimum-v1.1.0] - 2025-06-17
+
+### 🐛 Bug Fixes
+
+- Optimum - use `token` instead of `use_auth_token` in the backend (#1960)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+
+
 ## [integrations/optimum-v1.0.1] - 2025-05-28
 
 

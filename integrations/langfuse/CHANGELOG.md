@@ -1,10 +1,29 @@
 # Changelog
 
+## [integrations/langfuse-v2.2.0] - 2025-07-03
+
+### 🚀 Features
+
+- Simpler generation spans, use Haystack's to_openai_dict_format (#2044)
+
+### 🐛 Bug Fixes
+
+- Properly cleanup Langfuse tracing context after pipeline run failures (#1999)
+
+
+### 🧹 Chores
+
+- Pin langfuse<3.0.0 (#1904)
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+- Remove black (#1985)
+
+
 ## [integrations/langfuse-v2.0.1] - 2025-06-02
 
 ### 🚀 Features
 
-- Use Langfuse local _to_openai_dict_format function to serialize messages (#1885)
+- Use Langfuse local to_openai_dict_format function to serialize messages (#1885)
 
 ### 🌀 Miscellaneous
 

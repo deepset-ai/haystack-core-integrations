@@ -1,16 +1,11 @@
 import asyncio
 import time
+import uuid
 
 import pytest
 import pytest_asyncio
 from haystack.document_stores.types import DuplicatePolicy
-
-try:
-    # pinecone-client < 5.0.0
-    from pinecone.core.client.exceptions import NotFoundException
-except ModuleNotFoundError:
-    # pinecone-client >= 5.0.0
-    from pinecone.exceptions import NotFoundException
+from pinecone.exceptions import NotFoundException
 
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
@@ -31,7 +26,7 @@ def document_store(request):
     """
     index = "default"
     # Use a different namespace for each test so we can run them in parallel
-    namespace = f"{request.node.name}-{int(time.time())}"
+    namespace = f"{request.node.name}-{uuid.uuid4()}"
     dimension = 768
 
     store = PineconeDocumentStore(
@@ -72,7 +67,7 @@ async def document_store_async(request):
     """
     index = "default"
     # Use a different namespace for each test so we can run them in parallel
-    namespace = f"{request.node.name}-{int(time.time())}"
+    namespace = f"{request.node.name}-{uuid.uuid4()}"
     dimension = 768
 
     store = PineconeDocumentStore(

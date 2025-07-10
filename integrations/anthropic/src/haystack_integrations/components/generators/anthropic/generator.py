@@ -35,7 +35,7 @@ class AnthropicGenerator:
     ```python
     from haystack_integrations.components.generators.anthropic import AnthropicGenerator
 
-    client = AnthropicGenerator(model="claude-3-sonnet-20240229")
+    client = AnthropicGenerator(model="claude-sonnet-4-20250514")
     response = client.run("What's Natural Language Processing? Be brief.")
     print(response)
     >>{'replies': ['Natural language processing (NLP) is a branch of artificial intelligence focused on enabling
@@ -60,10 +60,13 @@ class AnthropicGenerator:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("ANTHROPIC_API_KEY"),  # noqa: B008
-        model: str = "claude-3-sonnet-20240229",
+        model: str = "claude-sonnet-4-20250514",
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         system_prompt: Optional[str] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
+        *,
+        timeout: Optional[float] = None,
+        max_retries: Optional[int] = None,
     ):
         """
         Initialize the AnthropicGenerator.
@@ -79,11 +82,23 @@ class AnthropicGenerator:
         self.generation_kwargs = generation_kwargs or {}
         self.streaming_callback = streaming_callback
         self.system_prompt = system_prompt
-        self.client = Anthropic(api_key=self.api_key.resolve_value())
+        self.timeout = timeout
+        self.max_retries = max_retries
+
         self.include_thinking = self.generation_kwargs.pop("include_thinking", True)
         self.thinking_tag = self.generation_kwargs.pop("thinking_tag", "thinking")
         self.thinking_tag_start = f"<{self.thinking_tag}>" if self.thinking_tag else ""
         self.thinking_tag_end = f"</{self.thinking_tag}>\n\n" if self.thinking_tag else "\n\n"
+
+        client_kwargs: Dict[str, Any] = {"api_key": api_key.resolve_value()}
+        # We do this since timeout=None is not the same as not setting it in Anthropic
+        if timeout is not None:
+            client_kwargs["timeout"] = timeout
+        # We do this since max_retries must be an int when passing to Anthropic
+        if max_retries is not None:
+            client_kwargs["max_retries"] = max_retries
+
+        self.client = Anthropic(**client_kwargs)
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
@@ -103,11 +118,13 @@ class AnthropicGenerator:
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         return default_to_dict(
             self,
+            api_key=self.api_key.to_dict(),
             model=self.model,
             streaming_callback=callback_name,
             system_prompt=self.system_prompt,
             generation_kwargs=self.generation_kwargs,
-            api_key=self.api_key.to_dict(),
+            timeout=self.timeout,
+            max_retries=self.max_retries,
         )
 
     @classmethod

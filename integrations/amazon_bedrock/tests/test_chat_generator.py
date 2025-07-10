@@ -298,6 +298,7 @@ class TestAmazonBedrockChatGeneratorInference:
             streaming_callback_called = True
             assert isinstance(chunk, StreamingChunk)
             assert chunk.content is not None
+            assert chunk.component_info is not None
             if not paris_found_in_response:
                 paris_found_in_response = "paris" in chunk.content.lower()
 

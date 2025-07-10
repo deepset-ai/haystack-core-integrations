@@ -2,7 +2,7 @@ import copy
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, overload
 
 import numpy as np
 import torch
@@ -61,6 +61,7 @@ class _EmbedderParams:
         out["quantizer_settings"] = self.quantizer_settings.to_dict() if self.quantizer_settings else None
 
         out["model_kwargs"].pop("use_auth_token", None)
+        out["model_kwargs"].pop("token", None)
         serialize_hf_model_kwargs(out["model_kwargs"])
         return out
 
@@ -105,12 +106,12 @@ class _EmbedderBackend:
         # Check if the model_kwargs contain the parameters, otherwise, populate them with values from init parameters
         params.model_kwargs.setdefault("model_id", params.model)
         params.model_kwargs.setdefault("provider", params.onnx_execution_provider)
-        params.model_kwargs.setdefault("use_auth_token", resolved_token)
+        params.model_kwargs.setdefault("token", resolved_token)
 
         self.params = params
         self.model = None
         self.tokenizer = None
-        self.pooling_layer = None
+        self.pooling_layer: Optional[SentenceTransformerPoolingLayer] = None
 
     def warm_up(self):
         assert self.params.model_kwargs
@@ -186,6 +187,12 @@ class _EmbedderBackend:
         features = {"token_embeddings": model_output, "attention_mask": attention_mask}
         pooled_outputs = self.pooling_layer.forward(features)
         return pooled_outputs["sentence_embedding"]
+
+    @overload
+    def embed_texts(self, texts_to_embed: str) -> List[float]: ...
+
+    @overload
+    def embed_texts(self, texts_to_embed: List[str]) -> List[List[float]]: ...
 
     def embed_texts(
         self,

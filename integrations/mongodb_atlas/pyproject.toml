@@ -69,23 +69,15 @@ integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
 
-types = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+types = """mypy -p haystack_integrations.components.retrievers.mongodb_atlas \
+-p haystack_integrations.document_stores.mongodb_atlas {args}"""
 
-# TODO: remove lint environment once this integration is properly typed
-# test environment should be used instead
-# https://github.com/deepset-ai/haystack-core-integrations/issues/1771
-[tool.hatch.envs.lint]
-installer = "uv"
-detached = true
-dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
+[tool.mypy]
+install_types = true
+non_interactive = true
+check_untyped_defs = true
+disallow_incomplete_defs = true
 
-[tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-
-[tool.black]
-target-version = ["py38"]
-line-length = 120
-skip-string-normalization = true
 
 [tool.ruff]
 target-version = "py38"
@@ -134,6 +126,8 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
+  # Allow assert statements
+  "S101",
 ]
 unfixable = [
   # Don't touch unused imports
@@ -162,11 +156,6 @@ parallel = false
 omit = ["*/tests/*", "*/__init__.py"]
 show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
-
-
-[[tool.mypy.overrides]]
-module = ["haystack.*", "haystack_integrations.*", "pymongo.*", "pytest.*"]
-ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers"

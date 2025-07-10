@@ -5,6 +5,7 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole, ToolCall, ToolCallResult
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
+    ComponentInfo,
     StreamingCallbackT,
     StreamingChunk,
     SyncStreamingCallbackT,
@@ -92,13 +93,13 @@ def _convert_messages_to_anthropic_format(
     i = 0
     while i < len(messages):
         message = messages[i]
-
+        cache_control = message.meta.get("cache_control")
         # system messages have special format requirements for Anthropic API
         # they can have only type and text fields, and they need to be passed separately
         # to the Anthropic API endpoint
         if message.is_from(ChatRole.SYSTEM) and message.text:
             sys_message = TextBlockParam(type="text", text=message.text)
-            if cache_control := message.meta.get("cache_control"):
+            if cache_control:
                 sys_message["cache_control"] = cache_control
             anthropic_system_messages.append(sys_message)
             i += 1
@@ -108,10 +109,15 @@ def _convert_messages_to_anthropic_format(
 
         if message.texts and message.texts[0]:
             text_block = TextBlockParam(type="text", text=message.texts[0])
+            if cache_control:
+                text_block["cache_control"] = cache_control
             content.append(text_block)
 
         if message.tool_calls:
             tool_use_blocks = _convert_tool_calls_to_anthropic_format(message.tool_calls)
+            if cache_control:
+                for tool_use_block in tool_use_blocks:
+                    tool_use_block["cache_control"] = cache_control
             content.extend(tool_use_blocks)
 
         if message.tool_call_results:
@@ -122,6 +128,10 @@ def _convert_messages_to_anthropic_format(
                 results.extend(messages[i].tool_call_results)
 
             _update_anthropic_message_with_tool_call_results(results, content)
+            if cache_control:
+                for blk in content:
+                    if blk.get("type") == "tool_result":
+                        blk["cache_control"] = cache_control
 
         if not content:
             msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
@@ -161,7 +171,7 @@ class AnthropicChatGenerator:
     from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
     from haystack.dataclasses import ChatMessage
 
-    generator = AnthropicChatGenerator(model="claude-3-5-sonnet-20240620",
+    generator = AnthropicChatGenerator(model="claude-sonnet-4-20250514",
                                        generation_kwargs={
                                            "max_tokens": 1000,
                                            "temperature": 0.7,
@@ -190,11 +200,14 @@ class AnthropicChatGenerator:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("ANTHROPIC_API_KEY"),  # noqa: B008
-        model: str = "claude-3-5-sonnet-20240620",
+        model: str = "claude-sonnet-4-20250514",
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         ignore_tools_thinking_messages: bool = True,
         tools: Optional[Union[List[Tool], Toolset]] = None,
+        *,
+        timeout: Optional[float] = None,
+        max_retries: Optional[int] = None,
     ):
         """
         Creates an instance of AnthropicChatGenerator.
@@ -222,7 +235,11 @@ class AnthropicChatGenerator:
             use is detected. See the Anthropic [tools](https://docs.anthropic.com/en/docs/tool-use#chain-of-thought-tool-use)
             for more details.
         :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
-
+        :param timeout:
+            Timeout for Anthropic client calls. If not set, it defaults to the default set by the Anthropic client.
+        :param max_retries:
+            Maximum number of retries to attempt for failed requests. If not set, it defaults to the default set by
+            the Anthropic client.
         """
         _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
 
@@ -230,8 +247,20 @@ class AnthropicChatGenerator:
         self.model = model
         self.generation_kwargs = generation_kwargs or {}
         self.streaming_callback = streaming_callback
-        self.client = Anthropic(api_key=self.api_key.resolve_value())
-        self.async_client = AsyncAnthropic(api_key=self.api_key.resolve_value())
+        self.timeout = timeout
+        self.max_retries = max_retries
+
+        client_kwargs: Dict[str, Any] = {"api_key": api_key.resolve_value()}
+        # We do this since timeout=None is not the same as not setting it in Anthropic
+        if timeout is not None:
+            client_kwargs["timeout"] = timeout
+        # We do this since max_retries must be an int when passing to Anthropic
+        if max_retries is not None:
+            client_kwargs["max_retries"] = max_retries
+
+        self.client = Anthropic(**client_kwargs)
+        self.async_client = AsyncAnthropic(**client_kwargs)
+
         self.ignore_tools_thinking_messages = ignore_tools_thinking_messages
         self.tools = tools
 
@@ -257,6 +286,8 @@ class AnthropicChatGenerator:
             api_key=self.api_key.to_dict(),
             ignore_tools_thinking_messages=self.ignore_tools_thinking_messages,
             tools=serialize_tools_or_toolset(self.tools),
+            timeout=self.timeout,
+            max_retries=self.max_retries,
         )
 
     @classmethod
@@ -324,7 +355,9 @@ class AnthropicChatGenerator:
         return message
 
     @staticmethod
-    def _convert_anthropic_chunk_to_streaming_chunk(chunk: Any) -> StreamingChunk:
+    def _convert_anthropic_chunk_to_streaming_chunk(
+        chunk: RawMessageStreamEvent, component_info: ComponentInfo
+    ) -> StreamingChunk:
         """
         Converts an Anthropic StreamEvent to a StreamingChunk.
         """
@@ -332,7 +365,7 @@ class AnthropicChatGenerator:
         if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
             content = chunk.delta.text
 
-        return StreamingChunk(content=content, meta=chunk.model_dump())
+        return StreamingChunk(content=content, meta=chunk.model_dump(), component_info=component_info)
 
     def _convert_streaming_chunks_to_chat_message(
         self, chunks: List[StreamingChunk], model: Optional[str] = None
@@ -367,12 +400,18 @@ class AnthropicChatGenerator:
             elif chunk_type == "message_delta":
                 if chunk.meta.get("delta", {}).get("stop_reason") == "tool_use" and current_tool_call:
                     try:
-                        # arguments is a string, convert to json
+                        # When calling a tool with no arguments, the `arguments` field is an empty string.
+                        # We handle this by checking if `arguments` is empty and setting it to an empty dict.
+                        arguments = (
+                            json.loads(current_tool_call.get("arguments", "{}"))
+                            if current_tool_call.get("arguments")
+                            else {}
+                        )
                         tool_calls.append(
                             ToolCall(
                                 id=current_tool_call.get("id"),
                                 tool_name=str(current_tool_call.get("name")),
-                                arguments=json.loads(current_tool_call.get("arguments", {})),
+                                arguments=arguments,
                             )
                         )
                     except json.JSONDecodeError:
@@ -387,7 +426,30 @@ class AnthropicChatGenerator:
 
         # Update meta information
         last_chunk_meta = chunks[-1].meta
-        usage = self._get_openai_compatible_usage(last_chunk_meta)
+
+        # Combine usage from first chunk (input_tokens) and last chunk (output_tokens)
+        combined_usage = {}
+
+        # Get input tokens from first chunk (message_start)
+        if chunks:
+            first_chunk_meta = chunks[0].meta
+            if first_chunk_meta.get("type") == "message_start":
+                first_chunk_usage = first_chunk_meta.get("message", {}).get("usage", {})
+                combined_usage = first_chunk_usage
+
+        # Get output tokens from last chunk (message_delta)
+        last_chunk_usage = last_chunk_meta.get("usage", {})
+        if "output_tokens" in last_chunk_usage:
+            combined_usage["output_tokens"] = last_chunk_usage["output_tokens"]
+        elif "completion_tokens" in last_chunk_usage:
+            combined_usage["output_tokens"] = last_chunk_usage["completion_tokens"]
+
+        # Add any other usage fields from the last chunk
+        for key, value in last_chunk_usage.items():
+            if key not in combined_usage:
+                combined_usage[key] = value
+
+        usage = self._get_openai_compatible_usage({"usage": combined_usage})
         message._meta.update(
             {
                 "model": model,
@@ -433,21 +495,6 @@ class AnthropicChatGenerator:
         system_messages, non_system_messages = _convert_messages_to_anthropic_format(messages)
 
         # prompt caching
-        extra_headers = generation_kwargs.get("extra_headers", {})
-        prompt_caching_on = "anthropic-beta" in extra_headers and "prompt-caching" in extra_headers["anthropic-beta"]
-        has_cached_messages = any(m.get("cache_control") is not None for m in system_messages) or any(
-            m.get("cache_control") is not None for m in non_system_messages
-        )
-        if has_cached_messages and not prompt_caching_on:
-            # this avoids Anthropic errors when prompt caching is not enabled
-            # but user requested individual messages to be cached
-            logger.warn(
-                "Prompt caching is not enabled but you requested individual messages to be cached. "
-                "Messages will be sent to the API without prompt caching."
-            )
-            for message in system_messages:
-                if message.get("cache_control"):
-                    del message["cache_control"]
 
         # tools management
         tools = tools or self.tools
@@ -480,15 +527,14 @@ class AnthropicChatGenerator:
         if not isinstance(response, Message):
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
+            component_info = ComponentInfo.from_component(self)
             for chunk in response:
-                if chunk.type == "message_start":
-                    model = chunk.message.model
-                elif chunk.type in [
-                    "content_block_start",
-                    "content_block_delta",
-                    "message_delta",
-                ]:
-                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk)
+                if chunk.type in ["message_start", "content_block_start", "content_block_delta", "message_delta"]:
+                    # Extract model from message_start chunks
+                    if chunk.type == "message_start":
+                        model = chunk.message.model
+
+                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, component_info)
                     chunks.append(streaming_chunk)
                     if streaming_callback:
                         streaming_callback(streaming_chunk)
@@ -521,6 +567,7 @@ class AnthropicChatGenerator:
         if stream:
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
+            component_info = ComponentInfo.from_component(self)
             async for chunk in response:
                 if chunk.type == "message_start":
                     model = chunk.message.model
@@ -529,7 +576,7 @@ class AnthropicChatGenerator:
                     "content_block_delta",
                     "message_delta",
                 ]:
-                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk)
+                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, component_info)
                     chunks.append(streaming_chunk)
                     if streaming_callback:
                         await streaming_callback(streaming_chunk)
@@ -582,8 +629,7 @@ class AnthropicChatGenerator:
             **generation_kwargs,
         )
 
-        # select_streaming_callback returns a StreamingCallbackT, but we know it's SyncStreamingCallbackT
-        return self._process_response(response=response, streaming_callback=streaming_callback)  # type: ignore[arg-type]
+        return self._process_response(response=response, streaming_callback=streaming_callback)
 
     @component.output_types(replies=List[ChatMessage])
     async def run_async(
@@ -624,5 +670,4 @@ class AnthropicChatGenerator:
             **generation_kwargs,
         )
 
-        # select_streaming_callback returns a StreamingCallbackT, but we know it's AsyncStreamingCallbackT
-        return await self._process_response_async(response, streaming_callback)  # type: ignore[arg-type]
+        return await self._process_response_async(response, streaming_callback)

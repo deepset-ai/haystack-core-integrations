@@ -53,7 +53,7 @@ class WeaveSpan(Span):
             return {}
         return {"weave.call_id": self._call.id, "weave.run_id": getattr(self._call, "run_id", "")}
 
-    def set_call(self, call: "weave.Call") -> None:
+    def set_call(self, call: Call) -> None:
         self._call = call
 
     def get_attributes(self) -> dict[str, Any]:
@@ -151,7 +151,12 @@ class WeaveTracer(Tracer):
 
     @contextlib.contextmanager
     def trace(
-        self, operation_name: str, tags: Optional[dict[str, Any]] = None, parent_span: Optional[WeaveSpan] = None
+        self,
+        operation_name: str,
+        tags: Optional[dict[str, Any]] = None,
+        # the current implementation violates the Liskov Substitution Principle by using WeaveSpan instead of Span
+        # unfortunately, it seems hard to fix without rewriting the Tracer
+        parent_span: Optional[WeaveSpan] = None,  # type: ignore[override]
     ) -> Iterator[WeaveSpan]:
         """
         A context manager that creates and manages spans for tracking operations in Weights & Biases Weave.

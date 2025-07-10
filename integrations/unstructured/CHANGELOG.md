@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/unstructured-v0.5.0] - 2025-06-17
+
+### 🐛 Bug Fixes
+
+- Fix Unstructured types + add py.typed (#1959)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+
+
 ## [integrations/unstructured-v0.4.3] - 2025-05-28
 
 ### 📚 Documentation

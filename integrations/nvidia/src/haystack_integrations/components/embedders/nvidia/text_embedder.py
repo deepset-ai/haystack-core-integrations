@@ -10,7 +10,7 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.embedders.nvidia.truncate import EmbeddingTruncateMode
-from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Model, NimBackend, url_validation
+from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Client, Model, NimBackend, url_validation
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,9 @@ class NvidiaTextEmbedder:
                 UserWarning,
                 stacklevel=2,
             )
-            self.model = self.backend.model = name
+            self.model = name
+            if self.backend:
+                self.backend.model = name
         else:
             error_message = "No locally hosted model was found."
             raise ValueError(error_message)
@@ -134,7 +136,7 @@ class NvidiaTextEmbedder:
             api_key=self.api_key,
             model_kwargs=model_kwargs,
             timeout=self.timeout,
-            client=self.__class__.__name__,
+            client=Client.NVIDIA_TEXT_EMBEDDER,
         )
         self._initialized = True
 
@@ -185,7 +187,7 @@ class NvidiaTextEmbedder:
         return default_from_dict(cls, data)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
-    def run(self, text: str):
+    def run(self, text: str) -> Dict[str, Union[List[float], Dict[str, Any]]]:
         """
         Embed a string.
 
