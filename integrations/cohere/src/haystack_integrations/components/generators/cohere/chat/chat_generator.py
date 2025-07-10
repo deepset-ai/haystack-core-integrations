@@ -42,9 +42,9 @@ from cohere import (
     ClientV2,
     StreamedChatResponseV2,
     SystemChatMessageV2,
-    TextAssistantMessageContentItem,
+    TextAssistantMessageV2ContentItem,
     TextContent,
-    TextSystemMessageContentItem,
+    TextSystemMessageV2ContentItem,
     ToolCallV2,
     ToolCallV2Function,
     ToolChatMessageV2,
@@ -127,9 +127,9 @@ def _format_message(
         if message.role.value == "user":
             return UserChatMessageV2(content=[TextContent(text=message.texts[0])])
         elif message.role.value == "assistant":
-            return AssistantChatMessageV2(content=[TextAssistantMessageContentItem(text=message.texts[0])])
+            return AssistantChatMessageV2(content=[TextAssistantMessageV2ContentItem(text=message.texts[0])])
         elif message.role.value == "system":
-            return SystemChatMessageV2(content=[TextSystemMessageContentItem(text=message.texts[0])])
+            return SystemChatMessageV2(content=[TextSystemMessageV2ContentItem(text=message.texts[0])])
         else:
             msg = f"Unsupported message role: {message.role.value}"
             raise ValueError(msg)
@@ -274,21 +274,25 @@ def _process_cohere_chunk(cohere_chunk: StreamedChatResponseV2, state: Dict[str,
                 state["current_tool_call"] = None
                 state["current_tool_arguments"] = ""
 
+        usage_data = getattr(cohere_chunk.delta, "usage", None)
+        finish_reason = getattr(cohere_chunk.delta, "finish_reason", None)
+
         if (
-            cohere_chunk.delta.finish_reason is not None
-            and cohere_chunk.delta.usage
-            and cohere_chunk.delta.usage.billed_units
-            and cohere_chunk.delta.usage.billed_units.input_tokens is not None
-            and cohere_chunk.delta.usage.billed_units.output_tokens is not None
+            finish_reason is not None
+            and usage_data is not None
+            and isinstance(usage_data, dict)
+            and "billed_units" in usage_data
+            and "input_tokens" in usage_data["billed_units"]
+            and "output_tokens" in usage_data["billed_units"]
         ):
             state["captured_meta"].update(
                 {
                     "model": model,
                     "index": 0,
-                    "finish_reason": cohere_chunk.delta.finish_reason,
+                    "finish_reason": finish_reason,
                     "usage": {
-                        "prompt_tokens": cohere_chunk.delta.usage.billed_units.input_tokens,
-                        "completion_tokens": cohere_chunk.delta.usage.billed_units.output_tokens,
+                        "prompt_tokens": usage_data["billed_units"]["input_tokens"],
+                        "completion_tokens": usage_data["billed_units"]["output_tokens"],
                     },
                 }
             )
