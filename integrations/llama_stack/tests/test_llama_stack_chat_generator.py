@@ -87,7 +87,8 @@ class TestLlamaStackChatGenerator:
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
-    def test_to_dict_default(self):
+    def test_to_dict_default(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
         component = LlamaStackChatGenerator(model="llama3.2:3b")
         data = component.to_dict()
 
