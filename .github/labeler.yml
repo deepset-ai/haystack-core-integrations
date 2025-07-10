@@ -164,6 +164,11 @@ integration:unstructured-fileconverter:
       - any-glob-to-any-file: "integrations/unstructured/**/*"
       - any-glob-to-any-file: ".github/workflows/unstructured.yml"
 
+integration:watsonx:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/watsonx/**/*"
+      - any-glob-to-any-file: ".github/workflows/watsonx.yml"      
+
 integration:weaviate:
   - changed-files:
       - any-glob-to-any-file: "integrations/weaviate/**/*"
