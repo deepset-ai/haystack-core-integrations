@@ -1,29 +1,27 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / llama-stack
+name: Test / llama_stack
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/llama-stack/**"
-      - "!integrations/llama-stack/*.md"
-      - ".github/workflows/llama-stack.yml"
+      - "integrations/llama_stack/**"
+      - "!integrations/llama_stack/*.md"
+      - ".github/workflows/llama_stack.yml"
 
 defaults:
   run:
-    working-directory: integrations/llama-stack
+    working-directory: integrations/llama_stack
 
 concurrency:
-  group: llama-stack-${{ github.head_ref }}
+  group: llama_stack-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  LLM_FOR_TESTS: "qwen3:0.6b"
-  EMBEDDER_FOR_TESTS: "nomic-embed-text"
 
 jobs:
   run:
