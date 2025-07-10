@@ -4,12 +4,11 @@
 
 from typing import Any, Dict, List, Optional, Union
 
-from haystack import component, default_to_dict, default_from_dict, logging
+from haystack import component, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import ChatMessage, StreamingCallbackT
-from haystack.tools import Tool, Toolset, deserialize_tools_or_toolset_inplace
-from haystack.utils import serialize_callable, deserialize_callable
-
+from haystack.dataclasses import StreamingCallbackT
+from haystack.tools import Tool, Toolset
+from haystack.utils.auth import Secret
 
 logger = logging.getLogger(__name__)
 
@@ -18,11 +17,13 @@ logger = logging.getLogger(__name__)
 class LlamaStackChatGenerator(OpenAIChatGenerator):
     """
     Enables text generation using LlamaStack client server model.
-    Llama Stack Server supports multiple inference providers, including Ollama, Together, and Fireworks and other cloud providers.
+    Llama Stack Server supports multiple inference providers, including Ollama, Together,
+    and Fireworks and other cloud providers.
     For a complete list of inference providers, see [LlamaStack docs](https://llama-stack.readthedocs.io/en/latest/providers/inference/index.html).
 
     Users can pass any text generation parameters valid for the OpenAI chat completion API
-    directly to this component using the `generation_kwargs` parameter in `__init__` or the `generation_kwargs` parameter in `run` method.
+    directly to this component using the `generation_kwargs`
+    parameter in `__init__` or the `generation_kwargs` parameter in `run` method.
 
     This component uses the ChatMessage format for structuring both input and output,
     ensuring coherent and contextually relevant responses in chat-based text generation scenarios.
@@ -30,7 +31,8 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
     [Haystack docs](https://docs.haystack.deepset.ai/docs/chatmessage)
 
     Usage example:
-    You need to setup Llama Stack Server before running this example. For a quick start on how to setup server with Ollama, see [LlamaStack docs](https://llama-stack.readthedocs.io/en/latest/getting_started/index.html).
+    You need to setup Llama Stack Server before running this example. For a quick start on
+    how to setup server with Ollama, see [LlamaStack docs](https://llama-stack.readthedocs.io/en/latest/getting_started/index.html).
 
     ```python
     from haystack_integrations.components.generators.llama_stack import LlamaStackChatGenerator
@@ -42,7 +44,8 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
     response = client.run(messages)
     print(response)
 
-    >>{'replies': [ChatMessage(_content=[TextContent(text='Natural Language Processing (NLP) is a branch of artificial intelligence
+    >>{'replies': [ChatMessage(_content=[TextContent(text='Natural Language Processing (NLP)
+    is a branch of artificial intelligence
     >>that focuses on enabling computers to understand, interpret, and generate human language in a way that is
     >>meaningful and useful.')], _role=<ChatRole.ASSISTANT: 'assistant'>, _name=None,
     >>_meta={'model': 'llama3.2:3b', 'index': 0, 'finish_reason': 'stop',
@@ -53,6 +56,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         self,
         *,
         model: str = "llama3.2:3b",
+        api_key: Secret = Secret.from_env_var("OPENAI_API_KEY"),
         api_base_url: str = "http://localhost:8321/v1/openai/v1",
         organization: Optional[str] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
@@ -63,16 +67,22 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         http_client_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
-        Creates an instance of LlamaStackChatGenerator. You need to setup Llama Stack Server and have a model available. By default, the model is set to `llama3.2:3b`, that is available on Ollama as inference provider.
+        Creates an instance of LlamaStackChatGenerator. You need to setup Llama Stack Server and have a model available.
+        By default, the model is set to `llama3.2:3b`, that is available
+        on Ollama as inference provider. For a complete list of models,
+        see [LlamaStack docs](https://llama-stack.readthedocs.io/en/latest/models/index.html).
 
         :param model:
             The name of the LlamaStack chat completion model to use.
+        :param api_key:
+            The openai api key for OpenAI client. You can set it with an environment variable `OPENAI_API_KEY`,
+            or pass with this parameter during initialization.
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         :param api_base_url:
             The LlamaStack API Base url. If not specified, the localhost is used with the default port 8321.
-        :param organization: Your organization ID, defaults to `None`. 
+        :param organization: Your organization ID, defaults to `None`.
         :param generation_kwargs:
             Other parameters to use for the model. These parameters are all sent directly to
             the LlamaStack endpoint. See [LlamaStack API docs](https://llama-stack.readthedocs.io/) for more details.
@@ -104,6 +114,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         """
         super(LlamaStackChatGenerator, self).__init__(  # noqa: UP008
             model=model,
+            api_key=api_key,
             streaming_callback=streaming_callback,
             api_base_url=api_base_url,
             organization=organization,
@@ -113,45 +124,3 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
             max_retries=max_retries,
             http_client_kwargs=http_client_kwargs,
         )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Serialize this component to a dictionary.
-
-        :returns:
-            The serialized component as a dictionary.
-        """
-        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
-
-        # if we didn't implement the to_dict method here then the to_dict method of the superclass would be used
-        # which would serialiaze some fields that we don't want to serialize (e.g. the ones we don't have in
-        # the __init__)
-        # it would be hard to maintain the compatibility as superclass changes
-        return default_to_dict(
-            self,
-            model=self.model,
-            streaming_callback=callback_name,
-            api_base_url=self.api_base_url,
-            organization=self.organization,
-            timeout=self.timeout,
-            generation_kwargs=self.generation_kwargs,
-            tools=[tool.to_dict() for tool in self.tools] if self.tools else None,
-            max_retries=self.max_retries,
-            http_client_kwargs=self.http_client_kwargs,
-        )
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "LlamaStackChatGenerator":
-        """
-        Deserialize this component from a dictionary.
-
-        :param data: The dictionary representation of this component.
-        :returns:
-            The deserialized component instance.
-        """
-        deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
-        init_params = data.get("init_parameters", {})
-        serialized_callback_handler = init_params.get("streaming_callback")
-        if serialized_callback_handler:
-            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
-        return default_from_dict(cls, data)
