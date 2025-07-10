@@ -47,7 +47,7 @@ def mock_chat_completion():
     with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
         completion = ChatCompletion(
             id="foo",
-            model="openai/gpt-4o-mini",
+            model="llama3.2:3b",
             object="chat.completion",
             choices=[
                 Choice(
@@ -75,11 +75,6 @@ class TestLlamaStackChatGenerator:
         assert component.streaming_callback is None
         assert not component.generation_kwargs
 
-    def test_init_fail_wo_api_key(self, monkeypatch):
-        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
-            LlamaStackChatGenerator(model="llama3.2:3b")
-
     def test_init_with_parameters(self):
         component = LlamaStackChatGenerator(
             model="llama3.2:3b",
@@ -103,7 +98,7 @@ class TestLlamaStackChatGenerator:
 
         expected_params = {
             "model": "llama3.2:3b",
-            "api_key": {"env_vars": ["OPENAI_API_KEY"], "strict": True, "type": "env_var"},
+            "api_key": {"env_vars": ["OPENAI_API_KEY"], "strict": False, "type": "env_var"},
             "streaming_callback": None,
             "api_base_url": "http://localhost:8321/v1/openai/v1",
             "generation_kwargs": {},
@@ -120,7 +115,7 @@ class TestLlamaStackChatGenerator:
         monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
         component = LlamaStackChatGenerator(
             model="llama3.2:3b",
-            api_key=Secret.from_env_var("OPENAI_API_KEY"),
+            api_key=Secret.from_env_var("OPENAI_API_KEY", strict=False),
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
@@ -138,7 +133,7 @@ class TestLlamaStackChatGenerator:
 
         expected_params = {
             "model": "llama3.2:3b",
-            "api_key": {"env_vars": ["OPENAI_API_KEY"], "strict": True, "type": "env_var"},
+            "api_key": {"env_vars": ["OPENAI_API_KEY"], "strict": False, "type": "env_var"},
             "api_base_url": "test-base-url",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},

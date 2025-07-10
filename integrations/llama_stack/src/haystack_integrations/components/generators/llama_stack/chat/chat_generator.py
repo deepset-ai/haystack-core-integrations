@@ -56,7 +56,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         self,
         *,
         model: str,
-        api_key: Secret = Secret.from_env_var("OPENAI_API_KEY"),
+        api_key: Secret = Secret.from_env_var("OPENAI_API_KEY", strict=False),
         api_base_url: str = "http://localhost:8321/v1/openai/v1",
         organization: Optional[str] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
