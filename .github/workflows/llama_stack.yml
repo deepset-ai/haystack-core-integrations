@@ -71,20 +71,19 @@ jobs:
 
             echo "Models pulled successfully."
 
-      - name: Test LlamaStack Server
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 2
-          max_attempts: 5
-          command: |
-            INFERENCE_MODEL=llama3.2:3b uv run --with llama-stack llama stack build --template ollama --image-type venv --run
-
-            echo "LlamaStack Server started successfully."
-
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+
+      - name: Test LlamaStack Server
+        run: |
+          pip install uv
+          INFERENCE_MODEL=llama3.2:3b uv run --with llama-stack llama stack build --template ollama --image-type venv --run
+
+          echo "LlamaStack Server started successfully."
+
+      
 
       - name: Install Hatch
         run: pip install --upgrade hatch
