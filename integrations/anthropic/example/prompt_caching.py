@@ -34,12 +34,7 @@ def create_streaming_callback():
     return stream_callback, lambda: first_token_time
 
 
-# Until prompt caching graduates from beta, we need to set the anthropic-beta header
-generation_kwargs = {"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}} if ENABLE_PROMPT_CACHING else {}
-
-claude_llm = AnthropicChatGenerator(
-    api_key=Secret.from_env_var("ANTHROPIC_API_KEY"), generation_kwargs=generation_kwargs
-)
+claude_llm = AnthropicChatGenerator(api_key=Secret.from_env_var("ANTHROPIC_API_KEY"))
 
 pipe = Pipeline()
 pipe.add_component("fetcher", LinkContentFetcher())
@@ -73,11 +68,16 @@ for question in questions:
     streaming_callback, get_first_token_time = create_streaming_callback()
     # reset LLM streaming callback to initialize new timers in streaming mode
     claude_llm.streaming_callback = streaming_callback
+    user_message = ChatMessage.from_user(
+        f"Answer the question: {question}",  # Must be greater than 1024 tokens
+    )
+    if ENABLE_PROMPT_CACHING:
+        user_message._meta["cache_control"] = {"type": "ephemeral"}
 
     result = pipe.run(
         data={
             "fetcher": {"urls": ["https://ar5iv.labs.arxiv.org/html/2310.04406"]},
-            "prompt_builder": {"template": [system_message, ChatMessage.from_user(f"Answer the question: {question}")]},
+            "prompt_builder": {"template": [system_message, user_message]},
         }
     )
 
@@ -92,9 +92,12 @@ for question in questions:
     # on first subsequent cache hit we'll see a usage key 'cache_read_input_tokens' having a value of the number of
     # tokens read from the cache
     token_stats = result["llm"]["replies"][0].meta.get("usage")
-    if token_stats.get("cache_creation_input_tokens", 0) > 0:
+    cache_created = token_stats.get("cache_creation_input_tokens")
+    cache_read = token_stats.get("cache_read_input_tokens")
+
+    if isinstance(cache_created, int) and cache_created > 0:
         print("Cache created! ", end="")
-    elif token_stats.get("cache_read_input_tokens", 0) > 0:
+    elif isinstance(cache_read, int) and cache_read > 0:
         print("Cache hit! ", end="")
     else:
         print("Cache not used, something is wrong with the prompt caching setup. ", end="")

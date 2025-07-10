@@ -3,43 +3,45 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "cohere-haystack"
+name = "watsonx-haystack"
 dynamic = ["version"]
-description = ''
+description = "Watsonx integration for Haystack"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "Apache-2.0"
-keywords = []
-authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
-classifiers = [
-  "License :: OSI Approved :: Apache Software License",
-  "Development Status :: 4 - Beta",
-  "Programming Language :: Python",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
-  "Programming Language :: Python :: Implementation :: CPython",
-  "Programming Language :: Python :: Implementation :: PyPy",
+authors = [
+    { name = "Divya", email = "divyaruhil999@gmail.com" },
+    { name = "deepset GmbH", email = "info@deepset.ai" },
 ]
-dependencies = ["haystack-ai>=2.15.1", "cohere>=5.16.0"]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = ["haystack-ai>=2.13.1", "ibm-watsonx-ai>=1.3.26", "pandas>=2.2.3"]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/cohere#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/watsonx#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/cohere"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/watsonx"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/cohere-v(?P<version>.*)'
+tag-pattern = 'integrations\/watsonx-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/cohere-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/watsonx-v[0-9]*"'
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.envs.default]
 installer = "uv"
@@ -57,7 +59,9 @@ dependencies = [
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
-    "pip"
+    "pip",
+    "anyio",
+    "pytest-mock"
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -65,10 +69,8 @@ unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
-
-types = """mypy -p haystack_integrations.components.embedders.cohere \
--p haystack_integrations.components.generators.cohere \
--p haystack_integrations.components.rankers.cohere {args}"""
+types = """mypy -p haystack_integrations.components.generators.watsonx \
+-p haystack_integrations.components.embedders.watsonx  {args}"""
 
 [tool.mypy]
 install_types = true
@@ -76,8 +78,14 @@ non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
 
+[[tool.mypy.overrides]]
+module = [
+  "ibm_watsonx_ai.*",
+]
+ignore_missing_imports = true
+
 [tool.ruff]
-target-version = "py38"
+target-version = "py310"
 line-length = 120
 
 [tool.ruff.lint]
@@ -108,6 +116,7 @@ select = [
   "YTT",
 ]
 ignore = [
+  "T201", # print statements
   # Allow non-abstract empty methods in abstract base classes
   "B027",
   # Ignore checks for possible passwords
@@ -120,9 +129,10 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
-  # Misc
-  "B008",
-  "S101",
+  # Ignore unused params
+  "ARG001",
+  "ARG002",
+  "ARG005",
 ]
 unfixable = [
   # Don't touch unused imports
@@ -142,20 +152,19 @@ ban-relative-imports = "parents"
 [tool.coverage.run]
 source = ["haystack_integrations"]
 branch = true
-parallel = false
-
+parallel = true
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
 show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
-
 [tool.pytest.ini_options]
-addopts = "--strict-markers"
-markers = [
-  "integration: integration tests",
-]
-log_cli = true
-asyncio_mode = "auto"
+addopts = "--tb=short -v"
 asyncio_default_fixture_loop_scope = "class"
+asyncio_mode = "auto"
+log_cli = true
+markers = [
+    "asyncio: mark tests as using asyncio",
+    "integration: mark tests as integration tests"
+]
