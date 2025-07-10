@@ -55,7 +55,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
     def __init__(
         self,
         *,
-        model: str = "llama3.2:3b",
+        model: str,
         api_key: Secret = Secret.from_env_var("OPENAI_API_KEY"),
         api_base_url: str = "http://localhost:8321/v1/openai/v1",
         organization: Optional[str] = None,
@@ -67,13 +67,11 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         http_client_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
-        Creates an instance of LlamaStackChatGenerator. You need to setup Llama Stack Server and have a model available.
-        By default, the model is set to `llama3.2:3b`, that is available
-        on Ollama as inference provider. For a complete list of models,
-        see [LlamaStack docs](https://llama-stack.readthedocs.io/en/latest/models/index.html).
+        Creates an instance of LlamaStackChatGenerator. To use this chat generator, you need to setup Llama Stack Server with an inference provider and have a model available.
 
         :param model:
-            The name of the LlamaStack chat completion model to use.
+            The name of the model to use for chat completion. The model depends on the inference provider used for the Llama Stack Server.
+            
         :param api_key:
             The openai api key for OpenAI client. You can set it with an environment variable `OPENAI_API_KEY`,
             or pass with this parameter during initialization.

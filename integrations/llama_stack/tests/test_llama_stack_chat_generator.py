@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 import pytz
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage
+from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool
 from haystack.utils.auth import Secret
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
@@ -68,7 +68,7 @@ def mock_chat_completion():
 class TestLlamaStackChatGenerator:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
-        component = LlamaStackChatGenerator()
+        component = LlamaStackChatGenerator(model="llama3.2:3b")
         assert component.client.api_key == "test-api-key"
         assert component.model == "llama3.2:3b"
         assert component.api_base_url == "http://localhost:8321/v1/openai/v1"
@@ -78,7 +78,7 @@ class TestLlamaStackChatGenerator:
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         with pytest.raises(ValueError, match="None of the .* environment variables are set"):
-            LlamaStackChatGenerator()
+            LlamaStackChatGenerator(model="llama3.2:3b")
 
     def test_init_with_parameters(self):
         component = LlamaStackChatGenerator(
@@ -93,7 +93,7 @@ class TestLlamaStackChatGenerator:
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
     def test_to_dict_default(self):
-        component = LlamaStackChatGenerator()
+        component = LlamaStackChatGenerator(model="llama3.2:3b")
         data = component.to_dict()
 
         assert (
@@ -180,8 +180,13 @@ class TestLlamaStackChatGenerator:
         assert component.timeout == 10
         assert component.max_retries == 10
 
+
+    def test_inheritance_from_openai_chat_generator(self):
+        component = LlamaStackChatGenerator(model="llama3.2:3b")
+
+
     def test_run(self, chat_messages, mock_chat_completion):  # noqa: ARG002
-        component = LlamaStackChatGenerator()
+        component = LlamaStackChatGenerator(model="llama3.2:3b")
         response = component.run(chat_messages)
 
         # check that the component returns the correct ChatMessage response
@@ -192,7 +197,7 @@ class TestLlamaStackChatGenerator:
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
     def test_run_with_params(self, chat_messages, mock_chat_completion):
-        component = LlamaStackChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
+        component = LlamaStackChatGenerator(model="llama3.2:3b", generation_kwargs={"max_tokens": 10, "temperature": 0.5})
         response = component.run(chat_messages)
 
         # check that the component calls the OpenAI API with the correct parameters
@@ -206,3 +211,100 @@ class TestLlamaStackChatGenerator:
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
+
+
+    @pytest.mark.integration
+    def test_live_run(self):
+        chat_messages = [ChatMessage.from_user("What's the capital of France")]
+        component = LlamaStackChatGenerator(model="llama3.2:3b")
+        results = component.run(chat_messages)
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        assert "Paris" in message.text
+        assert "llama3.2:3b" in message.meta["model"]
+        assert message.meta["finish_reason"] == "stop"
+
+    @pytest.mark.integration
+    def test_live_run_streaming(self):
+        class Callback:
+            def __init__(self):
+                self.responses = ""
+                self.counter = 0
+
+            def __call__(self, chunk: StreamingChunk) -> None:
+                self.counter += 1
+                self.responses += chunk.content if chunk.content else ""
+
+        callback = Callback()
+        component = LlamaStackChatGenerator(model="llama3.2:3b", streaming_callback=callback)
+        results = component.run([ChatMessage.from_user("What's the capital of France?")])
+
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        assert "Paris" in message.text
+
+        assert "llama3.2:3b" in message.meta["model"]
+        assert message.meta["finish_reason"] == "stop"
+
+        assert callback.counter > 1
+        assert "Paris" in callback.responses
+
+
+    @pytest.mark.integration
+    def test_live_run_with_tools(self, tools):
+        chat_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = LlamaStackChatGenerator(model="llama3.2:3b", tools=tools)
+        results = component.run(chat_messages)
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+        assert message.text == ""
+
+        assert message.tool_calls
+        tool_call = message.tool_call
+        assert isinstance(tool_call, ToolCall)
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
+        assert message.meta["finish_reason"] == "tool_calls"
+
+
+    @pytest.mark.integration
+    def test_live_run_with_tools_and_response(self, tools):
+        """
+        Integration test that the LlamaStackChatGenerator component can run with tools and get a response.
+        """
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = LlamaStackChatGenerator(model="llama3.2:3b", tools=tools)
+        results = component.run(messages=initial_messages, generation_kwargs={"tool_choice": "auto"})
+
+        assert len(results["replies"]) > 0, "No replies received"
+
+        # Find the message with tool calls
+        tool_message = None
+        for message in results["replies"]:
+            if message.tool_call:
+                tool_message = message
+                break
+
+        assert tool_message is not None, "No message with tool call found"
+        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_call = tool_message.tool_call
+        assert tool_call.id, "Tool call does not contain value for 'id' key"
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
+        assert tool_message.meta["finish_reason"] == "tool_calls"
+
+        new_messages = [
+            initial_messages[0],
+            tool_message,
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
+        ]
+        # Pass the tool result to the model to get the final response
+        results = component.run(new_messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_call
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
