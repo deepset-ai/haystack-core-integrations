@@ -192,7 +192,7 @@ class TestGoogleGenAIChatGenerator:
         all_tool_calls = []
 
         chunk = component._process_streaming_chunk(
-            chunk=mock_chunk, index=0, all_text_parts=all_text_parts, all_tool_calls=all_tool_calls
+            chunk=mock_chunk, index=0,
         )
 
         assert chunk.content == "Hello, world!"
