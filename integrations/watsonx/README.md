@@ -1,7 +1,7 @@
 # watsonx-haystack
 
-[![PyPI - Version](https://img.shields.io/pypi/v/watsonx.svg)](https://pypi.org/project/watsonx)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/watsonx.svg)](https://pypi.org/project/watsonx)
+[![PyPI - Version](https://img.shields.io/pypi/v/watsonx-haystack.svg)](https://pypi.org/project/watsonx-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/watsonx-haystack.svg)](https://pypi.org/project/watsonx-haystack)
 
 -----
 
