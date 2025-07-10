@@ -5,14 +5,14 @@ from enum import Enum
 from functools import partial
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Type
 
-from deepeval.evaluate import TestResult
-from deepeval.metrics import (  # type: ignore
-    AnswerRelevancyMetric,  # type: ignore
-    BaseMetric,  # type: ignore
-    ContextualPrecisionMetric,  # type: ignore
-    ContextualRecallMetric,  # type: ignore
-    ContextualRelevancyMetric,  # type: ignore
-    FaithfulnessMetric,  # type: ignore
+from deepeval.evaluate.types import TestResult
+from deepeval.metrics import (
+    AnswerRelevancyMetric,
+    BaseMetric,
+    ContextualPrecisionMetric,
+    ContextualRecallMetric,
+    ContextualRelevancyMetric,
+    FaithfulnessMetric,
 )
 from deepeval.test_case import LLMTestCase
 
@@ -83,7 +83,7 @@ class MetricResult:
     """
 
     name: str
-    score: float
+    score: Optional[float] = None
     explanation: Optional[str] = None
 
     def to_dict(self):
@@ -213,12 +213,10 @@ class OutputConverters:
     ) -> Callable[[TestResult], List[MetricResult]]:
         def inner(output: TestResult, metric: DeepEvalMetric) -> List[MetricResult]:
             metric_name = str(metric)
-            assert len(output.metrics) == 1
-            metric_result = output.metrics[0]
+            assert output.metrics_data
+            assert len(output.metrics_data) == 1
+            metric_result = output.metrics_data[0]
             out = [MetricResult(name=metric_name, score=metric_result.score, explanation=metric_result.reason)]
-            if metric_result.score_breakdown is not None:
-                for k, v in metric_result.score_breakdown.items():
-                    out.append(MetricResult(name=f"{metric_name}_{k}", score=v))
             return out
 
         return partial(inner, metric=metric)

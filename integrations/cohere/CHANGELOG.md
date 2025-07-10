@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/cohere-v5.1.1] - 2025-07-10
+
+### 🌀 Miscellaneous
+
+- Fix: Pin cohere to less than 5.16 (#2081)
+
 ## [integrations/cohere-v5.1.0] - 2025-07-02
 
 ### 🚀 Features
