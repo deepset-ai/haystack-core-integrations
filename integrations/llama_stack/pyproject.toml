@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.13.1", "llama-stack"]
+dependencies = ["haystack-ai>=2.14", "llama-stack"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/llama-stack#readme"
@@ -34,7 +34,7 @@ packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/llama-stack-v(?P<version>.*)'
+tag-pattern = 'integrations\/llama_stack-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
