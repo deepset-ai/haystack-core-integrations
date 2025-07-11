@@ -2,18 +2,23 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Union
 
 from google.genai import types
 from haystack import logging
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import (
     AsyncStreamingCallbackT,
+    ComponentInfo,
+    FinishReason,
     StreamingCallbackT,
     StreamingChunk,
     ToolCall,
+    ToolCallDelta,
     select_streaming_callback,
 )
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
@@ -29,6 +34,18 @@ from jsonref import replace_refs
 
 from haystack_integrations.components.common.google_genai.utils import _get_client
 from haystack_integrations.components.generators.google_genai.chat.utils import remove_key_from_schema
+
+# Mapping from Google GenAI finish reasons to Haystack FinishReason values
+FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
+    "STOP": "stop",
+    "MAX_TOKENS": "length",
+    "SAFETY": "content_filter",
+    "BLOCKLIST": "content_filter",
+    "PROHIBITED_CONTENT": "content_filter",
+    "SPII": "content_filter",
+    "IMAGE_SAFETY": "content_filter",
+    "FUNCTION_CALL": "tool_calls",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -358,160 +375,131 @@ class GoogleGenAIChatGenerator:
             init_params["streaming_callback"] = deserialize_callable(init_params["streaming_callback"])
         return default_from_dict(cls, data)
 
-    def _process_streaming_chunk(
-        self, chunk: types.GenerateContentResponse, all_text_parts: List[str], all_tool_calls: List[ToolCall]
-    ) -> str:
-        """
-        Process a single streaming chunk and extract text and tool calls.
-
-        :param chunk: The streaming chunk from Google Gen AI.
-        :param all_text_parts: List to collect text parts.
-        :param all_tool_calls: List to collect tool calls.
-        :returns: The text content from this chunk.
-        """
-        chunk_text = ""
-
-        # Process candidates in the chunk
-        if chunk.candidates:
-            candidate = chunk.candidates[0]  # Take the first candidate
-
-            # Extract content from parts
-            if candidate.content and candidate.content.parts:
-                for part in candidate.content.parts:
-                    if part.text:
-                        chunk_text += part.text
-                        all_text_parts.append(part.text)
-                    elif part.function_call:
-                        tool_call = ToolCall(
-                            tool_name=part.function_call.name or "",
-                            arguments=dict(part.function_call.args) if part.function_call.args else {},
-                            id=part.function_call.id,
-                        )
-                        all_tool_calls.append(tool_call)
-
-        return chunk_text
-
-    def _build_final_message(
+    def _convert_google_chunk_to_streaming_chunk(
         self,
-        all_text_parts: List[str],
-        all_tool_calls: List[ToolCall],
-        final_finish_reason: Optional[str],
-        first_chunk_received_at: Optional[str],
-        last_chunk: Optional[types.GenerateContentResponse],
-    ) -> ChatMessage:
+        chunk: types.GenerateContentResponse,
+        index: int,
+        component_info: ComponentInfo,
+    ) -> StreamingChunk:
         """
-        Build the final ChatMessage from collected streaming data.
+        Convert a chunk from Google Gen AI to a Haystack StreamingChunk.
 
-        :param all_text_parts: All collected text parts.
-        :param all_tool_calls: All collected tool calls.
-        :param final_finish_reason: The final finish reason.
-        :param first_chunk_received_at: Timestamp when first chunk was received.
-        :param last_chunk: The last chunk received (for usage metadata).
-        :returns: The final ChatMessage.
+        :param chunk: The chunk from Google Gen AI.
+        :param index: The index of the chunk.
+        :param component_info: The component info.
+        :returns: A StreamingChunk object.
         """
-        final_text = "".join(all_text_parts)
+        content = ""
+        tool_calls = []
+        finish_reason = None
 
-        usage_metadata = last_chunk.usage_metadata if last_chunk else None
+        if chunk.candidates:
+            candidate = chunk.candidates[0]
+            finish_reason = getattr(candidate, "finish_reason", None)
+
+        usage_metadata = chunk.usage_metadata
+
         usage = {
             "prompt_tokens": getattr(usage_metadata, "prompt_token_count", 0) if usage_metadata else 0,
             "completion_tokens": getattr(usage_metadata, "candidates_token_count", 0) if usage_metadata else 0,
             "total_tokens": getattr(usage_metadata, "total_token_count", 0) if usage_metadata else 0,
         }
 
-        return ChatMessage.from_assistant(
-            text=final_text,
-            tool_calls=all_tool_calls,
+        if candidate.content and candidate.content.parts:
+            tc_index = -1
+            for part in candidate.content.parts:
+                if part.text:
+                    content += part.text
+
+                elif part.function_call:
+                    tc_index += 1
+                    tool_calls.append(
+                        ToolCallDelta(
+                            # Google GenAI does not provide index, but it is required for tool calls
+                            index=tc_index,
+                            id=part.function_call.id,
+                            tool_name=part.function_call.name or "",
+                            arguments=json.dumps(part.function_call.args) if part.function_call.args else None,
+                        )
+                    )
+
+        # start is only used by print_streaming_chunk. We try to make a reasonable assumption here but it should not be
+        # a problem if we change it in the future.
+        start = index == 0 or len(tool_calls) > 0
+
+        return StreamingChunk(
+            content="" if tool_calls else content,  # prioritize tool calls over content when both are present
+            tool_calls=tool_calls,
+            component_info=component_info,
+            index=index,
+            start=start,
+            finish_reason=FINISH_REASON_MAPPING.get(finish_reason) if finish_reason else None,
             meta={
+                "received_at": datetime.now(timezone.utc).isoformat(),
                 "model": self._model,
-                "completion_start_time": first_chunk_received_at,
                 "usage": usage,
-                "finish_reason": str(final_finish_reason) if final_finish_reason else None,
             },
         )
 
-    def _handle_streaming_response_direct(
+    def _handle_streaming_response(
         self, response_stream: Iterator[types.GenerateContentResponse], streaming_callback: StreamingCallbackT
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, List[ChatMessage]]:
         """
         Handle streaming response from Google Gen AI generate_content_stream.
-
         :param response_stream: The streaming response from generate_content_stream.
         :param streaming_callback: The callback function for streaming chunks.
         :returns: A dictionary with the replies.
         """
+        component_info = ComponentInfo.from_component(self)
+
         try:
-            # Collect all chunks to build the final response
-            all_text_parts: List[str] = []
-            all_tool_calls: List[ToolCall] = []
-            final_finish_reason = None
-            first_chunk_received_at = None
-            last_chunk = None
+            chunks = []
 
-            for chunk in response_stream:
-                if first_chunk_received_at is None:
-                    first_chunk_received_at = datetime.now(timezone.utc).isoformat()
+            chunk = None
+            for i, chunk in enumerate(response_stream):
+                streaming_chunk = self._convert_google_chunk_to_streaming_chunk(
+                    chunk=chunk, index=i, component_info=component_info
+                )
+                chunks.append(streaming_chunk)
 
-                last_chunk = chunk
-                chunk_text = self._process_streaming_chunk(chunk, all_text_parts, all_tool_calls)
+                # Stream the chunk
+                streaming_callback(streaming_chunk)
 
-                # Update finish reason (keep the last non-None value)
-                if chunk.candidates and chunk.candidates[0].finish_reason:
-                    final_finish_reason = chunk.candidates[0].finish_reason
-
-                # Send streaming chunk if there's text content
-                # This will be revisited soon for non-text content
-                if chunk_text:
-                    streaming_chunk = StreamingChunk(content=chunk_text, meta={"chunk": chunk})
-                    streaming_callback(streaming_chunk)
-
-            # Build final ChatMessage from collected chunks
-            message = self._build_final_message(
-                all_text_parts, all_tool_calls, final_finish_reason, first_chunk_received_at, last_chunk
-            )
+            message = _convert_streaming_chunks_to_chat_message(chunks)
             return {"replies": [message]}
 
         except Exception as e:
             msg = f"Error in streaming response: {e}"
             raise RuntimeError(msg) from e
 
-    async def _handle_streaming_response_direct_async(
+    async def _handle_streaming_response_async(
         self, response_stream: AsyncIterator[types.GenerateContentResponse], streaming_callback: AsyncStreamingCallbackT
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, List[ChatMessage]]:
         """
         Handle async streaming response from Google Gen AI generate_content_stream.
-
         :param response_stream: The async streaming response from generate_content_stream.
         :param streaming_callback: The async callback function for streaming chunks.
         :returns: A dictionary with the replies.
         """
+        component_info = ComponentInfo.from_component(self)
+
         try:
-            # Collect all chunks to build the final response
-            all_text_parts: List[str] = []
-            all_tool_calls: List[ToolCall] = []
-            final_finish_reason = None
-            first_chunk_received_at = None
-            last_chunk = None
+            chunks = []
 
+            i = 0
+            chunk = None
             async for chunk in response_stream:
-                if first_chunk_received_at is None:
-                    first_chunk_received_at = datetime.now(timezone.utc).isoformat()
+                i += 1
 
-                last_chunk = chunk
-                chunk_text = self._process_streaming_chunk(chunk, all_text_parts, all_tool_calls)
+                streaming_chunk = self._convert_google_chunk_to_streaming_chunk(
+                    chunk=chunk, index=i, component_info=component_info
+                )
+                chunks.append(streaming_chunk)
 
-                # Update finish reason (keep the last non-None value)
-                if chunk.candidates and chunk.candidates[0].finish_reason:
-                    final_finish_reason = chunk.candidates[0].finish_reason
+                # Stream the chunk
+                await streaming_callback(streaming_chunk)
 
-                # Send streaming chunk if there's text content
-                if chunk_text:
-                    streaming_chunk = StreamingChunk(content=chunk_text, meta={"chunk": chunk})
-                    await streaming_callback(streaming_chunk)
-
-            # Build final ChatMessage from collected chunks and parts
-            message = self._build_final_message(
-                all_text_parts, all_tool_calls, final_finish_reason, first_chunk_received_at, last_chunk
-            )
+            message = _convert_streaming_chunks_to_chat_message(chunks)
             return {"replies": [message]}
 
         except Exception as e:
@@ -595,7 +583,7 @@ class GoogleGenAIChatGenerator:
                 response_stream = self._client.models.generate_content_stream(
                     model=self._model, contents=contents, config=config
                 )
-                return self._handle_streaming_response_direct(response_stream, streaming_callback)
+                return self._handle_streaming_response(response_stream, streaming_callback)
             else:
                 # Use non-streaming
                 response = self._client.models.generate_content(model=self._model, contents=contents, config=config)
@@ -683,7 +671,7 @@ class GoogleGenAIChatGenerator:
                 response_stream = await self._client.aio.models.generate_content_stream(
                     model=self._model, contents=contents, config=config
                 )
-                return await self._handle_streaming_response_direct_async(response_stream, streaming_callback)
+                return await self._handle_streaming_response_async(response_stream, streaming_callback)
             else:
                 # Use async non-streaming
                 response = await self._client.aio.models.generate_content(
