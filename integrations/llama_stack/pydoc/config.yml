@@ -15,9 +15,9 @@ processors:
   - type: crossref
 renderer:
   type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
-  excerpt: LlamaStack integration for Haystack
+  excerpt: Llama Stack integration for Haystack
   category_slug: integrations-api
-  title: LlamaStack
+  title: Llama Stack
   slug: integrations-llama-stack
   order: 200
   markdown:

@@ -17,10 +17,10 @@ logger = logging.getLogger(__name__)
 @component
 class LlamaStackChatGenerator(OpenAIChatGenerator):
     """
-    Enables text generation using LlamaStack client server model.
+    Enables text generation using Llama Stack framework.
     Llama Stack Server supports multiple inference providers, including Ollama, Together,
     and vLLM and other cloud providers.
-    For a complete list of inference providers, see [LlamaStack docs](https://llama-stack.readthedocs.io/en/latest/providers/inference/index.html).
+    For a complete list of inference providers, see [Llama Stack docs](https://llama-stack.readthedocs.io/en/latest/providers/inference/index.html).
 
     Users can pass any text generation parameters valid for the OpenAI chat completion API
     directly to this component using the `generation_kwargs`
@@ -33,7 +33,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
 
     Usage example:
     You need to setup Llama Stack Server before running this example and have a model available. For a quick start on
-    how to setup server with Ollama, see [LlamaStack docs](https://llama-stack.readthedocs.io/en/latest/getting_started/index.html).
+    how to setup server with Ollama, see [Llama Stack docs](https://llama-stack.readthedocs.io/en/latest/getting_started/index.html).
 
     ```python
     from haystack_integrations.components.generators.llama_stack import LlamaStackChatGenerator
@@ -78,11 +78,11 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
             A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         :param api_base_url:
-            The LlamaStack API Base url. If not specified, the localhost is used with the default port 8321.
+            The Llama Stack API base url. If not specified, the localhost is used with the default port 8321.
         :param organization: Your organization ID, defaults to `None`.
         :param generation_kwargs:
             Other parameters to use for the model. These parameters are all sent directly to
-            the LlamaStack endpoint. See [LlamaStack API docs](https://llama-stack.readthedocs.io/) for more details.
+            the Llama Stack endpoint. See [Llama Stack API docs](https://llama-stack.readthedocs.io/) for more details.
             Some of the supported parameters:
             - `max_tokens`: The maximum number of tokens the output text can have.
             - `temperature`: What sampling temperature to use. Higher values mean the model will take more risks.
@@ -112,7 +112,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
 
         """
 
-        # Use placeholder key for a LlamaStack server running locally
+        # Use placeholder key for a Llama Stack server running locally
         api_key = Secret.from_token("placeholder-api-key")
 
         super(LlamaStackChatGenerator, self).__init__(  # noqa: UP008

@@ -5,8 +5,8 @@
 # This example demonstrates how to use the LlamaStackChatGenerator component
 # with tools.
 # To run this example, you will need to
-# set up LlamaStack Server through an inference provider and have a model available.
-# For a quick start on how to setup server with Ollama, see [LlamaStack docs](https://llama-stack.readthedocs.io/en/latest/getting_started/index.html).
+# set up Llama Stack Server through an inference provider and have a model available.
+# For a quick start on how to setup server with Ollama, see [Llama Stack docs](https://llama-stack.readthedocs.io/en/latest/getting_started/index.html).
 
 from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage
