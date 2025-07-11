@@ -173,7 +173,7 @@ class TestLlamaStackChatGenerator:
         assert component.tools is None
         assert component.timeout == 10
         assert component.max_retries == 10
-        assert component.tools_strict == False
+        assert not component.tools_strict
 
     def test_run(self, chat_messages, mock_chat_completion):  # noqa: ARG002
         component = LlamaStackChatGenerator(model="llama3.2:3b")
