@@ -19,20 +19,20 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
     """
     Enables text generation using LlamaStack client server model.
     Llama Stack Server supports multiple inference providers, including Ollama, Together,
-    and Fireworks and other cloud providers.
+    and vLLM and other cloud providers.
     For a complete list of inference providers, see [LlamaStack docs](https://llama-stack.readthedocs.io/en/latest/providers/inference/index.html).
 
     Users can pass any text generation parameters valid for the OpenAI chat completion API
     directly to this component using the `generation_kwargs`
     parameter in `__init__` or the `generation_kwargs` parameter in `run` method.
 
-    This component uses the ChatMessage format for structuring both input and output,
+    This component uses the `ChatMessage` format for structuring both input and output,
     ensuring coherent and contextually relevant responses in chat-based text generation scenarios.
-    Details on the ChatMessage format can be found in the
+    Details on the `ChatMessage` format can be found in the
     [Haystack docs](https://docs.haystack.deepset.ai/docs/chatmessage)
 
     Usage example:
-    You need to setup Llama Stack Server before running this example. For a quick start on
+    You need to setup Llama Stack Server before running this example and have a model available. For a quick start on
     how to setup server with Ollama, see [LlamaStack docs](https://llama-stack.readthedocs.io/en/latest/getting_started/index.html).
 
     ```python
@@ -41,7 +41,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
 
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
 
-    client = LlamaStackChatGenerator()
+    client = LlamaStackChatGenerator(model="llama3.2:3b")
     response = client.run(messages)
     print(response)
 
@@ -73,7 +73,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
 
         :param model:
             The name of the model to use for chat completion.
-            The model depends on the inference provider used for the Llama Stack Server.
+            This depends on the inference provider used for the Llama Stack Server.
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
