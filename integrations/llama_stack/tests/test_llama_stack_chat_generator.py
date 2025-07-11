@@ -6,7 +6,6 @@ import pytz
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool
-from haystack.utils.auth import Secret
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 
@@ -66,10 +65,8 @@ def mock_chat_completion():
 
 
 class TestLlamaStackChatGenerator:
-    def test_init_default(self, monkeypatch):
-        monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+    def test_init_default(self):
         component = LlamaStackChatGenerator(model="llama3.2:3b")
-        assert component.client.api_key == "test-api-key"
         assert component.model == "llama3.2:3b"
         assert component.api_base_url == "http://localhost:8321/v1/openai/v1"
         assert component.streaming_callback is None
@@ -78,7 +75,6 @@ class TestLlamaStackChatGenerator:
     def test_init_with_parameters(self):
         component = LlamaStackChatGenerator(
             model="llama3.2:3b",
-            api_key=Secret.from_token("test-api-key"),
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
@@ -87,8 +83,9 @@ class TestLlamaStackChatGenerator:
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
-    def test_to_dict_default(self, monkeypatch):
-        monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+    def test_to_dict_default(
+        self,
+    ):
         component = LlamaStackChatGenerator(model="llama3.2:3b")
         data = component.to_dict()
 
@@ -99,7 +96,6 @@ class TestLlamaStackChatGenerator:
 
         expected_params = {
             "model": "llama3.2:3b",
-            "api_key": {"env_vars": ["OPENAI_API_KEY"], "strict": True, "type": "env_var"},
             "streaming_callback": None,
             "api_base_url": "http://localhost:8321/v1/openai/v1",
             "generation_kwargs": {},
@@ -112,11 +108,11 @@ class TestLlamaStackChatGenerator:
         for key, value in expected_params.items():
             assert data["init_parameters"][key] == value
 
-    def test_to_dict_with_parameters(self, monkeypatch):
-        monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+    def test_to_dict_with_parameters(
+        self,
+    ):
         component = LlamaStackChatGenerator(
             model="llama3.2:3b",
-            api_key=Secret.from_env_var("OPENAI_API_KEY"),
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
@@ -134,7 +130,6 @@ class TestLlamaStackChatGenerator:
 
         expected_params = {
             "model": "llama3.2:3b",
-            "api_key": {"env_vars": ["OPENAI_API_KEY"], "strict": True, "type": "env_var"},
             "api_base_url": "test-base-url",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -147,15 +142,15 @@ class TestLlamaStackChatGenerator:
         for key, value in expected_params.items():
             assert data["init_parameters"][key] == value
 
-    def test_from_dict(self, monkeypatch):
-        monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+    def test_from_dict(
+        self,
+    ):
         data = {
             "type": (
                 "haystack_integrations.components.generators.llama_stack.chat.chat_generator.LlamaStackChatGenerator"
             ),
             "init_parameters": {
                 "model": "llama3.2:3b",
-                "api_key": {"env_vars": ["OPENAI_API_KEY"], "strict": True, "type": "env_var"},
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -167,7 +162,6 @@ class TestLlamaStackChatGenerator:
         }
         component = LlamaStackChatGenerator.from_dict(data)
         assert component.model == "llama3.2:3b"
-        assert component.api_key == Secret.from_env_var("OPENAI_API_KEY")
         assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -177,7 +171,7 @@ class TestLlamaStackChatGenerator:
         assert component.max_retries == 10
 
     def test_run(self, chat_messages, mock_chat_completion):  # noqa: ARG002
-        component = LlamaStackChatGenerator(model="llama3.2:3b", api_key=Secret.from_token("test-api-key"))
+        component = LlamaStackChatGenerator(model="llama3.2:3b")
         response = component.run(chat_messages)
 
         # check that the component returns the correct ChatMessage response
@@ -191,7 +185,6 @@ class TestLlamaStackChatGenerator:
         component = LlamaStackChatGenerator(
             model="llama3.2:3b",
             generation_kwargs={"max_tokens": 10, "temperature": 0.5},
-            api_key=Secret.from_token("test-api-key"),
         )
         response = component.run(chat_messages)
 

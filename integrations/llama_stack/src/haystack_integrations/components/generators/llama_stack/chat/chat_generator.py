@@ -2,13 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
 from typing import Any, Dict, List, Optional, Union
 
-from haystack import component, logging
+from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import StreamingCallbackT
-from haystack.tools import Tool, Toolset
+from haystack.tools import Tool, Toolset, deserialize_tools_or_toolset_inplace, serialize_tools_or_toolset
+from haystack.utils import deserialize_callable, serialize_callable
 from haystack.utils.auth import Secret
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,6 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         self,
         *,
         model: str,
-        api_key: Optional[Secret] = None,
         api_base_url: str = "http://localhost:8321/v1/openai/v1",
         organization: Optional[str] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
@@ -74,10 +73,6 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         :param model:
             The name of the model to use for chat completion.
             The model depends on the inference provider used for the Llama Stack Server.
-        :param api_key:
-            The openai api key for OpenAI client. You can set it with an environment variable `OPENAI_API_KEY`,
-            or pass with this parameter during initialization. If not provided and no environment variable is set,
-            a placeholder key will be used (suitable for LlamaStack server).
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
@@ -113,12 +108,9 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
             For more information, see the [HTTPX documentation](https://www.python-httpx.org/api/#client).
 
         """
-        if api_key is None:
-            if os.environ.get("OPENAI_API_KEY") is not None:
-                api_key = Secret.from_env_var("OPENAI_API_KEY")
-            else:
-                # Use placeholder key for a LlamaStack server running locally
-                api_key = Secret.from_token("placeholder-api-key")
+
+        # Use placeholder key for a LlamaStack server running locally
+        api_key = Secret.from_token("placeholder-api-key")
 
         super(LlamaStackChatGenerator, self).__init__(  # noqa: UP008
             model=model,
@@ -132,3 +124,41 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
             max_retries=max_retries,
             http_client_kwargs=http_client_kwargs,
         )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serialize this component to a dictionary.
+
+        :returns:
+            The serialized component as a dictionary.
+        """
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+        return default_to_dict(
+            self,
+            model=self.model,
+            streaming_callback=callback_name,
+            api_base_url=self.api_base_url,
+            organization=self.organization,
+            generation_kwargs=self.generation_kwargs,
+            timeout=self.timeout,
+            max_retries=self.max_retries,
+            tools=serialize_tools_or_toolset(self.tools),
+            tools_strict=self.tools_strict,
+            http_client_kwargs=self.http_client_kwargs,
+        )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "LlamaStackChatGenerator":
+        """
+        Deserialize this component from a dictionary.
+
+        :param data: The dictionary representation of this component.
+        :returns:
+            The deserialized component instance.
+        """
+        deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
+        init_params = data.get("init_parameters", {})
+        serialized_callback_handler = init_params.get("streaming_callback")
+        if serialized_callback_handler:
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
+        return default_from_dict(cls, data)
