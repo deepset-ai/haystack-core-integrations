@@ -103,6 +103,7 @@ class TestLlamaStackChatGenerator:
             "max_retries": None,
             "tools": None,
             "http_client_kwargs": None,
+            "tools_strict": False,
         }
 
         for key, value in expected_params.items():
@@ -120,6 +121,7 @@ class TestLlamaStackChatGenerator:
             max_retries=10,
             tools=None,
             http_client_kwargs={"proxy": "http://localhost:8080"},
+            tools_strict=True,
         )
         data = component.to_dict()
 
@@ -137,6 +139,7 @@ class TestLlamaStackChatGenerator:
             "max_retries": 10,
             "tools": None,
             "http_client_kwargs": {"proxy": "http://localhost:8080"},
+            "tools_strict": True,
         }
 
         for key, value in expected_params.items():
@@ -158,6 +161,7 @@ class TestLlamaStackChatGenerator:
                 "max_retries": 10,
                 "tools": None,
                 "http_client_kwargs": {"proxy": "http://localhost:8080"},
+                "tools_strict": False,
             },
         }
         component = LlamaStackChatGenerator.from_dict(data)
@@ -169,6 +173,7 @@ class TestLlamaStackChatGenerator:
         assert component.tools is None
         assert component.timeout == 10
         assert component.max_retries == 10
+        assert component.tools_strict == False
 
     def test_run(self, chat_messages, mock_chat_completion):  # noqa: ARG002
         component = LlamaStackChatGenerator(model="llama3.2:3b")

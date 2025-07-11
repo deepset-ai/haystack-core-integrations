@@ -63,6 +63,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: Optional[int] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools_strict: bool = False,
         max_retries: Optional[int] = None,
         http_client_kwargs: Optional[Dict[str, Any]] = None,
     ):
@@ -94,12 +95,14 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
             - `safe_prompt`: Whether to inject a safety prompt before all conversations.
             - `random_seed`: The seed to use for random sampling.
         :param timeout:
-            Timeout for OpenAI client calls. If not set, it defaults to either the
+            Timeout for client calls using OpenAI API. If not set, it defaults to either the
             `OPENAI_TIMEOUT` environment variable, or 30 seconds.
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
             list of `Tool` objects or a `Toolset` instance.
-
+        :param tools_strict:
+            Whether to enable strict schema adherence for tool calls. If set to `True`, the model will follow exactly
+            the schema provided in the `parameters` field of the tool definition, but this may increase latency.
         :param max_retries:
             Maximum number of retries to contact OpenAI after an internal error.
             If not set, it defaults to either the `OPENAI_MAX_RETRIES` environment variable, or set to 5.
@@ -121,6 +124,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
             generation_kwargs=generation_kwargs,
             timeout=timeout,
             tools=tools,
+            tools_strict=tools_strict,
             max_retries=max_retries,
             http_client_kwargs=http_client_kwargs,
         )
