@@ -1271,8 +1271,7 @@ class TestAnthropicChatGenerator:
         component.run(messages)
 
         # Check caplog for the warning message that should have been logged
-        assert any("Prompt caching" in record.message for record in caplog.records)
-
+        assert not any("Prompt caching is not enabled" in record.message for record in caplog.records)
         # Check that the Anthropic API was called without cache_control in messages so that it does not raise an error
         _, kwargs = mock_chat_completion.call_args
         for msg in kwargs["messages"]:
@@ -1331,7 +1330,74 @@ class TestAnthropicChatGenerator:
         component = AnthropicChatGenerator.from_dict(data)
         assert component.generation_kwargs["extra_headers"]["anthropic-beta"] == "prompt-caching-2024-07-31"
 
-    @pytest.mark.integration
+    def test_cache_control_forwarded_for_all_block_types(self, monkeypatch, mock_chat_completion):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        component = AnthropicChatGenerator()
+
+        sys_msg = ChatMessage.from_system("sys")
+        sys_msg._meta["cache_control"] = {"type": "ephemeral"}
+
+        usr_msg = ChatMessage.from_user(
+            "doc chunk",
+            meta={"cache_control": {"type": "ephemeral"}},
+        )
+
+        tool_call = ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
+        asst_msg = ChatMessage.from_assistant(
+            tool_calls=[tool_call],
+            meta={"cache_control": {"type": "ephemeral"}},
+        )
+
+        tool_res = ChatMessage.from_tool(
+            origin=tool_call,
+            tool_result="sunny",
+            meta={"cache_control": {"type": "ephemeral"}},
+        )
+
+        component.run([sys_msg, usr_msg, asst_msg, tool_res])
+
+        _, kwargs = mock_chat_completion.call_args
+
+        for blk in kwargs["system"]:
+            assert blk.get("cache_control") == {"type": "ephemeral"}
+
+        assert all("cache_control" not in msg for msg in kwargs["messages"])
+
+        for msg in kwargs["messages"]:
+            for cblk in msg["content"]:
+                assert cblk.get("cache_control") == {"type": "ephemeral"}
+
+    @pytest.mark.parametrize(
+        "beta_header",
+        [
+            "featureA,extended-cache-ttl-2025-04-11",
+            "featureA , featureB , new-fancy-stuff",
+        ],
+    )
+    def test_extra_headers_pass_through(self, monkeypatch, mock_chat_completion, beta_header):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        component = AnthropicChatGenerator(generation_kwargs={"extra_headers": {"anthropic-beta": beta_header}})
+        component.run([ChatMessage.from_user("ping")])
+
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["extra_headers"]["anthropic-beta"] == beta_header
+
+    def test_convert_messages_attaches_cache_control(self):
+        user = ChatMessage.from_user(
+            "hello",
+            meta={
+                "cache_control": {
+                    "type": "ephemeral",
+                }
+            },
+        )
+        sys = ChatMessage.from_system("hi", meta={"cache_control": {"type": "ephemeral", "example_key": "example_val"}})
+        sys_blocks, non_sys = _convert_messages_to_anthropic_format([sys, user])
+
+        assert sys_blocks[0]["cache_control"] == {"type": "ephemeral", "example_key": "example_val"}
+        assert non_sys[0]["content"][0]["cache_control"]["type"] == "ephemeral"
+
     @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY", None), reason="ANTHROPIC_API_KEY not set")
     @pytest.mark.parametrize("cache_enabled", [True, False])
     def test_prompt_caching_live_run(self, cache_enabled):
@@ -1362,6 +1428,35 @@ class TestAnthropicChatGenerator:
         else:
             assert token_usage["cache_creation_input_tokens"] == 0
             assert token_usage["cache_read_input_tokens"] == 0
+
+    @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
+    @pytest.mark.parametrize("cache_enabled", [True, False])
+    def test_prompt_caching_live_run_with_user_message(self, cache_enabled):
+        claude_llm = AnthropicChatGenerator(
+            api_key=Secret.from_env_var("ANTHROPIC_API_KEY"),
+        )
+
+        system_message = ChatMessage.from_system("Hello from system. Just a generic instruction.")
+
+        user_message = ChatMessage.from_user("This is a user message that should be long enough to cache. " * 100)
+        if cache_enabled:
+            user_message._meta["cache_control"] = {"type": "ephemeral"}
+
+        messages = [system_message, user_message]
+        result = claude_llm.run(messages)
+
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+        token_usage = result["replies"][0].meta.get("usage")
+
+        if cache_enabled:
+            assert (
+                token_usage.get("cache_creation_input_tokens", 0) > 1024
+                or token_usage.get("cache_read_input_tokens", 0) > 1024
+            ), f"Unexpected usage stats: {token_usage}"
+        else:
+            assert token_usage.get("cache_creation_input_tokens", 0) == 0
+            assert token_usage.get("cache_read_input_tokens", 0) == 0
 
 
 class TestAnthropicChatGeneratorAsync:
