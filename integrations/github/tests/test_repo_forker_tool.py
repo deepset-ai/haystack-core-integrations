@@ -9,8 +9,8 @@ from haystack_integrations.tools.github.utils import message_handler
 class TestGitHubRepoForkerTool:
     def test_init(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
-        tool = GitHubRepoForkerTool()
 
+        tool = GitHubRepoForkerTool()
         assert tool.name == "repo_forker"
         assert tool.description == REPO_FORKER_PROMPT
         assert tool.parameters == REPO_FORKER_SCHEMA
