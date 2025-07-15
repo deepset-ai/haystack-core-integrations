@@ -334,6 +334,77 @@ class TestAmazonBedrockChatGeneratorUtils:
         )
         assert replies[0] == expected_message
 
+    def test_extract_replies_from_multi_tool_response_with_thinking(self, mock_boto3_session):
+        model = "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+        response_body = {
+            "ResponseMetadata": {
+                "RequestId": "d7be81a1-5d37-40fe-936a-7c96e850cdda",
+                "HTTPStatusCode": 200,
+                "HTTPHeaders": {
+                    "date": "Tue, 15 Jul 2025 12:49:56 GMT",
+                    "content-type": "application/json",
+                    "content-length": "1107",
+                    "connection": "keep-alive",
+                    "x-amzn-requestid": "d7be81a1-5d37-40fe-936a-7c96e850cdda",
+                },
+                "RetryAttempts": 0,
+            },
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "reasoningContent": {
+                                "reasoningText": {
+                                    "text": "The user wants to know the weather in Paris. I have a `weather` function "
+                                    "available that can provide this information. \n\nRequired parameters for "
+                                    "the weather function:\n- city: The city to get the weather for\n\nIn this "
+                                    'case, the user has clearly specified "Paris" as the city, so I have all '
+                                    "the required information to make the function call.",
+                                    "signature": "...",
+                                }
+                            }
+                        },
+                        {"text": "I'll check the current weather in Paris for you."},
+                        {
+                            "toolUse": {
+                                "toolUseId": "tooluse_iUqy8-ypSByLK5zFkka8uA",
+                                "name": "weather",
+                                "input": {"city": "Paris"},
+                            }
+                        },
+                    ],
+                }
+            },
+            "stopReason": "tool_use",
+            "usage": {
+                "inputTokens": 412,
+                "outputTokens": 146,
+                "totalTokens": 558,
+                "cacheReadInputTokens": 0,
+                "cacheWriteInputTokens": 0,
+            },
+            "metrics": {"latencyMs": 4811},
+        }
+        replies = _parse_completion_response(response_body, model)
+
+        # TODO We are missing the reasoning content in the ChatMessage
+        expected_message = ChatMessage.from_assistant(
+            text="I'll check the current weather in Paris for you.",
+            tool_calls=[
+                ToolCall(
+                    tool_name="weather", arguments={"city": "Paris"}, id="tooluse_iUqy8-ypSByLK5zFkka8uA"
+                ),
+            ],
+            meta={
+                "model": "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                "index": 0,
+                "finish_reason": "tool_use",
+                "usage": {"prompt_tokens": 412, "completion_tokens": 146, "total_tokens": 558},
+            },
+        )
+        assert replies[0] == expected_message
+
     def test_process_streaming_response_one_tool_call(self, mock_boto3_session):
         """
         Test that process_streaming_response correctly handles streaming events and accumulates responses
