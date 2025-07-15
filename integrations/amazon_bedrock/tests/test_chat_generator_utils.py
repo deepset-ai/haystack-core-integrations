@@ -392,9 +392,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         expected_message = ChatMessage.from_assistant(
             text="I'll check the current weather in Paris for you.",
             tool_calls=[
-                ToolCall(
-                    tool_name="weather", arguments={"city": "Paris"}, id="tooluse_iUqy8-ypSByLK5zFkka8uA"
-                ),
+                ToolCall(tool_name="weather", arguments={"city": "Paris"}, id="tooluse_iUqy8-ypSByLK5zFkka8uA"),
             ],
             meta={
                 "model": "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
