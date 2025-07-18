@@ -84,6 +84,11 @@ integration:llama_cpp:
       - any-glob-to-any-file: "integrations/llama_cpp/**/*"
       - any-glob-to-any-file: ".github/workflows/llama_cpp.yml"
 
+integration:llama_stack:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/llama_stack/**/*"
+      - any-glob-to-any-file: ".github/workflows/llama_stack.yml"
+
 integration:mcp:
   - changed-files:
       - any-glob-to-any-file: "integrations/mcp/**/*"
