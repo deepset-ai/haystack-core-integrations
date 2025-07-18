@@ -1,5 +1,6 @@
 import json
 from typing import Any, ClassVar, Dict, List, Literal, Optional, Tuple, Union
+from datetime import datetime, timezone
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole, ToolCall, ToolCallResult
@@ -10,7 +11,12 @@ from haystack.dataclasses.streaming_chunk import (
     StreamingChunk,
     SyncStreamingCallbackT,
     select_streaming_callback,
+    ToolCallDelta,
+    FinishReason,
 )
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
+
+
 from haystack.tools import (
     Tool,
     Toolset,
@@ -27,6 +33,16 @@ from anthropic.types import MessageParam, TextBlockParam, ToolParam, ToolResultB
 
 logger = logging.getLogger(__name__)
 
+
+# Mapping from Anthropic stop reasons to Haystack FinishReason values
+FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
+    "end_turn": "stop",
+    "stop_sequence": "stop",
+    "max_tokens": "length",
+    "refusal": "content_filter",
+    "pause_turn": "stop",
+    "tool_use": "tool_calls",
+}
 
 def _update_anthropic_message_with_tool_call_results(
     tool_call_results: List[ToolCallResult],
@@ -356,110 +372,50 @@ class AnthropicChatGenerator:
 
     @staticmethod
     def _convert_anthropic_chunk_to_streaming_chunk(
-        chunk: RawMessageStreamEvent, component_info: ComponentInfo
+        chunk: RawMessageStreamEvent, index: int, component_info: ComponentInfo
     ) -> StreamingChunk:
         """
         Converts an Anthropic StreamEvent to a StreamingChunk.
+
+        :param chunk: The Anthropic StreamEvent to convert.
+        :param index: The index of the chunk.
+        :param component_info: The component info.
+        :returns: The StreamingChunk.
         """
         content = ""
-        if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
-            content = chunk.delta.text
-
-        return StreamingChunk(content=content, meta=chunk.model_dump(), component_info=component_info)
-
-    def _convert_streaming_chunks_to_chat_message(
-        self, chunks: List[StreamingChunk], model: Optional[str] = None
-    ) -> ChatMessage:
-        """
-        Converts a list of StreamingChunks to a ChatMessage.
-        """
-        full_content = ""
         tool_calls = []
-        current_tool_call: Optional[Dict[str, Any]] = {}
+        start = False
+        finish_reason = None
+        usage = None
+        model = None
 
-        # loop through chunks and call the appropriate handler
-        for chunk in chunks:
-            chunk_type = chunk.meta.get("type")
-            if chunk_type == "content_block_start":
-                content_block = chunk.meta.get("content_block")
-                if content_block is None:
-                    msg = "Invalid streaming chunk. Expected 'content_block' field."
-                    raise ValueError(msg)
-                if content_block.get("type") == "tool_use":
-                    current_tool_call = {
-                        "id": content_block.get("id"),
-                        "name": content_block.get("name"),
-                        "arguments": "",
-                    }
-            elif chunk_type == "content_block_delta":
-                delta = chunk.meta.get("delta", {})
-                if delta.get("type") == "text_delta":
-                    full_content += delta.get("text", "")
-                elif delta.get("type") == "input_json_delta" and current_tool_call:
-                    current_tool_call["arguments"] += delta.get("partial_json", "")
-            elif chunk_type == "message_delta":
-                if chunk.meta.get("delta", {}).get("stop_reason") == "tool_use" and current_tool_call:
-                    try:
-                        # When calling a tool with no arguments, the `arguments` field is an empty string.
-                        # We handle this by checking if `arguments` is empty and setting it to an empty dict.
-                        arguments = (
-                            json.loads(current_tool_call.get("arguments", "{}"))
-                            if current_tool_call.get("arguments")
-                            else {}
-                        )
-                        tool_calls.append(
-                            ToolCall(
-                                id=current_tool_call.get("id"),
-                                tool_name=str(current_tool_call.get("name")),
-                                arguments=arguments,
-                            )
-                        )
-                    except json.JSONDecodeError:
-                        logger.warning(
-                            "Anthropic returned a malformed JSON string for tool call arguments. "
-                            "This tool call will be skipped. Arguments: {current_arguments}",
-                            current_arguments=current_tool_call.get("arguments", ""),
-                        )
-                    current_tool_call = None
+        if chunk.type == "message_start":
+            model = chunk.message.model
+            usage = chunk.message.usage.to_dict()
+            start = True
 
-        message = ChatMessage.from_assistant(full_content, tool_calls=tool_calls)
+        if chunk.type == "content_block_start":
+            start = True
+            if chunk.content_block.type == "tool_use":
+                tool_calls.append(ToolCallDelta(
+                    index=chunk.index,
+                    id=chunk.content_block.id,
+                    tool_name=chunk.content_block.name,
+                ))
+        elif chunk.type == "content_block_delta":
+            if chunk.delta.type == "text_delta":
+                content = chunk.delta.text
+            elif chunk.delta.type == "input_json_delta":
+                tool_calls.append(ToolCallDelta(
+                    index=chunk.index,
+                    arguments=chunk.delta.partial_json
+                ))
+        elif chunk.type == "message_delta":
+            finish_reason = getattr(chunk.delta, "stop_reason", None)
+            usage = chunk.usage.to_dict()
 
-        # Update meta information
-        last_chunk_meta = chunks[-1].meta
+        return StreamingChunk(content=content, index=index, component_info=component_info, start=start, finish_reason=FINISH_REASON_MAPPING.get(finish_reason, None), tool_calls=tool_calls, meta={"usage": usage, "model": model})
 
-        # Combine usage from first chunk (input_tokens) and last chunk (output_tokens)
-        combined_usage = {}
-
-        # Get input tokens from first chunk (message_start)
-        if chunks:
-            first_chunk_meta = chunks[0].meta
-            if first_chunk_meta.get("type") == "message_start":
-                first_chunk_usage = first_chunk_meta.get("message", {}).get("usage", {})
-                combined_usage = first_chunk_usage
-
-        # Get output tokens from last chunk (message_delta)
-        last_chunk_usage = last_chunk_meta.get("usage", {})
-        if "output_tokens" in last_chunk_usage:
-            combined_usage["output_tokens"] = last_chunk_usage["output_tokens"]
-        elif "completion_tokens" in last_chunk_usage:
-            combined_usage["output_tokens"] = last_chunk_usage["completion_tokens"]
-
-        # Add any other usage fields from the last chunk
-        for key, value in last_chunk_usage.items():
-            if key not in combined_usage:
-                combined_usage[key] = value
-
-        usage = self._get_openai_compatible_usage({"usage": combined_usage})
-        message._meta.update(
-            {
-                "model": model,
-                "index": 0,
-                "finish_reason": last_chunk_meta.get("delta", {}).get("stop_reason", None),
-                "usage": usage,
-            }
-        )
-
-        return message
 
     def _prepare_request_params(
         self,
@@ -510,6 +466,7 @@ class AnthropicChatGenerator:
 
         return system_messages, non_system_messages, generation_kwargs, anthropic_tools
 
+
     def _process_response(
         self,
         response: Union[Message, Stream[RawMessageStreamEvent]],
@@ -528,18 +485,24 @@ class AnthropicChatGenerator:
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
             component_info = ComponentInfo.from_component(self)
-            for chunk in response:
+            for index, chunk in enumerate(response):
                 if chunk.type in ["message_start", "content_block_start", "content_block_delta", "message_delta"]:
                     # Extract model from message_start chunks
                     if chunk.type == "message_start":
                         model = chunk.message.model
 
-                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, component_info)
+                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, index, component_info)
                     chunks.append(streaming_chunk)
                     if streaming_callback:
                         streaming_callback(streaming_chunk)
 
-            completion = self._convert_streaming_chunks_to_chat_message(chunks, model)
+            completion = _convert_streaming_chunks_to_chat_message(chunks)
+            completion.meta.update(
+                {
+                    "received_at": datetime.now(timezone.utc).isoformat(),
+                    "model": model,
+                },
+            )
             return {"replies": [completion]}
         else:
             return {
@@ -568,7 +531,7 @@ class AnthropicChatGenerator:
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
             component_info = ComponentInfo.from_component(self)
-            async for chunk in response:
+            async for index, chunk in enumerate(response):
                 if chunk.type == "message_start":
                     model = chunk.message.model
                 elif chunk.type in [
@@ -576,12 +539,18 @@ class AnthropicChatGenerator:
                     "content_block_delta",
                     "message_delta",
                 ]:
-                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, component_info)
+                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, index, component_info)
+                    streaming_chunk.meta.update(
+                        {
+                            "received_at": datetime.now(timezone.utc).isoformat(),
+                            "model": model,
+                        },
+                    )
                     chunks.append(streaming_chunk)
                     if streaming_callback:
                         await streaming_callback(streaming_chunk)
 
-            completion = self._convert_streaming_chunks_to_chat_message(chunks, model)
+            completion = _convert_streaming_chunks_to_chat_message(chunks)
             return {"replies": [completion]}
         else:
             return {
