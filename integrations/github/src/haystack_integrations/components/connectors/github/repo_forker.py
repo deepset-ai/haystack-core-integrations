@@ -60,7 +60,7 @@ class GitHubRepoForker:
         :param auto_sync: If True, syncs fork with original repository if it already exists
         :param create_branch: If True, creates a fix branch based on the issue number
         """
-        if github_token is not None and not isinstance(github_token, Secret):
+        if not isinstance(github_token, Secret):
             msg = "github_token must be a Secret"
             raise TypeError(msg)
 
