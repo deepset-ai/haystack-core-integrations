@@ -389,6 +389,10 @@ class AnthropicChatGenerator:
         usage = None
         model = None
 
+        print( "\n"+"Checking Chunk")
+        print(chunk.type)
+        print(chunk)
+
         if chunk.type == "message_start":
             model = chunk.message.model
             usage = chunk.message.usage.to_dict()

@@ -335,9 +335,11 @@ class TestAnthropicChatGenerator:
         text_delta_chunk = ContentBlockDeltaEvent(
             type="content_block_delta", index=0, delta=TextDelta(type="text_delta", text="Hello, world!")
         )
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(text_delta_chunk, component_info)
+        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(text_delta_chunk, index=0, component_info=component_info)
         assert streaming_chunk.content == "Hello, world!"
         assert streaming_chunk.meta == {
+            "model": None,
+            "usage": None,
             "type": "content_block_delta",
             "index": 0,
             "delta": {"type": "text_delta", "text": "Hello, world!"},
