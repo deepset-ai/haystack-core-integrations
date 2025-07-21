@@ -80,7 +80,9 @@ jobs:
         shell: bash
         run: |
           pip install uv
-          ENABLE_OLLAMA=ollama INFERENCE_MODEL=llama3.2:3b uv run --with llama-stack llama stack build --template ollama --image-type venv --run 
+          ENABLE_OLLAMA=ollama INFERENCE_MODEL=llama3.2:3b uv run --with llama-stack llama stack build --template starter --image-type venv --run 
+          # Verify it's running
+          curl -f http://localhost:8321/v1/models || { cat server.log; exit 1; }
           echo "Llama Stack Server started successfully."
 
       - name: Install Hatch
