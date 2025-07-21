@@ -77,9 +77,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Test Llama Stack Server
+        shell: bash
         run: |
           pip install uv
-          INFERENCE_MODEL=llama3.2:3b uv run --with llama-stack llama stack build --template ollama --image-type venv --run < /dev/null > server.log 2>&1 &
+          INFERENCE_MODEL=llama3.2:3b uv run --with llama-stack llama stack build --template ollama --image-type venv --run 
           echo "Llama Stack Server started successfully."
 
       - name: Install Hatch
