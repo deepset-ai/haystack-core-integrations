@@ -81,7 +81,7 @@ jobs:
         run: |
           pip install uv
           ENABLE_OLLAMA=ollama INFERENCE_MODEL=llama3.2:3b uv run --with llama-stack llama stack build --template starter --image-type venv --run < /dev/null > server.log 2>&1 &
-          sleep 50
+          sleep 120
           # Verify it's running
           curl -f http://localhost:8321/v1/models || { cat server.log; exit 1; }
           
