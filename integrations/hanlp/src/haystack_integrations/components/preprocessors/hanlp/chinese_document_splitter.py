@@ -180,7 +180,7 @@ class ChineseDocumentSplitter:
 
         units = self.chinese_tokenizer(doc.content)
 
-        for i in range(len(units) - 1):  # pylint: disable=possibly-used-before-assignment
+        for i in range(len(units) - 1):
             units[i] += split_at
         text_splits, splits_pages, splits_start_idxs = self._concatenate_units(
             units, self.split_length, self.split_overlap, self.split_threshold
@@ -223,7 +223,7 @@ class ChineseDocumentSplitter:
 
         return self._split_by_character(doc)
 
-    def _concatenate_sentences_based_on_word_amount(  # pylint: disable=too-many-positional-arguments
+    def _concatenate_sentences_based_on_word_amount(
         self, sentences: List[str], split_length: int, split_overlap: int, granularity: str
     ) -> Tuple[List[str], List[int], List[int]]:
         """
@@ -258,7 +258,7 @@ class ChineseDocumentSplitter:
 
             # Number of words in the current chunk plus the next sentence is larger than the split_length,
             # or we reached the last sentence
-            if (chunk_word_count + next_sentence_word_count) > split_length or sentence_idx == len(sentences) - 1:  # pylint: disable=possibly-used-before-assignment
+            if (chunk_word_count + next_sentence_word_count) > split_length or sentence_idx == len(sentences) - 1:
                 #  Save current chunk and start a new one
                 list_of_splits.append(current_chunk)
                 split_start_page_numbers.append(chunk_starting_page_number)
