@@ -141,7 +141,7 @@ class TestChineseDocumentSplitter:
 
     @pytest.mark.integration
     def test_split_by_word(self, sample_text):
-        splitter = ChineseDocumentSplitter(split_by="word", particle_size="coarse", split_length=5, split_overlap=0)
+        splitter = ChineseDocumentSplitter(split_by="word", granularity="coarse", split_length=5, split_overlap=0)
         splitter.warm_up()
         result = splitter.run(documents=[Document(content=sample_text)])
         docs = result["documents"]
@@ -153,14 +153,14 @@ class TestChineseDocumentSplitter:
     @pytest.mark.integration
     def test_split_by_sentence(self, sample_text):
         splitter = ChineseDocumentSplitter(
-            split_by="sentence", particle_size="coarse", split_length=10, split_overlap=0
+            split_by="sentence", granularity="coarse", split_length=10, split_overlap=0
         )
         splitter.warm_up()
         result = splitter.run(documents=[Document(content=sample_text)])
         docs = result["documents"]
-        assert all(isinstance(doc, Document) for doc in docs)
-        assert all(doc.content.strip() != "" for doc in docs)
-        assert any("。" in doc.content for doc in docs), "Expected at least one chunk containing a full stop."
+        assert all(isinstance(doc, Document) for doc in docs), "All docs should be instances of Document"
+        assert all(doc.content.strip() != "" for doc in docs), "All docs should have content"
+        assert docs[-1].content.endswith("。"), "Last chunk should end with '。'"
 
     @pytest.mark.integration
     def test_respect_sentence_boundary(self):
@@ -175,6 +175,8 @@ class TestChineseDocumentSplitter:
         splitter.warm_up()
         result = splitter.run(documents=[doc])
         docs = result["documents"]
+
+        assert len(docs) == 3
         assert all(doc.content.strip().endswith(("。", "！", "？")) for doc in docs), "Sentence was cut off!"
 
     @pytest.mark.integration
@@ -192,7 +194,7 @@ class TestChineseDocumentSplitter:
             "万物静候，聆听着夜的呼吸！"
         )
 
-        splitter = ChineseDocumentSplitter(split_by="word", split_length=30, split_overlap=10, particle_size="coarse")
+        splitter = ChineseDocumentSplitter(split_by="word", split_length=30, split_overlap=10, granularity="coarse")
         splitter.warm_up()
         result = splitter.run(documents=[doc])
         docs = result["documents"]

@@ -59,7 +59,7 @@ class ChineseDocumentSplitter:
         split_threshold: int = 0,
         respect_sentence_boundary: bool = False,
         splitting_function: Optional[Callable] = None,
-        particle_size: Literal["coarse", "fine"] = "coarse",
+        granularity: Literal["coarse", "fine"] = "coarse",
     ):
         """
         Initialize the ChineseDocumentSplitter component.
@@ -81,9 +81,9 @@ class ChineseDocumentSplitter:
         :param splitting_function: Necessary when `split_by` is set to "function".
             This is a function which must accept a single `str` as input and return a `list` of `str` as output,
             representing the chunks after splitting.
-        :param particle_size: The granularity of Chinese word segmentation, either 'coarse' or 'fine'.
+        :param granularity: The granularity of Chinese word segmentation, either 'coarse' or 'fine'.
 
-        :raises ValueError: If the particle_size is not 'coarse' or 'fine'.
+        :raises ValueError: If the granularity is not 'coarse' or 'fine'.
         """
         self.split_by = split_by
         self.split_length = split_length
@@ -91,10 +91,10 @@ class ChineseDocumentSplitter:
         self.split_threshold = split_threshold
         self.respect_sentence_boundary = respect_sentence_boundary
         self.splitting_function = splitting_function
-        self.particle_size = particle_size
+        self.granularity = granularity
 
-        if particle_size not in {"coarse", "fine"}:
-            msg = f"Invalid particle_size '{particle_size}'. Choose either 'coarse' or 'fine'."
+        if granularity not in {"coarse", "fine"}:
+            msg = f"Invalid granularity '{granularity}'. Choose either 'coarse' or 'fine'."
             raise ValueError(msg)
 
     def run(self, documents: List[Document]) -> Dict[str, List[Document]]:
@@ -117,9 +117,9 @@ class ChineseDocumentSplitter:
 
     def warm_up(self) -> None:
         """Warm up the component by loading the necessary models."""
-        if self.particle_size == "coarse":
+        if self.granularity == "coarse":
             self.chinese_tokenizer = hanlp.load(hanlp.pretrained.tok.COARSE_ELECTRA_SMALL_ZH)
-        if self.particle_size == "fine":
+        if self.granularity == "fine":
             self.chinese_tokenizer = hanlp.load(hanlp.pretrained.tok.FINE_ELECTRA_SMALL_ZH)
         self.split_sent = hanlp.load(hanlp.pretrained.eos.UD_CTB_EOS_MUL)
 
@@ -135,12 +135,7 @@ class ChineseDocumentSplitter:
 
         split_at = _CHARACTER_SPLIT_BY_MAPPING[self.split_by]
 
-        # 'coarse' represents coarse granularity Chinese word segmentation,
-        # 'fine' represents fine granularity word segmentation,
-        #  default is coarse granularity word segmentation
-
-        if self.particle_size in {"coarse", "fine"}:
-            units = self.chinese_tokenizer(doc.content)
+        units = self.chinese_tokenizer(doc.content)
 
         for i in range(len(units) - 1):  # pylint: disable=possibly-used-before-assignment
             units[i] += split_at
@@ -186,7 +181,7 @@ class ChineseDocumentSplitter:
         return self._split_by_character(doc)
 
     def _concatenate_sentences_based_on_word_amount(  # pylint: disable=too-many-positional-arguments
-        self, sentences: List[str], split_length: int, split_overlap: int, particle_size: str
+        self, sentences: List[str], split_length: int, split_overlap: int, granularity: str
     ) -> Tuple[List[str], List[int], List[int]]:
         """
         Groups the sentences into chunks of `split_length` words while respecting sentence boundaries.
@@ -213,11 +208,10 @@ class ChineseDocumentSplitter:
 
         for sentence_idx, sentence in enumerate(sentences):
             current_chunk.append(sentence)
-            if particle_size in {"coarse", "fine"}:
-                chunk_word_count += len(self.chinese_tokenizer(sentence))
-                next_sentence_word_count = (
-                    len(self.chinese_tokenizer(sentences[sentence_idx + 1])) if sentence_idx < len(sentences) - 1 else 0
-                )
+            chunk_word_count += len(self.chinese_tokenizer(sentence))
+            next_sentence_word_count = (
+                len(self.chinese_tokenizer(sentences[sentence_idx + 1])) if sentence_idx < len(sentences) - 1 else 0
+            )
 
             # Number of words in the current chunk plus the next sentence is larger than the split_length,
             # or we reached the last sentence
@@ -232,7 +226,7 @@ class ChineseDocumentSplitter:
                     sentences=current_chunk,
                     split_length=split_length,
                     split_overlap=split_overlap,
-                    particle_size=particle_size,
+                    granularity=granularity,
                 )
                 # Set up information for the new chunk
                 if num_sentences_to_keep > 0:
@@ -279,7 +273,7 @@ class ChineseDocumentSplitter:
                 sentences=units,
                 split_length=self.split_length,
                 split_overlap=self.split_overlap,
-                particle_size=self.particle_size,
+                granularity=self.granularity,
             )
         else:
             text_splits, splits_pages, splits_start_idxs = self._concatenate_units(
@@ -417,7 +411,7 @@ class ChineseDocumentSplitter:
                 previous_doc.meta["_split_overlap"].append({"doc_id": current_doc.id, "range": overlapping_range})
 
     def _number_of_sentences_to_keep(  # pylint: disable=too-many-positional-arguments
-        self, sentences: List[str], split_length: int, split_overlap: int, particle_size: str
+        self, sentences: List[str], split_length: int, split_overlap: int, granularity: str
     ) -> int:
         """
         Returns the number of sentences to keep in the next chunk based on the `split_overlap` and `split_length`.
@@ -425,6 +419,7 @@ class ChineseDocumentSplitter:
         :param sentences: The list of sentences to split.
         :param split_length: The maximum number of words in each split.
         :param split_overlap: The number of overlapping words in each split.
+        :param granularity: The granularity of Chinese word segmentation, either 'coarse' or 'fine'.
         :returns: The number of sentences to keep in the next chunk.
         """
         # If the split_overlap is 0, we don't need to keep any sentences
@@ -435,8 +430,7 @@ class ChineseDocumentSplitter:
         num_words = 0
 
         for sent in reversed(sentences[1:]):
-            if particle_size in {"coarse", "fine"}:
-                num_words += len(self.chinese_tokenizer(sent))
+            num_words += len(self.chinese_tokenizer(sent))
             # If the number of words is larger than the split_length then don't add any more sentences
             if num_words > split_length:
                 break
@@ -485,7 +479,7 @@ class ChineseDocumentSplitter:
             split_overlap=self.split_overlap,
             split_threshold=self.split_threshold,
             respect_sentence_boundary=self.respect_sentence_boundary,
-            particle_size=self.particle_size,
+            granularity=self.granularity,
         )
         if self.splitting_function:
             serialized["init_parameters"]["splitting_function"] = serialize_callable(self.splitting_function)
