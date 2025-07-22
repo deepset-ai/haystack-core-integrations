@@ -152,9 +152,7 @@ class TestChineseDocumentSplitter:
 
     @pytest.mark.integration
     def test_split_by_sentence(self, sample_text):
-        splitter = ChineseDocumentSplitter(
-            split_by="sentence", granularity="coarse", split_length=10, split_overlap=0
-        )
+        splitter = ChineseDocumentSplitter(split_by="sentence", granularity="coarse", split_length=10, split_overlap=0)
         splitter.warm_up()
         result = splitter.run(documents=[Document(content=sample_text)])
         docs = result["documents"]
