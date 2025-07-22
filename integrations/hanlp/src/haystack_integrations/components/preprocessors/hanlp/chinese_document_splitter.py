@@ -166,7 +166,7 @@ class ChineseDocumentSplitter:
         for sentence in sentences:
             start = text.find(sentence, start)
             end = start + len(sentence)
-            results.append({"sentence": sentence + "\n", "start": start, "end": end})
+            results.append({"sentence": sentence, "start": start, "end": end})
             start = end
 
         return results

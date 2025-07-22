@@ -147,7 +147,7 @@ class TestChineseDocumentSplitter:
         docs = result["documents"]
         assert all(isinstance(doc, Document) for doc in docs)
         expected_lengths = [9, 9, 8, 8, 6, 6, 6, 8, 8, 6, 7, 8, 5]
-        actual_lengths = [len(doc.content.strip()) for doc in docs]
+        actual_lengths = [len(doc.content) for doc in docs]
         assert actual_lengths == expected_lengths
 
     @pytest.mark.integration
@@ -159,7 +159,7 @@ class TestChineseDocumentSplitter:
         result = splitter.run(documents=[Document(content=sample_text)])
         docs = result["documents"]
         assert all(isinstance(doc, Document) for doc in docs), "All docs should be instances of Document"
-        assert all(doc.content.strip() != "" for doc in docs), "All docs should have content"
+        assert all(doc.content != "" for doc in docs), "All docs should have content"
         assert docs[-1].content.endswith("。"), "Last chunk should end with '。'"
 
     @pytest.mark.integration
@@ -177,7 +177,7 @@ class TestChineseDocumentSplitter:
         docs = result["documents"]
 
         assert len(docs) == 3
-        assert all(doc.content.strip().endswith(("。", "！", "？")) for doc in docs), "Sentence was cut off!"
+        assert all(doc.content.endswith(("。", "！", "？")) for doc in docs), "Sentence was cut off!"
 
     @pytest.mark.integration
     def test_overlap_chunks_with_long_text(self):
