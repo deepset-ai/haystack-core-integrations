@@ -119,7 +119,7 @@ class TestChineseDocumentSplitter:
             Document(content="这是测试文本。", meta={"name": "doc 0"}),
             Document(content="这是另一个测试文本。", meta={"name": "doc 1"}),
         ]
-        splitter = ChineseDocumentSplitter(split_by="word", split_length=5)
+        splitter = ChineseDocumentSplitter(split_by="word", split_length=5, split_overlap=2)
         splitter.warm_up()
         result = splitter.run(documents=documents)
         assert len(result["documents"]) == 2
@@ -132,7 +132,7 @@ class TestChineseDocumentSplitter:
             Document(content="这是第一个测试文本。"),
             Document(content="这是第二个测试文本。"),
         ]
-        splitter = ChineseDocumentSplitter(split_by="word", split_length=5)
+        splitter = ChineseDocumentSplitter(split_by="word", split_length=5, split_overlap=2)
         splitter.warm_up()
         result = splitter.run(documents=documents)
         assert len(result["documents"]) == 2

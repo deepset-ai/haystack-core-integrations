@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from copy import deepcopy
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 
@@ -269,7 +270,6 @@ class ChineseDocumentSplitter:
                     sentences=current_chunk,
                     split_length=split_length,
                     split_overlap=split_overlap,
-                    granularity=granularity,
                 )
                 # Set up information for the new chunk
                 if num_sentences_to_keep > 0:
@@ -439,13 +439,12 @@ class ChineseDocumentSplitter:
         if previous_doc.content is None or current_doc.content is None:
             return
 
-        overlapping_range = (current_doc_start_idx - previous_doc_start_idx, len(previous_doc.content))  # type: ignore
+        overlapping_range = (current_doc_start_idx - previous_doc_start_idx, len(previous_doc.content))
 
         if overlapping_range[0] < overlapping_range[1]:
-            # type: ignore
             overlapping_str = previous_doc.content[overlapping_range[0] : overlapping_range[1]]
 
-            if current_doc.content.startswith(overlapping_str):  # type: ignore
+            if current_doc.content.startswith(overlapping_str):
                 # add split overlap information to this Document regarding the previous Document
                 current_doc.meta["_split_overlap"].append({"doc_id": previous_doc.id, "range": overlapping_range})
 
