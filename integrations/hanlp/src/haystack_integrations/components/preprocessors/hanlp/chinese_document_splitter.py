@@ -102,9 +102,16 @@ class ChineseDocumentSplitter:
         split_overlap: int = 200,
         split_threshold: int = 0,
         granularity: Literal["coarse", "fine"] = "coarse",
-    ):
+    ) -> None:
         """
         Validate the init parameters.
+
+        :param split_by: The unit for splitting your documents.
+        :param split_length: The maximum number of units in each split.
+        :param split_overlap: The number of overlapping units for each split.
+        :param split_threshold: The minimum number of units per split. If a split has fewer units
+            than the threshold, it's attached to the previous split.
+        :param granularity: The granularity of Chinese word segmentation, either 'coarse' or 'fine'.
 
         :raises ValueError:
             If the split_length is not positive.
