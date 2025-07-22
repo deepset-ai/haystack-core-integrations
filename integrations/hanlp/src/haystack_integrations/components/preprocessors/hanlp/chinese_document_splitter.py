@@ -85,6 +85,7 @@ class ChineseDocumentSplitter:
 
         :raises ValueError: If the granularity is not 'coarse' or 'fine'.
         """
+        self._validate_init_parameters(split_by, split_length, split_overlap, split_threshold, granularity)
         self.split_by = split_by
         self.split_length = split_length
         self.split_overlap = split_overlap
@@ -93,8 +94,50 @@ class ChineseDocumentSplitter:
         self.splitting_function = splitting_function
         self.granularity = granularity
 
+    @staticmethod
+    def _validate_init_parameters(
+        split_by: Literal["word", "sentence", "passage", "page", "line", "period", "function"] = "word",
+        split_length: int = 1000,
+        split_overlap: int = 200,
+        split_threshold: int = 0,
+        granularity: Literal["coarse", "fine"] = "coarse",
+    ):
+        """
+        Validate the init parameters.
+
+        :raises ValueError:
+            If the split_length is not positive.
+            If the split_overlap is negative.
+            If the split_overlap is greater than or equal to the split_length.
+            If the split_threshold is negative.
+            If the split_threshold is greater than the split_length.
+            If the split_by is not one of 'word', 'sentence', 'passage', 'page', 'line', 'period', 'function'.
+            If the granularity is not one of 'coarse', 'fine'.
+        """
+
+        if split_length <= 0:
+            msg = f"split_length must be positive, but got {split_length}"
+            raise ValueError(msg)
+        if split_overlap < 0:
+            msg = f"split_overlap must be non-negative, but got {split_overlap}"
+            raise ValueError(msg)
+        if split_overlap >= split_length:
+            msg = f"split_overlap must be less than split_length, but got {split_overlap} >= {split_length}"
+            raise ValueError(msg)
+        if split_threshold < 0:
+            msg = f"split_threshold must be non-negative, but got {split_threshold}"
+            raise ValueError(msg)
+        if split_threshold > split_length:
+            msg = f"split_threshold must be less than split_length, but got {split_threshold} > {split_length}"
+            raise ValueError(msg)
+        if split_by not in {"word", "sentence", "passage", "page", "line", "period", "function"}:
+            msg = (
+                f"split_by must be one of 'word', 'sentence', 'passage', 'page', 'line', 'period', 'function', "
+                f"but got {split_by}"
+            )
+            raise ValueError(msg)
         if granularity not in {"coarse", "fine"}:
-            msg = f"Invalid granularity '{granularity}'. Choose either 'coarse' or 'fine'."
+            msg = f"granularity must be one of 'coarse', 'fine', but got {granularity}"
             raise ValueError(msg)
 
     def run(self, documents: List[Document]) -> Dict[str, List[Document]]:
@@ -410,16 +453,13 @@ class ChineseDocumentSplitter:
                 overlapping_range = (0, overlapping_range[1] - overlapping_range[0])
                 previous_doc.meta["_split_overlap"].append({"doc_id": current_doc.id, "range": overlapping_range})
 
-    def _number_of_sentences_to_keep(  # pylint: disable=too-many-positional-arguments
-        self, sentences: List[str], split_length: int, split_overlap: int, granularity: str
-    ) -> int:
+    def _number_of_sentences_to_keep(self, sentences: List[str], split_length: int, split_overlap: int) -> int:
         """
         Returns the number of sentences to keep in the next chunk based on the `split_overlap` and `split_length`.
 
         :param sentences: The list of sentences to split.
         :param split_length: The maximum number of words in each split.
         :param split_overlap: The number of overlapping words in each split.
-        :param granularity: The granularity of Chinese word segmentation, either 'coarse' or 'fine'.
         :returns: The number of sentences to keep in the next chunk.
         """
         # If the split_overlap is 0, we don't need to keep any sentences

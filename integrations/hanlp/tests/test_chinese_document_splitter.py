@@ -225,3 +225,36 @@ class TestChineseDocumentSplitter:
                 f"Chunks {i} and {i + 1} do not overlap. "
                 f"Tail (up to 20 chars): '{overlap_prev}' vs Head (up to 20 chars): '{overlap_curr}'"
             )
+
+    def test_validate_init_parameters(self):
+        ChineseDocumentSplitter._validate_init_parameters(
+            split_by="word",
+            split_length=1000,
+            split_overlap=200,
+            split_threshold=0,
+            granularity="coarse",
+        )
+
+        with pytest.raises(ValueError, match="split_length must be positive"):
+            ChineseDocumentSplitter._validate_init_parameters(split_length=0)
+
+        with pytest.raises(ValueError, match="split_overlap must be non-negative"):
+            ChineseDocumentSplitter._validate_init_parameters(split_overlap=-1)
+
+        with pytest.raises(ValueError, match="split_overlap must be less than split_length"):
+            ChineseDocumentSplitter._validate_init_parameters(split_overlap=1000, split_length=500)
+
+        with pytest.raises(ValueError, match="split_threshold must be non-negative"):
+            ChineseDocumentSplitter._validate_init_parameters(split_threshold=-1)
+
+        with pytest.raises(ValueError, match="split_threshold must be less than split_length"):
+            ChineseDocumentSplitter._validate_init_parameters(split_threshold=1001, split_length=1000)
+
+        with pytest.raises(
+            ValueError,
+            match="split_by must be one of 'word', 'sentence', 'passage', 'page', 'line', 'period', 'function'",
+        ):
+            ChineseDocumentSplitter._validate_init_parameters(split_by="invalid")
+
+        with pytest.raises(ValueError, match="granularity must be one of 'coarse', 'fine'"):
+            ChineseDocumentSplitter._validate_init_parameters(granularity="invalid")
