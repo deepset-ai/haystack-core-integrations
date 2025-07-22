@@ -154,7 +154,7 @@ class OptimumTextEmbedder:
         return default_from_dict(cls, data)
 
     @component.output_types(embedding=List[float])
-    def run(self, text: str):
+    def run(self, text: str) -> Dict[str, List[float]]:
         """
         Embed a string.
 

@@ -158,13 +158,13 @@ def test_discard_invalid_meta_invalid():
             ],
         },
     )
-    pinecone_doc = PineconeDocumentStore._discard_invalid_meta(invalid_metadata_doc)
+    PineconeDocumentStore._discard_invalid_meta(invalid_metadata_doc)
 
-    assert pinecone_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
-    assert pinecone_doc.meta["page_number"] == 1
-    assert pinecone_doc.meta["split_id"] == 0
-    assert pinecone_doc.meta["split_idx_start"] == 0
-    assert "_split_overlap" not in pinecone_doc.meta
+    assert invalid_metadata_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
+    assert invalid_metadata_doc.meta["page_number"] == 1
+    assert invalid_metadata_doc.meta["split_id"] == 0
+    assert invalid_metadata_doc.meta["split_idx_start"] == 0
+    assert "_split_overlap" not in invalid_metadata_doc.meta
 
 
 def test_discard_invalid_meta_valid():
@@ -175,10 +175,10 @@ def test_discard_invalid_meta_valid():
             "page_number": 1,
         },
     )
-    pinecone_doc = PineconeDocumentStore._discard_invalid_meta(valid_metadata_doc)
+    PineconeDocumentStore._discard_invalid_meta(valid_metadata_doc)
 
-    assert pinecone_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
-    assert pinecone_doc.meta["page_number"] == 1
+    assert valid_metadata_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
+    assert valid_metadata_doc.meta["page_number"] == 1
 
 
 def test_convert_meta_to_int():

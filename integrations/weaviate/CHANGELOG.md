@@ -1,10 +1,23 @@
 # Changelog
 
+## [integrations/weaviate-v6.1.0] - 2025-06-20
+
+### 🐛 Bug Fixes
+
+- Weaviate - fix types + add py.typed (#1977)
+
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+
 ## [integrations/weaviate-v6.0.0] - 2025-03-11
 
-### 📚 Documentation
-
-- Update changelog for integrations/weaviate (#1410)
 
 ### 🧹 Chores
 
@@ -81,6 +94,10 @@
 
 ### 🌀 Miscellaneous
 
+- Handle connection to WCS and add tests
+- Revert "Handle connection to WCS and add tests"
+
+This reverts commit f48802b2ce612896fd06a13cf33dffd9f77a8859.
 - Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
 - Chore: Minor retriever pydoc fix (#884)
 - Fix: `weaviate` - Fallback to default filter policy when deserializing retrievers without the init parameter  (#903)

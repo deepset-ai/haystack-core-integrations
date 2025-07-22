@@ -191,7 +191,7 @@ class OptimumDocumentEmbedder:
         return texts_to_embed
 
     @component.output_types(documents=List[Document])
-    def run(self, documents: List[Document]):
+    def run(self, documents: List[Document]) -> Dict[str, List[Document]]:
         """
         Embed a list of Documents.
         The embedding of each Document is stored in the `embedding` field of the Document.

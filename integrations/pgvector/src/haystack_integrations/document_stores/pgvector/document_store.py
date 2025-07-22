@@ -534,6 +534,7 @@ class PgvectorDocumentStore:
         The name of the schema (`schema_name`) and the name of the table (`table_name`)
         are defined when initializing the `PgvectorDocumentStore`.
         """
+        self._ensure_db_setup()
         delete_sql = SQL("DROP TABLE IF EXISTS {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
@@ -551,6 +552,7 @@ class PgvectorDocumentStore:
         """
         Async method to delete the table used to store Haystack documents.
         """
+        await self._ensure_db_setup_async()
         delete_sql = SQL("DROP TABLE IF EXISTS {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),

@@ -2,16 +2,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging as python_logging
-import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 from azure.core.credentials import AzureKeyCredential
-from azure.core.exceptions import ClientAuthenticationError, HttpResponseError, ResourceNotFoundError
+from azure.core.exceptions import (
+    ClientAuthenticationError,
+    HttpResponseError,
+    ResourceNotFoundError,
+)
 from azure.core.pipeline.policies import UserAgentPolicy
 from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
+from azure.search.documents.indexes._generated._serialization import Model
 from azure.search.documents.indexes.models import (
     CharFilter,
     CorsOptions,
@@ -53,7 +57,7 @@ type_mapping = {
 }
 
 # Map of expected field names to their corresponding classes
-AZURE_CLASS_MAPPING = {
+AZURE_CLASS_MAPPING: Dict[str, Type[Model]] = {
     "suggesters": SearchSuggester,
     "analyzers": LexicalAnalyzer,
     "tokenizers": LexicalTokenizer,
@@ -67,7 +71,10 @@ AZURE_CLASS_MAPPING = {
 
 DEFAULT_VECTOR_SEARCH = VectorSearch(
     profiles=[
-        VectorSearchProfile(name="default-vector-config", algorithm_configuration_name="cosine-algorithm-config")
+        VectorSearchProfile(
+            name="default-vector-config",
+            algorithm_configuration_name="cosine-algorithm-config",
+        )
     ],
     algorithms=[
         HnswAlgorithmConfiguration(
@@ -94,7 +101,8 @@ class AzureAISearchDocumentStore:
         embedding_dimension: int = 768,
         metadata_fields: Optional[Dict[str, Union[SearchField, type]]] = None,
         vector_search_configuration: Optional[VectorSearch] = None,
-        **index_creation_kwargs,
+        include_search_metadata: bool = False,
+        **index_creation_kwargs: Any,
     ):
         """
         A document store using [Azure AI Search](https://azure.microsoft.com/products/ai-services/ai-search/)
@@ -123,6 +131,10 @@ class AzureAISearchDocumentStore:
         :param vector_search_configuration: Configuration option related to vector search.
             Default configuration uses the HNSW algorithm with cosine similarity to handle vector searches.
 
+        :param include_search_metadata: Whether to include Azure AI Search metadata fields
+            in the returned documents. When set to True, the `meta` field of the returned
+            documents will contain the @search.score, @search.reranker_score, @search.highlights,
+            @search.captions, and other fields returned by Azure AI Search.
         :param index_creation_kwargs: Optional keyword parameters to be passed to `SearchIndex` class
             during index creation. Some of the supported parameters:
                 - `semantic_search`: Defines semantic configuration of the search index. This parameter is needed
@@ -133,16 +145,8 @@ class AzureAISearchDocumentStore:
 
         For more information on parameters, see the [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/).
         """
-
-        azure_endpoint = azure_endpoint or os.environ.get("AZURE_AI_SEARCH_ENDPOINT") or None
-        if not azure_endpoint:
-            msg = "Please provide an Azure endpoint or set the environment variable AZURE_AI_SEARCH_ENDPOINT."
-            raise ValueError(msg)
-
-        api_key = api_key or os.environ.get("AZURE_AI_SEARCH_API_KEY") or None
-
-        self._client = None
-        self._index_client = None
+        self._client: Optional[SearchClient] = None
+        self._index_client: Optional[SearchIndexClient] = None
         self._index_fields = []  # type: List[Any]  # stores all fields in the final schema of index
         self._api_key = api_key
         self._azure_endpoint = azure_endpoint
@@ -151,15 +155,13 @@ class AzureAISearchDocumentStore:
         self._dummy_vector = [-10.0] * self._embedding_dimension
         self._metadata_fields = self._normalize_metadata_index_fields(metadata_fields)
         self._vector_search_configuration = vector_search_configuration or DEFAULT_VECTOR_SEARCH
+        self._include_search_metadata = include_search_metadata
         self._index_creation_kwargs = index_creation_kwargs
 
     @property
     def client(self) -> SearchClient:
-        # resolve secrets for authentication
-        resolved_endpoint = (
-            self._azure_endpoint.resolve_value() if isinstance(self._azure_endpoint, Secret) else self._azure_endpoint
-        )
-        resolved_key = self._api_key.resolve_value() if isinstance(self._api_key, Secret) else self._api_key
+        resolved_endpoint = self._azure_endpoint.resolve_value()
+        resolved_key = self._api_key.resolve_value()
 
         credential = AzureKeyCredential(resolved_key) if resolved_key else DefaultAzureCredential()
 
@@ -168,8 +170,9 @@ class AzureAISearchDocumentStore:
         try:
             if not self._index_client:
                 self._index_client = SearchIndexClient(
-                    resolved_endpoint,
-                    credential,
+                    # resolve_value, with Secret.from_env_var (strict=True), returns a string or raises an error
+                    endpoint=resolved_endpoint,  # type: ignore[arg-type]
+                    credential=credential,
                     user_agent=ua_policy,
                 )
             if not self._index_exists(self._index_name):
@@ -266,7 +269,9 @@ class AzureAISearchDocumentStore:
             self._index_client.create_index(index)
 
     @staticmethod
-    def _serialize_index_creation_kwargs(index_creation_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    def _serialize_index_creation_kwargs(
+        index_creation_kwargs: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """
         Serializes the index creation kwargs to a dictionary.
         This is needed to handle serialization of Azure AI Search classes
@@ -287,7 +292,7 @@ class AzureAISearchDocumentStore:
         """
         Deserializes the index creation kwargs to the original classes.
         """
-        result = {}
+        result: Dict[str, Union[List[Model], Model]] = {}
         for key, value in data.items():
             if key in AZURE_CLASS_MAPPING:
                 if isinstance(value, list):
@@ -310,7 +315,7 @@ class AzureAISearchDocumentStore:
         """
         return default_to_dict(
             self,
-            azure_endpoint=self._azure_endpoint.to_dict() if self._azure_endpoint else None,
+            azure_endpoint=(self._azure_endpoint.to_dict() if self._azure_endpoint else None),
             api_key=self._api_key.to_dict() if self._api_key else None,
             index_name=self._index_name,
             embedding_dimension=self._embedding_dimension,
@@ -337,7 +342,7 @@ class AzureAISearchDocumentStore:
         else:
             data["init_parameters"]["metadata_fields"] = {}
 
-        for key, _value in AZURE_CLASS_MAPPING.items():
+        for key in AZURE_CLASS_MAPPING:
             if key in data["init_parameters"]:
                 param_value = data["init_parameters"].get(key)
                 data["init_parameters"][key] = cls._deserialize_index_creation_kwargs({key: param_value})
@@ -421,7 +426,7 @@ class AzureAISearchDocumentStore:
         if filters:
             normalized_filters = _normalize_filters(filters)
             result = self.client.search(filter=normalized_filters)
-            return self._convert_search_result_to_documents(result)
+            return self._convert_search_result_to_documents(list(result))
         else:
             return self.search_documents()
 
@@ -433,19 +438,28 @@ class AzureAISearchDocumentStore:
 
         for azure_doc in azure_docs:
             embedding = azure_doc.get("embedding")
+            score = azure_doc.get("@search.score", None)
             if embedding == self._dummy_vector:
                 embedding = None
+            meta = {}
 
             # Anything besides default fields (id, content, and embedding) is considered metadata
-            meta = {
-                key: value
-                for key, value in azure_doc.items()
-                if key not in ["id", "content", "embedding"] and key in self._index_fields and value is not None
-            }
+            if self._include_search_metadata:
+                meta = {key: value for key, value in azure_doc.items() if key not in ["id", "content", "embedding"]}
+            else:
+                meta = {
+                    key: value
+                    for key, value in azure_doc.items()
+                    if key not in ["id", "content", "embedding"] and key in self._index_fields and value is not None
+                }
 
             # Create the document with meta only if it's non-empty
             doc = Document(
-                id=azure_doc["id"], content=azure_doc["content"], embedding=embedding, meta=meta if meta else {}
+                id=azure_doc["id"],
+                content=azure_doc["content"],
+                embedding=embedding,
+                meta=meta,
+                score=score,
             )
 
             documents.append(doc)
@@ -465,7 +479,7 @@ class AzureAISearchDocumentStore:
             msg = "Index name is required to check if the index exists."
             raise ValueError(msg)
 
-    def _get_raw_documents_by_id(self, document_ids: List[str]):
+    def _get_raw_documents_by_id(self, document_ids: List[str]) -> List[Dict]:
         """
         Retrieves all Azure documents with a matching document_ids from the document store.
 
@@ -499,7 +513,7 @@ class AzureAISearchDocumentStore:
         *,
         top_k: int = 10,
         filters: Optional[str] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
@@ -533,7 +547,7 @@ class AzureAISearchDocumentStore:
         query: str,
         top_k: int = 10,
         filters: Optional[str] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> List[Document]:
         """
         Retrieves documents that are most similar to `query`, using the BM25 algorithm.
@@ -566,7 +580,7 @@ class AzureAISearchDocumentStore:
         query_embedding: List[float],
         top_k: int = 10,
         filters: Optional[str] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> List[Document]:
         """
         Retrieves documents similar to query using the vector configuration in the document store and

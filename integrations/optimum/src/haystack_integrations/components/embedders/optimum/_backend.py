@@ -2,7 +2,7 @@ import copy
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, overload
 
 import numpy as np
 import torch
@@ -111,7 +111,7 @@ class _EmbedderBackend:
         self.params = params
         self.model = None
         self.tokenizer = None
-        self.pooling_layer = None
+        self.pooling_layer: Optional[SentenceTransformerPoolingLayer] = None
 
     def warm_up(self):
         assert self.params.model_kwargs
@@ -187,6 +187,12 @@ class _EmbedderBackend:
         features = {"token_embeddings": model_output, "attention_mask": attention_mask}
         pooled_outputs = self.pooling_layer.forward(features)
         return pooled_outputs["sentence_embedding"]
+
+    @overload
+    def embed_texts(self, texts_to_embed: str) -> List[float]: ...
+
+    @overload
+    def embed_texts(self, texts_to_embed: List[str]) -> List[List[float]]: ...
 
     def embed_texts(
         self,

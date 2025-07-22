@@ -190,7 +190,7 @@ class JinaDocumentEmbedder:
         return all_embeddings, metadata
 
     @component.output_types(documents=List[Document], meta=Dict[str, Any])
-    def run(self, documents: List[Document]):
+    def run(self, documents: List[Document]) -> Dict[str, Any]:
         """
         Compute the embeddings for a list of Documents.
 

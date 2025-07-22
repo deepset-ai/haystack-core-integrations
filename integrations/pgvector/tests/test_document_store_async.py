@@ -206,3 +206,13 @@ async def test_create_table_if_not_exists():
     # Clean up: drop the schema after the test
     async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:
         await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_delete_table_async_first_call(document_store):
+    """
+    Test that delete_table_async can be executed as the initial operation on the Document Store
+    without triggering errors due to an uninitialized state.
+    """
+    await document_store.delete_table_async()  # if throw error, test fails

@@ -60,9 +60,6 @@ class GitHubIssueViewerTool(ComponentTool):
                 "documents": {"handler": custom_handler}
             }
         """
-        self.name = name
-        self.description = description
-        self.parameters = parameters
         self.github_token = github_token
         self.raise_on_failure = raise_on_failure
         self.retry_attempts = retry_attempts
