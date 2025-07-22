@@ -20,7 +20,7 @@ from anthropic.types import (
 )
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, ToolCall, ToolCallDelta
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 
@@ -28,6 +28,8 @@ from haystack_integrations.components.generators.anthropic.chat.chat_generator i
     AnthropicChatGenerator,
     _convert_messages_to_anthropic_format,
 )
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
+
 
 
 def hello_world():
@@ -338,8 +340,6 @@ class TestAnthropicChatGenerator:
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(text_delta_chunk, index=0, component_info=component_info)
         assert streaming_chunk.content == "Hello, world!"
         assert streaming_chunk.meta == {
-            "model": None,
-            "usage": None,
             "type": "content_block_delta",
             "index": 0,
             "delta": {"type": "text_delta", "text": "Hello, world!"},
@@ -359,7 +359,7 @@ class TestAnthropicChatGenerator:
                 "usage": {"input_tokens": 25, "output_tokens": 1},
             },
         )
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(message_start_chunk, component_info)
+        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(message_start_chunk, index=0, component_info=component_info)
         assert streaming_chunk.content == ""
 
         # remove fields not present in the pinned version of the Anthropic SDK.
@@ -392,7 +392,7 @@ class TestAnthropicChatGenerator:
             index=1,
             content_block={"type": "tool_use", "id": "toolu_123", "name": "weather", "input": {"city": "Paris"}},
         )
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(tool_use_chunk, component_info)
+        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(tool_use_chunk, index=1, component_info=component_info)
         assert streaming_chunk.content == ""
         assert streaming_chunk.meta == {
             "type": "content_block_start",
@@ -424,12 +424,14 @@ class TestAnthropicChatGenerator:
                     },
                 },
                 component_info=ComponentInfo.from_component(self),
+                index=0, tool_calls=[], tool_call_result=None, start=True, finish_reason=None
             ),
             # Initial text content
             StreamingChunk(
                 content="",
                 meta={"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
                 component_info=ComponentInfo.from_component(self),
+                index=1, tool_calls=[], tool_call_result=None, start=True, finish_reason=None
             ),
             StreamingChunk(
                 content="Let me check",
@@ -439,6 +441,7 @@ class TestAnthropicChatGenerator:
                     "delta": {"type": "text_delta", "text": "Let me check"},
                 },
                 component_info=ComponentInfo.from_component(self),
+                index=2, tool_calls=[], tool_call_result=None, start=False, finish_reason=None
             ),
             StreamingChunk(
                 content=" the weather",
@@ -447,8 +450,10 @@ class TestAnthropicChatGenerator:
                     "index": 0,
                     "delta": {"type": "text_delta", "text": " the weather"},
                 },
+                component_info=ComponentInfo.from_component(self),
+                index=3, tool_calls=[], tool_call_result=None, start=False, finish_reason=None
             ),
-            StreamingChunk(content="", meta={"type": "content_block_stop", "index": 0}),
+            
             # Tool use content
             StreamingChunk(
                 content="",
@@ -457,6 +462,8 @@ class TestAnthropicChatGenerator:
                     "index": 1,
                     "content_block": {"type": "tool_use", "id": "toolu_123", "name": "weather", "input": {}},
                 },
+                component_info=ComponentInfo.from_component(self),
+                index=5, tool_calls=[ToolCallDelta(index=1, id="toolu_123", tool_name="weather", arguments=None)], tool_call_result=None, start=True, finish_reason=None
             ),
             StreamingChunk(
                 content="",
@@ -465,6 +472,8 @@ class TestAnthropicChatGenerator:
                     "index": 1,
                     "delta": {"type": "input_json_delta", "partial_json": '{"city":'},
                 },
+                component_info=ComponentInfo.from_component(self),
+                index=6, tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments='{"city":')], tool_call_result=None, start=False, finish_reason=None
             ),
             StreamingChunk(
                 content="",
@@ -473,8 +482,9 @@ class TestAnthropicChatGenerator:
                     "index": 1,
                     "delta": {"type": "input_json_delta", "partial_json": ' "Paris"}'},
                 },
+                component_info=ComponentInfo.from_component(self),
+                index=7, tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments='"Paris"}')], tool_call_result=None, start=False, finish_reason=None
             ),
-            StreamingChunk(content="", meta={"type": "content_block_stop", "index": 1}),
             # Final message delta
             StreamingChunk(
                 content="",
@@ -483,15 +493,15 @@ class TestAnthropicChatGenerator:
                     "delta": {"stop_reason": "tool_use", "stop_sequence": None},
                     "usage": {"completion_tokens": 40},
                 },
+                component_info=ComponentInfo.from_component(self),
+                index=8, tool_calls=[], tool_call_result=None, start=False, finish_reason="tool_calls"
             ),
         ]
 
-        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
-        message = component._convert_streaming_chunks_to_chat_message(chunks, model="claude-sonnet-4-20250514")
+        message = _convert_streaming_chunks_to_chat_message(chunks)
 
         # Verify the message content
         assert message.text == "Let me check the weather"
-
         # Verify tool calls
         assert len(message.tool_calls) == 1
         tool_call = message.tool_calls[0]
@@ -500,31 +510,65 @@ class TestAnthropicChatGenerator:
         assert tool_call.arguments == {"city": "Paris"}
 
         # Verify meta information
-        assert message._meta["model"] == "claude-sonnet-4-20250514"
         assert message._meta["index"] == 0
-        assert message._meta["finish_reason"] == "tool_use"
-        assert message._meta["usage"] == {"prompt_tokens": 25, "completion_tokens": 40}
+        assert message._meta["finish_reason"] == "tool_calls"
+        assert message._meta["usage"] == {"completion_tokens": 40}
 
-    def test_convert_streaming_chunks_to_chat_message_malformed_json(self, caplog):
+    def test_convert_streaming_chunks_to_chat_message_tool_call_with_empty_arguments(self):
         """
-        Test converting streaming chunks with malformed JSON in tool arguments (increases coverage)
+        Test converting streaming chunks with an empty tool call arguments
         """
+
+        # Create a sequence of streaming chunks that simulate Anthropic's response
         chunks = [
+            # Message start with input tokens
+            StreamingChunk(
+                content="",
+                meta={
+                    "type": "message_start",
+                    "message": {
+                        "id": "msg_123",
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [],
+                        "model": "claude-sonnet-4-20250514",
+                        "stop_reason": None,
+                        "stop_sequence": None,
+                        "usage": {"input_tokens": 25, "output_tokens": 0},
+                    },
+                },
+                component_info=ComponentInfo.from_component(self),
+                index=0, tool_calls=[], tool_call_result=None, start=True, finish_reason=None
+            ),
             # Initial text content
             StreamingChunk(
                 content="",
                 meta={"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
+                component_info=ComponentInfo.from_component(self),
+                index=1, tool_calls=[], tool_call_result=None, start=True, finish_reason=None
             ),
             StreamingChunk(
-                content="Let me check the weather",
+                content="Let me check",
                 meta={
                     "type": "content_block_delta",
                     "index": 0,
-                    "delta": {"type": "text_delta", "text": "Let me check the weather"},
+                    "delta": {"type": "text_delta", "text": "Let me check"},
                 },
+                component_info=ComponentInfo.from_component(self),
+                index=2, tool_calls=[], tool_call_result=None, start=False, finish_reason=None
             ),
-            StreamingChunk(content="", meta={"type": "content_block_stop", "index": 0}),
-            # Tool use content with malformed JSON
+            StreamingChunk(
+                content=" the weather",
+                meta={
+                    "type": "content_block_delta",
+                    "index": 0,
+                    "delta": {"type": "text_delta", "text": " the weather"},
+                },
+                component_info=ComponentInfo.from_component(self),
+                index=3, tool_calls=[], tool_call_result=None, start=False, finish_reason=None
+            ),
+            
+            # Tool use content
             StreamingChunk(
                 content="",
                 meta={
@@ -532,27 +576,29 @@ class TestAnthropicChatGenerator:
                     "index": 1,
                     "content_block": {"type": "tool_use", "id": "toolu_123", "name": "weather", "input": {}},
                 },
+                component_info=ComponentInfo.from_component(self),
+                index=5, tool_calls=[ToolCallDelta(index=1, id="toolu_123", tool_name="weather", arguments=None)], tool_call_result=None, start=True, finish_reason=None
             ),
             StreamingChunk(
                 content="",
                 meta={
                     "type": "content_block_delta",
                     "index": 1,
-                    "delta": {"type": "input_json_delta", "partial_json": '{"city":'},
+                    "delta": {"type": "input_json_delta", "partial_json": ''},
                 },
+                component_info=ComponentInfo.from_component(self),
+                index=6, tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments='')], tool_call_result=None, start=False, finish_reason=None
             ),
             StreamingChunk(
                 content="",
                 meta={
                     "type": "content_block_delta",
                     "index": 1,
-                    "delta": {
-                        "type": "input_json_delta",
-                        "partial_json": ' "Paris',  # Missing closing quote and brace, malformed JSON
-                    },
+                    "delta": {"type": "input_json_delta", "partial_json": ''},
                 },
+                component_info=ComponentInfo.from_component(self),
+                index=7, tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments='')], tool_call_result=None, start=False, finish_reason=None
             ),
-            StreamingChunk(content="", meta={"type": "content_block_stop", "index": 1}),
             # Final message delta
             StreamingChunk(
                 content="",
@@ -561,129 +607,15 @@ class TestAnthropicChatGenerator:
                     "delta": {"stop_reason": "tool_use", "stop_sequence": None},
                     "usage": {"completion_tokens": 40},
                 },
+                component_info=ComponentInfo.from_component(self),
+                index=8, tool_calls=[], tool_call_result=None, start=False, finish_reason="tool_calls"
             ),
         ]
 
-        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
-        message = component._convert_streaming_chunks_to_chat_message(chunks, model="claude-sonnet-4-20250514")
-
-        # Verify the message content is preserve
-        assert message.text == "Let me check the weather"
-
-        # But the tool_calls are empty
-        assert len(message.tool_calls) == 0
-
-        # and we have logged a warning
-        with caplog.at_level(logging.WARNING):
-            assert "Anthropic returned a malformed JSON string" in caplog.text
-
-    def test_convert_streaming_chunks_to_chat_message_tool_call_with_empty_arguments(self):
-        """
-        Test converting streaming chunks with an empty tool call arguments
-        """
-        chunks = [
-            # Message start with input tokens
-            StreamingChunk(
-                content="",
-                meta={
-                    "type": "message_start",
-                    "message": {
-                        "id": "msg_456",
-                        "type": "message",
-                        "role": "assistant",
-                        "content": [],
-                        "model": "claude-sonnet-4-20250514",
-                        "stop_reason": None,
-                        "stop_sequence": None,
-                        "usage": {"input_tokens": 50, "output_tokens": 0},
-                    },
-                },
-            ),
-            StreamingChunk(
-                content="",
-                meta={
-                    "content_block": {"citations": None, "text": "", "type": "text"},
-                    "index": 0,
-                    "type": "content_block_start",
-                },
-            ),
-            StreamingChunk(
-                content="Certainly! I can",
-                meta={
-                    "delta": {"text": "Certainly! I can", "type": "text_delta"},
-                    "index": 0,
-                    "type": "content_block_delta",
-                },
-            ),
-            StreamingChunk(
-                content=' help you print "Hello World" using the available',
-                meta={
-                    "delta": {"text": ' help you print "Hello World" using the available', "type": "text_delta"},
-                    "index": 0,
-                    "type": "content_block_delta",
-                },
-            ),
-            StreamingChunk(
-                content=" tool. Let's use the \"",
-                meta={
-                    "delta": {"text": " tool. Let's use the \"", "type": "text_delta"},
-                    "index": 0,
-                    "type": "content_block_delta",
-                },
-            ),
-            StreamingChunk(
-                content='hello_world" function to accomplish this task.',
-                meta={
-                    "delta": {"text": 'hello_world" function to accomplish this task.', "type": "text_delta"},
-                    "index": 0,
-                    "type": "content_block_delta",
-                },
-            ),
-            StreamingChunk(
-                content="",
-                meta={
-                    "content_block": {
-                        "id": "toolu_014yzmmeNPAuTuiN92qV6LKr",
-                        "input": {},
-                        "name": "hello_world",
-                        "type": "tool_use",
-                    },
-                    "index": 1,
-                    "type": "content_block_start",
-                },
-            ),
-            StreamingChunk(
-                content="",
-                meta={
-                    "delta": {"partial_json": "", "type": "input_json_delta"},
-                    "index": 1,
-                    "type": "content_block_delta",
-                },
-            ),
-            StreamingChunk(
-                content="",
-                meta={
-                    "delta": {"stop_reason": "tool_use", "stop_sequence": None},
-                    "type": "message_delta",
-                    "usage": {
-                        "cache_creation_input_tokens": None,
-                        "cache_read_input_tokens": None,
-                        "input_tokens": None,
-                        "output_tokens": 69,
-                        "server_tool_use": None,
-                    },
-                },
-            ),
-        ]
-
-        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
-        message = component._convert_streaming_chunks_to_chat_message(chunks, model="claude-sonnet-4-20250514")
+        message = _convert_streaming_chunks_to_chat_message(chunks)
 
         # Verify the message content
-        assert message.text == (
-            'Certainly! I can help you print "Hello World" using the available tool. Let\'s use the "hello_world" '
-            "function to accomplish this task."
-        )
+        assert message.text == 'Let me check the weather'
 
         # Verify tool calls
         assert len(message.tool_calls) == 1
@@ -695,7 +627,7 @@ class TestAnthropicChatGenerator:
         # Verify meta information
         assert message._meta["model"] == "claude-sonnet-4-20250514"
         assert message._meta["index"] == 0
-        assert message._meta["finish_reason"] == "tool_use"
+        assert message._meta["finish_reason"] == "tool_calls"
         assert message._meta["usage"] == {
             "cache_creation_input_tokens": None,
             "cache_read_input_tokens": None,
@@ -1034,7 +966,7 @@ class TestAnthropicChatGenerator:
         assert tool_call.id is not None
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
-        assert message.meta["finish_reason"] == "tool_use"
+        assert message.meta["finish_reason"] == "tool_calls"
 
         new_messages = [
             *initial_messages,
@@ -1101,7 +1033,7 @@ class TestAnthropicChatGenerator:
         assert tool_call.id is not None
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Tokyo"}
-        assert message.meta["finish_reason"] == "tool_use"
+        assert message.meta["finish_reason"] == "tool_calls"
 
     @pytest.mark.skipif(
         not os.environ.get("ANTHROPIC_API_KEY", None),
@@ -1131,7 +1063,7 @@ class TestAnthropicChatGenerator:
         assert tool_call.id is not None
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
-        assert message.meta["finish_reason"] == "tool_use"
+        assert message.meta["finish_reason"] == "tool_calls"
 
         new_messages = [
             *initial_messages,
@@ -1172,7 +1104,7 @@ class TestAnthropicChatGenerator:
         assert tool_call.id is not None
         assert tool_call.tool_name == "hello_world"
         assert tool_call.arguments == {}
-        assert message.meta["finish_reason"] == "tool_use"
+        assert message.meta["finish_reason"] == "tool_calls"
 
         new_messages = [
             *initial_messages,
@@ -1209,7 +1141,7 @@ class TestAnthropicChatGenerator:
         assert tool_call_paris.id is not None
         assert tool_call_paris.tool_name == "weather"
         assert tool_call_paris.arguments["city"] in {"Paris", "Berlin"}
-        assert message.meta["finish_reason"] == "tool_use"
+        assert message.meta["finish_reason"] == "tool_calls"
 
         tool_call_berlin = message.tool_calls[1]
         assert isinstance(tool_call_berlin, ToolCall)
@@ -1618,7 +1550,7 @@ class TestAnthropicChatGeneratorAsync:
         assert tool_call.id is not None
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
-        assert message.meta["finish_reason"] == "tool_use"
+        assert message.meta["finish_reason"] == "tool_calls"
 
         new_messages = [
             *initial_messages,

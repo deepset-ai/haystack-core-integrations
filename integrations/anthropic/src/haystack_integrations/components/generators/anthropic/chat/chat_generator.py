@@ -386,18 +386,12 @@ class AnthropicChatGenerator:
         tool_calls = []
         start = False
         finish_reason = None
-        usage = None
-        model = None
 
-        print( "\n"+"Checking Chunk")
-        print(chunk.type)
-        print(chunk)
-
+        # starting streaming message
         if chunk.type == "message_start":
-            model = chunk.message.model
-            usage = chunk.message.usage.to_dict()
             start = True
 
+        # start of a content block
         if chunk.type == "content_block_start":
             start = True
             if chunk.content_block.type == "tool_use":
@@ -406,6 +400,7 @@ class AnthropicChatGenerator:
                     id=chunk.content_block.id,
                     tool_name=chunk.content_block.name,
                 ))
+        # delta of a content block
         elif chunk.type == "content_block_delta":
             if chunk.delta.type == "text_delta":
                 content = chunk.delta.text
@@ -414,11 +409,11 @@ class AnthropicChatGenerator:
                     index=chunk.index,
                     arguments=chunk.delta.partial_json
                 ))
+        # end of streaming message
         elif chunk.type == "message_delta":
             finish_reason = getattr(chunk.delta, "stop_reason", None)
-            usage = chunk.usage.to_dict()
 
-        return StreamingChunk(content=content, index=index, component_info=component_info, start=start, finish_reason=FINISH_REASON_MAPPING.get(finish_reason, None), tool_calls=tool_calls, meta={"usage": usage, "model": model})
+        return StreamingChunk(content=content, index=index, component_info=component_info, start=start, finish_reason=FINISH_REASON_MAPPING.get(finish_reason, None), tool_calls=tool_calls, meta=chunk.model_dump())
 
 
     def _prepare_request_params(
