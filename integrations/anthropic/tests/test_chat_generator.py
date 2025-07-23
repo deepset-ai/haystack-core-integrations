@@ -26,7 +26,6 @@ from haystack.utils.auth import Secret
 from haystack_integrations.components.generators.anthropic.chat.chat_generator import (
     AnthropicChatGenerator,
     _convert_messages_to_anthropic_format,
-    _convert_streaming_chunks_to_chat_message,
 )
 from anthropic.types import (
     RawContentBlockDeltaEvent,
@@ -36,10 +35,16 @@ from anthropic.types import (
     TextBlockParam,
     TextDelta,
     Usage,
+    InputJSONDelta,
+    ToolUseBlock,
+    MessageDeltaUsage,
+    TextBlock,
+    RawMessageStopEvent,
+    RawContentBlockStopEvent,
 )
 
-#from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
-
+from anthropic.types.raw_message_delta_event import Delta
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 
 
 def hello_world():
@@ -91,17 +96,89 @@ def mock_anthropic_completion():
         mock_anthropic.return_value = completion
         yield mock_anthropic
 
-def anthropic_completion_chunks():
-    return [RawMessageStartEvent(message=Message(id="msg_01ApGaijiGeLtxWLCKUKELfT", content=[], model="claude-sonnet-4-20250514", role="assistant", stop_reason=None, stop_sequence=None, type="message", usage=Usage(cache_creation_input_tokens=0, cache_read_input_tokens=0, input_tokens=393, output_tokens=3, server_tool_use=None, service_tier="standard")), type="message_start"),
-RawContentBlockStartEvent(content_block=TextBlock(citations=None, text="", type="text"), index=0, type="content_block_start"),
-RawContentBlockDeltaEvent(delta=TextDelta(text="I'll calculate", type="text_delta"), index=0, type="content_block_delta"),RawContentBlockDeltaEvent(delta=TextDelta(text=" 7 * (4 + 2) for you.", type="text_delta"), index=0, type="content_block_delta"),RawContentBlockStopEvent(index=0, type="content_block_stop"),
-RawContentBlockStartEvent(content_block=ToolUseBlock(id="toolu_011dE5KDKxSh6hi85EnRKZT3", input={}, name="calculator", type="tool_use"), index=1, type="content_block_start"),
-RawContentBlockDeltaEvent(delta=InputJSONDelta(partial_json="", type="input_json_delta"), index=1, type="content_block_delta"),
-RawContentBlockDeltaEvent(delta=InputJSONDelta(partial_json='{"expression: "7 ', type="input_json_delta"), index=1, type="content_block_delta"),
-RawContentBlockDeltaEvent(delta=InputJSONDelta(partial_json="* (4 +", type="input_json_delta"), index=1, type="content_block_delta"),RawContentBlockDeltaEvent(delta=InputJSONDelta(partial_json=' 2)"}', type="input_json_delta"), index=1, type="content_block_delta"),
-RawContentBlockStopEvent(index=1, type="content_block_stop"),
-RawMessageDeltaEvent(delta=Delta(stop_reason="tool_use", stop_sequence=None), type="message_delta", usage=MessageDeltaUsage(cache_creation_input_tokens=None, cache_read_input_tokens=None, input_tokens=None, output_tokens=77, server_tool_use=None)),
-RawMessageStopEvent(type="message_stop")]
+@pytest.fixture
+def mock_anthropic_completion_chunks():
+    return [
+        RawMessageStartEvent(
+            message=Message(
+                id="msg_01ApGaijiGeLtxWLCKUKELfT",
+                content=[],
+                model="claude-sonnet-4-20250514",
+                role="assistant",
+                stop_reason=None,
+                stop_sequence=None,
+                type="message",
+                usage=Usage(
+                    cache_creation_input_tokens=0,
+                    cache_read_input_tokens=0,
+                    input_tokens=393,
+                    output_tokens=3,
+                    server_tool_use=None,
+                    service_tier="standard"
+                )
+            ),
+            type="message_start"
+        ),
+        RawContentBlockStartEvent(
+            content_block=TextBlock(citations=None, text="", type="text"),
+            index=0,
+            type="content_block_start"
+        ),
+        RawContentBlockDeltaEvent(
+            delta=TextDelta(text="I'll calculate", type="text_delta"),
+            index=0,
+            type="content_block_delta"
+        ),
+        RawContentBlockDeltaEvent(
+            delta=TextDelta(text=" 7 * (4 + 2) for you.", type="text_delta"),
+            index=0,
+            type="content_block_delta"
+        ),
+        RawContentBlockStopEvent(index=0, type="content_block_stop"),
+        RawContentBlockStartEvent(
+            content_block=ToolUseBlock(
+                id="toolu_011dE5KDKxSh6hi85EnRKZT3",
+                input={},
+                name="calculator",
+                type="tool_use"
+            ),
+            index=1,
+            type="content_block_start"
+        ),
+        RawContentBlockDeltaEvent(
+            delta=InputJSONDelta(partial_json="", type="input_json_delta"),
+            index=1,
+            type="content_block_delta"
+        ),
+        RawContentBlockDeltaEvent(
+            delta=InputJSONDelta(partial_json='{"expression": "7 ', type="input_json_delta"),
+            index=1,
+            type="content_block_delta"
+        ),
+        RawContentBlockDeltaEvent(
+            delta=InputJSONDelta(partial_json="* (4 +", type="input_json_delta"),
+            index=1,
+            type="content_block_delta"
+        ),
+        RawContentBlockDeltaEvent(
+            delta=InputJSONDelta(partial_json=' 2)"}', type="input_json_delta"),
+            index=1,
+            type="content_block_delta"
+        ),
+        RawContentBlockStopEvent(index=1, type="content_block_stop"),
+        RawMessageDeltaEvent(
+            delta=Delta(stop_reason="tool_use", stop_sequence=None),
+            type="message_delta",
+            usage=MessageDeltaUsage(
+                cache_creation_input_tokens=None,
+                cache_read_input_tokens=None,
+                input_tokens=None,
+                output_tokens=77,
+                server_tool_use=None
+            )
+        ),
+        RawMessageStopEvent(type="message_stop")
+    ]
 
 
 class TestAnthropicChatGenerator:
@@ -347,6 +424,8 @@ class TestAnthropicChatGenerator:
         """Test that the AnthropicChatGenerator component fails to initialize with duplicate tool names."""
         with pytest.raises(ValueError):
             AnthropicChatGenerator(tools=tools + tools)
+    
+
 
     def test_convert_anthropic_chunk_to_streaming_chunk(self):
         """
@@ -426,6 +505,13 @@ class TestAnthropicChatGenerator:
             "content_block": {"type": "tool_use", "id": "toolu_123", "name": "weather", "input": {"city": "Paris"}},
         }
         assert streaming_chunk.component_info.type.endswith("chat_generator.AnthropicChatGenerator")
+
+    def test_convert_anthropic_completion_chunks_to_streaming_chunks(self, mock_anthropic_completion_chunks):
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component_info = ComponentInfo.from_component(component)
+        for index, chunk in enumerate(mock_anthropic_completion_chunks):
+            streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(chunk, index=index, component_info=component_info)
+            assert streaming_chunk.meta["type"] == chunk.type
 
     def test_convert_streaming_chunks_to_chat_message(self):
         """
