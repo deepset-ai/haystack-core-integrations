@@ -372,7 +372,7 @@ class TestWatsonxGeneratorIntegration:
 
         result = generator.run(
             prompt="What's the capital of France? Answer concisely.",
-            system_prompt="You are a geography expert. Answer concisely."
+            system_prompt="You are a geography expert. Answer concisely.",
         )
 
         assert isinstance(result, dict)
