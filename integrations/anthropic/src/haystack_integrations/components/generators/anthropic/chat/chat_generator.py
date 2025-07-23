@@ -1,8 +1,9 @@
-import json
+
 from datetime import datetime, timezone
 from typing import Any, ClassVar, Dict, List, Literal, Optional, Tuple, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole, ToolCall, ToolCallResult
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
@@ -14,8 +15,6 @@ from haystack.dataclasses.streaming_chunk import (
     ToolCallDelta,
     select_streaming_callback,
 )
-
-from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.tools import (
     Tool,
     Toolset,
@@ -413,7 +412,9 @@ class AnthropicChatGenerator:
         elif chunk.type == "message_delta":
             finish_reason = getattr(chunk.delta, "stop_reason", None)
 
-        return StreamingChunk(content=content, index=index, component_info=component_info, start=start, finish_reason=FINISH_REASON_MAPPING.get(finish_reason, None), tool_calls=tool_calls, meta=chunk.model_dump())
+        return StreamingChunk(content=content, index=index, component_info=component_info,
+                            start=start, finish_reason=FINISH_REASON_MAPPING.get(finish_reason, None),
+                            tool_calls=tool_calls, meta=chunk.model_dump())
 
 
     def _prepare_request_params(

@@ -11,14 +11,25 @@ import pytest
 from anthropic.types import (
     ContentBlockDeltaEvent,
     ContentBlockStartEvent,
+    InputJSONDelta,
     Message,
+    MessageDeltaUsage,
     MessageStartEvent,
+    RawContentBlockDeltaEvent,
+    RawContentBlockStartEvent,
+    RawContentBlockStopEvent,
+    RawMessageDeltaEvent,
+    RawMessageStartEvent,
+    RawMessageStopEvent,
+    TextBlock,
     TextBlockParam,
     TextDelta,
+    ToolUseBlock,
     Usage,
 )
+from anthropic.types.raw_message_delta_event import Delta
 from haystack import Pipeline
-from haystack.components.generators.utils import print_streaming_chunk
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, ToolCall, ToolCallDelta
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
@@ -27,24 +38,6 @@ from haystack_integrations.components.generators.anthropic.chat.chat_generator i
     AnthropicChatGenerator,
     _convert_messages_to_anthropic_format,
 )
-from anthropic.types import (
-    RawContentBlockDeltaEvent,
-    RawContentBlockStartEvent,
-    RawMessageDeltaEvent,
-    RawMessageStartEvent,
-    TextBlockParam,
-    TextDelta,
-    Usage,
-    InputJSONDelta,
-    ToolUseBlock,
-    MessageDeltaUsage,
-    TextBlock,
-    RawMessageStopEvent,
-    RawContentBlockStopEvent,
-)
-
-from anthropic.types.raw_message_delta_event import Delta
-from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 
 
 def hello_world():
@@ -424,7 +417,7 @@ class TestAnthropicChatGenerator:
         """Test that the AnthropicChatGenerator component fails to initialize with duplicate tool names."""
         with pytest.raises(ValueError):
             AnthropicChatGenerator(tools=tools + tools)
-    
+
 
 
     def test_convert_anthropic_chunk_to_streaming_chunk(self):
@@ -510,7 +503,8 @@ class TestAnthropicChatGenerator:
         component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
         component_info = ComponentInfo.from_component(component)
         for index, chunk in enumerate(mock_anthropic_completion_chunks):
-            streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(chunk, index=index, component_info=component_info)
+            streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+                chunk, index=index, component_info=component_info)
             assert streaming_chunk.meta["type"] == chunk.type
 
     def test_convert_streaming_chunks_to_chat_message(self):
