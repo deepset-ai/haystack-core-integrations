@@ -13,17 +13,15 @@ on:
 env:
   CORE_DATADOG_API_KEY: ${{ secrets.CORE_DATADOG_API_KEY }}
   PYTHON_VERSION: "3.10"
-  EXCLUDE_PACKAGES: "(?i)^(tqdm|psycopg|typing_extensions).*"
+  EXCLUDE_PACKAGES: "(?i)^(fastembed|ollama|ragas|tqdm|psycopg|typing_extensions).*"
 
   # Exclusions must be explicitly motivated
   #
-  # - deepeval is Apache 2.0 but the license is not available on PyPI
   # - fastembed is Apache 2.0 but the license on PyPI is unclear ("Other/Proprietary License (Apache License)")
   # - ollama is MIT but the license is not available on PyPI
   # - ragas is Apache 2.0 but the license is not available on PyPI
   # - typing_extensions>=4.13.0 has a Python Software Foundation License 2.0 but pip-license-checker does not recognize it
   #   (https://github.com/pilosus/pip-license-checker/issues/143)
-  # - adbc_driver_snowflake is Apache 2.0 but the license is not correctly specified on PyPI
 
   # - tqdm is MLP but there are no better alternatives
   # - psycopg is LGPL-3.0 but FOSSA is fine with it
