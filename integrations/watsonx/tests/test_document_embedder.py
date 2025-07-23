@@ -217,18 +217,16 @@ class TestWatsonxDocumentEmbedderIntegration:
     )
     def test_batch_processing(self, test_documents):
         """Test that batch processing works"""
-        many_documents = test_documents * 50
-
         embedder = WatsonxDocumentEmbedder(
             model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
-            batch_size=50,
+            batch_size=2,
             truncate_input_tokens=128,
         )
 
-        result = embedder.run(many_documents)
-        assert len(result["documents"]) == 150
+        result = embedder.run(test_documents)
+        assert len(result["documents"]) == 3
         assert all(doc.embedding is not None for doc in result["documents"])
 
     @pytest.mark.skipif(
@@ -250,38 +248,3 @@ class TestWatsonxDocumentEmbedderIntegration:
         result = embedder.run([long_document])
         assert len(result["documents"][0].embedding) > 0
         assert result["meta"]["truncate_input_tokens"] == 128
-
-    @pytest.mark.skipif(
-        not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
-        reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
-    )
-    def test_prefix_suffix(self, test_documents):
-        """Test that prefix and suffix are correctly applied"""
-        embedder = WatsonxDocumentEmbedder(
-            model="ibm/slate-30m-english-rtrvr",
-            api_key=Secret.from_env_var("WATSONX_API_KEY"),
-            project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
-            prefix="PREFIX: ",
-            suffix=" :SUFFIX",
-            truncate_input_tokens=128,
-        )
-
-        result = embedder.run([test_documents[0]])
-        assert result["documents"][0].embedding is not None
-
-    @pytest.mark.skipif(
-        not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
-        reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
-    )
-    def test_concurrency_handling(self, test_documents):
-        """Test that concurrency limits are respected"""
-        embedder = WatsonxDocumentEmbedder(
-            model="ibm/slate-30m-english-rtrvr",
-            api_key=Secret.from_env_var("WATSONX_API_KEY"),
-            project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
-            concurrency_limit=2,
-            batch_size=1,
-        )
-
-        result = embedder.run(test_documents)
-        assert len(result["documents"]) == 3

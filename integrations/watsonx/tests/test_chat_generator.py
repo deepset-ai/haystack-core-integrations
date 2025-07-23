@@ -393,7 +393,7 @@ class TestWatsonxChatGeneratorIntegration:
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             generation_kwargs={"max_tokens": 50, "temperature": 0.7, "top_p": 0.9},
         )
-        messages = [ChatMessage.from_user("What's the capital of France?")]
+        messages = [ChatMessage.from_user("What's the capital of France? Answer concisely.")]
         results = generator.run(messages=messages)
 
         assert isinstance(results, dict)
@@ -417,7 +417,7 @@ class TestWatsonxChatGeneratorIntegration:
         def callback(chunk: StreamingChunk):
             collected_chunks.append(chunk)
 
-        messages = [ChatMessage.from_user("Explain quantum computing")]
+        messages = [ChatMessage.from_user("What's the capital of France? Answer concisely.")]
         results = generator.run(messages=messages, streaming_callback=callback)
 
         assert isinstance(results, dict)
@@ -437,7 +437,7 @@ class TestWatsonxChatGeneratorIntegration:
         generator = WatsonxChatGenerator(
             model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
         )
-        messages = [ChatMessage.from_user("What's the capital of Germany?")]
+        messages = [ChatMessage.from_user("What's the capital of Germany? Answer concisely.")]
         results = await generator.run_async(messages=messages)
 
         assert isinstance(results, dict)
