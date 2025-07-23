@@ -430,7 +430,7 @@ class AnthropicChatGenerator:
             {
                 "model": response_dict.get("model", None),
                 "index": 0,
-                "finish_reason": response_dict.get("stop_reason", None),
+                "finish_reason": FINISH_REASON_MAPPING.get(response_dict.get("stop_reason", None), None),
                 "usage": usage,
             }
         )
@@ -596,7 +596,8 @@ class AnthropicChatGenerator:
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
             component_info = ComponentInfo.from_component(self)
-            async for index, chunk in enumerate(response):
+            index = 0
+            async for chunk in response:
                 if chunk.type == "message_start":
                     model = chunk.message.model
                 elif chunk.type in [
@@ -614,6 +615,7 @@ class AnthropicChatGenerator:
                     chunks.append(streaming_chunk)
                     if streaming_callback:
                         await streaming_callback(streaming_chunk)
+                index += 1
 
             completion = _convert_streaming_chunks_to_chat_message(chunks)
             return {"replies": [completion]}

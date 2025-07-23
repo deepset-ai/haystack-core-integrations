@@ -320,7 +320,7 @@ class TestAnthropicChatGenerator:
         assert isinstance(response["replies"][0], ChatMessage)
         assert "Hello! I'm Claude." in response["replies"][0].text
         assert response["replies"][0].meta["model"] == "claude-sonnet-4-20250514"
-        assert response["replies"][0].meta["finish_reason"] == "end_turn"
+        assert response["replies"][0].meta["finish_reason"] == "stop"
 
     def test_check_duplicate_tool_names(self, tools):
         """Test that the AnthropicChatGenerator component fails to initialize with duplicate tool names."""
@@ -708,7 +708,7 @@ class TestAnthropicChatGenerator:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
         assert "claude-sonnet-4-20250514" in message.meta["model"]
-        assert message.meta["finish_reason"] == "end_turn"
+        assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
         not os.environ.get("ANTHROPIC_API_KEY", None),
@@ -951,7 +951,7 @@ class TestAnthropicChatGenerator:
         assert tool_call.id is not None
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
-        assert message.meta["finish_reason"] == "tool_use"
+        assert message.meta["finish_reason"] == "tool_calls"
 
         new_messages = [
             *initial_messages,
@@ -1159,7 +1159,7 @@ class TestAnthropicChatGenerator:
         assert "berlin" in message.text.lower()
         assert "22°" in message.text
         assert "12°" in message.text
-        assert message.meta["finish_reason"] == "end_turn"
+        assert message.meta["finish_reason"] == "stop"
 
     def test_prompt_caching_enabled(self, monkeypatch):
         """
@@ -1453,7 +1453,7 @@ class TestAnthropicChatGeneratorAsync:
         assert isinstance(response["replies"][0], ChatMessage)
         assert "Hello! I'm Claude." in response["replies"][0].text
         assert response["replies"][0].meta["model"] == "claude-sonnet-4-20250514"
-        assert response["replies"][0].meta["finish_reason"] == "end_turn"
+        assert response["replies"][0].meta["finish_reason"] == "stop"
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(
@@ -1471,7 +1471,7 @@ class TestAnthropicChatGeneratorAsync:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
         assert "claude-sonnet-4-20250514" in message.meta["model"]
-        assert message.meta["finish_reason"] == "end_turn"
+        assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(
@@ -1506,7 +1506,7 @@ class TestAnthropicChatGeneratorAsync:
         message = results["replies"][0]
         assert "paris" in message.text.lower()
         assert "claude-sonnet-4-20250514" in message.meta["model"]
-        assert message.meta["finish_reason"] == "end_turn"
+        assert message.meta["finish_reason"] == "stop"
 
         # Verify streaming behavior
         assert counter > 1  # Should have received multiple chunks
