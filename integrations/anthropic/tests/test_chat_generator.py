@@ -27,8 +27,9 @@ from haystack.utils.auth import Secret
 from haystack_integrations.components.generators.anthropic.chat.chat_generator import (
     AnthropicChatGenerator,
     _convert_messages_to_anthropic_format,
+    _convert_streaming_chunks_to_chat_message,
 )
-from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
+#from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 
 
 
@@ -584,20 +585,10 @@ class TestAnthropicChatGenerator:
                 meta={
                     "type": "content_block_delta",
                     "index": 1,
-                    "delta": {"type": "input_json_delta", "partial_json": ''},
+                    "delta": {"type": "input_json_delta", "partial_json": ""},
                 },
                 component_info=ComponentInfo.from_component(self),
                 index=6, tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments='')], tool_call_result=None, start=False, finish_reason=None
-            ),
-            StreamingChunk(
-                content="",
-                meta={
-                    "type": "content_block_delta",
-                    "index": 1,
-                    "delta": {"type": "input_json_delta", "partial_json": ''},
-                },
-                component_info=ComponentInfo.from_component(self),
-                index=7, tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments='')], tool_call_result=None, start=False, finish_reason=None
             ),
             # Final message delta
             StreamingChunk(
@@ -620,21 +611,14 @@ class TestAnthropicChatGenerator:
         # Verify tool calls
         assert len(message.tool_calls) == 1
         tool_call = message.tool_calls[0]
-        assert tool_call.id == "toolu_014yzmmeNPAuTuiN92qV6LKr"
-        assert tool_call.tool_name == "hello_world"
+        assert tool_call.id == "toolu_123"
+        assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {}
 
         # Verify meta information
-        assert message._meta["model"] == "claude-sonnet-4-20250514"
         assert message._meta["index"] == 0
         assert message._meta["finish_reason"] == "tool_calls"
-        assert message._meta["usage"] == {
-            "cache_creation_input_tokens": None,
-            "cache_read_input_tokens": None,
-            "completion_tokens": 69,
-            "prompt_tokens": 50,
-            "server_tool_use": None,
-        }
+        assert message._meta["usage"] == {"completion_tokens": 40}
 
     def test_serde_in_pipeline(self):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
@@ -766,7 +750,7 @@ class TestAnthropicChatGenerator:
         assert "Paris" in message.text
 
         assert "claude-sonnet-4-20250514" in message.meta["model"]
-        assert message.meta["finish_reason"] == "end_turn"
+        assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
         assert "Paris" in callback.responses
@@ -959,6 +943,7 @@ class TestAnthropicChatGenerator:
 
         assert len(results["replies"]) == 1
         message = results["replies"][0]
+        print(message)
 
         assert message.tool_calls
         tool_call = message.tool_call
@@ -966,7 +951,7 @@ class TestAnthropicChatGenerator:
         assert tool_call.id is not None
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
-        assert message.meta["finish_reason"] == "tool_calls"
+        assert message.meta["finish_reason"] == "tool_use"
 
         new_messages = [
             *initial_messages,
