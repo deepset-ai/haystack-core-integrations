@@ -13,7 +13,7 @@ on:
 env:
   CORE_DATADOG_API_KEY: ${{ secrets.CORE_DATADOG_API_KEY }}
   PYTHON_VERSION: "3.10"
-  EXCLUDE_PACKAGES: "(?i)^(deepeval|fastembed|ollama|ragas|tqdm|psycopg|typing_extensions|adbc_driver_snowflake).*"
+  EXCLUDE_PACKAGES: "(?i)^(tqdm|psycopg|typing_extensions).*"
 
   # Exclusions must be explicitly motivated
   #
