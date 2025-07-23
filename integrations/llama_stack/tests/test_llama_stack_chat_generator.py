@@ -208,7 +208,7 @@ class TestLlamaStackChatGenerator:
     @pytest.mark.integration
     def test_live_run(self):
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = LlamaStackChatGenerator(model="ollama/llama3.2:3b")
+        component = LlamaStackChatGenerator(model="llama3.2:3b")
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
@@ -228,7 +228,7 @@ class TestLlamaStackChatGenerator:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        component = LlamaStackChatGenerator(model="ollama/llama3.2:3b", streaming_callback=callback)
+        component = LlamaStackChatGenerator(model="llama3.2:3b", streaming_callback=callback)
         results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1
@@ -244,7 +244,7 @@ class TestLlamaStackChatGenerator:
     @pytest.mark.integration
     def test_live_run_with_tools(self, tools):
         chat_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = LlamaStackChatGenerator(model="ollama/llama3.2:3b", tools=tools)
+        component = LlamaStackChatGenerator(model="llama3.2:3b", tools=tools)
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message = results["replies"][0]
@@ -263,7 +263,7 @@ class TestLlamaStackChatGenerator:
         Integration test that the LlamaStackChatGenerator component can run with tools and get a response.
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = LlamaStackChatGenerator(model="ollama/llama3.2:3b", tools=tools)
+        component = LlamaStackChatGenerator(model="llama3.2:3b", tools=tools)
         results = component.run(messages=initial_messages, generation_kwargs={"tool_choice": "auto"})
 
         assert len(results["replies"]) > 0, "No replies received"
