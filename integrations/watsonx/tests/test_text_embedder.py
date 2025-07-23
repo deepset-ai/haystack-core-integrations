@@ -207,11 +207,11 @@ class TestWatsonxTextEmbedderIntegration:
             model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
-            truncate_input_tokens=128,
+            truncate_input_tokens=4,
         )
 
-        long_text = "This is a test sentence. " * 1000
+        long_text = "This is a test sentence. " * 10
         result = embedder.run(long_text)
 
         assert len(result["embedding"]) > 0
-        assert result["meta"]["truncated_input_tokens"] == 128
+        assert result["meta"]["truncated_input_tokens"] == 4

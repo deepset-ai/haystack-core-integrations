@@ -235,16 +235,16 @@ class TestWatsonxDocumentEmbedderIntegration:
     )
     def test_text_truncation(self):
         """Test that truncation works with long documents"""
-        long_content = "This is a very long document. " * 1000
+        long_content = "This is a very long document. " * 10
         long_document = Document(content=long_content)
 
         embedder = WatsonxDocumentEmbedder(
             model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
-            truncate_input_tokens=128,
+            truncate_input_tokens=4,
         )
 
         result = embedder.run([long_document])
         assert len(result["documents"][0].embedding) > 0
-        assert result["meta"]["truncate_input_tokens"] == 128
+        assert result["meta"]["truncate_input_tokens"] == 4
