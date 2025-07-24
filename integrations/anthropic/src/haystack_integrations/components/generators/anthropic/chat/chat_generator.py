@@ -370,13 +370,12 @@ class AnthropicChatGenerator:
 
     @staticmethod
     def _convert_anthropic_chunk_to_streaming_chunk(
-        chunk: RawMessageStreamEvent, index: int, component_info: ComponentInfo
+        chunk: RawMessageStreamEvent, component_info: ComponentInfo
     ) -> StreamingChunk:
         """
         Converts an Anthropic StreamEvent to a StreamingChunk.
 
         :param chunk: The Anthropic StreamEvent to convert.
-        :param index: The index of the chunk.
         :param component_info: The component info.
         :returns: The StreamingChunk.
         """
@@ -385,6 +384,7 @@ class AnthropicChatGenerator:
         start = False
         finish_reason = None
 
+        index = getattr(chunk, "index", 0)
 
         # starting streaming message
         if chunk.type == "message_start":
@@ -413,7 +413,7 @@ class AnthropicChatGenerator:
             finish_reason = getattr(chunk.delta, "stop_reason", None)
 
         return StreamingChunk(content=content, index=index, component_info=component_info,
-                            start=start, finish_reason=FINISH_REASON_MAPPING.get(finish_reason, None),
+                            start=start, finish_reason=FINISH_REASON_MAPPING.get(finish_reason),
                             tool_calls=tool_calls, meta=chunk.model_dump())
 
 
@@ -486,14 +486,14 @@ class AnthropicChatGenerator:
             model: Optional[str] = None
             component_info = ComponentInfo.from_component(self)
             print("TESTING RESPONSE")
-            for index, chunk in enumerate(response):
+            for chunk in response:
                 print(chunk)
                 if chunk.type in ["message_start", "content_block_start", "content_block_delta", "message_delta"]:
                     # Extract model from message_start chunks
                     if chunk.type == "message_start":
                         model = chunk.message.model
 
-                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, index, component_info)
+                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, component_info)
                     chunks.append(streaming_chunk)
                     if streaming_callback:
                         streaming_callback(streaming_chunk)
@@ -533,7 +533,6 @@ class AnthropicChatGenerator:
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
             component_info = ComponentInfo.from_component(self)
-            index = 0
             async for chunk in response:
                 if chunk.type == "message_start":
                     model = chunk.message.model
@@ -542,7 +541,7 @@ class AnthropicChatGenerator:
                     "content_block_delta",
                     "message_delta",
                 ]:
-                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, index, component_info)
+                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, component_info)
                     streaming_chunk.meta.update(
                         {
                             "received_at": datetime.now(timezone.utc).isoformat(),
@@ -552,7 +551,6 @@ class AnthropicChatGenerator:
                     chunks.append(streaming_chunk)
                     if streaming_callback:
                         await streaming_callback(streaming_chunk)
-                index += 1
 
             completion = _convert_streaming_chunks_to_chat_message(chunks)
             return {"replies": [completion]}

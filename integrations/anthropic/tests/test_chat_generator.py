@@ -432,8 +432,7 @@ class TestAnthropicChatGenerator:
             type="content_block_delta", index=0, delta=TextDelta(type="text_delta", text="Hello, world!")
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            text_delta_chunk,
-        index=0, component_info=component_info)
+            text_delta_chunk, component_info=component_info)
         assert streaming_chunk.content == "Hello, world!"
         assert streaming_chunk.meta == {
             "type": "content_block_delta",
@@ -456,7 +455,7 @@ class TestAnthropicChatGenerator:
             },
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            message_start_chunk, index=0, component_info=component_info)
+            message_start_chunk, component_info=component_info)
         assert streaming_chunk.content == ""
 
         # remove fields not present in the pinned version of the Anthropic SDK.
@@ -490,7 +489,7 @@ class TestAnthropicChatGenerator:
             content_block={"type": "tool_use", "id": "toolu_123", "name": "weather", "input": {"city": "Paris"}},
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            tool_use_chunk, index=1, component_info=component_info)
+            tool_use_chunk, component_info=component_info)
         assert streaming_chunk.content == ""
         assert streaming_chunk.meta == {
             "type": "content_block_start",
@@ -502,9 +501,9 @@ class TestAnthropicChatGenerator:
     def test_convert_anthropic_completion_chunks_to_streaming_chunks(self, mock_anthropic_completion_chunks):
         component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
         component_info = ComponentInfo.from_component(component)
-        for index, chunk in enumerate(mock_anthropic_completion_chunks):
+        for chunk in mock_anthropic_completion_chunks:
             streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-                chunk, index=index, component_info=component_info)
+                chunk, component_info=component_info)
             assert streaming_chunk.meta["type"] == chunk.type
 
     def test_convert_streaming_chunks_to_chat_message(self):
@@ -547,7 +546,7 @@ class TestAnthropicChatGenerator:
                     "delta": {"type": "text_delta", "text": "Let me check"},
                 },
                 component_info=ComponentInfo.from_component(self),
-                index=2, tool_calls=[], tool_call_result=None, start=False, finish_reason=None
+                index=0, tool_calls=[], tool_call_result=None, start=False, finish_reason=None
             ),
             StreamingChunk(
                 content=" the weather",
@@ -557,7 +556,7 @@ class TestAnthropicChatGenerator:
                     "delta": {"type": "text_delta", "text": " the weather"},
                 },
                 component_info=ComponentInfo.from_component(self),
-                index=3, tool_calls=[], tool_call_result=None, start=False, finish_reason=None
+                index=0, tool_calls=[], tool_call_result=None, start=False, finish_reason=None
             ),
 
             # Tool use content
@@ -569,7 +568,7 @@ class TestAnthropicChatGenerator:
                     "content_block": {"type": "tool_use", "id": "toolu_123", "name": "weather", "input": {}},
                 },
                 component_info=ComponentInfo.from_component(self),
-                index=5, tool_calls=[ToolCallDelta(index=1, id="toolu_123", tool_name="weather", arguments=None)],
+                index=1, tool_calls=[ToolCallDelta(index=1, id="toolu_123", tool_name="weather", arguments=None)],
                   tool_call_result=None, start=True, finish_reason=None
             ),
             StreamingChunk(
@@ -580,7 +579,7 @@ class TestAnthropicChatGenerator:
                     "delta": {"type": "input_json_delta", "partial_json": '{"city":'},
                 },
                 component_info=ComponentInfo.from_component(self),
-                index=6, tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments='{"city":')],
+                index=1, tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments='{"city":')],
                 tool_call_result=None, start=False, finish_reason=None
             ),
             StreamingChunk(
@@ -591,7 +590,7 @@ class TestAnthropicChatGenerator:
                     "delta": {"type": "input_json_delta", "partial_json": ' "Paris"}'},
                 },
                 component_info=ComponentInfo.from_component(self),
-                index=7, tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments='"Paris"}')],
+                index=1, tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments='"Paris"}')],
                 tool_call_result=None, start=False, finish_reason=None
             ),
             # Final message delta
@@ -603,7 +602,7 @@ class TestAnthropicChatGenerator:
                     "usage": {"completion_tokens": 40},
                 },
                 component_info=ComponentInfo.from_component(self),
-                index=8, tool_calls=[], tool_call_result=None, start=False, finish_reason="tool_calls"
+                index=1, tool_calls=[], tool_call_result=None, start=False, finish_reason="tool_calls"
             ),
         ]
 
