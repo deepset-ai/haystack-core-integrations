@@ -64,6 +64,11 @@ class VertexAITextEmbedder:
         :param progress_bar: Whether to display a progress bar during processing.
         :param truncate_dim: The dimension to truncate the embeddings to, if specified.
         """
+        soft_deprecation_msg = (
+            "This component uses a deprecated SDK. We recommend using the GoogleGenAITextEmbedder instead."
+        )
+        logger.warning(soft_deprecation_msg)
+
         self.model = model
         self.progress_bar = progress_bar
         self.truncate_dim = truncate_dim
