@@ -174,6 +174,10 @@ class GoogleAIGeminiChatGenerator:
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         """
+        soft_deprecation_msg = (
+            "This component uses a deprecated SDK. We recommend using the GoogleGenAIChatGenerator instead."
+        )
+        logger.warning(soft_deprecation_msg)
 
         genai.configure(api_key=api_key.resolve_value())
         _check_duplicate_tool_names(tools)
