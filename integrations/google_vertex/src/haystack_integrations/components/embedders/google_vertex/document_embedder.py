@@ -96,6 +96,10 @@ class VertexAIDocumentEmbedder:
 
         :raises ValueError: If the provided model is not in the list of supported models.
         """
+        soft_deprecation_msg = (
+            "This component uses a deprecated SDK. We recommend using the GoogleGenAIDocumentEmbedder instead."
+        )
+        logger.warning(soft_deprecation_msg)
 
         if meta_fields_to_embed is None:
             meta_fields_to_embed = []
