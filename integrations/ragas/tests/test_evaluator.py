@@ -82,7 +82,7 @@ def test_initializer_allows_optional_llm_and_embeddings():
     "invalid_input,field_name,error_message",
     [
         (["Invalid query type"], "query", "'query' field expected"),
-        ([123, ["Invalid document"]], "documents", "Unsupported type in documents list"),
+        ([123, ["Invalid document"]], "documents", "'documents' must be a list"),
         (["score_1"], "rubrics", "'rubrics' field expected"),
     ],
 )

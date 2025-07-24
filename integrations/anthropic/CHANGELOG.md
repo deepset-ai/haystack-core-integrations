@@ -1,5 +1,38 @@
 # Changelog
 
+## [integrations/anthropic-v3.1.0] - 2025-07-04
+
+### 🚀 Features
+
+- Pass `component_info`to `StreamingChunk` in `AnthropicChatGenerator` (#2056)
+
+
+## [integrations/anthropic-v3.0.0] - 2025-06-30
+
+### 🚀 Features
+
+- [**breaking**] Anthopic model update to `claude-sonnet-4-20250514` (#2022)
+
+### 🐛 Bug Fixes
+
+- Anthropic reports input tokens in first message delta (#2001)
+
+### 🧹 Chores
+
+- Improve typing for select_streaming_callback (#2008)
+
+
+## [integrations/anthropic-v2.7.0] - 2025-06-25
+
+### 🚀 Features
+
+- Add `timeout`, `max_retries` to all generators and async support to `AnthropicVertexChatGenerator` (#1952)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+
+
 ## [integrations/anthropic-v2.6.1] - 2025-06-16
 
 ### 🌀 Miscellaneous

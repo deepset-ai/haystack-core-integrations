@@ -20,7 +20,7 @@ from anthropic.types import (
 )
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, ToolCall
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 
@@ -70,7 +70,7 @@ def mock_anthropic_completion():
         completion = Message(
             id="foo",
             type="message",
-            model="claude-3-5-sonnet-20240620",
+            model="claude-sonnet-4-20250514",
             role="assistant",
             content=[TextBlockParam(type="text", text="Hello! I'm Claude.")],
             stop_reason="end_turn",
@@ -88,7 +88,7 @@ class TestAnthropicChatGenerator:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
         component = AnthropicChatGenerator()
         assert component.client.api_key == "test-api-key"
-        assert component.model == "claude-3-5-sonnet-20240620"
+        assert component.model == "claude-sonnet-4-20250514"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
         assert component.tools is None
@@ -121,13 +121,13 @@ class TestAnthropicChatGenerator:
         monkeypatch.setenv("OPENAI_MAX_RETRIES", "10")
         component = AnthropicChatGenerator(
             api_key=Secret.from_token("test-api-key"),
-            model="claude-3-5-sonnet-20240620",
+            model="claude-sonnet-4-20250514",
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
             tools=[tool],
         )
         assert component.client.api_key == "test-api-key"
-        assert component.model == "claude-3-5-sonnet-20240620"
+        assert component.model == "claude-sonnet-4-20250514"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
         assert component.tools == [tool]
@@ -139,13 +139,13 @@ class TestAnthropicChatGenerator:
         monkeypatch.setenv("OPENAI_TIMEOUT", "100")
         monkeypatch.setenv("OPENAI_MAX_RETRIES", "10")
         component = AnthropicChatGenerator(
-            model="claude-3-5-sonnet-20240620",
+            model="claude-sonnet-4-20250514",
             api_key=Secret.from_token("test-api-key"),
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
         assert component.client.api_key == "test-api-key"
-        assert component.model == "claude-3-5-sonnet-20240620"
+        assert component.model == "claude-sonnet-4-20250514"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
@@ -160,11 +160,13 @@ class TestAnthropicChatGenerator:
             "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "type": "env_var", "strict": True},
-                "model": "claude-3-5-sonnet-20240620",
+                "model": "claude-sonnet-4-20250514",
                 "streaming_callback": None,
                 "ignore_tools_thinking_messages": True,
                 "generation_kwargs": {},
                 "tools": None,
+                "timeout": None,
+                "max_retries": None,
             },
         }
 
@@ -177,10 +179,12 @@ class TestAnthropicChatGenerator:
         monkeypatch.setenv("ENV_VAR", "test-api-key")
         component = AnthropicChatGenerator(
             api_key=Secret.from_env_var("ENV_VAR"),
-            model="claude-3-5-sonnet-20240620",
+            model="claude-sonnet-4-20250514",
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
             tools=[tool],
+            timeout=10.0,
+            max_retries=1,
         )
         data = component.to_dict()
 
@@ -188,7 +192,7 @@ class TestAnthropicChatGenerator:
             "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ENV_VAR"], "type": "env_var", "strict": True},
-                "model": "claude-3-5-sonnet-20240620",
+                "model": "claude-sonnet-4-20250514",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "ignore_tools_thinking_messages": True,
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -207,6 +211,8 @@ class TestAnthropicChatGenerator:
                         "type": "haystack.tools.tool.Tool",
                     }
                 ],
+                "timeout": 10.0,
+                "max_retries": 1,
             },
         }
 
@@ -230,7 +236,7 @@ class TestAnthropicChatGenerator:
             "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "type": "env_var", "strict": True},
-                "model": "claude-3-5-sonnet-20240620",
+                "model": "claude-sonnet-4-20250514",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "tools": [
@@ -253,7 +259,7 @@ class TestAnthropicChatGenerator:
         component = AnthropicChatGenerator.from_dict(data)
 
         assert isinstance(component, AnthropicChatGenerator)
-        assert component.model == "claude-3-5-sonnet-20240620"
+        assert component.model == "claude-sonnet-4-20250514"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
         assert component.api_key == Secret.from_env_var("ANTHROPIC_API_KEY")
@@ -270,7 +276,7 @@ class TestAnthropicChatGenerator:
             "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "type": "env_var", "strict": True},
-                "model": "claude-3-5-sonnet-20240620",
+                "model": "claude-sonnet-4-20250514",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
@@ -310,7 +316,7 @@ class TestAnthropicChatGenerator:
         assert len(response["replies"]) == 1
         assert isinstance(response["replies"][0], ChatMessage)
         assert "Hello! I'm Claude." in response["replies"][0].text
-        assert response["replies"][0].meta["model"] == "claude-3-5-sonnet-20240620"
+        assert response["replies"][0].meta["model"] == "claude-sonnet-4-20250514"
         assert response["replies"][0].meta["finish_reason"] == "end_turn"
 
     def test_check_duplicate_tool_names(self, tools):
@@ -323,12 +329,13 @@ class TestAnthropicChatGenerator:
         Test converting Anthropic stream events to Haystack StreamingChunks
         """
         component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component_info = ComponentInfo.from_component(component)
 
         # Test text delta chunk
         text_delta_chunk = ContentBlockDeltaEvent(
             type="content_block_delta", index=0, delta=TextDelta(type="text_delta", text="Hello, world!")
         )
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(text_delta_chunk)
+        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(text_delta_chunk, component_info)
         assert streaming_chunk.content == "Hello, world!"
         assert streaming_chunk.meta == {
             "type": "content_block_delta",
@@ -344,13 +351,13 @@ class TestAnthropicChatGenerator:
                 "type": "message",
                 "role": "assistant",
                 "content": [],
-                "model": "claude-3-5-sonnet-20240620",
+                "model": "claude-sonnet-4-20250514",
                 "stop_reason": None,
                 "stop_sequence": None,
                 "usage": {"input_tokens": 25, "output_tokens": 1},
             },
         )
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(message_start_chunk)
+        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(message_start_chunk, component_info)
         assert streaming_chunk.content == ""
 
         # remove fields not present in the pinned version of the Anthropic SDK.
@@ -365,7 +372,7 @@ class TestAnthropicChatGenerator:
                 "type": "message",
                 "role": "assistant",
                 "content": [],
-                "model": "claude-3-5-sonnet-20240620",
+                "model": "claude-sonnet-4-20250514",
                 "stop_reason": None,
                 "stop_sequence": None,
                 "usage": {
@@ -383,13 +390,14 @@ class TestAnthropicChatGenerator:
             index=1,
             content_block={"type": "tool_use", "id": "toolu_123", "name": "weather", "input": {"city": "Paris"}},
         )
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(tool_use_chunk)
+        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(tool_use_chunk, component_info)
         assert streaming_chunk.content == ""
         assert streaming_chunk.meta == {
             "type": "content_block_start",
             "index": 1,
             "content_block": {"type": "tool_use", "id": "toolu_123", "name": "weather", "input": {"city": "Paris"}},
         }
+        assert streaming_chunk.component_info.type.endswith("chat_generator.AnthropicChatGenerator")
 
     def test_convert_streaming_chunks_to_chat_message(self):
         """
@@ -397,10 +405,29 @@ class TestAnthropicChatGenerator:
         """
         # Create a sequence of streaming chunks that simulate Anthropic's response
         chunks = [
+            # Message start with input tokens
+            StreamingChunk(
+                content="",
+                meta={
+                    "type": "message_start",
+                    "message": {
+                        "id": "msg_123",
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [],
+                        "model": "claude-sonnet-4-20250514",
+                        "stop_reason": None,
+                        "stop_sequence": None,
+                        "usage": {"input_tokens": 25, "output_tokens": 0},
+                    },
+                },
+                component_info=ComponentInfo.from_component(self),
+            ),
             # Initial text content
             StreamingChunk(
                 content="",
                 meta={"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
+                component_info=ComponentInfo.from_component(self),
             ),
             StreamingChunk(
                 content="Let me check",
@@ -409,6 +436,7 @@ class TestAnthropicChatGenerator:
                     "index": 0,
                     "delta": {"type": "text_delta", "text": "Let me check"},
                 },
+                component_info=ComponentInfo.from_component(self),
             ),
             StreamingChunk(
                 content=" the weather",
@@ -457,7 +485,7 @@ class TestAnthropicChatGenerator:
         ]
 
         component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
-        message = component._convert_streaming_chunks_to_chat_message(chunks, model="claude-3-sonnet")
+        message = component._convert_streaming_chunks_to_chat_message(chunks, model="claude-sonnet-4-20250514")
 
         # Verify the message content
         assert message.text == "Let me check the weather"
@@ -470,10 +498,10 @@ class TestAnthropicChatGenerator:
         assert tool_call.arguments == {"city": "Paris"}
 
         # Verify meta information
-        assert message._meta["model"] == "claude-3-sonnet"
+        assert message._meta["model"] == "claude-sonnet-4-20250514"
         assert message._meta["index"] == 0
         assert message._meta["finish_reason"] == "tool_use"
-        assert message._meta["usage"] == {"completion_tokens": 40}
+        assert message._meta["usage"] == {"prompt_tokens": 25, "completion_tokens": 40}
 
     def test_convert_streaming_chunks_to_chat_message_malformed_json(self, caplog):
         """
@@ -535,7 +563,7 @@ class TestAnthropicChatGenerator:
         ]
 
         component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
-        message = component._convert_streaming_chunks_to_chat_message(chunks, model="claude-3-sonnet")
+        message = component._convert_streaming_chunks_to_chat_message(chunks, model="claude-sonnet-4-20250514")
 
         # Verify the message content is preserve
         assert message.text == "Let me check the weather"
@@ -552,6 +580,23 @@ class TestAnthropicChatGenerator:
         Test converting streaming chunks with an empty tool call arguments
         """
         chunks = [
+            # Message start with input tokens
+            StreamingChunk(
+                content="",
+                meta={
+                    "type": "message_start",
+                    "message": {
+                        "id": "msg_456",
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [],
+                        "model": "claude-sonnet-4-20250514",
+                        "stop_reason": None,
+                        "stop_sequence": None,
+                        "usage": {"input_tokens": 50, "output_tokens": 0},
+                    },
+                },
+            ),
             StreamingChunk(
                 content="",
                 meta={
@@ -630,7 +675,7 @@ class TestAnthropicChatGenerator:
         ]
 
         component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
-        message = component._convert_streaming_chunks_to_chat_message(chunks, model="claude-3-sonnet")
+        message = component._convert_streaming_chunks_to_chat_message(chunks, model="claude-sonnet-4-20250514")
 
         # Verify the message content
         assert message.text == (
@@ -646,14 +691,14 @@ class TestAnthropicChatGenerator:
         assert tool_call.arguments == {}
 
         # Verify meta information
-        assert message._meta["model"] == "claude-3-sonnet"
+        assert message._meta["model"] == "claude-sonnet-4-20250514"
         assert message._meta["index"] == 0
         assert message._meta["finish_reason"] == "tool_use"
         assert message._meta["usage"] == {
             "cache_creation_input_tokens": None,
             "cache_read_input_tokens": None,
             "completion_tokens": 69,
-            "prompt_tokens": None,
+            "prompt_tokens": 50,
             "server_tool_use": None,
         }
 
@@ -662,7 +707,7 @@ class TestAnthropicChatGenerator:
 
         generator = AnthropicChatGenerator(
             api_key=Secret.from_env_var("ANTHROPIC_API_KEY", strict=False),
-            model="claude-3-5-sonnet-20240620",
+            model="claude-sonnet-4-20250514",
             generation_kwargs={"temperature": 0.6},
             tools=[tool],
         )
@@ -682,7 +727,7 @@ class TestAnthropicChatGenerator:
                     "type": type_,
                     "init_parameters": {
                         "api_key": {"type": "env_var", "env_vars": ["ANTHROPIC_API_KEY"], "strict": False},
-                        "model": "claude-3-5-sonnet-20240620",
+                        "model": "claude-sonnet-4-20250514",
                         "generation_kwargs": {"temperature": 0.6},
                         "ignore_tools_thinking_messages": True,
                         "streaming_callback": None,
@@ -697,6 +742,8 @@ class TestAnthropicChatGenerator:
                                 },
                             }
                         ],
+                        "timeout": None,
+                        "max_retries": None,
                     },
                 }
             },
@@ -742,7 +789,7 @@ class TestAnthropicChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "claude-3-5-sonnet-20240620" in message.meta["model"]
+        assert "claude-sonnet-4-20250514" in message.meta["model"]
         assert message.meta["finish_reason"] == "end_turn"
 
     @pytest.mark.skipif(
@@ -773,16 +820,18 @@ class TestAnthropicChatGenerator:
             def __call__(self, chunk: StreamingChunk) -> None:
                 self.counter += 1
                 self.responses += chunk.content if chunk.content else ""
+                assert chunk.component_info is not None
+                assert chunk.component_info.type.endswith("chat_generator.AnthropicChatGenerator")
 
         callback = Callback()
-        component = AnthropicChatGenerator(streaming_callback=callback)
-        results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
+        component = AnthropicChatGenerator(streaming_callback=callback, timeout=30.0, max_retries=1)
+        results = component.run([ChatMessage.from_user("What's the capital of France?")])
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "claude-3-5-sonnet-20240620" in message.meta["model"]
+        assert "claude-sonnet-4-20250514" in message.meta["model"]
         assert message.meta["finish_reason"] == "end_turn"
 
         assert callback.counter > 1
@@ -1222,8 +1271,7 @@ class TestAnthropicChatGenerator:
         component.run(messages)
 
         # Check caplog for the warning message that should have been logged
-        assert any("Prompt caching" in record.message for record in caplog.records)
-
+        assert not any("Prompt caching is not enabled" in record.message for record in caplog.records)
         # Check that the Anthropic API was called without cache_control in messages so that it does not raise an error
         _, kwargs = mock_chat_completion.call_args
         for msg in kwargs["messages"]:
@@ -1275,14 +1323,81 @@ class TestAnthropicChatGenerator:
             "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "claude-3-5-sonnet-20240620",
+                "model": "claude-sonnet-4-20250514",
                 "generation_kwargs": {"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}},
             },
         }
         component = AnthropicChatGenerator.from_dict(data)
         assert component.generation_kwargs["extra_headers"]["anthropic-beta"] == "prompt-caching-2024-07-31"
 
-    @pytest.mark.integration
+    def test_cache_control_forwarded_for_all_block_types(self, monkeypatch, mock_chat_completion):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        component = AnthropicChatGenerator()
+
+        sys_msg = ChatMessage.from_system("sys")
+        sys_msg._meta["cache_control"] = {"type": "ephemeral"}
+
+        usr_msg = ChatMessage.from_user(
+            "doc chunk",
+            meta={"cache_control": {"type": "ephemeral"}},
+        )
+
+        tool_call = ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
+        asst_msg = ChatMessage.from_assistant(
+            tool_calls=[tool_call],
+            meta={"cache_control": {"type": "ephemeral"}},
+        )
+
+        tool_res = ChatMessage.from_tool(
+            origin=tool_call,
+            tool_result="sunny",
+            meta={"cache_control": {"type": "ephemeral"}},
+        )
+
+        component.run([sys_msg, usr_msg, asst_msg, tool_res])
+
+        _, kwargs = mock_chat_completion.call_args
+
+        for blk in kwargs["system"]:
+            assert blk.get("cache_control") == {"type": "ephemeral"}
+
+        assert all("cache_control" not in msg for msg in kwargs["messages"])
+
+        for msg in kwargs["messages"]:
+            for cblk in msg["content"]:
+                assert cblk.get("cache_control") == {"type": "ephemeral"}
+
+    @pytest.mark.parametrize(
+        "beta_header",
+        [
+            "featureA,extended-cache-ttl-2025-04-11",
+            "featureA , featureB , new-fancy-stuff",
+        ],
+    )
+    def test_extra_headers_pass_through(self, monkeypatch, mock_chat_completion, beta_header):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        component = AnthropicChatGenerator(generation_kwargs={"extra_headers": {"anthropic-beta": beta_header}})
+        component.run([ChatMessage.from_user("ping")])
+
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["extra_headers"]["anthropic-beta"] == beta_header
+
+    def test_convert_messages_attaches_cache_control(self):
+        user = ChatMessage.from_user(
+            "hello",
+            meta={
+                "cache_control": {
+                    "type": "ephemeral",
+                }
+            },
+        )
+        sys = ChatMessage.from_system("hi", meta={"cache_control": {"type": "ephemeral", "example_key": "example_val"}})
+        sys_blocks, non_sys = _convert_messages_to_anthropic_format([sys, user])
+
+        assert sys_blocks[0]["cache_control"] == {"type": "ephemeral", "example_key": "example_val"}
+        assert non_sys[0]["content"][0]["cache_control"]["type"] == "ephemeral"
+
     @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY", None), reason="ANTHROPIC_API_KEY not set")
     @pytest.mark.parametrize("cache_enabled", [True, False])
     def test_prompt_caching_live_run(self, cache_enabled):
@@ -1314,6 +1429,35 @@ class TestAnthropicChatGenerator:
             assert token_usage["cache_creation_input_tokens"] == 0
             assert token_usage["cache_read_input_tokens"] == 0
 
+    @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
+    @pytest.mark.parametrize("cache_enabled", [True, False])
+    def test_prompt_caching_live_run_with_user_message(self, cache_enabled):
+        claude_llm = AnthropicChatGenerator(
+            api_key=Secret.from_env_var("ANTHROPIC_API_KEY"),
+        )
+
+        system_message = ChatMessage.from_system("Hello from system. Just a generic instruction.")
+
+        user_message = ChatMessage.from_user("This is a user message that should be long enough to cache. " * 100)
+        if cache_enabled:
+            user_message._meta["cache_control"] = {"type": "ephemeral"}
+
+        messages = [system_message, user_message]
+        result = claude_llm.run(messages)
+
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+        token_usage = result["replies"][0].meta.get("usage")
+
+        if cache_enabled:
+            assert (
+                token_usage.get("cache_creation_input_tokens", 0) > 1024
+                or token_usage.get("cache_read_input_tokens", 0) > 1024
+            ), f"Unexpected usage stats: {token_usage}"
+        else:
+            assert token_usage.get("cache_creation_input_tokens", 0) == 0
+            assert token_usage.get("cache_read_input_tokens", 0) == 0
+
 
 class TestAnthropicChatGeneratorAsync:
     @pytest.fixture
@@ -1322,7 +1466,7 @@ class TestAnthropicChatGeneratorAsync:
             completion = Message(
                 id="foo",
                 type="message",
-                model="claude-3-5-sonnet-20240620",
+                model="claude-sonnet-4-20250514",
                 role="assistant",
                 content=[TextBlockParam(type="text", text="Hello! I'm Claude.")],
                 stop_reason="end_turn",
@@ -1338,7 +1482,7 @@ class TestAnthropicChatGeneratorAsync:
             completion = Message(
                 id="foo",
                 type="message",
-                model="claude-3-5-sonnet-20240620",
+                model="claude-sonnet-4-20250514",
                 role="assistant",
                 content=[
                     TextBlockParam(type="text", text="Let me check the weather for you."),
@@ -1389,7 +1533,7 @@ class TestAnthropicChatGeneratorAsync:
         assert len(response["replies"]) == 1
         assert isinstance(response["replies"][0], ChatMessage)
         assert "Hello! I'm Claude." in response["replies"][0].text
-        assert response["replies"][0].meta["model"] == "claude-3-5-sonnet-20240620"
+        assert response["replies"][0].meta["model"] == "claude-sonnet-4-20250514"
         assert response["replies"][0].meta["finish_reason"] == "end_turn"
 
     @pytest.mark.asyncio
@@ -1407,7 +1551,7 @@ class TestAnthropicChatGeneratorAsync:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "claude-3-5-sonnet-20240620" in message.meta["model"]
+        assert "claude-sonnet-4-20250514" in message.meta["model"]
         assert message.meta["finish_reason"] == "end_turn"
 
     @pytest.mark.asyncio
@@ -1432,6 +1576,8 @@ class TestAnthropicChatGeneratorAsync:
             nonlocal responses
             counter += 1
             responses += chunk.content if chunk.content else ""
+            assert chunk.component_info is not None
+            assert chunk.component_info.type.endswith("chat_generator.AnthropicChatGenerator")
 
         # Run the async streaming test
         results = await component.run_async(messages=initial_messages, streaming_callback=callback)
@@ -1440,7 +1586,7 @@ class TestAnthropicChatGeneratorAsync:
         assert len(results["replies"]) == 1
         message = results["replies"][0]
         assert "paris" in message.text.lower()
-        assert "claude-3-5-sonnet-20240620" in message.meta["model"]
+        assert "claude-sonnet-4-20250514" in message.meta["model"]
         assert message.meta["finish_reason"] == "end_turn"
 
         # Verify streaming behavior

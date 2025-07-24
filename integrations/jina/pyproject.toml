@@ -68,23 +68,14 @@ integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
 
-types = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+types = """mypy -p haystack_integrations.components.connectors.jina \
+-p haystack_integrations.components.embedders.jina {args}"""
 
-# TODO: remove lint environment once this integration is properly typed
-# test environment should be used instead
-# https://github.com/deepset-ai/haystack-core-integrations/issues/1771
-[tool.hatch.envs.lint]
-installer = "uv"
-detached = true
-dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
-
-[tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-
-[tool.black]
-target-version = ["py38"]
-line-length = 120
-skip-string-normalization = true
+[tool.mypy]
+install_types = true
+non_interactive = true
+check_untyped_defs = true
+disallow_incomplete_defs = true
 
 [tool.ruff]
 target-version = "py38"
@@ -160,8 +151,4 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-markers = ["unit: unit tests", "integration: integration tests"]
-
-[[tool.mypy.overrides]]
-module = ["haystack.*", "haystack_integrations.*", "pytest.*"]
-ignore_missing_imports = true
+markers = ["integration: integration tests"]

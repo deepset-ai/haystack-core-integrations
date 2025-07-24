@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/pgvector-v5.2.1] - 2025-07-03
+
+### 🐛 Bug Fixes
+
+- Pgvector - ensure DB is initialized when calling `delete_table` (#2055)
+
+
+### 🧹 Chores
+
+- Remove black (#1985)
+- Pgvector - update docker image in examples (#1995)
+
+
+## [integrations/pgvector-v3.4.1] - 2025-06-20
+
+### 🐛 Bug Fixes
+
+- Pgvector - do not pass null `meta` to `Document.from_dict` (#1980)
+
+
 ## [integrations/pgvector-v3.4.0] - 2025-06-10
 
 ### 🐛 Bug Fixes

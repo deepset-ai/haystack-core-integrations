@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import contextlib
-import json
 import os
 from abc import ABC, abstractmethod
 from collections import Counter
@@ -66,61 +65,6 @@ _COMPONENT_INPUT_KEY = "haystack.component.input"
 tracing_context_var: ContextVar[Dict[Any, Any]] = ContextVar("tracing_context")
 
 
-def _to_openai_dict_format(chat_message: ChatMessage) -> Dict[str, Any]:
-    """
-    Convert a ChatMessage to the dictionary format expected by OpenAI's chat completion API.
-
-    Note: We already have such a method in Haystack's ChatMessage class.
-    However, the original method doesn't tolerate None values for ids of ToolCall and ToolCallResult.
-    Some generators, like GoogleGenAIChatGenerator, return None values for ids of ToolCall and ToolCallResult.
-    To seamlessly support these generators, we use this, Langfuse local, version of the method.
-
-    :param chat_message: The ChatMessage instance to convert.
-    :return: Dictionary in OpenAI Chat API format.
-    """
-    text_contents = chat_message.texts
-    tool_calls = chat_message.tool_calls
-    tool_call_results = chat_message.tool_call_results
-
-    if not text_contents and not tool_calls and not tool_call_results:
-        message = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
-        logger.error(message)
-        raise ValueError(message)
-    if len(text_contents) + len(tool_call_results) > 1:
-        message = "A `ChatMessage` can only contain one `TextContent` or one `ToolCallResult`."
-        logger.error(message)
-        raise ValueError(message)
-
-    openai_msg: Dict[str, Any] = {"role": chat_message._role.value}
-
-    # Add name field if present
-    if chat_message._name is not None:
-        openai_msg["name"] = chat_message._name
-
-    if tool_call_results:
-        result = tool_call_results[0]
-        openai_msg["content"] = result.result
-        openai_msg["tool_call_id"] = result.origin.id
-        # OpenAI does not provide a way to communicate errors in tool invocations, so we ignore the error field
-        return openai_msg
-
-    if text_contents:
-        openai_msg["content"] = text_contents[0]
-    if tool_calls:
-        openai_tool_calls = []
-        for tc in tool_calls:
-            openai_tool_calls.append(
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    # We disable ensure_ascii so special chars like emojis are not converted
-                    "function": {"name": tc.tool_name, "arguments": json.dumps(tc.arguments, ensure_ascii=False)},
-                }
-            )
-        openai_msg["tool_calls"] = openai_tool_calls
-    return openai_msg
-
-
 class LangfuseSpan(Span):
     """
     Internal class representing a bridge between the Haystack span tracing API and Langfuse.
@@ -158,7 +102,7 @@ class LangfuseSpan(Span):
             return
         if key.endswith(".input"):
             if "messages" in value:
-                messages = [_to_openai_dict_format(m) for m in value["messages"]]
+                messages = [m.to_openai_dict_format(require_tool_call_ids=False) for m in value["messages"]]
                 self._span.update(input=messages)
             else:
                 coerced_value = tracing_utils.coerce_tag_value(value)
@@ -166,7 +110,7 @@ class LangfuseSpan(Span):
         elif key.endswith(".output"):
             if "replies" in value:
                 if all(isinstance(r, ChatMessage) for r in value["replies"]):
-                    replies = [_to_openai_dict_format(m) for m in value["replies"]]
+                    replies = [m.to_openai_dict_format(require_tool_call_ids=False) for m in value["replies"]]
                 else:
                     replies = value["replies"]
                 self._span.update(output=replies)
@@ -449,22 +393,33 @@ class LangfuseTracer(Tracer):
         self._context.append(span)
         span.set_tags(tags)
 
-        yield span
+        try:
+            yield span
+        finally:
+            # Always clean up context, even if nested operations fail
+            try:
+                # Process span data (may fail with nested pipeline exceptions)
+                self._span_handler.handle(span, component_type)
 
-        # Let the span handler process the span
-        self._span_handler.handle(span, component_type)
+                # End span (may fail if span data is corrupted)
+                raw_span = span.raw_span()
+                if isinstance(raw_span, (StatefulSpanClient, StatefulGenerationClient)):
+                    raw_span.end()
+            except Exception as cleanup_error:
+                # Log cleanup errors but don't let them corrupt context
+                logger.warning(
+                    "Error during span cleanup for {operation_name}: {cleanup_error}",
+                    operation_name=operation_name,
+                    cleanup_error=cleanup_error,
+                )
+            finally:
+                # CRITICAL: Always pop context to prevent corruption
+                # This is especially important for nested pipeline scenarios
+                if self._context and self._context[-1] == span:
+                    self._context.pop()
 
-        # In this section, we finalize both regular spans and generation spans created using the LangfuseSpan class.
-        # It's important to end() these spans to ensure they are properly closed and all relevant data is recorded.
-        # Note that we do not call end() on the main trace span itself (StatefulTraceClient), as its lifecycle is
-        # managed differently.
-        raw_span = span.raw_span()
-        if isinstance(raw_span, (StatefulSpanClient, StatefulGenerationClient)):
-            raw_span.end()
-        self._context.pop()
-
-        if self.enforce_flush:
-            self.flush()
+            if self.enforce_flush:
+                self.flush()
 
     def flush(self) -> None:
         self._tracer.flush()

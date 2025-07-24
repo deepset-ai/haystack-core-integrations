@@ -1,12 +1,12 @@
 import os
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 from cohere.core import ApiError
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, ToolCall
 from haystack.tools import Tool
 from haystack.utils import Secret
 
@@ -17,7 +17,8 @@ from haystack_integrations.components.generators.cohere.chat.chat_generator impo
     _finalize_streaming_message,
     _format_message,
     _initialize_streaming_state,
-    _process_streaming_chunk,
+    _parse_streaming_response,
+    _process_cohere_chunk,
 )
 
 
@@ -52,32 +53,32 @@ class TestUtils:
         with pytest.raises(ValueError):
             _format_message(message)
 
-    def test_process_streaming_chunk_none_chunk_returns_none(self):
+    def test_process_cohere_chunk_none_chunk_returns_none(self):
         state = _initialize_streaming_state()
-        result = _process_streaming_chunk(None, state, "test-model")
+        result = _process_cohere_chunk(None, state, "test-model")
         assert result is None
 
-    def test_process_streaming_chunk_unknown_type_returns_none(self):
+    def test_process_cohere_chunk_unknown_type_returns_none(self):
         chunk = Mock()
         chunk.type = "unknown-type"
         state = _initialize_streaming_state()
 
-        result = _process_streaming_chunk(chunk, state, "test-model")
+        result = _process_cohere_chunk(chunk, state, "test-model")
         assert result is None
 
-    def test_process_streaming_chunk_tool_call_end_without_current_tool_call(self):
+    def test_process_cohere_chunk_tool_call_end_without_current_tool_call(self):
         chunk = Mock()
         chunk.type = "tool-call-end"
 
         state = _initialize_streaming_state()
         state["current_tool_call"] = None  # Explicitly set to None
 
-        result = _process_streaming_chunk(chunk, state, "test-model")
+        result = _process_cohere_chunk(chunk, state, "test-model")
 
         assert result is None
         assert len(state["tool_calls"]) == 0
 
-    def test_process_streaming_chunk_tool_call_complete_flow(self):
+    def test_process_cohere_chunk_tool_call_complete_flow(self):
         state = _initialize_streaming_state()
         model = "test-model"
 
@@ -87,7 +88,7 @@ class TestUtils:
         start_chunk.delta.message.tool_calls.id = "test-id"
         start_chunk.delta.message.tool_calls.function.name = "test_function"
 
-        _process_streaming_chunk(start_chunk, state, model)
+        _process_cohere_chunk(start_chunk, state, model)
         assert state["current_tool_call"] is not None
         assert state["current_tool_call"].id == "test-id"
 
@@ -96,7 +97,7 @@ class TestUtils:
         delta_chunk.type = "tool-call-delta"
         delta_chunk.delta.message.tool_calls.function.arguments = '{"key": "value"'
 
-        _process_streaming_chunk(delta_chunk, state, model)
+        _process_cohere_chunk(delta_chunk, state, model)
         assert state["current_tool_arguments"] == '{"key": "value"'
 
         # Another delta to complete the JSON
@@ -104,14 +105,14 @@ class TestUtils:
         delta_chunk2.type = "tool-call-delta"
         delta_chunk2.delta.message.tool_calls.function.arguments = "}"
 
-        _process_streaming_chunk(delta_chunk2, state, model)
+        _process_cohere_chunk(delta_chunk2, state, model)
         assert state["current_tool_arguments"] == '{"key": "value"}'
 
         # Tool call end
         end_chunk = Mock()
         end_chunk.type = "tool-call-end"
 
-        _process_streaming_chunk(end_chunk, state, model)
+        _process_cohere_chunk(end_chunk, state, model)
 
         assert len(state["tool_calls"]) == 1
         assert state["tool_calls"][0].arguments == {"key": "value"}
@@ -158,6 +159,33 @@ class TestUtils:
         assert message.text == "Simple response text"
         assert len(message.tool_calls) == 0
         assert message.meta["model"] == "test-model"
+
+    def test_parse_streaming_response_uses_component_info(self):
+        mock_cohere_chunk = MagicMock()
+        mock_cohere_chunk.type = "content-delta"
+        mock_cohere_chunk.delta.message.content.text = "Hello"
+
+        mock_response = [mock_cohere_chunk]
+
+        captured_chunks = []
+
+        def callback(chunk: StreamingChunk):
+            captured_chunks.append(chunk)
+
+        component_info = ComponentInfo(name="test_component", type="test_type")
+
+        message = _parse_streaming_response(
+            response=mock_response,
+            model="test-model",
+            streaming_callback=callback,
+            component_info=component_info,
+        )
+
+        assert len(captured_chunks) == 1
+        assert captured_chunks[0].component_info == component_info
+        assert captured_chunks[0].content == "Hello"
+
+        assert message.text == "Hello"
 
 
 class TestCohereChatGenerator:
@@ -408,6 +436,7 @@ class TestCohereChatGeneratorInference:
                 self.counter = 0
 
             def __call__(self, chunk: StreamingChunk) -> None:
+                assert chunk.component_info is not None
                 self.counter += 1
                 self.responses += chunk.content if chunk.content else ""
 

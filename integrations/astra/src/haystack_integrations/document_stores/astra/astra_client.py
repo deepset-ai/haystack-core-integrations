@@ -278,7 +278,7 @@ class AstraClient:
 
         return formatted_docs
 
-    def insert(self, documents: List[Dict]):
+    def insert(self, documents: List[Dict]) -> List[str]:
         """
         Insert documents into the Astra index.
 
@@ -290,7 +290,7 @@ class AstraClient:
 
         return inserted_ids
 
-    def update_document(self, document: Dict, id_key: str):
+    def update_document(self, document: Dict, id_key: str) -> bool:
         """
         Update a document in the Astra index.
 

@@ -180,7 +180,7 @@ class TestRetriever:
         document_store.write_documents(docs)
         retriever = AzureAISearchHybridRetriever(document_store=document_store)
         res = retriever.run(query="Test document", query_embedding=[0.1] * 768)
-        assert res["documents"] == docs
+        assert res["documents"][0].id == docs[0].id
 
     def test_hybrid_retrieval(self, document_store: AzureAISearchDocumentStore):
         query_embedding = [0.1] * 768

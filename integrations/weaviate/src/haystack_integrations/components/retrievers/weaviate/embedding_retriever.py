@@ -106,7 +106,7 @@ class WeaviateEmbeddingRetriever:
         top_k: Optional[int] = None,
         distance: Optional[float] = None,
         certainty: Optional[float] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Retrieves documents from Weaviate using the vector search.
 

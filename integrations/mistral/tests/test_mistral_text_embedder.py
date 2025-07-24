@@ -8,8 +8,6 @@ from haystack.utils import Secret
 
 from haystack_integrations.components.embedders.mistral.text_embedder import MistralTextEmbedder
 
-pytestmark = pytest.mark.embedders
-
 
 class TestMistralTextEmbedder:
     def test_init_default(self, monkeypatch):

@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/github-v1.1.0] - 2025-07-01
+
+### 🐛 Bug Fixes
+
+- Fix Github types + add py.typed (#2024)
+
+### 🧹 Chores
+
+- Fix linting for ruff 0.12.0 (#1969)
+- Remove black (#1985)
+
+
 ## [integrations/github-v1.0.1] - 2025-06-12
 
 ### 🐛 Bug Fixes
