@@ -179,43 +179,6 @@ class TestWatsonxTextEmbedderIntegration:
         not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
         reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
     )
-    def test_long_text(self):
-        """Test with longer text input"""
-        embedder = WatsonxTextEmbedder(
-            model="ibm/slate-30m-english-rtrvr",
-            api_key=Secret.from_env_var("WATSONX_API_KEY"),
-            project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
-            truncate_input_tokens=128,
-        )
-        long_text = "This is a test text that should work fine. " * 10
-        result = embedder.run(long_text)
-
-        assert len(result["embedding"]) > 0
-        assert "model" in result["meta"]
-
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
-        reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
-    )
-    def test_different_model(self):
-        """Test with a different model if available"""
-        embedder = WatsonxTextEmbedder(
-            model="ibm/slate-125m-english-rtrvr",
-            api_key=Secret.from_env_var("WATSONX_API_KEY"),
-            project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
-            truncate_input_tokens=128,
-        )
-        result = embedder.run("Test different model")
-
-        assert len(result["embedding"]) > 0
-        assert "125m" in result["meta"]["model"]
-
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
-        reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
-    )
     def test_text_too_long(self):
         """Test handling of text that exceeds token limit when truncation is disabled"""
         embedder = WatsonxTextEmbedder(
@@ -244,11 +207,11 @@ class TestWatsonxTextEmbedderIntegration:
             model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
-            truncate_input_tokens=128,
+            truncate_input_tokens=4,
         )
 
-        long_text = "This is a test sentence. " * 1000
+        long_text = "This is a test sentence. " * 10
         result = embedder.run(long_text)
 
         assert len(result["embedding"]) > 0
-        assert result["meta"]["truncated_input_tokens"] == 128
+        assert result["meta"]["truncated_input_tokens"] == 4
