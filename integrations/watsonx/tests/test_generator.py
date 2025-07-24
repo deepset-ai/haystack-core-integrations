@@ -370,7 +370,10 @@ class TestWatsonxGeneratorIntegration:
             generation_kwargs={"max_tokens": 50, "temperature": 0.7, "top_p": 0.9},
         )
 
-        result = generator.run(prompt="What's the capital of France?")
+        result = generator.run(
+            prompt="What's the capital of France? Answer concisely.",
+            system_prompt="You are a geography expert. Answer concisely.",
+        )
 
         assert isinstance(result, dict)
         assert "replies" in result
@@ -387,27 +390,6 @@ class TestWatsonxGeneratorIntegration:
         not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
         reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
     )
-    def test_live_run_with_system_prompt(self):
-        generator = WatsonxGenerator(
-            model="ibm/granite-3-2b-instruct",
-            project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
-        )
-
-        result = generator.run(
-            prompt="What's the capital of France?", system_prompt="You are a geography expert. Answer concisely."
-        )
-
-        assert isinstance(result, dict)
-        assert "replies" in result
-        assert "meta" in result
-        assert len(result["replies"]) == 1
-        assert isinstance(result["replies"][0], str)
-        assert len(result["replies"][0]) > 0
-
-    @pytest.mark.skipif(
-        not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
-        reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
-    )
     def test_live_run_streaming(self):
         generator = WatsonxGenerator(
             model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
@@ -418,7 +400,7 @@ class TestWatsonxGeneratorIntegration:
         def callback(chunk: StreamingChunk):
             collected_chunks.append(chunk)
 
-        result = generator.run(prompt="Explain quantum computing", streaming_callback=callback)
+        result = generator.run(prompt="What is the capital of France? Answer concisely.", streaming_callback=callback)
 
         assert isinstance(result, dict)
         assert "replies" in result
@@ -441,7 +423,7 @@ class TestWatsonxGeneratorIntegration:
             model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
         )
 
-        result = await generator.run_async(prompt="What's the capital of Germany?")
+        result = await generator.run_async(prompt="What's the capital of Germany? Answer concisely.")
 
         assert isinstance(result, dict)
         assert "replies" in result

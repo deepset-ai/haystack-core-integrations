@@ -3,11 +3,11 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "llama-stack-haystack"
+name = "hanlp-haystack"
 dynamic = ["version"]
-description = 'Use Llama Stack framework for text generation'
+description = 'An integration of Han Language Processing - HanLP as a ChineseDocumentSplitter component.'
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
@@ -15,32 +15,39 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.12", # minimum supported version by llama-stack
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.14", "llama-stack==0.2.14"]
+dependencies = [
+  "haystack-ai>=2.13.1",
+  "hanlp>=2.1.1"
+]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/llama-stack#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/hanlp#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/llama-stack"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/hanlp"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/llama_stack-v(?P<version>.*)'
+tag-pattern = 'integrations\/hanlp-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/llama_stack-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/hanlp-v[0-9]*"'
 
 [tool.hatch.envs.default]
 installer = "uv"
 dependencies = ["haystack-pydoc-tools", "ruff"]
+
 [tool.hatch.envs.default.scripts]
 docs = ["pydoc-markdown pydoc/config.yml"]
 fmt = "ruff check --fix {args} && ruff format {args}"
@@ -53,8 +60,7 @@ dependencies = [
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
-    "pip",
-    "pytz"
+    "pip"
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -62,8 +68,7 @@ unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
-
-types = "mypy -p haystack_integrations.components.generators.llama_stack {args}"
+types = """mypy -p haystack_integrations.components.preprocessors.hanlp {args}"""
 
 [tool.mypy]
 install_types = true
@@ -71,6 +76,16 @@ non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
 
+[[tool.mypy.overrides]]
+module = [
+"hanlp.*",
+]
+ignore_missing_imports = true
+
+[tool.black]
+target-version = ["py38"]
+line-length = 120
+skip-string-normalization = true
 
 [tool.ruff]
 target-version = "py38"
@@ -116,9 +131,12 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
-  # Misc
-  "B008",
-  "S101",
+  # Ignore unused params
+  "ARG001",
+  "ARG002",
+  "ARG005",
+  "RUF001",
+  "RUF002",
 ]
 unfixable = [
   # Don't touch unused imports
@@ -133,13 +151,12 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252", "E501", "F841"]
+"tests/**/*" = ["PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
 branch = true
 parallel = false
-
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
