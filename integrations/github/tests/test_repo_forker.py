@@ -14,7 +14,7 @@ class TestGitHubRepoForker:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
-        forker = GitHubRepoForker()
+        forker = GitHubRepoForker(github_token=Secret.from_env_var("GITHUB_TOKEN"))
         assert forker.github_token is not None
         assert forker.github_token.resolve_value() == "test-token"
         assert forker.raise_on_failure is True

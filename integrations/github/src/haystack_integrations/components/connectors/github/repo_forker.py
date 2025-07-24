@@ -41,7 +41,7 @@ class GitHubRepoForker:
     def __init__(
         self,
         *,
-        github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"),
+        github_token: Optional[Secret] = None,
         raise_on_failure: bool = True,
         wait_for_completion: bool = False,
         max_wait_seconds: int = 300,
@@ -60,9 +60,9 @@ class GitHubRepoForker:
         :param auto_sync: If True, syncs fork with original repository if it already exists
         :param create_branch: If True, creates a fix branch based on the issue number
         """
-        error_message = "github_token must be a Secret"
         if not isinstance(github_token, Secret):
-            raise TypeError(error_message)
+            msg = "github_token must be a Secret"
+            raise TypeError(msg)
 
         self.github_token = github_token
         self.raise_on_failure = raise_on_failure
