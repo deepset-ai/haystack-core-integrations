@@ -1093,7 +1093,6 @@ class TestAnthropicChatGenerator:
 
         assert len(results["replies"]) == 1
         message = results["replies"][0]
-        print(message)
 
         assert message.tool_calls
         tool_call = message.tool_call

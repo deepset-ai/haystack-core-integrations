@@ -490,8 +490,6 @@ class AnthropicChatGenerator:
             finish_reason = None
             component_info = ComponentInfo.from_component(self)
             for chunk in response:
-                print("TESTING CHUNK")
-                print(chunk)
                 if chunk.type in ["message_start", "content_block_start", "content_block_delta", "message_delta"]:
                     # Extract model from message_start chunks
                     if chunk.type == "message_start":
