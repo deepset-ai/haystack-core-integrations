@@ -8,9 +8,19 @@ from haystack.tools import (
     deserialize_tools_or_toolset_inplace,
     serialize_tools_or_toolset,
 )
+from haystack.dataclasses.streaming_chunk import (
+    AsyncStreamingCallbackT,
+    ComponentInfo,
+    FinishReason,
+    StreamingCallbackT,
+    StreamingChunk,
+    SyncStreamingCallbackT,
+    ToolCallDelta
+    )
 from haystack.tools.toolset import Toolset
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 from pydantic.json_schema import JsonSchemaValue
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 
 from ollama import ChatResponse, Client
 
@@ -287,15 +297,24 @@ class OllamaChatGenerator:
         """
         Convert one Ollama stream-chunk to Haystack StreamingChunk.
         """
+        print("\n Chunk Response")
+        print(chunk_response)
         chunk_response_dict = chunk_response.model_dump()
+        finish_reason = chunk_response.done_reason
+        tool_calls_list = []
 
         content = chunk_response_dict["message"]["content"]
         meta = {key: value for key, value in chunk_response_dict.items() if key != "message"}
         meta["role"] = chunk_response_dict["message"]["role"]
         if tool_calls := chunk_response_dict["message"].get("tool_calls"):
-            meta["tool_calls"] = tool_calls
+            for index, tool_call in enumerate(tool_calls):
+                tool_calls_list.append(ToolCallDelta(
+                    index=index+1,
+                    tool_name=tool_call["function"]["name"],
+                    arguments=tool_call["function"]["arguments"],
+                ))
 
-        return StreamingChunk(content=content, meta=meta, component_info=component_info)
+        return StreamingChunk(content=content, meta=meta, index=1, finish_reason=finish_reason, component_info=component_info, tool_calls=tool_calls_list)
 
     def _handle_streaming_response(
         self,
