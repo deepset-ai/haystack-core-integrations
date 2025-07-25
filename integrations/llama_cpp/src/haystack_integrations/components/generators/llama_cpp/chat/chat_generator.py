@@ -287,9 +287,11 @@ class LlamaCppChatGenerator:
                 messages=formatted_messages, tools=llamacpp_tools, **updated_generation_kwargs, stream=True
             )
             return self._handle_streaming_response(
-                response_stream=response_stream, # type: ignore[arg-type]
-                streaming_callback=streaming_callback
-            ) # we know that response_stream is Iterator[CreateChatCompletionStreamResponse]
+                response_stream=response_stream,  # type: ignore[arg-type]
+                streaming_callback=streaming_callback,
+                component_info=ComponentInfo.from_component(self),
+                model_path=self.model_path,
+            )  # we know that response_stream is Iterator[CreateChatCompletionStreamResponse]
             # because create_chat_completion was called with stream=True, but mypy doesn't know that
 
         response = self._model.create_chat_completion(
@@ -305,18 +307,21 @@ class LlamaCppChatGenerator:
             replies.append(chat_message)
         return {"replies": replies}
 
+    @staticmethod
     def _handle_streaming_response(
-        self, response_stream: Iterator[CreateChatCompletionStreamResponse], streaming_callback: SyncStreamingCallbackT
+        response_stream: Iterator[CreateChatCompletionStreamResponse],
+        streaming_callback: SyncStreamingCallbackT,
+        component_info: ComponentInfo,
     ) -> Dict[str, List[ChatMessage]]:
         """
         Handle streaming response from llama.cpp create_chat_completion.
 
         :param response_stream: The streaming response from create_chat_completion.
         :param streaming_callback: The callback function for streaming chunks.
+        :param component_info: The component info.
         :returns: A dictionary with the replies.
         """
-        component_info = ComponentInfo.from_component(self)
-        chunks = []
+        streaming_chunks = []
 
         seen_tool_call_ids = set()  # Track tool call IDs we've seen
 
@@ -375,17 +380,17 @@ class LlamaCppChatGenerator:
                 start=start,
                 finish_reason=mapped_finish_reason,
                 meta={
-                    "model": self.model_path,
+                    "model": chunk["model"],
                     "received_at": datetime.fromtimestamp(chunk["created"], tz=timezone.utc).isoformat(),
                 },  # llama.cpp does not provide usage metadata during streaming
             )
 
-            chunks.append(streaming_chunk)
+            streaming_chunks.append(streaming_chunk)
 
             # Stream the chunk
             streaming_callback(streaming_chunk)
 
-        message = _convert_streaming_chunks_to_chat_message(chunks)
+        message = _convert_streaming_chunks_to_chat_message(streaming_chunks)
         return {"replies": [message]}
 
     @staticmethod

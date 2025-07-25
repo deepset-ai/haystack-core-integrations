@@ -8,8 +8,9 @@ from unittest.mock import MagicMock
 import pytest
 from haystack import Document, Pipeline
 from haystack.components.builders import ChatPromptBuilder
+from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
-from haystack.dataclasses import ChatMessage, ChatRole, TextContent, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, TextContent, ToolCall
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.tools import Tool, Toolset, create_tool_from_function
 
@@ -121,6 +122,487 @@ def test_convert_message_to_llamacpp_invalid():
     message = ChatMessage.from_tool(tool_result="result", origin=tool_call_null_id)
     with pytest.raises(ValueError):
         _convert_message_to_llamacpp_format(message)
+
+
+def test_handle_streaming_response():
+    llama_cpp_chunks = [
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"role": "assistant"}, "logprobs": None, "finish_reason": None}],
+        },
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": " France"}, "logprobs": None, "finish_reason": None}],
+        },
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": " is"}, "logprobs": None, "finish_reason": None}],
+        },
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": " located"}, "logprobs": None, "finish_reason": None}],
+        },
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": " in"}, "logprobs": None, "finish_reason": None}],
+        },
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": " Western"}, "logprobs": None, "finish_reason": None}],
+        },
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": " Europe"}, "logprobs": None, "finish_reason": None}],
+        },
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": ","}, "logprobs": None, "finish_reason": None}],
+        },
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": " b"}, "logprobs": None, "finish_reason": None}],
+        },
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": "ordered"}, "logprobs": None, "finish_reason": None}],
+        },
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": " by"}, "logprobs": None, "finish_reason": None}],
+        },
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": " Luxem"}, "logprobs": None, "finish_reason": None}],
+        },
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": "bourg"}, "logprobs": None, "finish_reason": None}],
+        },
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": ","}, "logprobs": None, "finish_reason": None}],
+        },
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": " Germany"}, "logprobs": None, "finish_reason": None}],
+        },
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": ","}, "logprobs": None, "finish_reason": None}],
+        },
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": " Switzerland"}, "logprobs": None, "finish_reason": None}],
+        },
+        {
+            "id": "chatcmpl-1a120f79-e730-4fda-8708-ace395afd03a",
+            "model": "tests/models/openchat-3.5-1210.Q3_K_S.gguf",
+            "created": 1753457814,
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {}, "logprobs": None, "finish_reason": "stop"}],
+        },
+    ]
+
+    generator = LlamaCppChatGenerator(model="tests/models/openchat-3.5-1210.Q3_K_S.gguf")
+    component_info = ComponentInfo.from_component(generator)
+
+    message = generator._handle_streaming_response(llama_cpp_chunks, print_streaming_chunk, component_info)["replies"][
+        0
+    ]
+    assert message.text == " France is located in Western Europe, bordered by Luxembourg, Germany, Switzerland"
+    assert message.tool_calls == []
+    assert message.meta["finish_reason"] == "stop"
+    assert message.meta["model"] == "tests/models/openchat-3.5-1210.Q3_K_S.gguf"
+    assert "completion_start_time" in message.meta
+
+
+def test_handle_streaming_response_tool_calls():
+    llama_cpp_chunks = [
+        {
+            "id": "chatcmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+            "object": "chat.completion.chunk",
+            "created": 1753457703,
+            "model": "tests/models/functionary-small-v2.4.Q4_0.gguf",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": None,
+                    "logprobs": None,
+                    "delta": {"role": "assistant", "content": None, "function_call": None, "tool_calls": None},
+                }
+            ],
+        },
+        {
+            "id": "chatcmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+            "object": "chat.completion.chunk",
+            "created": 1753457703,
+            "model": "tests/models/functionary-small-v2.4.Q4_0.gguf",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": None,
+                    "logprobs": None,
+                    "delta": {
+                        "role": None,
+                        "content": None,
+                        "function_call": {"name": "get_current_weather", "arguments": "{"},
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call__0_get_current_weather_cmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+                                "type": "function",
+                                "function": {"name": "get_current_weather", "arguments": "{"},
+                            }
+                        ],
+                    },
+                }
+            ],
+        },
+        {
+            "id": "chatcmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+            "object": "chat.completion.chunk",
+            "created": 1753457703,
+            "model": "tests/models/functionary-small-v2.4.Q4_0.gguf",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": None,
+                    "logprobs": None,
+                    "delta": {
+                        "role": None,
+                        "content": None,
+                        "function_call": {"name": "get_current_weather", "arguments": ' "'},
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call__0_get_current_weather_cmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+                                "type": "function",
+                                "function": {"name": "get_current_weather", "arguments": ' "'},
+                            }
+                        ],
+                    },
+                }
+            ],
+        },
+        {
+            "id": "chatcmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+            "object": "chat.completion.chunk",
+            "created": 1753457703,
+            "model": "tests/models/functionary-small-v2.4.Q4_0.gguf",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": None,
+                    "logprobs": None,
+                    "delta": {
+                        "role": None,
+                        "content": None,
+                        "function_call": {"name": "get_current_weather", "arguments": "city"},
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call__0_get_current_weather_cmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+                                "type": "function",
+                                "function": {"name": "get_current_weather", "arguments": "city"},
+                            }
+                        ],
+                    },
+                }
+            ],
+        },
+        {
+            "id": "chatcmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+            "object": "chat.completion.chunk",
+            "created": 1753457703,
+            "model": "tests/models/functionary-small-v2.4.Q4_0.gguf",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": None,
+                    "logprobs": None,
+                    "delta": {
+                        "role": None,
+                        "content": None,
+                        "function_call": {"name": "get_current_weather", "arguments": '":'},
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call__0_get_current_weather_cmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+                                "type": "function",
+                                "function": {"name": "get_current_weather", "arguments": '":'},
+                            }
+                        ],
+                    },
+                }
+            ],
+        },
+        {
+            "id": "chatcmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+            "object": "chat.completion.chunk",
+            "created": 1753457703,
+            "model": "tests/models/functionary-small-v2.4.Q4_0.gguf",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": None,
+                    "logprobs": None,
+                    "delta": {
+                        "role": None,
+                        "content": None,
+                        "function_call": {"name": "get_current_weather", "arguments": ' "'},
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call__0_get_current_weather_cmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+                                "type": "function",
+                                "function": {"name": "get_current_weather", "arguments": ' "'},
+                            }
+                        ],
+                    },
+                }
+            ],
+        },
+        {
+            "id": "chatcmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+            "object": "chat.completion.chunk",
+            "created": 1753457703,
+            "model": "tests/models/functionary-small-v2.4.Q4_0.gguf",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": None,
+                    "logprobs": None,
+                    "delta": {
+                        "role": None,
+                        "content": None,
+                        "function_call": {"name": "get_current_weather", "arguments": "Tok"},
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call__0_get_current_weather_cmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+                                "type": "function",
+                                "function": {"name": "get_current_weather", "arguments": "Tok"},
+                            }
+                        ],
+                    },
+                }
+            ],
+        },
+        {
+            "id": "chatcmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+            "object": "chat.completion.chunk",
+            "created": 1753457703,
+            "model": "tests/models/functionary-small-v2.4.Q4_0.gguf",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": None,
+                    "logprobs": None,
+                    "delta": {
+                        "role": None,
+                        "content": None,
+                        "function_call": {"name": "get_current_weather", "arguments": "yo"},
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call__0_get_current_weather_cmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+                                "type": "function",
+                                "function": {"name": "get_current_weather", "arguments": "yo"},
+                            }
+                        ],
+                    },
+                }
+            ],
+        },
+        {
+            "id": "chatcmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+            "object": "chat.completion.chunk",
+            "created": 1753457703,
+            "model": "tests/models/functionary-small-v2.4.Q4_0.gguf",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": None,
+                    "logprobs": None,
+                    "delta": {
+                        "role": None,
+                        "content": None,
+                        "function_call": {"name": "get_current_weather", "arguments": '"'},
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call__0_get_current_weather_cmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+                                "type": "function",
+                                "function": {"name": "get_current_weather", "arguments": '"'},
+                            }
+                        ],
+                    },
+                }
+            ],
+        },
+        {
+            "id": "chatcmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+            "object": "chat.completion.chunk",
+            "created": 1753457703,
+            "model": "tests/models/functionary-small-v2.4.Q4_0.gguf",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": None,
+                    "logprobs": None,
+                    "delta": {
+                        "role": None,
+                        "content": None,
+                        "function_call": {"name": "get_current_weather", "arguments": " }"},
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call__0_get_current_weather_cmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+                                "type": "function",
+                                "function": {"name": "get_current_weather", "arguments": " }"},
+                            }
+                        ],
+                    },
+                }
+            ],
+        },
+        {
+            "id": "chatcmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+            "object": "chat.completion.chunk",
+            "created": 1753457703,
+            "model": "tests/models/functionary-small-v2.4.Q4_0.gguf",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": None,
+                    "logprobs": None,
+                    "delta": {
+                        "role": None,
+                        "content": None,
+                        "function_call": {"name": "get_current_weather", "arguments": " "},
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call__0_get_current_weather_cmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+                                "type": "function",
+                                "function": {"name": "get_current_weather", "arguments": " "},
+                            }
+                        ],
+                    },
+                }
+            ],
+        },
+        {
+            "id": "chatcmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+            "object": "chat.completion.chunk",
+            "created": 1753457703,
+            "model": "tests/models/functionary-small-v2.4.Q4_0.gguf",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": None,
+                    "logprobs": None,
+                    "delta": {
+                        "role": None,
+                        "content": None,
+                        "function_call": {"name": "get_current_weather", "arguments": ""},
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call__0_get_current_weather_cmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+                                "type": "function",
+                                "function": {"name": "get_current_weather", "arguments": ""},
+                            }
+                        ],
+                    },
+                }
+            ],
+        },
+        {
+            "id": "chatcmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+            "object": "chat.completion.chunk",
+            "created": 1753457703,
+            "model": "tests/models/functionary-small-v2.4.Q4_0.gguf",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": "tool_calls",
+                    "logprobs": None,
+                    "delta": {"role": None, "content": None, "function_call": None, "tool_calls": None},
+                }
+            ],
+        },
+    ]
+
+    generator = LlamaCppChatGenerator(model="tests/models/functionary-small-v2.4.Q4_0.gguf")
+    component_info = ComponentInfo.from_component(generator)
+
+    message = generator._handle_streaming_response(llama_cpp_chunks, print_streaming_chunk, component_info)["replies"][
+        0
+    ]
+
+    assert not message.text
+    assert message.tool_calls == [
+        ToolCall(
+            id="call__0_get_current_weather_cmpl-9eb96873-de1f-43af-8b9f-89ac4fdb58e2",
+            tool_name="get_current_weather",
+            arguments={"city": "Tokyo"},
+        )
+    ]
+    assert message.meta["finish_reason"] == "tool_calls"
+    assert message.meta["model"] == "tests/models/functionary-small-v2.4.Q4_0.gguf"
+    assert "completion_start_time" in message.meta
 
 
 class TestLlamaCppChatGenerator:
@@ -474,7 +956,8 @@ class TestLlamaCppChatGeneratorFunctionary:
         return generator
 
     @pytest.mark.integration
-    def test_function_call(self, generator):
+    @pytest.mark.parametrize("streaming_callback", [None, print_streaming_chunk])
+    def test_function_call(self, generator, streaming_callback):
         def get_user_info(username: Annotated[str, "The username to retrieve information for."]):
             """Retrieves detailed information about a user."""
             return {"username": username, "age": 25, "location": "San Francisco"}
@@ -486,7 +969,12 @@ class TestLlamaCppChatGeneratorFunctionary:
         messages = [
             ChatMessage.from_user("Get information for user john_doe"),
         ]
-        response = generator.run(messages=messages, tools=[tool], generation_kwargs={"tool_choice": tool_choice})
+        response = generator.run(
+            messages=messages,
+            tools=[tool],
+            generation_kwargs={"tool_choice": tool_choice},
+            streaming_callback=streaming_callback,
+        )
 
         reply = response["replies"][0]
 
