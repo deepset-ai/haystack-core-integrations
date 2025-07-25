@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.15.1", "anthropic>=0.47.0"]
+dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@main", "anthropic>=0.47.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/anthropic#readme"
@@ -40,6 +40,9 @@ tag-pattern = 'integrations\/anthropic-v(?P<version>.*)'
 [tool.hatch.version.raw-options]
 root = "../.."
 git_describe_command = 'git describe --tags --match="integrations/anthropic-v[0-9]*"'
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.envs.default]
 installer = "uv"
