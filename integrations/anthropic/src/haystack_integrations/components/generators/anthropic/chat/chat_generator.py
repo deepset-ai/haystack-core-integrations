@@ -1,4 +1,3 @@
-
 from datetime import datetime, timezone
 from typing import Any, ClassVar, Dict, List, Literal, Optional, Tuple, Union
 
@@ -41,6 +40,7 @@ FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
     "pause_turn": "stop",
     "tool_use": "tool_calls",
 }
+
 
 def _update_anthropic_message_with_tool_call_results(
     tool_call_results: List[ToolCallResult],
@@ -394,28 +394,32 @@ class AnthropicChatGenerator:
         if chunk.type == "content_block_start":
             start = True
             if chunk.content_block.type == "tool_use":
-                tool_calls.append(ToolCallDelta(
-                    index=chunk.index,
-                    id=chunk.content_block.id,
-                    tool_name=chunk.content_block.name,
-                ))
+                tool_calls.append(
+                    ToolCallDelta(
+                        index=chunk.index,
+                        id=chunk.content_block.id,
+                        tool_name=chunk.content_block.name,
+                    )
+                )
         # delta of a content block
         elif chunk.type == "content_block_delta":
             if chunk.delta.type == "text_delta":
                 content = chunk.delta.text
             elif chunk.delta.type == "input_json_delta":
-                tool_calls.append(ToolCallDelta(
-                    index=chunk.index,
-                    arguments=chunk.delta.partial_json
-                ))
+                tool_calls.append(ToolCallDelta(index=chunk.index, arguments=chunk.delta.partial_json))
         # end of streaming message
         elif chunk.type == "message_delta":
             finish_reason = getattr(chunk.delta, "stop_reason", None)
 
-        return StreamingChunk(content=content, index=index, component_info=component_info,
-                            start=start, finish_reason=FINISH_REASON_MAPPING.get(finish_reason),
-                            tool_calls=tool_calls, meta=chunk.model_dump())
-
+        return StreamingChunk(
+            content=content,
+            index=index,
+            component_info=component_info,
+            start=start,
+            finish_reason=FINISH_REASON_MAPPING.get(finish_reason),
+            tool_calls=tool_calls,
+            meta=chunk.model_dump(),
+        )
 
     def _prepare_request_params(
         self,
@@ -466,7 +470,6 @@ class AnthropicChatGenerator:
 
         return system_messages, non_system_messages, generation_kwargs, anthropic_tools
 
-
     def _process_response(
         self,
         response: Union[Message, Stream[RawMessageStreamEvent]],
@@ -487,6 +490,8 @@ class AnthropicChatGenerator:
             finish_reason = None
             component_info = ComponentInfo.from_component(self)
             for chunk in response:
+                print("TESTING CHUNK")
+                print(chunk)
                 if chunk.type in ["message_start", "content_block_start", "content_block_delta", "message_delta"]:
                     # Extract model from message_start chunks
                     if chunk.type == "message_start":
@@ -501,11 +506,7 @@ class AnthropicChatGenerator:
 
             completion = _convert_streaming_chunks_to_chat_message(chunks)
             completion.meta.update(
-                {
-                    "received_at": datetime.now(timezone.utc).isoformat(),
-                    "model": model,
-                    "finish_reason": finish_reason
-                },
+                {"received_at": datetime.now(timezone.utc).isoformat(), "model": model, "finish_reason": finish_reason},
             )
             return {"replies": [completion]}
         else:
@@ -559,11 +560,7 @@ class AnthropicChatGenerator:
 
             completion = _convert_streaming_chunks_to_chat_message(chunks)
             completion.meta.update(
-                {
-                    "received_at": datetime.now(timezone.utc).isoformat(),
-                    "model": model,
-                    "finish_reason": finish_reason
-                },
+                {"received_at": datetime.now(timezone.utc).isoformat(), "model": model, "finish_reason": finish_reason},
             )
             return {"replies": [completion]}
         else:
