@@ -1,8 +1,18 @@
 import json
-from typing import Any, Dict, List, Optional, Union
+from datetime import datetime, timezone
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.dataclasses import ChatMessage, ToolCall
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
+from haystack.dataclasses import (
+    ChatMessage,
+    ComponentInfo,
+    StreamingCallbackT,
+    ToolCall,
+    ToolCallDelta,
+    select_streaming_callback,
+)
+from haystack.dataclasses.streaming_chunk import FinishReason, StreamingChunk, SyncStreamingCallbackT
 from haystack.tools import (
     Tool,
     Toolset,
@@ -10,6 +20,7 @@ from haystack.tools import (
     deserialize_tools_or_toolset_inplace,
     serialize_tools_or_toolset,
 )
+from haystack.utils import deserialize_callable, serialize_callable
 from llama_cpp import (
     ChatCompletionMessageToolCall,
     ChatCompletionRequestAssistantMessage,
@@ -17,11 +28,19 @@ from llama_cpp import (
     ChatCompletionResponseChoice,
     ChatCompletionTool,
     CreateChatCompletionResponse,
+    CreateChatCompletionStreamResponse,
     Llama,
 )
 from llama_cpp.llama_tokenizer import LlamaHFTokenizer
 
 logger = logging.getLogger(__name__)
+
+FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
+    "stop": "stop",
+    "length": "length",
+    "tool_calls": "tool_calls",
+    "function_call": "tool_calls",
+}
 
 
 def _convert_message_to_llamacpp_format(message: ChatMessage) -> ChatCompletionRequestMessage:
@@ -115,6 +134,7 @@ class LlamaCppChatGenerator:
         generation_kwargs: Optional[Dict[str, Any]] = None,
         *,
         tools: Optional[Union[List[Tool], Toolset]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
     ):
         """
         :param model: The path of a quantized model for text generation, for example, "zephyr-7b-beta.Q4_0.gguf".
@@ -132,6 +152,7 @@ class LlamaCppChatGenerator:
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls.
             This parameter can accept either a list of `Tool` objects or a `Toolset` instance.
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
         """
 
         model_kwargs = model_kwargs or {}
@@ -152,6 +173,7 @@ class LlamaCppChatGenerator:
         self.generation_kwargs = generation_kwargs
         self._model: Optional[Llama] = None
         self.tools = tools
+        self.streaming_callback = streaming_callback
 
     def warm_up(self):
         if "hf_tokenizer_path" in self.model_kwargs and "tokenizer" not in self.model_kwargs:
@@ -168,6 +190,7 @@ class LlamaCppChatGenerator:
         :returns:
               Dictionary with serialized data.
         """
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         return default_to_dict(
             self,
             model=self.model_path,
@@ -176,6 +199,7 @@ class LlamaCppChatGenerator:
             model_kwargs=self.model_kwargs,
             generation_kwargs=self.generation_kwargs,
             tools=serialize_tools_or_toolset(self.tools),
+            streaming_callback=callback_name,
         )
 
     @classmethod
@@ -189,6 +213,13 @@ class LlamaCppChatGenerator:
             Deserialized component.
         """
         deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
+        if (
+            "streaming_callback" in data["init_parameters"]
+            and data["init_parameters"]["streaming_callback"] is not None
+        ):
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(
+                data["init_parameters"]["streaming_callback"]
+            )
         return default_from_dict(cls, data)
 
     @component.output_types(replies=List[ChatMessage])
@@ -198,6 +229,7 @@ class LlamaCppChatGenerator:
         generation_kwargs: Optional[Dict[str, Any]] = None,
         *,
         tools: Optional[Union[List[Tool], Toolset]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
     ) -> Dict[str, List[ChatMessage]]:
         """
         Run the text generation model on the given list of ChatMessages.
@@ -210,6 +242,8 @@ class LlamaCppChatGenerator:
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. If set, it will override the `tools`
             parameter set during component initialization.
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
+            If set, it will override the `streaming_callback` parameter set during component initialization.
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
         """
@@ -242,10 +276,25 @@ class LlamaCppChatGenerator:
                     }
                 )
 
+        streaming_callback = select_streaming_callback(
+            init_callback=self.streaming_callback,
+            runtime_callback=streaming_callback,
+            requires_async=False,
+        )
+
+        if streaming_callback:
+            response_stream = self._model.create_chat_completion(
+                messages=formatted_messages, tools=llamacpp_tools, **updated_generation_kwargs, stream=True
+            )
+            return self._handle_streaming_response(
+                response_stream=response_stream, # type: ignore[arg-type]
+                streaming_callback=streaming_callback
+            ) # we know that response_stream is Iterator[CreateChatCompletionStreamResponse]
+            # because create_chat_completion was called with stream=True, but mypy doesn't know that
+
         response = self._model.create_chat_completion(
             messages=formatted_messages, tools=llamacpp_tools, **updated_generation_kwargs
         )
-
         replies = []
         if not isinstance(response, dict):
             msg = f"Expected a dictionary response, got a different object: {response}"
@@ -254,8 +303,90 @@ class LlamaCppChatGenerator:
         for choice in response["choices"]:
             chat_message = self._convert_chat_completion_choice_to_chat_message(choice, response)
             replies.append(chat_message)
-
         return {"replies": replies}
+
+    def _handle_streaming_response(
+        self, response_stream: Iterator[CreateChatCompletionStreamResponse], streaming_callback: SyncStreamingCallbackT
+    ) -> Dict[str, List[ChatMessage]]:
+        """
+        Handle streaming response from llama.cpp create_chat_completion.
+
+        :param response_stream: The streaming response from create_chat_completion.
+        :param streaming_callback: The callback function for streaming chunks.
+        :returns: A dictionary with the replies.
+        """
+        component_info = ComponentInfo.from_component(self)
+        chunks = []
+
+        seen_tool_call_ids = set()  # Track tool call IDs we've seen
+
+        for i, chunk in enumerate(response_stream):
+            content = ""
+            tool_calls = []
+            mapped_finish_reason = None
+
+            # Track new tool call IDs in this chunk.
+            # Considering tool call ID is the only reliable way to recognize tool calls in llama.cpp streaming.
+            # They are often spread across multiple chunks.
+            new_tool_call_ids = set()
+
+            if chunk.get("choices"):
+                choice = chunk["choices"][0]
+                delta = choice.get("delta", {})
+
+                finish_reason = choice.get("finish_reason")
+                mapped_finish_reason = FINISH_REASON_MAPPING.get(finish_reason or "") if finish_reason else None
+
+                if content_raw := delta.get("content"):
+                    content = str(content_raw)
+
+                tool_calls_data = delta.get("tool_calls")
+                if tool_calls_data is not None and isinstance(tool_calls_data, list):
+                    for tool_call_chunk in tool_calls_data:
+                        tool_call_id = tool_call_chunk.get("id")
+                        is_new_tool_call = tool_call_id and tool_call_id not in seen_tool_call_ids
+
+                        if is_new_tool_call:
+                            new_tool_call_ids.add(tool_call_id)
+                            seen_tool_call_ids.add(tool_call_id)
+
+                        function_data = tool_call_chunk.get("function", {})
+
+                        # Only include tool_name if this is a new tool call
+                        tool_name = function_data.get("name", "") if is_new_tool_call else ""
+
+                        tool_calls.append(
+                            ToolCallDelta(
+                                index=tool_call_chunk.get("index"),
+                                id=tool_call_id,
+                                tool_name=tool_name,
+                                arguments=function_data.get("arguments"),
+                            )
+                        )
+
+            # start is True if it's the first chunk or if we have new tool call IDs
+            start = i == 0 or len(new_tool_call_ids) > 0
+
+            streaming_chunk = StreamingChunk(
+                content="" if tool_calls else content,  # prioritize tool calls over content when both are present
+                tool_calls=tool_calls,
+                component_info=component_info,
+                index=i,
+                start=start,
+                finish_reason=mapped_finish_reason,
+                meta={
+                    "model": self.model_path,
+                    "received_at": datetime.fromtimestamp(chunk["created"], tz=timezone.utc).isoformat(),
+                },  # llama.cpp does not provide usage metadata during streaming
+            )
+
+            chunks.append(streaming_chunk)
+
+            # Stream the chunk
+            streaming_callback(streaming_chunk)
+
+        message = _convert_streaming_chunks_to_chat_message(chunks)
+        return {"replies": [message]}
 
     @staticmethod
     def _convert_chat_completion_choice_to_chat_message(
