@@ -291,6 +291,18 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         assert results[0].content == "Most similar document"
         assert results[1].content == "2nd best document"
 
+    def test_close(self, document_store: PineconeDocumentStore):
+        document_store._initialize_index()
+        assert document_store._index is not None
+
+        document_store.close()
+        assert document_store._index is None
+
+        document_store._initialize_index()
+        assert document_store._index is not None
+        # test that the index is still usable after closing and reopening
+        assert document_store.count_documents() == 0
+
     def test_sentence_window_retriever(self, document_store: PineconeDocumentStore):
         # indexing
         splitter = DocumentSplitter(split_length=10, split_overlap=5, split_by="word")

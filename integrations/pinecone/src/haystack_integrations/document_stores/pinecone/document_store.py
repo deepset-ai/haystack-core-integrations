@@ -143,9 +143,7 @@ class PineconeDocumentStore:
         """
         if self._index:
             self._index.close()
-
-    def __del__(self):
-        self.close()
+            self._index = None
 
     async def close_async(self):
         """
@@ -153,6 +151,7 @@ class PineconeDocumentStore:
         """
         if self._async_index:
             await self._async_index.close()
+            self._async_index = None
 
     @staticmethod
     def _convert_dict_spec_to_pinecone_object(spec: Dict[str, Any]) -> Union[ServerlessSpec, PodSpec]:
@@ -287,6 +286,9 @@ class PineconeDocumentStore:
 
         _validate_filters(filters)
 
+        self._initialize_index()
+        assert self._index is not None, "Index is not initialized"
+
         # Pinecone only performs vector similarity search
         # here we are querying with a dummy vector and the max compatible top_k
         documents = self._embedding_retrieval(query_embedding=self._dummy_vector, filters=filters, top_k=TOP_K_LIMIT)
@@ -311,6 +313,9 @@ class PineconeDocumentStore:
         :returns: A list of Documents that match the given filters.
         """
         _validate_filters(filters)
+
+        await self._initialize_async_index()
+        assert self._async_index is not None, "Index is not initialized"
 
         documents = await self._embedding_retrieval_async(
             query_embedding=self._dummy_vector, filters=filters, top_k=TOP_K_LIMIT

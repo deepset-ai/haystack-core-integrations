@@ -87,6 +87,19 @@ class TestDocumentStoreAsync:
         assert results[0].content == "Most similar document"
         assert results[1].content == "2nd best document"
 
+    async def test_close(self, document_store_async: PineconeDocumentStore):
+        await document_store_async._initialize_async_index()
+        assert document_store_async._async_index is not None
+
+        await document_store_async.close_async()
+        assert document_store_async._async_index is None
+
+        await document_store_async._initialize_async_index()
+        assert document_store_async._async_index is not None
+        # test that the index is still usable after closing and reopening
+        assert await document_store_async.count_documents_async() == 0
+
+
     async def test_sentence_window_retriever(self, document_store_async: PineconeDocumentStore):
         # indexing
         splitter = DocumentSplitter(split_length=10, split_overlap=5, split_by="word")
