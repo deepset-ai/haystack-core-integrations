@@ -96,6 +96,6 @@ async def document_store_async(request):
     yield store
     try:
         await store._async_index.delete(delete_all=True, namespace=namespace)
-        await store._async_index.close()
+        await store.close_async()
     except NotFoundException:
         pass
