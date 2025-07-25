@@ -416,7 +416,7 @@ class AnthropicChatGenerator:
             index=index,
             component_info=component_info,
             start=start,
-            finish_reason=FINISH_REASON_MAPPING.get(finish_reason),
+            finish_reason=FINISH_REASON_MAPPING.get(finish_reason) if finish_reason else None,
             tool_calls=tool_calls,
             meta=chunk.model_dump(),
         )
