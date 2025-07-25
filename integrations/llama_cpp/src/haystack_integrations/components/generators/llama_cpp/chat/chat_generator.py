@@ -290,7 +290,6 @@ class LlamaCppChatGenerator:
                 response_stream=response_stream,  # type: ignore[arg-type]
                 streaming_callback=streaming_callback,
                 component_info=ComponentInfo.from_component(self),
-                model_path=self.model_path,
             )  # we know that response_stream is Iterator[CreateChatCompletionStreamResponse]
             # because create_chat_completion was called with stream=True, but mypy doesn't know that
 

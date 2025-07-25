@@ -648,6 +648,7 @@ class TestLlamaCppChatGenerator:
             model="test_model.gguf",
             n_ctx=8192,
             n_batch=512,
+            streaming_callback=print_streaming_chunk,
         )
 
         assert generator.model_path == "test_model.gguf"
@@ -655,6 +656,7 @@ class TestLlamaCppChatGenerator:
         assert generator.n_batch == 512
         assert generator.model_kwargs == {"model_path": "test_model.gguf", "n_ctx": 8192, "n_batch": 512}
         assert generator.generation_kwargs == {}
+        assert generator.streaming_callback == print_streaming_chunk
 
     def test_init_with_toolset(self, temperature_tool):
         toolset = Toolset([temperature_tool])
@@ -672,6 +674,7 @@ class TestLlamaCppChatGenerator:
                 "model_kwargs": {"model_path": "test_model.gguf", "n_ctx": 8192, "n_batch": 512},
                 "generation_kwargs": {},
                 "tools": None,
+                "streaming_callback": None,
             },
         }
 
@@ -704,6 +707,7 @@ class TestLlamaCppChatGenerator:
                 "model_kwargs": {"model_path": "test_model.gguf", "n_ctx": 8192, "n_batch": 512},
                 "generation_kwargs": {},
                 "tools": None,
+                "streaming_callback": None,
             },
         }
         deserialized = LlamaCppChatGenerator.from_dict(serialized)
