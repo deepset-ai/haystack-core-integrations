@@ -99,7 +99,6 @@ class TestDocumentStoreAsync:
         # test that the index is still usable after closing and reopening
         assert await document_store_async.count_documents_async() == 0
 
-
     async def test_sentence_window_retriever(self, document_store_async: PineconeDocumentStore):
         # indexing
         splitter = DocumentSplitter(split_length=10, split_overlap=5, split_by="word")
