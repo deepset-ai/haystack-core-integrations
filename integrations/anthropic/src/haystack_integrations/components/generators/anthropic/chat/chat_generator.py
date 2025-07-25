@@ -362,7 +362,7 @@ class AnthropicChatGenerator:
             {
                 "model": response_dict.get("model", None),
                 "index": 0,
-                "finish_reason": FINISH_REASON_MAPPING.get(response_dict.get("stop_reason", None), None),
+                "finish_reason": response_dict.get("stop_reason", None),
                 "usage": usage,
             }
         )
@@ -484,14 +484,15 @@ class AnthropicChatGenerator:
         if not isinstance(response, Message):
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
+            finish_reason = None
             component_info = ComponentInfo.from_component(self)
-            print("TESTING RESPONSE")
             for chunk in response:
-                print(chunk)
                 if chunk.type in ["message_start", "content_block_start", "content_block_delta", "message_delta"]:
                     # Extract model from message_start chunks
                     if chunk.type == "message_start":
                         model = chunk.message.model
+                    elif chunk.type == "message_delta":
+                        finish_reason = getattr(chunk.delta, "stop_reason", None)
 
                     streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, component_info)
                     chunks.append(streaming_chunk)
@@ -503,6 +504,7 @@ class AnthropicChatGenerator:
                 {
                     "received_at": datetime.now(timezone.utc).isoformat(),
                     "model": model,
+                    "finish_reason": finish_reason
                 },
             )
             return {"replies": [completion]}
@@ -532,10 +534,13 @@ class AnthropicChatGenerator:
         if stream:
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
+            finish_reason = None
             component_info = ComponentInfo.from_component(self)
             async for chunk in response:
                 if chunk.type == "message_start":
                     model = chunk.message.model
+                elif chunk.type == "message_delta":
+                    finish_reason = getattr(chunk.delta, "stop_reason", None)
                 elif chunk.type in [
                     "content_block_start",
                     "content_block_delta",
@@ -553,6 +558,13 @@ class AnthropicChatGenerator:
                         await streaming_callback(streaming_chunk)
 
             completion = _convert_streaming_chunks_to_chat_message(chunks)
+            completion.meta.update(
+                {
+                    "received_at": datetime.now(timezone.utc).isoformat(),
+                    "model": model,
+                    "finish_reason": finish_reason
+                },
+            )
             return {"replies": [completion]}
         else:
             return {
