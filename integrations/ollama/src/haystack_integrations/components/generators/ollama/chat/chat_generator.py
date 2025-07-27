@@ -1,26 +1,18 @@
 from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
-from haystack.dataclasses import ChatMessage, ComponentInfo, StreamingChunk, ToolCall
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
+from haystack.dataclasses import ChatMessage, ToolCall
+from haystack.dataclasses.streaming_chunk import ComponentInfo, StreamingChunk, ToolCallDelta
 from haystack.tools import (
     Tool,
     _check_duplicate_tool_names,
     deserialize_tools_or_toolset_inplace,
     serialize_tools_or_toolset,
 )
-from haystack.dataclasses.streaming_chunk import (
-    AsyncStreamingCallbackT,
-    ComponentInfo,
-    FinishReason,
-    StreamingCallbackT,
-    StreamingChunk,
-    SyncStreamingCallbackT,
-    ToolCallDelta
-    )
 from haystack.tools.toolset import Toolset
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 from pydantic.json_schema import JsonSchemaValue
-from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 
 from ollama import ChatResponse, Client
 
@@ -297,24 +289,29 @@ class OllamaChatGenerator:
         """
         Convert one Ollama stream-chunk to Haystack StreamingChunk.
         """
-        print("\n Chunk Response")
-        print(chunk_response)
         chunk_response_dict = chunk_response.model_dump()
         finish_reason = chunk_response.done_reason
         tool_calls_list = []
 
         content = chunk_response_dict["message"]["content"]
+
         meta = {key: value for key, value in chunk_response_dict.items() if key != "message"}
         meta["role"] = chunk_response_dict["message"]["role"]
         if tool_calls := chunk_response_dict["message"].get("tool_calls"):
             for index, tool_call in enumerate(tool_calls):
+                arg = tool_call["function"]["arguments"]
+                if isinstance(arg, dict):
+                    arg = str(arg)
+                arg = arg.replace("'", '"')
+
                 tool_calls_list.append(ToolCallDelta(
                     index=index+1,
                     tool_name=tool_call["function"]["name"],
-                    arguments=tool_call["function"]["arguments"],
+                    arguments=arg,
                 ))
 
-        return StreamingChunk(content=content, meta=meta, index=1, finish_reason=finish_reason, component_info=component_info, tool_calls=tool_calls_list)
+        return StreamingChunk(content=content, meta=meta, index=1, finish_reason=finish_reason, # type: ignore[arg-type]
+                              component_info=component_info, tool_calls=tool_calls_list)
 
     def _handle_streaming_response(
         self,
@@ -331,11 +328,6 @@ class OllamaChatGenerator:
 
         chunks: List[StreamingChunk] = []
 
-        # Accumulators
-        arg_by_id: Dict[str, Union[str, dict]] = {}
-        name_by_id: Dict[str, str] = {}
-        id_order: List[str] = []
-
         # Stream
         for raw in response_iter:
             chunk = self._build_chunk(chunk_response=raw, component_info=component_info)
@@ -344,68 +336,10 @@ class OllamaChatGenerator:
             if callback:
                 callback(chunk)
 
-            for tool_call in chunk.meta.get("tool_calls", []):
-                # the Ollama server doesn't guarantee an id field in every tool_calls entry.
-                # OpenAI-compatible endpoint (/v1/chat/completions) - recent releases do add an auto-generated id
-                # when the model produces multiple tool calls, so that clients can map results back.
-                # Native Ollama endpoint (/api/chat) and older builds
-                # - the JSON often contains only function.name + arguments;
-                # many users have reported that id is missing even with several calls,
-                # making client-side resolution harder:
-                # https://github.com/ollama/ollama/issues/6708
-                # https://github.com/ollama/ollama/issues/7510
-                # - If id is provided → we can distinguish multiple calls to the same tool.
-                # - If id is missing → fallback to function.name works only when there's one call.
-                # - That's why the deduplication logic is cautious and assumes one logical
-                #   call per name when id is absent.
-                tool_call_id = tool_call.get("id") or tool_call["function"]["name"]
-                args = tool_call["function"].get("arguments")
-
-                # Remember first-seen order and tool name
-                if tool_call_id not in id_order:
-                    id_order.append(tool_call_id)
-                    name_by_id[tool_call_id] = tool_call["function"]["name"]
-
-                # Update the argument accumulator for this tool_call_id.
-                #
-                # • Ollama may stream the same `arguments` field in *two* different forms:
-                #   1) as one or more **str fragments**  -- characters of a JSON string, delivered chunk-by-chunk;
-                #   2) as a complete **dict**            -- fully-parsed JSON in a single chunk.
-                #
-                # • A dict always represents the *final* state (it is already parsed JSON),
-                #   so it should **overwrite** anything collected before.
-                #
-                # • If we are still receiving str fragments *and* we have not yet seen a
-                #   dict, we concatenate them in arrival order.
-                #
-                # • If a dict has already been stored (`prev` is dict) and another string
-                #   fragment arrives, we ignore it by skipping the concat - this prevents
-                #   `TypeError: can only concatenate str (not "dict") to str` and keeps the
-                #   fully-formed JSON intact.
-                if isinstance(args, dict):
-                    # Dict beats anything seen so far (final, authoritative version).
-                    arg_by_id[tool_call_id] = args
-                elif isinstance(args, str):
-                    # Append only when we are still in "string mode".
-                    if not isinstance(arg_by_id.get(tool_call_id), dict):
-                        prev = arg_by_id.get(tool_call_id, "")
-                        arg_by_id[tool_call_id] = f"{prev}{args}"
-
-        # Compose final reply
-        text = "".join(c.content for c in chunks)
-
-        tool_calls = []
-        for tool_call_id in id_order:
-            arguments = arg_by_id.get(tool_call_id, {})
-            assert isinstance(arguments, dict)  # final arguments are a dictionary  # noqa: S101
-            tool_calls.append(ToolCall(tool_name=name_by_id[tool_call_id], arguments=arguments))
-
-        reply = ChatMessage.from_assistant(
-            text=text,
-            tool_calls=tool_calls or None,
-            meta=_convert_ollama_meta_to_openai_format(chunks[-1].meta) if chunks else None,
-        )
-        return {"replies": [reply]}
+        message = _convert_streaming_chunks_to_chat_message(chunks)
+        message._meta = _convert_ollama_meta_to_openai_format(chunks[-1].meta) if chunks else None  # type: ignore
+        message._meta["finish_reason"] = message._meta.get("done_reason", "stop")
+        return {"replies": [message]}
 
     @component.output_types(replies=List[ChatMessage])
     def run(

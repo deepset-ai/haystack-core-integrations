@@ -27,7 +27,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.15.1", "ollama>=0.4.0", "pydantic"]
+dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@main", "ollama>=0.4.0", "pydantic"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ollama#readme"
