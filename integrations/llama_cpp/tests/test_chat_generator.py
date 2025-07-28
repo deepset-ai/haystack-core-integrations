@@ -10,7 +10,7 @@ from haystack import Document, Pipeline
 from haystack.components.builders import ChatPromptBuilder
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
-from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, TextContent, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, TextContent, ToolCall
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.tools import Tool, Toolset, create_tool_from_function
 
@@ -825,6 +825,30 @@ class TestLlamaCppChatGenerator:
             assert isinstance(result["replies"], list)
             assert len(result["replies"]) > 0
             assert any(answer.lower() in reply.text.lower() for reply in result["replies"])
+
+    @pytest.mark.integration
+    def test_run_streaming(self, generator):
+        component_info = ComponentInfo.from_component(generator)
+        class Callback:
+            def __init__(self):
+                self.responses = ""
+                self.counter = 0
+
+            def __call__(self, chunk: StreamingChunk) -> None:
+                self.counter += 1
+                self.responses += chunk.content if chunk.content else ""
+                assert chunk.component_info == component_info
+
+        callback = Callback()
+
+        results = generator.run(
+            messages=[ChatMessage.from_user("What's the capital of France?")], streaming_callback=callback
+        )
+
+        assert len(results["replies"]) == 1
+        assert callback.counter > 0, "No streaming chunks received"
+        message: ChatMessage = results["replies"][0]
+        assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
 
     @pytest.mark.integration
     def test_run_rag_pipeline(self, generator):

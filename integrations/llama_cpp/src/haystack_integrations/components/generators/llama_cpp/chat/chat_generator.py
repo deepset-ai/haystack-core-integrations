@@ -313,9 +313,10 @@ class LlamaCppChatGenerator:
         component_info: ComponentInfo,
     ) -> Dict[str, List[ChatMessage]]:
         """
-        Handle streaming response from llama.cpp create_chat_completion.
+        Take streaming responses from llama.cpp, convert to Haystack StreamingChunk objects, stream them,
+        and finally convert them to a ChatMessage.
 
-        :param response_stream: The streaming response from create_chat_completion.
+        :param response_stream: The streaming responses from llama.cpp.
         :param streaming_callback: The callback function for streaming chunks.
         :param component_info: The component info.
         :returns: A dictionary with the replies.
