@@ -175,7 +175,8 @@ class GoogleAIGeminiChatGenerator:
             The callback function accepts StreamingChunk as an argument.
         """
         soft_deprecation_msg = (
-            "This component uses a deprecated SDK. We recommend using the GoogleGenAIChatGenerator instead."
+            "This component uses a deprecated SDK. We recommend using the GoogleGenAIChatGenerator instead. "
+            "Documentation is available at https://docs.haystack.deepset.ai/docs/googlegenaichatgenerator."
         )
         logger.warning(soft_deprecation_msg)
 
