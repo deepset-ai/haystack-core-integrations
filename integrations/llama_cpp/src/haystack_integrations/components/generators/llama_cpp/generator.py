@@ -12,7 +12,7 @@ class LlamaCppGenerator:
     """
     Provides an interface to generate text using LLM via llama.cpp.
 
-    [llama.cpp](https://github.com/ggerganov/llama.cpp) is a project written in C/C++ for efficient inference of LLMs.
+    [llama.cpp](https://github.com/ggml-org/llama.cpp) is a project written in C/C++ for efficient inference of LLMs.
     It employs the quantized GGUF format, suitable for running these models on standard machines (even without GPUs).
 
     Usage example:
