@@ -340,7 +340,7 @@ class LlamaCppChatGenerator:
                 delta = choice.get("delta", {})
 
                 finish_reason = choice.get("finish_reason")
-                mapped_finish_reason = FINISH_REASON_MAPPING.get(finish_reason or "") if finish_reason else None
+                mapped_finish_reason = FINISH_REASON_MAPPING.get(finish_reason or "")
 
                 if content_raw := delta.get("content"):
                     content = str(content_raw)
@@ -422,12 +422,14 @@ class LlamaCppChatGenerator:
                         tc_args=arguments_str,
                     )
 
+        finish_reason = choice.get("finish_reason")
+
         meta = {
             "response_id": response["id"],
             "model": response["model"],
             "created": response["created"],
             "index": choice["index"],
-            "finish_reason": choice["finish_reason"],
+            "finish_reason": FINISH_REASON_MAPPING.get(finish_reason or ""),
             "usage": response["usage"],
         }
 
