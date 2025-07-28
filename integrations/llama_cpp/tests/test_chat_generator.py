@@ -829,6 +829,7 @@ class TestLlamaCppChatGenerator:
     @pytest.mark.integration
     def test_run_streaming(self, generator):
         component_info = ComponentInfo.from_component(generator)
+
         class Callback:
             def __init__(self):
                 self.responses = ""
