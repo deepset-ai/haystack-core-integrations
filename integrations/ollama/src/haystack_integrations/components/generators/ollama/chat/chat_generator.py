@@ -304,14 +304,22 @@ class OllamaChatGenerator:
                     arg = str(arg)
                 arg = arg.replace("'", '"')
 
-                tool_calls_list.append(ToolCallDelta(
-                    index=index+1,
-                    tool_name=tool_call["function"]["name"],
-                    arguments=arg,
-                ))
+                tool_calls_list.append(
+                    ToolCallDelta(
+                        index=index + 1,
+                        tool_name=tool_call["function"]["name"],
+                        arguments=arg,
+                    )
+                )
 
-        return StreamingChunk(content=content, meta=meta, index=1, finish_reason=finish_reason, # type: ignore[arg-type]
-                              component_info=component_info, tool_calls=tool_calls_list)
+        return StreamingChunk(
+            content=content,
+            meta=meta,
+            index=1,
+            finish_reason=finish_reason,  # type: ignore[arg-type]
+            component_info=component_info,
+            tool_calls=tool_calls_list,
+        )
 
     def _handle_streaming_response(
         self,
