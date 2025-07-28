@@ -335,7 +335,7 @@ class LlamaCppChatGenerator:
             # They are often spread across multiple chunks.
             new_tool_call_ids = set()
 
-            if chunk.get("choices"):
+            if chunk.get("choices") and len(chunk["choices"]) > 0:
                 choice = chunk["choices"][0]
                 delta = choice.get("delta", {})
 
@@ -388,7 +388,11 @@ class LlamaCppChatGenerator:
             streaming_chunks.append(streaming_chunk)
 
             # Stream the chunk
-            streaming_callback(streaming_chunk)
+            try:
+                streaming_callback(streaming_chunk)
+            except Exception as e:
+                logger.error(f"Error in streaming callback invocation: {e}")
+                continue
 
         message = _convert_streaming_chunks_to_chat_message(streaming_chunks)
         return {"replies": [message]}
