@@ -56,6 +56,22 @@ class AmazonBedrockChatGenerator:
     client.run(messages, generation_kwargs={"max_tokens": 512})
     ```
 
+    ### Multimodal example
+    ```python
+    from haystack.dataclasses import ChatMessage, ImageContent
+    from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
+
+    generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+
+    image_content = ImageContent.from_file_path(file_path="apple.jpg")
+
+    message = ChatMessage.from_user(content_parts=["Describe the image using 10 words at most.", image_content])
+
+    response = generator.run(messages=[message])["replies"][0].text
+
+    print(response)
+    > The image shows a red apple.
+
     ### Tool usage example
     # AmazonBedrockChatGenerator supports Haystack's unified tool architecture, allowing tools to be used
     # across different chat generators. The same tool definitions and usage patterns work consistently

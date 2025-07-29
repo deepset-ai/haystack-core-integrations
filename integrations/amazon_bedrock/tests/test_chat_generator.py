@@ -4,7 +4,7 @@ import pytest
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
+from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, StreamingChunk
 from haystack.tools import Tool
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
@@ -23,6 +23,10 @@ MODELS_TO_TEST_WITH_TOOLS = [
 
 # so far we've discovered these models support streaming and tool use
 STREAMING_TOOL_MODELS = ["anthropic.claude-3-5-sonnet-20240620-v1:0", "cohere.command-r-plus-v1:0"]
+
+MODELS_TO_TEST_WITH_IMAGE_INPUT = [
+    "anthropic.claude-3-5-sonnet-20240620-v1:0",
+]
 
 
 def weather(city: str):
@@ -287,6 +291,23 @@ class TestAmazonBedrockChatGeneratorInference:
         if first_reply.meta and "usage" in first_reply.meta:
             assert "prompt_tokens" in first_reply.meta["usage"]
             assert "completion_tokens" in first_reply.meta["usage"]
+
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_IMAGE_INPUT)
+    def test_run_with_image_input(self, model_name):
+        client = AmazonBedrockChatGenerator(model=model_name)
+
+        image_path = "test_files" / "apple.jpg"
+        image_content = ImageContent.from_file_path(image_path, size=(100, 100))
+
+        chat_message = ChatMessage.from_user(content_parts=["What's in the image? Max 5 words.", image_content])
+
+        response = client.run([chat_message])
+
+        first_reply = response["replies"][0]
+        assert isinstance(first_reply, ChatMessage)
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT)
+        assert first_reply.text
+        assert "apple" in first_reply.text.lower()
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
     def test_default_inference_with_streaming(self, model_name, chat_messages):
