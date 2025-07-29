@@ -98,6 +98,7 @@ class VertexAIDocumentEmbedder:
         """
         soft_deprecation_msg = (
             "This component uses a deprecated SDK. We recommend using the GoogleGenAIDocumentEmbedder instead."
+            "Documentation is available at https://docs.haystack.deepset.ai/docs/googlegenaidocumentembedder."
         )
         logger.warning(soft_deprecation_msg)
 
