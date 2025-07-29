@@ -14,7 +14,7 @@ from dataclasses import dataclass, fields
 from datetime import timedelta
 from typing import Any, cast
 
-import anyio  # Added for ClosedResourceError detection
+import anyio
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from exceptiongroup import ExceptionGroup
 from haystack import logging
@@ -264,7 +264,7 @@ class MCPClient(ABC):
 
                 # Only attempt reconnection for SSE/HTTP transports
                 if isinstance(self, SSEClient| StreamableHttpClient):
-                    logger.warning(f"Connection lost during tool call '{tool_name}' (attempt {attempt + 1}/{max_retries + 1}): {error_type}: {error_msg}")
+                    logger.warning(f"Connection lost during tool call '{tool_name}': {error_type}: {error_msg}")
 
                     try:
                         # Exponential backoff before reconnection attempt
