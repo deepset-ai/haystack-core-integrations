@@ -177,6 +177,11 @@ class VertexAIGeminiChatGenerator:
             the stream. The callback function accepts StreamingChunk as an argument.
 
         """
+        soft_deprecation_msg = (
+            "This component uses a deprecated SDK. We recommend using the GoogleGenAIChatGenerator instead. "
+            "Documentation is available at https://docs.haystack.deepset.ai/docs/googlegenaichatgenerator."
+        )
+        logger.warning(soft_deprecation_msg)
 
         # Login to GCP. This will fail if user has not set up their gcloud SDK
         vertexai_init(project=project_id, location=location)
