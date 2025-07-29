@@ -293,10 +293,10 @@ class TestAmazonBedrockChatGeneratorInference:
             assert "completion_tokens" in first_reply.meta["usage"]
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_IMAGE_INPUT)
-    def test_run_with_image_input(self, model_name):
+    def test_run_with_image_input(self, model_name, test_files_path):
         client = AmazonBedrockChatGenerator(model=model_name)
 
-        image_path = "test_files/apple.jpg"
+        image_path = test_files_path / "apple.jpg"
         image_content = ImageContent.from_file_path(image_path, size=(100, 100))
 
         chat_message = ChatMessage.from_user(content_parts=["What's in the image? Max 5 words.", image_content])
