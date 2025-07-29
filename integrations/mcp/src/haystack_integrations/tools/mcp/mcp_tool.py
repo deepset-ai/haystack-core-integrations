@@ -14,6 +14,7 @@ from dataclasses import dataclass, fields
 from datetime import timedelta
 from typing import Any, cast
 
+import anyio  # Added for ClosedResourceError detection
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from exceptiongroup import ExceptionGroup
 from haystack import logging
@@ -234,19 +235,75 @@ class MCPClient(ABC):
             message = "Not connected to an MCP server"
             raise MCPConnectionError(message=message, operation="call_tool")
 
-        try:
-            result = await self.session.call_tool(tool_name, tool_args)
-            if result.isError:
-                message = f"Tool '{tool_name}' returned an error: {result.content!s}"
-                raise MCPInvocationError(message=message, tool_name=tool_name)
-            return result.model_dump_json()
-        except MCPError:
-            # Re-raise specific MCP errors directly
-            raise
-        except Exception as e:
-            # Wrap other exceptions with context about which tool failed
-            message = f"Failed to invoke tool '{tool_name}' with args: {tool_args} , got error: {e!s}"
-            raise MCPInvocationError(message, tool_name, tool_args) from e
+        # Implement retry logic with exponential backoff for connection-related errors
+        max_retries = 3
+        base_delay = 1  # Start with 1 second
+
+        for attempt in range(max_retries + 1):  # +1 for initial attempt
+            try:
+                result = await self.session.call_tool(tool_name, tool_args)
+                if result.isError:
+                    message = f"Tool '{tool_name}' returned an error: {result.content!s}"
+                    raise MCPInvocationError(message=message, tool_name=tool_name)
+                return result.model_dump_json()
+            except MCPError:
+                # Re-raise specific MCP errors directly (these are not connection issues)
+                raise
+            except (anyio.ClosedResourceError, ConnectionError, OSError) as e:
+                error_type = type(e).__name__
+                error_msg = str(e) if str(e) else "Connection closed unexpectedly"
+
+                # Don't retry on the last attempt
+                if attempt >= max_retries:
+                    message = (
+                        f"Tool '{tool_name}' failed after {max_retries} reconnection attempts. "
+                        f"Last error: {error_type}: {error_msg}. "
+                        f"Consider recreating the MCPTool instance or checking server availability."
+                    )
+                    raise MCPInvocationError(message, tool_name, tool_args) from e
+
+                # Only attempt reconnection for SSE/HTTP transports
+                if isinstance(self, SSEClient| StreamableHttpClient):
+                    logger.warning(f"Connection lost during tool call '{tool_name}' (attempt {attempt + 1}/{max_retries + 1}): {error_type}: {error_msg}")
+
+                    try:
+                        # Exponential backoff before reconnection attempt
+                        if attempt > 0:
+                            delay = min(base_delay * (2 ** (attempt - 1)), 30)  # Cap at 30 seconds
+                            logger.info(f"Waiting {delay}s before reconnection attempt {attempt + 1}")
+                            await asyncio.sleep(delay)
+
+                        logger.info(f"Attempting reconnection {attempt + 1}/{max_retries}")
+                        await self.connect()
+                        logger.info(f"Reconnection {attempt + 1} successful")
+                        # Continue to next iteration to retry the tool call
+
+                    except Exception as reconnect_error:
+                        logger.error(f"Reconnection attempt {attempt + 1} failed: {reconnect_error}")
+                        if attempt >= max_retries - 1:  # This was the last reconnection attempt
+                            message = (
+                                f"Tool '{tool_name}' failed and all {max_retries} reconnection attempts failed. "
+                                f"Original error: {error_type}: {error_msg}. "
+                                f"Final reconnection error: {reconnect_error}. "
+                                f"Try recreating the MCPTool instance."
+                            )
+                            raise MCPInvocationError(message, tool_name, tool_args) from e
+                        # Continue to next iteration for another reconnection attempt
+                else:
+                    # For non-HTTP transports, don't attempt reconnection
+                    message = (
+                        f"Connection lost during tool call '{tool_name}': {error_type}: {error_msg}. "
+                        f"For STDIO connections, try recreating the MCPTool instance."
+                    )
+                    raise MCPInvocationError(message, tool_name, tool_args) from e
+            except Exception as e:
+                # Handle other exceptions with meaningful error messages
+                error_description = str(e) if str(e) else f"Unknown {type(e).__name__} error"
+                message = f"Failed to invoke tool '{tool_name}' with args: {tool_args}, got error: {error_description}"
+                raise MCPInvocationError(message, tool_name, tool_args) from e
+
+        message = f"Tool '{tool_name}' failed unexpectedly after all retry attempts"
+        raise MCPInvocationError(message, tool_name, tool_args)
 
     async def aclose(self) -> None:
         """
