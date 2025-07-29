@@ -46,7 +46,6 @@ class TestMCPTimeoutReconnection:
 
         def wait_for_server_ready(port, max_attempts=10):
             """Wait for server to accept connections."""
-            import socket
 
             for _attempt in range(max_attempts):
                 try:
