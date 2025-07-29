@@ -296,7 +296,7 @@ class TestAmazonBedrockChatGeneratorInference:
     def test_run_with_image_input(self, model_name):
         client = AmazonBedrockChatGenerator(model=model_name)
 
-        image_path = "test_files" / "apple.jpg"
+        image_path = "test_files/apple.jpg"
         image_content = ImageContent.from_file_path(image_path, size=(100, 100))
 
         chat_message = ChatMessage.from_user(content_parts=["What's in the image? Max 5 words.", image_content])
