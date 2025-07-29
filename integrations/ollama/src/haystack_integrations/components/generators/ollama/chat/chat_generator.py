@@ -50,7 +50,7 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any
     return ollama_msg
 
 
-def _convert_ollama_meta_to_openai_format(input_response_dict: Dict) -> Dict:
+def _convert_ollama_meta_to_openai_format(input_response_dict: Dict) -> Dict[str, Any]:
     """
     Map Ollama metadata keys onto the OpenAI-compatible names Haystack expects.
     All fields that are not part of the OpenAI metadata are left unchanged in the returned dict.
@@ -316,6 +316,7 @@ class OllamaChatGenerator:
             content=content,
             meta=meta,
             index=index,
+            # we ignore the type error because ollama returns openai-compatible finish_reason
             finish_reason=finish_reason,  # type: ignore[arg-type]
             component_info=component_info,
             tool_calls=tool_calls_list,
@@ -345,7 +346,7 @@ class OllamaChatGenerator:
                 callback(chunk)
 
         message = _convert_streaming_chunks_to_chat_message(chunks)
-        message._meta = _convert_ollama_meta_to_openai_format(chunks[-1].meta) if chunks else None  # type: ignore
+        message._meta = _convert_ollama_meta_to_openai_format(chunks[-1].meta) if chunks else {}
         message._meta["finish_reason"] = message._meta.get("done_reason", "stop")
         return {"replies": [message]}
 

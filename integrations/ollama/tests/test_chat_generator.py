@@ -373,7 +373,7 @@ class TestOllamaChatGenerator:
 
         component_info = ComponentInfo.from_component(generator)
 
-        chunk = generator._build_chunk(mock_chunk_response, component_info)
+        chunk = generator._build_chunk(mock_chunk_response, component_info, index=1)
 
         assert isinstance(chunk, StreamingChunk)
         assert chunk.content == "Hello world"
