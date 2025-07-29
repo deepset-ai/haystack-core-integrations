@@ -263,7 +263,7 @@ class MCPClient(ABC):
                     raise MCPInvocationError(message, tool_name, tool_args) from e
 
                 # Only attempt reconnection for SSE/HTTP transports
-                if isinstance(self, SSEClient| StreamableHttpClient):
+                if isinstance(self, SSEClient | StreamableHttpClient):
                     logger.warning(f"Connection lost during tool call '{tool_name}': {error_type}: {error_msg}")
 
                     try:
