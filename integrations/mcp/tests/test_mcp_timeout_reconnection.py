@@ -66,7 +66,15 @@ class TestMCPTimeoutReconnection:
             temp_file.write(
                 f"""
 import sys
+import signal
 from mcp.server.fastmcp import FastMCP
+
+# Handle shutdown signals gracefully
+def signal_handler(signum, frame):
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
 
 mcp = FastMCP("Reconnection Test Server", host="127.0.0.1", port={port})
 
@@ -77,6 +85,8 @@ def test_tool(message: str) -> str:
 if __name__ == "__main__":
     try:
         mcp.run(transport="sse")
+    except (KeyboardInterrupt, SystemExit):
+        sys.exit(0)
     except Exception as e:
         print(f"Server error: {{e}}", file=sys.stderr)
         sys.exit(1)
@@ -107,7 +117,11 @@ if __name__ == "__main__":
 
             # Kill server to simulate timeout
             server_process.terminate()
-            server_process.wait(timeout=5)
+            try:
+                server_process.wait(timeout=2)  # Reduced timeout
+            except subprocess.TimeoutExpired:
+                server_process.kill()
+                server_process.wait(timeout=2)
             time.sleep(1)
 
             # Restart server
@@ -143,12 +157,18 @@ if __name__ == "__main__":
 
             if server_process:
                 if server_process.poll() is None:
+                    # Try gentle termination first
                     server_process.terminate()
                     try:
-                        server_process.wait(timeout=5)
+                        server_process.wait(timeout=2)  # Reduced timeout
                     except subprocess.TimeoutExpired:
+                        # Force kill if terminate doesn't work
+                        logger.debug("Server didn't terminate gracefully, using kill")
                         server_process.kill()
-                        server_process.wait(timeout=5)
+                        try:
+                            server_process.wait(timeout=2)  # Reduced timeout
+                        except subprocess.TimeoutExpired:
+                            logger.warning("Server process still hanging after kill")
 
             if os.path.exists(server_script_path):
                 os.remove(server_script_path)
