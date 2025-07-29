@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -24,3 +25,8 @@ def mock_boto3_session():
 def mock_aioboto3_session():
     with patch("aioboto3.Session") as mock_client:
         yield mock_client
+
+
+@pytest.fixture()
+def test_files_path():
+    return Path(__file__).parent / "test_files"
