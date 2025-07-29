@@ -285,7 +285,7 @@ class OllamaChatGenerator:
         return default_from_dict(cls, data)
 
     @staticmethod
-    def _build_chunk(chunk_response: ChatResponse, component_info: ComponentInfo) -> StreamingChunk:
+    def _build_chunk(chunk_response: ChatResponse, component_info: ComponentInfo, index: int) -> StreamingChunk:
         """
         Convert one Ollama stream-chunk to Haystack StreamingChunk.
         """
@@ -298,7 +298,7 @@ class OllamaChatGenerator:
         meta = {key: value for key, value in chunk_response_dict.items() if key != "message"}
         meta["role"] = chunk_response_dict["message"]["role"]
         if tool_calls := chunk_response_dict["message"].get("tool_calls"):
-            for index, tool_call in enumerate(tool_calls):
+            for tool_index, tool_call in enumerate(tool_calls):
                 arg = tool_call["function"]["arguments"]
                 if isinstance(arg, dict):
                     arg = str(arg)
@@ -306,7 +306,7 @@ class OllamaChatGenerator:
 
                 tool_calls_list.append(
                     ToolCallDelta(
-                        index=index + 1,
+                        index=tool_index + 1,
                         tool_name=tool_call["function"]["name"],
                         arguments=arg,
                     )
@@ -315,7 +315,7 @@ class OllamaChatGenerator:
         return StreamingChunk(
             content=content,
             meta=meta,
-            index=1,
+            index=index,
             finish_reason=finish_reason,  # type: ignore[arg-type]
             component_info=component_info,
             tool_calls=tool_calls_list,
@@ -337,8 +337,8 @@ class OllamaChatGenerator:
         chunks: List[StreamingChunk] = []
 
         # Stream
-        for raw in response_iter:
-            chunk = self._build_chunk(chunk_response=raw, component_info=component_info)
+        for index, raw in enumerate(response_iter):
+            chunk = self._build_chunk(chunk_response=raw, component_info=component_info, index=index)
             chunks.append(chunk)
 
             if callback:
