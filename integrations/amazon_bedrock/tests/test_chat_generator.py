@@ -25,7 +25,7 @@ MODELS_TO_TEST_WITH_TOOLS = [
 STREAMING_TOOL_MODELS = ["anthropic.claude-3-5-sonnet-20240620-v1:0", "cohere.command-r-plus-v1:0"]
 
 MODELS_TO_TEST_WITH_IMAGE_INPUT = [
-    "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+    "us.anthropic.claude-sonnet-4-20250514-v1:0",
 ]
 
 
