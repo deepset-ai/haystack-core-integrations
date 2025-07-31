@@ -135,15 +135,30 @@ if __name__ == "__main__":
             if os.path.exists(server_script_path):
                 os.remove(server_script_path)
 
-    @pytest.mark.skip
+    @pytest.mark.skipif(
+        (not os.environ.get("OPENAI_API_KEY") and not os.environ.get("BRAVE_API_KEY"))
+        or (sys.platform == "win32")
+        or (sys.platform == "darwin"),
+        reason="OPENAI_API_KEY or BRAVE_API_KEY not set, or running on Windows or macOS",
+    )
     def test_mcp_brave_search(self, mcp_tool_cleanup):
         """Test using an MCPTool in a pipeline with OpenAI."""
 
         # Create an MCPTool for the brave_web_search operation
         server_info = StdioServerInfo(
             command="docker",
-            args=["run", "-i", "--rm", "-e", f"BRAVE_API_KEY={os.environ.get('BRAVE_API_KEY')}", "mcp/brave-search"],
-            env=None,
+            args=[
+                "run",
+                "-i",
+                "--rm",
+                "-e", "BRAVE_MCP_TRANSPORT",
+                "-e", "BRAVE_API_KEY",
+                "mcp/brave-search"
+            ],
+            env={
+                "BRAVE_MCP_TRANSPORT": "stdio",
+                "BRAVE_API_KEY": os.environ.get('BRAVE_API_KEY', 'YOUR_API_KEY_HERE'),
+            },
         )
         try:
             tool = MCPTool(name="brave_web_search", server_info=server_info)
