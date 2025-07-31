@@ -137,6 +137,22 @@ class PineconeDocumentStore:
 
         await async_client.close()
 
+    def close(self):
+        """
+        Close the associated synchronous resources.
+        """
+        if self._index:
+            self._index.close()
+            self._index = None
+
+    async def close_async(self):
+        """
+        Close the associated asynchronous resources. To be invoked manually when the Document Store is no longer needed.
+        """
+        if self._async_index:
+            await self._async_index.close()
+            self._async_index = None
+
     @staticmethod
     def _convert_dict_spec_to_pinecone_object(spec: Dict[str, Any]) -> Union[ServerlessSpec, PodSpec]:
         """Convert the spec dictionary to a Pinecone spec object"""
@@ -270,6 +286,9 @@ class PineconeDocumentStore:
 
         _validate_filters(filters)
 
+        self._initialize_index()
+        assert self._index is not None, "Index is not initialized"
+
         # Pinecone only performs vector similarity search
         # here we are querying with a dummy vector and the max compatible top_k
         documents = self._embedding_retrieval(query_embedding=self._dummy_vector, filters=filters, top_k=TOP_K_LIMIT)
@@ -295,6 +314,9 @@ class PineconeDocumentStore:
         """
         _validate_filters(filters)
 
+        await self._initialize_async_index()
+        assert self._async_index is not None, "Index is not initialized"
+
         documents = await self._embedding_retrieval_async(
             query_embedding=self._dummy_vector, filters=filters, top_k=TOP_K_LIMIT
         )
@@ -307,6 +329,7 @@ class PineconeDocumentStore:
                 f"PineconeDocumentStore can return at most {TOP_K_LIMIT} documents and the query has hit this limit. "
                 f"It is likely that there are more matching documents in the document store. "
             )
+
         return documents
 
     def delete_documents(self, document_ids: List[str]) -> None:
