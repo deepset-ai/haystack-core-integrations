@@ -144,11 +144,10 @@ class TestGitHubFileEditorTool:
         # Remove parameters introduced after haystack-ai==2.12.0 (the minimum supported version)
         # to maintain compatibility
         try:
-            if "components" in pipeline_dict:
-                pipeline_dict["components"]["agent"]["init_parameters"]["chat_generator"]["init_parameters"].pop(
-                    "http_client_kwargs", None
-                )
-                pipeline_dict["components"]["agent"]["init_parameters"].pop("tool_invoker_kwargs", None)
+            pipeline_dict["components"]["agent"]["init_parameters"]["chat_generator"]["init_parameters"].pop(
+                "http_client_kwargs", None
+            )
+            pipeline_dict["components"]["agent"]["init_parameters"].pop("tool_invoker_kwargs", None)
         except KeyError:
             pass
 
