@@ -13,7 +13,7 @@ from haystack.dataclasses import (
 )
 from haystack.tools import Tool
 from haystack.tools.toolset import Toolset
-from ollama._types import ChatResponse, ResponseError
+from ollama._types import ChatResponse, Message, ResponseError
 
 from haystack_integrations.components.generators.ollama.chat.chat_generator import (
     OllamaChatGenerator,
@@ -373,7 +373,7 @@ class TestOllamaChatGenerator:
 
         component_info = ComponentInfo.from_component(generator)
 
-        chunk = generator._build_chunk(mock_chunk_response, component_info, index=1)
+        chunk = generator._build_chunk(mock_chunk_response, component_info, index=1, tool_call_index=0)
 
         assert isinstance(chunk, StreamingChunk)
         assert chunk.content == "Hello world"
@@ -586,6 +586,131 @@ class TestOllamaChatGenerator:
         assert result["replies"][0]._meta["usage"]["prompt_tokens"] == 26
         assert result["replies"][0]._meta["usage"]["completion_tokens"] == 282
         assert result["replies"][0]._meta["usage"]["total_tokens"] == 308
+
+    def test_handle_streaming_response(self):
+        ollama_chunks = [
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T15:27:09.265818Z",
+                done=False,
+                done_reason=None,
+                total_duration=None,
+                load_duration=None,
+                prompt_eval_count=None,
+                prompt_eval_duration=None,
+                eval_count=None,
+                eval_duration=None,
+                message=Message(role="assistant", content="The capital", thinking=None, images=None, tool_calls=None),
+            ),
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T15:27:09.265818Z",
+                done=False,
+                done_reason=None,
+                total_duration=None,
+                load_duration=None,
+                prompt_eval_count=None,
+                prompt_eval_duration=None,
+                eval_count=None,
+                eval_duration=None,
+                message=Message(
+                    role="assistant", content=" of Jordan is Amman.", thinking=None, images=None, tool_calls=None
+                ),
+            ),
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T15:27:09.355211Z",
+                done=True,
+                done_reason="stop",
+                total_duration=1303416458,
+                load_duration=953922333,
+                prompt_eval_count=22,
+                prompt_eval_duration=254166208,
+                eval_count=3,
+                eval_duration=92965792,
+                message=Message(role="assistant", content="", thinking=None, images=None, tool_calls=None),
+            ),
+        ]
+
+        generator = OllamaChatGenerator()
+        response = generator._handle_streaming_response(ollama_chunks, print_streaming_chunk)
+        assert response["replies"][0].text == "The capital of Jordan is Amman."
+        assert response["replies"][0].tool_calls == []
+        assert response["replies"][0].meta["finish_reason"] == "stop"
+        assert response["replies"][0].meta["model"] == "qwen3:0.6b"
+
+    def test_handle_streaming_response_tool_calls(self):
+        ollama_chunks = [
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T14:48:03.471292Z",
+                done=False,
+                done_reason=None,
+                total_duration=None,
+                load_duration=None,
+                prompt_eval_count=None,
+                prompt_eval_duration=None,
+                eval_count=None,
+                eval_duration=None,
+                message=Message(
+                    role="assistant",
+                    content="",
+                    thinking=None,
+                    images=None,
+                    tool_calls=[
+                        Message.ToolCall(
+                            function=Message.ToolCall.Function(
+                                name="calculator", arguments={"expression": "7 * (4 + 2)"}
+                            )
+                        )
+                    ],
+                ),
+            ),
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T14:48:03.660179Z",
+                done=False,
+                done_reason=None,
+                total_duration=None,
+                load_duration=None,
+                prompt_eval_count=None,
+                prompt_eval_duration=None,
+                eval_count=None,
+                eval_duration=None,
+                message=Message(
+                    role="assistant",
+                    content="",
+                    thinking=None,
+                    images=None,
+                    tool_calls=[
+                        Message.ToolCall(function=Message.ToolCall.Function(name="factorial", arguments={"n": 5}))
+                    ],
+                ),
+            ),
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T14:48:03.678729Z",
+                done=True,
+                done_reason="stop",
+                total_duration=774786292,
+                load_duration=43608375,
+                prompt_eval_count=217,
+                prompt_eval_duration=312974541,
+                eval_count=46,
+                eval_duration=417069750,
+                message=Message(role="assistant", content="", thinking=None, images=None, tool_calls=None),
+            ),
+        ]
+
+        generator = OllamaChatGenerator()
+        result = generator._handle_streaming_response(ollama_chunks, print_streaming_chunk)
+        assert result["replies"][0].text == ""
+        assert result["replies"][0].tool_calls[0].tool_name == "calculator"
+        assert result["replies"][0].tool_calls[0].arguments == {"expression": "7 * (4 + 2)"}
+        assert result["replies"][0].tool_calls[1].tool_name == "factorial"
+        assert result["replies"][0].tool_calls[1].arguments == {"n": 5}
+        assert result["replies"][0].meta["finish_reason"] == "stop"
+        assert result["replies"][0].meta["model"] == "qwen3:0.6b"
 
     @pytest.mark.integration
     def test_run_success_with_tools_and_streaming(self, tools):
