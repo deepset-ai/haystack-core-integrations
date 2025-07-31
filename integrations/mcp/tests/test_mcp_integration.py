@@ -36,7 +36,7 @@ class TestMCPToolInPipelineWithOpenAI:
     def test_mcp_tool_with_http_server(self):
         """Test using an MCPTool with a real HTTP server."""
 
-        # Find an available port
+        # Find an available port, unrelated change to trigger tests
         def find_free_port():
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.bind(("", 0))
