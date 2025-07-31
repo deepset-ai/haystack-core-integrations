@@ -6,6 +6,7 @@ Since we can't wait 10 minutes for real timeouts, we simulate disconnections
 by killing the server process and then restarting it.
 """
 
+import asyncio
 import logging
 import os
 import socket
@@ -83,8 +84,6 @@ class TestMCPTimeoutReconnection:
         mock_session.call_tool.side_effect = [ConnectionError("Connection lost"), success_response]
 
         # Test the retry logic by calling it directly
-        import asyncio
-
         async def test_call():
             result = await client.call_tool("test_tool", {"message": "test"})
             return result
