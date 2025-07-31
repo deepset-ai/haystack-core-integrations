@@ -447,7 +447,7 @@ def _convert_streaming_chunks_to_chat_message(chunks: List[StreamingChunk]) -> C
     # Convert accumulated tool call data into ToolCall objects
     for call_data in tool_call_data.values():
         try:
-            arguments = json.loads(call_data["arguments"])
+            arguments = json.loads(call_data.get("arguments", "{}")) if call_data.get("arguments") else {}
             tool_calls.append(ToolCall(id=call_data["id"], tool_name=call_data["name"], arguments=arguments))
         except json.JSONDecodeError:
             logger.warning(

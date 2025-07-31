@@ -4,7 +4,7 @@ import pytest
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, StreamingChunk
+from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, StreamingChunk, ToolCall
 from haystack.tools import Tool
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
@@ -27,6 +27,21 @@ STREAMING_TOOL_MODELS = ["anthropic.claude-3-5-sonnet-20240620-v1:0", "cohere.co
 MODELS_TO_TEST_WITH_IMAGE_INPUT = [
     "us.anthropic.claude-sonnet-4-20250514-v1:0",
 ]
+
+
+def hello_world():
+    return "Hello, World!"
+
+
+@pytest.fixture
+def tool_with_no_parameters():
+    tool = Tool(
+        name="hello_world",
+        description="This prints hello world",
+        parameters={"properties": {}, "type": "object"},
+        function=hello_world,
+    )
+    return tool
 
 
 def weather(city: str):
@@ -429,6 +444,45 @@ class TestAmazonBedrockChatGeneratorInference:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
+
+    @pytest.mark.parametrize("model_name", [STREAMING_TOOL_MODELS[0]])  # just one model is enough
+    def test_live_run_with_tool_with_no_args_streaming(self, tool_with_no_parameters, model_name):
+        """
+        Integration test that the AmazonBedrockChatGenerator component can run with a tool that has no arguments and
+        streaming.
+        """
+        initial_messages = [ChatMessage.from_user("Print Hello World using the print hello world tool.")]
+        component = AmazonBedrockChatGenerator(
+            model=model_name, tools=[tool_with_no_parameters], streaming_callback=print_streaming_chunk
+        )
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+
+        # # this is Claude thinking message prior to tool call
+        assert message.text is not None
+
+        # now we have the tool call
+        assert message.tool_calls
+        tool_call = message.tool_call
+        assert isinstance(tool_call, ToolCall)
+        assert tool_call.id is not None
+        assert tool_call.tool_name == "hello_world"
+        assert tool_call.arguments == {}
+        assert message.meta["finish_reason"] == "tool_use"
+
+        # new_messages = [
+        #     *initial_messages,
+        #     message,
+        #     ChatMessage.from_tool(tool_result="Hello World!", origin=tool_call),
+        # ]
+        # results = component.run(new_messages)
+        # assert len(results["replies"]) == 1
+        # final_message = results["replies"][0]
+        # assert not final_message.tool_calls
+        # assert len(final_message.text) > 0
+        # assert "hello" in final_message.text.lower()
 
     @pytest.mark.parametrize("model_name", [MODELS_TO_TEST_WITH_TOOLS[0]])  # just one model is enough
     def test_pipeline_with_amazon_bedrock_chat_generator(self, model_name, tools):
