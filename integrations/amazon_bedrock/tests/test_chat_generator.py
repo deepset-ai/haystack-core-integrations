@@ -445,7 +445,7 @@ class TestAmazonBedrockChatGeneratorInference:
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
 
-    @pytest.mark.parametrize("model_name", [STREAMING_TOOL_MODELS[0]])  # just one model is enough
+    @pytest.mark.parametrize("model_name", [STREAMING_TOOL_MODELS[1]])  # just one model is enough
     def test_live_run_with_tool_with_no_args_streaming(self, tool_with_no_parameters, model_name):
         """
         Integration test that the AmazonBedrockChatGenerator component can run with a tool that has no arguments and
@@ -461,7 +461,7 @@ class TestAmazonBedrockChatGeneratorInference:
         message = results["replies"][0]
 
         # # this is Claude thinking message prior to tool call
-        assert message.text is not None
+        # assert message.text is not None
 
         # now we have the tool call
         assert message.tool_calls
@@ -472,17 +472,17 @@ class TestAmazonBedrockChatGeneratorInference:
         assert tool_call.arguments == {}
         assert message.meta["finish_reason"] == "tool_use"
 
-        # new_messages = [
-        #     *initial_messages,
-        #     message,
-        #     ChatMessage.from_tool(tool_result="Hello World!", origin=tool_call),
-        # ]
-        # results = component.run(new_messages)
-        # assert len(results["replies"]) == 1
-        # final_message = results["replies"][0]
-        # assert not final_message.tool_calls
-        # assert len(final_message.text) > 0
-        # assert "hello" in final_message.text.lower()
+        new_messages = [
+            *initial_messages,
+            message,
+            ChatMessage.from_tool(tool_result="Hello World!", origin=tool_call),
+        ]
+        results = component.run(new_messages)
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_calls
+        assert len(final_message.text) > 0
+        assert "hello" in final_message.text.lower()
 
     @pytest.mark.parametrize("model_name", [MODELS_TO_TEST_WITH_TOOLS[0]])  # just one model is enough
     def test_pipeline_with_amazon_bedrock_chat_generator(self, model_name, tools):
