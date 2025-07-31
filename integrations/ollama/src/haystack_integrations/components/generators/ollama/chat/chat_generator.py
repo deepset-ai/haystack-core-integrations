@@ -306,7 +306,7 @@ class OllamaChatGenerator:
         meta = {key: value for key, value in chunk_response_dict.items() if key != "message"}
         meta["role"] = chunk_response_dict["message"]["role"]
         if tool_calls := chunk_response_dict["message"].get("tool_calls"):
-            for tool_call in enumerate(tool_calls):
+            for tool_call in tool_calls:
                 arg = tool_call["function"]["arguments"]
 
                 tool_calls_list.append(
