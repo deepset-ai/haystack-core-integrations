@@ -5,6 +5,7 @@ from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, ImageCont
 from haystack.tools import Tool
 
 from haystack_integrations.components.generators.amazon_bedrock.chat.utils import (
+    _convert_streaming_chunks_to_chat_message,
     _format_messages,
     _format_text_image_message,
     _format_tools,
@@ -555,3 +556,256 @@ class TestAmazonBedrockChatGeneratorUtils:
             ),
         ]
         assert replies == expected_messages
+
+    def test_convert_streaming_chunks_to_chat_message_tool_call_with_empty_arguments(self):
+        chunks = [
+            StreamingChunk(
+                content="Certainly! I",
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:07.072764+00:00",
+                },
+            ),
+            StreamingChunk(
+                content=" can help",
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:07.111264+00:00",
+                },
+            ),
+            StreamingChunk(
+                content=" you print",
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:07.162575+00:00",
+                },
+            ),
+            StreamingChunk(
+                content=' "Hello World"',
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:07.215535+00:00",
+                },
+            ),
+            StreamingChunk(
+                content=" using the available",
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:07.270642+00:00",
+                },
+            ),
+            StreamingChunk(
+                content=' "',
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:07.349415+00:00",
+                },
+            ),
+            StreamingChunk(
+                content='hello_world" tool',
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:07.426891+00:00",
+                },
+            ),
+            StreamingChunk(
+                content=". This tool is",
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:07.495910+00:00",
+                },
+            ),
+            StreamingChunk(
+                content=' designed to print "',
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:07.527426+00:00",
+                },
+            ),
+            StreamingChunk(
+                content='Hello World" an',
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:07.590629+00:00",
+                },
+            ),
+            StreamingChunk(
+                content="d doesn't require any parameters",
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:07.682261+00:00",
+                },
+            ),
+            StreamingChunk(
+                content=". Let",
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:07.790526+00:00",
+                },
+            ),
+            StreamingChunk(
+                content="'s go ahead an",
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:07.845332+00:00",
+                },
+            ),
+            StreamingChunk(
+                content="d use",
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:07.990588+00:00",
+                },
+            ),
+            StreamingChunk(
+                content=" it.",
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:07.994309+00:00",
+                },
+            ),
+            StreamingChunk(
+                content="",
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "received_at": "2025-07-31T08:46:08.359127+00:00",
+                },
+            ),
+            StreamingChunk(
+                content="",
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": [
+                        {
+                            "index": 1,
+                            "id": "tooluse_QZlUqTveTwyUaCQGQbWP6g",
+                            "function": {"arguments": "", "name": "hello_world"},
+                            "type": "function",
+                        }
+                    ],
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:08.359912+00:00",
+                },
+            ),
+            StreamingChunk(
+                content="",
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": [
+                        {"index": 1, "id": None, "function": {"arguments": "", "name": None}, "type": "function"}
+                    ],
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:08.361612+00:00",
+                },
+            ),
+            StreamingChunk(
+                content="",
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "received_at": "2025-07-31T08:46:08.591668+00:00",
+                },
+            ),
+            StreamingChunk(
+                content="",
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": "tool_use",
+                    "received_at": "2025-07-31T08:46:08.592175+00:00",
+                },
+                index=None,
+                tool_calls=None,
+                tool_call_result=None,
+                start=False,
+                finish_reason=None,
+            ),
+            StreamingChunk(
+                content="",
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": "2025-07-31T08:46:08.596700+00:00",
+                    "usage": {"prompt_tokens": 349, "completion_tokens": 84, "total_tokens": 433},
+                },
+                index=None,
+                tool_calls=None,
+                tool_call_result=None,
+                start=False,
+                finish_reason=None,
+            ),
+        ]
+
+        message = _convert_streaming_chunks_to_chat_message(chunks)
+
+        # Verify the message content
+        assert message.text == (
+            'Certainly! I can help you print "Hello World" using the available "hello_world" tool. This tool is '
+            "designed to print \"Hello World\" and doesn't require any parameters. Let's go ahead and use it."
+        )
+
+        # Verify tool calls
+        assert len(message.tool_calls) == 1
+        tool_call = message.tool_calls[0]
+        assert tool_call.id == "tooluse_QZlUqTveTwyUaCQGQbWP6g"
+        assert tool_call.tool_name == "hello_world"
+        assert tool_call.arguments == {}
+
+        # Verify meta information
+        assert message._meta["model"] == "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        assert message._meta["index"] == 0
+        assert message._meta["finish_reason"] == "tool_use"
+        assert message._meta["usage"] == {
+            "completion_tokens": 84,
+            "prompt_tokens": 349,
+            "total_tokens": 433,
+        }
