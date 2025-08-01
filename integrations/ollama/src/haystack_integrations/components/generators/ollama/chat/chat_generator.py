@@ -321,7 +321,7 @@ class OllamaChatGenerator:
             content=content,
             meta=meta,
             index=index,
-            finish_reason=FINISH_REASON_MAPPING.get(finish_reason, "stop") if finish_reason else "stop",
+            FINISH_REASON_MAPPING.get(finish_reason or "")
             component_info=component_info,
             tool_calls=tool_calls_list,
         )
