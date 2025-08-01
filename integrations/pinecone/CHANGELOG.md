@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/pinecone-v5.3.0] - 2025-07-30
+
+### 🚀 Features
+
+- Pinecone - add methods to close resources (#1972)
+
+
 ## [integrations/pinecone-v5.2.0] - 2025-06-26
 
 ### 🐛 Bug Fixes
