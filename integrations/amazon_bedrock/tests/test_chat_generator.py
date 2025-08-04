@@ -447,7 +447,6 @@ class TestAmazonBedrockChatGeneratorInference:
         assert not final_message.tool_call
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
-        assert "berlin" in final_message.text.lower()
 
     def test_live_run_with_tool_call_and_thinking_streaming(self, tools):
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
@@ -498,7 +497,6 @@ class TestAmazonBedrockChatGeneratorInference:
         assert not final_message.tool_call
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
-        assert "berlin" in final_message.text.lower()
 
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
     def test_live_run_with_multi_tool_calls_streaming(self, model_name, tools):

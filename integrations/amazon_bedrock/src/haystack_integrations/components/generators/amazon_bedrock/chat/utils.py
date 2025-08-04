@@ -325,7 +325,6 @@ def _convert_event_to_streaming_chunk(
                 content="",
                 meta={
                     "model": model,
-                    # This is always 0 b/c it represents the choice index
                     "index": 0,
                     # We follow the same format used in the OpenAIChatGenerator
                     "tool_calls": [  # Optional[List[ChoiceDeltaToolCall]]
@@ -355,7 +354,6 @@ def _convert_event_to_streaming_chunk(
                 content=delta["text"],
                 meta={
                     "model": model,
-                    # This is always 0 b/c it represents the choice index
                     "index": 0,
                     "tool_calls": None,
                     "finish_reason": None,
@@ -369,7 +367,6 @@ def _convert_event_to_streaming_chunk(
                 content="",
                 meta={
                     "model": model,
-                    # This is always 0 b/c it represents the choice index
                     "index": 0,
                     "tool_calls": [  # Optional[List[ChoiceDeltaToolCall]]
                         {
@@ -385,6 +382,19 @@ def _convert_event_to_streaming_chunk(
                     ],
                     "finish_reason": None,
                     "received_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+        # This is for accumulating reasoning content deltas
+        elif "reasoningContent" in delta:
+            streaming_chunk = StreamingChunk(
+                content="",
+                meta={
+                    "model": model,
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": datetime.now(timezone.utc).isoformat(),
+                    "reasoning_content": delta["reasoningContent"],
                 },
             )
 
@@ -441,7 +451,22 @@ def _convert_streaming_chunks_to_chat_message(chunks: List[StreamingChunk]) -> C
         A ChatMessage object constructed from the streaming chunks, containing the aggregated text, processed tool
         calls, and metadata.
     """
+    # Join all text content from the chunks
     text = "".join([chunk.content for chunk in chunks])
+
+    # If reasoning content is present in any chunk, accumulate it
+    reasoning_text = ""
+    reasoning_signature = None
+    for chunk in chunks:
+        if chunk.meta.get("reasoning_content"):
+            reasoning_content = chunk.meta["reasoning_content"]
+            if "text" in reasoning_content:
+                reasoning_text += reasoning_content["text"]
+            elif "signature" in reasoning_content:
+                reasoning_signature = reasoning_content["signature"]
+    reasoning_content = None
+    if reasoning_text:
+        reasoning_content = {"reasoning_text": {"text": reasoning_text, "signature": reasoning_signature}}
 
     # Process tool calls if present in any chunk
     tool_calls = []
@@ -494,6 +519,7 @@ def _convert_streaming_chunks_to_chat_message(chunks: List[StreamingChunk]) -> C
         "finish_reason": finish_reason,
         "completion_start_time": chunks[0].meta.get("received_at"),  # first chunk received
         "usage": usage,
+        "reasoning_content": reasoning_content if reasoning_content else None,
     }
 
     return ChatMessage.from_assistant(text=text or None, tool_calls=tool_calls, meta=meta)
@@ -514,14 +540,11 @@ def _parse_streaming_response(
     :param component_info: ComponentInfo object
     :return: List of ChatMessage objects
     """
-    aws_chunks = []
     chunks: List[StreamingChunk] = []
     for event in response_stream:
-        aws_chunks.append(event)
         streaming_chunk = _convert_event_to_streaming_chunk(event=event, model=model, component_info=component_info)
         streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
-    print(aws_chunks)
     replies = [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
     return replies
 

@@ -1,7 +1,7 @@
 import base64
+from unittest.mock import ANY
 
 import pytest
-from unittest.mock import ANY
 from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, ImageContent, StreamingChunk, ToolCall
 from haystack.tools import Tool
 
@@ -113,12 +113,14 @@ class TestAmazonBedrockChatGeneratorUtils:
     def test_format_message_thinking(self):
         assistant_message = ChatMessage.from_assistant(
             "This is a test message.",
-            meta={"reasoning_content": {
-                "reasoning_text": {
-                    "text": "This is the reasoning behind the message.",
-                    "signature": "reasoning_signature"
+            meta={
+                "reasoning_content": {
+                    "reasoning_text": {
+                        "text": "This is the reasoning behind the message.",
+                        "signature": "reasoning_signature",
+                    }
                 }
-            }}
+            },
         )
         formatted_message = _format_messages([assistant_message])[1][0]
         assert formatted_message == {
@@ -128,7 +130,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "reasoningContent": {
                         "reasoningText": {
                             "text": "This is the reasoning behind the message.",
-                            "signature": "reasoning_signature"
+                            "signature": "reasoning_signature",
                         }
                     }
                 },
@@ -139,12 +141,14 @@ class TestAmazonBedrockChatGeneratorUtils:
         tool_call_message = ChatMessage.from_assistant(
             "This is a test message with a tool call.",
             tool_calls=[ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})],
-            meta={"reasoning_content": {
-                "reasoning_text": {
-                    "text": "This is the reasoning behind the tool call.",
-                    "signature": "reasoning_signature"
+            meta={
+                "reasoning_content": {
+                    "reasoning_text": {
+                        "text": "This is the reasoning behind the tool call.",
+                        "signature": "reasoning_signature",
+                    }
                 }
-            }}
+            },
         )
         formatted_message = _format_messages([tool_call_message])[1][0]
         assert formatted_message == {
@@ -154,7 +158,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "reasoningContent": {
                         "reasoningText": {
                             "text": "This is the reasoning behind the tool call.",
-                            "signature": "reasoning_signature"
+                            "signature": "reasoning_signature",
                         }
                     }
                 },
@@ -507,10 +511,10 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "reasoning_content": {
                     "reasoning_text": {
                         "text": "The user wants to know the weather in Paris. I have a `weather` function "
-                                "available that can provide this information. \n\nRequired parameters for "
-                                "the weather function:\n- city: The city to get the weather for\n\nIn this "
-                                'case, the user has clearly specified "Paris" as the city, so I have all '
-                                "the required information to make the function call.",
+                        "available that can provide this information. \n\nRequired parameters for "
+                        "the weather function:\n- city: The city to get the weather for\n\nIn this "
+                        'case, the user has clearly specified "Paris" as the city, so I have all '
+                        "the required information to make the function call.",
                         "signature": "...",
                     }
                 },
@@ -612,61 +616,121 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert len(replies) == 1
         assert replies == expected_messages
 
-    # TODO
-    # def test_process_streaming_response_one_tool_call_with_thinking(self, mock_boto3_session):
-    #     model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
-    #     type_ = (
-    #         "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
-    #     )
-    #     streaming_chunks = []
-    #
-    #     def test_callback(chunk: StreamingChunk):
-    #         streaming_chunks.append(chunk)
-    #
-    #     events = [
-    #         {"messageStart": {"role": "assistant"}},
-    #         {"contentBlockDelta": {"delta": {"text": "To"}, "contentBlockIndex": 0}},
-    #         {"contentBlockDelta": {"delta": {"text": " answer your question about the"}, "contentBlockIndex": 0}},
-    #         {"contentBlockDelta": {"delta": {"text": " weather in Berlin and Paris, I'll"}, "contentBlockIndex": 0}},
-    #         {"contentBlockDelta": {"delta": {"text": " need to use the weather_tool"}, "contentBlockIndex": 0}},
-    #         {"contentBlockDelta": {"delta": {"text": " for each city. Let"}, "contentBlockIndex": 0}},
-    #         {"contentBlockDelta": {"delta": {"text": " me fetch that information for"}, "contentBlockIndex": 0}},
-    #         {"contentBlockDelta": {"delta": {"text": " you."}, "contentBlockIndex": 0}},
-    #         {"contentBlockStop": {"contentBlockIndex": 0}},
-    #         {
-    #             "contentBlockStart": {
-    #                 "start": {"toolUse": {"toolUseId": "tooluse_A0jTtaiQTFmqD_cIq8I1BA", "name": "weather_tool"}},
-    #                 "contentBlockIndex": 1,
-    #             }
-    #         },
-    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": ""}}, "contentBlockIndex": 1}},
-    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": '{"location":'}}, "contentBlockIndex": 1}},
-    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": ' "Be'}}, "contentBlockIndex": 1}},
-    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": 'rlin"}'}}, "contentBlockIndex": 1}},
-    #         {"contentBlockStop": {"contentBlockIndex": 1}},
-    #         {
-    #             "contentBlockStart": {
-    #                 "start": {"toolUse": {"toolUseId": "tooluse_LTc2TUMgTRiobK5Z5CCNSw", "name": "weather_tool"}},
-    #                 "contentBlockIndex": 2,
-    #             }
-    #         },
-    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": ""}}, "contentBlockIndex": 2}},
-    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": '{"l'}}, "contentBlockIndex": 2}},
-    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": "ocati"}}, "contentBlockIndex": 2}},
-    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": 'on": "P'}}, "contentBlockIndex": 2}},
-    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": "ari"}}, "contentBlockIndex": 2}},
-    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": 's"}'}}, "contentBlockIndex": 2}},
-    #         {"contentBlockStop": {"contentBlockIndex": 2}},
-    #         {"messageStop": {"stopReason": "tool_use"}},
-    #         {
-    #             "metadata": {
-    #                 "usage": {"inputTokens": 366, "outputTokens": 83, "totalTokens": 449},
-    #                 "metrics": {"latencyMs": 3194},
-    #             }
-    #         },
-    #     ]
-    #
-    #     replies = _parse_streaming_response(events, test_callback, model, ComponentInfo(type=type_))
+    def test_process_streaming_response_one_tool_call_with_thinking(self, mock_boto3_session):
+        model = "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0"
+        type_ = (
+            "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+        )
+        streaming_chunks = []
+
+        def test_callback(chunk: StreamingChunk):
+            streaming_chunks.append(chunk)
+
+        events = [
+            {"messageStart": {"role": "assistant"}},
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": "The user is asking about the weather"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": " in Paris. I have"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": " access to a"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": " weather function that takes"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": " a city parameter. Paris"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": " is clearly specifie"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": "d as the city, so I have all"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": " the required parameters to make the"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": " function call."}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {"contentBlockDelta": {"delta": {"reasoningContent": {"signature": "..."}}, "contentBlockIndex": 0}},
+            {"contentBlockStop": {"contentBlockIndex": 0}},
+            {
+                "contentBlockStart": {
+                    "start": {"toolUse": {"toolUseId": "tooluse_1gPhO4A1RNWgzKbt1PXWLg", "name": "weather"}},
+                    "contentBlockIndex": 1,
+                }
+            },
+            {"contentBlockDelta": {"delta": {"toolUse": {"input": ""}}, "contentBlockIndex": 1}},
+            {"contentBlockDelta": {"delta": {"toolUse": {"input": '{"ci'}}, "contentBlockIndex": 1}},
+            {"contentBlockDelta": {"delta": {"toolUse": {"input": "ty"}}, "contentBlockIndex": 1}},
+            {"contentBlockDelta": {"delta": {"toolUse": {"input": '": "P'}}, "contentBlockIndex": 1}},
+            {"contentBlockDelta": {"delta": {"toolUse": {"input": "aris"}}, "contentBlockIndex": 1}},
+            {"contentBlockDelta": {"delta": {"toolUse": {"input": '"}'}}, "contentBlockIndex": 1}},
+            {"contentBlockStop": {"contentBlockIndex": 1}},
+            {"messageStop": {"stopReason": "tool_use"}},
+            {
+                "metadata": {
+                    "usage": {"inputTokens": 412, "outputTokens": 104, "totalTokens": 516},
+                    "metrics": {"latencyMs": 2134},
+                }
+            },
+        ]
+
+        replies = _parse_streaming_response(events, test_callback, model, ComponentInfo(type=type_))
+
+        expected_messages = [
+            ChatMessage.from_assistant(
+                tool_calls=[
+                    ToolCall(tool_name="weather", arguments={"city": "Paris"}, id="tooluse_1gPhO4A1RNWgzKbt1PXWLg"),
+                ],
+                meta={
+                    "model": "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0",
+                    "index": 0,
+                    "finish_reason": "tool_use",
+                    "usage": {"prompt_tokens": 412, "completion_tokens": 104, "total_tokens": 516},
+                    "completion_start_time": ANY,
+                    "reasoning_content": {
+                        "reasoning_text": {
+                            "text": "The user is asking about the weather in Paris. I have access to a weather "
+                            "function that takes a city parameter. Paris is clearly specified as the city, "
+                            "so I have all the required parameters to make the function call.",
+                            "signature": "...",
+                        }
+                    },
+                },
+            ),
+        ]
+        assert replies == expected_messages
 
     def test_parse_streaming_response_with_two_tool_calls(self, mock_boto3_session):
         model = "anthropic.claude-3-5-sonnet-20240620-v1:0"

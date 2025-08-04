@@ -63,7 +63,7 @@ dependencies = [
 
 [tool.hatch.envs.test.scripts]
 unit = 'pytest -m "not integration" {args:tests}'
-integration = 'pytest -m "integration" {args:tests} -s -k test_live_run_with_tool_call_and_thinking_streaming'
+integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
 
