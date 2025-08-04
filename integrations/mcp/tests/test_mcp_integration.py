@@ -147,8 +147,11 @@ if __name__ == "__main__":
         # Create an MCPTool for the brave_web_search operation
         server_info = StdioServerInfo(
             command="docker",
-            args=["run", "-i", "--rm", "-e", f"BRAVE_API_KEY={os.environ.get('BRAVE_API_KEY')}", "mcp/brave-search"],
-            env=None,
+            args=["run", "-i", "--rm", "-e", "BRAVE_MCP_TRANSPORT", "-e", "BRAVE_API_KEY", "mcp/brave-search"],
+            env={
+                "BRAVE_MCP_TRANSPORT": "stdio",
+                "BRAVE_API_KEY": os.environ.get("BRAVE_API_KEY", "YOUR_API_KEY_HERE"),
+            },
         )
         try:
             tool = MCPTool(name="brave_web_search", server_info=server_info)
