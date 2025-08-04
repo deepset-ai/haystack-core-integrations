@@ -86,8 +86,8 @@ def test_convert_chatmessage_to_ollama_format():
         "content": tool_result,
     }
 
-def test_convert_chatmessage_to_ollama_format_image():
 
+def test_convert_chatmessage_to_ollama_format_image():
     base64_image_string = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="
     image_content = ImageContent(base64_image=base64_image_string)
 
