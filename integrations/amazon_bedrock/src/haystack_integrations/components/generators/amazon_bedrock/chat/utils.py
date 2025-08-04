@@ -57,8 +57,7 @@ def _format_tool_call_message(tool_call_message: ChatMessage) -> Dict[str, Any]:
     content: List[Dict[str, Any]] = []
 
     # tool call messages can contain reasoning content
-    if tool_call_message.meta.get("reasoning_content"):
-        reasoning_content = tool_call_message.meta["reasoning_content"]
+    if reasoning_content := tool_call_message.meta.get("reasoning_content"):
         # If reasoningText is present, replace it with reasoning_text
         if "reasoning_text" in reasoning_content:
             reasoning_content["reasoningText"] = reasoning_content.pop("reasoning_text")
@@ -458,8 +457,7 @@ def _convert_streaming_chunks_to_chat_message(chunks: List[StreamingChunk]) -> C
     reasoning_text = ""
     reasoning_signature = None
     for chunk in chunks:
-        if chunk.meta.get("reasoning_content"):
-            reasoning_content = chunk.meta["reasoning_content"]
+        if reasoning_content := chunk.meta.get("reasoning_content"):
             if "text" in reasoning_content:
                 reasoning_text += reasoning_content["text"]
             elif "signature" in reasoning_content:
