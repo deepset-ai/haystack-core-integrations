@@ -339,7 +339,7 @@ class OllamaChatGenerator:
         chunks: List[StreamingChunk] = []
 
         # Accumulators
-        arg_by_id: Dict[str, Union[str, dict]] = {}
+        arg_by_id: Dict[str, str] = {}
         name_by_id: Dict[str, str] = {}
         id_order: List[str] = []
         tool_call_index: int = 0
@@ -387,9 +387,8 @@ class OllamaChatGenerator:
 
         tool_calls = []
         for tool_call_id in id_order:
-            arguments = arg_by_id.get(tool_call_id, {})
-            assert isinstance(arguments, dict)  # final arguments are a dictionary  # noqa: S101
-            tool_calls.append(ToolCall(tool_name=name_by_id[tool_call_id], arguments=arguments))
+            arguments: str = arg_by_id.get(tool_call_id, "")
+            tool_calls.append(ToolCall(tool_name=name_by_id[tool_call_id], arguments=json.loads(arguments)))
 
         # We can't use _convert_streaming_chunks_to_chat_message because
         # we need to map tool_call name and args by order.
