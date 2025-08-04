@@ -17,9 +17,8 @@ from ollama import ChatResponse, Client
 
 FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
     "stop": "stop",
-    "tool_calls": "tool_calls",
-    "load": "stop",
-    "unload": "stop",
+    "tool_calls": "tool_calls"
+    # we skip load and unload reasons
 }
 
 
@@ -307,13 +306,12 @@ class OllamaChatGenerator:
         meta["role"] = chunk_response_dict["message"]["role"]
         if tool_calls := chunk_response_dict["message"].get("tool_calls"):
             for tool_call in tool_calls:
-                arg = tool_call["function"]["arguments"]
 
                 tool_calls_list.append(
                     ToolCallDelta(
                         index=tool_call_index,
                         tool_name=tool_call["function"]["name"],
-                        arguments=arg,
+                        arguments=tool_call["function"]["arguments"],
                     )
                 )
 
@@ -321,7 +319,7 @@ class OllamaChatGenerator:
             content=content,
             meta=meta,
             index=index,
-            FINISH_REASON_MAPPING.get(finish_reason or "")
+            finish_reason=FINISH_REASON_MAPPING.get(finish_reason or ""),
             component_info=component_info,
             tool_calls=tool_calls_list,
         )
@@ -420,7 +418,7 @@ class OllamaChatGenerator:
             tool_calls=tool_calls or None,
             meta=_convert_ollama_meta_to_openai_format(chunks[-1].meta) if chunks else {},
         )
-        reply._meta["finish_reason"] = reply._meta.get("done_reason", "stop")
+        reply._meta["finish_reason"] = FINISH_REASON_MAPPING.get(reply._meta.get("finish_reason"))
 
         return {"replies": [reply]}
 
