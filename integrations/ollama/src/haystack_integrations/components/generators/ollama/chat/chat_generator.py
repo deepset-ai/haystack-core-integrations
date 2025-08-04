@@ -22,6 +22,7 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any
     text_contents = message.texts
     tool_calls = message.tool_calls
     tool_call_results = message.tool_call_results
+    images = message.images
 
     if not text_contents and not tool_calls and not tool_call_results:
         msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
@@ -39,6 +40,8 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any
 
     if text_contents:
         ollama_msg["content"] = text_contents[0]
+        if images:
+            ollama_msg["images"] = [image.base64_image for image in images]
     if tool_calls:
         # Ollama does not support tool call id, so we ignore it
         ollama_msg["tool_calls"] = [
