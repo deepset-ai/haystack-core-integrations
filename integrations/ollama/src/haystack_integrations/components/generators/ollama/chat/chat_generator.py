@@ -377,29 +377,7 @@ class OllamaChatGenerator:
                         id_order.append(tool_call_id)
                         name_by_id[tool_call_id] = tool_call.tool_name or ""
                     # Update the argument accumulator for this tool_call_id.
-                    #
-                    # • Ollama may stream the same `arguments` field in *two* different forms:
-                    #   1) as one or more **str fragments**  -- characters of a JSON string, delivered chunk-by-chunk;
-                    #   2) as a complete **dict**            -- fully-parsed JSON in a single chunk.
-                    #
-                    # • A dict always represents the *final* state (it is already parsed JSON),
-                    #   so it should **overwrite** anything collected before.
-                    #
-                    # • If we are still receiving str fragments *and* we have not yet seen a
-                    #   dict, we concatenate them in arrival order.
-                    #
-                    # • If a dict has already been stored (`prev` is dict) and another string
-                    #   fragment arrives, we ignore it by skipping the concat - this prevents
-                    #   `TypeError: can only concatenate str (not "dict") to str` and keeps the
-                    #   fully-formed JSON intact.
-                    if isinstance(args, dict):
-                        # Dict beats anything seen so far (final, authoritative version).
-                        arg_by_id[tool_call_id] = args
-                    elif isinstance(args, str):
-                        # Append only when we are still in "string mode".
-                        if not isinstance(arg_by_id.get(tool_call_id), dict):
-                            prev = arg_by_id.get(tool_call_id, "")
-                            arg_by_id[tool_call_id] = f"{prev}{args}"
+                    arg_by_id[tool_call_id] = args
 
             if callback:
                 callback(chunk)
