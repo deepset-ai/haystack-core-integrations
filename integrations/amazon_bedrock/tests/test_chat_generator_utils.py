@@ -1,6 +1,7 @@
 import base64
 
 import pytest
+from unittest.mock import ANY
 from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, ImageContent, StreamingChunk, ToolCall
 from haystack.tools import Tool
 
@@ -380,7 +381,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         )
         assert replies[0] == expected_message
 
-    def test_extract_replies_from_multi_tool_response_with_thinking(self, mock_boto3_session):
+    def test_extract_replies_from_one_tool_response_with_thinking(self, mock_boto3_session):
         model = "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0"
         response_body = {
             "ResponseMetadata": {
@@ -434,7 +435,6 @@ class TestAmazonBedrockChatGeneratorUtils:
         }
         replies = _parse_completion_response(response_body, model)
 
-        # TODO We are missing the reasoning content in the ChatMessage
         expected_message = ChatMessage.from_assistant(
             text="I'll check the current weather in Paris for you.",
             tool_calls=[
@@ -445,6 +445,16 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "index": 0,
                 "finish_reason": "tool_use",
                 "usage": {"prompt_tokens": 412, "completion_tokens": 146, "total_tokens": 558},
+                "reasoning_content": {
+                    "reasoning_text": {
+                        "text": "The user wants to know the weather in Paris. I have a `weather` function "
+                                "available that can provide this information. \n\nRequired parameters for "
+                                "the weather function:\n- city: The city to get the weather for\n\nIn this "
+                                'case, the user has clearly specified "Paris" as the city, so I have all '
+                                "the required information to make the function call.",
+                        "signature": "...",
+                    }
+                },
             },
         )
         assert replies[0] == expected_message
@@ -543,6 +553,62 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert len(replies) == 1
         assert replies == expected_messages
 
+    # TODO
+    # def test_process_streaming_response_one_tool_call_with_thinking(self, mock_boto3_session):
+    #     model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+    #     type_ = (
+    #         "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+    #     )
+    #     streaming_chunks = []
+    #
+    #     def test_callback(chunk: StreamingChunk):
+    #         streaming_chunks.append(chunk)
+    #
+    #     events = [
+    #         {"messageStart": {"role": "assistant"}},
+    #         {"contentBlockDelta": {"delta": {"text": "To"}, "contentBlockIndex": 0}},
+    #         {"contentBlockDelta": {"delta": {"text": " answer your question about the"}, "contentBlockIndex": 0}},
+    #         {"contentBlockDelta": {"delta": {"text": " weather in Berlin and Paris, I'll"}, "contentBlockIndex": 0}},
+    #         {"contentBlockDelta": {"delta": {"text": " need to use the weather_tool"}, "contentBlockIndex": 0}},
+    #         {"contentBlockDelta": {"delta": {"text": " for each city. Let"}, "contentBlockIndex": 0}},
+    #         {"contentBlockDelta": {"delta": {"text": " me fetch that information for"}, "contentBlockIndex": 0}},
+    #         {"contentBlockDelta": {"delta": {"text": " you."}, "contentBlockIndex": 0}},
+    #         {"contentBlockStop": {"contentBlockIndex": 0}},
+    #         {
+    #             "contentBlockStart": {
+    #                 "start": {"toolUse": {"toolUseId": "tooluse_A0jTtaiQTFmqD_cIq8I1BA", "name": "weather_tool"}},
+    #                 "contentBlockIndex": 1,
+    #             }
+    #         },
+    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": ""}}, "contentBlockIndex": 1}},
+    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": '{"location":'}}, "contentBlockIndex": 1}},
+    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": ' "Be'}}, "contentBlockIndex": 1}},
+    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": 'rlin"}'}}, "contentBlockIndex": 1}},
+    #         {"contentBlockStop": {"contentBlockIndex": 1}},
+    #         {
+    #             "contentBlockStart": {
+    #                 "start": {"toolUse": {"toolUseId": "tooluse_LTc2TUMgTRiobK5Z5CCNSw", "name": "weather_tool"}},
+    #                 "contentBlockIndex": 2,
+    #             }
+    #         },
+    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": ""}}, "contentBlockIndex": 2}},
+    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": '{"l'}}, "contentBlockIndex": 2}},
+    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": "ocati"}}, "contentBlockIndex": 2}},
+    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": 'on": "P'}}, "contentBlockIndex": 2}},
+    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": "ari"}}, "contentBlockIndex": 2}},
+    #         {"contentBlockDelta": {"delta": {"toolUse": {"input": 's"}'}}, "contentBlockIndex": 2}},
+    #         {"contentBlockStop": {"contentBlockIndex": 2}},
+    #         {"messageStop": {"stopReason": "tool_use"}},
+    #         {
+    #             "metadata": {
+    #                 "usage": {"inputTokens": 366, "outputTokens": 83, "totalTokens": 449},
+    #                 "metrics": {"latencyMs": 3194},
+    #             }
+    #         },
+    #     ]
+    #
+    #     replies = _parse_streaming_response(events, test_callback, model, ComponentInfo(type=type_))
+
     def test_parse_streaming_response_with_two_tool_calls(self, mock_boto3_session):
         model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
         type_ = (
@@ -596,13 +662,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             },
         ]
 
-        component_info = ComponentInfo(
-            type=type_,
-        )
-
-        replies = _parse_streaming_response(events, test_callback, model, component_info)
-        # Pop completion_start_time since it will always change
-        replies[0].meta.pop("completion_start_time")
+        replies = _parse_streaming_response(events, test_callback, model, ComponentInfo(type=type_))
         expected_messages = [
             ChatMessage.from_assistant(
                 text="To answer your question about the weather in Berlin and Paris, I'll need to use the "
@@ -621,6 +681,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "index": 0,
                     "finish_reason": "tool_use",
                     "usage": {"prompt_tokens": 366, "completion_tokens": 83, "total_tokens": 449},
+                    "completion_start_time": ANY,
                 },
             ),
         ]

@@ -221,7 +221,6 @@ def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]],
     return system_prompts, repaired_bedrock_formatted_messages
 
 
-# Bedrock to Haystack util method
 def _parse_completion_response(response_body: Dict[str, Any], model: str) -> List[ChatMessage]:
     """
     Parse a Bedrock API response into Haystack ChatMessage objects.
@@ -267,6 +266,12 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
                         arguments=tool_use.get("input", {}),
                     )
                     tool_calls.append(tool_call)
+                elif "reasoningContent" in content_block:
+                    reasoning_content = content_block["reasoningContent"]
+                    # If reasoningText is present, replace it with reasoning_text
+                    if "reasoningText" in reasoning_content:
+                        reasoning_content["reasoning_text"] = reasoning_content.pop("reasoningText")
+                    base_meta.update({"reasoning_content": reasoning_content})
 
             # Create a single ChatMessage with combined text and tool calls
             replies.append(ChatMessage.from_assistant(" ".join(text_content), tool_calls=tool_calls, meta=base_meta))
@@ -494,11 +499,14 @@ def _parse_streaming_response(
     :param component_info: ComponentInfo object
     :return: List of ChatMessage objects
     """
+    aws_chunks = []
     chunks: List[StreamingChunk] = []
     for event in response_stream:
+        aws_chunks.append(event)
         streaming_chunk = _convert_event_to_streaming_chunk(event=event, model=model, component_info=component_info)
         streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
+    print(aws_chunks)
     replies = [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
     return replies
 
