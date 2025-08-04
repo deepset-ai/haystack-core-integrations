@@ -55,6 +55,15 @@ def _format_tool_call_message(tool_call_message: ChatMessage) -> Dict[str, Any]:
         Dictionary representing the tool call message in Bedrock's expected format
     """
     content: List[Dict[str, Any]] = []
+
+    # tool call messages can contain reasoning content
+    if tool_call_message.meta.get("reasoning_content"):
+        reasoning_content = tool_call_message.meta["reasoning_content"]
+        # If reasoningText is present, replace it with reasoning_text
+        if "reasoning_text" in reasoning_content:
+            reasoning_content["reasoningText"] = reasoning_content.pop("reasoning_text")
+        content.append({"reasoningContent": reasoning_content})
+
     # Tool call message can contain text
     if tool_call_message.text:
         content.append({"text": tool_call_message.text})
@@ -168,6 +177,13 @@ def _format_text_image_message(message: ChatMessage) -> Dict[str, Any]:
     content_parts = message._content
 
     bedrock_content_blocks: List[Dict[str, Any]] = []
+    # Add reasoning content if available as the first content block
+    if message.meta.get("reasoning_content"):
+        reasoning_content = message.meta["reasoning_content"]
+        if "reasoning_text" in reasoning_content:
+            reasoning_content["reasoningText"] = reasoning_content.pop("reasoning_text")
+        bedrock_content_blocks.append({"reasoningContent": reasoning_content})
+
     for part in content_parts:
         if isinstance(part, TextContent):
             bedrock_content_blocks.append({"text": part.text})
@@ -279,7 +295,6 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
     return replies
 
 
-# Bedrock streaming to Haystack util methods
 def _convert_event_to_streaming_chunk(
     event: Dict[str, Any], model: str, component_info: ComponentInfo
 ) -> StreamingChunk:

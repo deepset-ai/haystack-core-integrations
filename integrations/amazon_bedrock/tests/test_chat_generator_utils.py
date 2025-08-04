@@ -110,6 +110,65 @@ class TestAmazonBedrockChatGeneratorUtils:
             {"role": "assistant", "content": [{"text": "The weather in Paris is sunny and 25°C."}]},
         ]
 
+    def test_format_message_thinking(self):
+        assistant_message = ChatMessage.from_assistant(
+            "This is a test message.",
+            meta={"reasoning_content": {
+                "reasoning_text": {
+                    "text": "This is the reasoning behind the message.",
+                    "signature": "reasoning_signature"
+                }
+            }}
+        )
+        formatted_message = _format_messages([assistant_message])[1][0]
+        assert formatted_message == {
+            "role": "assistant",
+            "content": [
+                {
+                    "reasoningContent": {
+                        "reasoningText": {
+                            "text": "This is the reasoning behind the message.",
+                            "signature": "reasoning_signature"
+                        }
+                    }
+                },
+                {"text": "This is a test message."},
+            ],
+        }
+
+        tool_call_message = ChatMessage.from_assistant(
+            "This is a test message with a tool call.",
+            tool_calls=[ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})],
+            meta={"reasoning_content": {
+                "reasoning_text": {
+                    "text": "This is the reasoning behind the tool call.",
+                    "signature": "reasoning_signature"
+                }
+            }}
+        )
+        formatted_message = _format_messages([tool_call_message])[1][0]
+        assert formatted_message == {
+            "role": "assistant",
+            "content": [
+                {
+                    "reasoningContent": {
+                        "reasoningText": {
+                            "text": "This is the reasoning behind the tool call.",
+                            "signature": "reasoning_signature"
+                        }
+                    }
+                },
+                {"text": "This is a test message with a tool call."},
+                {
+                    "toolUse": {
+                        "toolUseId": "123",
+                        "name": "test_tool",
+                        "input": {"key": "value"},
+                    }
+                },
+            ],
+        }
+
     def test_format_text_image_message(self):
         plain_assistant_message = ChatMessage.from_assistant("This is a test message.")
         formatted_message = _format_text_image_message(plain_assistant_message)
@@ -152,7 +211,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         with pytest.raises(ValueError):
             _format_text_image_message(image_message)
 
-    def test_formate_messages_multi_tool(self):
+    def test_format_messages_multi_tool(self):
         messages = [
             ChatMessage.from_user("What is the weather in Berlin and Paris?"),
             ChatMessage.from_assistant(
