@@ -205,13 +205,14 @@ class MCPClient(ABC):
     regardless of the transport mechanism used.
     """
 
-    def __init__(self, max_retries: int = 3, base_delay: float = 1.0) -> None:
+    def __init__(self, max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 30.0) -> None:
         self.session: ClientSession | None = None
         self.exit_stack: AsyncExitStack = AsyncExitStack()
         self.stdio: MemoryObjectReceiveStream[types.JSONRPCMessage | Exception] | None = None
         self.write: MemoryObjectSendStream[types.JSONRPCMessage] | None = None
         self.max_retries = max_retries
         self.base_delay = base_delay
+        self.max_delay = max_delay
 
     @abstractmethod
     async def connect(self) -> list[Tool]:
@@ -270,7 +271,7 @@ class MCPClient(ABC):
                     try:
                         # Exponential backoff before reconnection attempt
                         if attempt > 0:
-                            delay = min(self.base_delay * (2 ** (attempt - 1)), 30)  # Cap at 30 seconds
+                            delay = min(self.base_delay * (2 ** (attempt - 1)), self.max_delay)
                             logger.info(f"Waiting {delay}s before reconnection attempt {attempt + 1}")
                             await asyncio.sleep(delay)
 
@@ -371,6 +372,7 @@ class StdioClient(MCPClient):
         env: dict[str, str | Secret] | None = None,
         max_retries: int = 3,
         base_delay: float = 1.0,
+        max_delay: float = 30.0,
     ) -> None:
         """
         Initialize a stdio MCP client.
@@ -381,7 +383,7 @@ class StdioClient(MCPClient):
         :param max_retries: Maximum number of reconnection attempts
         :param base_delay: Base delay for exponential backoff in seconds
         """
-        super().__init__(max_retries=max_retries, base_delay=base_delay)
+        super().__init__(max_retries=max_retries, base_delay=base_delay, max_delay=max_delay)
         self.command: str = command
         self.args: list[str] = args or []
         # Resolve Secret values in environment variables
@@ -411,7 +413,9 @@ class SSEClient(MCPClient):
     MCP client that connects to servers using SSE transport.
     """
 
-    def __init__(self, server_info: "SSEServerInfo", max_retries: int = 3, base_delay: float = 1.0) -> None:
+    def __init__(
+        self, server_info: "SSEServerInfo", max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 30.0
+    ) -> None:
         """
         Initialize an SSE MCP client using server configuration.
 
@@ -419,7 +423,7 @@ class SSEClient(MCPClient):
         :param max_retries: Maximum number of reconnection attempts
         :param base_delay: Base delay for exponential backoff in seconds
         """
-        super().__init__(max_retries=max_retries, base_delay=base_delay)
+        super().__init__(max_retries=max_retries, base_delay=base_delay, max_delay=max_delay)
 
         # in post_init we validate the url and set the url field so it is guaranteed to be valid
         # safely ignore the mypy warning here
@@ -455,7 +459,13 @@ class StreamableHttpClient(MCPClient):
     MCP client that connects to servers using streamable HTTP transport.
     """
 
-    def __init__(self, server_info: "StreamableHttpServerInfo", max_retries: int = 3, base_delay: float = 1.0) -> None:
+    def __init__(
+        self,
+        server_info: "StreamableHttpServerInfo",
+        max_retries: int = 3,
+        base_delay: float = 1.0,
+        max_delay: float = 30.0,
+    ) -> None:
         """
         Initialize a streamable HTTP MCP client using server configuration.
 
@@ -463,7 +473,7 @@ class StreamableHttpClient(MCPClient):
         :param max_retries: Maximum number of reconnection attempts
         :param base_delay: Base delay for exponential backoff in seconds
         """
-        super().__init__(max_retries=max_retries, base_delay=base_delay)
+        super().__init__(max_retries=max_retries, base_delay=base_delay, max_delay=max_delay)
 
         self.url: str = server_info.url
         self.token: str | None = (
@@ -595,6 +605,7 @@ class SSEServerInfo(MCPServerInfo):
     timeout: int = 30
     max_retries: int = 3
     base_delay: float = 1.0
+    max_delay: float = 30.0
 
     def __post_init__(self):
         """Validate that either url or base_url is provided."""
@@ -629,7 +640,9 @@ class SSEServerInfo(MCPServerInfo):
         :returns: Configured MCPClient instance
         """
         # Pass the validated SSEServerInfo instance directly
-        return SSEClient(server_info=self, max_retries=self.max_retries, base_delay=self.base_delay)
+        return SSEClient(
+            server_info=self, max_retries=self.max_retries, base_delay=self.base_delay, max_delay=self.max_delay
+        )
 
 
 @dataclass
@@ -657,6 +670,7 @@ class StreamableHttpServerInfo(MCPServerInfo):
     timeout: int = 30
     max_retries: int = 3
     base_delay: float = 1.0
+    max_delay: float = 30.0
 
     def __post_init__(self):
         """Validate the URL."""
@@ -670,7 +684,9 @@ class StreamableHttpServerInfo(MCPServerInfo):
 
         :returns: Configured StreamableHttpClient instance
         """
-        return StreamableHttpClient(server_info=self, max_retries=self.max_retries, base_delay=self.base_delay)
+        return StreamableHttpClient(
+            server_info=self, max_retries=self.max_retries, base_delay=self.base_delay, max_delay=self.max_delay
+        )
 
 
 @dataclass
@@ -706,6 +722,7 @@ class StdioServerInfo(MCPServerInfo):
     env: dict[str, str | Secret] | None = None
     max_retries: int = 3
     base_delay: float = 1.0
+    max_delay: float = 30.0
 
     def create_client(self) -> MCPClient:
         """
@@ -713,7 +730,14 @@ class StdioServerInfo(MCPServerInfo):
 
         :returns: Configured StdioMCPClient instance
         """
-        return StdioClient(self.command, self.args, self.env, max_retries=self.max_retries, base_delay=self.base_delay)
+        return StdioClient(
+            self.command,
+            self.args,
+            self.env,
+            max_retries=self.max_retries,
+            base_delay=self.base_delay,
+            max_delay=self.max_delay,
+        )
 
 
 class MCPTool(Tool):
