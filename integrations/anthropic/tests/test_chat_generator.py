@@ -397,7 +397,7 @@ class TestAnthropicChatGenerator:
         assert isinstance(response["replies"][0], ChatMessage)
         assert "Hello! I'm Claude." in response["replies"][0].text
         assert response["replies"][0].meta["model"] == "claude-sonnet-4-20250514"
-        assert response["replies"][0].meta["finish_reason"] == "end_turn"
+        assert response["replies"][0].meta["finish_reason"] == "stop"
 
     def test_check_duplicate_tool_names(self, tools):
         """Test that the AnthropicChatGenerator component fails to initialize with duplicate tool names."""
@@ -517,11 +517,7 @@ class TestAnthropicChatGenerator:
                     },
                 },
                 component_info=ComponentInfo.from_component(self),
-                index=0,
-                tool_calls=[],
-                tool_call_result=None,
                 start=True,
-                finish_reason=None,
             ),
             # Initial text content
             StreamingChunk(
@@ -529,10 +525,7 @@ class TestAnthropicChatGenerator:
                 meta={"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
                 component_info=ComponentInfo.from_component(self),
                 index=0,
-                tool_calls=[],
-                tool_call_result=None,
                 start=True,
-                finish_reason=None,
             ),
             StreamingChunk(
                 content="Let me check",
@@ -543,10 +536,6 @@ class TestAnthropicChatGenerator:
                 },
                 component_info=ComponentInfo.from_component(self),
                 index=0,
-                tool_calls=[],
-                tool_call_result=None,
-                start=False,
-                finish_reason=None,
             ),
             StreamingChunk(
                 content=" the weather",
@@ -557,10 +546,6 @@ class TestAnthropicChatGenerator:
                 },
                 component_info=ComponentInfo.from_component(self),
                 index=0,
-                tool_calls=[],
-                tool_call_result=None,
-                start=False,
-                finish_reason=None,
             ),
             # Tool use content
             StreamingChunk(
@@ -573,9 +558,7 @@ class TestAnthropicChatGenerator:
                 component_info=ComponentInfo.from_component(self),
                 index=1,
                 tool_calls=[ToolCallDelta(index=1, id="toolu_123", tool_name="weather", arguments=None)],
-                tool_call_result=None,
                 start=True,
-                finish_reason=None,
             ),
             StreamingChunk(
                 content="",
@@ -587,9 +570,6 @@ class TestAnthropicChatGenerator:
                 component_info=ComponentInfo.from_component(self),
                 index=1,
                 tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments='{"city":')],
-                tool_call_result=None,
-                start=False,
-                finish_reason=None,
             ),
             StreamingChunk(
                 content="",
@@ -601,23 +581,17 @@ class TestAnthropicChatGenerator:
                 component_info=ComponentInfo.from_component(self),
                 index=1,
                 tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments='"Paris"}')],
-                tool_call_result=None,
-                start=False,
-                finish_reason=None,
             ),
             # Final message delta
             StreamingChunk(
                 content="",
                 meta={
                     "type": "message_delta",
-                    "delta": {"stop_reason": "tool_use", "stop_sequence": None},
+                    "delta": {"stop_reason": "tool_calls", "stop_sequence": None},
                     "usage": {"completion_tokens": 40},
                 },
                 component_info=ComponentInfo.from_component(self),
                 index=1,
-                tool_calls=[],
-                tool_call_result=None,
-                start=False,
                 finish_reason="tool_calls",
             ),
         ]
@@ -663,10 +637,7 @@ class TestAnthropicChatGenerator:
                 },
                 component_info=ComponentInfo.from_component(self),
                 index=0,
-                tool_calls=[],
-                tool_call_result=None,
                 start=True,
-                finish_reason=None,
             ),
             # Initial text content
             StreamingChunk(
@@ -674,10 +645,7 @@ class TestAnthropicChatGenerator:
                 meta={"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
                 component_info=ComponentInfo.from_component(self),
                 index=1,
-                tool_calls=[],
-                tool_call_result=None,
                 start=True,
-                finish_reason=None,
             ),
             StreamingChunk(
                 content="Let me check",
@@ -688,10 +656,6 @@ class TestAnthropicChatGenerator:
                 },
                 component_info=ComponentInfo.from_component(self),
                 index=1,
-                tool_calls=[],
-                tool_call_result=None,
-                start=False,
-                finish_reason=None,
             ),
             StreamingChunk(
                 content=" the weather",
@@ -702,10 +666,6 @@ class TestAnthropicChatGenerator:
                 },
                 component_info=ComponentInfo.from_component(self),
                 index=1,
-                tool_calls=[],
-                tool_call_result=None,
-                start=False,
-                finish_reason=None,
             ),
             # Tool use content
             StreamingChunk(
@@ -718,9 +678,7 @@ class TestAnthropicChatGenerator:
                 component_info=ComponentInfo.from_component(self),
                 index=1,
                 tool_calls=[ToolCallDelta(index=1, id="toolu_123", tool_name="weather", arguments=None)],
-                tool_call_result=None,
                 start=True,
-                finish_reason=None,
             ),
             StreamingChunk(
                 content="",
@@ -732,23 +690,17 @@ class TestAnthropicChatGenerator:
                 component_info=ComponentInfo.from_component(self),
                 index=1,
                 tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments="")],
-                tool_call_result=None,
-                start=False,
-                finish_reason=None,
             ),
             # Final message delta
             StreamingChunk(
                 content="",
                 meta={
                     "type": "message_delta",
-                    "delta": {"stop_reason": "tool_use", "stop_sequence": None},
+                    "delta": {"stop_reason": "tool_calls", "stop_sequence": None},
                     "usage": {"completion_tokens": 40},
                 },
                 component_info=ComponentInfo.from_component(self),
                 index=1,
-                tool_calls=[],
-                tool_call_result=None,
-                start=False,
                 finish_reason="tool_calls",
             ),
         ]
@@ -858,7 +810,7 @@ class TestAnthropicChatGenerator:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
         assert "claude-sonnet-4-20250514" in message.meta["model"]
-        assert message.meta["finish_reason"] == "end_turn"
+        assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
         not os.environ.get("ANTHROPIC_API_KEY", None),
@@ -900,7 +852,7 @@ class TestAnthropicChatGenerator:
         assert "Paris" in message.text
 
         assert "claude-sonnet-4-20250514" in message.meta["model"]
-        assert message.meta["finish_reason"] == "end_turn"
+        assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
         assert "Paris" in callback.responses
@@ -921,7 +873,7 @@ class TestAnthropicChatGenerator:
             [{"role": "user", "content": [{"type": "text", "text": "I have a question"}]}],
         )
 
-        messages = [ChatMessage.from_assistant(text="I have an answer", meta={"finish_reason": "end_turn"})]
+        messages = [ChatMessage.from_assistant(text="I have an answer", meta={"finish_reason": "stop"})]
         assert _convert_messages_to_anthropic_format(messages) == (
             [],
             [{"role": "assistant", "content": [{"type": "text", "text": "I have an answer"}]}],
@@ -1100,7 +1052,7 @@ class TestAnthropicChatGenerator:
         assert tool_call.id is not None
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
-        assert message.meta["finish_reason"] == "tool_use"
+        assert message.meta["finish_reason"] == "tool_calls"
 
         new_messages = [
             *initial_messages,
@@ -1167,7 +1119,7 @@ class TestAnthropicChatGenerator:
         assert tool_call.id is not None
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Tokyo"}
-        assert message.meta["finish_reason"] == "tool_use"
+        assert message.meta["finish_reason"] == "tool_calls"
 
     @pytest.mark.skipif(
         not os.environ.get("ANTHROPIC_API_KEY", None),
@@ -1197,7 +1149,7 @@ class TestAnthropicChatGenerator:
         assert tool_call.id is not None
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
-        assert message.meta["finish_reason"] == "tool_use"
+        assert message.meta["finish_reason"] == "tool_calls"
 
         new_messages = [
             *initial_messages,
@@ -1238,7 +1190,7 @@ class TestAnthropicChatGenerator:
         assert tool_call.id is not None
         assert tool_call.tool_name == "hello_world"
         assert tool_call.arguments == {}
-        assert message.meta["finish_reason"] == "tool_use"
+        assert message.meta["finish_reason"] == "tool_calls"
 
         new_messages = [
             *initial_messages,
@@ -1275,7 +1227,7 @@ class TestAnthropicChatGenerator:
         assert tool_call_paris.id is not None
         assert tool_call_paris.tool_name == "weather"
         assert tool_call_paris.arguments["city"] in {"Paris", "Berlin"}
-        assert message.meta["finish_reason"] == "tool_use"
+        assert message.meta["finish_reason"] == "tool_calls"
 
         tool_call_berlin = message.tool_calls[1]
         assert isinstance(tool_call_berlin, ToolCall)
@@ -1308,7 +1260,7 @@ class TestAnthropicChatGenerator:
         assert "berlin" in message.text.lower()
         assert "22°" in message.text
         assert "12°" in message.text
-        assert message.meta["finish_reason"] == "end_turn"
+        assert message.meta["finish_reason"] == "stop"
 
     def test_prompt_caching_enabled(self, monkeypatch):
         """
@@ -1602,7 +1554,7 @@ class TestAnthropicChatGeneratorAsync:
         assert isinstance(response["replies"][0], ChatMessage)
         assert "Hello! I'm Claude." in response["replies"][0].text
         assert response["replies"][0].meta["model"] == "claude-sonnet-4-20250514"
-        assert response["replies"][0].meta["finish_reason"] == "end_turn"
+        assert response["replies"][0].meta["finish_reason"] == "stop"
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(
@@ -1620,7 +1572,7 @@ class TestAnthropicChatGeneratorAsync:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
         assert "claude-sonnet-4-20250514" in message.meta["model"]
-        assert message.meta["finish_reason"] == "end_turn"
+        assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(
@@ -1655,7 +1607,7 @@ class TestAnthropicChatGeneratorAsync:
         message = results["replies"][0]
         assert "paris" in message.text.lower()
         assert "claude-sonnet-4-20250514" in message.meta["model"]
-        assert message.meta["finish_reason"] == "end_turn"
+        assert message.meta["finish_reason"] == "stop"
 
         # Verify streaming behavior
         assert counter > 1  # Should have received multiple chunks
@@ -1684,7 +1636,7 @@ class TestAnthropicChatGeneratorAsync:
         assert tool_call.id is not None
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
-        assert message.meta["finish_reason"] == "tool_use"
+        assert message.meta["finish_reason"] == "tool_calls"
 
         new_messages = [
             *initial_messages,
