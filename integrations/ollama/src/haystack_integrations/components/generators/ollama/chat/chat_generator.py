@@ -1,3 +1,4 @@
+import json
 from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
@@ -310,7 +311,7 @@ class OllamaChatGenerator:
                     ToolCallDelta(
                         index=tool_call_index,
                         tool_name=tool_call["function"]["name"],
-                        arguments=tool_call["function"]["arguments"],
+                        arguments=json.dumps(tool_call["function"]["arguments"]) if tool_call["function"]["arguments"] else "",
                     )
                 )
 
@@ -390,6 +391,8 @@ class OllamaChatGenerator:
             assert isinstance(arguments, dict)  # final arguments are a dictionary  # noqa: S101
             tool_calls.append(ToolCall(tool_name=name_by_id[tool_call_id], arguments=arguments))
 
+        # We can't use _convert_streaming_chunks_to_chat_message because
+        # we need to map tool_call name and args by order.
         reply = ChatMessage.from_assistant(
             text=text,
             tool_calls=tool_calls or None,
