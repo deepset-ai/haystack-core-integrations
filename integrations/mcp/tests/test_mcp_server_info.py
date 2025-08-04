@@ -144,6 +144,7 @@ class TestMCPServerInfo:
             "timeout": 45,
             "max_retries": 3,
             "base_delay": 1.0,
+            "max_delay": 30.0,
         }
 
         # Test from_dict - Secret is properly deserialized
@@ -174,6 +175,7 @@ class TestMCPServerInfo:
             },
             "max_retries": 3,
             "base_delay": 1.0,
+            "max_delay": 30.0,
         }
 
         # Test from_dict - Secret env vars are properly deserialized, plain strings stay as-is
@@ -209,6 +211,7 @@ class TestMCPServerInfo:
             },
             "max_retries": 3,
             "base_delay": 1.0,
+            "max_delay": 30.0,
         }
         new_info = StdioServerInfo.from_dict(info_dict)
         assert len(new_info.env) == 2
