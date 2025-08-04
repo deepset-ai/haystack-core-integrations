@@ -311,7 +311,9 @@ class OllamaChatGenerator:
                     ToolCallDelta(
                         index=tool_call_index,
                         tool_name=tool_call["function"]["name"],
-                        arguments=json.dumps(tool_call["function"]["arguments"]) if tool_call["function"]["arguments"] else "",
+                        arguments=json.dumps(tool_call["function"]["arguments"])
+                        if tool_call["function"]["arguments"]
+                        else "",
                     )
                 )
 
