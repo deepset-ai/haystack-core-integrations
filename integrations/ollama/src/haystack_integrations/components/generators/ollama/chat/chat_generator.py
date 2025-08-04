@@ -17,7 +17,7 @@ from ollama import ChatResponse, Client
 
 FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
     "stop": "stop",
-    "tool_calls": "tool_calls"
+    "tool_calls": "tool_calls",
     # we skip load and unload reasons
 }
 
@@ -93,7 +93,7 @@ def _convert_ollama_meta_to_openai_format(input_response_dict: Dict) -> Dict[str
     meta = {key: value for key, value in input_response_dict.items() if key != "message"}
 
     if "done_reason" in meta:
-        meta["finish_reason"] = meta.pop("done_reason")
+        meta["finish_reason"] = FINISH_REASON_MAPPING.get(meta.pop("done_reason") or "")
     if "created_at" in meta:
         meta["completion_start_time"] = meta.pop("created_at")
     if "eval_count" in meta and "prompt_eval_count" in meta:
@@ -297,7 +297,7 @@ class OllamaChatGenerator:
         Convert one Ollama stream-chunk to Haystack StreamingChunk.
         """
         chunk_response_dict = chunk_response.model_dump()
-        finish_reason = chunk_response.done_reason
+        finish_reason = FINISH_REASON_MAPPING.get(chunk_response.done_reason or "")
         tool_calls_list = []
 
         content = chunk_response_dict["message"]["content"]
@@ -306,7 +306,6 @@ class OllamaChatGenerator:
         meta["role"] = chunk_response_dict["message"]["role"]
         if tool_calls := chunk_response_dict["message"].get("tool_calls"):
             for tool_call in tool_calls:
-
                 tool_calls_list.append(
                     ToolCallDelta(
                         index=tool_call_index,
@@ -319,7 +318,7 @@ class OllamaChatGenerator:
             content=content,
             meta=meta,
             index=index,
-            finish_reason=FINISH_REASON_MAPPING.get(finish_reason or ""),
+            finish_reason=finish_reason,
             component_info=component_info,
             tool_calls=tool_calls_list,
         )
@@ -418,7 +417,6 @@ class OllamaChatGenerator:
             tool_calls=tool_calls or None,
             meta=_convert_ollama_meta_to_openai_format(chunks[-1].meta) if chunks else {},
         )
-        reply._meta["finish_reason"] = FINISH_REASON_MAPPING.get(reply._meta.get("finish_reason"))
 
         return {"replies": [reply]}
 
