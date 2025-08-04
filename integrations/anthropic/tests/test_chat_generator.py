@@ -557,7 +557,7 @@ class TestAnthropicChatGenerator:
                 },
                 component_info=ComponentInfo.from_component(self),
                 index=1,
-                tool_calls=[ToolCallDelta(index=1, id="toolu_123", tool_name="weather", arguments=None)],
+                tool_calls=[ToolCallDelta(index=0, id="toolu_123", tool_name="weather", arguments=None)],
                 start=True,
             ),
             StreamingChunk(
@@ -569,7 +569,7 @@ class TestAnthropicChatGenerator:
                 },
                 component_info=ComponentInfo.from_component(self),
                 index=1,
-                tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments='{"city":')],
+                tool_calls=[ToolCallDelta(index=0, id=None, tool_name=None, arguments='{"city":')],
             ),
             StreamingChunk(
                 content="",
@@ -580,7 +580,7 @@ class TestAnthropicChatGenerator:
                 },
                 component_info=ComponentInfo.from_component(self),
                 index=1,
-                tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments='"Paris"}')],
+                tool_calls=[ToolCallDelta(index=0, id=None, tool_name=None, arguments='"Paris"}')],
             ),
             # Final message delta
             StreamingChunk(
@@ -677,7 +677,7 @@ class TestAnthropicChatGenerator:
                 },
                 component_info=ComponentInfo.from_component(self),
                 index=1,
-                tool_calls=[ToolCallDelta(index=1, id="toolu_123", tool_name="weather", arguments=None)],
+                tool_calls=[ToolCallDelta(index=0, id="toolu_123", tool_name="weather", arguments=None)],
                 start=True,
             ),
             StreamingChunk(
@@ -689,7 +689,7 @@ class TestAnthropicChatGenerator:
                 },
                 component_info=ComponentInfo.from_component(self),
                 index=1,
-                tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments="")],
+                tool_calls=[ToolCallDelta(index=0, id=None, tool_name=None, arguments="")],
             ),
             # Final message delta
             StreamingChunk(

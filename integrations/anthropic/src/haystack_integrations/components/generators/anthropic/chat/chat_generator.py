@@ -406,6 +406,7 @@ class AnthropicChatGenerator:
             if chunk.delta.type == "text_delta":
                 content = chunk.delta.text
             elif chunk.delta.type == "input_json_delta":
+                # we assign index=0 because one chunk can have only one ToolCallDelta
                 tool_calls.append(ToolCallDelta(index=chunk.index, arguments=chunk.delta.partial_json))
         # end of streaming message
         elif chunk.type == "message_delta":
@@ -489,12 +490,11 @@ class AnthropicChatGenerator:
             model: Optional[str] = None
             component_info = ComponentInfo.from_component(self)
             for chunk in response:
-                print(chunk)
                 if chunk.type in ["message_start", "content_block_start", "content_block_delta", "message_delta"]:
                     # Extract model from message_start chunks
                     if chunk.type == "message_start":
                         model = chunk.message.model
-
+                    
                     streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, component_info)
                     chunks.append(streaming_chunk)
                     if streaming_callback:
@@ -535,7 +535,7 @@ class AnthropicChatGenerator:
             async for chunk in response:
                 if chunk.type == "message_start":
                     model = chunk.message.model
-
+                
                 elif chunk.type in [
                     "content_block_start",
                     "content_block_delta",
