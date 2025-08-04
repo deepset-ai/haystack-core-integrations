@@ -81,7 +81,7 @@ class TestStreamingChunkConversion:
 
         mock_chunk = Mock()
         mock_candidate = Mock()
-        mock_candidate.finish_reason = "FUNCTION_CALL"
+        mock_candidate.finish_reason = "STOP"
         mock_chunk.candidates = [mock_candidate]
 
         mock_content = Mock()
@@ -106,7 +106,7 @@ class TestStreamingChunkConversion:
         assert chunk.tool_calls[0].tool_name == "weather"
         assert chunk.tool_calls[0].arguments == '{"city": "Paris"}'
         assert chunk.tool_calls[0].id == "call_123"
-        assert chunk.finish_reason == "tool_calls"
+        assert chunk.finish_reason == "stop"
         assert chunk.index == 0
         assert "received_at" in chunk.meta
         assert chunk.component_info == component_info
@@ -510,7 +510,7 @@ class TestGoogleGenAIChatGenerator:
         message: ChatMessage = results["replies"][0]
         assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
         assert "gemini-2.0-flash" in message.meta["model"]
-        assert message.meta["finish_reason"] is not None
+        assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
@@ -541,6 +541,7 @@ class TestGoogleGenAIChatGenerator:
         assert callback.counter > 0, "No streaming chunks received"
         message: ChatMessage = results["replies"][0]
         assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
+        assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
@@ -574,6 +575,7 @@ class TestGoogleGenAIChatGenerator:
 
         assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
         assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+        assert tool_message.meta["finish_reason"] == "stop"
 
         tool_call = tool_message.tool_calls[0]
         assert tool_call.tool_name == "weather"
@@ -602,6 +604,7 @@ class TestGoogleGenAIChatGenerator:
         # Google Gen AI (gemini-2.0-flash and gemini-2.5-pro-preview-05-06) does not provide ids for tool calls although
         # it is in the response schema, revisit in future to see if there are changes and id is provided
         # assert tool_call.id is not None, "Tool call has no id"
+        assert message.meta["finish_reason"] == "stop"
 
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
@@ -642,11 +645,13 @@ class TestGoogleGenAIChatGenerator:
         assert isinstance(tool_call_paris, ToolCall)
         assert tool_call_paris.tool_name == "weather"
         assert tool_call_paris.arguments["city"] == "Paris"
+        assert message.meta["finish_reason"] == "stop"
 
         tool_call_berlin = message.tool_calls[1]
         assert isinstance(tool_call_berlin, ToolCall)
         assert tool_call_berlin.tool_name == "weather"
         assert tool_call_berlin.arguments["city"] == "Berlin"
+        assert message.meta["finish_reason"] == "stop"
 
         # Google GenAI expects results from both tools in separate messages
         new_messages = [
@@ -685,7 +690,7 @@ class TestAsyncGoogleGenAIChatGenerator:
         message: ChatMessage = results["replies"][0]
         assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
         assert "gemini-2.0-flash" in message.meta["model"]
-        assert message.meta["finish_reason"] is not None
+        assert message.meta["finish_reason"] == "stop"
 
     async def test_live_run_async_streaming(self):
         """Test async version with streaming."""
@@ -706,6 +711,7 @@ class TestAsyncGoogleGenAIChatGenerator:
         assert counter > 0, "No streaming chunks received"
         message: ChatMessage = results["replies"][0]
         assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
+        assert message.meta["finish_reason"] == "stop"
 
     async def test_live_run_async_with_tools(self, tools):
         """Test async version with tools."""
@@ -726,6 +732,7 @@ class TestAsyncGoogleGenAIChatGenerator:
         assert len(tool_message.tool_calls) == 1, "Tool message has multiple tool calls"
         assert tool_message.tool_calls[0].tool_name == "weather"
         assert tool_message.tool_calls[0].arguments == {"city": "Paris"}
+        assert tool_message.meta["finish_reason"] == "stop"
 
     async def test_concurrent_async_calls(self):
         """Test multiple concurrent async calls."""
@@ -747,3 +754,4 @@ class TestAsyncGoogleGenAIChatGenerator:
             assert len(result["replies"]) == 1
             assert result["replies"][0].text
             assert result["replies"][0].meta["model"]
+            assert result["replies"][0].meta["finish_reason"] == "stop"
