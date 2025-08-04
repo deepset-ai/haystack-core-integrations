@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.9.1] - 2025-07-31
+
+### 🐛 Bug Fixes
+
+- `AmazonBedrockChatGenerator` - fix bug with streaming + tool calls with no arguments (#2121)
+
+
+## [integrations/amazon_bedrock-v3.9.0] - 2025-07-29
+
+### 🚀 Features
+
+- Amazon Bedrock - multimodal support (#2114)
+
+
 ## [integrations/amazon_bedrock-v3.8.0] - 2025-07-04
 
 ### 🚀 Features

@@ -1,3 +1,4 @@
+import base64
 import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -9,13 +10,19 @@ from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
     ComponentInfo,
+    ImageContent,
     StreamingChunk,
     SyncStreamingCallbackT,
+    TextContent,
     ToolCall,
 )
 from haystack.tools import Tool
 
 logger = logging.getLogger(__name__)
+
+
+# see https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ImageBlock.html for supported formats
+IMAGE_SUPPORTED_FORMATS = ["png", "jpeg", "gif", "webp"]
 
 
 # Haystack to Bedrock util methods
@@ -150,6 +157,39 @@ def _repair_tool_result_messages(bedrock_formatted_messages: List[Dict[str, Any]
     return [msg for _, msg in repaired_bedrock_formatted_messages]
 
 
+def _format_text_image_message(message: ChatMessage) -> Dict[str, Any]:
+    """
+    Format a Haystack ChatMessage containing text and optional image content into Bedrock format.
+
+    :param message: Haystack ChatMessage.
+    :returns: Dictionary representing the message in Bedrock's expected format.
+    :raises ValueError: If image content is found in an assistant message or an unsupported image format is used.
+    """
+    content_parts = message._content
+
+    bedrock_content_blocks: List[Dict[str, Any]] = []
+    for part in content_parts:
+        if isinstance(part, TextContent):
+            bedrock_content_blocks.append({"text": part.text})
+
+        elif isinstance(part, ImageContent):
+            if message.is_from(ChatRole.ASSISTANT):
+                err_msg = "Image content is not supported for assistant messages"
+                raise ValueError(err_msg)
+
+            image_format = part.mime_type.split("/")[-1] if part.mime_type else None
+            if image_format not in IMAGE_SUPPORTED_FORMATS:
+                err_msg = (
+                    f"Unsupported image format: {image_format}. "
+                    f"Bedrock supports the following image formats: {IMAGE_SUPPORTED_FORMATS}"
+                )
+                raise ValueError(err_msg)
+            source = {"bytes": base64.b64decode(part.base64_image)}
+            bedrock_content_blocks.append({"image": {"format": image_format, "source": source}})
+
+    return {"role": message.role.value, "content": bedrock_content_blocks}
+
+
 def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Format a list of Haystack ChatMessages to the format expected by Bedrock API.
@@ -175,8 +215,7 @@ def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]],
         elif msg.tool_call_results:
             bedrock_formatted_messages.append(_format_tool_result_message(msg))
         else:
-            # regular user or assistant messages with only text content
-            bedrock_formatted_messages.append({"role": msg.role.value, "content": [{"text": msg.text}]})
+            bedrock_formatted_messages.append(_format_text_image_message(msg))
 
     repaired_bedrock_formatted_messages = _repair_tool_result_messages(bedrock_formatted_messages)
     return system_prompts, repaired_bedrock_formatted_messages
@@ -408,7 +447,7 @@ def _convert_streaming_chunks_to_chat_message(chunks: List[StreamingChunk]) -> C
     # Convert accumulated tool call data into ToolCall objects
     for call_data in tool_call_data.values():
         try:
-            arguments = json.loads(call_data["arguments"])
+            arguments = json.loads(call_data.get("arguments", "{}")) if call_data.get("arguments") else {}
             tool_calls.append(ToolCall(id=call_data["id"], tool_name=call_data["name"], arguments=arguments))
         except json.JSONDecodeError:
             logger.warning(

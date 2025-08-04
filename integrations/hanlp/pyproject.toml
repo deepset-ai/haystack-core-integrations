@@ -3,9 +3,9 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "amazon-bedrock-haystack"
+name = "hanlp-haystack"
 dynamic = ["version"]
-description = 'An integration of Amazon Bedrock as an AmazonBedrockGenerator component.'
+description = 'An integration of Han Language Processing - HanLP as a ChineseDocumentSplitter component.'
 readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"
@@ -23,23 +23,26 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.16.0", "boto3>=1.28.57", "aioboto3>=14.0.0"]
+dependencies = [
+  "haystack-ai>=2.13.1",
+  "hanlp>=2.1.1"
+]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/amazon_bedrock#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/hanlp#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/amazon_bedrock"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/hanlp"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/amazon_bedrock-v(?P<version>.*)'
+tag-pattern = 'integrations\/hanlp-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/amazon_bedrock-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/hanlp-v[0-9]*"'
 
 [tool.hatch.envs.default]
 installer = "uv"
@@ -57,8 +60,7 @@ dependencies = [
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
-    "pip",
-    "pillow", # image resizing
+    "pip"
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -66,11 +68,7 @@ unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
-
-types = """mypy -p haystack_integrations.common.amazon_bedrock \
--p haystack_integrations.components.embedders.amazon_bedrock \
--p haystack_integrations.components.generators.amazon_bedrock \
--p haystack_integrations.components.rankers.amazon_bedrock {args}"""
+types = """mypy -p haystack_integrations.components.preprocessors.hanlp {args}"""
 
 [tool.mypy]
 install_types = true
@@ -79,13 +77,15 @@ check_untyped_defs = true
 disallow_incomplete_defs = true
 
 [[tool.mypy.overrides]]
-# unfortunately, unofficial type stubs do not play well with some features of Bedrock
 module = [
-"aioboto3.*",
-"botocore.*",
-"boto3.*",
+"hanlp.*",
 ]
 ignore_missing_imports = true
+
+[tool.black]
+target-version = ["py38"]
+line-length = 120
+skip-string-normalization = true
 
 [tool.ruff]
 target-version = "py38"
@@ -135,6 +135,8 @@ ignore = [
   "ARG001",
   "ARG002",
   "ARG005",
+  "RUF001",
+  "RUF002",
 ]
 unfixable = [
   # Don't touch unused imports
@@ -154,7 +156,7 @@ ban-relative-imports = "parents"
 [tool.coverage.run]
 source = ["haystack_integrations"]
 branch = true
-parallel = true
+parallel = false
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]

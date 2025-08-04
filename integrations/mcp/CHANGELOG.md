@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/mcp-v0.5.0] - 2025-08-04
+
+### 🐛 Bug Fixes
+
+- Prevent MCPToolset GC during toolset add (#2019)
+- ClientSession expires after idle periods causing ClosedResourceError with empty error message (#2115)
+
+### 🧹 Chores
+
+- Update mcp-haystack integration README.md (#1835)
+- Fix linting for ruff 0.12.0 (#1969)
+- Remove black (#1985)
+
+
 ## [integrations/mcp-v0.4.0] - 2025-06-11
 
 ### 🚀 Features
