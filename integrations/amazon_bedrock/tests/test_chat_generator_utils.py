@@ -592,6 +592,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "index": 0,
                     "finish_reason": "tool_use",
                     "usage": {"prompt_tokens": 364, "completion_tokens": 71, "total_tokens": 435},
+                    "reasoning_content": None,
                 },
             )
         ]
@@ -805,6 +806,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "finish_reason": "tool_use",
                     "usage": {"prompt_tokens": 366, "completion_tokens": 83, "total_tokens": 449},
                     "completion_start_time": ANY,
+                    "reasoning_content": None,
                 },
             ),
         ]
