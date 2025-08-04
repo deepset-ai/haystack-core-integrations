@@ -44,7 +44,6 @@ FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
     "PROHIBITED_CONTENT": "content_filter",
     "SPII": "content_filter",
     "IMAGE_SAFETY": "content_filter",
-    "FUNCTION_CALL": "tool_calls",
 }
 
 logger = logging.getLogger(__name__)
@@ -199,7 +198,7 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
         tool_calls=tool_calls,
         meta={
             "model": model,
-            "finish_reason": str(finish_reason) if finish_reason else None,
+            "finish_reason": FINISH_REASON_MAPPING.get(finish_reason or ""),
             "usage": {
                 "prompt_tokens": getattr(usage_metadata, "prompt_token_count", 0),
                 "completion_tokens": getattr(usage_metadata, "candidates_token_count", 0),
@@ -433,7 +432,7 @@ class GoogleGenAIChatGenerator:
             component_info=component_info,
             index=index,
             start=start,
-            finish_reason=FINISH_REASON_MAPPING.get(finish_reason) if finish_reason else None,
+            finish_reason=FINISH_REASON_MAPPING.get(finish_reason or ""),
             meta={
                 "received_at": datetime.now(timezone.utc).isoformat(),
                 "model": self._model,
