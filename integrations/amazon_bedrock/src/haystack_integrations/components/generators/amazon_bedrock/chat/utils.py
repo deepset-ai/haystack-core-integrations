@@ -55,6 +55,14 @@ def _format_tool_call_message(tool_call_message: ChatMessage) -> Dict[str, Any]:
         Dictionary representing the tool call message in Bedrock's expected format
     """
     content: List[Dict[str, Any]] = []
+
+    # tool call messages can contain reasoning content
+    if reasoning_content := tool_call_message.meta.get("reasoning_content"):
+        # If reasoningText is present, replace it with reasoning_text
+        if "reasoning_text" in reasoning_content:
+            reasoning_content["reasoningText"] = reasoning_content.pop("reasoning_text")
+        content.append({"reasoningContent": reasoning_content})
+
     # Tool call message can contain text
     if tool_call_message.text:
         content.append({"text": tool_call_message.text})
@@ -168,6 +176,13 @@ def _format_text_image_message(message: ChatMessage) -> Dict[str, Any]:
     content_parts = message._content
 
     bedrock_content_blocks: List[Dict[str, Any]] = []
+    # Add reasoning content if available as the first content block
+    if message.meta.get("reasoning_content"):
+        reasoning_content = message.meta["reasoning_content"]
+        if "reasoning_text" in reasoning_content:
+            reasoning_content["reasoningText"] = reasoning_content.pop("reasoning_text")
+        bedrock_content_blocks.append({"reasoningContent": reasoning_content})
+
     for part in content_parts:
         if isinstance(part, TextContent):
             bedrock_content_blocks.append({"text": part.text})
@@ -221,7 +236,6 @@ def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]],
     return system_prompts, repaired_bedrock_formatted_messages
 
 
-# Bedrock to Haystack util method
 def _parse_completion_response(response_body: Dict[str, Any], model: str) -> List[ChatMessage]:
     """
     Parse a Bedrock API response into Haystack ChatMessage objects.
@@ -267,6 +281,12 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
                         arguments=tool_use.get("input", {}),
                     )
                     tool_calls.append(tool_call)
+                elif "reasoningContent" in content_block:
+                    reasoning_content = content_block["reasoningContent"]
+                    # If reasoningText is present, replace it with reasoning_text
+                    if "reasoningText" in reasoning_content:
+                        reasoning_content["reasoning_text"] = reasoning_content.pop("reasoningText")
+                    base_meta.update({"reasoning_content": reasoning_content})
 
             # Create a single ChatMessage with combined text and tool calls
             replies.append(ChatMessage.from_assistant(" ".join(text_content), tool_calls=tool_calls, meta=base_meta))
@@ -274,7 +294,6 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
     return replies
 
 
-# Bedrock streaming to Haystack util methods
 def _convert_event_to_streaming_chunk(
     event: Dict[str, Any], model: str, component_info: ComponentInfo
 ) -> StreamingChunk:
@@ -305,7 +324,6 @@ def _convert_event_to_streaming_chunk(
                 content="",
                 meta={
                     "model": model,
-                    # This is always 0 b/c it represents the choice index
                     "index": 0,
                     # We follow the same format used in the OpenAIChatGenerator
                     "tool_calls": [  # Optional[List[ChoiceDeltaToolCall]]
@@ -335,7 +353,6 @@ def _convert_event_to_streaming_chunk(
                 content=delta["text"],
                 meta={
                     "model": model,
-                    # This is always 0 b/c it represents the choice index
                     "index": 0,
                     "tool_calls": None,
                     "finish_reason": None,
@@ -349,7 +366,6 @@ def _convert_event_to_streaming_chunk(
                 content="",
                 meta={
                     "model": model,
-                    # This is always 0 b/c it represents the choice index
                     "index": 0,
                     "tool_calls": [  # Optional[List[ChoiceDeltaToolCall]]
                         {
@@ -365,6 +381,19 @@ def _convert_event_to_streaming_chunk(
                     ],
                     "finish_reason": None,
                     "received_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+        # This is for accumulating reasoning content deltas
+        elif "reasoningContent" in delta:
+            streaming_chunk = StreamingChunk(
+                content="",
+                meta={
+                    "model": model,
+                    "index": 0,
+                    "tool_calls": None,
+                    "finish_reason": None,
+                    "received_at": datetime.now(timezone.utc).isoformat(),
+                    "reasoning_content": delta["reasoningContent"],
                 },
             )
 
@@ -421,7 +450,21 @@ def _convert_streaming_chunks_to_chat_message(chunks: List[StreamingChunk]) -> C
         A ChatMessage object constructed from the streaming chunks, containing the aggregated text, processed tool
         calls, and metadata.
     """
+    # Join all text content from the chunks
     text = "".join([chunk.content for chunk in chunks])
+
+    # If reasoning content is present in any chunk, accumulate it
+    reasoning_text = ""
+    reasoning_signature = None
+    for chunk in chunks:
+        if reasoning_content := chunk.meta.get("reasoning_content"):
+            if "text" in reasoning_content:
+                reasoning_text += reasoning_content["text"]
+            elif "signature" in reasoning_content:
+                reasoning_signature = reasoning_content["signature"]
+    reasoning_content = None
+    if reasoning_text:
+        reasoning_content = {"reasoning_text": {"text": reasoning_text, "signature": reasoning_signature}}
 
     # Process tool calls if present in any chunk
     tool_calls = []
@@ -474,6 +517,7 @@ def _convert_streaming_chunks_to_chat_message(chunks: List[StreamingChunk]) -> C
         "finish_reason": finish_reason,
         "completion_start_time": chunks[0].meta.get("received_at"),  # first chunk received
         "usage": usage,
+        "reasoning_content": reasoning_content if reasoning_content else None,
     }
 
     return ChatMessage.from_assistant(text=text or None, tool_calls=tool_calls, meta=meta)
