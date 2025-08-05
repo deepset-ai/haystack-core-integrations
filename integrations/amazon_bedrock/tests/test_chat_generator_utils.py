@@ -1,4 +1,5 @@
 import base64
+from unittest.mock import ANY
 
 import pytest
 from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, ImageContent, StreamingChunk, ToolCall
@@ -109,6 +110,69 @@ class TestAmazonBedrockChatGeneratorUtils:
             {"role": "assistant", "content": [{"text": "The weather in Paris is sunny and 25°C."}]},
         ]
 
+    def test_format_message_thinking(self):
+        assistant_message = ChatMessage.from_assistant(
+            "This is a test message.",
+            meta={
+                "reasoning_content": {
+                    "reasoning_text": {
+                        "text": "This is the reasoning behind the message.",
+                        "signature": "reasoning_signature",
+                    }
+                }
+            },
+        )
+        formatted_message = _format_messages([assistant_message])[1][0]
+        assert formatted_message == {
+            "role": "assistant",
+            "content": [
+                {
+                    "reasoningContent": {
+                        "reasoningText": {
+                            "text": "This is the reasoning behind the message.",
+                            "signature": "reasoning_signature",
+                        }
+                    }
+                },
+                {"text": "This is a test message."},
+            ],
+        }
+
+        tool_call_message = ChatMessage.from_assistant(
+            "This is a test message with a tool call.",
+            tool_calls=[ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})],
+            meta={
+                "reasoning_content": {
+                    "reasoning_text": {
+                        "text": "This is the reasoning behind the tool call.",
+                        "signature": "reasoning_signature",
+                    }
+                }
+            },
+        )
+        formatted_message = _format_messages([tool_call_message])[1][0]
+        assert formatted_message == {
+            "role": "assistant",
+            "content": [
+                {
+                    "reasoningContent": {
+                        "reasoningText": {
+                            "text": "This is the reasoning behind the tool call.",
+                            "signature": "reasoning_signature",
+                        }
+                    }
+                },
+                {"text": "This is a test message with a tool call."},
+                {
+                    "toolUse": {
+                        "toolUseId": "123",
+                        "name": "test_tool",
+                        "input": {"key": "value"},
+                    }
+                },
+            ],
+        }
+
     def test_format_text_image_message(self):
         plain_assistant_message = ChatMessage.from_assistant("This is a test message.")
         formatted_message = _format_text_image_message(plain_assistant_message)
@@ -151,7 +215,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         with pytest.raises(ValueError):
             _format_text_image_message(image_message)
 
-    def test_formate_messages_multi_tool(self):
+    def test_format_messages_multi_tool(self):
         messages = [
             ChatMessage.from_user("What is the weather in Berlin and Paris?"),
             ChatMessage.from_assistant(
@@ -380,6 +444,84 @@ class TestAmazonBedrockChatGeneratorUtils:
         )
         assert replies[0] == expected_message
 
+    def test_extract_replies_from_one_tool_response_with_thinking(self, mock_boto3_session):
+        model = "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+        response_body = {
+            "ResponseMetadata": {
+                "RequestId": "d7be81a1-5d37-40fe-936a-7c96e850cdda",
+                "HTTPStatusCode": 200,
+                "HTTPHeaders": {
+                    "date": "Tue, 15 Jul 2025 12:49:56 GMT",
+                    "content-type": "application/json",
+                    "content-length": "1107",
+                    "connection": "keep-alive",
+                    "x-amzn-requestid": "d7be81a1-5d37-40fe-936a-7c96e850cdda",
+                },
+                "RetryAttempts": 0,
+            },
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "reasoningContent": {
+                                "reasoningText": {
+                                    "text": "The user wants to know the weather in Paris. I have a `weather` function "
+                                    "available that can provide this information. \n\nRequired parameters for "
+                                    "the weather function:\n- city: The city to get the weather for\n\nIn this "
+                                    'case, the user has clearly specified "Paris" as the city, so I have all '
+                                    "the required information to make the function call.",
+                                    "signature": "...",
+                                }
+                            }
+                        },
+                        {"text": "I'll check the current weather in Paris for you."},
+                        {
+                            "toolUse": {
+                                "toolUseId": "tooluse_iUqy8-ypSByLK5zFkka8uA",
+                                "name": "weather",
+                                "input": {"city": "Paris"},
+                            }
+                        },
+                    ],
+                }
+            },
+            "stopReason": "tool_use",
+            "usage": {
+                "inputTokens": 412,
+                "outputTokens": 146,
+                "totalTokens": 558,
+                "cacheReadInputTokens": 0,
+                "cacheWriteInputTokens": 0,
+            },
+            "metrics": {"latencyMs": 4811},
+        }
+        replies = _parse_completion_response(response_body, model)
+
+        expected_message = ChatMessage.from_assistant(
+            text="I'll check the current weather in Paris for you.",
+            tool_calls=[
+                ToolCall(tool_name="weather", arguments={"city": "Paris"}, id="tooluse_iUqy8-ypSByLK5zFkka8uA"),
+            ],
+            meta={
+                "model": "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                "index": 0,
+                "finish_reason": "tool_use",
+                "usage": {"prompt_tokens": 412, "completion_tokens": 146, "total_tokens": 558},
+                "reasoning_content": {
+                    "reasoning_text": {
+                        "text": "The user wants to know the weather in Paris. I have a `weather` function "
+                        "available that can provide this information. \n\nRequired parameters for "
+                        "the weather function:\n- city: The city to get the weather for\n\nIn this "
+                        'case, the user has clearly specified "Paris" as the city, so I have all '
+                        "the required information to make the function call.",
+                        "signature": "...",
+                    }
+                },
+            },
+        )
+        assert replies[0] == expected_message
+
     def test_process_streaming_response_one_tool_call(self, mock_boto3_session):
         """
         Test that process_streaming_response correctly handles streaming events and accumulates responses
@@ -450,6 +592,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "index": 0,
                     "finish_reason": "tool_use",
                     "usage": {"prompt_tokens": 364, "completion_tokens": 71, "total_tokens": 435},
+                    "reasoning_content": None,
                 },
             )
         ]
@@ -472,6 +615,122 @@ class TestAmazonBedrockChatGeneratorUtils:
 
         # Verify final replies
         assert len(replies) == 1
+        assert replies == expected_messages
+
+    def test_process_streaming_response_one_tool_call_with_thinking(self, mock_boto3_session):
+        model = "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0"
+        type_ = (
+            "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+        )
+        streaming_chunks = []
+
+        def test_callback(chunk: StreamingChunk):
+            streaming_chunks.append(chunk)
+
+        events = [
+            {"messageStart": {"role": "assistant"}},
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": "The user is asking about the weather"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": " in Paris. I have"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": " access to a"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": " weather function that takes"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": " a city parameter. Paris"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": " is clearly specifie"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": "d as the city, so I have all"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": " the required parameters to make the"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": " function call."}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {"contentBlockDelta": {"delta": {"reasoningContent": {"signature": "..."}}, "contentBlockIndex": 0}},
+            {"contentBlockStop": {"contentBlockIndex": 0}},
+            {
+                "contentBlockStart": {
+                    "start": {"toolUse": {"toolUseId": "tooluse_1gPhO4A1RNWgzKbt1PXWLg", "name": "weather"}},
+                    "contentBlockIndex": 1,
+                }
+            },
+            {"contentBlockDelta": {"delta": {"toolUse": {"input": ""}}, "contentBlockIndex": 1}},
+            {"contentBlockDelta": {"delta": {"toolUse": {"input": '{"ci'}}, "contentBlockIndex": 1}},
+            {"contentBlockDelta": {"delta": {"toolUse": {"input": "ty"}}, "contentBlockIndex": 1}},
+            {"contentBlockDelta": {"delta": {"toolUse": {"input": '": "P'}}, "contentBlockIndex": 1}},
+            {"contentBlockDelta": {"delta": {"toolUse": {"input": "aris"}}, "contentBlockIndex": 1}},
+            {"contentBlockDelta": {"delta": {"toolUse": {"input": '"}'}}, "contentBlockIndex": 1}},
+            {"contentBlockStop": {"contentBlockIndex": 1}},
+            {"messageStop": {"stopReason": "tool_use"}},
+            {
+                "metadata": {
+                    "usage": {"inputTokens": 412, "outputTokens": 104, "totalTokens": 516},
+                    "metrics": {"latencyMs": 2134},
+                }
+            },
+        ]
+
+        replies = _parse_streaming_response(events, test_callback, model, ComponentInfo(type=type_))
+
+        expected_messages = [
+            ChatMessage.from_assistant(
+                tool_calls=[
+                    ToolCall(tool_name="weather", arguments={"city": "Paris"}, id="tooluse_1gPhO4A1RNWgzKbt1PXWLg"),
+                ],
+                meta={
+                    "model": "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0",
+                    "index": 0,
+                    "finish_reason": "tool_use",
+                    "usage": {"prompt_tokens": 412, "completion_tokens": 104, "total_tokens": 516},
+                    "completion_start_time": ANY,
+                    "reasoning_content": {
+                        "reasoning_text": {
+                            "text": "The user is asking about the weather in Paris. I have access to a weather "
+                            "function that takes a city parameter. Paris is clearly specified as the city, "
+                            "so I have all the required parameters to make the function call.",
+                            "signature": "...",
+                        }
+                    },
+                },
+            ),
+        ]
         assert replies == expected_messages
 
     def test_parse_streaming_response_with_two_tool_calls(self, mock_boto3_session):
@@ -527,13 +786,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             },
         ]
 
-        component_info = ComponentInfo(
-            type=type_,
-        )
-
-        replies = _parse_streaming_response(events, test_callback, model, component_info)
-        # Pop completion_start_time since it will always change
-        replies[0].meta.pop("completion_start_time")
+        replies = _parse_streaming_response(events, test_callback, model, ComponentInfo(type=type_))
         expected_messages = [
             ChatMessage.from_assistant(
                 text="To answer your question about the weather in Berlin and Paris, I'll need to use the "
@@ -552,6 +805,8 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "index": 0,
                     "finish_reason": "tool_use",
                     "usage": {"prompt_tokens": 366, "completion_tokens": 83, "total_tokens": 449},
+                    "completion_start_time": ANY,
+                    "reasoning_content": None,
                 },
             ),
         ]
