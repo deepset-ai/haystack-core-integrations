@@ -6,7 +6,6 @@
 
 - Adopt new `StreamingChunk` in Ollama (#2109)
 
-
 ## [integrations/ollama-v3.4.0] - 2025-07-04
 
 ### 🚀 Features
