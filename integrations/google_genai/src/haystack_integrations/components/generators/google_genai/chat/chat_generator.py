@@ -7,7 +7,7 @@ import json
 import os
 import tempfile
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Union
+from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Union, cast
 
 from google.genai import Client, types
 from haystack import logging
@@ -645,12 +645,12 @@ class GoogleGenAIChatGenerator:
             if streaming_callback:
                 # Use streaming
                 response_stream = self._client.models.generate_content_stream(
-                    model=self._model, contents=contents, config=config
+                    model=self._model, contents=cast(Any, contents), config=config
                 )
                 return self._handle_streaming_response(response_stream, streaming_callback)
             else:
                 # Use non-streaming
-                response = self._client.models.generate_content(model=self._model, contents=contents, config=config)
+                response = self._client.models.generate_content(model=self._model, contents=cast(Any, contents), config=config)
                 reply = _convert_google_genai_response_to_chatmessage(response, self._model)
                 return {"replies": [reply]}
 
@@ -733,13 +733,13 @@ class GoogleGenAIChatGenerator:
             if streaming_callback:
                 # Use async streaming
                 response_stream = await self._client.aio.models.generate_content_stream(
-                    model=self._model, contents=contents, config=config
+                    model=self._model, contents=cast(Any, contents), config=config
                 )
                 return await self._handle_streaming_response_async(response_stream, streaming_callback)
             else:
                 # Use async non-streaming
                 response = await self._client.aio.models.generate_content(
-                    model=self._model, contents=contents, config=config
+                    model=self._model, contents=cast(Any, contents), config=config
                 )
                 reply = _convert_google_genai_response_to_chatmessage(response, self._model)
                 return {"replies": [reply]}
