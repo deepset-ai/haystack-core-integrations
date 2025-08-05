@@ -474,6 +474,19 @@ class TestAnthropicChatGenerator:
         assert streaming_chunk.index == 0
         assert streaming_chunk.tool_calls is None
 
+        # Test message_stop chunk
+        content_block_stop_chunk = RawContentBlockStopEvent(index=1, type="content_block_stop")
+        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+            content_block_stop_chunk, component_info=component_info
+        )
+        assert streaming_chunk.component_info == component_info
+        assert streaming_chunk.meta == content_block_stop_chunk.model_dump()
+        assert streaming_chunk.index == 1
+        assert not streaming_chunk.start
+        assert streaming_chunk.content == ""
+        assert streaming_chunk.finish_reason is None
+        assert streaming_chunk.tool_calls is None
+
         # Test content_block_start for tool_use
         tool_block_start_chunk = RawContentBlockStartEvent(
             content_block=ToolUseBlock(
@@ -529,19 +542,6 @@ class TestAnthropicChatGenerator:
         assert streaming_chunk.index == 1
         assert not streaming_chunk.start
 
-        # Test message_stop chunk
-        content_block_stop_chunk = RawContentBlockStopEvent(index=1, type="content_block_stop")
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            content_block_stop_chunk, component_info=component_info
-        )
-        assert streaming_chunk.component_info == component_info
-        assert streaming_chunk.meta == content_block_stop_chunk.model_dump()
-        assert streaming_chunk.index == 1
-        assert not streaming_chunk.start
-        assert streaming_chunk.content == ""
-        assert streaming_chunk.finish_reason is None
-        assert streaming_chunk.tool_calls is None
-
         # Test message_delta chunk
         message_delta_chunk = RawMessageDeltaEvent(
             delta=Delta(stop_reason="tool_use", stop_sequence=None),
@@ -565,7 +565,9 @@ class TestAnthropicChatGenerator:
         assert streaming_chunk.content == ""
         assert not streaming_chunk.start
 
-        # Test message_stop chunk
+        ## In response flow, here will be another content_block_stop chunk
+
+        # Test final message_stop chunk
         message_stop_chunk = RawMessageStopEvent(type="message_stop")
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             message_stop_chunk, component_info=component_info
