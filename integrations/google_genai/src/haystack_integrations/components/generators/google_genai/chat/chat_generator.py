@@ -650,7 +650,9 @@ class GoogleGenAIChatGenerator:
                 return self._handle_streaming_response(response_stream, streaming_callback)
             else:
                 # Use non-streaming
-                response = self._client.models.generate_content(model=self._model, contents=cast(Any, contents), config=config)
+                response = self._client.models.generate_content(
+                    model=self._model, contents=cast(Any, contents), config=config
+                )
                 reply = _convert_google_genai_response_to_chatmessage(response, self._model)
                 return {"replies": [reply]}
 
