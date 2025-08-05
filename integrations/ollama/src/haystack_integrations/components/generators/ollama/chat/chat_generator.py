@@ -33,8 +33,9 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any
     images = message.images
 
     if not text_contents and not tool_calls and not tool_call_results and not images:
-        msg = ( "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, `ToolCallResult`, "
-        "or `ImageContent`.")
+        msg = (
+            "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, `ToolCallResult`, or `ImageContent`."
+        )
         raise ValueError(msg)
     elif len(text_contents) + len(tool_call_results) > 1:
         msg = "For Ollama compatibility, a `ChatMessage` can contain at most one `TextContent` or `ToolCallResult`."
