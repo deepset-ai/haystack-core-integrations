@@ -14,10 +14,8 @@ from anthropic.types import (
     MessageDeltaUsage,
     RawContentBlockDeltaEvent,
     RawContentBlockStartEvent,
-    RawContentBlockStopEvent,
     RawMessageDeltaEvent,
     RawMessageStartEvent,
-    RawMessageStopEvent,
     TextBlock,
     TextBlockParam,
     TextDelta,
@@ -86,6 +84,7 @@ def mock_anthropic_completion():
         )
         mock_anthropic.return_value = completion
         yield mock_anthropic
+
 
 class TestAnthropicChatGenerator:
     def test_init_default(self, monkeypatch):
