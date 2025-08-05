@@ -496,7 +496,6 @@ class AnthropicChatGenerator:
                         model = chunk.message.model
 
                     streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, component_info)
-                    print(streaming_chunk)
                     chunks.append(streaming_chunk)
                     if streaming_callback:
                         streaming_callback(streaming_chunk)
@@ -528,27 +527,22 @@ class AnthropicChatGenerator:
             A dictionary containing the processed response as a list of ChatMessage objects.
         """
         # workaround for https://github.com/DataDog/dd-trace-py/issues/12562
-        stream = streaming_callback is not None
-        if stream:
+        if not isinstance(response, Message):
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
             component_info = ComponentInfo.from_component(self)
             async for chunk in response:
-                if chunk.type == "message_start":
-                    model = chunk.message.model
-
-                elif chunk.type in [
+                if chunk.type in [
+                    "message_start",
                     "content_block_start",
                     "content_block_delta",
                     "message_delta",
                 ]:
+                    # Extract model from message_start chunks
+                    if chunk.type == "message_start":
+                        model = chunk.message.model
+
                     streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, component_info)
-                    streaming_chunk.meta.update(
-                        {
-                            "received_at": datetime.now(timezone.utc).isoformat(),
-                            "model": model,
-                        },
-                    )
                     chunks.append(streaming_chunk)
                     if streaming_callback:
                         await streaming_callback(streaming_chunk)
