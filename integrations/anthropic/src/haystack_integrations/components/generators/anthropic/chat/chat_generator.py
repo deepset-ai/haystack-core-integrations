@@ -496,6 +496,7 @@ class AnthropicChatGenerator:
                         model = chunk.message.model
 
                     streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, component_info)
+                    print(streaming_chunk)
                     chunks.append(streaming_chunk)
                     if streaming_callback:
                         streaming_callback(streaming_chunk)
