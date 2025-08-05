@@ -283,7 +283,6 @@ class TestAmazonBedrockChatGenerator:
         assert request_params["toolConfig"] == top_song_tool_config
 
 
-# In the CI, those tests are skipped if AWS Authentication fails
 @pytest.mark.integration
 class TestAmazonBedrockChatGeneratorInference:
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
@@ -399,6 +398,105 @@ class TestAmazonBedrockChatGeneratorInference:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
+
+    def test_live_run_with_tool_call_and_thinking(self, tools):
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = AmazonBedrockChatGenerator(
+            model="arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            tools=tools,
+            generation_kwargs={
+                "maxTokens": 8192,
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": 1024,
+                },
+            },
+        )
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+
+        # Find the message with tool calls
+        tool_call_message = None
+        for message in results["replies"]:
+            if message.tool_calls:
+                tool_call_message = message
+                break
+
+        assert tool_call_message is not None, "No message with tool call found"
+        assert isinstance(tool_call_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_call_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_calls = tool_call_message.tool_calls
+        assert len(tool_calls) == 1
+        assert tool_calls[0].id, "Tool call does not contain value for 'id' key"
+        assert tool_calls[0].tool_name == "weather"
+        assert tool_calls[0].arguments["city"] == "Paris"
+        assert tool_call_message.meta["finish_reason"] == "tool_use"
+
+        # Mock the response we'd get from ToolInvoker
+        tool_result_messages = [
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call) for tool_call in tool_calls
+        ]
+
+        new_messages = [*initial_messages, tool_call_message, *tool_result_messages]
+        results = component.run(new_messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_call
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+
+    def test_live_run_with_tool_call_and_thinking_streaming(self, tools):
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = AmazonBedrockChatGenerator(
+            model="arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            tools=tools,
+            generation_kwargs={
+                "maxTokens": 8192,
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": 1024,
+                },
+            },
+            streaming_callback=print_streaming_chunk,
+        )
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+
+        # Find the message with tool calls
+        tool_call_message = None
+        for message in results["replies"]:
+            if message.tool_calls:
+                tool_call_message = message
+                break
+
+        assert tool_call_message is not None, "No message with tool call found"
+        assert isinstance(tool_call_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_call_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_calls = tool_call_message.tool_calls
+        assert len(tool_calls) == 1
+        assert tool_calls[0].id, "Tool call does not contain value for 'id' key"
+        assert tool_calls[0].tool_name == "weather"
+        assert tool_calls[0].arguments["city"] == "Paris"
+        assert tool_call_message.meta["finish_reason"] == "tool_use"
+
+        # Mock the response we'd get from ToolInvoker
+        tool_result_messages = [
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call) for tool_call in tool_calls
+        ]
+
+        new_messages = [*initial_messages, tool_call_message, *tool_result_messages]
+        results = component.run(new_messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_call
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
 
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
     def test_live_run_with_multi_tool_calls_streaming(self, model_name, tools):
