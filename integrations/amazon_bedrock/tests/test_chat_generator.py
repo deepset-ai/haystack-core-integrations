@@ -22,9 +22,18 @@ MODELS_TO_TEST_WITH_TOOLS = [
 ]
 
 # so far we've discovered these models support streaming and tool use
-STREAMING_TOOL_MODELS = ["anthropic.claude-3-5-sonnet-20240620-v1:0", "cohere.command-r-plus-v1:0"]
+STREAMING_TOOL_MODELS = [
+    "anthropic.claude-3-5-sonnet-20240620-v1:0",
+    "us.anthropic.claude-sonnet-4-20250514-v1:0",
+    "cohere.command-r-plus-v1:0",
+]
 
 MODELS_TO_TEST_WITH_IMAGE_INPUT = [
+    "us.anthropic.claude-sonnet-4-20250514-v1:0",
+]
+
+MODELS_TO_TEST_WITH_THINKING = [
+    "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
     "us.anthropic.claude-sonnet-4-20250514-v1:0",
 ]
 
@@ -399,10 +408,11 @@ class TestAmazonBedrockChatGeneratorInference:
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
 
-    def test_live_run_with_tool_call_and_thinking(self, tools):
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_THINKING)
+    def test_live_run_with_tool_call_and_thinking(self, model_name, tools):
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
         component = AmazonBedrockChatGenerator(
-            model="arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            model=model_name,
             tools=tools,
             generation_kwargs={
                 "maxTokens": 8192,
@@ -448,10 +458,11 @@ class TestAmazonBedrockChatGeneratorInference:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
 
-    def test_live_run_with_tool_call_and_thinking_streaming(self, tools):
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_THINKING)
+    def test_live_run_with_tool_call_and_thinking_streaming(self, model_name, tools):
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
         component = AmazonBedrockChatGenerator(
-            model="arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            model=model_name,
             tools=tools,
             generation_kwargs={
                 "maxTokens": 8192,
@@ -497,6 +508,55 @@ class TestAmazonBedrockChatGeneratorInference:
         assert not final_message.tool_call
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
+
+    def test_live_run_with_redacted_thinking(self, tools):
+        # Special prompt to induce redacted thinking
+        initial_messages = [
+            ChatMessage.from_user(
+                "ANTHROPIC_MAGIC_STRING_TRIGGER_REDACTED_THINKING_46C9A13E193C177646C7398A98432ECCCE4C1253D5E2D82641AC0E52CC2876CB"
+            )
+        ]
+        component = AmazonBedrockChatGenerator(
+            # Redacted thinking only happens with Claude 3.7 https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-thinking-encryption.html
+            model="arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            tools=tools,
+            generation_kwargs={
+                "maxTokens": 8192,
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": 1024,
+                },
+            },
+        )
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+        assert isinstance(results["replies"][0].meta["reasoning_content"]["redacted_content"], bytes)
+
+    def test_live_run_with_redacted_thinking_streaming(self, tools):
+        # Special prompt to induce redacted thinking
+        initial_messages = [
+            ChatMessage.from_user(
+                "ANTHROPIC_MAGIC_STRING_TRIGGER_REDACTED_THINKING_46C9A13E193C177646C7398A98432ECCCE4C1253D5E2D82641AC0E52CC2876CB"
+            )
+        ]
+        component = AmazonBedrockChatGenerator(
+            # Redacted thinking only happens with Claude 3.7 https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-thinking-encryption.html
+            model="arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            tools=tools,
+            generation_kwargs={
+                "maxTokens": 8192,
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": 1024,
+                },
+            },
+            streaming_callback=print_streaming_chunk,
+        )
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+        assert isinstance(results["replies"][0].meta["reasoning_content"]["redacted_content"], bytes)
 
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
     def test_live_run_with_multi_tool_calls_streaming(self, model_name, tools):

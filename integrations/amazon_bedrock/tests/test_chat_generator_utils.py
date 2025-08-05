@@ -114,12 +114,16 @@ class TestAmazonBedrockChatGeneratorUtils:
         assistant_message = ChatMessage.from_assistant(
             "This is a test message.",
             meta={
-                "reasoning_content": {
-                    "reasoning_text": {
-                        "text": "This is the reasoning behind the message.",
-                        "signature": "reasoning_signature",
+                "reasoning_contents": [
+                    {
+                        "reasoning_content": {
+                            "reasoning_text": {
+                                "text": "This is the reasoning behind the message.",
+                                "signature": "reasoning_signature",
+                            }
+                        },
                     }
-                }
+                ]
             },
         )
         formatted_message = _format_messages([assistant_message])[1][0]
@@ -142,18 +146,92 @@ class TestAmazonBedrockChatGeneratorUtils:
             "This is a test message with a tool call.",
             tool_calls=[ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})],
             meta={
-                "reasoning_content": {
-                    "reasoning_text": {
-                        "text": "This is the reasoning behind the tool call.",
-                        "signature": "reasoning_signature",
+                "reasoning_contents": [
+                    {
+                        "reasoning_content": {
+                            "reasoning_text": {
+                                "text": "This is the reasoning behind the tool call.",
+                                "signature": "reasoning_signature",
+                            }
+                        },
                     }
-                }
+                ]
             },
         )
         formatted_message = _format_messages([tool_call_message])[1][0]
         assert formatted_message == {
             "role": "assistant",
             "content": [
+                {
+                    "reasoningContent": {
+                        "reasoningText": {
+                            "text": "This is the reasoning behind the tool call.",
+                            "signature": "reasoning_signature",
+                        }
+                    }
+                },
+                {"text": "This is a test message with a tool call."},
+                {
+                    "toolUse": {
+                        "toolUseId": "123",
+                        "name": "test_tool",
+                        "input": {"key": "value"},
+                    }
+                },
+            ],
+        }
+
+        tool_call_message_with_redacted = ChatMessage.from_assistant(
+            "This is a test message with a tool call.",
+            tool_calls=[ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})],
+            meta={
+                "reasoning_contents": [
+                    {
+                        "reasoning_content": {"redacted_content": b"Some encrypted byte string"},
+                    }
+                ]
+            },
+        )
+        formatted_message = _format_messages([tool_call_message_with_redacted])[1][0]
+        assert formatted_message == {
+            "role": "assistant",
+            "content": [
+                {"reasoningContent": {"redactedContent": b"Some encrypted byte string"}},
+                {"text": "This is a test message with a tool call."},
+                {
+                    "toolUse": {
+                        "toolUseId": "123",
+                        "name": "test_tool",
+                        "input": {"key": "value"},
+                    }
+                },
+            ],
+        }
+
+        tool_call_message_with_redacted_and_normal_thinking = ChatMessage.from_assistant(
+            "This is a test message with a tool call.",
+            tool_calls=[ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})],
+            meta={
+                "reasoning_contents": [
+                    {
+                        "reasoning_content": {"redacted_content": b"Some encrypted byte string"},
+                    },
+                    {
+                        "reasoning_content": {
+                            "reasoningText": {
+                                "text": "This is the reasoning behind the tool call.",
+                                "signature": "reasoning_signature",
+                            }
+                        },
+                    },
+                ]
+            },
+        )
+        formatted_message = _format_messages([tool_call_message_with_redacted_and_normal_thinking])[1][0]
+        assert formatted_message == {
+            "role": "assistant",
+            "content": [
+                {"reasoningContent": {"redactedContent": b"Some encrypted byte string"}},
                 {
                     "reasoningContent": {
                         "reasoningText": {
@@ -315,6 +393,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             "finish_reason": "complete",
             "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
             "index": 0,
+            "reasoning_contents": [],
         }
 
     def test_extract_replies_from_tool_response(self, mock_boto3_session):
@@ -342,6 +421,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             "finish_reason": "tool_call",
             "usage": {"prompt_tokens": 15, "completion_tokens": 25, "total_tokens": 40},
             "index": 0,
+            "reasoning_contents": [],
         }
 
     def test_extract_replies_from_text_mixed_response(self, mock_boto3_session):
@@ -373,6 +453,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             "finish_reason": "complete",
             "usage": {"prompt_tokens": 25, "completion_tokens": 35, "total_tokens": 60},
             "index": 0,
+            "reasoning_contents": [],
         }
 
     def test_extract_replies_from_multi_tool_response(self, mock_boto3_session):
@@ -440,6 +521,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "index": 0,
                 "finish_reason": "tool_use",
                 "usage": {"prompt_tokens": 366, "completion_tokens": 134, "total_tokens": 500},
+                "reasoning_contents": [],
             },
         )
         assert replies[0] == expected_message
@@ -508,16 +590,18 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "index": 0,
                 "finish_reason": "tool_use",
                 "usage": {"prompt_tokens": 412, "completion_tokens": 146, "total_tokens": 558},
-                "reasoning_content": {
-                    "reasoning_text": {
-                        "text": "The user wants to know the weather in Paris. I have a `weather` function "
-                        "available that can provide this information. \n\nRequired parameters for "
-                        "the weather function:\n- city: The city to get the weather for\n\nIn this "
-                        'case, the user has clearly specified "Paris" as the city, so I have all '
-                        "the required information to make the function call.",
-                        "signature": "...",
+                "reasoning_contents": [
+                    {
+                        "reasoning_text": {
+                            "text": "The user wants to know the weather in Paris. I have a `weather` function "
+                            "available that can provide this information. \n\nRequired parameters for "
+                            "the weather function:\n- city: The city to get the weather for\n\nIn this "
+                            'case, the user has clearly specified "Paris" as the city, so I have all '
+                            "the required information to make the function call.",
+                            "signature": "...",
+                        }
                     }
-                },
+                ],
             },
         )
         assert replies[0] == expected_message
@@ -592,7 +676,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "index": 0,
                     "finish_reason": "tool_use",
                     "usage": {"prompt_tokens": 364, "completion_tokens": 71, "total_tokens": 435},
-                    "reasoning_content": None,
+                    "reasoning_contents": [],
                 },
             )
         ]
@@ -720,14 +804,95 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "finish_reason": "tool_use",
                     "usage": {"prompt_tokens": 412, "completion_tokens": 104, "total_tokens": 516},
                     "completion_start_time": ANY,
-                    "reasoning_content": {
-                        "reasoning_text": {
-                            "text": "The user is asking about the weather in Paris. I have access to a weather "
-                            "function that takes a city parameter. Paris is clearly specified as the city, "
-                            "so I have all the required parameters to make the function call.",
-                            "signature": "...",
+                    "reasoning_contents": [
+                        {
+                            "reasoning_content": {
+                                "reasoning_text": {
+                                    "text": "The user is asking about the weather in Paris. I have access to a weather "
+                                    "function that takes a city parameter. Paris is clearly specified as the city, "
+                                    "so I have all the required parameters to make the function call.",
+                                    "signature": "...",
+                                }
+                            },
                         }
-                    },
+                    ],
+                },
+            ),
+        ]
+        assert replies == expected_messages
+
+    def test_process_streaming_response_with_one_tool_call_with_redacted_thinking(self, mock_boto3_session):
+        model = "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-sonnet-3-7-20250219-v1:0"
+        type_ = (
+            "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+        )
+        streaming_chunks = []
+
+        events = [
+            {"messageStart": {"role": "assistant"}},
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"redactedContent": b"Some encrypted byte string"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {"contentBlockStop": {"contentBlockIndex": 0}},
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": "I notice your message contains a special"},
+                    "contentBlockIndex": 1,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": " string that doesn't include an actual question"},
+                    "contentBlockIndex": 1,
+                }
+            },
+            {"contentBlockDelta": {"delta": {"text": " or request. \n\nIs there something"}, "contentBlockIndex": 1}},
+            {"contentBlockDelta": {"delta": {"text": " specific you'd like to know"}, "contentBlockIndex": 1}},
+            {"contentBlockDelta": {"delta": {"text": "? If you're intereste"}, "contentBlockIndex": 1}},
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": "d in weather information for a particular location"},
+                    "contentBlockIndex": 1,
+                }
+            },
+            {"contentBlockDelta": {"delta": {"text": ", I can help"}, "contentBlockIndex": 1}},
+            {"contentBlockDelta": {"delta": {"text": " you with that using the weather"}, "contentBlockIndex": 1}},
+            {"contentBlockDelta": {"delta": {"text": " tool. Just let me know which"}, "contentBlockIndex": 1}},
+            {"contentBlockDelta": {"delta": {"text": " city you'd like"}, "contentBlockIndex": 1}},
+            {"contentBlockDelta": {"delta": {"text": " to check the weather for."}, "contentBlockIndex": 1}},
+            {"contentBlockStop": {"contentBlockIndex": 1}},
+            {"messageStop": {"stopReason": "end_turn"}},
+            {
+                "metadata": {
+                    "usage": {"inputTokens": 461, "outputTokens": 138, "totalTokens": 599},
+                    "metrics": {"latencyMs": 8493},
+                }
+            },
+        ]
+
+        def test_callback(chunk: StreamingChunk):
+            streaming_chunks.append(chunk)
+
+        replies = _parse_streaming_response(events, test_callback, model, ComponentInfo(type=type_))
+
+        expected_messages = [
+            ChatMessage.from_assistant(
+                text="I notice your message contains a special string that doesn't include an actual question or "
+                "request. \n\nIs there something specific you'd like to know? If you're interested in weather "
+                "information for a particular location, I can help you with that using the weather tool. "
+                "Just let me know which city you'd like to check the weather for.",
+                name=None,
+                tool_calls=None,
+                meta={
+                    "model": model,
+                    "index": 0,
+                    "finish_reason": "end_turn",
+                    "usage": {"prompt_tokens": 461, "completion_tokens": 138, "total_tokens": 599},
+                    "completion_start_time": ANY,
+                    "reasoning_contents": [{"reasoning_content": {"redacted_content": b"Some encrypted byte string"}}],
                 },
             ),
         ]
@@ -806,7 +971,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "finish_reason": "tool_use",
                     "usage": {"prompt_tokens": 366, "completion_tokens": 83, "total_tokens": 449},
                     "completion_start_time": ANY,
-                    "reasoning_content": None,
+                    "reasoning_contents": [],
                 },
             ),
         ]
