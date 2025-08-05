@@ -48,6 +48,7 @@ from cohere import (
     ToolCallV2,
     ToolCallV2Function,
     ToolChatMessageV2,
+    Usage,
     UserChatMessageV2,
 )
 
@@ -165,7 +166,7 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
         # Create message with tool plan as text and tool calls in the format Haystack expects
         tool_plan = chat_response.message.tool_plan or ""
         message = ChatMessage.from_assistant(text=tool_plan, tool_calls=tool_calls)
-    elif chat_response.message.content:
+    elif chat_response.message.content and hasattr(chat_response.message.content[0], "text"):
         message = ChatMessage.from_assistant(chat_response.message.content[0].text)
     else:
         # Handle the case where neither tool_calls nor content exists
@@ -274,28 +275,39 @@ def _process_cohere_chunk(cohere_chunk: StreamedChatResponseV2, state: Dict[str,
                 state["current_tool_call"] = None
                 state["current_tool_arguments"] = ""
 
-        usage_data = getattr(cohere_chunk.delta, "usage", None)
         finish_reason = getattr(cohere_chunk.delta, "finish_reason", None)
 
-        if (
-            finish_reason is not None
-            and usage_data is not None
-            and isinstance(usage_data, dict)
-            and "billed_units" in usage_data
-            and "input_tokens" in usage_data["billed_units"]
-            and "output_tokens" in usage_data["billed_units"]
-        ):
+        if finish_reason is not None:
             state["captured_meta"].update(
                 {
                     "model": model,
                     "index": 0,
                     "finish_reason": finish_reason,
-                    "usage": {
-                        "prompt_tokens": usage_data["billed_units"]["input_tokens"],
-                        "completion_tokens": usage_data["billed_units"]["output_tokens"],
-                    },
                 }
             )
+
+        # The Cohere API is subject to changes in how usage data is returned. We try to support both dict and objects.
+        usage_data = getattr(cohere_chunk.delta, "usage", None)
+        prompt_tokens, completion_tokens = 0.0, 0.0
+        if isinstance(usage_data, dict):
+            try:
+                prompt_tokens = usage_data["billed_units"]["input_tokens"]
+                completion_tokens = usage_data["billed_units"]["output_tokens"]
+            except KeyError:
+                pass
+        elif (
+            usage_data is not None
+            and isinstance(usage_data, Usage)
+            and usage_data.billed_units
+            and usage_data.billed_units.input_tokens is not None
+            and usage_data.billed_units.output_tokens is not None
+        ):
+            prompt_tokens = usage_data.billed_units.input_tokens
+            completion_tokens = usage_data.billed_units.output_tokens
+
+        state["captured_meta"].update(
+            {"usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens}}
+        )
 
     return None
 
