@@ -396,7 +396,7 @@ class AnthropicChatGenerator:
             if chunk.content_block.type == "tool_use":
                 tool_calls.append(
                     ToolCallDelta(
-                        index=chunk.index,
+                        index=0,
                         id=chunk.content_block.id,
                         tool_name=chunk.content_block.name,
                     )
@@ -407,7 +407,7 @@ class AnthropicChatGenerator:
                 content = chunk.delta.text
             elif chunk.delta.type == "input_json_delta":
                 # we assign index=0 because one chunk can have only one ToolCallDelta
-                tool_calls.append(ToolCallDelta(index=chunk.index, arguments=chunk.delta.partial_json))
+                tool_calls.append(ToolCallDelta(index=0, arguments=chunk.delta.partial_json))
         # end of streaming message
         elif chunk.type == "message_delta":
             finish_reason = FINISH_REASON_MAPPING.get(getattr(chunk.delta, "stop_reason" or ""))
@@ -494,7 +494,7 @@ class AnthropicChatGenerator:
                     # Extract model from message_start chunks
                     if chunk.type == "message_start":
                         model = chunk.message.model
-                    
+
                     streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, component_info)
                     chunks.append(streaming_chunk)
                     if streaming_callback:
@@ -535,7 +535,7 @@ class AnthropicChatGenerator:
             async for chunk in response:
                 if chunk.type == "message_start":
                     model = chunk.message.model
-                
+
                 elif chunk.type in [
                     "content_block_start",
                     "content_block_delta",
