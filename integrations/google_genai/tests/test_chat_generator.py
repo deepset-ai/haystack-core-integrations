@@ -7,7 +7,7 @@ from unittest.mock import Mock
 import pytest
 from google.genai import types
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, ImageContent, StreamingChunk, ToolCall
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 
@@ -442,6 +442,8 @@ class TestGoogleGenAIChatGenerator:
         Test that the GoogleGenAIChatGenerator can convert a complex sequence of ChatMessages to Google GenAI format.
         In particular, we check that different tool results are handled properly in sequence.
         """
+        # Mock client for function signature compatibility
+        mock_client = Mock()
 
         messages = [
             ChatMessage.from_system("You are good assistant"),
@@ -467,14 +469,14 @@ class TestGoogleGenAIChatGenerator:
 
         # Test user message conversion
         user_message = messages[1]
-        google_content = _convert_message_to_google_genai_format(user_message)
+        google_content = _convert_message_to_google_genai_format(user_message, mock_client)
         assert google_content.role == "user"
         assert len(google_content.parts) == 1
         assert google_content.parts[0].text == "What's the weather like in Paris? And how much is 2+2?"
 
         # Test assistant message with tool calls
         assistant_message = messages[2]
-        google_content = _convert_message_to_google_genai_format(assistant_message)
+        google_content = _convert_message_to_google_genai_format(assistant_message, mock_client)
         assert google_content.role == "model"
         assert len(google_content.parts) == 2
         assert google_content.parts[0].function_call.name == "weather"
@@ -484,14 +486,14 @@ class TestGoogleGenAIChatGenerator:
 
         # Test tool result messages
         tool_result_1 = messages[3]
-        google_content = _convert_message_to_google_genai_format(tool_result_1)
+        google_content = _convert_message_to_google_genai_format(tool_result_1, mock_client)
         assert google_content.role == "user"
         assert len(google_content.parts) == 1
         assert google_content.parts[0].function_response.name == "weather"
         assert google_content.parts[0].function_response.response == {"result": "22° C"}
 
         tool_result_2 = messages[4]
-        google_content = _convert_message_to_google_genai_format(tool_result_2)
+        google_content = _convert_message_to_google_genai_format(tool_result_2, mock_client)
         assert google_content.role == "user"
         assert len(google_content.parts) == 1
         assert google_content.parts[0].function_response.name == "math"
@@ -511,6 +513,27 @@ class TestGoogleGenAIChatGenerator:
         assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
         assert "gemini-2.0-flash" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
+
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_run_with_image_input(self, test_files_path):
+        client = GoogleGenAIChatGenerator()
+
+        image_path = test_files_path / "apple.jpg"
+        image_content = ImageContent.from_file_path(image_path, size=(100, 100))
+
+        chat_message = ChatMessage.from_user(content_parts=["What's in the image? Max 5 words.", image_content])
+
+        response = client.run([chat_message])
+
+        first_reply = response["replies"][0]
+        assert isinstance(first_reply, ChatMessage)
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT)
+        assert first_reply.text
+        assert "apple" in first_reply.text.lower()
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),

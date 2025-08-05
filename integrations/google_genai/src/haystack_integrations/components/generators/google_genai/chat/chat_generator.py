@@ -2,11 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import base64
 import json
+import os
+import tempfile
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Union
 
-from google.genai import types
+from google.genai import Client, types
 from haystack import logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.core.component import component
@@ -48,17 +51,31 @@ FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
 
 logger = logging.getLogger(__name__)
 
+# Google AI supported image MIME types based on documentation
+# https://ai.google.dev/gemini-api/docs/image-understanding?lang=python
+GOOGLE_AI_SUPPORTED_MIME_TYPES = {
+    "image/png": "png",
+    "image/jpeg": "jpeg",
+    "image/jpg": "jpeg",  # Common alias
+    "image/webp": "webp",
+    "image/heic": "heic",
+    "image/heif": "heif",
+}
 
-def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Content:
+
+def _convert_message_to_google_genai_format(message: ChatMessage, client: Client) -> types.Content:
     """
     Converts a Haystack ChatMessage to Google Gen AI Content format.
 
     :param message: The Haystack ChatMessage to convert.
+    :param client: The Google Gen AI client for uploading files.
     :returns: Google Gen AI Content object.
     """
     # Check if message has content
-    if not message.texts and not message.tool_calls and not message.tool_call_results:
-        msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
+    if not message.texts and not message.tool_calls and not message.tool_call_results and not message.images:
+        msg = (
+            "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, `ToolCallResult`, or `ImageContent`."
+        )
         raise ValueError(msg)
 
     parts = []
@@ -88,6 +105,54 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
                     )
                 )
             )
+
+    # Handle images (from user only)
+    if message.images:
+        if message.is_from(ChatRole.ASSISTANT):
+            msg = "Image content is not supported for assistant messages"
+            raise ValueError(msg)
+
+        for image_content in message.images:
+            # Validate image MIME type and format
+            if not image_content.mime_type:
+                msg = "Image MIME type could not be determined. Please provide a valid image with detectable format."
+                raise ValueError(msg)
+
+            if image_content.mime_type not in GOOGLE_AI_SUPPORTED_MIME_TYPES:
+                supported_types = list(GOOGLE_AI_SUPPORTED_MIME_TYPES.keys())
+                msg = (
+                    f"Unsupported image MIME type: {image_content.mime_type}. "
+                    f"Google AI supports the following MIME types: {supported_types}"
+                )
+                raise ValueError(msg)
+
+            # Get the file extension for the temporary file
+            file_extension = GOOGLE_AI_SUPPORTED_MIME_TYPES[image_content.mime_type]
+
+            # Upload image via Files API using temporary file
+            try:
+                # ImageContent already validated the base64, but we still need to decode for file writing
+                image_bytes = base64.b64decode(image_content.base64_image)
+
+                with tempfile.NamedTemporaryFile(suffix=f".{file_extension}", delete=False) as temp_file:
+                    temp_file.write(image_bytes)
+                    temp_file_path = temp_file.name
+
+                try:
+                    # Upload using file path
+                    uploaded_file = client.files.upload(file=temp_file_path)
+                    # Create a Part object that references the uploaded file
+                    file_part = types.Part(
+                        file_data=types.FileData(file_uri=uploaded_file.uri, mime_type=image_content.mime_type)
+                    )
+                    parts.append(file_part)
+                finally:
+                    # Clean up temporary file
+                    os.unlink(temp_file_path)
+
+            except Exception as e:
+                msg = f"Failed to upload image via Google AI Files API: {e}"
+                raise RuntimeError(msg) from e
 
     # Determine role
     if message.is_from(ChatRole.USER) or message.tool_call_results:
@@ -559,7 +624,7 @@ class GoogleGenAIChatGenerator:
         # Convert messages to Google Gen AI Content format
         contents = []
         for msg in chat_messages:
-            contents.append(_convert_message_to_google_genai_format(msg))
+            contents.append(_convert_message_to_google_genai_format(msg, self._client))
 
         try:
             # Prepare generation config
@@ -647,7 +712,7 @@ class GoogleGenAIChatGenerator:
         # Convert messages to Google Gen AI Content format
         contents = []
         for msg in chat_messages:
-            contents.append(_convert_message_to_google_genai_format(msg))
+            contents.append(_convert_message_to_google_genai_format(msg, self._client))
 
         try:
             # Prepare generation config
