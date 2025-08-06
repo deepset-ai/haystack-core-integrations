@@ -61,8 +61,8 @@ dependencies = [
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
-    "pip"
-
+    "pip",
+    "pillow", # image resizing
 ]
 
 [tool.hatch.envs.test.scripts]

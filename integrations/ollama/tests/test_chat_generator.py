@@ -7,6 +7,7 @@ from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
     ComponentInfo,
+    ImageContent,
     StreamingChunk,
     TextContent,
     ToolCall,
@@ -83,6 +84,24 @@ def test_convert_chatmessage_to_ollama_format():
     assert _convert_chatmessage_to_ollama_format(message) == {
         "role": "tool",
         "content": tool_result,
+    }
+
+
+def test_convert_chatmessage_to_ollama_format_image():
+    base64_image_string = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="
+    image_content = ImageContent(base64_image=base64_image_string)
+
+    message = ChatMessage.from_user(
+        content_parts=[
+            "Describe the following images",
+            image_content,
+            image_content,
+        ]
+    )
+    assert _convert_chatmessage_to_ollama_format(message) == {
+        "role": "user",
+        "content": "Describe the following images",
+        "images": [base64_image_string, base64_image_string],
     }
 
 
@@ -805,6 +824,19 @@ class TestOllamaChatGenerator:
         assert any(
             city.lower() in response["replies"][-1].text.lower() for city in ["Manchester", "Birmingham", "Glasgow"]
         )
+
+    @pytest.mark.integration
+    def test_run_with_images(self, test_files_path):
+        chat_generator = OllamaChatGenerator(model="moondream:1.8b")
+        image_content = ImageContent.from_file_path(test_files_path / "apple.jpg", size=(100, 100))
+        message = ChatMessage.from_user(content_parts=["Describe the image in max 5 words.", image_content])
+        response = chat_generator.run([message])
+
+        first_reply = response["replies"][0]
+        assert isinstance(first_reply, ChatMessage)
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT)
+        assert first_reply.text
+        assert "apple" in first_reply.text.lower()
 
     @pytest.mark.integration
     def test_run_with_tools(self, tools):
