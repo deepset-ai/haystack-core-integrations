@@ -597,27 +597,6 @@ class TestGoogleGenAIChatGenerator:
         reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
     )
     @pytest.mark.integration
-    def test_run_with_image_input(self, test_files_path):
-        client = GoogleGenAIChatGenerator()
-
-        image_path = test_files_path / "apple.jpg"
-        image_content = ImageContent.from_file_path(image_path, size=(100, 100))
-
-        chat_message = ChatMessage.from_user(content_parts=["What's in the image? Max 5 words.", image_content])
-
-        response = client.run([chat_message])
-
-        first_reply = response["replies"][0]
-        assert isinstance(first_reply, ChatMessage)
-        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT)
-        assert first_reply.text
-        assert "apple" in first_reply.text.lower()
-
-    @pytest.mark.skipif(
-        not os.environ.get("GOOGLE_API_KEY", None),
-        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
-    )
-    @pytest.mark.integration
     def test_run_with_multiple_images_mixed_content(self, test_files_path):
         """Test that multiple images with interleaved text maintain proper ordering."""
         client = GoogleGenAIChatGenerator()

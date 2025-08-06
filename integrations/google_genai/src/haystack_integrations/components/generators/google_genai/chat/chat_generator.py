@@ -5,7 +5,7 @@
 import base64
 import json
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Union, cast
+from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Union
 
 from google.genai import types
 from haystack import logging
@@ -604,7 +604,7 @@ class GoogleGenAIChatGenerator:
             chat_messages = messages[1:]
 
         # Convert messages to Google Gen AI Content format
-        contents = []
+        contents: List[types.Content] = []
         for msg in chat_messages:
             contents.append(_convert_message_to_google_genai_format(msg))
 
@@ -627,13 +627,19 @@ class GoogleGenAIChatGenerator:
             if streaming_callback:
                 # Use streaming
                 response_stream = self._client.models.generate_content_stream(
-                    model=self._model, contents=cast(Any, contents), config=config
+                    model=self._model,
+                    contents=contents,  # type: ignore[arg-type]
+                    config=config,
+                    # Google GenAI ContentListUnion type is overly broad; List[Content] is valid but not inferred
                 )
                 return self._handle_streaming_response(response_stream, streaming_callback)
             else:
                 # Use non-streaming
                 response = self._client.models.generate_content(
-                    model=self._model, contents=cast(Any, contents), config=config
+                    model=self._model,
+                    contents=contents,  # type: ignore[arg-type]
+                    config=config,
+                    # Google GenAI ContentListUnion type is overly broad; List[Content] is valid but not inferred
                 )
                 reply = _convert_google_genai_response_to_chatmessage(response, self._model)
                 return {"replies": [reply]}
@@ -694,7 +700,7 @@ class GoogleGenAIChatGenerator:
             chat_messages = messages[1:]
 
         # Convert messages to Google Gen AI Content format
-        contents = []
+        contents: List[types.Content] = []
         for msg in chat_messages:
             contents.append(_convert_message_to_google_genai_format(msg))
 
@@ -717,13 +723,19 @@ class GoogleGenAIChatGenerator:
             if streaming_callback:
                 # Use async streaming
                 response_stream = await self._client.aio.models.generate_content_stream(
-                    model=self._model, contents=cast(Any, contents), config=config
+                    model=self._model,
+                    contents=contents,  # type: ignore[arg-type]
+                    config=config,
+                    # Google GenAI ContentListUnion type is overly broad; List[Content] is valid but not inferred
                 )
                 return await self._handle_streaming_response_async(response_stream, streaming_callback)
             else:
                 # Use async non-streaming
                 response = await self._client.aio.models.generate_content(
-                    model=self._model, contents=cast(Any, contents), config=config
+                    model=self._model,
+                    contents=contents,  # type: ignore[arg-type]
+                    config=config,
+                    # Google GenAI ContentListUnion type is overly broad; List[Content] is valid but not inferred
                 )
                 reply = _convert_google_genai_response_to_chatmessage(response, self._model)
                 return {"replies": [reply]}
