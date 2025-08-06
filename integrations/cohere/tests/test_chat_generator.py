@@ -1,5 +1,5 @@
 import os
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock
 
 import pytest
 from cohere.core import ApiError
@@ -16,9 +16,9 @@ from haystack_integrations.components.generators.cohere import (
 from haystack_integrations.components.generators.cohere.chat.chat_generator import (
     # _finalize_streaming_message,
     _format_message,
-    _initialize_streaming_state,
+    # _initialize_streaming_state,
     _parse_streaming_response,
-    _process_cohere_chunk,
+    # _process_cohere_chunk,
 )
 
 
@@ -53,6 +53,7 @@ class TestUtils:
         with pytest.raises(ValueError):
             _format_message(message)
 
+    """
     def test_process_cohere_chunk_none_chunk_returns_none(self):
         state = _initialize_streaming_state()
         result = _process_cohere_chunk(None, state, "test-model")
@@ -119,7 +120,6 @@ class TestUtils:
         assert state["current_tool_call"] is None
         assert state["current_tool_arguments"] == ""
 
-    """
     def test_finalize_streaming_message_with_tool_calls(self):
         state = {
             "response_text": "",

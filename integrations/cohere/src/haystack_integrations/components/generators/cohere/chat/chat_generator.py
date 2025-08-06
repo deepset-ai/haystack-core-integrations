@@ -1,5 +1,4 @@
 import json
-from datetime import datetime
 from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -213,10 +212,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
             component_info=component_info,
             index=None,
             finish_reason=None,
-            meta={
-                "model": model,
-                "received_at": datetime.now().isoformat(),
-            },
+            meta={"model": model},
         )
 
     # process the different type of chunks
@@ -235,7 +231,6 @@ def _convert_cohere_chunk_to_streaming_chunk(
                 finish_reason=None,
                 meta={
                     "model": model,
-                    "received_at": datetime.now().isoformat(),
                     "chunk_type": chunk.type,
                 },
             )
@@ -251,7 +246,6 @@ def _convert_cohere_chunk_to_streaming_chunk(
                 finish_reason=None,
                 meta={
                     "model": model,
-                    "received_at": datetime.now().isoformat(),
                     "chunk_type": chunk.type,
                 },
             )
@@ -278,7 +272,6 @@ def _convert_cohere_chunk_to_streaming_chunk(
                     finish_reason=None,
                     meta={
                         "model": model,
-                        "received_at": datetime.now().isoformat(),
                         "chunk_type": chunk.type,
                         "tool_call_id": tool_call.id,
                     },
@@ -308,7 +301,6 @@ def _convert_cohere_chunk_to_streaming_chunk(
                 finish_reason=None,
                 meta={
                     "model": model,
-                    "received_at": datetime.now().isoformat(),
                     "chunk_type": chunk.type
                 },
             )
@@ -323,7 +315,6 @@ def _convert_cohere_chunk_to_streaming_chunk(
             finish_reason=None,
             meta={
                 "model": model,
-                "received_at": datetime.now().isoformat(),
                 "chunk_type": chunk.type,
             },
         )
@@ -361,7 +352,6 @@ def _convert_cohere_chunk_to_streaming_chunk(
             finish_reason=mapped_finish_reason,
             meta={
                 "model": model,
-                "received_at": datetime.now().isoformat(),
                 "chunk_type": chunk.type,
                 "finish_reason": finish_reason,
                 "usage": usage,
@@ -377,7 +367,6 @@ def _convert_cohere_chunk_to_streaming_chunk(
         finish_reason=None,
         meta={
             "model": model,
-            "received_at": datetime.now().isoformat(),
             "chunk_type": chunk.type,
         },
     )
@@ -486,7 +475,6 @@ def _convert_streaming_chunks_to_chat_message(chunks: List[StreamingChunk]) -> C
         "model": chunks[-1].meta.get("model"),
         "index": 0,
         "finish_reason": finish_reason,
-        "completion_start_time": chunks[0].meta.get("received_at"),  # first chunk received
         "usage": chunks[-1].meta.get("usage"),  # last chunk has the final usage data if available
     }
 
