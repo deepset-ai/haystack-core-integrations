@@ -7,7 +7,7 @@ from unittest.mock import Mock
 import pytest
 from google.genai import types
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, ImageContent, StreamingChunk, ToolCall
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 
@@ -442,7 +442,6 @@ class TestGoogleGenAIChatGenerator:
         Test that the GoogleGenAIChatGenerator can convert a complex sequence of ChatMessages to Google GenAI format.
         In particular, we check that different tool results are handled properly in sequence.
         """
-
         messages = [
             ChatMessage.from_system("You are good assistant"),
             ChatMessage.from_user("What's the weather like in Paris? And how much is 2+2?"),
@@ -497,6 +496,87 @@ class TestGoogleGenAIChatGenerator:
         assert google_content.parts[0].function_response.name == "math"
         assert google_content.parts[0].function_response.response == {"result": "4"}
 
+    def test_convert_message_to_google_genai_format_with_single_image(self, test_files_path):
+        """Test converting a message with a single image to Google GenAI format."""
+        apple_path = test_files_path / "apple.jpg"
+        apple_content = ImageContent.from_file_path(apple_path, size=(100, 100))
+
+        message = ChatMessage.from_user(content_parts=["What's in this image?", apple_content])
+
+        google_content = _convert_message_to_google_genai_format(message)
+
+        assert google_content.role == "user"
+        assert len(google_content.parts) == 2
+
+        # First part should be text
+        assert google_content.parts[0].text == "What's in this image?"
+
+        # Second part should be image data
+        assert hasattr(google_content.parts[1], "inline_data")
+        assert google_content.parts[1].inline_data is not None
+        assert google_content.parts[1].inline_data.mime_type == "image/jpeg"
+        assert google_content.parts[1].inline_data.data is not None
+        assert len(google_content.parts[1].inline_data.data) > 0
+
+    def test_convert_message_to_google_genai_format_with_multiple_images(self, test_files_path):
+        """Test converting a message with multiple images in mixed content to Google GenAI format."""
+        apple_path = test_files_path / "apple.jpg"
+        banana_path = test_files_path / "banana.png"
+
+        apple_content = ImageContent.from_file_path(apple_path, size=(100, 100))
+        banana_content = ImageContent.from_file_path(banana_path, size=(100, 100))
+
+        message = ChatMessage.from_user(
+            content_parts=[
+                "Compare these fruits. First:",
+                apple_content,
+                "Second:",
+                banana_content,
+                "Which is healthier?",
+            ]
+        )
+
+        google_content = _convert_message_to_google_genai_format(message)
+
+        assert google_content.role == "user"
+        assert len(google_content.parts) == 5
+
+        # Verify the exact order is preserved
+        assert google_content.parts[0].text == "Compare these fruits. First:"
+
+        # First image (apple)
+        assert hasattr(google_content.parts[1], "inline_data")
+        assert google_content.parts[1].inline_data.mime_type == "image/jpeg"
+        assert google_content.parts[1].inline_data.data is not None
+
+        assert google_content.parts[2].text == "Second:"
+
+        # Second image (banana)
+        assert hasattr(google_content.parts[3], "inline_data")
+        assert google_content.parts[3].inline_data.mime_type == "image/png"
+        assert google_content.parts[3].inline_data.data is not None
+
+        assert google_content.parts[4].text == "Which is healthier?"
+
+    def test_convert_message_to_google_genai_format_image_with_minimal_text(self, test_files_path):
+        """Test converting a message with minimal text and image to Google GenAI format."""
+        apple_path = test_files_path / "apple.jpg"
+        apple_content = ImageContent.from_file_path(apple_path, size=(100, 100))
+
+        # Haystack requires at least one textual part for user messages, so we use minimal text
+        message = ChatMessage.from_user(content_parts=["", apple_content])
+
+        google_content = _convert_message_to_google_genai_format(message)
+
+        assert google_content.role == "user"
+        # Empty text should be filtered out by our implementation, leaving only the image
+        assert len(google_content.parts) == 1
+
+        # Should only have the image part (empty text filtered out)
+        assert hasattr(google_content.parts[0], "inline_data")
+        assert google_content.parts[0].inline_data.mime_type == "image/jpeg"
+        assert google_content.parts[0].inline_data.data is not None
+
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
         reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
@@ -511,6 +591,52 @@ class TestGoogleGenAIChatGenerator:
         assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
         assert "gemini-2.0-flash" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
+
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_run_with_multiple_images_mixed_content(self, test_files_path):
+        """Test that multiple images with interleaved text maintain proper ordering."""
+        client = GoogleGenAIChatGenerator()
+
+        # Load both test images
+        apple_path = test_files_path / "apple.jpg"
+        banana_path = test_files_path / "banana.png"
+
+        apple_content = ImageContent.from_file_path(apple_path, size=(100, 100))
+        banana_content = ImageContent.from_file_path(banana_path, size=(100, 100))
+
+        # Create message with interleaved text and images to test ordering preservation
+        chat_message = ChatMessage.from_user(
+            content_parts=[
+                "Here are two fruits. First image:",
+                apple_content,
+                "Second image:",
+                banana_content,
+                "What fruits do you see? List them in order.",
+            ]
+        )
+
+        response = client.run([chat_message])
+
+        first_reply = response["replies"][0]
+        assert isinstance(first_reply, ChatMessage)
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT)
+        assert first_reply.text
+
+        # Verify both fruits are mentioned in the response
+        response_text = first_reply.text.lower()
+        assert "apple" in response_text, "Apple should be mentioned in the response"
+        assert "banana" in response_text, "Banana should be mentioned in the response"
+
+        # Verify that apple is mentioned before banana (preserving our input order)
+        apple_pos = response_text.find("apple")
+        banana_pos = response_text.find("banana")
+        assert apple_pos < banana_pos, (
+            f"Apple should be mentioned before banana in the response. Got: {first_reply.text}"
+        )
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
