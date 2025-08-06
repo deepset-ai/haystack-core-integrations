@@ -301,7 +301,7 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
                         reasoning_content["reasoning_text"] = reasoning_content.pop("reasoningText")
                     if "redactedContent" in reasoning_content:
                         reasoning_content["redacted_content"] = reasoning_content.pop("redactedContent")
-                    reasoning_contents.append(reasoning_content)
+                    reasoning_contents.append({"reasoning_content": reasoning_content})
 
             # If reasoning contents were found, add them to the base meta
             base_meta.update({"reasoning_contents": reasoning_contents})
