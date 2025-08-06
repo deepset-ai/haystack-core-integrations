@@ -499,6 +499,87 @@ class TestGoogleGenAIChatGenerator:
         assert google_content.parts[0].function_response.name == "math"
         assert google_content.parts[0].function_response.response == {"result": "4"}
 
+    def test_convert_message_to_google_genai_format_with_single_image(self, test_files_path):
+        """Test converting a message with a single image to Google GenAI format."""
+        apple_path = test_files_path / "apple.jpg"
+        apple_content = ImageContent.from_file_path(apple_path, size=(100, 100))
+
+        message = ChatMessage.from_user(content_parts=["What's in this image?", apple_content])
+
+        google_content = _convert_message_to_google_genai_format(message)
+
+        assert google_content.role == "user"
+        assert len(google_content.parts) == 2
+
+        # First part should be text
+        assert google_content.parts[0].text == "What's in this image?"
+
+        # Second part should be image data
+        assert hasattr(google_content.parts[1], "inline_data")
+        assert google_content.parts[1].inline_data is not None
+        assert google_content.parts[1].inline_data.mime_type == "image/jpeg"
+        assert google_content.parts[1].inline_data.data is not None
+        assert len(google_content.parts[1].inline_data.data) > 0
+
+    def test_convert_message_to_google_genai_format_with_multiple_images(self, test_files_path):
+        """Test converting a message with multiple images in mixed content to Google GenAI format."""
+        apple_path = test_files_path / "apple.jpg"
+        banana_path = test_files_path / "banana.png"
+
+        apple_content = ImageContent.from_file_path(apple_path, size=(100, 100))
+        banana_content = ImageContent.from_file_path(banana_path, size=(100, 100))
+
+        message = ChatMessage.from_user(
+            content_parts=[
+                "Compare these fruits. First:",
+                apple_content,
+                "Second:",
+                banana_content,
+                "Which is healthier?",
+            ]
+        )
+
+        google_content = _convert_message_to_google_genai_format(message)
+
+        assert google_content.role == "user"
+        assert len(google_content.parts) == 5
+
+        # Verify the exact order is preserved
+        assert google_content.parts[0].text == "Compare these fruits. First:"
+
+        # First image (apple)
+        assert hasattr(google_content.parts[1], "inline_data")
+        assert google_content.parts[1].inline_data.mime_type == "image/jpeg"
+        assert google_content.parts[1].inline_data.data is not None
+
+        assert google_content.parts[2].text == "Second:"
+
+        # Second image (banana)
+        assert hasattr(google_content.parts[3], "inline_data")
+        assert google_content.parts[3].inline_data.mime_type == "image/png"
+        assert google_content.parts[3].inline_data.data is not None
+
+        assert google_content.parts[4].text == "Which is healthier?"
+
+    def test_convert_message_to_google_genai_format_image_with_minimal_text(self, test_files_path):
+        """Test converting a message with minimal text and image to Google GenAI format."""
+        apple_path = test_files_path / "apple.jpg"
+        apple_content = ImageContent.from_file_path(apple_path, size=(100, 100))
+
+        # Haystack requires at least one textual part for user messages, so we use minimal text
+        message = ChatMessage.from_user(content_parts=["", apple_content])
+
+        google_content = _convert_message_to_google_genai_format(message)
+
+        assert google_content.role == "user"
+        # Empty text should be filtered out by our implementation, leaving only the image
+        assert len(google_content.parts) == 1
+
+        # Should only have the image part (empty text filtered out)
+        assert hasattr(google_content.parts[0], "inline_data")
+        assert google_content.parts[0].inline_data.mime_type == "image/jpeg"
+        assert google_content.parts[0].inline_data.data is not None
+
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
         reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
