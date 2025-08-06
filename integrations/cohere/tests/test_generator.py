@@ -15,6 +15,7 @@ COHERE_API_URL = "https://api.cohere.com"
 
 
 class TestCohereGenerator:
+
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "foo")
         component = CohereGenerator()
@@ -113,7 +114,7 @@ class TestCohereGenerator:
         assert len(results["replies"]) == 1
         assert "Paris" in results["replies"][0]
         assert len(results["meta"]) == 1
-        assert results["meta"][0]["finish_reason"] == "stop"
+        assert results["meta"][0]["finish_reason"] == "COMPLETE"
 
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
@@ -146,5 +147,5 @@ class TestCohereGenerator:
         assert len(results["replies"]) == 1
         assert "Paris" in results["replies"][0]
         assert len(results["meta"]) == 1
-        assert results["meta"][0]["finish_reason"] == "stop"
+        assert results["meta"][0]["finish_reason"] == "COMPLETE"
         assert callback.responses == results["replies"][0]
