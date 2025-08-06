@@ -1,26 +1,17 @@
 import json
-from typing import (
-    Any,
-    AsyncIterator,
-    Dict,
-    Iterator,
-    List,
-    Optional,
-    Union,
-)
+from datetime import datetime
+from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.dataclasses import (
-    ChatMessage,
-    ComponentInfo,
-    ToolCall,
-)
+from haystack.dataclasses import ChatMessage, ComponentInfo, ToolCall
+
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
     StreamingCallbackT,
     StreamingChunk,
     SyncStreamingCallbackT,
-    select_streaming_callback,
+    ToolCallDelta,
+    select_streaming_callback, FinishReason,
 )
 from haystack.tools import (
     Tool,
@@ -30,10 +21,7 @@ from haystack.tools import (
     serialize_tools_or_toolset,
 )
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack.utils.callable_serialization import (
-    deserialize_callable,
-    serialize_callable,
-)
+from haystack.utils.callable_serialization import deserialize_callable, serialize_callable,
 
 from cohere import (
     AssistantChatMessageV2,
@@ -190,144 +178,210 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
     return message
 
 
-def _initialize_streaming_state():
-    """Initialize the state variables for streaming response parsing."""
-    return {
-        "response_text": "",
-        "tool_plan": "",
-        "tool_calls": [],
-        "current_tool_call": None,
-        "current_tool_arguments": "",
-        "captured_meta": {},
+def _convert_cohere_chunk_to_streaming_chunk(
+    chunk: StreamedChatResponseV2, 
+    previous_chunks: List[StreamingChunk], 
+    component_info: Optional[ComponentInfo] = None,
+    model: str = ""
+) -> StreamingChunk:
+    """
+    Converts a Cohere streaming response chunk to a StreamingChunk.
+
+    References the Cohere API documentation for the structure of the chunk.
+
+    https://docs.cohere.com/reference/chat-stream
+    https://docs.cohere.com/reference/chat#response.body.finish_reason
+
+    :param chunk: The chunk returned by the Cohere API.
+    :param previous_chunks: A list of previously received StreamingChunks.
+    :param component_info: An optional `ComponentInfo` object containing information about the component that
+        generated the chunk, such as the component name and type.
+    :param model: The model name for metadata.
+
+    :returns:
+        A StreamingChunk object representing the content of the chunk from the Cohere API.
+    """
+    finish_reason_mapping: Dict[str, FinishReason] = {
+        "COMPLETE": "stop",
+        "MAX_TOKENS": "length",
+        "ERROR": "content_filter",
+        "TOOL_CALLS": "tool_calls",
     }
 
+    if not chunk or not hasattr(chunk, "delta") or chunk.delta is None:
+        return StreamingChunk(
+            content="",
+            component_info=component_info,
+            index=None,
+            finish_reason=None,
+            meta={
+                "model": model,
+                "received_at": datetime.now().isoformat(),
+            },
+        )
 
-def _process_cohere_chunk(cohere_chunk: StreamedChatResponseV2, state: Dict[str, Any], model: str) -> Optional[str]:
-    """
-    Process a single streamed chat response and update the parsing state.
-
-    :param cohere_chunk: The streamed chat response from Cohere's API
-    :param state: Dictionary containing the current parsing state
-    :param model: Model name for metadata
-    :return: Content to stream (if any), None otherwise
-    """
-    if not cohere_chunk:
-        return None
-
-    if not hasattr(cohere_chunk, "delta") or cohere_chunk.delta is None:
-        return None
-
-    if cohere_chunk.type == "content-delta":
+    # Handle different chunk types
+    if chunk.type == "content-delta":
         if (
-            cohere_chunk.delta.message
-            and cohere_chunk.delta.message.content
-            and cohere_chunk.delta.message.content.text is not None
+            chunk.delta.message
+            and chunk.delta.message.content
+            and chunk.delta.message.content.text is not None
         ):
-            content = cohere_chunk.delta.message.content.text
-            state["response_text"] += content
-            return content
-    elif cohere_chunk.type == "tool-plan-delta":
-        if cohere_chunk.delta.message and cohere_chunk.delta.message.tool_plan is not None:
-            content = cohere_chunk.delta.message.tool_plan
-            state["tool_plan"] += content
-            return content
-    elif cohere_chunk.type == "tool-call-start":
-        if cohere_chunk.delta.message and cohere_chunk.delta.message.tool_calls:
-            tool_call = cohere_chunk.delta.message.tool_calls
-            function = tool_call.function
-            if function is not None and function.name is not None and isinstance(function.name, str):
-                state["current_tool_call"] = ToolCall(
-                    id=tool_call.id,
-                    tool_name=function.name,
-                    arguments={},
-                )
-                # Reset arguments for new tool call
-                state["current_tool_arguments"] = ""
-    elif cohere_chunk.type == "tool-call-delta":
-        if (
-            cohere_chunk.delta.message
-            and cohere_chunk.delta.message.tool_calls
-            and cohere_chunk.delta.message.tool_calls.function
-            and cohere_chunk.delta.message.tool_calls.function.arguments is not None
-        ):
-            state["current_tool_arguments"] += cohere_chunk.delta.message.tool_calls.function.arguments
-    elif cohere_chunk.type == "tool-call-end":
-        if state["current_tool_call"]:
-            try:
-                if state["current_tool_arguments"].strip():
-                    state["current_tool_call"].arguments = json.loads(state["current_tool_arguments"])
-                state["tool_calls"].append(state["current_tool_call"])
-            except (json.JSONDecodeError, ValueError) as e:
-                logger.warning(f"Failed to parse tool call arguments: {e}")
-            finally:
-                state["current_tool_call"] = None
-                state["current_tool_arguments"] = ""
-    elif cohere_chunk.type == "message-end":
-        # Handle any remaining tool call that wasn't properly ended
-        if state["current_tool_call"]:
-            try:
-                if state["current_tool_arguments"].strip():
-                    state["current_tool_call"].arguments = json.loads(state["current_tool_arguments"])
-                state["tool_calls"].append(state["current_tool_call"])
-            except (json.JSONDecodeError, ValueError) as e:
-                logger.warning(f"Failed to parse tool call arguments at message end: {e}")
-            finally:
-                state["current_tool_call"] = None
-                state["current_tool_arguments"] = ""
-
-        finish_reason = getattr(cohere_chunk.delta, "finish_reason", None)
-
-        if finish_reason is not None:
-            state["captured_meta"].update(
-                {
+            content = chunk.delta.message.content.text
+            return StreamingChunk(
+                content=content,
+                component_info=component_info,
+                index=0,  # Text content uses index 0
+                start=len(previous_chunks) == 0,  # Start if this is the first chunk
+                finish_reason=None,
+                meta={
                     "model": model,
-                    "index": 0,
-                    "finish_reason": finish_reason,
-                }
+                    "received_at": datetime.now().isoformat(),
+                    "chunk_type": chunk.type,
+                },
             )
 
-        # The Cohere API is subject to changes in how usage data is returned. We try to support both dict and objects.
-        usage_data = getattr(cohere_chunk.delta, "usage", None)
-        prompt_tokens, completion_tokens = 0.0, 0.0
+    elif chunk.type == "tool-plan-delta":
+        if chunk.delta.message and chunk.delta.message.tool_plan is not None:
+            content = chunk.delta.message.tool_plan
+            return StreamingChunk(
+                content=content,
+                component_info=component_info,
+                index=0,  # Tool plan uses index 0
+                start=len(previous_chunks) == 0,
+                finish_reason=None,
+                meta={
+                    "model": model,
+                    "received_at": datetime.now().isoformat(),
+                    "chunk_type": chunk.type,
+                },
+            )
+
+    elif chunk.type == "tool-call-start":
+        if chunk.delta.message and chunk.delta.message.tool_calls:
+            tool_call = chunk.delta.message.tool_calls
+            function = tool_call.function
+            if function is not None and function.name is not None:
+                tool_calls_deltas = [
+                    ToolCallDelta(
+                        index=0,  # Cohere typically has single tool calls
+                        id=tool_call.id,
+                        tool_name=function.name,
+                        arguments=None,  # Arguments come in subsequent chunks
+                    )
+                ]
+                return StreamingChunk(
+                    content="",
+                    component_info=component_info,
+                    index=0,
+                    tool_calls=tool_calls_deltas,
+                    start=True,  # This starts a tool call
+                    finish_reason=None,
+                    meta={
+                        "model": model,
+                        "received_at": datetime.now().isoformat(),
+                        "chunk_type": chunk.type,
+                        "tool_call_id": tool_call.id,
+                    },
+                )
+
+    elif chunk.type == "tool-call-delta":
+        if (
+            chunk.delta.message
+            and chunk.delta.message.tool_calls
+            and chunk.delta.message.tool_calls.function
+            and chunk.delta.message.tool_calls.function.arguments is not None
+        ):
+            arguments = chunk.delta.message.tool_calls.function.arguments
+            tool_calls_deltas = [
+                ToolCallDelta(
+                    index=0,
+                    tool_name=None,  # Name was set in start chunk
+                    arguments=arguments,
+                )
+            ]
+            return StreamingChunk(
+                content="",
+                component_info=component_info,
+                index=0,
+                tool_calls=tool_calls_deltas,
+                start=False,
+                finish_reason=None,
+                meta={
+                    "model": model,
+                    "received_at": datetime.now().isoformat(),
+                    "chunk_type": chunk.type
+                },
+            )
+
+    elif chunk.type == "tool-call-end":
+        # Tool call end doesn't have content, just signals completion
+        return StreamingChunk(
+            content="",
+            component_info=component_info,
+            index=0,
+            start=False,
+            finish_reason=None,
+            meta={
+                "model": model,
+                "received_at": datetime.now().isoformat(),
+                "chunk_type": chunk.type,
+            },
+        )
+
+    elif chunk.type == "message-end":
+        finish_reason = getattr(chunk.delta, "finish_reason", None)
+        mapped_finish_reason = finish_reason_mapping.get(finish_reason) if finish_reason else None
+        
+        # Extract usage data if available
+        usage_data = getattr(chunk.delta, "usage", None)
+        usage = None
         if isinstance(usage_data, dict):
             try:
-                prompt_tokens = usage_data["billed_units"]["input_tokens"]
-                completion_tokens = usage_data["billed_units"]["output_tokens"]
+                usage = {
+                    "prompt_tokens": usage_data["billed_units"]["input_tokens"],
+                    "completion_tokens": usage_data["billed_units"]["output_tokens"],
+                }
             except KeyError:
                 pass
         elif (
             usage_data is not None
-            and isinstance(usage_data, Usage)
+            and hasattr(usage_data, "billed_units")
             and usage_data.billed_units
-            and usage_data.billed_units.input_tokens is not None
-            and usage_data.billed_units.output_tokens is not None
         ):
-            prompt_tokens = usage_data.billed_units.input_tokens
-            completion_tokens = usage_data.billed_units.output_tokens
+            usage = {
+                "prompt_tokens": usage_data.billed_units.input_tokens,
+                "completion_tokens": usage_data.billed_units.output_tokens,
+            }
 
-        state["captured_meta"].update(
-            {"usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens}}
+        return StreamingChunk(
+            content="",
+            component_info=component_info,
+            index=None,  # End chunks don't have content index
+            start=False,
+            finish_reason=mapped_finish_reason,
+            meta={
+                "model": model,
+                "received_at": datetime.now().isoformat(),
+                "chunk_type": chunk.type,
+                "finish_reason": finish_reason,
+                "usage": usage,
+            },
         )
 
-    return None
-
-
-def _finalize_streaming_message(state):
-    """
-    Create a ChatMessage from the final parsing state.
-
-    :param state: Dictionary containing the parsed state
-    :return: ChatMessage with metadata
-    """
-    # Create the appropriate ChatMessage based on what we received
-    if state["tool_calls"]:
-        chat_message = ChatMessage.from_assistant(text=state["tool_plan"], tool_calls=state["tool_calls"])
-    else:
-        chat_message = ChatMessage.from_assistant(text=state["response_text"])
-
-    # Add metadata
-    chat_message._meta.update(state["captured_meta"])
-    return chat_message
+    # Default case for unrecognized chunk types
+    return StreamingChunk(
+        content="",
+        component_info=component_info,
+        index=None,
+        start=False,
+        finish_reason=None,
+        meta={
+            "model": model,
+            "received_at": datetime.now().isoformat(),
+            "chunk_type": chunk.type,
+        },
+    )
 
 
 def _parse_streaming_response(
@@ -337,17 +391,23 @@ def _parse_streaming_response(
     component_info: ComponentInfo,
 ) -> ChatMessage:
     """
-    Parses Cohere's streaming chat response into a Haystack ChatMessage.
+    Parses Cohere's streaming chat response.
+
+    Loops through each stream object from Cohere and converts it into a StreamingChunk.
     """
-    state = _initialize_streaming_state()
+    chunks: List[StreamingChunk] = []
 
     for chunk in response:
-        stream_content = _process_cohere_chunk(cohere_chunk=chunk, state=state, model=model)
-        if stream_content:
-            stream_chunk = StreamingChunk(content=stream_content, component_info=component_info)
-            streaming_callback(stream_chunk)
+        streaming_chunk = _convert_cohere_chunk_to_streaming_chunk(
+            chunk=chunk,
+            previous_chunks=chunks,
+            component_info=component_info,
+            model=model
+        )
+        chunks.append(streaming_chunk)
+        streaming_callback(streaming_chunk)
 
-    return _finalize_streaming_message(state)
+    return _convert_streaming_chunks_to_chat_message(chunks=chunks)
 
 
 async def _parse_async_streaming_response(
@@ -359,15 +419,79 @@ async def _parse_async_streaming_response(
     """
     Parses Cohere's async streaming chat response into a Haystack ChatMessage.
     """
-    state = _initialize_streaming_state()
+    chunks: List[StreamingChunk] = []
 
     async for chunk in response:
-        stream_content = _process_cohere_chunk(cohere_chunk=chunk, state=state, model=model)
-        if stream_content:
-            stream_chunk = StreamingChunk(content=stream_content, component_info=component_info)
-            await streaming_callback(stream_chunk)
+        streaming_chunk = _convert_cohere_chunk_to_streaming_chunk(
+            chunk=chunk,
+            previous_chunks=chunks,
+            component_info=component_info,
+            model=model
+        )
+        chunks.append(streaming_chunk)
+        await streaming_callback(streaming_chunk)
 
-    return _finalize_streaming_message(state)
+    return _convert_streaming_chunks_to_chat_message(chunks=chunks)
+
+
+def _convert_streaming_chunks_to_chat_message(chunks: List[StreamingChunk]) -> ChatMessage:
+    """
+    Connects the streaming chunks into a single ChatMessage.
+
+    :param chunks: The list of all `StreamingChunk` objects.
+    :returns: The ChatMessage.
+    """
+    text = "".join([chunk.content for chunk in chunks])
+    tool_calls = []
+
+    # Process tool calls if present in any chunk
+    tool_call_data: Dict[int, Dict[str, str]] = {}  # Track tool calls by index
+    for chunk in chunks:
+        if chunk.tool_calls:
+            for tool_call in chunk.tool_calls:
+                # We use the index of the tool_call to track the tool call across chunks since the ID is not always
+                # provided
+                if tool_call.index not in tool_call_data:
+                    tool_call_data[tool_call.index] = {"id": "", "name": "", "arguments": ""}
+
+                # Save the ID if present
+                if tool_call.id is not None:
+                    tool_call_data[tool_call.index]["id"] = tool_call.id
+
+                if tool_call.tool_name is not None:
+                    tool_call_data[tool_call.index]["name"] += tool_call.tool_name
+                if tool_call.arguments is not None:
+                    tool_call_data[tool_call.index]["arguments"] += tool_call.arguments
+
+    # Convert accumulated tool call data into ToolCall objects
+    sorted_keys = sorted(tool_call_data.keys())
+    for key in sorted_keys:
+        tool_call_dict = tool_call_data[key]
+        try:
+            arguments = json.loads(tool_call_dict.get("arguments", "{}")) if tool_call_dict.get("arguments") else {}
+            tool_calls.append(ToolCall(id=tool_call_dict["id"], tool_name=tool_call_dict["name"], arguments=arguments))
+        except json.JSONDecodeError:
+            logger.warning(
+                "The LLM provider returned a malformed JSON string for tool call arguments. This tool call "
+                "will be skipped. Tool call ID: {_id}, Tool name: {_name}, Arguments: {_arguments}",
+                _id=tool_call_dict["id"],
+                _name=tool_call_dict["name"],
+                _arguments=tool_call_dict["arguments"],
+            )
+
+    # finish_reason can appear in different places so we look for the last one
+    finish_reasons = [chunk.finish_reason for chunk in chunks if chunk.finish_reason]
+    finish_reason = finish_reasons[-1] if finish_reasons else None
+
+    meta = {
+        "model": chunks[-1].meta.get("model"),
+        "index": 0,
+        "finish_reason": finish_reason,
+        "completion_start_time": chunks[0].meta.get("received_at"),  # first chunk received
+        "usage": chunks[-1].meta.get("usage"),  # last chunk has the final usage data if available
+    }
+
+    return ChatMessage.from_assistant(text=text or None, tool_calls=tool_calls, meta=meta)
 
 
 @component
