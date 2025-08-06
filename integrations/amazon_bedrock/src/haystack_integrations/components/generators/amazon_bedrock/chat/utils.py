@@ -342,6 +342,7 @@ def _convert_event_to_streaming_chunk(
                 content="",
                 meta={
                     "model": model,
+                    # This is always 0 b/c it represents the choice index
                     "index": 0,
                     # We follow the same format used in the OpenAIChatGenerator
                     "tool_calls": [  # Optional[List[ChoiceDeltaToolCall]]
@@ -371,6 +372,7 @@ def _convert_event_to_streaming_chunk(
                 content=delta["text"],
                 meta={
                     "model": model,
+                    # This is always 0 b/c it represents the choice index
                     "index": 0,
                     "tool_calls": None,
                     "finish_reason": None,
@@ -384,6 +386,7 @@ def _convert_event_to_streaming_chunk(
                 content="",
                 meta={
                     "model": model,
+                    # This is always 0 b/c it represents the choice index
                     "index": 0,
                     "tool_calls": [  # Optional[List[ChoiceDeltaToolCall]]
                         {

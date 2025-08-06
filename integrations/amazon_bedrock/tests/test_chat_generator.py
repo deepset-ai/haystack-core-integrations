@@ -292,6 +292,7 @@ class TestAmazonBedrockChatGenerator:
         assert request_params["toolConfig"] == top_song_tool_config
 
 
+# In the CI, those tests are skipped if AWS Authentication fails
 @pytest.mark.integration
 class TestAmazonBedrockChatGeneratorInference:
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
