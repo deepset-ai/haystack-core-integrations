@@ -536,6 +536,7 @@ class AnthropicChatGenerator:
         if not isinstance(response, Message):
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
+            tool_call_index = -1
             component_info = ComponentInfo.from_component(self)
             async for chunk in response:
                 if chunk.type in [
@@ -547,8 +548,12 @@ class AnthropicChatGenerator:
                     # Extract model from message_start chunks
                     if chunk.type == "message_start":
                         model = chunk.message.model
+                    if chunk.type == "content_block_start" and chunk.content_block.type == "tool_use":
+                        tool_call_index += 1
 
-                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(chunk, component_info)
+                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(
+                        chunk, component_info, tool_call_index
+                    )
                     chunks.append(streaming_chunk)
                     if streaming_callback:
                         await streaming_callback(streaming_chunk)
