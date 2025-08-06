@@ -604,7 +604,7 @@ class GoogleGenAIChatGenerator:
             chat_messages = messages[1:]
 
         # Convert messages to Google Gen AI Content format
-        contents: List[types.Content] = []
+        contents: List[types.ContentUnion] = []
         for msg in chat_messages:
             contents.append(_convert_message_to_google_genai_format(msg))
 
@@ -628,18 +628,16 @@ class GoogleGenAIChatGenerator:
                 # Use streaming
                 response_stream = self._client.models.generate_content_stream(
                     model=self._model,
-                    contents=contents,  # type: ignore[arg-type]
+                    contents=contents,
                     config=config,
-                    # Google GenAI ContentListUnion type is overly broad; List[Content] is valid but not inferred
                 )
                 return self._handle_streaming_response(response_stream, streaming_callback)
             else:
                 # Use non-streaming
                 response = self._client.models.generate_content(
                     model=self._model,
-                    contents=contents,  # type: ignore[arg-type]
+                    contents=contents,
                     config=config,
-                    # Google GenAI ContentListUnion type is overly broad; List[Content] is valid but not inferred
                 )
                 reply = _convert_google_genai_response_to_chatmessage(response, self._model)
                 return {"replies": [reply]}
@@ -700,7 +698,7 @@ class GoogleGenAIChatGenerator:
             chat_messages = messages[1:]
 
         # Convert messages to Google Gen AI Content format
-        contents: List[types.Content] = []
+        contents: List[types.ContentUnion] = []
         for msg in chat_messages:
             contents.append(_convert_message_to_google_genai_format(msg))
 
@@ -721,21 +719,19 @@ class GoogleGenAIChatGenerator:
             config = types.GenerateContentConfig(**config_params) if config_params else None
 
             if streaming_callback:
-                # Use async streaming
+                # Use streaming
                 response_stream = await self._client.aio.models.generate_content_stream(
                     model=self._model,
-                    contents=contents,  # type: ignore[arg-type]
+                    contents=contents,
                     config=config,
-                    # Google GenAI ContentListUnion type is overly broad; List[Content] is valid but not inferred
                 )
                 return await self._handle_streaming_response_async(response_stream, streaming_callback)
             else:
-                # Use async non-streaming
+                # Use non-streaming
                 response = await self._client.aio.models.generate_content(
                     model=self._model,
-                    contents=contents,  # type: ignore[arg-type]
+                    contents=contents,
                     config=config,
-                    # Google GenAI ContentListUnion type is overly broad; List[Content] is valid but not inferred
                 )
                 reply = _convert_google_genai_response_to_chatmessage(response, self._model)
                 return {"replies": [reply]}
