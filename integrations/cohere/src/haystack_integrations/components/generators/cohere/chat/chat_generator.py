@@ -180,7 +180,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
     chunk: StreamedChatResponseV2,
     previous_chunks: List[StreamingChunk],
     component_info: Optional[ComponentInfo] = None,
-    model: str = ""
+    model: str = "",
 ) -> StreamingChunk:
     """
     Converts a Cohere streaming response chunk to a StreamingChunk.
@@ -217,11 +217,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
 
     # process the different type of chunks
     if chunk.type == "content-delta":
-        if (
-            chunk.delta.message
-            and chunk.delta.message.content
-            and chunk.delta.message.content.text is not None
-        ):
+        if chunk.delta.message and chunk.delta.message.content and chunk.delta.message.content.text is not None:
             content = chunk.delta.message.content.text
             return StreamingChunk(
                 content=content,
@@ -299,10 +295,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
                 tool_calls=tool_calls_deltas,
                 start=False,
                 finish_reason=None,
-                meta={
-                    "model": model,
-                    "chunk_type": chunk.type
-                },
+                meta={"model": model, "chunk_type": chunk.type},
             )
 
     elif chunk.type == "tool-call-end":
@@ -334,11 +327,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
                 }
             except KeyError:
                 pass
-        elif (
-            usage_data is not None
-            and hasattr(usage_data, "billed_units")
-            and usage_data.billed_units
-        ):
+        elif usage_data is not None and hasattr(usage_data, "billed_units") and usage_data.billed_units:
             usage = {
                 "prompt_tokens": usage_data.billed_units.input_tokens,
                 "completion_tokens": usage_data.billed_units.output_tokens,
@@ -387,10 +376,7 @@ def _parse_streaming_response(
 
     for chunk in response:
         streaming_chunk = _convert_cohere_chunk_to_streaming_chunk(
-            chunk=chunk,
-            previous_chunks=chunks,
-            component_info=component_info,
-            model=model
+            chunk=chunk, previous_chunks=chunks, component_info=component_info, model=model
         )
         chunks.append(streaming_chunk)
         streaming_callback(streaming_chunk)
@@ -411,10 +397,7 @@ async def _parse_async_streaming_response(
 
     async for chunk in response:
         streaming_chunk = _convert_cohere_chunk_to_streaming_chunk(
-            chunk=chunk,
-            previous_chunks=chunks,
-            component_info=component_info,
-            model=model
+            chunk=chunk, previous_chunks=chunks, component_info=component_info, model=model
         )
         chunks.append(streaming_chunk)
         await streaming_callback(streaming_chunk)
