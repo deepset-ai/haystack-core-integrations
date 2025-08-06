@@ -15,7 +15,6 @@ COHERE_API_URL = "https://api.cohere.com"
 
 
 class TestCohereGenerator:
-
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "foo")
         component = CohereGenerator()
