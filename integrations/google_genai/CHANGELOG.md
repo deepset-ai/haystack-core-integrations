@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v2.1.0] - 2025-08-06
+
+### 🚀 Features
+
+- Image support in GoogleGenAIChatGenerator (#2150)
+
+
 ## [integrations/google_genai-v2.0.0] - 2025-08-04
 
 ### 🚀 Features
