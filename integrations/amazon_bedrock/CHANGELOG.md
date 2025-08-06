@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.10.0] - 2025-08-06
+
+### 🚀 Features
+
+- Add `reasoning_contents` to meta of BedrockChatGenerator to support normal thinking and redacted thinking (#2153)
+
+### 🌀 Miscellaneous
+
+- Adds support for thinking when using Claude with BedrockChatGenerator in multi-turn conversations (#2094)
+
 ## [integrations/amazon_bedrock-v3.9.1] - 2025-07-31
 
 ### 🐛 Bug Fixes
