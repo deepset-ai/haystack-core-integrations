@@ -14,10 +14,10 @@ from haystack_integrations.components.generators.cohere import (
     CohereChatGenerator,
 )
 from haystack_integrations.components.generators.cohere.chat.chat_generator import (
-    # _finalize_streaming_message,
     _format_message,
-    # _initialize_streaming_state,
     _parse_streaming_response,
+    # _finalize_streaming_message,
+    # _initialize_streaming_state,
     # _process_cohere_chunk,
 )
 
