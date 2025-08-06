@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import os
 
 import pytest
@@ -112,7 +113,7 @@ class TestCohereGenerator:
         assert len(results["replies"]) == 1
         assert "Paris" in results["replies"][0]
         assert len(results["meta"]) == 1
-        assert results["meta"][0]["finish_reason"] == "COMPLETE"
+        assert results["meta"][0]["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
@@ -145,5 +146,5 @@ class TestCohereGenerator:
         assert len(results["replies"]) == 1
         assert "Paris" in results["replies"][0]
         assert len(results["meta"]) == 1
-        assert results["meta"][0]["finish_reason"] == "COMPLETE"
+        assert results["meta"][0]["finish_reason"] == "stop"
         assert callback.responses == results["replies"][0]
