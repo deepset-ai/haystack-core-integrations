@@ -36,7 +36,6 @@ from cohere import (
     ToolCallV2,
     ToolCallV2Function,
     ToolChatMessageV2,
-    Usage,
     UserChatMessageV2,
 )
 
