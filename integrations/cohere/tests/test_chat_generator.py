@@ -450,7 +450,7 @@ class TestCohereChatGeneratorInference:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert message.meta["finish_reason"] == "COMPLETE"
+        assert message.meta["finish_reason"] == "stop"
         assert callback.counter > 1
         assert "Paris" in callback.responses
         assert "usage" in message.meta
