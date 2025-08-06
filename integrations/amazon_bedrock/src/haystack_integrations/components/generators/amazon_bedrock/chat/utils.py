@@ -58,7 +58,7 @@ def _format_tool_call_message(tool_call_message: ChatMessage) -> Dict[str, Any]:
 
     # tool call messages can contain reasoning content
     if reasoning_contents := tool_call_message.meta.get("reasoning_contents"):
-        content.extend(_format_reasoning_content(reasoning_contents=reasoning_contents))
+        content.extend(_format_reasoning_contents(reasoning_contents=reasoning_contents))
 
     # Tool call message can contain text
     if tool_call_message.text:
@@ -162,12 +162,12 @@ def _repair_tool_result_messages(bedrock_formatted_messages: List[Dict[str, Any]
     return [msg for _, msg in repaired_bedrock_formatted_messages]
 
 
-def _format_reasoning_content(reasoning_contents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _format_reasoning_contents(reasoning_contents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Format reasoning content to match Bedrock's expected structure.
+    Format reasoning contents to match Bedrock's expected structure.
 
     :param reasoning_contents: List of reasoning content dictionaries from Haystack ChatMessage metadata.
-    :returns: Formatted reasoning content dictionary.
+    :returns: List of formatted reasoning content dictionaries for Bedrock.
     """
     formatted_contents = []
     for reasoning_content in reasoning_contents:
@@ -193,7 +193,7 @@ def _format_text_image_message(message: ChatMessage) -> Dict[str, Any]:
     bedrock_content_blocks: List[Dict[str, Any]] = []
     # Add reasoning content if available as the first content block
     if message.meta.get("reasoning_contents"):
-        bedrock_content_blocks.extend(_format_reasoning_content(reasoning_contents=message.meta["reasoning_contents"]))
+        bedrock_content_blocks.extend(_format_reasoning_contents(reasoning_contents=message.meta["reasoning_contents"]))
 
     for part in content_parts:
         if isinstance(part, TextContent):
@@ -461,6 +461,8 @@ def _process_reasoning_contents(chunks: List[StreamingChunk]) -> List[Dict[str, 
     Process reasoning contents from a list of StreamingChunk objects into the Bedrock expected format.
 
     :param chunks: List of StreamingChunk objects potentially containing reasoning contents.
+
+    :returns: List of Bedrock formatted reasoning content dictionaries
     """
     formatted_reasoning_contents = []
     current_index = None
