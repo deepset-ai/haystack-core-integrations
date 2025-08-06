@@ -86,8 +86,8 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
                 parts.append(types.Part(text=content_part.text))
 
         elif isinstance(content_part, ImageContent):
-            if message.is_from(ChatRole.ASSISTANT):
-                msg = "Image content is not supported for assistant messages"
+            if not message.is_from(ChatRole.USER):
+                msg = "Image content is only supported for user messages"
                 raise ValueError(msg)
 
             # Validate image MIME type and format

@@ -540,6 +540,52 @@ class TestGoogleGenAIChatGenerator:
         reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
     )
     @pytest.mark.integration
+    def test_run_with_multiple_images_mixed_content(self, test_files_path):
+        """Test that multiple images with interleaved text maintain proper ordering."""
+        client = GoogleGenAIChatGenerator()
+
+        # Load both test images
+        apple_path = test_files_path / "apple.jpg"
+        banana_path = test_files_path / "banana.png"
+
+        apple_content = ImageContent.from_file_path(apple_path, size=(100, 100))
+        banana_content = ImageContent.from_file_path(banana_path, size=(100, 100))
+
+        # Create message with interleaved text and images to test ordering preservation
+        chat_message = ChatMessage.from_user(
+            content_parts=[
+                "Here are two fruits. First image:",
+                apple_content,
+                "Second image:",
+                banana_content,
+                "What fruits do you see? List them in order.",
+            ]
+        )
+
+        response = client.run([chat_message])
+
+        first_reply = response["replies"][0]
+        assert isinstance(first_reply, ChatMessage)
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT)
+        assert first_reply.text
+
+        # Verify both fruits are mentioned in the response
+        response_text = first_reply.text.lower()
+        assert "apple" in response_text, "Apple should be mentioned in the response"
+        assert "banana" in response_text, "Banana should be mentioned in the response"
+
+        # Verify that apple is mentioned before banana (preserving our input order)
+        apple_pos = response_text.find("apple")
+        banana_pos = response_text.find("banana")
+        assert apple_pos < banana_pos, (
+            f"Apple should be mentioned before banana in the response. Got: {first_reply.text}"
+        )
+
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
+    @pytest.mark.integration
     def test_live_run_streaming(self):
         component = GoogleGenAIChatGenerator()
         component_info = ComponentInfo.from_component(component)
