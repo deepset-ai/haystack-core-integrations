@@ -220,7 +220,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
             },
         )
 
-    # Handle different chunk types
+    # process the different type of chunks
     if chunk.type == "content-delta":
         if (
             chunk.delta.message
