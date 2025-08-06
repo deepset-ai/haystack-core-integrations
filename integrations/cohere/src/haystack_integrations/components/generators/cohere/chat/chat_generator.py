@@ -4,14 +4,14 @@ from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, ComponentInfo, ToolCall
-
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
+    FinishReason,
     StreamingCallbackT,
     StreamingChunk,
     SyncStreamingCallbackT,
     ToolCallDelta,
-    select_streaming_callback, FinishReason,
+    select_streaming_callback,
 )
 from haystack.tools import (
     Tool,
@@ -21,7 +21,7 @@ from haystack.tools import (
     serialize_tools_or_toolset,
 )
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack.utils.callable_serialization import deserialize_callable, serialize_callable,
+from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
 from cohere import (
     AssistantChatMessageV2,
@@ -179,8 +179,8 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
 
 
 def _convert_cohere_chunk_to_streaming_chunk(
-    chunk: StreamedChatResponseV2, 
-    previous_chunks: List[StreamingChunk], 
+    chunk: StreamedChatResponseV2,
+    previous_chunks: List[StreamingChunk],
     component_info: Optional[ComponentInfo] = None,
     model: str = ""
 ) -> StreamingChunk:
@@ -332,7 +332,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
     elif chunk.type == "message-end":
         finish_reason = getattr(chunk.delta, "finish_reason", None)
         mapped_finish_reason = finish_reason_mapping.get(finish_reason) if finish_reason else None
-        
+
         # Extract usage data if available
         usage_data = getattr(chunk.delta, "usage", None)
         usage = None
