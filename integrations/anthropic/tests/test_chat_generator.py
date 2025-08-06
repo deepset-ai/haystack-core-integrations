@@ -359,7 +359,7 @@ class TestAnthropicChatGenerator:
             type="message_start",
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            message_start_chunk, component_info=component_info
+            message_start_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
         assert streaming_chunk.meta["message"]["model"] == message_start_chunk.message.model
@@ -374,7 +374,7 @@ class TestAnthropicChatGenerator:
             content_block=TextBlock(citations=None, text="", type="text"), index=0, type="content_block_start"
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            text_block_start_chunk, component_info=component_info
+            text_block_start_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
         assert streaming_chunk.meta == text_block_start_chunk.model_dump()
@@ -391,7 +391,7 @@ class TestAnthropicChatGenerator:
             type="content_block_delta",
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            text_delta_chunk, component_info=component_info
+            text_delta_chunk, component_info=component_info, tool_call_index=0
         )
 
         assert streaming_chunk.component_info == component_info
@@ -415,7 +415,7 @@ class TestAnthropicChatGenerator:
             type="content_block_start",
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            tool_block_start_chunk, component_info=component_info
+            tool_block_start_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
         assert streaming_chunk.meta == tool_block_start_chunk.model_dump()
@@ -432,7 +432,7 @@ class TestAnthropicChatGenerator:
             delta=InputJSONDelta(partial_json="", type="input_json_delta"), index=1, type="content_block_delta"
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            empty_json_delta_chunk, component_info=component_info
+            empty_json_delta_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
         assert streaming_chunk.meta == empty_json_delta_chunk.model_dump()
@@ -451,7 +451,7 @@ class TestAnthropicChatGenerator:
             type="content_block_delta",
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            json_delta_chunk, component_info=component_info
+            json_delta_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
         assert streaming_chunk.meta == json_delta_chunk.model_dump()
@@ -474,7 +474,7 @@ class TestAnthropicChatGenerator:
             ),
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            message_delta_chunk, component_info=component_info
+            message_delta_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
         assert streaming_chunk.meta == message_delta_chunk.model_dump()
@@ -484,11 +484,14 @@ class TestAnthropicChatGenerator:
         assert streaming_chunk.content == ""
         assert not streaming_chunk.start
 
-        ## In response flow, here will be another content_block_stop chunk
+        # In response flow, here will be another content_block_stop chunk
+        # content_block_stop_chunk = RawContentBlockStopEvent(index=0, type="content_block_stop")
+        # but we don't stream it
 
-        ## Then a message_dtop chunk
+        # Then a message_stop chunk
         # message_stop_chunk = RawMessageStopEvent(type="message_stop")
         # but we don't stream it
+        
 
     def test_convert_streaming_chunks_to_chat_message(self):
         """
