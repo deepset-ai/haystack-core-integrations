@@ -7,7 +7,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Union, cast
 
-from google.genai import Client, types
+from google.genai import types
 from haystack import logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.core.component import component

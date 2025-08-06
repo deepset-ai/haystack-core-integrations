@@ -442,9 +442,6 @@ class TestGoogleGenAIChatGenerator:
         Test that the GoogleGenAIChatGenerator can convert a complex sequence of ChatMessages to Google GenAI format.
         In particular, we check that different tool results are handled properly in sequence.
         """
-        # Mock client for function signature compatibility
-        mock_client = Mock()
-
         messages = [
             ChatMessage.from_system("You are good assistant"),
             ChatMessage.from_user("What's the weather like in Paris? And how much is 2+2?"),
