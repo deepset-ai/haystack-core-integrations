@@ -491,7 +491,6 @@ class TestAnthropicChatGenerator:
         # Then a message_stop chunk
         # message_stop_chunk = RawMessageStopEvent(type="message_stop")
         # but we don't stream it
-        
 
     def test_convert_streaming_chunks_to_chat_message(self):
         """
