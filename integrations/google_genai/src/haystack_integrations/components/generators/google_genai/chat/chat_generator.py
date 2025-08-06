@@ -4,8 +4,6 @@
 
 import base64
 import json
-import os
-import tempfile
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Union, cast
 
@@ -18,10 +16,13 @@ from haystack.dataclasses import (
     AsyncStreamingCallbackT,
     ComponentInfo,
     FinishReason,
+    ImageContent,
     StreamingCallbackT,
     StreamingChunk,
+    TextContent,
     ToolCall,
     ToolCallDelta,
+    ToolCallResult,
     select_streaming_callback,
 )
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
@@ -63,96 +64,77 @@ GOOGLE_AI_SUPPORTED_MIME_TYPES = {
 }
 
 
-def _convert_message_to_google_genai_format(message: ChatMessage, client: Client) -> types.Content:
+def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Content:
     """
     Converts a Haystack ChatMessage to Google Gen AI Content format.
 
     :param message: The Haystack ChatMessage to convert.
-    :param client: The Google Gen AI client for uploading files.
     :returns: Google Gen AI Content object.
     """
     # Check if message has content
-    if not message.texts and not message.tool_calls and not message.tool_call_results and not message.images:
-        msg = (
-            "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, `ToolCallResult`, or `ImageContent`."
-        )
+    if not message._content:
+        msg = "A `ChatMessage` must contain at least one content part."
         raise ValueError(msg)
 
     parts = []
 
-    # Handle text content
-    if message.texts and message.texts[0]:
-        parts.append(types.Part(text=message.texts[0]))
+    # Process all content parts in order to preserve text/image ordering
+    for content_part in message._content:
+        if isinstance(content_part, TextContent):
+            # Only add text parts that are not empty to avoid unnecessary empty text parts
+            if content_part.text.strip():
+                parts.append(types.Part(text=content_part.text))
 
-    # Handle tool calls (from assistant)
-    if message.tool_calls:
-        for tool_call in message.tool_calls:
-            parts.append(
-                types.Part(
-                    function_call=types.FunctionCall(
-                        id=tool_call.id, name=tool_call.tool_name, args=tool_call.arguments
-                    )
-                )
-            )
+        elif isinstance(content_part, ImageContent):
+            if message.is_from(ChatRole.ASSISTANT):
+                msg = "Image content is not supported for assistant messages"
+                raise ValueError(msg)
 
-    # Handle tool call results (from tool/user)
-    if message.tool_call_results:
-        for result in message.tool_call_results:
-            parts.append(
-                types.Part(
-                    function_response=types.FunctionResponse(
-                        id=result.origin.id, name=result.origin.tool_name, response={"result": result.result}
-                    )
-                )
-            )
-
-    # Handle images (from user only)
-    if message.images:
-        if not message.is_from(ChatRole.USER):
-            msg = "Image content is only supported for user messages"
-            raise ValueError(msg)
-
-        for image_content in message.images:
             # Validate image MIME type and format
-            if not image_content.mime_type:
+            if not content_part.mime_type:
                 msg = "Image MIME type could not be determined. Please provide a valid image with detectable format."
                 raise ValueError(msg)
 
-            if image_content.mime_type not in GOOGLE_AI_SUPPORTED_MIME_TYPES:
+            if content_part.mime_type not in GOOGLE_AI_SUPPORTED_MIME_TYPES:
                 supported_types = list(GOOGLE_AI_SUPPORTED_MIME_TYPES.keys())
                 msg = (
-                    f"Unsupported image MIME type: {image_content.mime_type}. "
+                    f"Unsupported image MIME type: {content_part.mime_type}. "
                     f"Google AI supports the following MIME types: {supported_types}"
                 )
                 raise ValueError(msg)
 
-            # Get the file extension for the temporary file
-            file_extension = GOOGLE_AI_SUPPORTED_MIME_TYPES[image_content.mime_type]
-
-            # Upload image via Files API using temporary file
+            # Use inline image data approach
             try:
-                # ImageContent already validated the base64, but we still need to decode for file writing
-                image_bytes = base64.b64decode(image_content.base64_image)
+                # ImageContent already has base64 data, decode it for bytes
+                image_bytes = base64.b64decode(content_part.base64_image)
 
-                with tempfile.NamedTemporaryFile(suffix=f".{file_extension}", delete=False) as temp_file:
-                    temp_file.write(image_bytes)
-                    temp_file_path = temp_file.name
-
-                try:
-                    # Upload using file path
-                    uploaded_file = client.files.upload(file=temp_file_path)
-                    # Create a Part object that references the uploaded file
-                    file_part = types.Part(
-                        file_data=types.FileData(file_uri=uploaded_file.uri, mime_type=image_content.mime_type)
-                    )
-                    parts.append(file_part)
-                finally:
-                    # Clean up temporary file
-                    os.unlink(temp_file_path)
+                # Create Part using from_bytes method
+                image_part = types.Part.from_bytes(data=image_bytes, mime_type=content_part.mime_type)
+                parts.append(image_part)
 
             except Exception as e:
-                msg = f"Failed to upload image via Google AI Files API: {e}"
+                msg = f"Failed to process image data: {e}"
                 raise RuntimeError(msg) from e
+
+        elif isinstance(content_part, ToolCall):
+            parts.append(
+                types.Part(
+                    function_call=types.FunctionCall(
+                        id=content_part.id, name=content_part.tool_name, args=content_part.arguments
+                    )
+                )
+            )
+
+        elif isinstance(content_part, ToolCallResult):
+            parts.append(
+                types.Part(
+                    function_response=types.FunctionResponse(
+                        id=content_part.origin.id,
+                        name=content_part.origin.tool_name,
+                        response={"result": content_part.result},
+                    )
+                )
+            )
 
     # Determine role
     if message.is_from(ChatRole.USER) or message.tool_call_results:
@@ -624,7 +606,7 @@ class GoogleGenAIChatGenerator:
         # Convert messages to Google Gen AI Content format
         contents = []
         for msg in chat_messages:
-            contents.append(_convert_message_to_google_genai_format(msg, self._client))
+            contents.append(_convert_message_to_google_genai_format(msg))
 
         try:
             # Prepare generation config
@@ -714,7 +696,7 @@ class GoogleGenAIChatGenerator:
         # Convert messages to Google Gen AI Content format
         contents = []
         for msg in chat_messages:
-            contents.append(_convert_message_to_google_genai_format(msg, self._client))
+            contents.append(_convert_message_to_google_genai_format(msg))
 
         try:
             # Prepare generation config

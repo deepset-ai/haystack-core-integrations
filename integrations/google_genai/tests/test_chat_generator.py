@@ -469,14 +469,14 @@ class TestGoogleGenAIChatGenerator:
 
         # Test user message conversion
         user_message = messages[1]
-        google_content = _convert_message_to_google_genai_format(user_message, mock_client)
+        google_content = _convert_message_to_google_genai_format(user_message)
         assert google_content.role == "user"
         assert len(google_content.parts) == 1
         assert google_content.parts[0].text == "What's the weather like in Paris? And how much is 2+2?"
 
         # Test assistant message with tool calls
         assistant_message = messages[2]
-        google_content = _convert_message_to_google_genai_format(assistant_message, mock_client)
+        google_content = _convert_message_to_google_genai_format(assistant_message)
         assert google_content.role == "model"
         assert len(google_content.parts) == 2
         assert google_content.parts[0].function_call.name == "weather"
@@ -486,14 +486,14 @@ class TestGoogleGenAIChatGenerator:
 
         # Test tool result messages
         tool_result_1 = messages[3]
-        google_content = _convert_message_to_google_genai_format(tool_result_1, mock_client)
+        google_content = _convert_message_to_google_genai_format(tool_result_1)
         assert google_content.role == "user"
         assert len(google_content.parts) == 1
         assert google_content.parts[0].function_response.name == "weather"
         assert google_content.parts[0].function_response.response == {"result": "22° C"}
 
         tool_result_2 = messages[4]
-        google_content = _convert_message_to_google_genai_format(tool_result_2, mock_client)
+        google_content = _convert_message_to_google_genai_format(tool_result_2)
         assert google_content.role == "user"
         assert len(google_content.parts) == 1
         assert google_content.parts[0].function_response.name == "math"
