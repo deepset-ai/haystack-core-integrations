@@ -33,7 +33,7 @@ MODELS_TO_TEST_WITH_IMAGE_INPUT = [
 ]
 
 MODELS_TO_TEST_WITH_THINKING = [
-    "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+    "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
     "us.anthropic.claude-sonnet-4-20250514-v1:0",
 ]
 
@@ -519,7 +519,7 @@ class TestAmazonBedrockChatGeneratorInference:
         ]
         component = AmazonBedrockChatGenerator(
             # Redacted thinking only happens with Claude 3.7 https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-thinking-encryption.html
-            model="arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
             tools=tools,
             generation_kwargs={
                 "maxTokens": 8192,
@@ -545,7 +545,7 @@ class TestAmazonBedrockChatGeneratorInference:
         ]
         component = AmazonBedrockChatGenerator(
             # Redacted thinking only happens with Claude 3.7 https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-thinking-encryption.html
-            model="arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
             tools=tools,
             generation_kwargs={
                 "maxTokens": 8192,
