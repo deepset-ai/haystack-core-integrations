@@ -531,7 +531,9 @@ class TestAmazonBedrockChatGeneratorInference:
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"
-        assert isinstance(results["replies"][0].meta["reasoning_content"]["redacted_content"], bytes)
+        assert isinstance(
+            results["replies"][0].meta["reasoning_contents"][0]["reasoning_content"]["redacted_content"], bytes
+        )
 
     def test_live_run_with_redacted_thinking_streaming(self, tools):
         # Special prompt to induce redacted thinking
@@ -556,7 +558,9 @@ class TestAmazonBedrockChatGeneratorInference:
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"
-        assert isinstance(results["replies"][0].meta["reasoning_content"]["redacted_content"], bytes)
+        assert isinstance(
+            results["replies"][0].meta["reasoning_contents"][0]["reasoning_content"]["redacted_content"], bytes
+        )
 
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
     def test_live_run_with_multi_tool_calls_streaming(self, model_name, tools):
