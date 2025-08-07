@@ -499,11 +499,9 @@ class AmazonBedrockChatGenerator:
             session = self._get_async_session()
             # Note: https://aioboto3.readthedocs.io/en/latest/usage.html
             # we need to create a new client for each request
-            config = None
-            if self.boto3_config:
-                config = Config(**self.boto3_config, user_agent_extra="x-client-framework:haystack")
-            else:
-                config = Config(user_agent_extra="x-client-framework:haystack")
+            config = Config(
+                user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
+            )
             async with session.client("bedrock-runtime", config=config) as async_client:
                 if callback:
                     response = await async_client.converse_stream(**params)
