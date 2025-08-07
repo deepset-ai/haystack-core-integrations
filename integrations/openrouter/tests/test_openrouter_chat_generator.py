@@ -336,7 +336,7 @@ class TestOpenRouterChatGenerator:
     @pytest.mark.integration
     def test_live_run_with_tools_and_response(self, tools):
         """
-        Integration test that the MistralChatGenerator component can run with tools and get a response.
+        Integration test that the OpenRouterChatGenerator component can run with tools and get a response.
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
         component = OpenRouterChatGenerator(tools=tools)
@@ -418,7 +418,7 @@ class TestOpenRouterChatGenerator:
     @pytest.mark.integration
     def test_pipeline_with_openrouter_chat_generator(self, tools):
         """
-        Test that the MistralChatGenerator component can be used in a pipeline
+        Test that the OpenRouterChatGenerator component can be used in a pipeline
         """
         pipeline = Pipeline()
         pipeline.add_component("generator", OpenRouterChatGenerator(tools=tools))
