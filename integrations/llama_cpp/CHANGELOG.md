@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/llama_cpp-v1.2.0] - 2025-07-28
+
+### 🚀 Features
+
+- `LlamaCppChatGenerator` streaming support (#2108)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+
+
 ## [integrations/llama_cpp-v1.1.0] - 2025-06-19
 
 ### 🐛 Bug Fixes

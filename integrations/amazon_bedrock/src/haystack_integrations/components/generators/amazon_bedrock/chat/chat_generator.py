@@ -5,7 +5,7 @@ from botocore.config import Config
 from botocore.eventstream import EventStream
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.dataclasses import ChatMessage, StreamingCallbackT, select_streaming_callback
+from haystack.dataclasses import ChatMessage, ComponentInfo, StreamingCallbackT, select_streaming_callback
 from haystack.tools import (
     Tool,
     Toolset,
@@ -55,6 +55,22 @@ class AmazonBedrockChatGenerator:
                                         streaming_callback=print_streaming_chunk)
     client.run(messages, generation_kwargs={"max_tokens": 512})
     ```
+
+    ### Multimodal example
+    ```python
+    from haystack.dataclasses import ChatMessage, ImageContent
+    from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
+
+    generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+
+    image_content = ImageContent.from_file_path(file_path="apple.jpg")
+
+    message = ChatMessage.from_user(content_parts=["Describe the image using 10 words at most.", image_content])
+
+    response = generator.run(messages=[message])["replies"][0].text
+
+    print(response)
+    > The image shows a red apple.
 
     ### Tool usage example
     # AmazonBedrockChatGenerator supports Haystack's unified tool architecture, allowing tools to be used
@@ -371,7 +387,9 @@ class AmazonBedrockChatGenerator:
         if additional_fields:
             params["additionalModelRequestFields"] = additional_fields
 
-        callback = select_streaming_callback(
+        # overloads that exhaust finite Literals(bool) not treated as exhaustive
+        # see https://github.com/python/mypy/issues/14764
+        callback = select_streaming_callback(  # type: ignore[call-overload]
             init_callback=self.streaming_callback,
             runtime_callback=streaming_callback,
             requires_async=requires_async,
@@ -406,6 +424,8 @@ class AmazonBedrockChatGenerator:
         :raises AmazonBedrockInferenceError:
             If the Bedrock inference API call fails.
         """
+        component_info = ComponentInfo.from_component(self)
+
         params, callback = self._prepare_request_params(
             messages=messages,
             streaming_callback=streaming_callback,
@@ -422,7 +442,12 @@ class AmazonBedrockChatGenerator:
                     msg = "No stream found in the response."
                     raise AmazonBedrockInferenceError(msg)
                 # the type of streaming callback is checked in _prepare_request_params, but mypy doesn't know
-                replies = _parse_streaming_response(response_stream, callback, self.model)  # type: ignore[arg-type]
+                replies = _parse_streaming_response(
+                    response_stream=response_stream,
+                    streaming_callback=callback,  # type: ignore[arg-type]
+                    model=self.model,
+                    component_info=component_info,
+                )
             else:
                 response = self.client.converse(**params)
                 replies = _parse_completion_response(response, self.model)
@@ -459,6 +484,8 @@ class AmazonBedrockChatGenerator:
         :raises AmazonBedrockInferenceError:
             If the Bedrock inference API call fails.
         """
+        component_info = ComponentInfo.from_component(self)
+
         params, callback = self._prepare_request_params(
             messages=messages,
             streaming_callback=streaming_callback,
@@ -479,7 +506,12 @@ class AmazonBedrockChatGenerator:
                         msg = "No stream found in the response."
                         raise AmazonBedrockInferenceError(msg)
                     # the type of streaming callback is checked in _prepare_request_params, but mypy doesn't know
-                    replies = await _parse_streaming_response_async(response_stream, callback, self.model)  # type: ignore[arg-type]
+                    replies = await _parse_streaming_response_async(
+                        response_stream=response_stream,
+                        streaming_callback=callback,  # type: ignore[arg-type]
+                        model=self.model,
+                        component_info=component_info,
+                    )
                 else:
                     response = await async_client.converse(**params)
                     replies = _parse_completion_response(response, self.model)

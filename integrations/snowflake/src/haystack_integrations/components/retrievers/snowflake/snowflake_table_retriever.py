@@ -143,7 +143,9 @@ class SnowflakeTableRetriever:
         uri = uri.rstrip("&?")
 
         # Logging placeholder for the actual password
-        masked_uri = uri.replace(self.api_key.resolve_value(), "***REDACTED***")
+        masked_uri = uri
+        if resolved_api_key := self.api_key.resolve_value():
+            masked_uri = uri.replace(resolved_api_key, "***REDACTED***")
         logger.info("Constructed Snowflake URI: {masked_uri}", masked_uri=masked_uri)
         return uri
 

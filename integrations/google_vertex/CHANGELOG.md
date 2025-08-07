@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/google_vertex-v5.3.0] - 2025-07-29
+
+### 🐛 Bug Fixes
+
+- *(vertex-document)* Correct f-string in token-limit log + logger.info -> logger.debug (#2052)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+- Remove black (#1985)
+- Google Vertex - suggest users to switch to Google GenAI (#2105)
+
+
 ## [integrations/google_vertex-v5.2.1] - 2025-05-27
 
 ### 📚 Documentation

@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.13.1", "anthropic>=0.47.0"]
+dependencies = ["haystack-ai>=2.16.1", "anthropic>=0.47.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/anthropic#readme"
@@ -74,11 +74,6 @@ non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
 
-
-[tool.black]
-target-version = ["py38"]
-line-length = 120
-skip-string-normalization = true
 
 [tool.ruff]
 target-version = "py38"

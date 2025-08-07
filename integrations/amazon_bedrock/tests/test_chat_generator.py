@@ -4,7 +4,7 @@ import pytest
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
+from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, StreamingChunk, ToolCall
 from haystack.tools import Tool
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
@@ -22,7 +22,35 @@ MODELS_TO_TEST_WITH_TOOLS = [
 ]
 
 # so far we've discovered these models support streaming and tool use
-STREAMING_TOOL_MODELS = ["anthropic.claude-3-5-sonnet-20240620-v1:0", "cohere.command-r-plus-v1:0"]
+STREAMING_TOOL_MODELS = [
+    "anthropic.claude-3-5-sonnet-20240620-v1:0",
+    "us.anthropic.claude-sonnet-4-20250514-v1:0",
+    "cohere.command-r-plus-v1:0",
+]
+
+MODELS_TO_TEST_WITH_IMAGE_INPUT = [
+    "us.anthropic.claude-sonnet-4-20250514-v1:0",
+]
+
+MODELS_TO_TEST_WITH_THINKING = [
+    "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+    "us.anthropic.claude-sonnet-4-20250514-v1:0",
+]
+
+
+def hello_world():
+    return "Hello, World!"
+
+
+@pytest.fixture
+def tool_with_no_parameters():
+    tool = Tool(
+        name="hello_world",
+        description="This prints hello world",
+        parameters={"properties": {}, "type": "object"},
+        function=hello_world,
+    )
+    return tool
 
 
 def weather(city: str):
@@ -288,6 +316,23 @@ class TestAmazonBedrockChatGeneratorInference:
             assert "prompt_tokens" in first_reply.meta["usage"]
             assert "completion_tokens" in first_reply.meta["usage"]
 
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_IMAGE_INPUT)
+    def test_run_with_image_input(self, model_name, test_files_path):
+        client = AmazonBedrockChatGenerator(model=model_name)
+
+        image_path = test_files_path / "apple.jpg"
+        image_content = ImageContent.from_file_path(image_path, size=(100, 100))
+
+        chat_message = ChatMessage.from_user(content_parts=["What's in the image? Max 5 words.", image_content])
+
+        response = client.run([chat_message])
+
+        first_reply = response["replies"][0]
+        assert isinstance(first_reply, ChatMessage)
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT)
+        assert first_reply.text
+        assert "apple" in first_reply.text.lower()
+
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
     def test_default_inference_with_streaming(self, model_name, chat_messages):
         streaming_callback_called = False
@@ -298,6 +343,7 @@ class TestAmazonBedrockChatGeneratorInference:
             streaming_callback_called = True
             assert isinstance(chunk, StreamingChunk)
             assert chunk.content is not None
+            assert chunk.component_info is not None
             if not paris_found_in_response:
                 paris_found_in_response = "paris" in chunk.content.lower()
 
@@ -363,6 +409,160 @@ class TestAmazonBedrockChatGeneratorInference:
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
 
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_THINKING)
+    def test_live_run_with_tool_call_and_thinking(self, model_name, tools):
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = AmazonBedrockChatGenerator(
+            model=model_name,
+            tools=tools,
+            generation_kwargs={
+                "maxTokens": 8192,
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": 1024,
+                },
+            },
+        )
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+
+        # Find the message with tool calls
+        tool_call_message = None
+        for message in results["replies"]:
+            if message.tool_calls:
+                tool_call_message = message
+                break
+
+        assert tool_call_message is not None, "No message with tool call found"
+        assert isinstance(tool_call_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_call_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_calls = tool_call_message.tool_calls
+        assert len(tool_calls) == 1
+        assert tool_calls[0].id, "Tool call does not contain value for 'id' key"
+        assert tool_calls[0].tool_name == "weather"
+        assert tool_calls[0].arguments["city"] == "Paris"
+        assert tool_call_message.meta["finish_reason"] == "tool_use"
+
+        # Mock the response we'd get from ToolInvoker
+        tool_result_messages = [
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call) for tool_call in tool_calls
+        ]
+
+        new_messages = [*initial_messages, tool_call_message, *tool_result_messages]
+        results = component.run(new_messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_call
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_THINKING)
+    def test_live_run_with_tool_call_and_thinking_streaming(self, model_name, tools):
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = AmazonBedrockChatGenerator(
+            model=model_name,
+            tools=tools,
+            generation_kwargs={
+                "maxTokens": 8192,
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": 1024,
+                },
+            },
+            streaming_callback=print_streaming_chunk,
+        )
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+
+        # Find the message with tool calls
+        tool_call_message = None
+        for message in results["replies"]:
+            if message.tool_calls:
+                tool_call_message = message
+                break
+
+        assert tool_call_message is not None, "No message with tool call found"
+        assert isinstance(tool_call_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_call_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_calls = tool_call_message.tool_calls
+        assert len(tool_calls) == 1
+        assert tool_calls[0].id, "Tool call does not contain value for 'id' key"
+        assert tool_calls[0].tool_name == "weather"
+        assert tool_calls[0].arguments["city"] == "Paris"
+        assert tool_call_message.meta["finish_reason"] == "tool_use"
+
+        # Mock the response we'd get from ToolInvoker
+        tool_result_messages = [
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call) for tool_call in tool_calls
+        ]
+
+        new_messages = [*initial_messages, tool_call_message, *tool_result_messages]
+        results = component.run(new_messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_call
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+
+    def test_live_run_with_redacted_thinking(self, tools):
+        # Special prompt to induce redacted thinking
+        initial_messages = [
+            ChatMessage.from_user(
+                "ANTHROPIC_MAGIC_STRING_TRIGGER_REDACTED_THINKING_46C9A13E193C177646C7398A98432ECCCE4C1253D5E2D82641AC0E52CC2876CB"
+            )
+        ]
+        component = AmazonBedrockChatGenerator(
+            # Redacted thinking only happens with Claude 3.7 https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-thinking-encryption.html
+            model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            tools=tools,
+            generation_kwargs={
+                "maxTokens": 8192,
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": 1024,
+                },
+            },
+        )
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+        assert isinstance(
+            results["replies"][0].meta["reasoning_contents"][0]["reasoning_content"]["redacted_content"], bytes
+        )
+
+    def test_live_run_with_redacted_thinking_streaming(self, tools):
+        # Special prompt to induce redacted thinking
+        initial_messages = [
+            ChatMessage.from_user(
+                "ANTHROPIC_MAGIC_STRING_TRIGGER_REDACTED_THINKING_46C9A13E193C177646C7398A98432ECCCE4C1253D5E2D82641AC0E52CC2876CB"
+            )
+        ]
+        component = AmazonBedrockChatGenerator(
+            # Redacted thinking only happens with Claude 3.7 https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-thinking-encryption.html
+            model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            tools=tools,
+            generation_kwargs={
+                "maxTokens": 8192,
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": 1024,
+                },
+            },
+            streaming_callback=print_streaming_chunk,
+        )
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+        assert isinstance(
+            results["replies"][0].meta["reasoning_contents"][0]["reasoning_content"]["redacted_content"], bytes
+        )
+
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
     def test_live_run_with_multi_tool_calls_streaming(self, model_name, tools):
         """
@@ -407,6 +607,45 @@ class TestAmazonBedrockChatGeneratorInference:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
+
+    @pytest.mark.parametrize("model_name", [STREAMING_TOOL_MODELS[1]])  # just one model is enough
+    def test_live_run_with_tool_with_no_args_streaming(self, tool_with_no_parameters, model_name):
+        """
+        Integration test that the AmazonBedrockChatGenerator component can run with a tool that has no arguments and
+        streaming.
+        """
+        initial_messages = [ChatMessage.from_user("Print Hello World using the print hello world tool.")]
+        component = AmazonBedrockChatGenerator(
+            model=model_name, tools=[tool_with_no_parameters], streaming_callback=print_streaming_chunk
+        )
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+
+        # # this is Claude thinking message prior to tool call
+        # assert message.text is not None
+
+        # now we have the tool call
+        assert message.tool_calls
+        tool_call = message.tool_call
+        assert isinstance(tool_call, ToolCall)
+        assert tool_call.id is not None
+        assert tool_call.tool_name == "hello_world"
+        assert tool_call.arguments == {}
+        assert message.meta["finish_reason"] == "tool_use"
+
+        new_messages = [
+            *initial_messages,
+            message,
+            ChatMessage.from_tool(tool_result="Hello World!", origin=tool_call),
+        ]
+        results = component.run(new_messages)
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_calls
+        assert len(final_message.text) > 0
+        assert "hello" in final_message.text.lower()
 
     @pytest.mark.parametrize("model_name", [MODELS_TO_TEST_WITH_TOOLS[0]])  # just one model is enough
     def test_pipeline_with_amazon_bedrock_chat_generator(self, model_name, tools):

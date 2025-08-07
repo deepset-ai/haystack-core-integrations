@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.13.1", "boto3>=1.28.57", "aioboto3>=14.0.0"]
+dependencies = ["haystack-ai>=2.16.0", "boto3>=1.28.57", "aioboto3>=14.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/amazon_bedrock#readme"
@@ -58,6 +58,7 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
+    "pillow", # image resizing
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -85,11 +86,6 @@ module = [
 "boto3.*",
 ]
 ignore_missing_imports = true
-
-[tool.black]
-target-version = ["py38"]
-line-length = 120
-skip-string-normalization = true
 
 [tool.ruff]
 target-version = "py38"
@@ -168,9 +164,6 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
 markers = [
-  "unit: unit tests",
   "integration: integration tests",
-  "embedders: embedders tests",
-  "generators: generators tests",
 ]
 log_cli = true

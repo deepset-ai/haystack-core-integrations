@@ -26,7 +26,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.13.2", "google-genai>=1.17.0", "jsonref>=1.0.0"]
+dependencies = ["haystack-ai>=2.16.1", "google-genai>=1.17.0", "jsonref>=1.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_genai#readme"
@@ -60,7 +60,8 @@ dependencies = [
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
-    "pip"
+    "pip",
+    "pillow", # image handling for tests
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -69,23 +70,21 @@ integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
 
-types = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+types = """mypy -p haystack_integrations.components.generators.google_genai \
+-p haystack_integrations.components.embedders.google_genai \
+-p haystack_integrations.components.common.google_genai {args}"""
 
-# TODO: remove lint environment once this integration is properly typed
-# test environment should be used instead
-# https://github.com/deepset-ai/haystack-core-integrations/issues/1771
-[tool.hatch.envs.lint]
-installer = "uv"
-detached = true
-dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243", "more-itertools"]
+[tool.mypy]
+install_types = true
+non_interactive = true
+check_untyped_defs = true
+disallow_incomplete_defs = true
 
-[tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-
-[tool.black]
-target-version = ["py38"]
-line-length = 120
-skip-string-normalization = true
+[[tool.mypy.overrides]]
+module = [
+  "jsonref.*", # jsonref does not provide types
+]
+ignore_missing_imports = true
 
 [tool.ruff]
 target-version = "py38"
@@ -168,23 +167,10 @@ omit = ["*/tests/*", "*/__init__.py"]
 show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
-[[tool.mypy.overrides]]
-module = [
-  "google.*",
-  "haystack.*",
-  "haystack_integrations.*",
-  "pytest.*",
-  "numpy.*",
-  "jsonref.*",
-]
-ignore_missing_imports = true
-
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
 markers = [
-  "unit: unit tests",
   "integration: integration tests",
-  "generators: generators tests",
 ]
 log_cli = true
 asyncio_mode = "auto" 

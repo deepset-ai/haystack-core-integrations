@@ -175,7 +175,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         if isinstance(tools, Toolset):
             tools = list(tools)
         tools_strict = tools_strict if tools_strict is not None else self.tools_strict
-        _check_duplicate_tool_names(tools)
+        _check_duplicate_tool_names(list(tools or []))
 
         openai_tools = {}
         if tools:

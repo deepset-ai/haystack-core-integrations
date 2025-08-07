@@ -1,5 +1,31 @@
 # Changelog
 
+## [integrations/ollama-v4.1.0] - 2025-08-06
+
+### 🚀 Features
+
+- `OllamaChatGenerator` - image support (#2147)
+
+
+## [integrations/ollama-v4.0.0] - 2025-08-05
+
+### 🚀 Features
+
+- Adopt new `StreamingChunk` in Ollama (#2109)
+
+
+## [integrations/ollama-v3.4.0] - 2025-07-04
+
+### 🚀 Features
+
+- Pass `component_info` to `StreamingChunk` in `OllamaChatGenerator` (#2039)
+- Add "think" parameter for Ollama (#1948)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+
+
 ## [integrations/ollama-v3.3.0] - 2025-06-12
 
 ### 🐛 Bug Fixes

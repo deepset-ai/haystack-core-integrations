@@ -1,5 +1,41 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v3.10.0] - 2025-08-06
+
+### 🚀 Features
+
+- Add `reasoning_contents` to meta of BedrockChatGenerator to support normal thinking and redacted thinking (#2153)
+
+### 🌀 Miscellaneous
+
+- Adds support for thinking when using Claude with BedrockChatGenerator in multi-turn conversations (#2094)
+
+## [integrations/amazon_bedrock-v3.9.1] - 2025-07-31
+
+### 🐛 Bug Fixes
+
+- `AmazonBedrockChatGenerator` - fix bug with streaming + tool calls with no arguments (#2121)
+
+
+## [integrations/amazon_bedrock-v3.9.0] - 2025-07-29
+
+### 🚀 Features
+
+- Amazon Bedrock - multimodal support (#2114)
+
+
+## [integrations/amazon_bedrock-v3.8.0] - 2025-07-04
+
+### 🚀 Features
+
+- Pass component_info to StreamingChunk in AmazonBedrockChatGenerator (#2042)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+- Improve typing for select_streaming_callback (#2008)
+
+
 ## [integrations/amazon_bedrock-v3.7.0] - 2025-06-11
 
 ### 🐛 Bug Fixes

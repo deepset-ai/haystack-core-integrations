@@ -1,7 +1,7 @@
 # Before running this example, ensure you have PostgreSQL installed with the pgvector extension.
 # For a quick setup using Docker:
 # docker run -d -p 5432:5432 -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres
-# -e POSTGRES_DB=postgres ankane/pgvector
+# -e POSTGRES_DB=postgres pgvector/pgvector:pg17
 
 # Install required packages for this example, including pgvector-haystack and other libraries needed
 # for Markdown conversion and embeddings generation. Use the following command:

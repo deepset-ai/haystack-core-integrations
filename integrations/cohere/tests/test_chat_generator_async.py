@@ -40,6 +40,7 @@ class TestCohereChatGeneratorAsyncInference:
 
         async def callback(chunk: StreamingChunk):
             nonlocal counter, responses
+            assert chunk.component_info is not None
             counter += 1
             responses += chunk.content if chunk.content else ""
 

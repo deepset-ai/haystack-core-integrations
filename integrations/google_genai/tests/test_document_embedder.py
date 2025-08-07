@@ -28,6 +28,9 @@ class TestGoogleGenAIDocumentEmbedder:
         monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
         embedder = GoogleGenAIDocumentEmbedder()
         assert embedder._api_key.resolve_value() == "fake-api-key"
+        assert embedder._api == "gemini"
+        assert embedder._vertex_ai_project is None
+        assert embedder._vertex_ai_location is None
         assert embedder._model == "text-embedding-004"
         assert embedder._prefix == ""
         assert embedder._suffix == ""
@@ -59,31 +62,10 @@ class TestGoogleGenAIDocumentEmbedder:
         assert embedder._embedding_separator == " | "
         assert embedder._config == {"task_type": "CLASSIFICATION"}
 
-    def test_init_with_parameters_and_env_vars(self, monkeypatch):
-        embedder = GoogleGenAIDocumentEmbedder(
-            api_key=Secret.from_token("fake-api-key-2"),
-            model="model",
-            prefix="prefix",
-            suffix="suffix",
-            batch_size=64,
-            progress_bar=False,
-            meta_fields_to_embed=["test_field"],
-            embedding_separator=" | ",
-            config={"task_type": "CLASSIFICATION"},
-        )
-        assert embedder._api_key.resolve_value() == "fake-api-key-2"
-        assert embedder._model == "model"
-        assert embedder._prefix == "prefix"
-        assert embedder._suffix == "suffix"
-        assert embedder._batch_size == 64
-        assert embedder._progress_bar is False
-        assert embedder._meta_fields_to_embed == ["test_field"]
-        assert embedder._embedding_separator == " | "
-        assert embedder._config == {"task_type": "CLASSIFICATION"}
-
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        with pytest.raises(ValueError, match="you must export the GOOGLE_API_KEY or GEMINI_API_KEY"):
             GoogleGenAIDocumentEmbedder()
 
     def test_to_dict(self, monkeypatch):
@@ -102,8 +84,11 @@ class TestGoogleGenAIDocumentEmbedder:
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
-                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": True},
+                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": False},
                 "config": {"task_type": "SEMANTIC_SIMILARITY"},
+                "api": "gemini",
+                "vertex_ai_project": None,
+                "vertex_ai_location": None,
             },
         }
 
@@ -135,6 +120,9 @@ class TestGoogleGenAIDocumentEmbedder:
                 "embedding_separator": " | ",
                 "api_key": {"type": "env_var", "env_vars": ["ENV_VAR"], "strict": False},
                 "config": {"task_type": "CLASSIFICATION"},
+                "api": "gemini",
+                "vertex_ai_project": None,
+                "vertex_ai_location": None,
             },
         }
 
@@ -151,8 +139,11 @@ class TestGoogleGenAIDocumentEmbedder:
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
-                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY"], "strict": True},
+                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": False},
                 "config": {"task_type": "SEMANTIC_SIMILARITY"},
+                "api": "gemini",
+                "vertex_ai_project": None,
+                "vertex_ai_location": None,
             },
         }
         monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
@@ -166,6 +157,9 @@ class TestGoogleGenAIDocumentEmbedder:
         assert embedder._meta_fields_to_embed == []
         assert embedder._embedding_separator == "\n"
         assert embedder._config == {"task_type": "SEMANTIC_SIMILARITY"}
+        assert embedder._api == "gemini"
+        assert embedder._vertex_ai_project is None
+        assert embedder._vertex_ai_location is None
 
     def test_prepare_texts_to_embed_w_metadata(self):
         documents = [
@@ -233,6 +227,39 @@ class TestGoogleGenAIDocumentEmbedder:
             assert len(doc.embedding) == 768
             assert all(isinstance(x, float) for x in doc.embedding)
 
+        assert "text" in result["meta"]["model"] and "004" in result["meta"]["model"], (
+            "The model name does not contain 'text' and '004'"
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
+    @pytest.mark.integration
+    async def test_run_async(self):
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        model = "text-embedding-004"
+
+        embedder = GoogleGenAIDocumentEmbedder(model=model, meta_fields_to_embed=["topic"], embedding_separator=" | ")
+
+        result = await embedder.run_async(documents=docs)
+        documents_with_embeddings = result["documents"]
+        assert isinstance(documents_with_embeddings, list)
+        assert len(documents_with_embeddings) == len(docs)
+        for doc in documents_with_embeddings:
+            assert isinstance(doc, Document)
+            assert isinstance(doc.embedding, list)
+            assert len(doc.embedding) == 768
+            assert all(isinstance(x, float) for x in doc.embedding)
+
+        assert "text" in result["meta"]["model"] and "004" in result["meta"]["model"], (
+            "The model name does not contain 'text' and '004'"
+        )
         assert result["documents"][0].meta == {"topic": "Cuisine"}
         assert result["documents"][1].meta == {"topic": "ML"}
         assert result["meta"] == {"model": model}
