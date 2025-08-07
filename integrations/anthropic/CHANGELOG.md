@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/anthropic-v4.2.0] - 2025-08-07
+
+### 🐛 Bug Fixes
+
+- Fixed a bug to enable parallel tool calling (#2154)
+
+
 ## [integrations/anthropic-v4.1.0] - 2025-08-05
 
 ### 🚀 Features
