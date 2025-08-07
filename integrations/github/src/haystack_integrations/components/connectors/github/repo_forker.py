@@ -41,7 +41,7 @@ class GitHubRepoForker:
     def __init__(
         self,
         *,
-        github_token: Optional[Secret] = None,
+        github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"),
         raise_on_failure: bool = True,
         wait_for_completion: bool = False,
         max_wait_seconds: int = 300,
