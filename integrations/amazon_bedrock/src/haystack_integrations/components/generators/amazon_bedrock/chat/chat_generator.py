@@ -213,11 +213,10 @@ class AmazonBedrockChatGenerator:
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
 
-        config: Optional[Config] = None
-        if self.boto3_config:
-            config = Config(**self.boto3_config, user_agent_extra="x-client-framework:haystack")
-        else:
-            config = Config(user_agent_extra="x-client-framework:haystack")
+        config = Config(
+            user_agent_extra="x-client-framework:haystack",
+            **(self.boto3_config if self.boto3_config else {})
+        )
 
         try:
             # sync session
