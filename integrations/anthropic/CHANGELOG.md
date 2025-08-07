@@ -13,10 +13,6 @@
 
 - Adopt new `StreamingChunk` in Anthropic (#2096)
 
-### 🌀 Miscellaneous
-
-- Fix/prompt caching support (#2051)
-
 ## [integrations/anthropic-v3.1.0] - 2025-07-04
 
 ### 🚀 Features
