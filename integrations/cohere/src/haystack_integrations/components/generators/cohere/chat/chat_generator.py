@@ -256,7 +256,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
                 ]
                 index = 0
                 start = True  # This starts a tool call
-                meta["tool_call_id"] = tool_call.id     # type: ignore[assignment]
+                meta["tool_call_id"] = tool_call.id  # type: ignore[assignment]
 
     elif chunk.type == "tool-call-delta":
         if (
@@ -300,8 +300,8 @@ def _convert_cohere_chunk_to_streaming_chunk(
                 "completion_tokens": usage_data.billed_units.output_tokens,
             }
 
-        meta["finish_reason"] = finish_reason_raw   # type: ignore[assignment]
-        meta["usage"] = usage   # type: ignore[assignment]
+        meta["finish_reason"] = finish_reason_raw  # type: ignore[assignment]
+        meta["usage"] = usage  # type: ignore[assignment]
 
     # Construct and return the StreamingChunk
     return StreamingChunk(
@@ -357,6 +357,7 @@ async def _parse_async_streaming_response(
         await streaming_callback(streaming_chunk)
 
     return _convert_streaming_chunks_to_chat_message(chunks=chunks)
+
 
 @component
 class CohereChatGenerator:
