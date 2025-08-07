@@ -137,8 +137,7 @@ class AmazonBedrockDocumentEmbedder:
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
             config = Config(
-                user_agent_extra="x-client-framework:haystack",
-                **(self.boto3_config if self.boto3_config else {})
+                user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
             )
             self._client = session.client("bedrock-runtime", config=config)
         except Exception as exception:

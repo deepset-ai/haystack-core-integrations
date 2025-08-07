@@ -214,8 +214,7 @@ class AmazonBedrockChatGenerator:
             return secret.resolve_value() if secret else None
 
         config = Config(
-            user_agent_extra="x-client-framework:haystack",
-            **(self.boto3_config if self.boto3_config else {})
+            user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
         )
 
         try:
