@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v2.1.1] - 2025-08-07
+
+### 🐛 Bug Fixes
+
+- Add optional `aiohttp` to google-genai integration (#2160)
+
+
 ## [integrations/google_genai-v2.1.0] - 2025-08-06
 
 ### 🚀 Features
