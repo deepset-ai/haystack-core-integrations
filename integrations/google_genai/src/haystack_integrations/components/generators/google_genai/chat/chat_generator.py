@@ -604,7 +604,7 @@ class GoogleGenAIChatGenerator:
             chat_messages = messages[1:]
 
         # Convert messages to Google Gen AI Content format
-        contents: List[types.ContentUnion] = []
+        contents: List[types.ContentUnionDict] = []
         for msg in chat_messages:
             contents.append(_convert_message_to_google_genai_format(msg))
 
