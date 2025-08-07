@@ -207,52 +207,46 @@ def _convert_cohere_chunk_to_streaming_chunk(
         "TOOL_CALLS": "tool_calls",
     }
 
+    # Initialize default values
+    content = ""
+    index = None
+    start = False
+    finish_reason = None
+    tool_calls = None
+    meta = {"model": model}
+
+    # Early return for invalid chunks
     if not chunk or not hasattr(chunk, "delta") or chunk.delta is None:
         return StreamingChunk(
-            content="",
+            content=content,
             component_info=component_info,
-            index=None,
-            finish_reason=None,
-            meta={"model": model},
+            index=index,
+            finish_reason=finish_reason,
+            meta=meta,
         )
 
-    # process the different type of chunks
+    # Add chunk type to meta
+    meta["chunk_type"] = chunk.type
+
+    # Process different chunk types
     if chunk.type == "content-delta":
         if chunk.delta.message and chunk.delta.message.content and chunk.delta.message.content.text is not None:
             content = chunk.delta.message.content.text
-            return StreamingChunk(
-                content=content,
-                component_info=component_info,
-                index=0,  # Text content uses index 0
-                start=len(previous_chunks) == 0,  # Start if this is the first chunk
-                finish_reason=None,
-                meta={
-                    "model": model,
-                    "chunk_type": chunk.type,
-                },
-            )
+            index = 0  # Text content uses index 0
+            start = len(previous_chunks) == 0  # Start if this is the first chunk
 
     elif chunk.type == "tool-plan-delta":
         if chunk.delta.message and chunk.delta.message.tool_plan is not None:
             content = chunk.delta.message.tool_plan
-            return StreamingChunk(
-                content=content,
-                component_info=component_info,
-                index=0,  # Tool plan uses index 0
-                start=len(previous_chunks) == 0,
-                finish_reason=None,
-                meta={
-                    "model": model,
-                    "chunk_type": chunk.type,
-                },
-            )
+            index = 0  # Tool plan uses index 0
+            start = len(previous_chunks) == 0
 
     elif chunk.type == "tool-call-start":
         if chunk.delta.message and chunk.delta.message.tool_calls:
             tool_call = chunk.delta.message.tool_calls
             function = tool_call.function
             if function is not None and function.name is not None:
-                tool_calls_deltas = [
+                tool_calls = [
                     ToolCallDelta(
                         index=0,  # Cohere typically has single tool calls
                         id=tool_call.id,
@@ -260,19 +254,9 @@ def _convert_cohere_chunk_to_streaming_chunk(
                         arguments=None,  # Arguments come in subsequent chunks
                     )
                 ]
-                return StreamingChunk(
-                    content="",
-                    component_info=component_info,
-                    index=0,
-                    tool_calls=tool_calls_deltas,
-                    start=True,  # This starts a tool call
-                    finish_reason=None,
-                    meta={
-                        "model": model,
-                        "chunk_type": chunk.type,
-                        "tool_call_id": tool_call.id,
-                    },
-                )
+                index = 0
+                start = True  # This starts a tool call
+                meta["tool_call_id"] = tool_call.id
 
     elif chunk.type == "tool-call-delta":
         if (
@@ -282,40 +266,22 @@ def _convert_cohere_chunk_to_streaming_chunk(
             and chunk.delta.message.tool_calls.function.arguments is not None
         ):
             arguments = chunk.delta.message.tool_calls.function.arguments
-            tool_calls_deltas = [
+            tool_calls = [
                 ToolCallDelta(
                     index=0,
                     tool_name=None,  # Name was set in start chunk
                     arguments=arguments,
                 )
             ]
-            return StreamingChunk(
-                content="",
-                component_info=component_info,
-                index=0,
-                tool_calls=tool_calls_deltas,
-                start=False,
-                finish_reason=None,
-                meta={"model": model, "chunk_type": chunk.type},
-            )
+            index = 0
 
     elif chunk.type == "tool-call-end":
         # Tool call end doesn't have content, just signals completion
-        return StreamingChunk(
-            content="",
-            component_info=component_info,
-            index=0,
-            start=False,
-            finish_reason=None,
-            meta={
-                "model": model,
-                "chunk_type": chunk.type,
-            },
-        )
+        index = 0
 
     elif chunk.type == "message-end":
-        finish_reason = getattr(chunk.delta, "finish_reason", None)
-        mapped_finish_reason = finish_reason_mapping.get(finish_reason) if finish_reason else None
+        finish_reason_raw = getattr(chunk.delta, "finish_reason", None)
+        finish_reason = finish_reason_mapping.get(finish_reason_raw) if finish_reason_raw else None
 
         # Extract usage data if available
         usage_data = getattr(chunk.delta, "usage", None)
@@ -334,31 +300,18 @@ def _convert_cohere_chunk_to_streaming_chunk(
                 "completion_tokens": usage_data.billed_units.output_tokens,
             }
 
-        return StreamingChunk(
-            content="",
-            component_info=component_info,
-            index=None,  # End chunks don't have content index
-            start=False,
-            finish_reason=mapped_finish_reason,
-            meta={
-                "model": model,
-                "chunk_type": chunk.type,
-                "finish_reason": finish_reason,
-                "usage": usage,
-            },
-        )
+        meta["finish_reason"] = finish_reason_raw
+        meta["usage"] = usage
 
-    # Default case for unrecognized chunk types
+    # Construct and return the StreamingChunk
     return StreamingChunk(
-        content="",
+        content=content,
         component_info=component_info,
-        index=None,
-        start=False,
-        finish_reason=None,
-        meta={
-            "model": model,
-            "chunk_type": chunk.type,
-        },
+        index=index,
+        tool_calls=tool_calls,
+        start=start,
+        finish_reason=finish_reason,
+        meta=meta,
     )
 
 
