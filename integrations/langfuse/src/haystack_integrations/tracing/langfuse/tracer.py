@@ -38,6 +38,7 @@ _SUPPORTED_GENERATORS = [
     "OllamaGenerator",
 ]
 _SUPPORTED_CHAT_GENERATORS = [
+    "AmazonBedrockChatGenerator",
     "AzureOpenAIChatGenerator",
     "OpenAIChatGenerator",
     "AnthropicChatGenerator",
