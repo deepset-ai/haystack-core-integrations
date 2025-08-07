@@ -23,7 +23,7 @@ class GitHubRepoForkerTool(ComponentTool):
         name: Optional[str] = "repo_forker",
         description: Optional[str] = REPO_FORKER_PROMPT,
         parameters: Optional[Dict[str, Any]] = REPO_FORKER_SCHEMA,
-        github_token: Optional[Secret] = None,
+        github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"),
         raise_on_failure: bool = True,
         outputs_to_string: Optional[Dict[str, Union[str, Callable[[Any], str]]]] = None,
         inputs_from_state: Optional[Dict[str, str]] = None,
