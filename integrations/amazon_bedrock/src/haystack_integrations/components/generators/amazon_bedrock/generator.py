@@ -169,7 +169,9 @@ class AmazonBedrockGenerator:
             )
             config: Optional[Config] = None
             if self.boto3_config:
-                config = Config(**self.boto3_config)
+                config = Config(**self.boto3_config, user_agent_extra="x-client-framework:haystack")
+            else:
+                config = Config(user_agent_extra="x-client-framework:haystack")
             self.client = session.client("bedrock-runtime", config=config)
         except Exception as exception:
             msg = (

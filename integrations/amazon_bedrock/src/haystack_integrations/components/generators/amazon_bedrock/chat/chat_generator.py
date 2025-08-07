@@ -215,7 +215,9 @@ class AmazonBedrockChatGenerator:
 
         config: Optional[Config] = None
         if self.boto3_config:
-            config = Config(**self.boto3_config)
+            config = Config(**self.boto3_config, user_agent_extra="x-client-framework:haystack")
+        else:
+            config = Config(user_agent_extra="x-client-framework:haystack")
 
         try:
             # sync session
@@ -226,6 +228,7 @@ class AmazonBedrockChatGenerator:
                 aws_region_name=resolve_secret(aws_region_name),
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
+
             self.client = session.client("bedrock-runtime", config=config)
 
         except Exception as exception:
@@ -498,7 +501,12 @@ class AmazonBedrockChatGenerator:
             session = self._get_async_session()
             # Note: https://aioboto3.readthedocs.io/en/latest/usage.html
             # we need to create a new client for each request
-            async with session.client("bedrock-runtime", config=self.boto3_config) as async_client:
+            config = None
+            if self.boto3_config:
+                config = Config(**self.boto3_config, user_agent_extra="x-client-framework:haystack")
+            else:
+                config = Config(user_agent_extra="x-client-framework:haystack")
+            async with session.client("bedrock-runtime", config=config) as async_client:
                 if callback:
                     response = await async_client.converse_stream(**params)
                     response_stream: EventStream = response.get("stream")
