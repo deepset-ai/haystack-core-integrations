@@ -18,7 +18,6 @@ from haystack_integrations.components.generators.cohere.chat.chat_generator impo
     _parse_streaming_response,
     # _finalize_streaming_message,
     # _initialize_streaming_state,
-    # _process_cohere_chunk,
 )
 
 
@@ -40,7 +39,7 @@ class TestUtils:
     def test_format_message_tool_call_result_with_none_id_raises_error(self):
         tool_call = ToolCall(id=None, tool_name="test_tool", arguments={})
 
-        message = ChatMessage.from_tool(tool_result="test result", origin=tool_call, error="no error")
+        message = ChatMessage.from_tool(tool_result="test result", origin=tool_call, error=False)
 
         with pytest.raises(ValueError):
             _format_message(message)
@@ -55,8 +54,7 @@ class TestUtils:
 
     """
     def test_process_cohere_chunk_none_chunk_returns_none(self):
-        state = _initialize_streaming_state()
-        result = _process_cohere_chunk(None, state, "test-model")
+        result = _parse_streaming_response(None, "test-model")
         assert result is None
 
     def test_process_cohere_chunk_unknown_type_returns_none(self):

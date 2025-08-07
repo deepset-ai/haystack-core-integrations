@@ -2,6 +2,7 @@ import json
 from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.dataclasses import ChatMessage, ComponentInfo, ToolCall
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
@@ -403,66 +404,6 @@ async def _parse_async_streaming_response(
         await streaming_callback(streaming_chunk)
 
     return _convert_streaming_chunks_to_chat_message(chunks=chunks)
-
-
-def _convert_streaming_chunks_to_chat_message(chunks: List[StreamingChunk]) -> ChatMessage:
-    """
-    Connects the streaming chunks into a single ChatMessage.
-
-    :param chunks: The list of all `StreamingChunk` objects.
-    :returns: The ChatMessage.
-    """
-    text = "".join([chunk.content for chunk in chunks])
-    tool_calls = []
-
-    # Process tool calls if present in any chunk
-    tool_call_data: Dict[int, Dict[str, str]] = {}  # Track tool calls by index
-    for chunk in chunks:
-        if chunk.tool_calls:
-            for tool_call in chunk.tool_calls:
-                # We use the index of the tool_call to track the tool call across chunks since the ID is not always
-                # provided
-                if tool_call.index not in tool_call_data:
-                    tool_call_data[tool_call.index] = {"id": "", "name": "", "arguments": ""}
-
-                # Save the ID if present
-                if tool_call.id is not None:
-                    tool_call_data[tool_call.index]["id"] = tool_call.id
-
-                if tool_call.tool_name is not None:
-                    tool_call_data[tool_call.index]["name"] += tool_call.tool_name
-                if tool_call.arguments is not None:
-                    tool_call_data[tool_call.index]["arguments"] += tool_call.arguments
-
-    # Convert accumulated tool call data into ToolCall objects
-    sorted_keys = sorted(tool_call_data.keys())
-    for key in sorted_keys:
-        tool_call_dict = tool_call_data[key]
-        try:
-            arguments = json.loads(tool_call_dict.get("arguments", "{}")) if tool_call_dict.get("arguments") else {}
-            tool_calls.append(ToolCall(id=tool_call_dict["id"], tool_name=tool_call_dict["name"], arguments=arguments))
-        except json.JSONDecodeError:
-            logger.warning(
-                "The LLM provider returned a malformed JSON string for tool call arguments. This tool call "
-                "will be skipped. Tool call ID: {_id}, Tool name: {_name}, Arguments: {_arguments}",
-                _id=tool_call_dict["id"],
-                _name=tool_call_dict["name"],
-                _arguments=tool_call_dict["arguments"],
-            )
-
-    # finish_reason can appear in different places so we look for the last one
-    finish_reasons = [chunk.finish_reason for chunk in chunks if chunk.finish_reason]
-    finish_reason = finish_reasons[-1] if finish_reasons else None
-
-    meta = {
-        "model": chunks[-1].meta.get("model"),
-        "index": 0,
-        "finish_reason": finish_reason,
-        "usage": chunks[-1].meta.get("usage"),  # last chunk has the final usage data if available
-    }
-
-    return ChatMessage.from_assistant(text=text or None, tool_calls=tool_calls, meta=meta)
-
 
 @component
 class CohereChatGenerator:
