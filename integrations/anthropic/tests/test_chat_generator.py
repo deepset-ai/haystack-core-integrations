@@ -330,7 +330,7 @@ class TestAnthropicChatGenerator:
         with pytest.raises(ValueError):
             AnthropicChatGenerator(tools=tools + tools)
 
-    def test_convert_anthropic_completion_chunks_with_tools_to_streaming_chunks(self):
+    def test_convert_anthropic_completion_chunks_with_multiple_tool_calls_to_streaming_chunks(self):
         """
         Test converting Anthropic stream events with tools to Haystack StreamingChunks
         """
@@ -359,7 +359,7 @@ class TestAnthropicChatGenerator:
             type="message_start",
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            message_start_chunk, component_info=component_info
+            message_start_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
         assert streaming_chunk.meta["message"]["model"] == message_start_chunk.message.model
@@ -374,7 +374,7 @@ class TestAnthropicChatGenerator:
             content_block=TextBlock(citations=None, text="", type="text"), index=0, type="content_block_start"
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            text_block_start_chunk, component_info=component_info
+            text_block_start_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
         assert streaming_chunk.meta == text_block_start_chunk.model_dump()
@@ -391,7 +391,7 @@ class TestAnthropicChatGenerator:
             type="content_block_delta",
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            text_delta_chunk, component_info=component_info
+            text_delta_chunk, component_info=component_info, tool_call_index=0
         )
 
         assert streaming_chunk.component_info == component_info
@@ -415,7 +415,7 @@ class TestAnthropicChatGenerator:
             type="content_block_start",
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            tool_block_start_chunk, component_info=component_info
+            tool_block_start_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
         assert streaming_chunk.meta == tool_block_start_chunk.model_dump()
@@ -432,7 +432,7 @@ class TestAnthropicChatGenerator:
             delta=InputJSONDelta(partial_json="", type="input_json_delta"), index=1, type="content_block_delta"
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            empty_json_delta_chunk, component_info=component_info
+            empty_json_delta_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
         assert streaming_chunk.meta == empty_json_delta_chunk.model_dump()
@@ -451,7 +451,7 @@ class TestAnthropicChatGenerator:
             type="content_block_delta",
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            json_delta_chunk, component_info=component_info
+            json_delta_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
         assert streaming_chunk.meta == json_delta_chunk.model_dump()
@@ -474,7 +474,7 @@ class TestAnthropicChatGenerator:
             ),
         )
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            message_delta_chunk, component_info=component_info
+            message_delta_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
         assert streaming_chunk.meta == message_delta_chunk.model_dump()
@@ -484,13 +484,97 @@ class TestAnthropicChatGenerator:
         assert streaming_chunk.content == ""
         assert not streaming_chunk.start
 
-        ## In response flow, here will be another content_block_stop chunk
+        # In response flow, here will be another content_block_stop chunk
+        # content_block_stop_chunk = RawContentBlockStopEvent(index=0, type="content_block_stop")
+        # but we don't stream it
 
-        ## Then a message_dtop chunk
+        # Test content_block_start for second tool_call
+        tool_block_start_chunk = RawContentBlockStartEvent(
+            content_block=ToolUseBlock(
+                id="toolu_011dE5KDKxSh6hi85EnRKZT4", input={}, name="factorial", type="tool_use"
+            ),
+            index=2,
+            type="content_block_start",
+        )
+        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+            tool_block_start_chunk, component_info=component_info, tool_call_index=1
+        )
+        assert streaming_chunk.component_info == component_info
+        assert streaming_chunk.meta == tool_block_start_chunk.model_dump()
+        assert streaming_chunk.start
+        assert streaming_chunk.finish_reason is None
+        assert streaming_chunk.index == 2
+        assert streaming_chunk.tool_calls == [
+            ToolCallDelta(index=1, id="toolu_011dE5KDKxSh6hi85EnRKZT4", tool_name="factorial", arguments=None)
+        ]
+        assert streaming_chunk.content == ""
+
+        # Test content_block_delta with input_json_delta (empty)
+        empty_json_delta_chunk = RawContentBlockDeltaEvent(
+            delta=InputJSONDelta(partial_json="", type="input_json_delta"), index=1, type="content_block_delta"
+        )
+        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+            empty_json_delta_chunk, component_info=component_info, tool_call_index=1
+        )
+        assert streaming_chunk.component_info == component_info
+        assert streaming_chunk.meta == empty_json_delta_chunk.model_dump()
+        assert streaming_chunk.tool_calls == [
+            ToolCallDelta(index=1, arguments=empty_json_delta_chunk.delta.partial_json)
+        ]
+        assert streaming_chunk.content == ""
+        assert streaming_chunk.finish_reason is None
+        assert streaming_chunk.index == 1
+        assert not streaming_chunk.start
+
+        # Test content_block_delta with input_json_delta (with content)
+        json_delta_chunk = RawContentBlockDeltaEvent(
+            delta=InputJSONDelta(partial_json='{"expression": 5 ', type="input_json_delta"),
+            index=2,
+            type="content_block_delta",
+        )
+        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+            json_delta_chunk, component_info=component_info, tool_call_index=1
+        )
+        assert streaming_chunk.component_info == component_info
+        assert streaming_chunk.meta == json_delta_chunk.model_dump()
+        assert streaming_chunk.tool_calls == [ToolCallDelta(index=1, arguments=json_delta_chunk.delta.partial_json)]
+        assert streaming_chunk.content == ""
+        assert streaming_chunk.finish_reason is None
+        assert streaming_chunk.index == 2
+        assert not streaming_chunk.start
+
+        # Test message_delta chunk
+        message_delta_chunk = RawMessageDeltaEvent(
+            delta=Delta(stop_reason="tool_use", stop_sequence=None),
+            type="message_delta",
+            usage=MessageDeltaUsage(
+                cache_creation_input_tokens=None,
+                cache_read_input_tokens=None,
+                input_tokens=None,
+                output_tokens=77,
+                server_tool_use=None,
+            ),
+        )
+        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+            message_delta_chunk, component_info=component_info, tool_call_index=0
+        )
+        assert streaming_chunk.component_info == component_info
+        assert streaming_chunk.meta == message_delta_chunk.model_dump()
+        assert streaming_chunk.finish_reason == FINISH_REASON_MAPPING.get(message_delta_chunk.delta.stop_reason)
+        assert streaming_chunk.index is None
+        assert streaming_chunk.tool_calls is None
+        assert streaming_chunk.content == ""
+        assert not streaming_chunk.start
+
+        # In response flow, here will be another content_block_stop chunk
+        # content_block_stop_chunk = RawContentBlockStopEvent(index=0, type="content_block_stop")
+        # but we don't stream it
+
+        # Then a message_stop chunk
         # message_stop_chunk = RawMessageStopEvent(type="message_stop")
         # but we don't stream it
 
-    def test_convert_streaming_chunks_to_chat_message(self):
+    def test_convert_streaming_chunks_to_chat_message_with_multiple_tool_calls(self):
         """
         Test converting streaming chunks to a chat message with tool calls
         """
@@ -578,6 +662,41 @@ class TestAnthropicChatGenerator:
                 index=1,
                 tool_calls=[ToolCallDelta(index=0, id=None, tool_name=None, arguments='"Paris"}')],
             ),
+            # Tool use content
+            StreamingChunk(
+                content="",
+                meta={
+                    "type": "content_block_start",
+                    "index": 2,
+                    "content_block": {"type": "tool_use", "id": "toolu_224", "name": "factorial", "input": {}},
+                },
+                component_info=ComponentInfo.from_component(self),
+                index=2,
+                tool_calls=[ToolCallDelta(index=1, id="toolu_224", tool_name="factorial", arguments=None)],
+                start=True,
+            ),
+            StreamingChunk(
+                content="",
+                meta={
+                    "type": "content_block_delta",
+                    "index": 2,
+                    "delta": {"type": "input_json_delta", "partial_json": '{"expression":'},
+                },
+                component_info=ComponentInfo.from_component(self),
+                index=2,
+                tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments='{"expression":')],
+            ),
+            StreamingChunk(
+                content="",
+                meta={
+                    "type": "content_block_delta",
+                    "index": 2,
+                    "delta": {"type": "input_json_delta", "partial_json": " 5 }"},
+                },
+                component_info=ComponentInfo.from_component(self),
+                index=2,
+                tool_calls=[ToolCallDelta(index=1, id=None, tool_name=None, arguments=" 5 }")],
+            ),
             # Final message delta
             StreamingChunk(
                 content="",
@@ -596,11 +715,15 @@ class TestAnthropicChatGenerator:
         # Verify the message content
         assert message.text == "Let me check the weather"
         # Verify tool calls
-        assert len(message.tool_calls) == 1
+        assert len(message.tool_calls) == 2
         tool_call = message.tool_calls[0]
         assert tool_call.id == "toolu_123"
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
+        tool_call = message.tool_calls[1]
+        assert tool_call.id == "toolu_224"
+        assert tool_call.tool_name == "factorial"
+        assert tool_call.arguments == {"expression": 5}
 
         # Verify meta information
         assert message._meta["index"] == 0
