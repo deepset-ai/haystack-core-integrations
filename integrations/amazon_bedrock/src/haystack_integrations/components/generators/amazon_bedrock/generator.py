@@ -218,11 +218,9 @@ class AmazonBedrockGenerator:
                     contentType="application/json",
                 )
                 response_stream = response["body"]
-                # TODO Would need to update model_adapter to handle usage conversion into standard Haystack format
                 replies = self.model_adapter.get_stream_responses(
                     stream=response_stream, streaming_callback=streaming_callback
                 )
-                usage = {}
             else:
                 response = self.client.invoke_model(
                     body=json.dumps(body),
@@ -231,12 +229,9 @@ class AmazonBedrockGenerator:
                     contentType="application/json",
                 )
                 response_body = json.loads(response.get("body").read().decode("utf-8"))
-                # TODO Would need to update model_adapter to handle usage conversion into standard Haystack format
-                usage = response_body.get("usage", {})
                 replies = self.model_adapter.get_responses(response_body=response_body)
 
             metadata = response.get("ResponseMetadata", {})
-            metadata.update({"usage": usage})
 
         except ClientError as exception:
             msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
