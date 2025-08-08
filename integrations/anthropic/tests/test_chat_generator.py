@@ -703,7 +703,7 @@ class TestAnthropicChatGenerator:
                 meta={
                     "type": "message_delta",
                     "delta": {"stop_reason": "tool_calls", "stop_sequence": None},
-                    "usage": {"completion_tokens": 40},
+                    "usage": {"completion_tokens": 40, "output_tokens": 40},
                 },
                 component_info=ComponentInfo.from_component(self),
                 finish_reason="tool_calls",
@@ -728,7 +728,7 @@ class TestAnthropicChatGenerator:
         # Verify meta information
         assert message._meta["index"] == 0
         assert message._meta["finish_reason"] == "tool_calls"
-        assert message._meta["usage"] == {"completion_tokens": 40}
+        assert message._meta["usage"] == {"output_tokens": 40, "completion_tokens": 40}
 
     def test_convert_streaming_chunks_to_chat_message_tool_call_with_empty_arguments(self):
         """
