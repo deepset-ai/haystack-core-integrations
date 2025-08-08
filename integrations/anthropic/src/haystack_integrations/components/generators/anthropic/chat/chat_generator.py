@@ -490,13 +490,16 @@ class AnthropicChatGenerator:
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
             tool_call_index = -1
+            input_tokens = 0
             component_info = ComponentInfo.from_component(self)
             for chunk in response:
                 if chunk.type in ["message_start", "content_block_start", "content_block_delta", "message_delta"]:
                     # Extract model from message_start chunks
                     if chunk.type == "message_start":
                         model = chunk.message.model
-                        input_tokens = chunk.message.usage.input_tokens
+                        first_chunk_usage = chunk.message.usage
+                        if "input_tokens" in first_chunk_usage:
+                            input_tokens = first_chunk_usage["input_tokens"]
                     if chunk.type == "content_block_start" and chunk.content_block.type == "tool_use":
                         tool_call_index += 1
 
@@ -511,6 +514,9 @@ class AnthropicChatGenerator:
             completion.meta.update(
                 {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},
             )
+
+            if "usage" not in completion.meta:
+                completion.meta["usage"] = {}
             completion.meta["usage"]["input_tokens"] = input_tokens
             return {"replies": [completion]}
         else:
