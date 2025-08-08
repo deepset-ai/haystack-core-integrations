@@ -496,6 +496,7 @@ class AnthropicChatGenerator:
                     # Extract model from message_start chunks
                     if chunk.type == "message_start":
                         model = chunk.message.model
+                        first_chunk_usage = chunk.message.usage
                     if chunk.type == "content_block_start" and chunk.content_block.type == "tool_use":
                         tool_call_index += 1
 
@@ -508,7 +509,11 @@ class AnthropicChatGenerator:
 
             completion = _convert_streaming_chunks_to_chat_message(chunks)
             completion.meta.update(
-                {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},
+                {
+                    "received_at": datetime.now(timezone.utc).isoformat(),
+                    "model": model,
+                    "usage": {"input_tokens": first_chunk_usage.input_tokens},
+                },
             )
             return {"replies": [completion]}
         else:
