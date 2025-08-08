@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/llama_stack-v1.1.0] - 2025-08-08
+
+
+### 🌀 Miscellaneous
+
+- Chore: Unpin Llama Stack version (#2171)
+
 ## [integrations/llama_stack-v1.0.1] - 2025-08-08
 
 ### 🐛 Bug Fixes
