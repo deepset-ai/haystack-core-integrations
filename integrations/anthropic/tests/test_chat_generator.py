@@ -337,6 +337,8 @@ class TestAnthropicChatGenerator:
         component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
         component_info = ComponentInfo.from_component(component)
 
+        raw_chunks = []
+
         # Test message_start chunk
         message_start_chunk = RawMessageStartEvent(
             message=Message(
@@ -358,6 +360,7 @@ class TestAnthropicChatGenerator:
             ),
             type="message_start",
         )
+        raw_chunks.append(message_start_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             message_start_chunk, component_info=component_info, tool_call_index=0
         )
@@ -373,6 +376,7 @@ class TestAnthropicChatGenerator:
         text_block_start_chunk = RawContentBlockStartEvent(
             content_block=TextBlock(citations=None, text="", type="text"), index=0, type="content_block_start"
         )
+        raw_chunks.append(text_block_start_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             text_block_start_chunk, component_info=component_info, tool_call_index=0
         )
@@ -390,6 +394,7 @@ class TestAnthropicChatGenerator:
             index=0,
             type="content_block_delta",
         )
+        raw_chunks.append(text_delta_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             text_delta_chunk, component_info=component_info, tool_call_index=0
         )
@@ -414,6 +419,7 @@ class TestAnthropicChatGenerator:
             index=1,
             type="content_block_start",
         )
+        raw_chunks.append(tool_block_start_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             tool_block_start_chunk, component_info=component_info, tool_call_index=0
         )
@@ -431,6 +437,7 @@ class TestAnthropicChatGenerator:
         empty_json_delta_chunk = RawContentBlockDeltaEvent(
             delta=InputJSONDelta(partial_json="", type="input_json_delta"), index=1, type="content_block_delta"
         )
+        raw_chunks.append(empty_json_delta_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             empty_json_delta_chunk, component_info=component_info, tool_call_index=0
         )
@@ -450,6 +457,7 @@ class TestAnthropicChatGenerator:
             index=1,
             type="content_block_delta",
         )
+        raw_chunks.append(json_delta_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             json_delta_chunk, component_info=component_info, tool_call_index=0
         )
@@ -473,6 +481,7 @@ class TestAnthropicChatGenerator:
                 server_tool_use=None,
             ),
         )
+        raw_chunks.append(message_delta_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             message_delta_chunk, component_info=component_info, tool_call_index=0
         )
@@ -496,6 +505,7 @@ class TestAnthropicChatGenerator:
             index=2,
             type="content_block_start",
         )
+        raw_chunks.append(tool_block_start_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             tool_block_start_chunk, component_info=component_info, tool_call_index=1
         )
@@ -513,6 +523,7 @@ class TestAnthropicChatGenerator:
         empty_json_delta_chunk = RawContentBlockDeltaEvent(
             delta=InputJSONDelta(partial_json="", type="input_json_delta"), index=1, type="content_block_delta"
         )
+        raw_chunks.append(empty_json_delta_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             empty_json_delta_chunk, component_info=component_info, tool_call_index=1
         )
@@ -532,6 +543,7 @@ class TestAnthropicChatGenerator:
             index=2,
             type="content_block_delta",
         )
+        raw_chunks.append(json_delta_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             json_delta_chunk, component_info=component_info, tool_call_index=1
         )
@@ -555,6 +567,7 @@ class TestAnthropicChatGenerator:
                 server_tool_use=None,
             ),
         )
+        raw_chunks.append(message_delta_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             message_delta_chunk, component_info=component_info, tool_call_index=0
         )
@@ -573,6 +586,16 @@ class TestAnthropicChatGenerator:
         # Then a message_stop chunk
         # message_stop_chunk = RawMessageStopEvent(type="message_stop")
         # but we don't stream it
+
+        generator = AnthropicChatGenerator()
+        message = generator._process_response(raw_chunks)
+        assert message["replies"][0].meta["usage"] == {
+            "cache_creation_input_tokens": None,
+            "cache_read_input_tokens": None,
+            "input_tokens": 393,
+            "output_tokens": 77,
+            "server_tool_use": None,
+        }
 
     def test_convert_streaming_chunks_to_chat_message_with_multiple_tool_calls(self):
         """
@@ -703,7 +726,7 @@ class TestAnthropicChatGenerator:
                 meta={
                     "type": "message_delta",
                     "delta": {"stop_reason": "tool_calls", "stop_sequence": None},
-                    "usage": {"completion_tokens": 40},
+                    "usage": {"completion_tokens": 40, "output_tokens": 40},
                 },
                 component_info=ComponentInfo.from_component(self),
                 finish_reason="tool_calls",
@@ -728,7 +751,7 @@ class TestAnthropicChatGenerator:
         # Verify meta information
         assert message._meta["index"] == 0
         assert message._meta["finish_reason"] == "tool_calls"
-        assert message._meta["usage"] == {"completion_tokens": 40}
+        assert message._meta["usage"] == {"output_tokens": 40, "completion_tokens": 40}
 
     def test_convert_streaming_chunks_to_chat_message_tool_call_with_empty_arguments(self):
         """
