@@ -5,7 +5,7 @@
 ### 🐛 Bug Fixes
 
 - Update the command for Llama Stack server (#2097)
-- Pin openai to `<=1.99.2` avoid errors in Llama Stack integration (#2169)
+- Pin openai to `<=1.99.1` avoid errors in Llama Stack integration (#2169)
 
 
 ## [integrations/llama_stack-v1.0.0] - 2025-07-11
