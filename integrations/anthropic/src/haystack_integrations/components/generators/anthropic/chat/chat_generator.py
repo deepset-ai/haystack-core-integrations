@@ -497,9 +497,9 @@ class AnthropicChatGenerator:
                     # Extract model from message_start chunks
                     if chunk.type == "message_start":
                         model = chunk.message.model
-                        first_chunk_usage = chunk.message.usage
-                        if "input_tokens" in first_chunk_usage:
-                            input_tokens = first_chunk_usage["input_tokens"]
+                        if chunk.message.usage.input_tokens is not None:
+                            input_tokens = chunk.message.usage.input_tokens
+
                     if chunk.type == "content_block_start" and chunk.content_block.type == "tool_use":
                         tool_call_index += 1
 
