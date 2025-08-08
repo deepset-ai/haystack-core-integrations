@@ -7,17 +7,15 @@ from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, ToolCall
+from haystack.dataclasses.streaming_chunk import ToolCallDelta
 from haystack.tools import Tool
 from haystack.utils import Secret
 
-from haystack_integrations.components.generators.cohere import (
-    CohereChatGenerator,
-)
+from haystack_integrations.components.generators.cohere import CohereChatGenerator
 from haystack_integrations.components.generators.cohere.chat.chat_generator import (
+    _convert_cohere_chunk_to_streaming_chunk,
     _format_message,
     _parse_streaming_response,
-    # _finalize_streaming_message,
-    # _initialize_streaming_state,
 )
 
 
@@ -52,115 +50,6 @@ class TestUtils:
         with pytest.raises(ValueError):
             _format_message(message)
 
-    """
-    def test_process_cohere_chunk_none_chunk_returns_none(self):
-        result = _parse_streaming_response(None, "test-model")
-        assert result is None
-
-    def test_process_cohere_chunk_unknown_type_returns_none(self):
-        chunk = Mock()
-        chunk.type = "unknown-type"
-        state = _initialize_streaming_state()
-
-        result = _process_cohere_chunk(chunk, state, "test-model")
-        assert result is None
-
-    def test_process_cohere_chunk_tool_call_end_without_current_tool_call(self):
-        chunk = Mock()
-        chunk.type = "tool-call-end"
-
-        state = _initialize_streaming_state()
-        state["current_tool_call"] = None  # Explicitly set to None
-
-        result = _process_cohere_chunk(chunk, state, "test-model")
-
-        assert result is None
-        assert len(state["tool_calls"]) == 0
-
-    def test_process_cohere_chunk_tool_call_complete_flow(self):
-        state = _initialize_streaming_state()
-        model = "test-model"
-
-        # Tool call start
-        start_chunk = Mock()
-        start_chunk.type = "tool-call-start"
-        start_chunk.delta.message.tool_calls.id = "test-id"
-        start_chunk.delta.message.tool_calls.function.name = "test_function"
-
-        _process_cohere_chunk(start_chunk, state, model)
-        assert state["current_tool_call"] is not None
-        assert state["current_tool_call"].id == "test-id"
-
-        # Tool call delta
-        delta_chunk = Mock()
-        delta_chunk.type = "tool-call-delta"
-        delta_chunk.delta.message.tool_calls.function.arguments = '{"key": "value"'
-
-        _process_cohere_chunk(delta_chunk, state, model)
-        assert state["current_tool_arguments"] == '{"key": "value"'
-
-        # Another delta to complete the JSON
-        delta_chunk2 = Mock()
-        delta_chunk2.type = "tool-call-delta"
-        delta_chunk2.delta.message.tool_calls.function.arguments = "}"
-
-        _process_cohere_chunk(delta_chunk2, state, model)
-        assert state["current_tool_arguments"] == '{"key": "value"}'
-
-        # Tool call end
-        end_chunk = Mock()
-        end_chunk.type = "tool-call-end"
-
-        _process_cohere_chunk(end_chunk, state, model)
-
-        assert len(state["tool_calls"]) == 1
-        assert state["tool_calls"][0].arguments == {"key": "value"}
-        assert state["current_tool_call"] is None
-        assert state["current_tool_arguments"] == ""
-
-    def test_finalize_streaming_message_with_tool_calls(self):
-        state = {
-            "response_text": "",
-            "tool_plan": "I need to check the weather",
-            "tool_calls": [ToolCall(id="test-id", tool_name="weather", arguments={"city": "Paris"})],
-            "current_tool_call": None,
-            "current_tool_arguments": "",
-            "captured_meta": {
-                "model": "test-model",
-                "finish_reason": "COMPLETE",
-                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-            },
-        }
-
-        message = _finalize_streaming_message(state)
-
-        assert message.text == "I need to check the weather"
-        assert len(message.tool_calls) == 1
-        assert message.tool_calls[0].tool_name == "weather"
-        assert message.meta["model"] == "test-model"
-
-    def test_finalize_streaming_message_without_tool_calls(self):
-        state = {
-            "response_text": "Simple response text",
-            "tool_plan": "",
-            "tool_calls": [],
-            "current_tool_call": None,
-            "current_tool_arguments": "",
-            "captured_meta": {
-                "model": "test-model",
-                "finish_reason": "COMPLETE",
-                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-            },
-        }
-
-        message = _finalize_streaming_message(state)
-
-        assert message.text == "Simple response text"
-        assert len(message.tool_calls) == 0
-        assert message.meta["model"] == "test-model"
-
-    """
-
     def test_parse_streaming_response_uses_component_info(self):
         mock_cohere_chunk = MagicMock()
         mock_cohere_chunk.type = "content-delta"
@@ -185,7 +74,6 @@ class TestUtils:
         assert len(captured_chunks) == 1
         assert captured_chunks[0].component_info == component_info
         assert captured_chunks[0].content == "Hello"
-
         assert message.text == "Hello"
 
 
@@ -632,3 +520,620 @@ class TestCohereChatGeneratorInference:
             "The weather in Paris is sunny and 32°C"
             == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
         )
+
+
+def create_mock_cohere_chunk(chunk_type: str, **kwargs):
+    """aux function to create properly configured mock Cohere chunks"""
+    chunk = MagicMock()
+    chunk.type = chunk_type
+
+    # Create delta mock
+    delta = MagicMock()
+    chunk.delta = delta
+
+    # Configure based on chunk type
+    if chunk_type == "content-delta":
+        message = MagicMock()
+        content = MagicMock()
+        content.text = kwargs.get("text", "")
+        message.content = content
+        delta.message = message
+
+    elif chunk_type == "tool-plan-delta":
+        message = MagicMock()
+        message.tool_plan = kwargs.get("tool_plan", "")
+        delta.message = message
+
+    elif chunk_type == "tool-call-start":
+        message = MagicMock()
+        tool_calls = MagicMock()
+        tool_calls.id = kwargs.get("tool_call_id", "")
+        function = MagicMock()
+        function.name = kwargs.get("tool_name", "")
+        function.arguments = kwargs.get("arguments", None)
+        tool_calls.function = function
+        message.tool_calls = tool_calls
+        delta.message = message
+
+    elif chunk_type == "tool-call-delta":
+        message = MagicMock()
+        tool_calls = MagicMock()
+        function = MagicMock()
+        function.arguments = kwargs.get("arguments", "")
+        tool_calls.function = function
+        message.tool_calls = tool_calls
+        delta.message = message
+
+    elif chunk_type == "tool-call-end":
+        # No specific configuration needed
+        pass
+
+    elif chunk_type == "message-end":
+        delta.finish_reason = kwargs.get("finish_reason", None)
+        if "usage" in kwargs:
+            if isinstance(kwargs["usage"], dict):
+                delta.usage = kwargs["usage"]
+            else:
+                usage = MagicMock()
+                billed_units = MagicMock()
+                billed_units.input_tokens = kwargs["usage"]["input_tokens"]
+                billed_units.output_tokens = kwargs["usage"]["output_tokens"]
+                usage.billed_units = billed_units
+                delta.usage = usage
+        else:
+            delta.usage = None
+
+    return chunk
+
+@pytest.fixture
+def cohere_chunks():
+    """Mocked Cohere streaming response chunks to test conversion function"""
+    return [
+        # Chunk 1: Initial content-delta with text
+        create_mock_cohere_chunk("content-delta", text="I'll help you get the weather"),
+
+        # Chunk 2: Tool plan delta
+        create_mock_cohere_chunk("tool-plan-delta", tool_plan="I need to call the weather tool"),
+
+        # Chunk 3: Tool call start - first tool call
+        create_mock_cohere_chunk(
+            "tool-call-start",
+            tool_call_id="call_weather_paris_123",
+            tool_name="weather",
+            arguments=None
+        ),
+
+        # Chunk 4: Tool call delta - arguments streaming
+        create_mock_cohere_chunk("tool-call-delta", arguments='{"ci'),
+
+        # Chunk 5: Tool call delta - more arguments
+        create_mock_cohere_chunk("tool-call-delta", arguments='ty": "'),
+
+        # Chunk 6: Tool call delta - city name
+        create_mock_cohere_chunk("tool-call-delta", arguments='Paris"'),
+
+        # Chunk 7: Tool call delta - closing brace
+        create_mock_cohere_chunk("tool-call-delta", arguments="}"),
+
+        # Chunk 8: Tool call end - first tool call complete
+        create_mock_cohere_chunk("tool-call-end"),
+
+        # Chunk 9: Tool call start - second tool call
+        create_mock_cohere_chunk(
+            "tool-call-start",
+            tool_call_id="call_weather_berlin_456",
+            tool_name="weather",
+            arguments=None
+        ),
+
+        # Chunk 10: Tool call delta - second tool arguments
+        create_mock_cohere_chunk("tool-call-delta", arguments='{"ci'),
+
+        # Chunk 11: Tool call delta - more second tool arguments
+        create_mock_cohere_chunk("tool-call-delta", arguments='ty": "'),
+
+        # Chunk 12: Tool call delta - second city name
+        create_mock_cohere_chunk("tool-call-delta", arguments='Berlin"'),
+
+        # Chunk 13: Tool call delta - closing brace for second tool
+        create_mock_cohere_chunk("tool-call-delta", arguments="}"),
+
+        # Chunk 14: Tool call end - second tool call complete
+        create_mock_cohere_chunk("tool-call-end"),
+
+        # Chunk 15: Message end with finish reason and usage
+        create_mock_cohere_chunk(
+            "message-end",
+            finish_reason="TOOL_CALLS",
+            usage={
+                "billed_units": {
+                    "input_tokens": 9,
+                    "output_tokens": 75
+            },
+                "tokens": {
+                    "input_tokens": 150,
+                    "output_tokens": 75
+                }
+            }
+        ),
+    ]
+
+@pytest.fixture
+def expected_streaming_chunks():
+    """Fixture providing expected Haystack StreamingChunk objects for conversion testing."""
+    return [
+        # Chunk 1: Content delta
+        StreamingChunk(
+            content="I'll help you get the weather",
+            index=0,
+            start=True,  # First chunk
+            finish_reason=None,
+            tool_calls=None,
+            meta={
+                "model": "command-r-08-2024",
+                "chunk_type": "content-delta",
+            },
+        ),
+        # Chunk 2: Tool plan delta
+        StreamingChunk(
+            content="I need to call the weather tool",
+            index=0,
+            start=False,
+            finish_reason=None,
+            tool_calls=None,
+            meta={
+                "model": "command-r-08-2024",
+                "chunk_type": "tool-plan-delta",
+            },
+        ),
+        # Chunk 3: Tool call start
+        StreamingChunk(
+            content="",
+            index=0,
+            start=True,  # Tool call start
+            finish_reason=None,
+            tool_calls=[
+                ToolCallDelta(
+                    index=0,
+                    id="call_weather_paris_123",
+                    tool_name="weather",
+                    arguments=None,
+                )
+            ],
+            meta={
+                "model": "command-r-08-2024",
+                "chunk_type": "tool-call-start",
+                "tool_call_id": "call_weather_paris_123",
+            },
+        ),
+        # Chunk 4: Tool call delta - arguments
+        StreamingChunk(
+            content="",
+            index=0,
+            start=False,
+            finish_reason=None,
+            tool_calls=[
+                ToolCallDelta(
+                    index=0,
+                    tool_name=None,  # Name was set in start chunk
+                    arguments='{"ci',
+                )
+            ],
+            meta={
+                "model": "command-r-08-2024",
+                "chunk_type": "tool-call-delta",
+            },
+        ),
+        # Chunk 5: Tool call delta - more arguments
+        StreamingChunk(
+            content="",
+            index=0,
+            start=False,
+            finish_reason=None,
+            tool_calls=[
+                ToolCallDelta(
+                    index=0,
+                    tool_name=None,
+                    arguments='ty": "',
+                )
+            ],
+            meta={
+                "model": "command-r-08-2024",
+                "chunk_type": "tool-call-delta",
+            },
+        ),
+        # Chunk 6: Tool call delta - city name
+        StreamingChunk(
+            content="",
+            index=0,
+            start=False,
+            finish_reason=None,
+            tool_calls=[
+                ToolCallDelta(
+                    index=0,
+                    tool_name=None,
+                    arguments='Paris"',
+                )
+            ],
+            meta={
+                "model": "command-r-08-2024",
+                "chunk_type": "tool-call-delta",
+            },
+        ),
+        # Chunk 7: Tool call delta - closing brace
+        StreamingChunk(
+            content="",
+            index=0,
+            start=False,
+            finish_reason=None,
+            tool_calls=[
+                ToolCallDelta(
+                    index=0,
+                    tool_name=None,
+                    arguments="}",
+                )
+            ],
+            meta={
+                "model": "command-r-08-2024",
+                "chunk_type": "tool-call-delta",
+            },
+        ),
+        # Chunk 8: Tool call end
+        StreamingChunk(
+            content="",
+            index=0,
+            start=False,
+            finish_reason=None,
+            tool_calls=None,
+            meta={
+                "model": "command-r-08-2024",
+                "chunk_type": "tool-call-end",
+            },
+        ),
+        # Chunk 9: Tool call start - second tool
+        StreamingChunk(
+            content="",
+            index=0,
+            start=True,  # Tool call start
+            finish_reason=None,
+            tool_calls=[
+                ToolCallDelta(
+                    index=0,
+                    id="call_weather_berlin_456",
+                    tool_name="weather",
+                    arguments=None,
+                )
+            ],
+            meta={
+                "model": "command-r-08-2024",
+                "chunk_type": "tool-call-start",
+                "tool_call_id": "call_weather_berlin_456",
+            },
+        ),
+        # Chunk 10: Tool call delta - second tool arguments
+        StreamingChunk(
+            content="",
+            index=0,
+            start=False,
+            finish_reason=None,
+            tool_calls=[
+                ToolCallDelta(
+                    index=0,
+                    tool_name=None,
+                    arguments='{"ci',
+                )
+            ],
+            meta={
+                "model": "command-r-08-2024",
+                "chunk_type": "tool-call-delta",
+            },
+        ),
+        # Chunk 11: Tool call delta - more second tool arguments
+        StreamingChunk(
+            content="",
+            index=0,
+            start=False,
+            finish_reason=None,
+            tool_calls=[
+                ToolCallDelta(
+                    index=0,
+                    tool_name=None,
+                    arguments='ty": "',
+                )
+            ],
+            meta={
+                "model": "command-r-08-2024",
+                "chunk_type": "tool-call-delta",
+            },
+        ),
+        # Chunk 12: Tool call delta - second city name
+        StreamingChunk(
+            content="",
+            index=0,
+            start=False,
+            finish_reason=None,
+            tool_calls=[
+                ToolCallDelta(
+                    index=0,
+                    tool_name=None,
+                    arguments='Berlin"',
+                )
+            ],
+            meta={
+                "model": "command-r-08-2024",
+                "chunk_type": "tool-call-delta",
+            },
+        ),
+        # Chunk 13: Tool call delta - closing brace for second tool
+        StreamingChunk(
+            content="",
+            index=0,
+            start=False,
+            finish_reason=None,
+            tool_calls=[
+                ToolCallDelta(
+                    index=0,
+                    tool_name=None,
+                    arguments="}",
+                )
+            ],
+            meta={
+                "model": "command-r-08-2024",
+                "chunk_type": "tool-call-delta",
+            },
+        ),
+        # Chunk 14: Tool call end - second tool
+        StreamingChunk(
+            content="",
+            index=0,
+            start=False,
+            finish_reason=None,
+            tool_calls=None,
+            meta={
+                "model": "command-r-08-2024",
+                "chunk_type": "tool-call-end",
+            },
+        ),
+        # Chunk 15: Message end with finish reason and usage
+        StreamingChunk(
+            content="",
+            index=None,
+            start=False,
+            finish_reason="tool_calls",
+            tool_calls=None,
+            meta={
+                "model": "command-r-08-2024",
+                "chunk_type": "message-end",
+                "finish_reason": "TOOL_CALLS",
+                "usage": {
+                    "prompt_tokens": 9,
+                    "completion_tokens": 75,
+                },
+            },
+        ),
+    ]
+
+
+class TestCohereChunkConversion:
+
+    def test_convert_cohere_chunk_to_streaming_chunk_complete_sequence(self, cohere_chunks, expected_streaming_chunks):
+        previous_chunks = []
+        for cohere_chunk, haystack_chunk in zip(cohere_chunks, expected_streaming_chunks):
+            stream_chunk = _convert_cohere_chunk_to_streaming_chunk(
+                chunk=cohere_chunk,
+                previous_chunks=previous_chunks,
+                model="command-r-08-2024",
+            )
+            assert stream_chunk == haystack_chunk
+            previous_chunks.append(stream_chunk)
+
+    def test_convert_cohere_chunk_with_empty_tool_calls(self):
+        chunk = create_mock_cohere_chunk(
+            "tool-call-start",
+            tool_call_id="call_empty_123",
+            tool_name=None,  # missing tool name
+            arguments=None
+        )
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+
+        assert result.content == ""
+        assert result.start is False
+        assert result.tool_calls is None
+        assert result.index is None
+        assert result.meta["model"] == ""
+        assert result.meta["chunk_type"] == "tool-call-start"
+
+    def test_convert_invalid_chunk(self):
+        # test with None chunk
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=None, previous_chunks=[])
+        assert result.content == ""
+        assert result.start is False
+        assert result.tool_calls is None
+        assert result.index is None
+        assert result.finish_reason is None
+        assert result.meta["model"] == ""
+
+        # test with chunk without delta
+        chunk_without_delta = MagicMock()
+        chunk_without_delta.delta = None
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk_without_delta, previous_chunks=[])
+        assert result.content == ""
+        assert result.start is False
+        assert result.tool_calls is None
+        assert result.index is None
+        assert result.finish_reason is None
+        assert result.meta["model"] == ""
+
+    def test_convert_content_delta_chunk(self):
+        chunk = create_mock_cohere_chunk("content-delta", text="Hello, world!")
+
+        # test first chunk (start=True)
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        assert result.content == "Hello, world!"
+        assert result.index == 0
+        assert result.start is True
+        assert result.tool_calls is None
+        assert result.meta["chunk_type"] == "content-delta"
+
+        # test subsequent chunk (start=False)
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[MagicMock()])
+        assert result.content == "Hello, world!"
+        assert result.index == 0
+        assert result.start is False
+
+    def test_convert_tool_plan_delta_chunk(self):
+        chunk = create_mock_cohere_chunk("tool-plan-delta", tool_plan="I will call the weather tool")
+
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        assert result.content == "I will call the weather tool"
+        assert result.index == 0
+        assert result.start is True
+        assert result.tool_calls is None
+        assert result.meta["chunk_type"] == "tool-plan-delta"
+
+    def test_convert_tool_call_start_chunk(self):
+        chunk = create_mock_cohere_chunk(
+            "tool-call-start",
+            tool_call_id="call_123",
+            tool_name="weather",
+            arguments=None
+        )
+
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        assert result.content == ""
+        assert result.index == 0
+        assert result.start is True
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].id == "call_123"
+        assert result.tool_calls[0].tool_name == "weather"
+        assert result.tool_calls[0].arguments is None
+        assert result.meta["chunk_type"] == "tool-call-start"
+        assert result.meta["tool_call_id"] == "call_123"
+
+    def test_convert_tool_call_delta_chunk(self):
+        chunk = create_mock_cohere_chunk("tool-call-delta", arguments='{"city": "Paris"}')
+
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        assert result.content == ""
+        assert result.index == 0
+        assert result.start is False
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].tool_name is None  # name was set in start chunk
+        assert result.tool_calls[0].arguments == '{"city": "Paris"}'
+        assert result.meta["chunk_type"] == "tool-call-delta"
+
+    def test_convert_tool_call_end_chunk(self):
+        chunk = create_mock_cohere_chunk("tool-call-end")
+
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        assert result.content == ""
+        assert result.index == 0
+        assert result.start is False
+        assert result.tool_calls is None
+        assert result.meta["chunk_type"] == "tool-call-end"
+
+    def test_convert_message_end_chunk(self):
+        chunk = create_mock_cohere_chunk(
+            "message-end",
+            finish_reason="COMPLETE",
+            usage = {
+                "billed_units": {
+                    "input_tokens": 9,
+                    "output_tokens": 75
+                },
+                "tokens": {
+                    "input_tokens": 150,
+                    "output_tokens": 50
+                }
+            }
+        )
+
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        assert result.content == ""
+        assert result.index is None
+        assert result.start is False
+        assert result.finish_reason == "stop"  # Mapped from "COMPLETE"
+        assert result.tool_calls is None
+        assert result.meta["chunk_type"] == "message-end"
+        assert result.meta["finish_reason"] == "COMPLETE"
+        assert result.meta["usage"] == {
+            "prompt_tokens": 9,
+            "completion_tokens": 75,
+        }
+
+    def test_convert_message_end_chunk_max_tokens(self):
+        chunk = create_mock_cohere_chunk(
+            "message-end",
+            finish_reason="MAX_TOKENS",
+            usage={
+                "billed_units": {
+                    "input_tokens": 9,
+                    "output_tokens": 75
+                },
+                "tokens": {
+                    "input_tokens": 200,
+                    "output_tokens": 100
+                }
+            }
+        )
+
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        assert result.finish_reason == "length"  # mapped from "MAX_TOKENS"
+        assert result.meta["finish_reason"] == "MAX_TOKENS"
+        assert result.meta["usage"] == {
+            "prompt_tokens": 9,
+            "completion_tokens": 75,
+        }
+
+    def test_convert_unknown_chunk_type(self):
+        chunk = create_mock_cohere_chunk("unknown-chunk-type")
+
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        assert result.content == ""
+        assert result.index is None
+        assert result.start is False
+        assert result.tool_calls is None
+        assert result.finish_reason is None
+        assert result.meta["chunk_type"] == "unknown-chunk-type"
+
+    def test_convert_with_component_info(self):
+        component_info = ComponentInfo(name="test_component", type="test_type")
+        chunk = create_mock_cohere_chunk("content-delta", text="Test content")
+
+        result = _convert_cohere_chunk_to_streaming_chunk(
+            chunk=chunk, previous_chunks=[], component_info=component_info
+        )
+        assert result.component_info == component_info
+        assert result.content == "Test content"
+
+    def test_finish_reason_mapping(self):
+        finish_reasons = [
+            ("COMPLETE", "stop"),
+            ("MAX_TOKENS", "length"),
+            ("ERROR", "content_filter"),
+            ("TOOL_CALLS", "tool_calls"),
+        ]
+
+        for cohere_reason, haystack_reason in finish_reasons:
+            chunk = create_mock_cohere_chunk("message-end", finish_reason=cohere_reason)
+
+            result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+            assert result.finish_reason == haystack_reason
+            assert result.meta["finish_reason"] == cohere_reason
+
+    def test_usage_extraction_edge_cases(self):
+        # missing usage data
+        chunk = create_mock_cohere_chunk("message-end", finish_reason="COMPLETE")
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+
+        assert result.meta["usage"] is None
+
+        # malformed usage data
+        chunk = create_mock_cohere_chunk(
+            "message-end",
+            finish_reason="COMPLETE",
+            usage={"billed_units": {"invalid_key": 100}}
+        )
+
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        assert result.meta["usage"] is None  # Should handle KeyError gracefully

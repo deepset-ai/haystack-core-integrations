@@ -215,7 +215,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
     tool_calls = None
     meta = {"model": model}
 
-    # Early return for invalid chunks
+    # early return for invalid chunks
     if not chunk or not hasattr(chunk, "delta") or chunk.delta is None:
         return StreamingChunk(
             content=content,
@@ -225,10 +225,8 @@ def _convert_cohere_chunk_to_streaming_chunk(
             meta=meta,
         )
 
-    # Add chunk type to meta
     meta["chunk_type"] = chunk.type
 
-    # Process different chunk types
     if chunk.type == "content-delta":
         if chunk.delta.message and chunk.delta.message.content and chunk.delta.message.content.text is not None:
             content = chunk.delta.message.content.text
@@ -303,7 +301,6 @@ def _convert_cohere_chunk_to_streaming_chunk(
         meta["finish_reason"] = finish_reason_raw  # type: ignore[assignment]
         meta["usage"] = usage  # type: ignore[assignment]
 
-    # Construct and return the StreamingChunk
     return StreamingChunk(
         content=content,
         component_info=component_info,
