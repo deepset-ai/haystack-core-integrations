@@ -592,7 +592,7 @@ class TestAnthropicChatGenerator:
         assert message["replies"][0].meta["usage"] == {
             "cache_creation_input_tokens": None,
             "cache_read_input_tokens": None,
-            "input_tokens": 0,
+            "input_tokens": 393,
             "output_tokens": 77,
             "server_tool_use": None,
         }
