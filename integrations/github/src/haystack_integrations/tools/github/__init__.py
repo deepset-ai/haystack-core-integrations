@@ -5,6 +5,7 @@ from .file_editor_tool import GitHubFileEditorTool
 from .issue_commenter_tool import GitHubIssueCommenterTool
 from .issue_viewer_tool import GitHubIssueViewerTool
 from .pr_creator_tool import GitHubPRCreatorTool
+from .repo_forker_tool import GitHubRepoForkerTool
 from .repo_viewer_tool import GitHubRepoViewerTool
 
 __all__ = [
@@ -12,5 +13,6 @@ __all__ = [
     "GitHubIssueCommenterTool",
     "GitHubIssueViewerTool",
     "GitHubPRCreatorTool",
+    "GitHubRepoForkerTool",
     "GitHubRepoViewerTool",
 ]
