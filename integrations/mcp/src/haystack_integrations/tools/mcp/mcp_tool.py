@@ -14,6 +14,7 @@ from dataclasses import dataclass, fields
 from datetime import timedelta
 from typing import Any, cast
 
+import anyio
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from exceptiongroup import ExceptionGroup
 from haystack import logging
@@ -204,11 +205,14 @@ class MCPClient(ABC):
     regardless of the transport mechanism used.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 30.0) -> None:
         self.session: ClientSession | None = None
         self.exit_stack: AsyncExitStack = AsyncExitStack()
         self.stdio: MemoryObjectReceiveStream[types.JSONRPCMessage | Exception] | None = None
         self.write: MemoryObjectSendStream[types.JSONRPCMessage] | None = None
+        self.max_retries = max_retries
+        self.base_delay = base_delay
+        self.max_delay = max_delay
 
     @abstractmethod
     async def connect(self) -> list[Tool]:
@@ -234,19 +238,74 @@ class MCPClient(ABC):
             message = "Not connected to an MCP server"
             raise MCPConnectionError(message=message, operation="call_tool")
 
-        try:
-            result = await self.session.call_tool(tool_name, tool_args)
-            if result.isError:
-                message = f"Tool '{tool_name}' returned an error: {result.content!s}"
-                raise MCPInvocationError(message=message, tool_name=tool_name)
-            return result.model_dump_json()
-        except MCPError:
-            # Re-raise specific MCP errors directly
-            raise
-        except Exception as e:
-            # Wrap other exceptions with context about which tool failed
-            message = f"Failed to invoke tool '{tool_name}' with args: {tool_args} , got error: {e!s}"
-            raise MCPInvocationError(message, tool_name, tool_args) from e
+        # Implement retry logic with exponential backoff for connection-related errors
+        for attempt in range(self.max_retries + 1):  # +1 for initial attempt
+            try:
+                result = await self.session.call_tool(tool_name, tool_args)
+                if result.isError:
+                    message = f"Tool '{tool_name}' returned an error: {result.content!s}"
+                    raise MCPInvocationError(message=message, tool_name=tool_name)
+                return result.model_dump_json()
+            except MCPError:
+                # Re-raise specific MCP errors directly (these are not connection issues)
+                raise
+            except (anyio.ClosedResourceError, ConnectionError, OSError) as e:
+                error_type = type(e).__name__
+                error_msg = str(e) if str(e) else "Connection closed unexpectedly"
+
+                # Don't retry on the last attempt
+                if attempt >= self.max_retries:
+                    message = (
+                        f"Tool '{tool_name}' failed after {self.max_retries} reconnection attempts. "
+                        f"Last error: {error_type}: {error_msg}. "
+                        f"Consider recreating the MCPTool instance or checking server availability."
+                    )
+                    raise MCPInvocationError(message, tool_name, tool_args) from e
+
+                # Only attempt reconnection for SSE/HTTP transports (if available)
+                if isinstance(self, SSEClient | StreamableHttpClient) and (
+                    sse_client is not None or streamablehttp_client is not None
+                ):
+                    logger.warning(f"Connection lost during tool call '{tool_name}': {error_type}: {error_msg}")
+
+                    try:
+                        # Exponential backoff before reconnection attempt
+                        if attempt > 0:
+                            delay = min(self.base_delay * (2 ** (attempt - 1)), self.max_delay)
+                            logger.info(f"Waiting {delay}s before reconnection attempt {attempt + 1}")
+                            await asyncio.sleep(delay)
+
+                        logger.info(f"Attempting reconnection {attempt + 1}/{self.max_retries}")
+                        await self.connect()
+                        logger.info(f"Reconnection {attempt + 1} successful")
+                        # Continue to next iteration to retry the tool call
+
+                    except Exception as reconnect_error:
+                        logger.error(f"Reconnection attempt {attempt + 1} failed: {reconnect_error}")
+                        if attempt >= self.max_retries - 1:  # This was the last reconnection attempt
+                            message = (
+                                f"Tool '{tool_name}' failed and all {self.max_retries} reconnection attempts failed. "
+                                f"Original error: {error_type}: {error_msg}. "
+                                f"Final reconnection error: {reconnect_error}. "
+                                f"Try recreating the MCPTool instance."
+                            )
+                            raise MCPInvocationError(message, tool_name, tool_args) from e
+                        # Continue to next iteration for another reconnection attempt
+                else:
+                    # For non-HTTP transports, don't attempt reconnection
+                    message = (
+                        f"Connection lost during tool call '{tool_name}': {error_type}: {error_msg}. "
+                        f"For STDIO connections, try recreating the MCPTool instance."
+                    )
+                    raise MCPInvocationError(message, tool_name, tool_args) from e
+            except Exception as e:
+                # Handle other exceptions with meaningful error messages
+                error_description = str(e) if str(e) else f"Unknown {type(e).__name__} error"
+                message = f"Failed to invoke tool '{tool_name}' with args: {tool_args}, got error: {error_description}"
+                raise MCPInvocationError(message, tool_name, tool_args) from e
+
+        message = f"Tool '{tool_name}' failed unexpectedly after all retry attempts"
+        raise MCPInvocationError(message, tool_name, tool_args)
 
     async def aclose(self) -> None:
         """
@@ -306,15 +365,25 @@ class StdioClient(MCPClient):
     MCP client that connects to servers using stdio transport.
     """
 
-    def __init__(self, command: str, args: list[str] | None = None, env: dict[str, str | Secret] | None = None) -> None:
+    def __init__(
+        self,
+        command: str,
+        args: list[str] | None = None,
+        env: dict[str, str | Secret] | None = None,
+        max_retries: int = 3,
+        base_delay: float = 1.0,
+        max_delay: float = 30.0,
+    ) -> None:
         """
         Initialize a stdio MCP client.
 
         :param command: Command to run (e.g., "python", "node")
         :param args: Arguments to pass to the command
         :param env: Environment variables for the command
+        :param max_retries: Maximum number of reconnection attempts
+        :param base_delay: Base delay for exponential backoff in seconds
         """
-        super().__init__()
+        super().__init__(max_retries=max_retries, base_delay=base_delay, max_delay=max_delay)
         self.command: str = command
         self.args: list[str] = args or []
         # Resolve Secret values in environment variables
@@ -344,13 +413,17 @@ class SSEClient(MCPClient):
     MCP client that connects to servers using SSE transport.
     """
 
-    def __init__(self, server_info: "SSEServerInfo") -> None:
+    def __init__(
+        self, server_info: "SSEServerInfo", max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 30.0
+    ) -> None:
         """
         Initialize an SSE MCP client using server configuration.
 
         :param server_info: Configuration object containing URL, token, timeout, etc.
+        :param max_retries: Maximum number of reconnection attempts
+        :param base_delay: Base delay for exponential backoff in seconds
         """
-        super().__init__()
+        super().__init__(max_retries=max_retries, base_delay=base_delay, max_delay=max_delay)
 
         # in post_init we validate the url and set the url field so it is guaranteed to be valid
         # safely ignore the mypy warning here
@@ -367,6 +440,13 @@ class SSEClient(MCPClient):
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
         """
+        if sse_client is None:
+            message = (
+                "SSE client is not available. "
+                "This may require a newer version of the mcp package that includes mcp.client.sse"
+            )
+            raise MCPConnectionError(message=message, operation="sse_connect")
+
         headers = {"Authorization": f"Bearer {self.token}"} if self.token else None
         sse_transport = await self.exit_stack.enter_async_context(
             sse_client(self.url, headers=headers, timeout=self.timeout)
@@ -379,13 +459,21 @@ class StreamableHttpClient(MCPClient):
     MCP client that connects to servers using streamable HTTP transport.
     """
 
-    def __init__(self, server_info: "StreamableHttpServerInfo") -> None:
+    def __init__(
+        self,
+        server_info: "StreamableHttpServerInfo",
+        max_retries: int = 3,
+        base_delay: float = 1.0,
+        max_delay: float = 30.0,
+    ) -> None:
         """
         Initialize a streamable HTTP MCP client using server configuration.
 
         :param server_info: Configuration object containing URL, token, timeout, etc.
+        :param max_retries: Maximum number of reconnection attempts
+        :param base_delay: Base delay for exponential backoff in seconds
         """
-        super().__init__()
+        super().__init__(max_retries=max_retries, base_delay=base_delay, max_delay=max_delay)
 
         self.url: str = server_info.url
         self.token: str | None = (
@@ -515,6 +603,9 @@ class SSEServerInfo(MCPServerInfo):
     base_url: str | None = None  # deprecated
     token: str | Secret | None = None
     timeout: int = 30
+    max_retries: int = 3
+    base_delay: float = 1.0
+    max_delay: float = 30.0
 
     def __post_init__(self):
         """Validate that either url or base_url is provided."""
@@ -549,7 +640,9 @@ class SSEServerInfo(MCPServerInfo):
         :returns: Configured MCPClient instance
         """
         # Pass the validated SSEServerInfo instance directly
-        return SSEClient(server_info=self)
+        return SSEClient(
+            server_info=self, max_retries=self.max_retries, base_delay=self.base_delay, max_delay=self.max_delay
+        )
 
 
 @dataclass
@@ -575,6 +668,9 @@ class StreamableHttpServerInfo(MCPServerInfo):
     url: str
     token: str | Secret | None = None
     timeout: int = 30
+    max_retries: int = 3
+    base_delay: float = 1.0
+    max_delay: float = 30.0
 
     def __post_init__(self):
         """Validate the URL."""
@@ -588,7 +684,9 @@ class StreamableHttpServerInfo(MCPServerInfo):
 
         :returns: Configured StreamableHttpClient instance
         """
-        return StreamableHttpClient(server_info=self)
+        return StreamableHttpClient(
+            server_info=self, max_retries=self.max_retries, base_delay=self.base_delay, max_delay=self.max_delay
+        )
 
 
 @dataclass
@@ -622,6 +720,9 @@ class StdioServerInfo(MCPServerInfo):
     command: str
     args: list[str] | None = None
     env: dict[str, str | Secret] | None = None
+    max_retries: int = 3
+    base_delay: float = 1.0
+    max_delay: float = 30.0
 
     def create_client(self) -> MCPClient:
         """
@@ -629,7 +730,14 @@ class StdioServerInfo(MCPServerInfo):
 
         :returns: Configured StdioMCPClient instance
         """
-        return StdioClient(self.command, self.args, self.env)
+        return StdioClient(
+            self.command,
+            self.args,
+            self.env,
+            max_retries=self.max_retries,
+            base_delay=self.base_delay,
+            max_delay=self.max_delay,
+        )
 
 
 class MCPTool(Tool):

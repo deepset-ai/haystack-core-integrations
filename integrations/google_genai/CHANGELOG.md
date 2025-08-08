@@ -1,5 +1,29 @@
 # Changelog
 
+## [integrations/google_genai-v2.1.1] - 2025-08-07
+
+### 🐛 Bug Fixes
+
+- Add optional `aiohttp` to google-genai integration (#2160)
+
+
+## [integrations/google_genai-v2.1.0] - 2025-08-06
+
+### 🚀 Features
+
+- Image support in GoogleGenAIChatGenerator (#2150)
+
+
+## [integrations/google_genai-v2.0.0] - 2025-08-04
+
+### 🚀 Features
+
+- Adopt new `StreamingChunk` in Google GenAI (#2078)
+
+### 🌀 Miscellaneous
+
+- Fix!: `GoogleGenAIChatGenerator` - align `finish_reason` between streaming and non-streaming (#2142)
+
 ## [integrations/google_genai-v1.3.0] - 2025-07-07
 
 ### 🚀 Features

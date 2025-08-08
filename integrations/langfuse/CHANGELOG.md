@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/langfuse-v2.2.1] - 2025-08-07
+
+### 🚀 Features
+
+- Add AmazonBedrockChatGenerator to supported chat generators in Langfuse (#2164)
+
+
 ## [integrations/langfuse-v2.2.0] - 2025-07-03
 
 ### 🚀 Features

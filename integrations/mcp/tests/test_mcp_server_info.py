@@ -142,6 +142,9 @@ class TestMCPServerInfo:
             "url": "http://example.com/mcp",
             "token": {"type": "env_var", "env_vars": ["TEST_TOKEN"], "strict": True},
             "timeout": 45,
+            "max_retries": 3,
+            "base_delay": 1.0,
+            "max_delay": 30.0,
         }
 
         # Test from_dict - Secret is properly deserialized
@@ -170,6 +173,9 @@ class TestMCPServerInfo:
                 "PUBLIC_VAR": "public_value",
                 "SECRET_VAR": {"type": "env_var", "env_vars": ["SECRET_VAR"], "strict": True},
             },
+            "max_retries": 3,
+            "base_delay": 1.0,
+            "max_delay": 30.0,
         }
 
         # Test from_dict - Secret env vars are properly deserialized, plain strings stay as-is
@@ -203,6 +209,9 @@ class TestMCPServerInfo:
                 "SECRET_VAR1": {"type": "env_var", "env_vars": ["SECRET_VAR1"], "strict": True},
                 "SECRET_VAR2": {"type": "env_var", "env_vars": ["SECRET_VAR2"], "strict": True},
             },
+            "max_retries": 3,
+            "base_delay": 1.0,
+            "max_delay": 30.0,
         }
         new_info = StdioServerInfo.from_dict(info_dict)
         assert len(new_info.env) == 2
