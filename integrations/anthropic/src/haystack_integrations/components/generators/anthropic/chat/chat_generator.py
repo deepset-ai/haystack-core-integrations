@@ -407,7 +407,6 @@ class AnthropicChatGenerator:
             if chunk.delta.type == "text_delta":
                 content = chunk.delta.text
             elif chunk.delta.type == "input_json_delta":
-                # we assign index=0 because one chunk can have only one ToolCallDelta
                 tool_calls.append(ToolCallDelta(index=tool_call_index, arguments=chunk.delta.partial_json))
         # end of streaming message
         elif chunk.type == "message_delta":
@@ -490,12 +489,16 @@ class AnthropicChatGenerator:
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
             tool_call_index = -1
+            input_tokens = None
             component_info = ComponentInfo.from_component(self)
             for chunk in response:
                 if chunk.type in ["message_start", "content_block_start", "content_block_delta", "message_delta"]:
                     # Extract model from message_start chunks
                     if chunk.type == "message_start":
                         model = chunk.message.model
+                        if chunk.message.usage.input_tokens is not None:
+                            input_tokens = chunk.message.usage.input_tokens
+
                     if chunk.type == "content_block_start" and chunk.content_block.type == "tool_use":
                         tool_call_index += 1
 
@@ -510,6 +513,11 @@ class AnthropicChatGenerator:
             completion.meta.update(
                 {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},
             )
+
+            if input_tokens is not None:
+                if "usage" not in completion.meta:
+                    completion.meta["usage"] = {}
+                completion.meta["usage"]["input_tokens"] = input_tokens
             return {"replies": [completion]}
         else:
             return {
