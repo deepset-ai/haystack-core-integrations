@@ -994,7 +994,6 @@ class TestAnthropicChatGenerator:
 
         assert "claude-sonnet-4-20250514" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
-        print(message.meta)
         assert callback.counter > 1
         assert "Paris" in callback.responses
         assert "input_tokens" in message.meta["usage"]
