@@ -407,7 +407,6 @@ class AnthropicChatGenerator:
             if chunk.delta.type == "text_delta":
                 content = chunk.delta.text
             elif chunk.delta.type == "input_json_delta":
-                # we assign index=0 because one chunk can have only one ToolCallDelta
                 tool_calls.append(ToolCallDelta(index=tool_call_index, arguments=chunk.delta.partial_json))
         # end of streaming message
         elif chunk.type == "message_delta":
