@@ -647,7 +647,6 @@ def expected_streaming_chunks():
             tool_calls=None,
             meta={
                 "model": "command-r-08-2024",
-                "chunk_type": "content-delta",
             },
         ),
         # Chunk 2: Tool plan delta
@@ -659,7 +658,6 @@ def expected_streaming_chunks():
             tool_calls=None,
             meta={
                 "model": "command-r-08-2024",
-                "chunk_type": "tool-plan-delta",
             },
         ),
         # Chunk 3: Tool call start
@@ -678,7 +676,6 @@ def expected_streaming_chunks():
             ],
             meta={
                 "model": "command-r-08-2024",
-                "chunk_type": "tool-call-start",
                 "tool_call_id": "call_weather_paris_123",
             },
         ),
@@ -697,7 +694,6 @@ def expected_streaming_chunks():
             ],
             meta={
                 "model": "command-r-08-2024",
-                "chunk_type": "tool-call-delta",
             },
         ),
         # Chunk 5: Tool call delta - more arguments
@@ -715,7 +711,6 @@ def expected_streaming_chunks():
             ],
             meta={
                 "model": "command-r-08-2024",
-                "chunk_type": "tool-call-delta",
             },
         ),
         # Chunk 6: Tool call delta - city name
@@ -733,7 +728,6 @@ def expected_streaming_chunks():
             ],
             meta={
                 "model": "command-r-08-2024",
-                "chunk_type": "tool-call-delta",
             },
         ),
         # Chunk 7: Tool call delta - closing brace
@@ -751,7 +745,6 @@ def expected_streaming_chunks():
             ],
             meta={
                 "model": "command-r-08-2024",
-                "chunk_type": "tool-call-delta",
             },
         ),
         # Chunk 8: Tool call end
@@ -763,7 +756,6 @@ def expected_streaming_chunks():
             tool_calls=None,
             meta={
                 "model": "command-r-08-2024",
-                "chunk_type": "tool-call-end",
             },
         ),
         # Chunk 9: Tool call start - second tool
@@ -782,7 +774,6 @@ def expected_streaming_chunks():
             ],
             meta={
                 "model": "command-r-08-2024",
-                "chunk_type": "tool-call-start",
                 "tool_call_id": "call_weather_berlin_456",
             },
         ),
@@ -801,7 +792,6 @@ def expected_streaming_chunks():
             ],
             meta={
                 "model": "command-r-08-2024",
-                "chunk_type": "tool-call-delta",
             },
         ),
         # Chunk 11: Tool call delta - more second tool arguments
@@ -819,7 +809,6 @@ def expected_streaming_chunks():
             ],
             meta={
                 "model": "command-r-08-2024",
-                "chunk_type": "tool-call-delta",
             },
         ),
         # Chunk 12: Tool call delta - second city name
@@ -837,7 +826,6 @@ def expected_streaming_chunks():
             ],
             meta={
                 "model": "command-r-08-2024",
-                "chunk_type": "tool-call-delta",
             },
         ),
         # Chunk 13: Tool call delta - closing brace for second tool
@@ -855,7 +843,6 @@ def expected_streaming_chunks():
             ],
             meta={
                 "model": "command-r-08-2024",
-                "chunk_type": "tool-call-delta",
             },
         ),
         # Chunk 14: Tool call end - second tool
@@ -867,7 +854,6 @@ def expected_streaming_chunks():
             tool_calls=None,
             meta={
                 "model": "command-r-08-2024",
-                "chunk_type": "tool-call-end",
             },
         ),
         # Chunk 15: Message end with finish reason and usage
@@ -879,7 +865,6 @@ def expected_streaming_chunks():
             tool_calls=None,
             meta={
                 "model": "command-r-08-2024",
-                "chunk_type": "message-end",
                 "finish_reason": "TOOL_CALLS",
                 "usage": {
                     "prompt_tokens": 9,
@@ -916,7 +901,6 @@ class TestCohereChunkConversion:
         assert result.tool_calls is None
         assert result.index is None
         assert result.meta["model"] == ""
-        assert result.meta["chunk_type"] == "tool-call-start"
 
     def test_convert_invalid_chunk(self):
         # test with None chunk
@@ -948,7 +932,6 @@ class TestCohereChunkConversion:
         assert result.index == 0
         assert result.start is True
         assert result.tool_calls is None
-        assert result.meta["chunk_type"] == "content-delta"
 
         # test subsequent chunk (start=False)
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[MagicMock()])
@@ -964,7 +947,6 @@ class TestCohereChunkConversion:
         assert result.index == 0
         assert result.start is True
         assert result.tool_calls is None
-        assert result.meta["chunk_type"] == "tool-plan-delta"
 
     def test_convert_tool_call_start_chunk(self):
         chunk = create_mock_cohere_chunk(
@@ -979,7 +961,6 @@ class TestCohereChunkConversion:
         assert result.tool_calls[0].id == "call_123"
         assert result.tool_calls[0].tool_name == "weather"
         assert result.tool_calls[0].arguments is None
-        assert result.meta["chunk_type"] == "tool-call-start"
         assert result.meta["tool_call_id"] == "call_123"
 
     def test_convert_tool_call_delta_chunk(self):
@@ -992,7 +973,6 @@ class TestCohereChunkConversion:
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0].tool_name is None  # name was set in start chunk
         assert result.tool_calls[0].arguments == '{"city": "Paris"}'
-        assert result.meta["chunk_type"] == "tool-call-delta"
 
     def test_convert_tool_call_end_chunk(self):
         chunk = create_mock_cohere_chunk("tool-call-end")
@@ -1002,7 +982,6 @@ class TestCohereChunkConversion:
         assert result.index == 0
         assert result.start is False
         assert result.tool_calls is None
-        assert result.meta["chunk_type"] == "tool-call-end"
 
     def test_convert_message_end_chunk(self):
         chunk = create_mock_cohere_chunk(
@@ -1020,7 +999,6 @@ class TestCohereChunkConversion:
         assert result.start is False
         assert result.finish_reason == "stop"  # Mapped from "COMPLETE"
         assert result.tool_calls is None
-        assert result.meta["chunk_type"] == "message-end"
         assert result.meta["finish_reason"] == "COMPLETE"
         assert result.meta["usage"] == {
             "prompt_tokens": 9,
@@ -1054,7 +1032,6 @@ class TestCohereChunkConversion:
         assert result.start is False
         assert result.tool_calls is None
         assert result.finish_reason is None
-        assert result.meta["chunk_type"] == "unknown-chunk-type"
 
     def test_convert_with_component_info(self):
         component_info = ComponentInfo(name="test_component", type="test_type")
