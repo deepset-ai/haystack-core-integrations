@@ -4,25 +4,20 @@
 
 ### 🐛 Bug Fixes
 
-- Add `input_tokens` in usage of Anthropic messages (#2173)
+- Add `input_tokens` in `meta["usage"]` of Anthropic messages (#2173)
 
 
 ## [integrations/anthropic-v4.2.0] - 2025-08-07
 
 ### 🐛 Bug Fixes
 
-- Error in `ToolCallDelta.index` for parallel tool calling (#2154)
-
+- Fixed a bug to enable parallel tool calling (#2154)
 
 ## [integrations/anthropic-v4.1.0] - 2025-08-05
 
 ### 🚀 Features
 
 - Adopt new `StreamingChunk` in Anthropic (#2096)
-
-### 🌀 Miscellaneous
-
-- Fix/prompt caching support (#2051)
 
 ## [integrations/anthropic-v3.1.0] - 2025-07-04
 
