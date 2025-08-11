@@ -182,6 +182,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
     previous_chunks: List[StreamingChunk],
     component_info: Optional[ComponentInfo] = None,
     model: str = "",
+    tool_call_index = 0
 ) -> StreamingChunk:
     """
     Converts a Cohere streaming response chunk to a StreamingChunk.
@@ -196,6 +197,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
     :param component_info: An optional `ComponentInfo` object containing information about the component that
         generated the chunk, such as the component name and type.
     :param model: The model name for metadata.
+    :param tool_call_index: The index of the current tool call in the sequence of tool calls.
 
     :returns:
         A StreamingChunk object representing the content of the chunk from the Cohere API.
@@ -208,7 +210,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
 
     # Initialize default values
     content = ""
-    index = None
+    index = getattr(chunk, "index", None)
     start = False
     finish_reason = None
     tool_calls = None
@@ -227,13 +229,11 @@ def _convert_cohere_chunk_to_streaming_chunk(
     if chunk.type == "content-delta":
         if chunk.delta.message and chunk.delta.message.content and chunk.delta.message.content.text is not None:
             content = chunk.delta.message.content.text
-            index = 0  # Text content uses index 0
             start = len(previous_chunks) == 0  # Start if this is the first chunk
 
     elif chunk.type == "tool-plan-delta":
         if chunk.delta.message and chunk.delta.message.tool_plan is not None:
             content = chunk.delta.message.tool_plan
-            index = 0  # Tool plan uses index 0
             start = len(previous_chunks) == 0
 
     elif chunk.type == "tool-call-start":
@@ -243,10 +243,10 @@ def _convert_cohere_chunk_to_streaming_chunk(
             if function is not None and function.name is not None:
                 tool_calls = [
                     ToolCallDelta(
-                        index=0,  # Cohere typically has single tool calls
+                        index=tool_call_index,
                         id=tool_call.id,
                         tool_name=function.name,
-                        arguments=None,  # Arguments come in subsequent chunks
+                        arguments=None,
                     )
                 ]
                 index = 0
@@ -263,8 +263,8 @@ def _convert_cohere_chunk_to_streaming_chunk(
             arguments = chunk.delta.message.tool_calls.function.arguments
             tool_calls = [
                 ToolCallDelta(
-                    index=0,
-                    tool_name=None,  # Name was set in start chunk
+                    index=tool_call_index,
+                    tool_name=None,
                     arguments=arguments,
                 )
             ]
@@ -272,7 +272,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
 
     elif chunk.type == "tool-call-end":
         # Tool call end doesn't have content, just signals completion
-        index = 0
+        pass
 
     elif chunk.type == "message-end":
         finish_reason_raw = getattr(chunk.delta, "finish_reason", None)
@@ -321,10 +321,15 @@ def _parse_streaming_response(
     Loops through each stream object from Cohere and converts it into a StreamingChunk.
     """
     chunks: List[StreamingChunk] = []
+    tool_call_index = -1
 
     for chunk in response:
+        if chunk.type == "tool-call-start":
+            tool_call_index += 1
+
         streaming_chunk = _convert_cohere_chunk_to_streaming_chunk(
-            chunk=chunk, previous_chunks=chunks, component_info=component_info, model=model
+            chunk=chunk, previous_chunks=chunks, component_info=component_info, model=model,
+            tool_call_index=tool_call_index
         )
         chunks.append(streaming_chunk)
         streaming_callback(streaming_chunk)
@@ -534,6 +539,7 @@ class CohereChatGenerator:
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
     ) -> Dict[str, List[ChatMessage]]:
         """
         Invoke the chat endpoint based on the provided messages and generation parameters.
@@ -545,9 +551,16 @@ class CohereChatGenerator:
             Cohere [documentation](https://docs.cohere.com/reference/chat).
         :param tools: A list of tools or a Toolset for which the model can prepare calls. If set, it will override
             the `tools` parameter set during component initialization.
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
+            The callback function accepts StreamingChunk as an argument.
+
         :returns: A dictionary with the following keys:
             - `replies`: a list of `ChatMessage` instances representing the generated responses.
         """
+
+        if streaming_callback:
+            self.streaming_callback = streaming_callback
+
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {
             **self.generation_kwargs,
@@ -597,6 +610,7 @@ class CohereChatGenerator:
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
     ) -> Dict[str, List[ChatMessage]]:
         """
         Asynchronously invoke the chat endpoint based on the provided messages and generation parameters.
@@ -608,9 +622,14 @@ class CohereChatGenerator:
             Cohere [documentation](https://docs.cohere.com/reference/chat).
         :param tools: A list of tools for which the model can prepare calls. If set, it will override
             the `tools` parameter set during component initialization.
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :returns: A dictionary with the following keys:
             - `replies`: a list of `ChatMessage` instances representing the generated responses.
         """
+
+        if streaming_callback:
+            self.streaming_callback = streaming_callback
+
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {
             **self.generation_kwargs,
