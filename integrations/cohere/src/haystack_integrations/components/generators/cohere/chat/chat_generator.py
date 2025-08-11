@@ -182,7 +182,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
     previous_chunks: List[StreamingChunk],
     component_info: Optional[ComponentInfo] = None,
     model: str = "",
-    tool_call_index = 0
+    tool_call_index=0,
 ) -> StreamingChunk:
     """
     Converts a Cohere streaming response chunk to a StreamingChunk.
@@ -328,8 +328,11 @@ def _parse_streaming_response(
             tool_call_index += 1
 
         streaming_chunk = _convert_cohere_chunk_to_streaming_chunk(
-            chunk=chunk, previous_chunks=chunks, component_info=component_info, model=model,
-            tool_call_index=tool_call_index
+            chunk=chunk,
+            previous_chunks=chunks,
+            component_info=component_info,
+            model=model,
+            tool_call_index=tool_call_index,
         )
         chunks.append(streaming_chunk)
         streaming_callback(streaming_chunk)
