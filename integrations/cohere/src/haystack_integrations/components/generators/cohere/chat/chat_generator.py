@@ -203,7 +203,6 @@ def _convert_cohere_chunk_to_streaming_chunk(
     finish_reason_mapping: Dict[str, FinishReason] = {
         "COMPLETE": "stop",
         "MAX_TOKENS": "length",
-        "ERROR": "content_filter",
         "TOOL_CALLS": "tool_calls",
     }
 
@@ -224,8 +223,6 @@ def _convert_cohere_chunk_to_streaming_chunk(
             finish_reason=finish_reason,
             meta=meta,
         )
-
-    meta["chunk_type"] = chunk.type
 
     if chunk.type == "content-delta":
         if chunk.delta.message and chunk.delta.message.content and chunk.delta.message.content.text is not None:
