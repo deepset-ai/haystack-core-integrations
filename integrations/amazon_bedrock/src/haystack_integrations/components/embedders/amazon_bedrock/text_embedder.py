@@ -34,7 +34,7 @@ class AmazonBedrockTextEmbedder:
 
     os.environ["AWS_ACCESS_KEY_ID"] = "..."
     os.environ["AWS_SECRET_ACCESS_KEY_ID"] = "..."
-    os.environ["AWS_REGION_NAME"] = "..."
+    os.environ["AWS_DEFAULT_REGION"] = "..."
 
     embedder = AmazonBedrockTextEmbedder(
         model="cohere.embed-english-v3",
