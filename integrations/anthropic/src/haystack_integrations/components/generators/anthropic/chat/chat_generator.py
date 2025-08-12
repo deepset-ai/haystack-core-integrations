@@ -27,7 +27,14 @@ from haystack.utils.callable_serialization import deserialize_callable, serializ
 
 from anthropic import Anthropic, AsyncAnthropic
 from anthropic.resources.messages.messages import Message, RawMessageStreamEvent, Stream
-from anthropic.types import ImageBlockParam, MessageParam, TextBlockParam, ToolParam, ToolResultBlockParam, ToolUseBlockParam
+from anthropic.types import (
+    ImageBlockParam,
+    MessageParam,
+    TextBlockParam,
+    ToolParam,
+    ToolResultBlockParam,
+    ToolUseBlockParam,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -136,8 +143,7 @@ def _convert_messages_to_anthropic_format(
 
                 # Anthropic vision API format
                 media_type = cast(
-                    Literal["image/jpeg", "image/png", "image/gif", "image/webp"],
-                    part.mime_type or "image/jpeg"
+                    Literal["image/jpeg", "image/png", "image/gif", "image/webp"], part.mime_type or "image/jpeg"
                 )
                 image_block = ImageBlockParam(
                     type="image",
