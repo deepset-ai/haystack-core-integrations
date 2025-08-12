@@ -231,8 +231,7 @@ class AmazonBedrockDocumentImageEmbedder:
                 pdf_page_infos.append(pdf_page_info)
             else:
                 # Read image from file and encode it as base64 string.
-                with open(image_source_info["path"], "rb") as image_file:
-                    base64_image = base64.b64encode(image_file.read()).decode("utf8")
+                base64_image = self._get_base64_image_uri(image_source_info["path"], image_source_info["mime_type"])
 
                 # Process images directly
                 images_to_embed[doc_idx] = base64_image
@@ -266,9 +265,14 @@ class AmazonBedrockDocumentImageEmbedder:
         NOTE: Batch inference is not supported, so embeddings are created one by one.
         """
 
+        titan_body = {}
+        if embedding_config := self.kwargs.get("embeddingConfig"):
+            titan_body["embeddingConfig"] = embedding_config  # optional parameter for Amazon Titan models
+
         all_embeddings = []
+        
         for image in tqdm(documents, disable=not self.progress_bar, desc="Creating embeddings"):
-            body = {"inputImage": image}
+            body = {"inputImage": image, **titan_body}
             try:
                 response = self._client.invoke_model(
                     body=json.dumps(body), modelId=self.model, accept="*/*", contentType="application/json"
@@ -282,3 +286,39 @@ class AmazonBedrockDocumentImageEmbedder:
             all_embeddings.append(embedding)
 
         return all_embeddings
+    
+    def embed_cohere(self, documents: List[str]) -> List[List[float]]:
+        """
+        Internal method to embed base64 images using Cohere models.
+        NOTE: Batch inference is not supported, so embeddings are created one by one.
+        """
+
+        cohere_body = {"input_type": "image"}
+        if emmbedding_types:=self.kwargs.get("embedding_types"):
+            cohere_body["embedding_types"] = emmbedding_types
+
+        all_embeddings = []
+        body = {"images": documents, **cohere_body}
+        
+        try:
+            response = self._client.invoke_model(
+                body=json.dumps(body), modelId=self.model, accept="*/*", contentType="application/json")
+        except ClientError as exception:
+            msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
+            raise AmazonBedrockInferenceError(msg) from exception
+
+        response_body = json.loads(response.get("body").read())
+        embedding = response_body["embedding"]
+        all_embeddings.append(embedding)
+
+        return all_embeddings
+    
+    def _get_base64_image_uri(self, image_file_path: str, image_mime_type: str):
+        with open(image_file_path, "rb") as image_file:
+            image_bytes = image_file.read()
+            base64_image = base64.b64encode(image_bytes).decode("utf-8")
+        if "cohere" in self.model:
+            return f"data:{image_mime_type};base64,{base64_image}"
+        else:
+            return base64_image
+
