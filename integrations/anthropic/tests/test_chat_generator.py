@@ -25,7 +25,15 @@ from anthropic.types import (
 from anthropic.types.raw_message_delta_event import Delta
 from haystack import Pipeline
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, print_streaming_chunk
-from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, ToolCall, ToolCallDelta
+from haystack.dataclasses import (
+    ChatMessage,
+    ChatRole,
+    ComponentInfo,
+    ImageContent,
+    StreamingChunk,
+    ToolCall,
+    ToolCallDelta,
+)
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 
@@ -1799,3 +1807,49 @@ class TestAnthropicChatGeneratorAsync:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
         assert "completion_tokens" in final_message.meta["usage"]
+
+    def test_convert_message_to_anthropic_format_with_image(self):
+        """Test that a ChatMessage with ImageContent is converted to Anthropic format correctly."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
+
+        system_messages, non_system_messages = _convert_messages_to_anthropic_format([message])
+
+        assert len(non_system_messages) == 1
+        anthropic_message = non_system_messages[0]
+        assert anthropic_message["role"] == "user"
+        assert len(anthropic_message["content"]) == 2
+
+        # Check text and image blocks
+        assert anthropic_message["content"][0]["type"] == "text"
+        assert anthropic_message["content"][0]["text"] == "What's in this image?"
+        assert anthropic_message["content"][1]["type"] == "image"
+        assert anthropic_message["content"][1]["source"]["type"] == "base64"
+        assert anthropic_message["content"][1]["source"]["media_type"] == "image/png"
+        assert anthropic_message["content"][1]["source"]["data"] == base64_image
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic token to run this test.",
+    )
+    def test_live_run_multimodal(self, test_files_path):
+        """Integration test for multimodal functionality with real API."""
+        image_path = test_files_path / "apple.jpg"
+        # Resize the image to keep this test fast
+        image_content = ImageContent.from_file_path(file_path=image_path, size=(100, 100))
+        messages = [ChatMessage.from_user(content_parts=["What does this image show? Max 5 words", image_content])]
+
+        generator = AnthropicChatGenerator(generation_kwargs={"max_tokens": 20})
+        response = generator.run(messages=messages)
+
+        assert "replies" in response
+        assert isinstance(response["replies"], list)
+        assert len(response["replies"]) > 0
+        message = response["replies"][0]
+        assert message.text
+        assert len(message.text) > 0
+        assert any(word in message.text.lower() for word in ["apple", "fruit", "red"])
