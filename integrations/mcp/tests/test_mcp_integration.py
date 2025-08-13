@@ -173,7 +173,7 @@ if __name__ == "__main__":
 
         # Create a message that should trigger tool use
         message = ChatMessage.from_user(
-            text="Use brave_web_search to search for the latest news about Large Language Models"
+            text="Use brave_web_search to search for the latest news about the stock market"
         )
 
         result = pipeline.run({"llm": {"messages": [message]}})
@@ -183,10 +183,10 @@ if __name__ == "__main__":
 
         tool_message = tool_messages[0]
         assert tool_message.is_from(ChatRole.TOOL)
-        assert any(term in tool_message.tool_call_result.result for term in ["LLM", "benchmark"]), (
-            "Result should contain information about Large Language Models"
-            f"\n\nResult: {tool_message.tool_call_result.result}"
-        )
+        assert any(
+            term in tool_message.tool_call_result.result
+            for term in ["equity", "market", "stock", "price", "NASDAQ", "S&P 500"]
+        ), f"Result should contain information about the stock market\n\nResult: {tool_message.tool_call_result.result}"
 
     @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     def test_mcp_tool_in_pipeline_with_multiple_tools(self, mcp_tool_cleanup):
