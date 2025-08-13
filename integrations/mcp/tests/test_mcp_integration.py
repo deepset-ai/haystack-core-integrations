@@ -173,7 +173,7 @@ if __name__ == "__main__":
 
         # Create a message that should trigger tool use
         message = ChatMessage.from_user(
-            text="Use brave_web_search to search for the latest news about the stock market, use the `query` parameter only"
+            text="Use brave_web_search to search for the latest news about the stock market, use the `query` parameter"
         )
 
         result = pipeline.run({"llm": {"messages": [message]}})
