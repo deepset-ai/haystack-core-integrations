@@ -172,7 +172,7 @@ if __name__ == "__main__":
         pipeline.connect("llm.replies", "tool_invoker.messages")
 
         # Create a message that should trigger tool use
-        message = ChatMessage.from_user(text="Use brave_web_search to search for the latest German elections news")
+        message = ChatMessage.from_user(text="Use brave_web_search to search for the latest news about Large Language Models")
 
         result = pipeline.run({"llm": {"messages": [message]}})
 
@@ -181,8 +181,8 @@ if __name__ == "__main__":
 
         tool_message = tool_messages[0]
         assert tool_message.is_from(ChatRole.TOOL)
-        assert any(term in tool_message.tool_call_result.result for term in ["Bundestag", "election"]), (
-            "Result should contain information about German elections"
+        assert any(term in tool_message.tool_call_result.result for term in ["LLM", "benchmark"]), (
+            "Result should contain information about Large Language Models"
             f"\n\nResult: {tool_message.tool_call_result.result}"
         )
 
