@@ -172,6 +172,7 @@ class SpanContext:
     parent_span: Optional[Span]
     trace_name: str = "Haystack"
     public: bool = False
+    session_id: Optional[str] = None
 
     def __post_init__(self) -> None:
         """
@@ -273,13 +274,15 @@ class DefaultSpanHandler(SpanHandler):
         tracing_ctx = tracing_context_var.get({})
         if not context.parent_span:
             # Create a new trace when there's no parent span
+            # Use session_id from context if provided, otherwise fall back to external context
+            session_id = context.session_id or tracing_ctx.get("session_id")
             return LangfuseSpan(
                 self.tracer.trace(
                     name=context.trace_name,
                     public=context.public,
                     id=tracing_ctx.get("trace_id"),
                     user_id=tracing_ctx.get("user_id"),
-                    session_id=tracing_ctx.get("session_id"),
+                    session_id=session_id,
                     tags=tracing_ctx.get("tags"),
                     version=tracing_ctx.get("version"),
                 )
@@ -346,6 +349,7 @@ class LangfuseTracer(Tracer):
         name: str = "Haystack",
         public: bool = False,
         span_handler: Optional[SpanHandler] = None,
+        session_id: Optional[str] = None,
     ) -> None:
         """
         Initialize a LangfuseTracer instance.
@@ -357,6 +361,8 @@ class LangfuseTracer(Tracer):
             be publicly accessible to anyone with the tracing URL. If set to `False`, the tracing data will be private
             and only accessible to the Langfuse account owner.
         :param span_handler: Custom handler for processing spans. If None, uses DefaultSpanHandler.
+        :param session_id: Optional session ID to group multiple traces together. If provided, all traces
+            created by this tracer will use this session_id, allowing Langfuse to group them as one session.
         """
         if not proxy_tracer.is_content_tracing_enabled:
             logger.warning(
@@ -369,6 +375,7 @@ class LangfuseTracer(Tracer):
         self._context: List[LangfuseSpan] = []
         self._name = name
         self._public = public
+        self._session_id = session_id
         self.enforce_flush = os.getenv(HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR, "true").lower() == "true"
         self._span_handler = span_handler or DefaultSpanHandler()
         self._span_handler.init_tracer(tracer)
@@ -392,6 +399,7 @@ class LangfuseTracer(Tracer):
             parent_span=parent_span or self.current_span(),
             trace_name=self._name,
             public=self._public,
+            session_id=self._session_id,
         )
 
         # Create span using the handler

@@ -69,6 +69,7 @@ class TestLangfuseConnector:
                 "span_handler": None,
                 "host": None,
                 "langfuse_client_kwargs": None,
+                "session_id": None,
             },
         }
 
@@ -111,6 +112,7 @@ class TestLangfuseConnector:
                 },
                 "host": "https://example.com",
                 "langfuse_client_kwargs": {"timeout": 30.0},
+                "session_id": None,
             },
         }
 
@@ -136,6 +138,7 @@ class TestLangfuseConnector:
                 "span_handler": None,
                 "host": None,
                 "langfuse_client_kwargs": None,
+                "session_id": None,
             },
         }
         langfuse_connector = LangfuseConnector.from_dict(data)
@@ -146,6 +149,7 @@ class TestLangfuseConnector:
         assert langfuse_connector.span_handler is None
         assert langfuse_connector.host is None
         assert langfuse_connector.langfuse_client_kwargs is None
+        assert langfuse_connector.session_id is None
 
     def test_from_dict_with_params(self, monkeypatch):
         monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
@@ -175,6 +179,7 @@ class TestLangfuseConnector:
                 },
                 "host": "https://example.com",
                 "langfuse_client_kwargs": {"timeout": 30.0},
+                "session_id": None,
             },
         }
 
@@ -186,6 +191,7 @@ class TestLangfuseConnector:
         assert isinstance(langfuse_connector.span_handler, CustomSpanHandler)
         assert langfuse_connector.host == "https://example.com"
         assert langfuse_connector.langfuse_client_kwargs == {"timeout": 30.0}
+        assert langfuse_connector.session_id is None
 
     def test_pipeline_serialization(self, monkeypatch):
         # Set test env vars

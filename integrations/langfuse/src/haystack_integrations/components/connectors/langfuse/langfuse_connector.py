@@ -112,6 +112,20 @@ class LangfuseConnector:
 
     connector = LangfuseConnector(span_handler=CustomSpanHandler())
     ```
+
+        **Using Sessions to Group Related Traces:**
+
+        ```python
+        # Create a connector with a session ID to group all related traces
+        tracer = LangfuseConnector(
+            name="Agent Workflow",
+            session_id="user_123_workflow_456"
+        )
+
+        # All traces created by this connector will use the same session_id
+        # Langfuse will automatically group them as one session in the UI
+        # This is useful for complex workflows with multiple agents or pipelines
+        ```
     """
 
     def __init__(
@@ -125,6 +139,7 @@ class LangfuseConnector:
         *,
         host: Optional[str] = None,
         langfuse_client_kwargs: Optional[Dict[str, Any]] = None,
+        session_id: Optional[str] = None,
     ) -> None:
         """
         Initialize the LangfuseConnector component.
@@ -148,6 +163,9 @@ class LangfuseConnector:
         :param langfuse_client_kwargs: Optional custom configuration for the Langfuse client. This is a dictionary
             containing any additional configuration options for the Langfuse client. See the Langfuse documentation
             for more details on available configuration options.
+        :param session_id: Optional session ID to group multiple traces together. If provided, all traces created
+            by this connector will be grouped under the same session in Langfuse, making it easier to correlate
+            related operations (e.g., all agents in a workflow).
         """
         self.name = name
         self.public = public
@@ -156,6 +174,7 @@ class LangfuseConnector:
         self.span_handler = span_handler
         self.host = host
         self.langfuse_client_kwargs = langfuse_client_kwargs
+        self.session_id = session_id
         resolved_langfuse_client_kwargs = {
             "secret_key": secret_key.resolve_value() if secret_key else None,
             "public_key": public_key.resolve_value() if public_key else None,
@@ -168,6 +187,7 @@ class LangfuseConnector:
             name=name,
             public=public,
             span_handler=span_handler,
+            session_id=session_id,
         )
         tracing.enable_tracing(self.tracer)
 
@@ -178,18 +198,37 @@ class LangfuseConnector:
 
         :param invocation_context: A dictionary with additional context for the invocation. This parameter
             is useful when users want to mark this particular invocation with additional information, e.g.
-            a run id from their own execution framework, user id, etc. These key-value pairs are then visible
+            a run id from their own execution framework, user_id, etc. These key-value pairs are then visible
             in the Langfuse traces.
         :returns: A dictionary with the following keys:
             - `name`: The name of the tracing component.
             - `trace_url`: The URL to the tracing data.
             - `trace_id`: The ID of the trace.
         """
+        # Note: session_id is handled at the trace level, not in invocation context
+        # The session_id parameter is used when creating traces, not when running the connector
+
         logger.debug(
             "Langfuse tracer invoked with the following context: '{invocation_context}'",
             invocation_context=invocation_context,
         )
         return {"name": self.name, "trace_url": self.tracer.get_trace_url(), "trace_id": self.tracer.get_trace_id()}
+
+    def get_session_id(self) -> Optional[str]:
+        """
+        Get the session ID used by this connector.
+
+        :return: The session ID if set, None otherwise.
+        """
+        return self.session_id
+
+    def get_tracer_session_id(self) -> Optional[str]:
+        """
+        Get the session ID from the underlying tracer.
+
+        :return: The session ID if set, None otherwise.
+        """
+        return getattr(self.tracer, "_session_id", None)
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -215,6 +254,7 @@ class LangfuseConnector:
             span_handler=span_handler,
             host=self.host,
             langfuse_client_kwargs=langfuse_client_kwargs,
+            session_id=self.session_id,
         )
 
     @classmethod
@@ -230,4 +270,5 @@ class LangfuseConnector:
         init_params["span_handler"] = (
             deserialize_class_instance(init_params["span_handler"]) if init_params["span_handler"] else None
         )
+        # session_id is a simple string, no deserialization needed
         return default_from_dict(cls, data)
