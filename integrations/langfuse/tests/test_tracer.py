@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import datetime
 import json
 import logging
@@ -15,38 +16,43 @@ from haystack.dataclasses import ChatMessage, ToolCall
 
 from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 from haystack_integrations.tracing.langfuse.tracer import (
-    _COMPONENT_OUTPUT_KEY, DefaultSpanHandler, LangfuseSpan, LangfuseTracer,
-    SpanContext)
+    _COMPONENT_OUTPUT_KEY,
+    DefaultSpanHandler,
+    LangfuseSpan,
+    LangfuseTracer,
+    SpanContext,
+)
 
 
 class MockSpan:
-    def __init__(self):
+    def __init__(self, name="mock_span"):
         self._data = {}
         self._span = self
-        self.operation_name = "operation_name"
+        self.operation_name = name
+        self._name = name
 
     def raw_span(self):
         return self
 
     def span(self, name=None):
-        # assert correct operation name passed to the span
-        assert name == "operation_name"
-        return self
+        # Return a new mock span for child spans
+        return MockSpan(name=name or "child_span")
 
     def update(self, **kwargs):
         self._data.update(kwargs)
 
     def generation(self, name=None):
-        return self
+        # Return a new mock span for generation spans
+        return MockSpan(name=name or "generation_span")
 
     def end(self):
         pass
 
 
 class MockTracer:
-
     def trace(self, name, **kwargs):
-        return MockSpan()
+        # Return a unique mock span for each trace call
+        return MockSpan(name=name)
 
     def flush(self):
         pass
@@ -62,7 +68,6 @@ class CustomSpanHandler(DefaultSpanHandler):
 
 
 class TestLangfuseSpan:
-
     #  LangfuseSpan can be initialized with a span object
     def test_initialized_with_span_object(self):
         mock_span = Mock()
@@ -235,7 +240,8 @@ class TestLangfuseTracer:
         langfuse_instance = Mock()
         tracer = LangfuseTracer(tracer=langfuse_instance, name="Haystack", public=True)
         assert tracer._tracer == langfuse_instance
-        assert tracer._context == []
+        # Check behavioral state instead of internal _context list
+        assert tracer.current_span() is None
         assert tracer._name == "Haystack"
         assert tracer._public
 
@@ -258,13 +264,14 @@ class TestLangfuseTracer:
 
             # check that the trace method is called on the tracer instance with the provided operation name and tags
             with tracer.trace("operation_name", tags={"tag1": "value1", "tag2": "value2"}) as span:
-                assert len(tracer._context) == 1, "The trace span should have been added to the the root context span"
+                # Check that there is a current active span during tracing
+                assert tracer.current_span() is not None, "There should be an active span during tracing"
+                assert tracer.current_span() == span, "The current span should be the active span"
                 assert span.raw_span().operation_name == "operation_name"
                 assert span.raw_span().metadata == {"tag1": "value1", "tag2": "value2"}
 
-            assert (
-                len(tracer._context) == 0
-            ), "The trace span should have been popped, and the root span is closed as well"
+            # Check that the span is cleaned up after tracing
+            assert tracer.current_span() is None, "There should be no active span after tracing completes"
 
     # check that update method is called on the span instance with the provided key value pairs
     def test_update_span_with_pipeline_input_output_data(self):
@@ -327,12 +334,12 @@ class TestLangfuseTracer:
         assert mock_span.update.call_count >= 1
         name_update_call = None
         for call in mock_span.update.call_args_list:
-            if 'name' in call[1]:
+            if "name" in call[1]:
                 name_update_call = call
                 break
 
         assert name_update_call is not None, "No call to update the span name was made"
-        updated_name = name_update_call[1]['name']
+        updated_name = name_update_call[1]["name"]
 
         # verify the format of the updated span name to be: `original_component_name - [list_of_tool_names]`
         assert updated_name != "tool_invoker", f"Expected 'tool_invoker` to be upddated with tool names"
@@ -372,8 +379,7 @@ class TestLangfuseTracer:
         monkeypatch.setenv("HAYSTACK_LANGFUSE_ENFORCE_FLUSH", "false")
         tracer_mock = Mock()
 
-        from haystack_integrations.tracing.langfuse.tracer import \
-            LangfuseTracer
+        from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer
 
         tracer = LangfuseTracer(tracer=tracer_mock, name="Haystack", public=False)
         with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
@@ -388,11 +394,12 @@ class TestLangfuseTracer:
         with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
             pass
 
-        assert tracer._context == []
+        # Check behavioral state instead of internal _context list
+        assert tracer.current_span() is None
 
     def test_init_with_tracing_disabled(self, monkeypatch, caplog):
         # Clear haystack modules because ProxyTracer is initialized whenever haystack is imported
-        modules_to_clear = [name for name in sys.modules if name.startswith('haystack')]
+        modules_to_clear = [name for name in sys.modules if name.startswith("haystack")]
         for name in modules_to_clear:
             sys.modules.pop(name, None)
 
@@ -415,7 +422,6 @@ class TestLangfuseTracer:
         Before the fix: context would retain spans after failures (length > 0)
         After the fix: context is always cleaned up (length == 0)
         """
-
 
         @component
         class FailingParser:
@@ -451,10 +457,82 @@ class TestLangfuseTracer:
             pass  # Expected to fail
 
         # Critical assertion: context should be empty after failed operation
-        assert len(tracer.tracer._context) == 0
+        assert tracer.tracer.current_span() is None
 
         # Test 2: Second run should work normally with clean context
         main_pipeline.run({"nested_component": {"input_data": '{"key": "valid"}'}})
-        
+
         # Critical assertion: context should be empty after successful operation
-        assert len(tracer.tracer._context) == 0
+        assert tracer.tracer.current_span() is None
+
+    def test_async_concurrency_span_isolation(self):
+        """
+        Test that concurrent async traces maintain isolated span contexts.
+
+        This test verifies that the context-local span stack prevents cross-request
+        span interleaving in concurrent environments like FastAPI servers.
+        """
+        tracer = LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
+
+        # Track spans from each task for verification
+        task1_spans = []
+        task2_spans = []
+
+        async def trace_task(task_id: str, spans_list: list):
+            """Simulate a request with nested tracing operations"""
+            with tracer.trace(f"outer_operation_{task_id}") as outer_span:
+                spans_list.append(("outer", outer_span, tracer.current_span()))
+
+                # Simulate some async work
+                await asyncio.sleep(0.01)
+
+                with tracer.trace(f"inner_operation_{task_id}") as inner_span:
+                    spans_list.append(("inner", inner_span, tracer.current_span()))
+
+                    # Simulate more async work
+                    await asyncio.sleep(0.01)
+
+                    # Verify nested relationship within this task
+                    assert tracer.current_span() == inner_span
+
+                # After inner span, outer should be current again
+                spans_list.append(("after_inner", None, tracer.current_span()))
+                assert tracer.current_span() == outer_span
+
+            # After all spans, should be None
+            spans_list.append(("after_outer", None, tracer.current_span()))
+            assert tracer.current_span() is None
+
+        async def run_concurrent_traces():
+            """Run two concurrent tracing tasks"""
+            await asyncio.gather(trace_task("task1", task1_spans), trace_task("task2", task2_spans))
+
+        # Run the concurrent test
+        asyncio.run(run_concurrent_traces())
+
+        # Verify both tasks completed successfully
+        assert len(task1_spans) == 4
+        assert len(task2_spans) == 4
+
+        # Verify each task had proper span isolation
+        # Task 1 spans should be different from Task 2 spans
+        task1_outer = task1_spans[0][1]  # outer span from task1
+        task2_outer = task2_spans[0][1]  # outer span from task2
+        assert task1_outer != task2_outer
+
+        task1_inner = task1_spans[1][1]  # inner span from task1
+        task2_inner = task2_spans[1][1]  # inner span from task2
+        assert task1_inner != task2_inner
+
+        # Verify proper nesting within each task
+        # Task 1: outer -> inner -> outer -> None
+        assert task1_spans[0][2] == task1_outer  # current_span during outer
+        assert task1_spans[1][2] == task1_inner  # current_span during inner
+        assert task1_spans[2][2] == task1_outer  # current_span after inner
+        assert task1_spans[3][2] is None  # current_span after outer
+
+        # Task 2: outer -> inner -> outer -> None
+        assert task2_spans[0][2] == task2_outer  # current_span during outer
+        assert task2_spans[1][2] == task2_inner  # current_span during inner
+        assert task2_spans[2][2] == task2_outer  # current_span after inner
+        assert task2_spans[3][2] is None  # current_span after outer
