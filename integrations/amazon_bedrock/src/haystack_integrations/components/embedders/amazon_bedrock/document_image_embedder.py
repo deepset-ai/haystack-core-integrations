@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 SUPPORTED_EMBEDDING_MODELS = [
     "amazon.titan-embed-image-v1",
+    "cohere.embed-english-v3"
 ]
 
 
@@ -91,6 +92,7 @@ class AmazonBedrockDocumentImageEmbedder:
             The Bedrock model to use for calculating embeddings. Pass a valid model ID.
             Supported models:
             - "amazon.titan-embed-image-v1"
+            - "cohere.embed-english-v3"
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
         :param aws_session_token: AWS session token.
@@ -103,7 +105,7 @@ class AmazonBedrockDocumentImageEmbedder:
             If `True`, shows a progress bar when embedding documents.
         :param boto3_config: The configuration for the boto3 client.
         :param kwargs: Additional parameters to pass for model inference.
-            For example, `embeddingConfig` for Amazon Titan models and `input_type` and `truncate` for Cohere models.
+            For example, `embeddingConfig` for Amazon Titan models and `input_type` and `embedding_types` for Cohere models.
         :raises ValueError: If the model is not supported.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly.
         """
@@ -160,13 +162,14 @@ class AmazonBedrockDocumentImageEmbedder:
             file_path_meta_field=self.file_path_meta_field,
             root_path=self.root_path,
             model=self.model,
-            aws_access_key_id=self.aws_access_key_id,
-            aws_secret_access_key=self.aws_secret_access_key,
-            aws_session_token=self.aws_session_token,
-            aws_region_name=self.aws_region_name,
-            aws_profile_name=self.aws_profile_name,
+            aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
+            aws_secret_access_key=self.aws_secret_access_key.to_dict() if self.aws_secret_access_key else None,
+            aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
+            aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
+            aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
             progress_bar=self.progress_bar,
             boto3_config=self.boto3_config,
+            **self.kwargs,
         )
         return serialization_dict
 
@@ -230,7 +233,7 @@ class AmazonBedrockDocumentImageEmbedder:
                 }
                 pdf_page_infos.append(pdf_page_info)
             else:
-                # Read image from file and encode it as base64 string.
+                # Read image from file and encode it for the relevant model.
                 base64_image = self._get_base64_image_uri(image_source_info["path"], image_source_info["mime_type"])
 
                 # Process images directly
@@ -245,7 +248,13 @@ class AmazonBedrockDocumentImageEmbedder:
             msg = f"Conversion failed for some documents. Document IDs: {none_images_doc_ids}."
             raise RuntimeError(msg)
 
-        embeddings = self._embed_titan(documents=images_to_embed)
+        if "cohere" in self.model:
+            embeddings = self._embed_cohere(documents=images_to_embed)
+        elif "titan" in self.model:
+            embeddings = self._embed_titan(documents=images_to_embed)
+        else:
+            msg = f"Model {self.model} is not supported. Supported models are: {', '.join(SUPPORTED_EMBEDDING_MODELS)}."
+            raise ValueError(msg)
 
         docs_with_embeddings = []
         for doc, emb in zip(documents, embeddings):
@@ -287,13 +296,13 @@ class AmazonBedrockDocumentImageEmbedder:
 
         return all_embeddings
     
-    def embed_cohere(self, documents: List[str]) -> List[List[float]]:
+    def _embed_cohere(self, documents: List[str]) -> List[List[float]]:
         """
         Internal method to embed base64 images using Cohere models.
         NOTE: Batch inference is not supported, so embeddings are created one by one.
         """
 
-        cohere_body = {"input_type": "image"}
+        cohere_body = {"input_type": "images"}
         if emmbedding_types:=self.kwargs.get("embedding_types"):
             cohere_body["embedding_types"] = emmbedding_types
 
@@ -308,8 +317,7 @@ class AmazonBedrockDocumentImageEmbedder:
             raise AmazonBedrockInferenceError(msg) from exception
 
         response_body = json.loads(response.get("body").read())
-        embedding = response_body["embedding"]
-        all_embeddings.append(embedding)
+        all_embeddings = response_body["embeddings"]
 
         return all_embeddings
     
