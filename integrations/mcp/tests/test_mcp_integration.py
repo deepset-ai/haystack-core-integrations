@@ -165,7 +165,7 @@ if __name__ == "__main__":
 
         # Create pipeline with OpenAIChatGenerator and ToolInvoker
         pipeline = Pipeline()
-        pipeline.add_component("llm", OpenAIChatGenerator(model="gpt-4o-mini", tools=[tool]))
+        pipeline.add_component("llm", OpenAIChatGenerator(model="gpt-4.1-mini", tools=[tool]))
         pipeline.add_component("tool_invoker", ToolInvoker(tools=[tool]))
 
         # Connect components
@@ -213,7 +213,7 @@ if __name__ == "__main__":
 
         # Create pipeline with OpenAIChatGenerator and ToolInvoker
         pipeline = Pipeline()
-        pipeline.add_component("llm", OpenAIChatGenerator(model="gpt-4o-mini", tools=[echo_tool, time_tool]))
+        pipeline.add_component("llm", OpenAIChatGenerator(model="gpt-4.1-mini", tools=[echo_tool, time_tool]))
         pipeline.add_component("tool_invoker", ToolInvoker(tools=[echo_tool, time_tool]))
 
         pipeline.connect("llm.replies", "tool_invoker.messages")
