@@ -39,6 +39,10 @@ from anthropic.types import (
 logger = logging.getLogger(__name__)
 
 
+# See https://docs.anthropic.com/en/api/messages for supported formats
+IMAGE_SUPPORTED_FORMATS = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+
+
 # Mapping from Anthropic stop reasons to Haystack FinishReason values
 FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
     "end_turn": "stop",
@@ -137,19 +141,24 @@ def _convert_messages_to_anthropic_format(
                     text_block["cache_control"] = cache_control
                 content.append(text_block)
             elif isinstance(part, ImageContent):
-                if message.is_from(ChatRole.ASSISTANT):
-                    msg = "Image content is not supported for assistant messages"
+                if not message.is_from(ChatRole.USER):
+                    msg = "Image content is only supported for user messages"
                     raise ValueError(msg)
 
                 # Anthropic vision API format
-                media_type = cast(
-                    Literal["image/jpeg", "image/png", "image/gif", "image/webp"], part.mime_type or "image/jpeg"
-                )
+                media_type = part.mime_type or "image/jpeg"
+                if media_type not in IMAGE_SUPPORTED_FORMATS:
+                    supported_formats = ", ".join(IMAGE_SUPPORTED_FORMATS)
+                    msg = (
+                        f"Unsupported image format: {media_type}. "
+                        f"Anthropic supports the following formats: {supported_formats}"
+                    )
+                    raise ValueError(msg)
                 image_block = ImageBlockParam(
                     type="image",
                     source={
                         "type": "base64",
-                        "media_type": media_type,
+                        "media_type": cast(Literal["image/jpeg", "image/png", "image/gif", "image/webp"], media_type),
                         "data": part.base64_image,
                     },
                 )
