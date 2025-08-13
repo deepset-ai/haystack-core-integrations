@@ -172,7 +172,9 @@ if __name__ == "__main__":
         pipeline.connect("llm.replies", "tool_invoker.messages")
 
         # Create a message that should trigger tool use
-        message = ChatMessage.from_user(text="Use brave_web_search to search for the latest news about Large Language Models")
+        message = ChatMessage.from_user(
+            text="Use brave_web_search to search for the latest news about Large Language Models"
+        )
 
         result = pipeline.run({"llm": {"messages": [message]}})
 
