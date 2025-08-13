@@ -238,9 +238,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
         or not os.getenv("AWS_DEFAULT_REGION"),
         reason="AWS credentials are not set",
     )
-    def test_live_run(self, test_files_path, monkeypatch):
-        monkeypatch.delenv("HF_API_TOKEN", raising=False)  # https://github.com/deepset-ai/haystack/issues/8811
-
+    def test_live_run(self, test_files_path):
         embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
 
         documents = [
