@@ -14,8 +14,10 @@ from haystack_integrations.common.amazon_bedrock.errors import (
 )
 from haystack_integrations.components.embedders.amazon_bedrock import AmazonBedrockDocumentImageEmbedder
 
-TYPE = "haystack_integrations.components.embedders.amazon_bedrock."
-"document_image_embedder.AmazonBedrockDocumentImageEmbedder"
+TYPE = (
+    "haystack_integrations.components.embedders.amazon_bedrock."
+    "document_image_embedder.AmazonBedrockDocumentImageEmbedder"
+)
 
 
 class TestAmazonBedrockDocumentImageEmbedder:
