@@ -101,7 +101,7 @@ class CohereDocumentImageEmbedder:
             supported models.
         :param embedding_type:
             The type of embeddings to return. Defaults to float embeddings.
-            Note that int8, uint8, binary, and ubinary are only valid for v3 models.
+            Specifying a type different from float is only supported for Embed v3.0 and newer models.
         :param progress_bar:
             Whether to show a progress bar or not. Can be helpful to disable in production deployments
             to keep the logs clean.
