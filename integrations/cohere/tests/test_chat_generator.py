@@ -897,39 +897,43 @@ class TestCohereChunkConversion:
             tool_name=None,  # missing tool name
             arguments=None,
         )
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[], model="command-r-08-2024")
 
         assert result.content == ""
         assert result.start is False
         assert result.tool_calls is None
         assert result.index is None
-        assert result.meta["model"] == ""
+        assert result.meta["model"] == "command-r-08-2024"
 
     def test_convert_invalid_chunk(self):
         # test with None chunk
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=None, previous_chunks=[])
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=None, previous_chunks=[], model="command-r-08-2024")
         assert result is None
 
     def test_convert_content_delta_chunk(self):
         chunk = create_mock_cohere_chunk("content-delta", text="Hello, world!")
 
         # test first chunk (start=True)
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[], model="command-r-08-2024")
         assert result.content == "Hello, world!"
         assert result.index is None
         assert result.start is True
         assert result.tool_calls is None
+        assert result.meta["model"] == "command-r-08-2024"
 
         # test subsequent chunk (start=False)
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[MagicMock()])
+        result = _convert_cohere_chunk_to_streaming_chunk(
+            chunk=chunk, previous_chunks=[MagicMock()], model="command-r-08-2024"
+        )
         assert result.content == "Hello, world!"
         assert result.index is None
         assert result.start is False
+        assert result.meta["model"] == "command-r-08-2024"
 
     def test_convert_tool_plan_delta_chunk(self):
         chunk = create_mock_cohere_chunk("tool-plan-delta", tool_plan="I will call the weather tool")
 
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[], model="command-r-08-2024")
         assert result.content == "I will call the weather tool"
         assert result.index is None
         assert result.start is True
@@ -940,7 +944,7 @@ class TestCohereChunkConversion:
             "tool-call-start", tool_call_id="call_123", tool_name="weather", arguments=None
         )
 
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[], model="command-r-08-2024")
         assert result.content == ""
         assert result.index == 0
         assert result.start is True
@@ -953,7 +957,7 @@ class TestCohereChunkConversion:
     def test_convert_tool_call_delta_chunk(self):
         chunk = create_mock_cohere_chunk("tool-call-delta", arguments='{"city": "Paris"}')
 
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[], model="command-r-08-2024")
         assert result.content == ""
         assert result.index == 0
         assert result.start is False
@@ -964,7 +968,7 @@ class TestCohereChunkConversion:
     def test_convert_tool_call_end_chunk(self):
         chunk = create_mock_cohere_chunk("tool-call-end")
 
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[], model="command-r-08-2024")
         assert result.content == ""
         assert result.index is None
         assert result.start is False
@@ -980,7 +984,7 @@ class TestCohereChunkConversion:
             },
         )
 
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[], model="command-r-08-2024")
         assert result.content == ""
         assert result.index is None
         assert result.start is False
@@ -1002,7 +1006,7 @@ class TestCohereChunkConversion:
             },
         )
 
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[], model="command-r-08-2024")
         assert result.finish_reason == "length"  # mapped from "MAX_TOKENS"
         assert result.meta["finish_reason"] == "MAX_TOKENS"
         assert result.meta["usage"] == {
@@ -1012,7 +1016,7 @@ class TestCohereChunkConversion:
 
     def test_convert_unknown_chunk_type(self):
         chunk = create_mock_cohere_chunk("unknown-chunk-type")
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[], model="command-r-08-2024")
         assert result.content == ""
         assert result.start is False
         assert result.tool_calls is None
@@ -1023,7 +1027,7 @@ class TestCohereChunkConversion:
         chunk = create_mock_cohere_chunk("content-delta", text="Test content")
 
         result = _convert_cohere_chunk_to_streaming_chunk(
-            chunk=chunk, previous_chunks=[], component_info=component_info
+            chunk=chunk, previous_chunks=[], component_info=component_info, model="command-r-08-2024"
         )
         assert result.component_info == component_info
         assert result.content == "Test content"
@@ -1038,14 +1042,16 @@ class TestCohereChunkConversion:
         for cohere_reason, haystack_reason in finish_reasons:
             chunk = create_mock_cohere_chunk("message-end", finish_reason=cohere_reason)
 
-            result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+            result = _convert_cohere_chunk_to_streaming_chunk(
+                chunk=chunk, previous_chunks=[], model="command-r-08-2024"
+            )
             assert result.finish_reason == haystack_reason
             assert result.meta["finish_reason"] == cohere_reason
 
-    def test_usage_extraction_edge_cases(self):
+    def test_usage_extraction_other_cases(self):
         # missing usage data
         chunk = create_mock_cohere_chunk("message-end", finish_reason="COMPLETE")
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[], model="command-r-08-2024")
 
         assert result.meta["usage"] is None
 
@@ -1054,5 +1060,5 @@ class TestCohereChunkConversion:
             "message-end", finish_reason="COMPLETE", usage={"billed_units": {"invalid_key": 100}}
         )
 
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[])
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[], model="command-r-08-2024")
         assert result.meta["usage"] is None  # Should handle KeyError gracefully

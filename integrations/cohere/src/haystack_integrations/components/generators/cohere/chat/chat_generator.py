@@ -180,8 +180,8 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
 def _convert_cohere_chunk_to_streaming_chunk(
     chunk: StreamedChatResponseV2,
     previous_chunks: List[StreamingChunk],
+    model: str,
     component_info: Optional[ComponentInfo] = None,
-    model: str = "",
     tool_call_index: int = 0,
 ) -> Optional[StreamingChunk]:
     """
