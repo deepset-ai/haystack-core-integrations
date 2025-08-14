@@ -15,6 +15,7 @@ from haystack.components.converters.image.image_utils import (
 from haystack.dataclasses import ByteStream
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
+from tqdm.asyncio import tqdm as tqdm_async
 
 from cohere import AsyncClientV2, ClientV2
 
@@ -169,22 +170,22 @@ class CohereDocumentImageEmbedder:
 
         return default_from_dict(cls, data)
 
-    @component.output_types(documents=list[Document])
-    def run(self, documents: list[Document]) -> dict[str, list[Document]]:
+    def _extract_images_to_embed(self, documents: list[Document]) -> list[str]:
         """
-        Embed a list of documents.
+        Validates the input documents and extracts the images to embed in the format expected by the Cohere API.
 
         :param documents:
             Documents to embed.
 
         :returns:
-            A dictionary with the following keys:
-            - `documents`: Documents with embeddings.
+            List of images to embed in the format expected by the Cohere API.
 
         :raises TypeError:
             If the input is not a list of `Documents`.
         :raises ValueError:
             If the input contains unsupported image MIME types.
+        :raises RuntimeError:
+            If the conversion of some documents fails.
         """
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
@@ -238,6 +239,25 @@ class CohereDocumentImageEmbedder:
             msg = f"Conversion failed for some documents. Document IDs: {none_images_doc_ids}."
             raise RuntimeError(msg)
 
+        # tested above that image is not None, but mypy doesn't know that
+        return images_to_embed  # type: ignore[return-value]
+
+
+    @component.output_types(documents=list[Document])
+    def run(self, documents: list[Document]) -> dict[str, list[Document]]:
+        """
+        Embed a list of image documents.
+
+        :param documents:
+            Documents to embed.
+
+        :returns:
+            A dictionary with the following keys:
+            - `documents`: Documents with embeddings.
+        """
+
+        images_to_embed = self._extract_images_to_embed(documents)
+
         embeddings = []
 
         # The Cohere API only supports passing one image at a time
@@ -245,8 +265,7 @@ class CohereDocumentImageEmbedder:
             try:
                 response = self._client.embed(
                     model=self.model,
-                    # tested above that image is not None, but mypy doesn't know that
-                    images=[image],  # type: ignore[list-item]
+                    images=[image],
                     input_type="image",
                     output_dimension=self.embedding_dimension,
                     embedding_types=[self.embedding_type.value],
@@ -271,3 +290,51 @@ class CohereDocumentImageEmbedder:
             docs_with_embeddings.append(new_doc)
 
         return {"documents": docs_with_embeddings}
+
+    @component.output_types(documents=list[Document])
+    async def run_async(self, documents: list[Document]) -> dict[str, list[Document]]:
+        """
+        Asynchronously embed a list of image documents.
+
+        :param documents:
+            Documents to embed.
+
+        :returns:
+            A dictionary with the following keys:
+            - `documents`: Documents with embeddings.
+        """
+
+        images_to_embed = self._extract_images_to_embed(documents)
+
+        embeddings = []
+
+        # The Cohere API only supports passing one image at a time
+        async for doc, image in tqdm_async(zip(documents, images_to_embed), desc="Embedding images", disable=not self.progress_bar):
+            try:
+                response = await self._async_client.embed(
+                    model=self.model,
+                    images=[image],
+                    input_type="image",
+                    output_dimension=self.embedding_dimension,
+                    embedding_types=[self.embedding_type.value],
+                )
+
+                embedding = getattr(response.embeddings, self.embedding_type.value)[0]
+            except Exception as e:
+                msg = f"Error embedding Document {doc.id}. The Document will be skipped. \nException: {e}"
+                logger.warning(msg)
+                embedding = None
+
+            embeddings.append(embedding)
+
+        docs_with_embeddings = []
+        for doc, emb in zip(documents, embeddings):
+            # we store this information for later inspection
+            new_meta = {
+                **doc.meta,
+                "embedding_source": {"type": "image", "file_path_meta_field": self.file_path_meta_field},
+            }
+            new_doc = replace(doc, meta=new_meta, embedding=emb)
+            docs_with_embeddings.append(new_doc)
+
+        return {"documents": docs_with_embeddings}        
