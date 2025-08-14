@@ -216,10 +216,6 @@ def _convert_cohere_chunk_to_streaming_chunk(
     tool_calls = None
     meta = {"model": model}
 
-    # early return for invalid chunks
-    if not chunk or not hasattr(chunk, "delta") or chunk.delta is None:
-        return None
-
     if chunk.type == "content-delta":
         if chunk.delta.message and chunk.delta.message.content and chunk.delta.message.content.text is not None:
             content = chunk.delta.message.content.text
@@ -243,7 +239,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
                         arguments=None,
                     )
                 ]
-                index = 0
+                index =+1 # to adjust for the print_streaming_chunk condition
                 start = True  # This starts a tool call
                 meta["tool_call_id"] = tool_call.id  # type: ignore[assignment]
 
@@ -262,11 +258,12 @@ def _convert_cohere_chunk_to_streaming_chunk(
                     arguments=arguments,
                 )
             ]
-            index = 0
+            index = +1  # to adjust for the print_streaming_chunk condition
 
     elif chunk.type == "tool-call-end":
         # Tool call end doesn't have content, just signals completion
-        pass
+        start=True
+        index=1
 
     elif chunk.type == "message-end":
         finish_reason_raw = getattr(chunk.delta, "finish_reason", None)
@@ -329,9 +326,8 @@ def _parse_streaming_response(
             tool_call_index=tool_call_index,
         )
 
-        if streaming_chunk:
-            chunks.append(streaming_chunk)
-            streaming_callback(streaming_chunk)
+        chunks.append(streaming_chunk)
+        streaming_callback(streaming_chunk)
 
     return _convert_streaming_chunks_to_chat_message(chunks=chunks)
 
@@ -437,7 +433,7 @@ class CohereChatGenerator:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
-        model: str = "command-r-08-2024",
+        model: str = "command-r-plus",
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
