@@ -6,7 +6,7 @@ import glob
 import logging
 import os
 import random
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from cohere.types import EmbedByTypeResponse, EmbedByTypeResponseEmbeddings
@@ -211,11 +211,10 @@ class TestCohereDocumentImageEmbedder:
         ]
 
         result = embedder._extract_images_to_embed(documents)
-        
-        assert len(result) == 2
-        assert result[0]=="data:image/jpeg;base64,base64_pdf_image"
-        assert result[1]=="data:image/jpeg;base64,base64_image"
 
+        assert len(result) == 2
+        assert result[0] == "data:image/jpeg;base64,base64_pdf_image"
+        assert result[1] == "data:image/jpeg;base64,base64_image"
 
     def test_run(self, test_files_path, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
@@ -360,7 +359,6 @@ class TestCohereDocumentImageEmbedder:
             assert new_doc is not doc
             assert isinstance(new_doc, Document)
             assert new_doc.embedding is None
-
 
     @pytest.mark.integration
     @pytest.mark.skipif(

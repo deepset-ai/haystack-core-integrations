@@ -242,7 +242,6 @@ class CohereDocumentImageEmbedder:
         # tested above that image is not None, but mypy doesn't know that
         return images_to_embed  # type: ignore[return-value]
 
-
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]) -> dict[str, list[Document]]:
         """
@@ -309,7 +308,9 @@ class CohereDocumentImageEmbedder:
         embeddings = []
 
         # The Cohere API only supports passing one image at a time
-        async for doc, image in tqdm_async(zip(documents, images_to_embed), desc="Embedding images", disable=not self.progress_bar):
+        async for doc, image in tqdm_async(
+            zip(documents, images_to_embed), desc="Embedding images", disable=not self.progress_bar
+        ):
             try:
                 response = await self._async_client.embed(
                     model=self.model,
@@ -337,4 +338,4 @@ class CohereDocumentImageEmbedder:
             new_doc = replace(doc, meta=new_meta, embedding=emb)
             docs_with_embeddings.append(new_doc)
 
-        return {"documents": docs_with_embeddings}        
+        return {"documents": docs_with_embeddings}
