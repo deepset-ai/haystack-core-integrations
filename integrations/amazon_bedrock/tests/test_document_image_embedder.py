@@ -198,7 +198,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
         assert result[0] == [0.1, 0.2, 0.3]
         assert result[1] == [0.1, 0.2, 0.3]
 
-    def test_embed_cohere_multiple_embedding_types(self):
+    def test_embed_cohere_multiple_embedding_types(self, mock_boto3_session):
         embedder = AmazonBedrockDocumentImageEmbedder(
             model="cohere.embed-english-v3", embedding_types=["float", "int8"]
         )
