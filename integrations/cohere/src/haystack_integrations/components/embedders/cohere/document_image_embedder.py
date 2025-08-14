@@ -3,32 +3,29 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import replace
-from typing import Any, Literal, Optional, Tuple
-from tqdm import tqdm
+from typing import Any, Optional, Tuple
 
-from haystack.dataclasses import ByteStream
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.image.image_utils import (
     _batch_convert_pdf_pages_to_images,
+    _encode_image_to_base64,
     _extract_image_sources_info,
     _PDFPageInfo,
-    _encode_image_to_base64
 )
-from haystack.lazy_imports import LazyImport
+from haystack.dataclasses import ByteStream
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
-from haystack.utils.device import ComponentDevice
-from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kwargs
-
+from tqdm import tqdm
 
 from cohere import AsyncClientV2, ClientV2
 
 from .embedding_types import EmbeddingTypes
-from .utils import get_async_response, get_response
 
 # PDF is not officially supported, but we convert PDFs to JPEG images
 SUPPORTED_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "application/pdf"]
 
+
 logger = logging.getLogger(__name__)
+
 
 @component
 class CohereDocumentImageEmbedder:
@@ -70,8 +67,8 @@ class CohereDocumentImageEmbedder:
         image_size: Optional[Tuple[int, int]] = None,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
         model: str = "embed-v4.0",
-        api_base_url: str = "https://api.cohere.com",        
-        timeout: int = 120,        
+        api_base_url: str = "https://api.cohere.com",
+        timeout: int = 120,
         embedding_dimension: Optional[int] = None,
         embedding_type: EmbeddingTypes = EmbeddingTypes.FLOAT,
         progress_bar: bool = True,
@@ -87,7 +84,7 @@ class CohereDocumentImageEmbedder:
         :param image_size:
             If provided, resizes the image to fit within the specified dimensions (width, height) while
             maintaining aspect ratio. This reduces file size, memory usage, and processing time, which is beneficial
-            when working with models that have resolution constraints or when transmitting images to remote services.            
+            when working with models that have resolution constraints or when transmitting images to remote services.
         :param api_key:
             The Cohere API key.
         :param model:
@@ -110,7 +107,7 @@ class CohereDocumentImageEmbedder:
         """
 
         self.file_path_meta_field = file_path_meta_field
-        self.root_path = root_path or ""       
+        self.root_path = root_path or ""
         self.image_size = image_size
         self.model = model
         self.embedding_dimension = embedding_dimension
@@ -166,9 +163,11 @@ class CohereDocumentImageEmbedder:
         :returns:
             Deserialized component.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-        return default_from_dict(cls, data)
+        init_params = data["init_parameters"]
+        deserialize_secrets_inplace(init_params, keys=["api_key"])
+        init_params["embedding_type"] = EmbeddingTypes.from_str(init_params["embedding_type"])
 
+        return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]) -> dict[str, list[Document]]:
@@ -200,8 +199,10 @@ class CohereDocumentImageEmbedder:
 
         for img_info in images_source_info:
             if img_info["mime_type"] not in SUPPORTED_IMAGE_MIME_TYPES:
-                msg = (f"Unsupported image MIME type: {img_info['mime_type']}. "
-                f"Supported types are: {', '.join(SUPPORTED_IMAGE_MIME_TYPES)}")
+                msg = (
+                    f"Unsupported image MIME type: {img_info['mime_type']}. "
+                    f"Supported types are: {', '.join(SUPPORTED_IMAGE_MIME_TYPES)}"
+                )
                 raise ValueError(msg)
 
         images_to_embed: list[Optional[str]] = [None] * len(documents)
@@ -220,13 +221,15 @@ class CohereDocumentImageEmbedder:
                 pdf_page_infos.append(pdf_page_info)
             else:
                 # Process images directly
-                image_byte_stream = ByteStream.from_file_path(filepath=image_source_info["path"],
-                    mime_type=image_source_info["mime_type"])
+                image_byte_stream = ByteStream.from_file_path(
+                    filepath=image_source_info["path"], mime_type=image_source_info["mime_type"]
+                )
                 mime_type, base64_image = _encode_image_to_base64(bytestream=image_byte_stream, size=self.image_size)
                 images_to_embed[doc_idx] = f"data:{mime_type};base64,{base64_image}"
 
-        base64_jpeg_images_by_doc_idx = _batch_convert_pdf_pages_to_images(pdf_page_infos=pdf_page_infos, return_base64=True,
-        size=self.image_size)
+        base64_jpeg_images_by_doc_idx = _batch_convert_pdf_pages_to_images(
+            pdf_page_infos=pdf_page_infos, return_base64=True, size=self.image_size
+        )
         for doc_idx, base64_jpeg_image in base64_jpeg_images_by_doc_idx.items():
             images_to_embed[doc_idx] = f"data:image/jpeg;base64,{base64_jpeg_image}"
 
@@ -238,12 +241,12 @@ class CohereDocumentImageEmbedder:
         embeddings = []
 
         # The Cohere API only supports passing one image at a time
-        for image in tqdm(images_to_embed, desc="Embedding images", disable=not self.progress_bar):
-
+        for doc, image in tqdm(zip(documents, images_to_embed), desc="Embedding images", disable=not self.progress_bar):
             try:
                 response = self._client.embed(
                     model=self.model,
-                    images=[image],
+                    # tested above that image is not None, but mypy doesn't know that
+                    images=[image],  # type: ignore[list-item]
                     input_type="image",
                     output_dimension=self.embedding_dimension,
                     embedding_types=[self.embedding_type.value],
@@ -251,7 +254,7 @@ class CohereDocumentImageEmbedder:
 
                 embedding = getattr(response.embeddings, self.embedding_type.value)[0]
             except Exception as e:
-                msg = f"Error embedding image: {e}"
+                msg = f"Error embedding Document {doc.id}. The Document will be skipped. \nException: {e}"
                 logger.warning(msg)
                 embedding = None
 
