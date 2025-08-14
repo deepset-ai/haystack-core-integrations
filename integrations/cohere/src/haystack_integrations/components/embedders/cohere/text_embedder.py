@@ -19,7 +19,7 @@ class CohereTextEmbedder:
 
     Usage example:
     ```python
-    from haystack_integrations.components.embedders.cohere import CohereDocumentEmbedder
+    from haystack_integrations.components.embedders.cohere import CohereTextEmbedder
 
     text_to_embed = "I love pizza!"
 

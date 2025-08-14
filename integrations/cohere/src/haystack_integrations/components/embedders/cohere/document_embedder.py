@@ -22,7 +22,7 @@ class CohereDocumentEmbedder:
     Usage example:
     ```python
     from haystack import Document
-    from cohere_haystack.embedders.document_embedder import CohereDocumentEmbedder
+    from haystack_integrations.components.embedders.cohere import CohereDocumentEmbedder
 
     doc = Document(content="I love pizza!")
 
