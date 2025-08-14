@@ -326,7 +326,7 @@ def _parse_streaming_response(
             previous_chunks=chunks,
             component_info=component_info,
             model=model,
-            tool_call_index=tool_call_index
+            tool_call_index=tool_call_index,
         )
 
         if streaming_chunk:
