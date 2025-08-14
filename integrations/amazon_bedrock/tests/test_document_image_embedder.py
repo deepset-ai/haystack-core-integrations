@@ -198,6 +198,14 @@ class TestAmazonBedrockDocumentImageEmbedder:
         assert result[0] == [0.1, 0.2, 0.3]
         assert result[1] == [0.1, 0.2, 0.3]
 
+    def test_embed_cohere_multiple_embedding_types(self):
+        embedder = AmazonBedrockDocumentImageEmbedder(
+            model="cohere.embed-english-v3", embedding_types=["float", "int8"]
+        )
+        docs = [Document(content="some text", meta={"file_path": "some_path"})]
+        with pytest.raises(ValueError):
+            embedder.run(documents=docs)
+
     @pytest.mark.integration
     @pytest.mark.skipif(
         not os.getenv("AWS_ACCESS_KEY_ID")
@@ -205,8 +213,41 @@ class TestAmazonBedrockDocumentImageEmbedder:
         or not os.getenv("AWS_DEFAULT_REGION"),
         reason="AWS credentials are not set",
     )
-    def test_live_run(self, test_files_path):
-        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
+    def test_live_run_with_cohere(self, test_files_path):
+        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3", embedding_types=["int8"])
+
+        image_paths = glob.glob(str(test_files_path / "*.*"))
+        documents = []
+        for i, path in enumerate(image_paths):
+            document = Document(content=f"document number {i}", meta={"file_path": path})
+            if path.endswith(".pdf"):
+                document.meta["page_number"] = 1
+            documents.append(document)
+
+        result = embedder.run(documents=documents)
+
+        assert isinstance(result["documents"], list)
+        assert len(result["documents"]) == len(documents)
+        for doc, new_doc in zip(documents, result["documents"]):
+            assert doc.embedding is None
+            assert new_doc is not doc
+            assert isinstance(new_doc, Document)
+            assert isinstance(new_doc.embedding, list)
+            assert isinstance(new_doc.embedding[0], int)
+            assert "embedding_source" not in doc.meta
+            assert "embedding_source" in new_doc.meta
+            assert new_doc.meta["embedding_source"]["type"] == "image"
+            assert "file_path_meta_field" in new_doc.meta["embedding_source"]
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.getenv("AWS_ACCESS_KEY_ID")
+        or not os.getenv("AWS_SECRET_ACCESS_KEY")
+        or not os.getenv("AWS_DEFAULT_REGION"),
+        reason="AWS credentials are not set",
+    )
+    def test_live_run_with_titan(self, test_files_path):
+        embedder = AmazonBedrockDocumentImageEmbedder(model="amazon.titan-embed-image-v1")
 
         image_paths = glob.glob(str(test_files_path / "*.*"))
         documents = []

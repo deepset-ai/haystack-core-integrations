@@ -260,6 +260,7 @@ class AmazonBedrockDocumentImageEmbedder:
             raise ValueError(msg)
 
         docs_with_embeddings = []
+
         for doc, emb in zip(documents, embeddings):
             # we store this information for later inspection
             new_meta = {
@@ -305,6 +306,12 @@ class AmazonBedrockDocumentImageEmbedder:
 
         cohere_body = {"input_type": "image"}
         if emmbedding_types := self.kwargs.get("embedding_types"):
+            if len(emmbedding_types) > 1:
+                msg = (
+                    "You have provided multiple embedding_types. "
+                    "AmazonBedrockDocumentImageEmbedder only supports one embedding_type at a time."
+                )
+                raise ValueError(msg)
             cohere_body["embedding_types"] = emmbedding_types
 
         all_embeddings = []
@@ -328,7 +335,7 @@ class AmazonBedrockDocumentImageEmbedder:
                     all_embeddings.append(embedding[0])
             else:
                 # if embedding_types is not specified, cohere returns
-                # a nested list of floatembeddings
+                # a nested list of float embeddings
                 all_embeddings.append(embeddings[0])
 
         return all_embeddings
