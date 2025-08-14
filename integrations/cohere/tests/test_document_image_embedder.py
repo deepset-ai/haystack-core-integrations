@@ -6,7 +6,7 @@ import glob
 import logging
 import os
 import random
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, AsyncMock, patch
 
 import pytest
 from cohere.types import EmbedByTypeResponse, EmbedByTypeResponseEmbeddings
@@ -122,7 +122,7 @@ class TestCohereDocumentImageEmbedder:
         assert component._client is not None
         assert component._async_client is not None
 
-    def test_run_wrong_input_format(self, monkeypatch):
+    def test_extract_images_to_embed_wrong_input_format(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         embedder = CohereDocumentImageEmbedder(model="model")
 
@@ -130,16 +130,15 @@ class TestCohereDocumentImageEmbedder:
         list_integers_input = [1, 2, 3]
 
         with pytest.raises(TypeError, match="CohereDocumentImageEmbedder expects a list of Documents as input"):
-            embedder.run(documents=string_input)
+            embedder._extract_images_to_embed(string_input)
 
         with pytest.raises(TypeError, match="CohereDocumentImageEmbedder expects a list of Documents as input"):
-            embedder.run(documents=list_integers_input)
+            embedder._extract_images_to_embed(list_integers_input)
 
     @patch(f"{IMPORT_PATH}._extract_image_sources_info")
-    def test_run_unsupported_image_mime_type(self, mocked_extract_image_sources_info, monkeypatch):
+    def test_extract_images_to_embed_unsupported_image_mime_type(self, mocked_extract_image_sources_info, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         embedder = CohereDocumentImageEmbedder(model="model")
-        embedder._client = MagicMock()
 
         mocked_extract_image_sources_info.return_value = [
             {"path": "unsupported.txt", "mime_type": "text/plain"},
@@ -150,7 +149,73 @@ class TestCohereDocumentImageEmbedder:
         ]
 
         with pytest.raises(ValueError, match="Unsupported image MIME type"):
-            embedder.run(documents=documents)
+            embedder._extract_images_to_embed(documents)
+
+    @patch(f"{IMPORT_PATH}._extract_image_sources_info")
+    @patch(f"{IMPORT_PATH}._batch_convert_pdf_pages_to_images")
+    @patch(f"{IMPORT_PATH}._encode_image_to_base64")
+    @patch(f"{IMPORT_PATH}.ByteStream.from_file_path")
+    def test_extract_images_to_embed_none_images(
+        self,
+        mocked_byte_stream_from_file_path,
+        mocked_encode_image_to_base64,
+        mocked_batch_convert_pdf_pages_to_images,
+        mocked_extract_image_sources_info,
+        monkeypatch,
+    ):
+        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
+        embedder = CohereDocumentImageEmbedder(model="model")
+
+        mocked_extract_image_sources_info.return_value = [
+            {"path": "pdf_1.pdf", "mime_type": "application/pdf", "page_number": 999},  # Page 999 doesn't exist
+            {"path": "image_1.jpg", "mime_type": "image/jpeg"},
+        ]
+        mocked_batch_convert_pdf_pages_to_images.return_value = {}  # Empty dict because page was skipped
+        mocked_encode_image_to_base64.return_value = ("image/jpeg", "base64_image")
+        mocked_byte_stream_from_file_path.return_value = MagicMock()
+
+        documents = [
+            Document(content="PDF 1", meta={"file_path": "pdf_1.pdf", "page_number": 999}),
+            Document(content="Image 1", meta={"file_path": "image_1.jpg"}),
+        ]
+
+        with pytest.raises(RuntimeError, match="Conversion failed for some documents."):
+            embedder._extract_images_to_embed(documents)
+
+    @patch(f"{IMPORT_PATH}._extract_image_sources_info")
+    @patch(f"{IMPORT_PATH}._batch_convert_pdf_pages_to_images")
+    @patch(f"{IMPORT_PATH}._encode_image_to_base64")
+    @patch(f"{IMPORT_PATH}.ByteStream.from_file_path")
+    def test_extract_images_to_embed_success(
+        self,
+        mocked_byte_stream_from_file_path,
+        mocked_encode_image_to_base64,
+        mocked_batch_convert_pdf_pages_to_images,
+        mocked_extract_image_sources_info,
+        monkeypatch,
+    ):
+        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
+        embedder = CohereDocumentImageEmbedder(model="model")
+
+        mocked_extract_image_sources_info.return_value = [
+            {"path": "pdf_1.pdf", "mime_type": "application/pdf", "page_number": 1},
+            {"path": "image_1.jpg", "mime_type": "image/jpeg"},
+        ]
+        mocked_batch_convert_pdf_pages_to_images.return_value = {0: "base64_pdf_image"}
+        mocked_encode_image_to_base64.return_value = ("image/jpeg", "base64_image")
+        mocked_byte_stream_from_file_path.return_value = MagicMock()
+
+        documents = [
+            Document(content="PDF 1", meta={"file_path": "pdf_1.pdf", "page_number": 1}),
+            Document(content="Image 1", meta={"file_path": "image_1.jpg"}),
+        ]
+
+        result = embedder._extract_images_to_embed(documents)
+        
+        assert len(result) == 2
+        assert result[0]=="data:image/jpeg;base64,base64_pdf_image"
+        assert result[1]=="data:image/jpeg;base64,base64_image"
+
 
     def test_run(self, test_files_path, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
@@ -223,37 +288,79 @@ class TestCohereDocumentImageEmbedder:
             assert isinstance(new_doc, Document)
             assert new_doc.embedding is None
 
-    @patch(f"{IMPORT_PATH}._extract_image_sources_info")
-    @patch(f"{IMPORT_PATH}._batch_convert_pdf_pages_to_images")
-    @patch(f"{IMPORT_PATH}._encode_image_to_base64")
-    @patch(f"{IMPORT_PATH}.ByteStream.from_file_path")
-    def test_run_none_images(
-        self,
-        mocked_byte_stream_from_file_path,
-        mocked_encode_image_to_base64,
-        mocked_batch_convert_pdf_pages_to_images,
-        mocked_extract_image_sources_info,
-        monkeypatch,
-    ):
+    @pytest.mark.asyncio
+    async def test_run_async(self, test_files_path, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         embedder = CohereDocumentImageEmbedder(model="model")
-        embedder._client = MagicMock()
+        embedder._async_client = AsyncMock()
 
-        mocked_extract_image_sources_info.return_value = [
-            {"path": "pdf_1.pdf", "mime_type": "application/pdf", "page_number": 999},  # Page 999 doesn't exist
-            {"path": "image_1.jpg", "mime_type": "image/jpeg"},
-        ]
-        mocked_batch_convert_pdf_pages_to_images.return_value = {}  # Empty dict because page was skipped
-        mocked_encode_image_to_base64.return_value = ("image/jpeg", "base64_image")
-        mocked_byte_stream_from_file_path.return_value = MagicMock()
+        mock_response = EmbedByTypeResponse(
+            id="test-id",
+            embeddings=EmbedByTypeResponseEmbeddings(float_=[[random.random() for _ in range(1536)]]),  # noqa: S311
+            meta=None,
+        )
 
-        documents = [
-            Document(content="PDF 1", meta={"file_path": "pdf_1.pdf", "page_number": 999}),
-            Document(content="Image 1", meta={"file_path": "image_1.jpg"}),
-        ]
+        embedder._async_client.embed.return_value = mock_response
 
-        with pytest.raises(RuntimeError, match="Conversion failed for some documents."):
-            embedder.run(documents=documents)
+        image_paths = glob.glob(str(test_files_path / "*.jpg")) + glob.glob(str(test_files_path / "*.pdf"))
+        assert len(image_paths) == 2
+        assert image_paths[0].endswith(".jpg")
+        assert image_paths[1].endswith(".pdf")
+
+        documents = []
+        for i, path in enumerate(image_paths):
+            document = Document(content=f"document number {i}", meta={"file_path": path})
+            if path.endswith(".pdf"):
+                document.meta["page_number"] = 1
+            documents.append(document)
+
+        result = await embedder.run_async(documents=documents)
+
+        assert isinstance(result["documents"], list)
+        assert len(result["documents"]) == len(documents)
+        for doc, new_doc in zip(documents, result["documents"]):
+            assert doc.embedding is None
+            assert new_doc is not doc
+            assert isinstance(new_doc, Document)
+            assert isinstance(new_doc.embedding, list)
+            assert isinstance(new_doc.embedding[0], float)
+            assert "embedding_source" not in doc.meta
+            assert "embedding_source" in new_doc.meta
+            assert new_doc.meta["embedding_source"]["type"] == "image"
+            assert "file_path_meta_field" in new_doc.meta["embedding_source"]
+
+    @pytest.mark.asyncio
+    async def test_run_async_client_errors(self, test_files_path, monkeypatch, caplog):
+        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
+        embedder = CohereDocumentImageEmbedder(model="model")
+        embedder._async_client = AsyncMock()
+        embedder._async_client.embed.side_effect = Exception("Error embedding image")
+
+        image_paths = glob.glob(str(test_files_path / "*.jpg")) + glob.glob(str(test_files_path / "*.pdf"))
+        assert len(image_paths) == 2
+        assert image_paths[0].endswith(".jpg")
+        assert image_paths[1].endswith(".pdf")
+
+        documents = []
+        for i, path in enumerate(image_paths):
+            document = Document(content=f"document number {i}", meta={"file_path": path})
+            if path.endswith(".pdf"):
+                document.meta["page_number"] = 1
+            documents.append(document)
+
+        with caplog.at_level(logging.WARNING):
+            result = await embedder.run_async(documents=documents)
+
+        assert "Error embedding Document" in caplog.text
+
+        assert isinstance(result["documents"], list)
+        assert len(result["documents"]) == len(documents)
+        for doc, new_doc in zip(documents, result["documents"]):
+            assert doc.embedding is None
+            assert new_doc is not doc
+            assert isinstance(new_doc, Document)
+            assert new_doc.embedding is None
+
 
     @pytest.mark.integration
     @pytest.mark.skipif(
