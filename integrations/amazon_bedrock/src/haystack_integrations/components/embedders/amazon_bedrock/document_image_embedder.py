@@ -103,7 +103,7 @@ class AmazonBedrockDocumentImageEmbedder:
             If `True`, shows a progress bar when embedding documents.
         :param boto3_config: The configuration for the boto3 client.
         :param kwargs: Additional parameters to pass for model inference.
-            For example, `embeddingConfig` for Amazon Titan models and `input_type` and
+            For example, `embeddingConfig` for Amazon Titan models and
             `embedding_types` for Cohere models.
         :raises ValueError: If the model is not supported.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly.
@@ -243,8 +243,8 @@ class AmazonBedrockDocumentImageEmbedder:
         pdf_images_by_doc_idx = _batch_convert_pdf_pages_to_images(pdf_page_infos=pdf_page_infos, return_base64=True)
 
         for doc_idx, base64_image in pdf_images_by_doc_idx.items():  # type: ignore[assignment]
-            converted_pdf = f"data:application/pdf;base64,{base64_image}" if "cohere" in self.model else base64_image
-            images_to_embed[doc_idx] = converted_pdf
+            pdf_image_uri = f"data:application/pdf;base64,{base64_image}" if "cohere" in self.model else base64_image
+            images_to_embed[doc_idx] = pdf_image_uri
 
         none_images_doc_ids = [documents[doc_idx].id for doc_idx, image in enumerate(images_to_embed) if image is None]
         if none_images_doc_ids:
@@ -274,7 +274,6 @@ class AmazonBedrockDocumentImageEmbedder:
     def _embed_titan(self, documents: List[str]) -> List[List[float]]:
         """
         Internal method to embed base64 images using Amazon Titan models.
-        NOTE: Batch inference is not supported, so embeddings are created one by one.
         """
 
         titan_body = {}
@@ -302,7 +301,6 @@ class AmazonBedrockDocumentImageEmbedder:
     def _embed_cohere(self, documents: List[str]) -> List[List[float]]:
         """
         Internal method to embed base64 images using Cohere models.
-        NOTE: Batch inference is not supported, so embeddings are created one by one.
         """
 
         cohere_body = {"input_type": "image"}

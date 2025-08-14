@@ -43,12 +43,12 @@ class TestAmazonBedrockDocumentImageEmbedder:
     def test_init_custom_parameters(self, mock_boto3_session, set_env_variables):
         embedder = AmazonBedrockDocumentImageEmbedder(
             model="cohere.embed-english-v3",
-            input_type="fake_input_type",
+            embedding_types=["float"],
             progress_bar=False,
         )
 
         assert embedder.model == "cohere.embed-english-v3"
-        assert embedder.kwargs == {"input_type": "fake_input_type"}
+        assert embedder.kwargs == {"embedding_types": ["float"]}
         assert not embedder.progress_bar
 
     def test_connection_error(self, mock_boto3_session):
@@ -57,14 +57,14 @@ class TestAmazonBedrockDocumentImageEmbedder:
         with pytest.raises(AmazonBedrockConfigurationError):
             AmazonBedrockDocumentImageEmbedder(
                 model="cohere.embed-english-v3",
-                input_type="fake_input_type",
+                embedding_types=["float"],
             )
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
     def test_to_dict(self, mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]):
         embedder = AmazonBedrockDocumentImageEmbedder(
             model="cohere.embed-english-v3",
-            input_type="image",
+            embedding_types=["float"],
             boto3_config=boto3_config,
         )
 
@@ -78,7 +78,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
                 "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
                 "model": "cohere.embed-english-v3",
                 "file_path_meta_field": "file_path",
-                "input_type": "image",
+                "embedding_types": ["float"],
                 "progress_bar": True,
                 "boto3_config": boto3_config,
                 "root_path": "",
@@ -98,7 +98,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
                 "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
                 "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
                 "model": "cohere.embed-english-v3",
-                "input_type": "image",
+                "embedding_types": ["float"],
                 "root_path": None,
                 "progress_bar": True,
                 "boto3_config": boto3_config,
@@ -108,7 +108,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
         embedder = AmazonBedrockDocumentImageEmbedder.from_dict(data)
 
         assert embedder.model == "cohere.embed-english-v3"
-        assert embedder.kwargs == {"input_type": "image"}
+        assert embedder.kwargs == {"embedding_types": ["float"]}
         assert embedder.progress_bar
         assert embedder.boto3_config == boto3_config
 
@@ -143,12 +143,12 @@ class TestAmazonBedrockDocumentImageEmbedder:
                 embedder.run(documents=docs)
 
     def test_embed_cohere(self, mock_boto3_session, test_files_path):
-        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
+        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3", embedding_types=["float"])
         image_paths = glob.glob(str(test_files_path / "*.*"))
 
         with patch.object(embedder, "_client") as mock_client:
             mock_client.invoke_model.return_value = {
-                "body": io.StringIO('{"embeddings": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]}'),
+                "body": io.StringIO('{"embeddings": {"float": [[0.1, 0.2, 0.3]]}}'),
             }
 
             docs = [Document(content="some text", meta={"file_path": image_paths[0]})]
@@ -157,7 +157,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
             result = embedder._embed_cohere(documents=base64_images)
 
         mock_client.invoke_model.assert_called_once_with(
-            body=f'{{"images": ["{base64_images[0]}"], "input_type": "image"}}',
+            body=f'{{"images": ["{base64_images[0]}"], "input_type": "image", "embedding_types": ["float"]}}',
             modelId="cohere.embed-english-v3",
             accept="*/*",
             contentType="application/json",
@@ -205,7 +205,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
         or not os.getenv("AWS_DEFAULT_REGION"),
         reason="AWS credentials are not set",
     )
-    def test_run(self, test_files_path):
+    def test_live_run(self, test_files_path):
         embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
 
         image_paths = glob.glob(str(test_files_path / "*.*"))
@@ -226,38 +226,6 @@ class TestAmazonBedrockDocumentImageEmbedder:
             assert isinstance(new_doc, Document)
             assert isinstance(new_doc.embedding, list)
             assert isinstance(new_doc.embedding[0], float)
-            assert "embedding_source" not in doc.meta
-            assert "embedding_source" in new_doc.meta
-            assert new_doc.meta["embedding_source"]["type"] == "image"
-            assert "file_path_meta_field" in new_doc.meta["embedding_source"]
-
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.getenv("AWS_ACCESS_KEY_ID")
-        or not os.getenv("AWS_SECRET_ACCESS_KEY")
-        or not os.getenv("AWS_DEFAULT_REGION"),
-        reason="AWS credentials are not set",
-    )
-    def test_live_run(self, test_files_path):
-        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
-
-        documents = [
-            Document(
-                content="PDF document",
-                meta={"file_path": str(test_files_path / "sample_pdf_1.pdf"), "page_number": 1},
-            ),
-            Document(content="Image document", meta={"file_path": str(test_files_path / "apple.jpg")}),
-        ]
-
-        result = embedder.run(documents=documents)
-        assert len(result["documents"]) == len(documents)
-        for doc, new_doc in zip(documents, result["documents"]):
-            assert doc.embedding is None
-            assert new_doc is not doc
-            assert isinstance(new_doc, Document)
-            assert isinstance(new_doc.embedding, list)
-            assert len(new_doc.embedding) == 1024
-            assert all(isinstance(x, float) for x in new_doc.embedding)
             assert "embedding_source" not in doc.meta
             assert "embedding_source" in new_doc.meta
             assert new_doc.meta["embedding_source"]["type"] == "image"
