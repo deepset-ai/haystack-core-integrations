@@ -908,22 +908,7 @@ class TestCohereChunkConversion:
     def test_convert_invalid_chunk(self):
         # test with None chunk
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=None, previous_chunks=[])
-        assert result.content == ""
-        assert result.start is False
-        assert result.tool_calls is None
-        assert result.index is None
-        assert result.finish_reason is None
-        assert result.meta["model"] == ""
-
-        # test with chunk without delta
-        chunk_without_delta = MagicMock()
-        chunk_without_delta.delta = None
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk_without_delta, previous_chunks=[])
-        assert result.content == ""
-        assert result.start is False
-        assert result.tool_calls is None
-        assert result.finish_reason is None
-        assert result.meta["model"] == ""
+        assert result is None
 
     def test_convert_content_delta_chunk(self):
         chunk = create_mock_cohere_chunk("content-delta", text="Hello, world!")

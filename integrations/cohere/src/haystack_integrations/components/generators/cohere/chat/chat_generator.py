@@ -183,7 +183,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
     component_info: Optional[ComponentInfo] = None,
     model: str = "",
     tool_call_index: int = 0,
-) -> StreamingChunk:
+) -> Optional[StreamingChunk]:
     """
     Converts a Cohere streaming response chunk to a StreamingChunk.
 
@@ -218,13 +218,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
 
     # early return for invalid chunks
     if not chunk or not hasattr(chunk, "delta") or chunk.delta is None:
-        return StreamingChunk(
-            content=content,
-            component_info=component_info,
-            index=index,
-            finish_reason=finish_reason,
-            meta=meta,
-        )
+        return None
 
     if chunk.type == "content-delta":
         if chunk.delta.message and chunk.delta.message.content and chunk.delta.message.content.text is not None:
@@ -332,10 +326,12 @@ def _parse_streaming_response(
             previous_chunks=chunks,
             component_info=component_info,
             model=model,
-            tool_call_index=tool_call_index,
+            tool_call_index=tool_call_index
         )
-        chunks.append(streaming_chunk)
-        streaming_callback(streaming_chunk)
+
+        if streaming_chunk:
+            chunks.append(streaming_chunk)
+            streaming_callback(streaming_chunk)
 
     return _convert_streaming_chunks_to_chat_message(chunks=chunks)
 
@@ -355,8 +351,9 @@ async def _parse_async_streaming_response(
         streaming_chunk = _convert_cohere_chunk_to_streaming_chunk(
             chunk=chunk, previous_chunks=chunks, component_info=component_info, model=model
         )
-        chunks.append(streaming_chunk)
-        await streaming_callback(streaming_chunk)
+        if streaming_chunk:
+            chunks.append(streaming_chunk)
+            await streaming_callback(streaming_chunk)
 
     return _convert_streaming_chunks_to_chat_message(chunks=chunks)
 
