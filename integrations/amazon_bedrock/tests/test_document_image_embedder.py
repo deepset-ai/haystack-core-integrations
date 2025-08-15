@@ -160,7 +160,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
                 mime_type, base64_image = _encode_image_to_base64(image_byte_stream)
                 base64_images.append(f"data:{mime_type};base64,{base64_image}")
 
-            result = embedder._embed_cohere(documents=base64_images)
+            result = embedder._embed_cohere(image_uris=base64_images)
 
         mock_client.invoke_model.assert_called_once_with(
             body=f'{{"images": ["{base64_images[0]}"], "input_type": "image", "embedding_types": ["float"]}}',
@@ -198,7 +198,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
                 mime_type, base64_image = _encode_image_to_base64(image_byte_stream)
                 base64_images.append(base64_image)
 
-            result = embedder._embed_titan(documents=base64_images)
+            result = embedder._embed_titan(images=base64_images)
 
         assert mock_client.invoke_model.call_count == 2
         assert mock_client.invoke_model.call_args_list[0][1]["modelId"] == "amazon.titan-embed-image-v1"

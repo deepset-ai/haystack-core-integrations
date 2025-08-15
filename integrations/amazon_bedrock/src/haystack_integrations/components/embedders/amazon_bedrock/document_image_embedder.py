@@ -276,9 +276,9 @@ class AmazonBedrockDocumentImageEmbedder:
             raise RuntimeError(msg)
 
         if "cohere" in self.model:
-            embeddings = self._embed_cohere(documents=images_to_embed)
+            embeddings = self._embed_cohere(image_uris=images_to_embed)
         elif "titan" in self.model:
-            embeddings = self._embed_titan(documents=images_to_embed)
+            embeddings = self._embed_titan(images=images_to_embed)
         else:
             msg = f"Model {self.model} is not supported. Supported models are: {', '.join(SUPPORTED_EMBEDDING_MODELS)}."
             raise ValueError(msg)
