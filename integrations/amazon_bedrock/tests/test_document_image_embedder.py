@@ -82,6 +82,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
                 "progress_bar": True,
                 "boto3_config": boto3_config,
                 "root_path": "",
+                "image_size": None,
             },
         }
 
@@ -102,6 +103,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
                 "root_path": None,
                 "progress_bar": True,
                 "boto3_config": boto3_config,
+                "image_size": None,
             },
         }
 

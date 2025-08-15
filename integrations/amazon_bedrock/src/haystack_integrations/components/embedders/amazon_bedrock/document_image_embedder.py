@@ -6,16 +6,18 @@ import base64
 import json
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.image.image_utils import (
     _batch_convert_pdf_pages_to_images,
+    _encode_image_to_base64,
     _extract_image_sources_info,
     _PDFPageInfo,
 )
+from haystack.dataclasses import ByteStream
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 
@@ -40,7 +42,7 @@ class AmazonBedrockDocumentImageEmbedder:
     ### Usage example
     ```python
     from haystack import Document
-    rom haystack_integrations.components.embedders.amazon_bedrock import AmazonBedrockTextEmbedder
+    rom haystack_integrations.components.embedders.amazon_bedrock import AmazonBedrockDocumentImageEmbedder
 
     os.environ["AWS_ACCESS_KEY_ID"] = "..."
     os.environ["AWS_SECRET_ACCESS_KEY_ID"] = "..."
@@ -79,6 +81,7 @@ class AmazonBedrockDocumentImageEmbedder:
         aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         file_path_meta_field: str = "file_path",
         root_path: Optional[str] = None,
+        image_size: Optional[Tuple[int, int]] = None,
         progress_bar: bool = True,
         boto3_config: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
@@ -91,6 +94,7 @@ class AmazonBedrockDocumentImageEmbedder:
             Supported models:
             - "amazon.titan-embed-image-v1"
             - "cohere.embed-english-v3"
+            - "cohere.embed-multilingual-v3"
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
         :param aws_session_token: AWS session token.
@@ -99,6 +103,10 @@ class AmazonBedrockDocumentImageEmbedder:
         :param file_path_meta_field: The metadata field in the Document that contains the file path to the image or PDF.
         :param root_path: The root directory path where document files are located. If provided, file paths in
             document metadata will be resolved relative to this path. If None, file paths are treated as absolute paths.
+        :param image_size:
+            If provided, resizes the image to fit within the specified dimensions (width, height) while
+            maintaining aspect ratio. This reduces file size, memory usage, and processing time, which is beneficial
+            when working with models that have resolution constraints or when transmitting images to remote services.
         :param progress_bar:
             If `True`, shows a progress bar when embedding documents.
         :param boto3_config: The configuration for the boto3 client.
@@ -124,8 +132,18 @@ class AmazonBedrockDocumentImageEmbedder:
         self.aws_session_token = aws_session_token
         self.aws_region_name = aws_region_name
         self.aws_profile_name = aws_profile_name
+        self.image_size = image_size
         self.progress_bar = progress_bar
         self.kwargs = kwargs
+
+        if emmbedding_types := self.kwargs.get("embedding_types"):
+            if len(emmbedding_types) > 1:
+                msg = (
+                    "You have provided multiple embedding_types for Cohere model. "
+                    "AmazonBedrockDocumentImageEmbedder only supports one embedding_type at a time."
+                )
+                raise ValueError(msg)
+            self.embedding_types = emmbedding_types
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
@@ -168,6 +186,7 @@ class AmazonBedrockDocumentImageEmbedder:
             aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
             progress_bar=self.progress_bar,
             boto3_config=self.boto3_config,
+            image_size=self.image_size,
             **self.kwargs,
         )
         return serialization_dict
@@ -210,7 +229,7 @@ class AmazonBedrockDocumentImageEmbedder:
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "AmazonBedrockDocumentImageEmbedder expects a list of Documents as input. "
-                "In case you want to embed a list of strings, please use the AmazonBedrockTextEmbedder."
+                "In case you want to embed a string, please use the AmazonBedrockTextEmbedder."
             )
             raise TypeError(msg)
         images_source_info = _extract_image_sources_info(
@@ -233,15 +252,21 @@ class AmazonBedrockDocumentImageEmbedder:
                 }
                 pdf_page_infos.append(pdf_page_info)
             else:
-                # Read image from file and encode it for the relevant model.
-                # mime_type is added but mypy doesn't know that
-                base64_image = self._get_base64_image_uri(image_source_info["path"], image_source_info["mime_type"])  # type: ignore[arg-type]
-
                 # Process images directly
-                images_to_embed[doc_idx] = base64_image
+                image_byte_stream = ByteStream.from_file_path(
+                    filepath=image_source_info["path"], mime_type=image_source_info["mime_type"]
+                )
+                mime_type, base64_image = _encode_image_to_base64(bytestream=image_byte_stream, size=self.image_size)
+                if "cohere" in self.model:
+                    images_to_embed[doc_idx] = f"data:{mime_type};base64,{base64_image}"
+                else:
+                    images_to_embed[doc_idx] = base64_image
 
-        pdf_images_by_doc_idx = _batch_convert_pdf_pages_to_images(pdf_page_infos=pdf_page_infos, return_base64=True)
+        pdf_images_by_doc_idx = _batch_convert_pdf_pages_to_images(
+            pdf_page_infos=pdf_page_infos, return_base64=True, size=self.image_size
+        )
 
+        # the pdf_images_by_doc_idx has base64 images but mypy cant detect that
         for doc_idx, base64_image in pdf_images_by_doc_idx.items():  # type: ignore[assignment]
             pdf_image_uri = f"data:application/pdf;base64,{base64_image}" if "cohere" in self.model else base64_image
             images_to_embed[doc_idx] = pdf_image_uri
@@ -305,14 +330,8 @@ class AmazonBedrockDocumentImageEmbedder:
         """
 
         cohere_body = {"input_type": "image"}
-        if emmbedding_types := self.kwargs.get("embedding_types"):
-            if len(emmbedding_types) > 1:
-                msg = (
-                    "You have provided multiple embedding_types. "
-                    "AmazonBedrockDocumentImageEmbedder only supports one embedding_type at a time."
-                )
-                raise ValueError(msg)
-            cohere_body["embedding_types"] = emmbedding_types
+        if self.embedding_types:
+            cohere_body["embedding_types"] = self.embedding_types
 
         all_embeddings = []
 
