@@ -25,9 +25,7 @@ class S3Downloader:
     authentication patterns and dependencies. It supports downloading files from S3
     with comprehensive metadata extraction and error handling.
 
-    ### Usage Examples
-
-    #### Basic Usage with Environment Variables
+    #### Example
     ```python
     from haystack_integrations.components.downloader import S3Downloader
 
@@ -61,28 +59,6 @@ class S3Downloader:
     result = downloader.run("s3://my-bucket/path/to/file.pdf")
     ```
 
-    #### Pipeline Integration
-    ```python
-    from haystack import Pipeline
-    from haystack_integrations.components.downloader import S3Downloader
-    from haystack.components.converters import TextFileToDocument
-
-    # Create pipeline
-    pipeline = Pipeline()
-    pipeline.add_component("s3_downloader", S3Downloader())
-    pipeline.add_component("converter", TextFileToDocument())
-
-    # Connect components
-    pipeline.connect("s3_downloader.content", "converter.sources")
-
-    # Run pipeline
-    result = pipeline.run({
-        "s3_downloader": {"url": "s3://my-bucket/document.txt"}
-    })
-
-    # Access results
-    document = result["converter"]["documents"][0]
-    ```
     """
 
     def __init__(
