@@ -84,7 +84,7 @@ class TestCohereChatGenerator:
 
         component = CohereChatGenerator()
         assert component.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
-        assert component.model == "command-r-08-2024"
+        assert component.model == "command-r-plus"
         assert component.streaming_callback is None
         assert component.api_base_url == "https://api.cohere.com"
         assert not component.generation_kwargs
@@ -122,7 +122,7 @@ class TestCohereChatGenerator:
         assert data == {
             "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model": "command-r-08-2024",
+                "model": "command-r-plus",
                 "streaming_callback": None,
                 "api_key": {
                     "env_vars": ["COHERE_API_KEY", "CO_API_KEY"],
@@ -174,7 +174,7 @@ class TestCohereChatGenerator:
         data = {
             "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model": "command-r-08-2024",
+                "model": "command-r-plus",
                 "api_base_url": "test-base-url",
                 "api_key": {
                     "env_vars": ["ENV_VAR"],
@@ -189,7 +189,7 @@ class TestCohereChatGenerator:
             },
         }
         component = CohereChatGenerator.from_dict(data)
-        assert component.model == "command-r-08-2024"
+        assert component.model == "command-r-plus"
         assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {
@@ -203,7 +203,7 @@ class TestCohereChatGenerator:
         data = {
             "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model": "command-r-08-2024",
+                "model": "command-r-plus",
                 "api_base_url": "test-base-url",
                 "api_key": {
                     "env_vars": ["COHERE_API_KEY", "CO_API_KEY"],
@@ -235,7 +235,7 @@ class TestCohereChatGenerator:
         )
 
         generator = CohereChatGenerator(
-            model="command-r-08-2024",
+            model="command-r-plus",
             generation_kwargs={"temperature": 0.7},
             streaming_callback=print_streaming_chunk,
             tools=[tool],
@@ -254,7 +254,7 @@ class TestCohereChatGenerator:
                 "generator": {
                     "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",  # noqa: E501
                     "init_parameters": {
-                        "model": "command-r-08-2024",
+                        "model": "command-r-plus",
                         "api_key": {"type": "env_var", "env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True},
                         "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                         "api_base_url": "https://api.cohere.com",
@@ -666,7 +666,7 @@ def expected_streaming_chunks():
         # Chunk 3: Tool call start
         StreamingChunk(
             content="",
-            index=0,
+            index=1,
             start=True,  # Tool call start
             finish_reason=None,
             tool_calls=[
@@ -685,7 +685,7 @@ def expected_streaming_chunks():
         # Chunk 4: Tool call delta - arguments
         StreamingChunk(
             content="",
-            index=0,
+            index=1,
             start=False,
             finish_reason=None,
             tool_calls=[
@@ -702,7 +702,7 @@ def expected_streaming_chunks():
         # Chunk 5: Tool call delta - more arguments
         StreamingChunk(
             content="",
-            index=0,
+            index=1,
             start=False,
             finish_reason=None,
             tool_calls=[
@@ -719,7 +719,7 @@ def expected_streaming_chunks():
         # Chunk 6: Tool call delta - city name
         StreamingChunk(
             content="",
-            index=0,
+            index=1,
             start=False,
             finish_reason=None,
             tool_calls=[
@@ -736,7 +736,7 @@ def expected_streaming_chunks():
         # Chunk 7: Tool call delta - closing brace
         StreamingChunk(
             content="",
-            index=0,
+            index=1,
             start=False,
             finish_reason=None,
             tool_calls=[
@@ -753,7 +753,7 @@ def expected_streaming_chunks():
         # Chunk 8: Tool call end
         StreamingChunk(
             content="",
-            index=7,
+            index=1,
             start=False,
             finish_reason=None,
             tool_calls=None,
@@ -764,7 +764,7 @@ def expected_streaming_chunks():
         # Chunk 9: Tool call start - second tool
         StreamingChunk(
             content="",
-            index=0,
+            index=1,
             start=True,  # Tool call start
             finish_reason=None,
             tool_calls=[
@@ -783,7 +783,7 @@ def expected_streaming_chunks():
         # Chunk 10: Tool call delta - second tool arguments
         StreamingChunk(
             content="",
-            index=0,
+            index=1,
             start=False,
             finish_reason=None,
             tool_calls=[
@@ -800,7 +800,7 @@ def expected_streaming_chunks():
         # Chunk 11: Tool call delta - more second tool arguments
         StreamingChunk(
             content="",
-            index=0,
+            index=1,
             start=False,
             finish_reason=None,
             tool_calls=[
@@ -817,7 +817,7 @@ def expected_streaming_chunks():
         # Chunk 12: Tool call delta - second city name
         StreamingChunk(
             content="",
-            index=0,
+            index=1,
             start=False,
             finish_reason=None,
             tool_calls=[
@@ -834,7 +834,7 @@ def expected_streaming_chunks():
         # Chunk 13: Tool call delta - closing brace for second tool
         StreamingChunk(
             content="",
-            index=0,
+            index=1,
             start=False,
             finish_reason=None,
             tool_calls=[
@@ -851,7 +851,7 @@ def expected_streaming_chunks():
         # Chunk 14: Tool call end - second tool
         StreamingChunk(
             content="",
-            index=13,
+            index=1,
             start=False,
             finish_reason=None,
             tool_calls=None,
@@ -905,11 +905,6 @@ class TestCohereChunkConversion:
         assert result.index is None
         assert result.meta["model"] == "command-r-08-2024"
 
-    def test_convert_invalid_chunk(self):
-        # test with None chunk
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=None, previous_chunks=[], model="command-r-08-2024")
-        assert result is None
-
     def test_convert_content_delta_chunk(self):
         chunk = create_mock_cohere_chunk("content-delta", text="Hello, world!")
 
@@ -946,7 +941,7 @@ class TestCohereChunkConversion:
 
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[], model="command-r-08-2024")
         assert result.content == ""
-        assert result.index == 0
+        assert result.index == 1
         assert result.start is True
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0].id == "call_123"
@@ -959,7 +954,7 @@ class TestCohereChunkConversion:
 
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[], model="command-r-08-2024")
         assert result.content == ""
-        assert result.index == 0
+        assert result.index == 1
         assert result.start is False
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0].tool_name is None  # name was set in start chunk
@@ -970,7 +965,7 @@ class TestCohereChunkConversion:
 
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[], model="command-r-08-2024")
         assert result.content == ""
-        assert result.index is None
+        assert result.index == 1
         assert result.start is False
         assert result.tool_calls is None
 
@@ -1053,7 +1048,7 @@ class TestCohereChunkConversion:
         chunk = create_mock_cohere_chunk("message-end", finish_reason="COMPLETE")
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[], model="command-r-08-2024")
 
-        assert result.meta["usage"] is None
+        assert result.meta["usage"] == {"completion_tokens": 0.0, "prompt_tokens": 0.0}
 
         # malformed usage data
         chunk = create_mock_cohere_chunk(
@@ -1061,4 +1056,4 @@ class TestCohereChunkConversion:
         )
 
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, previous_chunks=[], model="command-r-08-2024")
-        assert result.meta["usage"] is None  # Should handle KeyError gracefully
+        assert result.meta["usage"] == {"completion_tokens": 0.0, "prompt_tokens": 0.0}

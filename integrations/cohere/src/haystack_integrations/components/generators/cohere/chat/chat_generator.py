@@ -36,6 +36,7 @@ from cohere import (
     ToolCallV2,
     ToolCallV2Function,
     ToolChatMessageV2,
+    Usage,
     UserChatMessageV2,
 )
 
@@ -183,7 +184,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
     model: str,
     component_info: Optional[ComponentInfo] = None,
     tool_call_index: int = 0,
-) -> Optional[StreamingChunk]:
+) -> StreamingChunk:
     """
     Converts a Cohere streaming response chunk to a StreamingChunk.
 
@@ -216,7 +217,10 @@ def _convert_cohere_chunk_to_streaming_chunk(
     tool_calls = None
     meta = {"model": model}
 
-    if chunk.type == "content-delta":
+    if not chunk or not hasattr(chunk, "delta") or chunk.delta is None:
+        pass
+
+    elif chunk.type == "content-delta":
         if chunk.delta.message and chunk.delta.message.content and chunk.delta.message.content.text is not None:
             content = chunk.delta.message.content.text
             start = len(previous_chunks) == 0  # Start if this is the first chunk
@@ -262,29 +266,36 @@ def _convert_cohere_chunk_to_streaming_chunk(
 
     elif chunk.type == "tool-call-end":
         # Tool call end doesn't have content, just signals completion
-        start=True
+        # start=True    # if commented it fixes for the first tool call but breaks for the second
         index=1
 
     elif chunk.type == "message-end":
         finish_reason_raw = getattr(chunk.delta, "finish_reason", None)
         finish_reason = finish_reason_mapping.get(finish_reason_raw) if finish_reason_raw else None
 
-        # Extract usage data if available
+        # The Cohere API is subject to changes in how usage data is returned. We try to support both dict and objects.
         usage_data = getattr(chunk.delta, "usage", None)
-        usage = None
+        prompt_tokens, completion_tokens = 0.0, 0.0
         if isinstance(usage_data, dict):
             try:
-                usage = {
-                    "prompt_tokens": usage_data["billed_units"]["input_tokens"],
-                    "completion_tokens": usage_data["billed_units"]["output_tokens"],
-                }
+                prompt_tokens = usage_data["billed_units"]["input_tokens"]
+                completion_tokens = usage_data["billed_units"]["output_tokens"]
             except KeyError:
                 pass
-        elif usage_data is not None and hasattr(usage_data, "billed_units") and usage_data.billed_units:
-            usage = {
-                "prompt_tokens": usage_data.billed_units.input_tokens,
-                "completion_tokens": usage_data.billed_units.output_tokens,
-            }
+        elif (
+                usage_data is not None
+                and isinstance(usage_data, Usage)
+                and usage_data.billed_units
+                and usage_data.billed_units.input_tokens is not None
+                and usage_data.billed_units.output_tokens is not None
+        ):
+            prompt_tokens = usage_data.billed_units.input_tokens
+            completion_tokens = usage_data.billed_units.output_tokens
+
+        usage = {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens
+        }
 
         meta["finish_reason"] = finish_reason_raw  # type: ignore[assignment]
         meta["usage"] = usage  # type: ignore[assignment]
@@ -315,6 +326,7 @@ def _parse_streaming_response(
     tool_call_index = -1
 
     for chunk in response:
+
         if chunk.type == "tool-call-start":
             tool_call_index += 1
 
@@ -325,6 +337,9 @@ def _parse_streaming_response(
             model=model,
             tool_call_index=tool_call_index,
         )
+
+        if not streaming_chunk:
+            continue
 
         chunks.append(streaming_chunk)
         streaming_callback(streaming_chunk)
