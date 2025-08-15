@@ -6,7 +6,8 @@ from unittest.mock import patch
 
 import pytest
 from botocore.exceptions import ClientError
-from haystack.dataclasses import Document
+from haystack.components.converters.image.image_utils import _encode_image_to_base64
+from haystack.dataclasses import ByteStream, Document
 
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
@@ -152,9 +153,12 @@ class TestAmazonBedrockDocumentImageEmbedder:
             mock_client.invoke_model.return_value = {
                 "body": io.StringIO('{"embeddings": {"float": [[0.1, 0.2, 0.3]]}}'),
             }
-
             docs = [Document(content="some text", meta={"file_path": image_paths[0]})]
-            base64_images = [embedder._get_base64_image_uri(doc.meta["file_path"], "image/jpg") for doc in docs]
+            base64_images = []
+            for doc in docs:
+                image_byte_stream = ByteStream.from_file_path(filepath=doc.meta["file_path"], mime_type="image/jpeg")
+                mime_type, base64_image = _encode_image_to_base64(image_byte_stream)
+                base64_images.append(f"data:{mime_type};base64,{base64_image}")
 
             result = embedder._embed_cohere(documents=base64_images)
 
@@ -187,7 +191,12 @@ class TestAmazonBedrockDocumentImageEmbedder:
                 Document(content="some text", meta={"file_path": image_paths[0]}),
                 Document(content="some other text", meta={"file_path": image_paths[1]}),
             ]
-            base64_images = [embedder._get_base64_image_uri(doc.meta["file_path"], "image/jpeg") for doc in docs]
+            base64_images = []
+            # Process images directly
+            for doc in docs:
+                image_byte_stream = ByteStream.from_file_path(filepath=doc.meta["file_path"], mime_type="image/jpeg")
+                mime_type, base64_image = _encode_image_to_base64(image_byte_stream)
+                base64_images.append(base64_image)
 
             result = embedder._embed_titan(documents=base64_images)
 
