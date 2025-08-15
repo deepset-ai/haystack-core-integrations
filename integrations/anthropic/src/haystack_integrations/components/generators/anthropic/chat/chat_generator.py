@@ -146,7 +146,11 @@ def _convert_messages_to_anthropic_format(
                     raise ValueError(msg)
 
                 # Anthropic vision API format
-                media_type = part.mime_type or "image/jpeg"
+                if part.mime_type is None:
+                    msg = "Image content must have a valid mime_type"
+                    raise ValueError(msg)
+
+                media_type = part.mime_type
                 if media_type not in IMAGE_SUPPORTED_FORMATS:
                     supported_formats = ", ".join(IMAGE_SUPPORTED_FORMATS)
                     msg = (
