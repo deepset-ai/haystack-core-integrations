@@ -296,9 +296,12 @@ class AmazonBedrockDocumentImageEmbedder:
 
         return {"documents": docs_with_embeddings}
 
-    def _embed_titan(self, documents: List[str]) -> List[List[float]]:
+    def _embed_titan(self, images: List[str]) -> List[List[float]]:
         """
         Internal method to embed base64 images using Amazon Titan models.
+
+        :param images: List of base64 images.
+        :return: List of embeddings.
         """
 
         titan_body = {}
@@ -307,7 +310,7 @@ class AmazonBedrockDocumentImageEmbedder:
 
         all_embeddings = []
 
-        for image in tqdm(documents, disable=not self.progress_bar, desc="Creating embeddings"):
+        for image in tqdm(images, disable=not self.progress_bar, desc="Creating embeddings"):
             body = {"inputImage": image, **titan_body}
             try:
                 response = self._client.invoke_model(
@@ -323,9 +326,12 @@ class AmazonBedrockDocumentImageEmbedder:
 
         return all_embeddings
 
-    def _embed_cohere(self, documents: List[str]) -> List[List[float]]:
+    def _embed_cohere(self, image_uris: List[str]) -> List[List[float]]:
         """
         Internal method to embed base64 images using Cohere models.
+
+        :param image_uris: List of image uris containing the base64 image and the mime type.
+        :return: List of embeddings.
         """
 
         cohere_body = {"input_type": "image"}
@@ -334,7 +340,7 @@ class AmazonBedrockDocumentImageEmbedder:
 
         all_embeddings = []
 
-        for image in tqdm(documents, disable=not self.progress_bar, desc="Creating embeddings"):
+        for image in tqdm(image_uris, disable=not self.progress_bar, desc="Creating embeddings"):
             body = {"images": [image], **cohere_body}
             try:
                 response = self._client.invoke_model(
