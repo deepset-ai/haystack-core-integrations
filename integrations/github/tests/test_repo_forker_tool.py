@@ -55,7 +55,7 @@ class TestGitHubRepoForkerTool:
         assert tool_dict["data"]["name"] == "repo_forker"
         assert tool_dict["data"]["description"] == REPO_FORKER_PROMPT
         assert tool_dict["data"]["parameters"] == REPO_FORKER_SCHEMA
-        assert tool_dict["data"]["github_token"]  == {
+        assert tool_dict["data"]["github_token"] == {
             "env_vars": ["GITHUB_TOKEN"],
             "strict": True,
             "type": "env_var",
