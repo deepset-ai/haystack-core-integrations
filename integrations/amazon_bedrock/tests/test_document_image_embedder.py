@@ -201,12 +201,10 @@ class TestAmazonBedrockDocumentImageEmbedder:
         assert result[1] == [0.1, 0.2, 0.3]
 
     def test_embed_cohere_multiple_embedding_types(self, mock_boto3_session):
-        embedder = AmazonBedrockDocumentImageEmbedder(
-            model="cohere.embed-english-v3", embedding_types=["float", "int8"]
-        )
-        docs = [Document(content="some text", meta={"file_path": "some_path"})]
         with pytest.raises(ValueError):
-            embedder.run(documents=docs)
+            embedder = AmazonBedrockDocumentImageEmbedder(
+                model="cohere.embed-english-v3", embedding_types=["float", "int8"]
+            )
 
     @pytest.mark.integration
     @pytest.mark.skipif(

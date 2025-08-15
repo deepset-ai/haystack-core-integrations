@@ -135,6 +135,7 @@ class AmazonBedrockDocumentImageEmbedder:
         self.image_size = image_size
         self.progress_bar = progress_bar
         self.kwargs = kwargs
+        self.embedding_types = None
 
         if emmbedding_types := self.kwargs.get("embedding_types"):
             if len(emmbedding_types) > 1:
