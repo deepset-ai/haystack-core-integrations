@@ -139,7 +139,6 @@ class LangfuseConnector:
         *,
         host: Optional[str] = None,
         langfuse_client_kwargs: Optional[Dict[str, Any]] = None,
-        session_id: Optional[str] = None,
     ) -> None:
         """
         Initialize the LangfuseConnector component.
@@ -174,7 +173,6 @@ class LangfuseConnector:
         self.span_handler = span_handler
         self.host = host
         self.langfuse_client_kwargs = langfuse_client_kwargs
-        self.session_id = session_id
         resolved_langfuse_client_kwargs = {
             "secret_key": secret_key.resolve_value() if secret_key else None,
             "public_key": public_key.resolve_value() if public_key else None,
@@ -187,12 +185,13 @@ class LangfuseConnector:
             name=name,
             public=public,
             span_handler=span_handler,
-            session_id=session_id,
         )
         tracing.enable_tracing(self.tracer)
 
     @component.output_types(name=str, trace_url=str, trace_id=str)
-    def run(self, invocation_context: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+    def run(
+        self, invocation_context: Optional[Dict[str, Any]] = None, session_id: Optional[str] = None
+    ) -> Dict[str, str]:
         """
         Runs the LangfuseConnector component.
 
@@ -200,35 +199,24 @@ class LangfuseConnector:
             is useful when users want to mark this particular invocation with additional information, e.g.
             a run id from their own execution framework, user_id, etc. These key-value pairs are then visible
             in the Langfuse traces.
+        :param session_id: Optional session ID to group this specific run with other related traces.
+            If provided, this session_id will be used for the current pipeline run, allowing Langfuse
+            to group related operations together.
         :returns: A dictionary with the following keys:
             - `name`: The name of the tracing component.
             - `trace_url`: The URL to the tracing data.
             - `trace_id`: The ID of the trace.
         """
-        # Note: session_id is handled at the trace level, not in invocation context
-        # The session_id parameter is used when creating traces, not when running the connector
+        # Set session_id for this run if provided
+        if session_id is not None:
+            self.tracer._session_id = session_id
 
         logger.debug(
-            "Langfuse tracer invoked with the following context: '{invocation_context}'",
+            "Langfuse tracer invoked with the following context: '{invocation_context}' and session_id: '{session_id}'",
             invocation_context=invocation_context,
+            session_id=session_id,
         )
         return {"name": self.name, "trace_url": self.tracer.get_trace_url(), "trace_id": self.tracer.get_trace_id()}
-
-    def get_session_id(self) -> Optional[str]:
-        """
-        Get the session ID used by this connector.
-
-        :return: The session ID if set, None otherwise.
-        """
-        return self.session_id
-
-    def get_tracer_session_id(self) -> Optional[str]:
-        """
-        Get the session ID from the underlying tracer.
-
-        :return: The session ID if set, None otherwise.
-        """
-        return getattr(self.tracer, "_session_id", None)
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -254,7 +242,6 @@ class LangfuseConnector:
             span_handler=span_handler,
             host=self.host,
             langfuse_client_kwargs=langfuse_client_kwargs,
-            session_id=self.session_id,
         )
 
     @classmethod

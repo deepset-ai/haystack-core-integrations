@@ -69,7 +69,6 @@ class TestLangfuseConnector:
                 "span_handler": None,
                 "host": None,
                 "langfuse_client_kwargs": None,
-                "session_id": None,
             },
         }
 
@@ -112,7 +111,6 @@ class TestLangfuseConnector:
                 },
                 "host": "https://example.com",
                 "langfuse_client_kwargs": {"timeout": 30.0},
-                "session_id": None,
             },
         }
 
@@ -138,7 +136,6 @@ class TestLangfuseConnector:
                 "span_handler": None,
                 "host": None,
                 "langfuse_client_kwargs": None,
-                "session_id": None,
             },
         }
         langfuse_connector = LangfuseConnector.from_dict(data)
@@ -149,7 +146,6 @@ class TestLangfuseConnector:
         assert langfuse_connector.span_handler is None
         assert langfuse_connector.host is None
         assert langfuse_connector.langfuse_client_kwargs is None
-        assert langfuse_connector.session_id is None
 
     def test_from_dict_with_params(self, monkeypatch):
         monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
@@ -179,7 +175,6 @@ class TestLangfuseConnector:
                 },
                 "host": "https://example.com",
                 "langfuse_client_kwargs": {"timeout": 30.0},
-                "session_id": None,
             },
         }
 
@@ -191,7 +186,6 @@ class TestLangfuseConnector:
         assert isinstance(langfuse_connector.span_handler, CustomSpanHandler)
         assert langfuse_connector.host == "https://example.com"
         assert langfuse_connector.langfuse_client_kwargs == {"timeout": 30.0}
-        assert langfuse_connector.session_id is None
 
     def test_pipeline_serialization(self, monkeypatch):
         # Set test env vars
@@ -231,3 +225,31 @@ class TestLangfuseConnector:
 
         # Verify pipeline is the same
         assert new_pipe == pipe
+
+    def test_run_with_session_id(self, monkeypatch):
+        """Test that session_id can be passed as a runtime parameter"""
+        monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
+        monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "public")
+
+        langfuse_connector = LangfuseConnector(name="Session Test")
+        
+        # Mock the tracer methods to avoid real API calls
+        mock_tracer = Mock()
+        mock_tracer.get_trace_url.return_value = "https://example.com/trace"
+        mock_tracer.get_trace_id.return_value = "12345"
+        langfuse_connector.tracer = mock_tracer
+        
+        # Test with session_id
+        response = langfuse_connector.run(session_id="user_123_session_456")
+        assert response["name"] == "Session Test"
+        assert response["trace_url"] == "https://example.com/trace"
+        assert response["trace_id"] == "12345"
+        
+        # Verify session_id was set on the tracer
+        assert langfuse_connector.tracer._session_id == "user_123_session_456"
+        
+        # Test without session_id
+        response = langfuse_connector.run()
+        assert response["name"] == "Session Test"
+        assert response["trace_url"] == "https://example.com/trace"
+        assert response["trace_id"] == "12345"

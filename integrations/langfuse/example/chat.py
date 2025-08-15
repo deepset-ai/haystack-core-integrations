@@ -57,6 +57,7 @@ if __name__ == "__main__":
             },
             "tracer": {
                 "invocation_context": {"some_key": "some_value"},
+                "session_id": "user_123_chat_session",
             },
         }
     )

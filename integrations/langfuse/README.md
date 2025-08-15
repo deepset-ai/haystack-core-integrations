@@ -91,11 +91,43 @@ response = pipe.run(
 print(response["llm"]["replies"][0])
 print(response["tracer"]["trace_url"])
 print(response["tracer"]["trace_id"])
+
+# Using session_id to group related traces
+response = pipe.run(
+    data={"prompt_builder": {"template_variables": {"location": "Paris"}, "template": messages}},
+    tracer={"session_id": "user_123_conversation_456"}
+)
+print(response["llm"]["replies"][0])
+print(response["tracer"]["trace_url"])
+print(response["tracer"]["trace_id"])
 ```
 
 In this example, we add the `LangfuseConnector` to the pipeline with the name "tracer". 
 Each run of the pipeline produces one trace viewable on the Langfuse website with a specific URL. 
 The trace captures the entire execution context, including the prompts, completions, and metadata.
+
+### Using Session IDs
+
+You can group related traces together by passing a `session_id` when running the pipeline. This is useful for:
+- **Multi-turn conversations**: Group all messages in a chat session
+- **Workflow tracking**: Group all operations in a user workflow
+- **Debugging**: Correlate related traces across different pipeline runs
+
+```python
+# Group traces by user session
+response = pipe.run(
+    data={"prompt_builder": {"template_variables": {"location": "Tokyo"}, "template": messages}},
+    tracer={"session_id": "user_123_session_456"}
+)
+
+# Group traces by workflow
+response = pipe.run(
+    data={"prompt_builder": {"template_variables": {"location": "London"}, "template": messages}},
+    tracer={"session_id": "workflow_789_step_2"}
+)
+```
+
+All traces with the same `session_id` will be grouped together in the Langfuse UI, making it easier to analyze related operations.
 
 ## Trace Visualization
 

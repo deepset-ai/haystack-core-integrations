@@ -60,7 +60,11 @@ if __name__ == "__main__":
 
     pipeline = get_pipeline(document_store)
     question = "What does Rhodes Statue look like?"
-    response = pipeline.run({"text_embedder": {"text": question}, "prompt_builder": {"question": question}})
+    response = pipeline.run({
+        "text_embedder": {"text": question}, 
+        "prompt_builder": {"question": question},
+        "tracer": {"session_id": "rag_session_001"}
+    })
 
     print(response["llm"]["replies"][0])
     print(response["tracer"]["trace_url"])
