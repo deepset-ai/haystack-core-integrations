@@ -243,7 +243,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
                         arguments=None,
                     )
                 ]
-                index =+1 # to adjust for the print_streaming_chunk condition
+                index = +1  # to adjust for the print_streaming_chunk condition
                 start = True  # This starts a tool call
                 meta["tool_call_id"] = tool_call.id  # type: ignore[assignment]
 
@@ -267,7 +267,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
     elif chunk.type == "tool-call-end":
         # Tool call end doesn't have content, just signals completion
         # start=True    # if commented it fixes for the first tool call but breaks for the second
-        index=1
+        index = 1
 
     elif chunk.type == "message-end":
         finish_reason_raw = getattr(chunk.delta, "finish_reason", None)
@@ -283,19 +283,16 @@ def _convert_cohere_chunk_to_streaming_chunk(
             except KeyError:
                 pass
         elif (
-                usage_data is not None
-                and isinstance(usage_data, Usage)
-                and usage_data.billed_units
-                and usage_data.billed_units.input_tokens is not None
-                and usage_data.billed_units.output_tokens is not None
+            usage_data is not None
+            and isinstance(usage_data, Usage)
+            and usage_data.billed_units
+            and usage_data.billed_units.input_tokens is not None
+            and usage_data.billed_units.output_tokens is not None
         ):
             prompt_tokens = usage_data.billed_units.input_tokens
             completion_tokens = usage_data.billed_units.output_tokens
 
-        usage = {
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens
-        }
+        usage = {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens}
 
         meta["finish_reason"] = finish_reason_raw  # type: ignore[assignment]
         meta["usage"] = usage  # type: ignore[assignment]
@@ -326,7 +323,6 @@ def _parse_streaming_response(
     tool_call_index = -1
 
     for chunk in response:
-
         if chunk.type == "tool-call-start":
             tool_call_index += 1
 
