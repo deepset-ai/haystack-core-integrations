@@ -2,10 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import base64
 import json
 from dataclasses import replace
-from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from botocore.config import Config
@@ -359,12 +357,3 @@ class AmazonBedrockDocumentImageEmbedder:
                 all_embeddings.append(embeddings[0])
 
         return all_embeddings
-
-    def _get_base64_image_uri(self, image_file_path: Path, image_mime_type: str) -> str:
-        with open(image_file_path, "rb") as image_file:
-            image_bytes = image_file.read()
-            base64_image = base64.b64encode(image_bytes).decode("utf-8")
-        if "cohere" in self.model:
-            return f"data:{image_mime_type};base64,{base64_image}"
-        else:
-            return base64_image

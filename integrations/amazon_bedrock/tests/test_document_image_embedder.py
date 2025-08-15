@@ -202,9 +202,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
 
     def test_embed_cohere_multiple_embedding_types(self, mock_boto3_session):
         with pytest.raises(ValueError):
-            embedder = AmazonBedrockDocumentImageEmbedder(
-                model="cohere.embed-english-v3", embedding_types=["float", "int8"]
-            )
+            AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3", embedding_types=["float", "int8"])
 
     @pytest.mark.integration
     @pytest.mark.skipif(
