@@ -116,15 +116,20 @@ class LangfuseConnector:
         **Using Sessions to Group Related Traces:**
 
         ```python
-        # Create a connector with a session ID to group all related traces
-        tracer = LangfuseConnector(
-            name="Agent Workflow",
-            session_id="user_123_workflow_456"
+        # Create a connector
+        tracer = LangfuseConnector(name="Agent Workflow")
+
+        # Pass session_id at runtime to group related traces
+        response = tracer.run(session_id="user_123_workflow_456")
+
+        # Or when used in a pipeline
+        response = pipeline.run(
+            data={"your_data": "value"},
+            tracer={"session_id": "user_123_workflow_456"}
         )
 
-        # All traces created by this connector will use the same session_id
-        # Langfuse will automatically group them as one session in the UI
-        # This is useful for complex workflows with multiple agents or pipelines
+        # All traces with the same session_id will be grouped together
+        # in the Langfuse UI, making it easier to correlate related operations
         ```
     """
 
@@ -162,9 +167,6 @@ class LangfuseConnector:
         :param langfuse_client_kwargs: Optional custom configuration for the Langfuse client. This is a dictionary
             containing any additional configuration options for the Langfuse client. See the Langfuse documentation
             for more details on available configuration options.
-        :param session_id: Optional session ID to group multiple traces together. If provided, all traces created
-            by this connector will be grouped under the same session in Langfuse, making it easier to correlate
-            related operations (e.g., all agents in a workflow).
         """
         self.name = name
         self.public = public
