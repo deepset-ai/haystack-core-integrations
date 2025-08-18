@@ -215,15 +215,15 @@ def _convert_cohere_chunk_to_streaming_chunk(
     tool_calls = None
     meta = {"model": model}
 
-    if chunk.type == "content-delta":
+    if chunk.type == "content-delta" and chunk.delta and chunk.delta.message:
         if chunk.delta.message and chunk.delta.message.content and chunk.delta.message.content.text is not None:
             content = chunk.delta.message.content.text
 
-    elif chunk.type == "tool-plan-delta":
+    elif chunk.type == "tool-plan-delta" and chunk.delta and chunk.delta.message:
         if chunk.delta.message and chunk.delta.message.tool_plan is not None:
             content = chunk.delta.message.tool_plan
 
-    elif chunk.type == "tool-call-start":
+    elif chunk.type == "tool-call-start" and chunk.delta and chunk.delta.message:
         if chunk.delta.message and chunk.delta.message.tool_calls:
             tool_call = chunk.delta.message.tool_calls
             function = tool_call.function
@@ -240,7 +240,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
                 start = True  # This starts a tool call
                 meta["tool_call_id"] = tool_call.id  # type: ignore[assignment]
 
-    elif chunk.type == "tool-call-delta":
+    elif chunk.type == "tool-call-delta" and chunk.delta and chunk.delta.message:
         if (
             chunk.delta.message
             and chunk.delta.message.tool_calls
