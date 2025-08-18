@@ -368,3 +368,34 @@ class TestCohereDocumentImageEmbedder:
             assert "embedding_source" in new_doc.meta
             assert new_doc.meta["embedding_source"]["type"] == "image"
             assert "file_path_meta_field" in new_doc.meta["embedding_source"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
+        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
+    )
+    async def test_live_run_async(self, test_files_path):
+        embedder = CohereDocumentImageEmbedder(model="embed-v4.0", image_size=(100, 100))
+
+        documents = [
+            Document(
+                content="PDF document",
+                meta={"file_path": str(test_files_path / "sample_pdf_1.pdf"), "page_number": 1},
+            ),
+            Document(content="Image document", meta={"file_path": str(test_files_path / "apple.jpg")}),
+        ]
+
+        result = await embedder.run_async(documents=documents)
+        assert len(result["documents"]) == len(documents)
+        for doc, new_doc in zip(documents, result["documents"]):
+            assert doc.embedding is None
+            assert new_doc is not doc
+            assert isinstance(new_doc, Document)
+            assert isinstance(new_doc.embedding, list)
+            assert len(new_doc.embedding) == 1536
+            assert all(isinstance(x, float) for x in new_doc.embedding)
+            assert "embedding_source" not in doc.meta
+            assert "embedding_source" in new_doc.meta
+            assert new_doc.meta["embedding_source"]["type"] == "image"
+            assert "file_path_meta_field" in new_doc.meta["embedding_source"]
