@@ -15,7 +15,6 @@ from haystack.components.converters.image.image_utils import (
 from haystack.dataclasses import ByteStream
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
-from tqdm.asyncio import tqdm as tqdm_async
 
 from cohere import AsyncClientV2, ClientV2
 
@@ -69,7 +68,7 @@ class CohereDocumentImageEmbedder:
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
         model: str = "embed-v4.0",
         api_base_url: str = "https://api.cohere.com",
-        timeout: int = 120,
+        timeout: float = 120.0,
         embedding_dimension: Optional[int] = None,
         embedding_type: EmbeddingTypes = EmbeddingTypes.FLOAT,
         progress_bar: bool = True,
@@ -187,7 +186,7 @@ class CohereDocumentImageEmbedder:
         :raises RuntimeError:
             If the conversion of some documents fails.
         """
-        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
+        if not isinstance(documents, list) or not all(isinstance(d, Document) for d in documents):
             msg = (
                 "CohereDocumentImageEmbedder expects a list of Documents as input. "
                 "In case you want to embed a string, please use the CohereTextEmbedder."
@@ -269,12 +268,10 @@ class CohereDocumentImageEmbedder:
                     output_dimension=self.embedding_dimension,
                     embedding_types=[self.embedding_type.value],
                 )
-
                 embedding = getattr(response.embeddings, self.embedding_type.value)[0]
             except Exception as e:
-                msg = f"Error embedding Document {doc.id}. The Document will be skipped. \nException: {e}"
-                logger.warning(msg)
-                embedding = None
+                msg = f"Error embedding Document {doc.id}"
+                raise RuntimeError(msg) from e
 
             embeddings.append(embedding)
 
@@ -308,9 +305,7 @@ class CohereDocumentImageEmbedder:
         embeddings = []
 
         # The Cohere API only supports passing one image at a time
-        async for doc, image in tqdm_async(
-            zip(documents, images_to_embed), desc="Embedding images", disable=not self.progress_bar
-        ):
+        for doc, image in tqdm(zip(documents, images_to_embed), desc="Embedding images", disable=not self.progress_bar):
             try:
                 response = await self._async_client.embed(
                     model=self.model,
@@ -319,12 +314,10 @@ class CohereDocumentImageEmbedder:
                     output_dimension=self.embedding_dimension,
                     embedding_types=[self.embedding_type.value],
                 )
-
                 embedding = getattr(response.embeddings, self.embedding_type.value)[0]
             except Exception as e:
-                msg = f"Error embedding Document {doc.id}. The Document will be skipped. \nException: {e}"
-                logger.warning(msg)
-                embedding = None
+                msg = f"Error embedding Document {doc.id}"
+                raise RuntimeError(msg) from e
 
             embeddings.append(embedding)
 

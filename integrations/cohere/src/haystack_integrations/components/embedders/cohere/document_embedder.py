@@ -42,7 +42,7 @@ class CohereDocumentEmbedder:
         input_type: str = "search_document",
         api_base_url: str = "https://api.cohere.com",
         truncate: str = "END",
-        timeout: int = 120,
+        timeout: float = 120.0,
         batch_size: int = 32,
         progress_bar: bool = True,
         meta_fields_to_embed: Optional[List[str]] = None,
