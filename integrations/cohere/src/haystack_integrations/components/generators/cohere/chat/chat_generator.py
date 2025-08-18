@@ -565,8 +565,11 @@ class CohereChatGenerator:
             - `replies`: a list of `ChatMessage` instances representing the generated responses.
         """
 
-        if streaming_callback:
-            self.streaming_callback = streaming_callback
+       streaming_callback = select_streaming_callback(
+            init_callback=self.streaming_callback,
+            runtime_callback=streaming_callback,
+            requires_async=False,
+        )
 
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {
