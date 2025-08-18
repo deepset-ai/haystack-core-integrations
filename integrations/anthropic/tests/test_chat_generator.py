@@ -1207,7 +1207,7 @@ class TestAnthropicChatGenerator:
         image_content.mime_type = None
         message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
 
-        with pytest.raises(ValueError, match="Image content must have a valid mime_type"):
+        with pytest.raises(ValueError, match="Unsupported image format: None"):
             _convert_messages_to_anthropic_format([message])
 
     def test_convert_message_to_anthropic_invalid(self):
@@ -1619,6 +1619,7 @@ class TestAnthropicChatGenerator:
         assert non_sys[0]["content"][0]["cache_control"]["type"] == "ephemeral"
 
     @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY", None), reason="ANTHROPIC_API_KEY not set")
+    @pytest.mark.integration
     @pytest.mark.parametrize("cache_enabled", [True, False])
     def test_prompt_caching_live_run(self, cache_enabled):
         generation_kwargs = {"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}} if cache_enabled else {}
@@ -1650,6 +1651,7 @@ class TestAnthropicChatGenerator:
             assert token_usage["cache_read_input_tokens"] == 0
 
     @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
+    @pytest.mark.integration
     @pytest.mark.parametrize("cache_enabled", [True, False])
     def test_prompt_caching_live_run_with_user_message(self, cache_enabled):
         claude_llm = AnthropicChatGenerator(

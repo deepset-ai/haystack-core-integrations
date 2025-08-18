@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, ClassVar, Dict, List, Literal, Optional, Tuple, Union, cast
+from typing import Any, ClassVar, Dict, List, Literal, Optional, Tuple, Union, cast, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
@@ -40,7 +40,8 @@ logger = logging.getLogger(__name__)
 
 
 # See https://docs.anthropic.com/en/api/messages for supported formats
-IMAGE_SUPPORTED_FORMATS = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+ImageFormat = Literal["image/jpeg", "image/png", "image/gif", "image/webp"]
+IMAGE_SUPPORTED_FORMATS: list[ImageFormat] = list(get_args(ImageFormat))
 
 
 # Mapping from Anthropic stop reasons to Haystack FinishReason values
@@ -145,24 +146,19 @@ def _convert_messages_to_anthropic_format(
                     msg = "Image content is only supported for user messages"
                     raise ValueError(msg)
 
-                # Anthropic vision API format
-                if part.mime_type is None:
-                    msg = "Image content must have a valid mime_type"
-                    raise ValueError(msg)
-
-                media_type = part.mime_type
-                if media_type not in IMAGE_SUPPORTED_FORMATS:
+                if part.mime_type not in IMAGE_SUPPORTED_FORMATS:
                     supported_formats = ", ".join(IMAGE_SUPPORTED_FORMATS)
                     msg = (
-                        f"Unsupported image format: {media_type}. "
+                        f"Unsupported image format: {part.mime_type}. "
                         f"Anthropic supports the following formats: {supported_formats}"
                     )
                     raise ValueError(msg)
+
                 image_block = ImageBlockParam(
                     type="image",
                     source={
                         "type": "base64",
-                        "media_type": cast(Literal["image/jpeg", "image/png", "image/gif", "image/webp"], media_type),
+                        "media_type": cast(ImageFormat, part.mime_type),
                         "data": part.base64_image,
                     },
                 )
