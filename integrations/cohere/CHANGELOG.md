@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/cohere-v5.3.0] - 2025-08-18
+
+### 🚀 Features
+
+- Add Cohere Image Document Embedder (#2190)
+
+### 🧹 Chores
+
+- CohereChatGenerator - make finish_reason and usage handling more robust (#2149)
+
+
 ## [integrations/cohere-v5.2.0] - 2025-07-10
 
 ### 🐛 Bug Fixes
