@@ -10,15 +10,14 @@ from typing import Any, Dict, List, Literal, Optional, Union
 from urllib.parse import urlparse
 from uuid import UUID
 
-import boto3
 from botocore.config import Config
-from botocore.exceptions import ClientError, NoCredentialsError
+from botocore.exceptions import ClientError
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ByteStream, Document
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.common.amazon_bedrock.errors import AmazonBedrockConfigurationError
+from haystack_integrations.common.amazon_bedrock.errors import AmazonS3ConfigurationError, AmazonS3Error
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 
 logger = logging.getLogger(__name__)
@@ -27,12 +26,36 @@ logger = logging.getLogger(__name__)
 @component
 class S3Downloader:
     """
-    S3 downloader component for Haystack.
-
-    Downloads files from S3 to local filesystem with caching and concurrent downloads.
+    A component for downloading files from S3 to local filesystem with caching and concurrent downloads.
     Supports filtering by file extensions and returns documents with file paths.
-    """
 
+    Usage example:
+    ```python
+    from haystack import Document
+    from haystack.utils import Secret
+    from haystack_integrations.components.downloader.s3 import S3Downloader
+
+    import os
+    from pathlib import Path
+
+    downloader = S3Downloader(
+        aws_profile_name=Secret.from_token("prof"),
+        aws_region_name=Secret.from_token("eu-central-1"),
+        download_dir=str(Path.cwd() / "s3_cache"),
+        file_extensions=[".json"],
+        sources_target_type="str",
+    )
+    
+    docs = [
+        Document(content="", meta={"s3_bucket": "bucket_name", "s3_key": "your_key", "file_name": "file_name"}),
+    ]
+    result = downloader.run(documents=docs)
+    print("Downloaded docs:")
+    for d in result["documents"]:
+        print(f"- {d.meta.get('file_name')} -> {d.meta.get('file_path')}")
+
+    ```
+    """
     max_cache_size: int = 100
 
     def __init__(
@@ -50,9 +73,29 @@ class S3Downloader:
         download_dir: Optional[str] = None,
         file_extensions: Optional[List[str]] = None,
         sources_target_type: Literal["str", "pathlib.Path", "haystack.dataclasses.ByteStream"] = "str",
-        default_bucket: Optional[str] = None,
         max_workers: int = 32,
-    ):
+        max_cache_size: int = 100,
+    ) -> None:
+        """
+        Initializes the S3Downloader with the provided parameters. The parameters are passed to the
+        Amazon S3 client.
+
+        :param aws_access_key_id: AWS access key ID.
+        :param aws_secret_access_key: AWS secret access key.
+        :param aws_session_token: AWS session token.
+        :param aws_region_name: AWS region name.
+        :param aws_profile_name: AWS profile name.
+        :param endpoint_url: The endpoint URL to use for the S3 client.
+        :param verify_ssl: Whether to verify SSL.
+        :param boto3_config: The configuration for the boto3 client.
+        :param download_dir: The directory to download the files to.
+        :param file_extensions: The file extensions that are permitted to be downloaded.
+        :param sources_target_type: The target type for the sources. Can be "str", "pathlib.Path" or "haystack.dataclasses.ByteStream".
+        :param max_workers: The maximum number of workers to use for concurrent downloads.
+        :param max_cache_size: The maximum number of files to cache.
+        :raises AmazonS3ConfigurationError: If the AWS configuration is not correct.
+        """
+        
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
         self.aws_region_name = aws_region_name
@@ -63,8 +106,9 @@ class S3Downloader:
         self.boto3_config = boto3_config
         self.file_extensions = [e.lower() for e in file_extensions] if file_extensions else None
         self.sources_target_type = sources_target_type
-        self.default_bucket = default_bucket
         self.max_workers = max_workers
+        self.max_cache_size = max_cache_size
+
         # Set up download directory
         if download_dir:
             self.download_dir = Path(download_dir)
@@ -72,6 +116,7 @@ class S3Downloader:
             self.download_dir = Path.cwd() / "s3_downloads"
         self.download_dir.mkdir(parents=True, exist_ok=True)
         self.file_root_path: Path = self.download_dir
+
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
 
@@ -95,7 +140,7 @@ class S3Downloader:
                 "Could not connect to Amazon S3. Make sure the AWS environment is configured correctly. "
                 "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
             )
-            raise AmazonBedrockConfigurationError(msg) from exception
+            raise AmazonS3ConfigurationError(msg) from exception
 
     def warm_up(self) -> None:
         """Ensure local cache directory exists."""
@@ -111,10 +156,19 @@ class S3Downloader:
         sources: Optional[List[Union[ByteStream, UUID, str]]] = None,
     ) -> Dict[str, Union[List[Document], List[Union[str, Path, ByteStream]]]]:
         """
-        Download files linked to S3:
-        - If `sources` provided: accept S3 URLs (str) or ByteStreams carrying S3 meta.
-        - If `documents` provided: read S3 info from each doc's meta.
-          Expected meta keys: 's3_bucket' + 's3_key' OR 's3_url' OR ('s3_key' with default bucket set).
+        Downloads files linked to S3.
+        If `sources` is provided, it will be used to build the documents.
+        If `documents` is provided, it will be used to download the files.
+        The expected meta keys are: 's3_bucket' + 's3_key' OR 's3_url' OR ('s3_key' with default bucket set). 
+        If the meta keys are not present, the document will be skipped.
+
+        :param documents: The documents to download the files from.
+        :param sources: The sources to download the files from.
+        :returns: A dictionary with the following keys:
+            - `documents`: The documents with the `file_path` field populated.
+            - `sources`: The sources in the requested target type.
+        :raises ValueError: If the S3 URL is invalid.
+        :raises Exception: If the download fails.
         """
         # Ensure cache dir
         self.warm_up()
@@ -183,10 +237,15 @@ class S3Downloader:
 
     def _build_source_documents(self, sources: List[Union[ByteStream, UUID, str]]) -> List[Document]:
         """
-        Accepts:
-        - str: "s3://bucket/key"
-        - ByteStream: meta may contain 's3_url' or ('s3_bucket' + 's3_key')
-        - UUID/other str IDs: ignored unless `default_bucket` is set and the ID looks like a key
+        Builds the documents from the provided sources.
+
+        :param sources: Contains the information about the files to download. Can include:
+            - str: "s3://bucket/key"
+            - ByteStream: meta must contain 's3_url' or ('s3_bucket' + 's3_key').
+            - UUID/other str IDs: used as 's3_key' if 's3_bucket' is provided.
+        :returns: A list of documents with the `file_path` field populated.
+        :raises ValueError: If the S3 URL is invalid.
+        :raises Exception: If the download fails.
         """
         docs: List[Document] = []
         for src in sources:
@@ -196,12 +255,7 @@ class S3Downloader:
                     bkt, key = self._parse_s3_url(src)
                     file_name = os.path.basename(key) or "s3_file"
                     docs.append(Document(content="", meta={"s3_bucket": bkt, "s3_key": key, "file_name": file_name}))
-                elif self.default_bucket:
-                    # Treat as key-only if a default bucket is set
-                    file_name = os.path.basename(src) or "s3_file"
-                    docs.append(
-                        Document(content="", meta={"s3_bucket": self.default_bucket, "s3_key": src, "file_name": file_name})
-                    )
+                
                 else:
                     logger.warning(f"Unsupported non-S3 source string: {src!r}. Skipping.")
             # ByteStream carrying S3 metadata
@@ -215,8 +269,6 @@ class S3Downloader:
                         bucket, key = self._parse_s3_url(url)
                     except Exception:  # noqa: BLE001
                         pass
-                if not (bucket and key) and self.default_bucket and key:
-                    bucket = self.default_bucket
                 if bucket and key:
                     file_name = meta.get("file_name") or os.path.basename(key) or "s3_file"
                     m = {"s3_bucket": bucket, "s3_key": key, "file_name": file_name, **meta}
@@ -234,7 +286,7 @@ class S3Downloader:
         Expects doc.meta to provide:
           - 's3_bucket' + 's3_key'  OR
           - 's3_url'  OR
-          - 's3_key' with self.default_bucket set
+          - 's3_key'
         """
         try:
             bucket = document.meta.get("s3_bucket")
@@ -243,9 +295,6 @@ class S3Downloader:
 
             if (not bucket or not key) and url:
                 bucket, key = self._parse_s3_url(url)
-
-            if (not bucket or not key) and self.default_bucket and key:
-                bucket = self.default_bucket
 
             if not (bucket and key):
                 logger.warning("Document missing S3 coordinates ('s3_bucket'/'s3_key' or 's3_url'). Skipping.")
@@ -267,34 +316,19 @@ class S3Downloader:
                         f.write(response['Body'].read())
                 except ClientError as e:
                     code = e.response.get("Error", {}).get("Code", "")
-                    if code in {"NoSuchKey", "404"}:
-                        logger.error(f"File not found in S3: s3://{document.meta.get('s3_bucket')}/{document.meta.get('s3_key')}")
-                        return None
-                    elif code == "NoSuchBucket":
-                        logger.error(f"Bucket not found: {document.meta.get('s3_bucket')}")
-                        return None
-                    else:
-                        logger.error(f"S3 error: {e}", exc_info=True)
-                        raise
-                except NoCredentialsError as e:
-                    logger.error(f"AWS credentials not found: {e}", exc_info=True)
-                    raise
+                    msg = f"S3 error: {e}"
+                    raise AmazonS3Error(msg) from e
+                
                 except Exception as e:  # noqa: BLE001
-                    logger.error(f"Unexpected error downloading from S3: {e}", exc_info=True)
-                    raise
+                    msg = f"Unexpected error downloading from S3: {e}"
+                    raise AmazonS3Error(msg) from e
 
 
             # enrich meta (best-effort head call)
             try:
                 head = self._client.head_object(Bucket=bucket, Key=key)
                 document.meta.setdefault("mime_type", head.get("ContentType"))
-                document.meta.update(
-                    {
-                        "s3_etag": head.get("ETag"),
-                        "s3_last_modified": str(head.get("LastModified")),
-                        "s3_content_length": head.get("ContentLength"),
-                    }
-                )
+                
             except Exception:  # noqa: BLE001
                 pass
 
@@ -303,22 +337,11 @@ class S3Downloader:
             return document
 
         except ClientError as e:
-            code = e.response.get("Error", {}).get("Code", "")
-            if code in {"NoSuchKey", "404"}:
-                logger.error(f"File not found in S3: s3://{document.meta.get('s3_bucket')}/{document.meta.get('s3_key')}")
-                return None
-            elif code == "NoSuchBucket":
-                logger.error(f"Bucket not found: {document.meta.get('s3_bucket')}")
-                return None
-            else:
-                logger.error(f"S3 error: {e}", exc_info=True)
-                raise
-        except NoCredentialsError as e:
-            logger.error(f"AWS credentials not found: {e}", exc_info=True)
-            raise
+            msg = f"Error downloading from S3: {e}"
+            raise AmazonS3Error(msg) from e
         except Exception as e:  # noqa: BLE001
-            logger.error(f"Unexpected error downloading from S3: {e}", exc_info=True)
-            raise
+            msg = f"Unexpected error downloading from S3: {e}"
+            raise AmazonS3Error(msg) from e
 
     def cleanup_cache(self, documents: List[Document]) -> None:
         """
@@ -357,6 +380,9 @@ class S3Downloader:
             verify_ssl=self.verify_ssl,
             download_dir=str(self.download_dir),
             max_workers=self.max_workers,
+            max_cache_size=self.max_cache_size,
+            file_extensions=self.file_extensions,
+            sources_target_type=self.sources_target_type,
         )
 
     @classmethod
