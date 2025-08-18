@@ -348,7 +348,6 @@ async def _parse_async_streaming_response(
     tool_call_index = -1
 
     async for chunk in response:
-
         if chunk.type == "tool-call-start":
             tool_call_index += 1
 
