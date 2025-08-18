@@ -4,6 +4,7 @@
 
 import os
 import hashlib
+import boto3
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
@@ -11,7 +12,7 @@ from urllib.parse import urlparse
 from uuid import UUID
 
 from botocore.config import Config
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, NoCredentialsError
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ByteStream, Document
@@ -310,27 +311,12 @@ class S3Downloader:
                 file_path.touch()
             else:
                 # download
-                try:
-                    response = self._client.get_object(Bucket=bucket, Key=key)
-                    with open(file_path, 'wb') as f:
-                        f.write(response['Body'].read())
-                except ClientError as e:
-                    code = e.response.get("Error", {}).get("Code", "")
-                    msg = f"S3 error: {e}"
-                    raise AmazonS3Error(msg) from e
-                
-                except Exception as e:  # noqa: BLE001
-                    msg = f"Unexpected error downloading from S3: {e}"
-                    raise AmazonS3Error(msg) from e
-
+                self._client.download_file(bucket, key, file_path)
 
             # enrich meta (best-effort head call)
-            try:
-                head = self._client.head_object(Bucket=bucket, Key=key)
-                document.meta.setdefault("mime_type", head.get("ContentType"))
+            head = self._client.head_object(Bucket=bucket, Key=key)
+            document.meta.setdefault("mime_type", head.get("ContentType"))
                 
-            except Exception:  # noqa: BLE001
-                pass
 
             document.meta["file_path"] = str(file_path)
             document.meta["cache_id"] = cache_id
