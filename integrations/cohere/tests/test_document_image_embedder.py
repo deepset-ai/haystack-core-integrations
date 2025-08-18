@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import glob
-import logging
 import os
 import random
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -256,7 +255,7 @@ class TestCohereDocumentImageEmbedder:
             assert new_doc.meta["embedding_source"]["type"] == "image"
             assert "file_path_meta_field" in new_doc.meta["embedding_source"]
 
-    def test_run_client_errors(self, test_files_path, monkeypatch, caplog):
+    def test_run_client_errors(self, test_files_path, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         embedder = CohereDocumentImageEmbedder(model="model")
         embedder._client = MagicMock()
@@ -274,18 +273,8 @@ class TestCohereDocumentImageEmbedder:
                 document.meta["page_number"] = 1
             documents.append(document)
 
-        with caplog.at_level(logging.WARNING):
-            result = embedder.run(documents=documents)
-
-        assert "Error embedding Document" in caplog.text
-
-        assert isinstance(result["documents"], list)
-        assert len(result["documents"]) == len(documents)
-        for doc, new_doc in zip(documents, result["documents"]):
-            assert doc.embedding is None
-            assert new_doc is not doc
-            assert isinstance(new_doc, Document)
-            assert new_doc.embedding is None
+        with pytest.raises(RuntimeError, match="Error embedding Document"):
+            embedder.run(documents=documents)
 
     @pytest.mark.asyncio
     async def test_run_async(self, test_files_path, monkeypatch):
@@ -329,7 +318,7 @@ class TestCohereDocumentImageEmbedder:
             assert "file_path_meta_field" in new_doc.meta["embedding_source"]
 
     @pytest.mark.asyncio
-    async def test_run_async_client_errors(self, test_files_path, monkeypatch, caplog):
+    async def test_run_async_client_errors(self, test_files_path, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         embedder = CohereDocumentImageEmbedder(model="model")
         embedder._async_client = AsyncMock()
@@ -347,18 +336,8 @@ class TestCohereDocumentImageEmbedder:
                 document.meta["page_number"] = 1
             documents.append(document)
 
-        with caplog.at_level(logging.WARNING):
-            result = await embedder.run_async(documents=documents)
-
-        assert "Error embedding Document" in caplog.text
-
-        assert isinstance(result["documents"], list)
-        assert len(result["documents"]) == len(documents)
-        for doc, new_doc in zip(documents, result["documents"]):
-            assert doc.embedding is None
-            assert new_doc is not doc
-            assert isinstance(new_doc, Document)
-            assert new_doc.embedding is None
+        with pytest.raises(RuntimeError, match="Error embedding Document"):
+            await embedder.run_async(documents=documents)
 
     @pytest.mark.integration
     @pytest.mark.skipif(
