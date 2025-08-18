@@ -9,6 +9,7 @@ from collections import Counter
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime
+from threading import RLock
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 from haystack import default_from_dict, default_to_dict, logging
@@ -68,6 +69,16 @@ tracing_context_var: ContextVar[Dict[Any, Any]] = ContextVar("tracing_context")
 # Internal span execution hierarchy for our tracer
 # Manages parent-child relationships and prevents cross-request span interleaving
 span_stack_var: ContextVar[Optional[List["LangfuseSpan"]]] = ContextVar("span_stack", default=None)
+
+# Root trace client for the current logical request/session. This is used as a
+# stable anchor to attach child spans across async/task boundaries where the
+# span stack might not be directly available.
+root_trace_client_var: ContextVar[Optional[StatefulTraceClient]] = ContextVar("root_trace_client", default=None)
+
+# Process-wide registry to anchor a single root trace per session_id,
+# independent of ContextVar/task boundaries.
+_root_traces_by_session: Dict[str, StatefulTraceClient] = {}
+_root_registry_lock = RLock()
 
 
 class LangfuseSpan(Span):
@@ -173,6 +184,9 @@ class SpanContext:
     trace_name: str = "Haystack"
     public: bool = False
     session_id: Optional[str] = None
+    # Additional execution context information (observability only)
+    execution_context: Optional[str] = None
+    hierarchy_level: Optional[int] = None
 
     def __post_init__(self) -> None:
         """
@@ -272,25 +286,54 @@ class DefaultSpanHandler(SpanHandler):
 
         # Get external tracing context for root trace creation (correlation metadata)
         tracing_ctx = tracing_context_var.get({})
-        if not context.parent_span:
-            # Create a new trace when there's no parent span
-            # Use session_id from context if provided, otherwise fall back to external context
+        # Determine effective parent using current span stack if parent_span is not given
+        current_stack = span_stack_var.get()
+        effective_parent = context.parent_span
+        if effective_parent is None and current_stack:
+            effective_parent = current_stack[-1]
+
+        if not effective_parent:
+            # If there's no effective parent but we have an existing root trace in the context,
+            # create a child span under that trace. This preserves hierarchy across async/task boundaries
+            # where the span stack might not be propagated but the context is.
+            root_trace_client = root_trace_client_var.get() or tracing_ctx.get("root_trace_client")
+            if root_trace_client is not None:
+                if context.component_type in _ALL_SUPPORTED_GENERATORS:
+                    return LangfuseSpan(root_trace_client.generation(name=context.name))
+                return LangfuseSpan(root_trace_client.span(name=context.name))
+
+            # Otherwise, create a brand new trace and store it in the context for nested tasks to use
             session_id = context.session_id or tracing_ctx.get("session_id")
-            return LangfuseSpan(
-                self.tracer.trace(
-                    name=context.trace_name,
-                    public=context.public,
-                    id=tracing_ctx.get("trace_id"),
-                    user_id=tracing_ctx.get("user_id"),
-                    session_id=session_id,
-                    tags=tracing_ctx.get("tags"),
-                    version=tracing_ctx.get("version"),
-                )
+
+            # Try to reuse a process-wide root for this session if available
+            if session_id:
+                with _root_registry_lock:
+                    existing = _root_traces_by_session.get(session_id)
+                if existing is not None:
+                    if context.component_type in _ALL_SUPPORTED_GENERATORS:
+                        return LangfuseSpan(existing.generation(name=context.name))
+                    return LangfuseSpan(existing.span(name=context.name))
+
+            new_trace = self.tracer.trace(
+                name=context.trace_name,
+                public=context.public,
+                id=tracing_ctx.get("trace_id"),
+                user_id=tracing_ctx.get("user_id"),
+                session_id=session_id,
+                tags=tracing_ctx.get("tags"),
+                version=tracing_ctx.get("version"),
             )
+            # Store the created root trace client in the context var for reuse
+            root_trace_client_var.set(new_trace)
+            # Also store in process-wide registry keyed by session to survive task/thread boundaries
+            if session_id:
+                with _root_registry_lock:
+                    _root_traces_by_session[session_id] = new_trace
+            return LangfuseSpan(new_trace)
         elif context.component_type in _ALL_SUPPORTED_GENERATORS:
-            return LangfuseSpan(context.parent_span.raw_span().generation(name=context.name))
+            return LangfuseSpan(effective_parent.raw_span().generation(name=context.name))
         else:
-            return LangfuseSpan(context.parent_span.raw_span().span(name=context.name))
+            return LangfuseSpan(effective_parent.raw_span().span(name=context.name))
 
     def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
         # If the span is at the pipeline level, we add input and output keys to the span
@@ -389,6 +432,9 @@ class LangfuseTracer(Tracer):
         component_type = tags.get(_COMPONENT_TYPE_KEY)
 
         # Create a new span context
+        current_stack = span_stack_var.get()
+        hierarchy_level = len(current_stack or [])
+        execution_context = self._determine_execution_context(operation_name, component_type)
         span_context = SpanContext(
             name=span_name,
             operation_name=operation_name,
@@ -400,6 +446,8 @@ class LangfuseTracer(Tracer):
             trace_name=self._name,
             public=self._public,
             session_id=self._session_id,
+            execution_context=execution_context,
+            hierarchy_level=hierarchy_level,
         )
 
         # Create span using the handler
@@ -438,6 +486,23 @@ class LangfuseTracer(Tracer):
 
             if self.enforce_flush:
                 self.flush()
+
+            # Note: we intentionally do NOT clear root_trace_client_var here. It's a ContextVar scoped
+            # to the current async Task; when a new top-level trace is created, we overwrite it.
+            # This allows child operations started after a parent span completed (but still in the same
+            # logical request/task) to continue attaching to the same root trace.
+
+    def _determine_execution_context(self, operation_name: str, component_type: Optional[str]) -> str:
+        """Classify execution context for observability only."""
+        try:
+            normalized_op = (operation_name or "").lower()
+            if "haystack.pipeline.run" in normalized_op or _PIPELINE_RUN_KEY in normalized_op:
+                return "pipeline"
+            if component_type and "agent" in component_type.lower():
+                return "agent"
+            return "component"
+        except Exception:
+            return "component"
 
     def flush(self) -> None:
         self._tracer.flush()

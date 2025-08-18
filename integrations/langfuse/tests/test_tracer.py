@@ -26,6 +26,8 @@ from haystack_integrations.tracing.langfuse.tracer import (
     LangfuseSpan,
     LangfuseTracer,
     SpanContext,
+    span_stack_var,
+    tracing_context_var,
 )
 
 
@@ -147,6 +149,50 @@ class TestSpanContext:
 
 
 class TestDefaultSpanHandler:
+    def test_create_span_uses_stack_parent_when_parent_missing(self):
+        handler = DefaultSpanHandler()
+        handler.init_tracer(MockTracer())
+
+        # Prepare a current parent on the span stack
+        parent_span = LangfuseSpan(MockSpan(name="parent"))
+        token = span_stack_var.set([parent_span])
+        try:
+            context = SpanContext(
+                name="child_component",
+                operation_name="haystack.component.run",
+                component_type="SomeComponent",
+                tags={},
+                parent_span=None,
+            )
+            child = handler.create_span(context)
+            # Should create a child span, not a new trace (which would have name == trace_name)
+            assert isinstance(child, LangfuseSpan)
+            assert child.raw_span()._name == "child_component"
+        finally:
+            span_stack_var.reset(token)
+
+    def test_create_generation_span_uses_stack_parent_when_parent_missing(self):
+        handler = DefaultSpanHandler()
+        handler.init_tracer(MockTracer())
+
+        # Prepare a current parent on the span stack
+        parent_span = LangfuseSpan(MockSpan(name="parent"))
+        token = span_stack_var.set([parent_span])
+        try:
+            context = SpanContext(
+                name="llm_call",
+                operation_name="haystack.component.run",
+                component_type="OpenAIChatGenerator",
+                tags={},
+                parent_span=None,
+            )
+            gen = handler.create_span(context)
+            assert isinstance(gen, LangfuseSpan)
+            # generation spans also use provided name
+            assert gen.raw_span()._name == "llm_call"
+        finally:
+            span_stack_var.reset(token)
+
     def test_handle_generator(self):
         mock_span = Mock()
         mock_span.raw_span.return_value = mock_span
@@ -542,3 +588,37 @@ class TestLangfuseTracer:
         assert task2_spans[1][2] == task2_inner  # current_span during inner
         assert task2_spans[2][2] == task2_outer  # current_span after inner
         assert task2_spans[3][2] is None  # current_span after outer
+
+    def test_root_trace_reuse_via_context_when_stack_absent(self):
+        """When a root trace exists in tracing_context_var, subsequent spans without parent should attach to it."""
+        tracer = LangfuseTracer(tracer=MockTracer(), name="Root Trace", public=False)
+
+        # Start a root span (creates root trace and stores it in context)
+        with tracer.trace("haystack.pipeline.run") as root_span:
+            assert tracer.current_span() == root_span
+
+        # Simulate a boundary where the span stack is absent (new task/callback without propagated context)
+        # but tracing_context_var is still available within the same logical request
+        ctx = tracing_context_var.get({})
+        assert "root_trace_client" not in ctx  # root should be cleared after stack empty
+
+        # Recreate the root trace explicitly to simulate preservation across boundaries
+        # by setting the root_trace_client in context
+        mock_root = MockSpan(name="Root Trace")
+        new_ctx = {**ctx, "root_trace_client": mock_root}
+        token = tracing_context_var.set(new_ctx)
+        try:
+            # Now create a child without an explicit parent and without a span stack
+            handler = DefaultSpanHandler()
+            handler.init_tracer(MockTracer())
+            context = SpanContext(
+                name="child_after_boundary",
+                operation_name="haystack.component.run",
+                component_type="SomeComponent",
+                tags={},
+                parent_span=None,
+            )
+            child = handler.create_span(context)
+            assert child.raw_span()._name == "child_after_boundary"
+        finally:
+            tracing_context_var.reset(token)
