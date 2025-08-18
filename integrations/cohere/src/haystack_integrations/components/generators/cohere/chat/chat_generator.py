@@ -345,14 +345,21 @@ async def _parse_async_streaming_response(
     Parses Cohere's async streaming chat response into a Haystack ChatMessage.
     """
     chunks: List[StreamingChunk] = []
+    tool_call_index = -1
 
     async for chunk in response:
+
+        if chunk.type == "tool-call-start":
+            tool_call_index += 1
+
         streaming_chunk = _convert_cohere_chunk_to_streaming_chunk(
             chunk=chunk, component_info=component_info, model=model
         )
-        if streaming_chunk:
-            chunks.append(streaming_chunk)
-            await streaming_callback(streaming_chunk)
+        if not streaming_chunk:
+            continue
+
+        chunks.append(streaming_chunk)
+        await streaming_callback(streaming_chunk)
 
     return _convert_streaming_chunks_to_chat_message(chunks=chunks)
 
