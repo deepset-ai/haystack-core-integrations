@@ -11,25 +11,20 @@
 
 ### 🐛 Bug Fixes
 
-- Add `input_tokens` in usage of Anthropic messages (#2173)
+- Add `input_tokens` in `meta["usage"]` of Anthropic messages (#2173)
 
 
 ## [integrations/anthropic-v4.2.0] - 2025-08-07
 
 ### 🐛 Bug Fixes
 
-- Error in `ToolCallDelta.index` for parallel tool calling (#2154)
-
+- Fixed a bug to enable parallel tool calling (#2154)
 
 ## [integrations/anthropic-v4.1.0] - 2025-08-05
 
 ### 🚀 Features
 
 - Adopt new `StreamingChunk` in Anthropic (#2096)
-
-### 🌀 Miscellaneous
-
-- Fix/prompt caching support (#2051)
 
 ## [integrations/anthropic-v3.1.0] - 2025-07-04
 
@@ -112,11 +107,7 @@
 ### 🌀 Miscellaneous
 
 - Improve `streaming_callback` type and use async version in `run_async` (#1579)
-
-* Improve streaming_callback type and use async version in run_async
-
-* Fix kwarg in select_streaming_callback
-- Fix tests (#1585)
+- Test: Update tests to check for `outputs_to_string` in Tool when running haystack-ai>=2.12 (#1585)
 - Add pins for Anthropic (#1811)
 
 ## [integrations/anthropic-v2.4.0] - 2025-03-06
@@ -163,10 +154,10 @@
 
 ### 🌀 Miscellaneous
 
-- Remove tests involving serialization of lambdas (#1281)
-- Remove more tests involving serialization of lambdas (#1285)
-- Anthropic tools + refactoring (#1300)
-- Remove jsonschema dependency from default environment (#1368)
+- Test: remove tests involving serialization of lambdas (#1281)
+- Test: remove more tests involving serialization of lambdas (#1285)
+- Feat: Anthropic - support for Tools + refactoring (#1300)
+- Chore: remove `jsonschema` dependency from `default` environment (#1368)
 
 ## [integrations/anthropic-v1.2.1] - 2024-12-18
 
@@ -186,24 +177,8 @@
 ### 🌀 Miscellaneous
 
 - Add AnthropicVertexChatGenerator component (#1192)
-
-* Created a model adapter
-
-* Create adapter class and add VertexAPI
-
-* Add chat generator for Anthropic Vertex
-
-* Add tests
-
-* Small fix
-
-* Improve doc_strings
-
-* Make project_id and region mandatory params
-
-* Small fix
-- Add anth-vertex-chat-gn docs (#1221)
-- Use text instead of content in Cohere and Anthropic (#1237)
+- Docs: add AnthropicVertexChatGenerator to pydoc (#1221)
+- Chore: use `text` instead of `content` for `ChatMessage` in Cohere and Anthropic (#1237)
 
 ## [integrations/anthropic-v1.1.0] - 2024-09-20
 
@@ -213,7 +188,7 @@
 
 ### 🌀 Miscellaneous
 
-- Update Anthropic example, use ChatPromptBuilder properly (#978)
+- Chore: Update Anthropic example, use ChatPromptBuilder properly (#978)
 
 ## [integrations/anthropic-v1.0.0] - 2024-08-12
 
@@ -238,12 +213,8 @@
 
 ### 🌀 Miscellaneous
 
-- Install pytest-rerunfailures; change test-cov script (#845)
+- Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
 - Add meta deprecration warning (#910)
-
-* adding deprecation warnings
-* fixing imports
-* fixing 3.9 linting issues
 
 ## [integrations/anthropic-v0.4.0] - 2024-06-21
 
@@ -259,16 +230,16 @@
 ### 🌀 Miscellaneous
 
 - Remove references to Python 3.7 (#601)
-- Add license classifiers (#680)
-- Change the pydoc renderer class (#718)
-- Missing api references (#728)
+- Chore: add license classifiers (#680)
+- Chore: change the pydoc renderer class (#718)
+- Docs: add missing api references (#728)
 
 ## [integrations/anthropic-v0.2.0] - 2024-03-15
 
 ### 🌀 Miscellaneous
 
-- Replace amazon-bedrock with anthropic in readme (#584)
-- Use the correct sonnet model name (#587)
+- Docs: Replace amazon-bedrock with anthropic in readme (#584)
+- Chore: Use the correct sonnet model name (#587)
 
 ## [integrations/anthropic-v0.1.0] - 2024-03-15
 
