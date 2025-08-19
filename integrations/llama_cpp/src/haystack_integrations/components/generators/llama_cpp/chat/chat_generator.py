@@ -7,7 +7,9 @@ from haystack.components.generators.utils import _convert_streaming_chunks_to_ch
 from haystack.dataclasses import (
     ChatMessage,
     ComponentInfo,
+    ImageContent,
     StreamingCallbackT,
+    TextContent,
     ToolCall,
     ToolCallDelta,
     select_streaming_callback,
@@ -31,6 +33,11 @@ from llama_cpp import (
     CreateChatCompletionStreamResponse,
     Llama,
 )
+
+try:
+    from llama_cpp.llama_chat_format import Llava15ChatHandler
+except ImportError:
+    Llava15ChatHandler = None  # type: ignore[assignment,misc]
 from llama_cpp.llama_tokenizer import LlamaHFTokenizer
 
 logger = logging.getLogger(__name__)
@@ -50,15 +57,23 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> ChatCompletionR
     text_contents = message.texts
     tool_calls = message.tool_calls
     tool_call_results = message.tool_call_results
+    images = message.images
 
-    if not text_contents and not tool_calls and not tool_call_results:
-        msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
+    if not text_contents and not tool_calls and not tool_call_results and not images:
+        msg = (
+            "A `ChatMessage` must contain at least one `TextContent`, `ImageContent`, `ToolCall`, or `ToolCallResult`."
+        )
         raise ValueError(msg)
-    elif len(text_contents) + len(tool_call_results) > 1:
+    elif len(text_contents) + len(tool_call_results) > 1 and not images:
         msg = "A `ChatMessage` can only contain one `TextContent` or one `ToolCallResult`."
         raise ValueError(msg)
 
     role = message._role.value
+
+    # Check that images are only in user messages (LlamaCpp constraint)
+    if images and role != "user":
+        msg = "Image content is only supported for user messages"
+        raise ValueError(msg)
 
     if role == "tool" and tool_call_results:
         if tool_call_results[0].origin.id is None:
@@ -75,8 +90,32 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> ChatCompletionR
         return {"role": "system", "content": content}
 
     if role == "user":
-        content = text_contents[0] if text_contents else None
-        return {"role": "user", "content": content}
+        # Handle multimodal content (text + images) preserving order
+        if images:
+            # Check image constraints for LlamaCpp
+            for image in images:
+                if not image.mime_type or image.mime_type not in ["image/jpeg", "image/png", "image/gif", "image/webp"]:
+                    supported_formats = "image/jpeg, image/png, image/gif, image/webp"
+                    msg = (
+                        f"Unsupported image format: {image.mime_type}. "
+                        f"LlamaCpp supports the following formats: {supported_formats}"
+                    )
+                    raise ValueError(msg)
+
+            content_parts = []
+            for part in message._content:
+                if isinstance(part, TextContent) and part.text:
+                    content_parts.append({"type": "text", "text": part.text})
+                elif isinstance(part, ImageContent):
+                    # LlamaCpp expects base64 data URI format
+                    image_url = f"data:{part.mime_type};base64,{part.base64_image}"
+                    content_parts.append({"type": "image_url", "image_url": {"url": image_url}})  # type: ignore[dict-item]
+
+            return {"role": "user", "content": content_parts}  # type: ignore[return-value,dict-item,misc]
+        else:
+            # Simple text-only message
+            content = text_contents[0] if text_contents else None
+            return {"role": "user", "content": content}
 
     if role == "assistant":
         result: ChatCompletionRequestAssistantMessage = {"role": "assistant"}
@@ -113,6 +152,7 @@ class LlamaCppChatGenerator:
 
     [llama.cpp](https://github.com/ggml-org/llama.cpp) is a project written in C/C++ for efficient inference of LLMs.
     It employs the quantized GGUF format, suitable for running these models on standard machines (even without GPUs).
+    Supports both text-only and multimodal (text + image) models like LLaVA.
 
     Usage example:
     ```python
@@ -121,7 +161,29 @@ class LlamaCppChatGenerator:
     generator = LlamaCppGenerator(model="zephyr-7b-beta.Q4_0.gguf", n_ctx=2048, n_batch=512)
 
     print(generator.run(user_message, generation_kwargs={"max_tokens": 128}))
-    # {"replies": [ChatMessage(content="John Cusack", role=<ChatRole.ASSISTANT: "assistant">, name=None, meta={...}]}
+    # {"replies": [ChatMessage(content="John Cusack", role=<ChatRole.ASSISTANT: "assistant">, name=None, meta={...})}
+    ```
+
+    Usage example with multimodal (image + text):
+    ```python
+    from haystack.dataclasses import ChatMessage, ImageContent
+
+    # Create an image from file path or base64
+    image_content = ImageContent.from_file_path("path/to/your/image.jpg")
+
+    # Create a multimodal message with both text and image
+    messages = [ChatMessage.from_user(content_parts=["What's in this image?", image_content])]
+
+    # Initialize with multimodal support
+    generator = LlamaCppChatGenerator(
+        model="llava-v1.5-7b-q4_0.gguf",
+        clip_model_path="mmproj-model-f16.gguf",  # Vision model
+        n_ctx=4096  # Larger context for image processing
+    )
+    generator.warm_up()
+
+    result = generator.run(messages)
+    print(result)
     ```
     """
 
@@ -135,6 +197,8 @@ class LlamaCppChatGenerator:
         *,
         tools: Optional[Union[List[Tool], Toolset]] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
+        chat_handler: Optional[Any] = None,
+        clip_model_path: Optional[str] = None,
     ):
         """
         :param model: The path of a quantized model for text generation, for example, "zephyr-7b-beta.Q4_0.gguf".
@@ -153,6 +217,10 @@ class LlamaCppChatGenerator:
             A list of tools or a Toolset for which the model can prepare calls.
             This parameter can accept either a list of `Tool` objects or a `Toolset` instance.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
+        :param chat_handler: Optional chat handler for multimodal models (e.g., Llava15ChatHandler).
+            Required for multimodal functionality. If not provided, the model will only support text.
+        :param clip_model_path: Path to the CLIP model for vision processing (e.g., "mmproj.bin").
+            Required for multimodal models when chat_handler is not provided.
         """
 
         model_kwargs = model_kwargs or {}
@@ -174,11 +242,28 @@ class LlamaCppChatGenerator:
         self._model: Optional[Llama] = None
         self.tools = tools
         self.streaming_callback = streaming_callback
+        self.chat_handler = chat_handler
+        self.clip_model_path = clip_model_path
 
     def warm_up(self):
         if "hf_tokenizer_path" in self.model_kwargs and "tokenizer" not in self.model_kwargs:
             tokenizer = LlamaHFTokenizer.from_pretrained(self.model_kwargs["hf_tokenizer_path"])
             self.model_kwargs["tokenizer"] = tokenizer
+
+        # Handle multimodal initialization
+        if self.chat_handler is not None:
+            # Use provided chat handler
+            self.model_kwargs["chat_handler"] = self.chat_handler
+        elif self.clip_model_path is not None:
+            # Create a basic multimodal chat handler
+            if Llava15ChatHandler is None:
+                msg = (
+                    "Llava15ChatHandler not available. Please ensure llama-cpp-python is "
+                    "installed with multimodal support."
+                )
+                raise ImportError(msg)
+            chat_handler = Llava15ChatHandler(clip_model_path=self.clip_model_path)
+            self.model_kwargs["chat_handler"] = chat_handler
 
         if self._model is None:
             self._model = Llama(**self.model_kwargs)
@@ -200,6 +285,8 @@ class LlamaCppChatGenerator:
             generation_kwargs=self.generation_kwargs,
             tools=serialize_tools_or_toolset(self.tools),
             streaming_callback=callback_name,
+            chat_handler=self.chat_handler,
+            clip_model_path=self.clip_model_path,
         )
 
     @classmethod

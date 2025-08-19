@@ -10,7 +10,15 @@ from haystack import Document, Pipeline
 from haystack.components.builders import ChatPromptBuilder
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
-from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, TextContent, ToolCall
+from haystack.dataclasses import (
+    ChatMessage,
+    ChatRole,
+    ComponentInfo,
+    ImageContent,
+    StreamingChunk,
+    TextContent,
+    ToolCall,
+)
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.tools import Tool, Toolset, create_tool_from_function
 
@@ -102,6 +110,58 @@ def test_convert_message_to_llamacpp_format():
 def test_convert_message_to_llamacpp_invalid():
     message = ChatMessage(_role=ChatRole.ASSISTANT, _content=[])
     with pytest.raises(ValueError):
+        _convert_message_to_llamacpp_format(message)
+
+
+def test_convert_message_to_llamacpp_format_with_image():
+    """Test that a ChatMessage with ImageContent is converted to LlamaCpp format correctly."""
+    base64_image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+    image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+    message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
+
+    llamacpp_message = _convert_message_to_llamacpp_format(message)
+
+    assert llamacpp_message["role"] == "user"
+    assert len(llamacpp_message["content"]) == 2
+
+    # Check text and image parts
+    assert llamacpp_message["content"][0]["type"] == "text"
+    assert llamacpp_message["content"][0]["text"] == "What's in this image?"
+    assert llamacpp_message["content"][1]["type"] == "image_url"
+    assert llamacpp_message["content"][1]["image_url"]["url"] == f"data:image/png;base64,{base64_image}"
+
+
+def test_convert_message_to_llamacpp_format_with_unsupported_mime_type():
+    """Test that a ChatMessage with unsupported mime type raises ValueError."""
+    base64_image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+    image_content = ImageContent(base64_image=base64_image, mime_type="image/bmp")  # Unsupported format
+    message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
+
+    with pytest.raises(ValueError, match="Unsupported image format: image/bmp"):
+        _convert_message_to_llamacpp_format(message)
+
+
+def test_convert_message_to_llamacpp_format_with_none_mime_type():
+    """Test that a ChatMessage with None mime type raises ValueError."""
+    base64_image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+    image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+    # Manually set mime_type to None to test the validation
+    image_content.mime_type = None
+    message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
+
+    with pytest.raises(ValueError, match="Unsupported image format: None"):
+        _convert_message_to_llamacpp_format(message)
+
+
+def test_convert_message_to_llamacpp_format_image_in_non_user_message():
+    """Test that images in non-user messages raise ValueError."""
+    base64_image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+    image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+    message = ChatMessage.from_assistant(text="Here's an image", meta={})
+    # Manually add image to assistant message to test constraint
+    message._content.append(image_content)
+
+    with pytest.raises(ValueError, match="Image content is only supported for user messages"):
         _convert_message_to_llamacpp_format(message)
 
     message = ChatMessage(
@@ -663,6 +723,22 @@ class TestLlamaCppChatGenerator:
         generator = LlamaCppChatGenerator(model="test_model.gguf", tools=toolset)
         assert generator.tools == toolset
 
+    def test_init_with_multimodal_params(self):
+        """Test initialization with multimodal parameters."""
+        generator = LlamaCppChatGenerator(
+            model="llava-v1.5-7b-q4_0.gguf", clip_model_path="mmproj-model-f16.gguf", n_ctx=4096
+        )
+        assert generator.clip_model_path == "mmproj-model-f16.gguf"
+        assert generator.chat_handler is None
+        assert generator.n_ctx == 4096
+
+    def test_init_with_custom_chat_handler(self):
+        """Test initialization with custom chat handler."""
+        mock_handler = MagicMock()
+        generator = LlamaCppChatGenerator(model="llava-v1.5-7b-q4_0.gguf", chat_handler=mock_handler)
+        assert generator.chat_handler == mock_handler
+        assert generator.clip_model_path is None
+
     def test_to_dict(self):
         generator = LlamaCppChatGenerator(model="test_model.gguf", n_ctx=8192, n_batch=512)
         assert generator.to_dict() == {
@@ -675,8 +751,21 @@ class TestLlamaCppChatGenerator:
                 "generation_kwargs": {},
                 "tools": None,
                 "streaming_callback": None,
+                "chat_handler": None,
+                "clip_model_path": None,
             },
         }
+
+    def test_to_dict_with_multimodal_params(self):
+        """Test serialization with multimodal parameters."""
+        generator = LlamaCppChatGenerator(
+            model="llava-v1.5-7b-q4_0.gguf", clip_model_path="mmproj-model-f16.gguf", n_ctx=4096
+        )
+        data = generator.to_dict()
+
+        assert data["init_parameters"]["clip_model_path"] == "mmproj-model-f16.gguf"
+        assert data["init_parameters"]["chat_handler"] is None
+        assert data["init_parameters"]["n_ctx"] == 4096
 
     def test_to_dict_with_toolset(self, temperature_tool):
         toolset = Toolset([temperature_tool])
@@ -960,6 +1049,49 @@ class TestLlamaCppChatGenerator:
             assert all("age" in person for person in json.loads(reply.text)["people"])
             assert all(isinstance(person["name"], str) for person in json.loads(reply.text)["people"])
             assert all(isinstance(person["age"], int) for person in json.loads(reply.text)["people"])
+
+    def test_multimodal_message_processing(self):
+        """Test multimodal message processing with mocked model."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        messages = [ChatMessage.from_user(content_parts=["What's in this image?", image_content])]
+
+        # Mock the model
+        mock_model = MagicMock()
+        mock_response = {
+            "choices": [{"message": {"content": "I can see an image."}, "index": 0, "finish_reason": "stop"}],
+            "id": "test_id",
+            "model": "test_model",
+            "created": 1234567890,
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+        mock_model.create_chat_completion.return_value = mock_response
+
+        generator = LlamaCppChatGenerator(model="test_model.gguf", clip_model_path="test_clip.gguf")
+        generator._model = mock_model
+
+        result = generator.run(messages)
+
+        # Verify the multimodal message was processed correctly
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+        assert result["replies"][0].text == "I can see an image."
+
+        # Verify the model was called with the correct format
+        mock_model.create_chat_completion.assert_called_once()
+        call_args = mock_model.create_chat_completion.call_args[1]
+        assert "messages" in call_args
+        assert len(call_args["messages"]) == 1
+
+        # Check the message format
+        llamacpp_message = call_args["messages"][0]
+        assert llamacpp_message["role"] == "user"
+        assert isinstance(llamacpp_message["content"], list)
+        assert len(llamacpp_message["content"]) == 2
+        assert llamacpp_message["content"][0]["type"] == "text"
+        assert llamacpp_message["content"][1]["type"] == "image_url"
 
 
 class TestLlamaCppChatGeneratorFunctionary:
