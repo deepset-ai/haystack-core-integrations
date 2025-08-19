@@ -116,16 +116,16 @@ class LangfuseConnector:
         **Using Sessions to Group Related Traces:**
 
         ```python
-        # Create a connector
+        # Create a connector and add it to the pipeline first
         tracer = LangfuseConnector(name="Agent Workflow")
+        pipeline.add_component("tracer", tracer)
 
         # Pass session_id at runtime to group related traces
-        response = tracer.run(session_id="user_123_workflow_456")
-
-        # Or when used in a pipeline
         response = pipeline.run(
-            data={"your_data": "value"},
-            tracer={"session_id": "user_123_workflow_456"}
+            data={
+                "your_data": "value",
+                "tracer": {"session_id": "user_123_workflow_456"},
+            }
         )
 
         # All traces with the same session_id will be grouped together

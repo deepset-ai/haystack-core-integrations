@@ -75,11 +75,6 @@ span_stack_var: ContextVar[Optional[List["LangfuseSpan"]]] = ContextVar("span_st
 # span stack might not be directly available.
 root_trace_client_var: ContextVar[Optional[StatefulTraceClient]] = ContextVar("root_trace_client", default=None)
 
-# Process-wide registry to anchor a single root trace per session_id,
-# independent of ContextVar/task boundaries.
-_root_traces_by_session: Dict[str, StatefulTraceClient] = {}
-_root_registry_lock = RLock()
-
 
 class LangfuseSpan(Span):
     """
@@ -184,9 +179,6 @@ class SpanContext:
     trace_name: str = "Haystack"
     public: bool = False
     session_id: Optional[str] = None
-    # Additional execution context information (observability only)
-    execution_context: Optional[str] = None
-    hierarchy_level: Optional[int] = None
 
     def __post_init__(self) -> None:
         """
@@ -222,6 +214,9 @@ class SpanHandler(ABC):
 
     def __init__(self) -> None:
         self.tracer: Optional[langfuse.Langfuse] = None
+        # Instance-scoped registry to anchor a single root trace per session_id
+        self._root_traces_by_session: Dict[str, StatefulTraceClient] = {}
+        self._root_registry_lock = RLock()
 
     def init_tracer(self, tracer: langfuse.Langfuse) -> None:
         """
@@ -305,10 +300,10 @@ class DefaultSpanHandler(SpanHandler):
             # Otherwise, create a brand new trace and store it in the context for nested tasks to use
             session_id = context.session_id or tracing_ctx.get("session_id")
 
-            # Try to reuse a process-wide root for this session if available
+            # Try to reuse an existing root for this session if available on this handler instance
             if session_id:
-                with _root_registry_lock:
-                    existing = _root_traces_by_session.get(session_id)
+                with self._root_registry_lock:
+                    existing = self._root_traces_by_session.get(session_id)
                 if existing is not None:
                     if context.component_type in _ALL_SUPPORTED_GENERATORS:
                         return LangfuseSpan(existing.generation(name=context.name))
@@ -325,10 +320,10 @@ class DefaultSpanHandler(SpanHandler):
             )
             # Store the created root trace client in the context var for reuse
             root_trace_client_var.set(new_trace)
-            # Also store in process-wide registry keyed by session to survive task/thread boundaries
+            # Also store for this session on this handler to enable reuse across top-level spans
             if session_id:
-                with _root_registry_lock:
-                    _root_traces_by_session[session_id] = new_trace
+                with self._root_registry_lock:
+                    self._root_traces_by_session[session_id] = new_trace
             return LangfuseSpan(new_trace)
         elif context.component_type in _ALL_SUPPORTED_GENERATORS:
             return LangfuseSpan(effective_parent.raw_span().generation(name=context.name))
@@ -432,9 +427,6 @@ class LangfuseTracer(Tracer):
         component_type = tags.get(_COMPONENT_TYPE_KEY)
 
         # Create a new span context
-        current_stack = span_stack_var.get()
-        hierarchy_level = len(current_stack or [])
-        execution_context = self._determine_execution_context(operation_name, component_type)
         span_context = SpanContext(
             name=span_name,
             operation_name=operation_name,
@@ -446,8 +438,6 @@ class LangfuseTracer(Tracer):
             trace_name=self._name,
             public=self._public,
             session_id=self._session_id,
-            execution_context=execution_context,
-            hierarchy_level=hierarchy_level,
         )
 
         # Create span using the handler
@@ -491,18 +481,6 @@ class LangfuseTracer(Tracer):
             # to the current async Task; when a new top-level trace is created, we overwrite it.
             # This allows child operations started after a parent span completed (but still in the same
             # logical request/task) to continue attaching to the same root trace.
-
-    def _determine_execution_context(self, operation_name: str, component_type: Optional[str]) -> str:
-        """Classify execution context for observability only."""
-        try:
-            normalized_op = (operation_name or "").lower()
-            if "haystack.pipeline.run" in normalized_op or _PIPELINE_RUN_KEY in normalized_op:
-                return "pipeline"
-            if component_type and "agent" in component_type.lower():
-                return "agent"
-            return "component"
-        except Exception:
-            return "component"
 
     def flush(self) -> None:
         self._tracer.flush()

@@ -94,8 +94,10 @@ print(response["tracer"]["trace_id"])
 
 # Using session_id to group related traces
 response = pipe.run(
-    data={"prompt_builder": {"template_variables": {"location": "Paris"}, "template": messages}},
-    tracer={"session_id": "user_123_conversation_456"}
+    data={
+        "prompt_builder": {"template_variables": {"location": "Paris"}, "template": messages},
+        "tracer": {"session_id": "user_123_conversation_456"},
+    }
 )
 print(response["llm"]["replies"][0])
 print(response["tracer"]["trace_url"])
@@ -116,14 +118,18 @@ You can group related traces together by passing a `session_id` when running the
 ```python
 # Group traces by user session
 response = pipe.run(
-    data={"prompt_builder": {"template_variables": {"location": "Tokyo"}, "template": messages}},
-    tracer={"session_id": "user_123_session_456"}
+    data={
+        "prompt_builder": {"template_variables": {"location": "Tokyo"}, "template": messages},
+        "tracer": {"session_id": "user_123_session_456"},
+    }
 )
 
 # Group traces by workflow
 response = pipe.run(
-    data={"prompt_builder": {"template_variables": {"location": "London"}, "template": messages}},
-    tracer={"session_id": "workflow_789_step_2"}
+    data={
+        "prompt_builder": {"template_variables": {"location": "London"}, "template": messages},
+        "tracer": {"session_id": "workflow_789_step_2"},
+    }
 )
 ```
 
