@@ -352,8 +352,7 @@ async def _parse_async_streaming_response(
             tool_call_index += 1
 
         streaming_chunk = _convert_cohere_chunk_to_streaming_chunk(
-            chunk=chunk, component_info=component_info, model=model,
-            tool_call_index=tool_call_index
+            chunk=chunk, component_info=component_info, model=model, tool_call_index=tool_call_index
         )
         if not streaming_chunk:
             continue
