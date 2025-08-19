@@ -57,7 +57,9 @@ dependencies = [
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
-    "pip"
+    "pip",
+    "pillow",   # image support
+    "pypdfium2" # image support
 ]
 
 [tool.hatch.envs.test.scripts]

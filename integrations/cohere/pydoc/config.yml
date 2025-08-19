@@ -3,6 +3,7 @@ loaders:
     search_path: [../src]
     modules: [
       "haystack_integrations.components.embedders.cohere.document_embedder",
+      "haystack_integrations.components.embedders.cohere.document_image_embedder",
       "haystack_integrations.components.embedders.cohere.text_embedder",
       "haystack_integrations.components.embedders.cohere.utils",
       "haystack_integrations.components.generators.cohere.generator",

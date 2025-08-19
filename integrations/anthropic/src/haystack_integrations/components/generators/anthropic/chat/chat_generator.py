@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
-from typing import Any, ClassVar, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, ClassVar, Dict, List, Literal, Optional, Tuple, Union, cast, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
-from haystack.dataclasses.chat_message import ChatMessage, ChatRole, ToolCall, ToolCallResult
+from haystack.dataclasses.chat_message import ChatMessage, ChatRole, TextContent, ToolCall, ToolCallResult
+from haystack.dataclasses.image_content import ImageContent
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
     ComponentInfo,
@@ -26,9 +27,21 @@ from haystack.utils.callable_serialization import deserialize_callable, serializ
 
 from anthropic import Anthropic, AsyncAnthropic
 from anthropic.resources.messages.messages import Message, RawMessageStreamEvent, Stream
-from anthropic.types import MessageParam, TextBlockParam, ToolParam, ToolResultBlockParam, ToolUseBlockParam
+from anthropic.types import (
+    ImageBlockParam,
+    MessageParam,
+    TextBlockParam,
+    ToolParam,
+    ToolResultBlockParam,
+    ToolUseBlockParam,
+)
 
 logger = logging.getLogger(__name__)
+
+
+# See https://docs.anthropic.com/en/api/messages for supported formats
+ImageFormat = Literal["image/jpeg", "image/png", "image/gif", "image/webp"]
+IMAGE_SUPPORTED_FORMATS: list[ImageFormat] = list(get_args(ImageFormat))
 
 
 # Mapping from Anthropic stop reasons to Haystack FinishReason values
@@ -44,7 +57,7 @@ FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
 
 def _update_anthropic_message_with_tool_call_results(
     tool_call_results: List[ToolCallResult],
-    content: List[Union[TextBlockParam, ToolUseBlockParam, ToolResultBlockParam]],
+    content: List[Union[TextBlockParam, ToolUseBlockParam, ToolResultBlockParam, ImageBlockParam]],
 ) -> None:
     """
     Update an Anthropic message content list with tool call results.
@@ -119,13 +132,39 @@ def _convert_messages_to_anthropic_format(
             i += 1
             continue
 
-        content: List[Union[TextBlockParam, ToolUseBlockParam, ToolResultBlockParam]] = []
+        content: List[Union[TextBlockParam, ToolUseBlockParam, ToolResultBlockParam, ImageBlockParam]] = []
 
-        if message.texts and message.texts[0]:
-            text_block = TextBlockParam(type="text", text=message.texts[0])
-            if cache_control:
-                text_block["cache_control"] = cache_control
-            content.append(text_block)
+        # Handle multimodal content (text and images) preserving order
+        for part in message._content:
+            if isinstance(part, TextContent) and part.text:
+                text_block = TextBlockParam(type="text", text=part.text)
+                if cache_control:
+                    text_block["cache_control"] = cache_control
+                content.append(text_block)
+            elif isinstance(part, ImageContent):
+                if not message.is_from(ChatRole.USER):
+                    msg = "Image content is only supported for user messages"
+                    raise ValueError(msg)
+
+                if part.mime_type not in IMAGE_SUPPORTED_FORMATS:
+                    supported_formats = ", ".join(IMAGE_SUPPORTED_FORMATS)
+                    msg = (
+                        f"Unsupported image format: {part.mime_type}. "
+                        f"Anthropic supports the following formats: {supported_formats}"
+                    )
+                    raise ValueError(msg)
+
+                image_block = ImageBlockParam(
+                    type="image",
+                    source={
+                        "type": "base64",
+                        "media_type": cast(ImageFormat, part.mime_type),
+                        "data": part.base64_image,
+                    },
+                )
+                if cache_control:
+                    image_block["cache_control"] = cache_control
+                content.append(image_block)
 
         if message.tool_calls:
             tool_use_blocks = _convert_tool_calls_to_anthropic_format(message.tool_calls)
@@ -148,7 +187,10 @@ def _convert_messages_to_anthropic_format(
                         blk["cache_control"] = cache_control
 
         if not content:
-            msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
+            msg = (
+                "A `ChatMessage` must contain at least one `TextContent`, `ImageContent`, "
+                "`ToolCall`, or `ToolCallResult`."
+            )
             raise ValueError(msg)
 
         # Anthropic only supports assistant and user roles in messages. User role is also used for tool messages.
@@ -170,7 +212,7 @@ class AnthropicChatGenerator:
     Completes chats using Anthropic's large language models (LLMs).
 
     It uses [ChatMessage](https://docs.haystack.deepset.ai/docs/data-classes#chatmessage)
-    format in input and output.
+    format in input and output. Supports multimodal inputs including text and images.
 
     You can customize how the text is generated by passing parameters to the
     Anthropic API. Use the `**generation_kwargs` argument when you initialize
@@ -182,18 +224,41 @@ class AnthropicChatGenerator:
 
     Usage example:
     ```python
-    from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
+    from haystack_integrations.components.generators.anthropic import (
+        AnthropicChatGenerator,
+    )
     from haystack.dataclasses import ChatMessage
 
-    generator = AnthropicChatGenerator(model="claude-sonnet-4-20250514",
-                                       generation_kwargs={
-                                           "max_tokens": 1000,
-                                           "temperature": 0.7,
-                                       })
+    generator = AnthropicChatGenerator(
+        model="claude-sonnet-4-20250514",
+        generation_kwargs={
+            "max_tokens": 1000,
+            "temperature": 0.7,
+        },
+    )
 
-    messages = [ChatMessage.from_system("You are a helpful, respectful and honest assistant"),
-                ChatMessage.from_user("What's Natural Language Processing?")]
+    messages = [
+        ChatMessage.from_system(
+            "You are a helpful, respectful and honest assistant"
+        ),
+        ChatMessage.from_user("What's Natural Language Processing?"),
+    ]
     print(generator.run(messages=messages))
+    ```
+
+    Usage example with images:
+    ```python
+    from haystack.dataclasses import ChatMessage, ImageContent
+
+    image_content = ImageContent.from_file_path("path/to/image.jpg")
+    messages = [
+        ChatMessage.from_user(
+            content_parts=["What's in this image?", image_content]
+        )
+    ]
+    generator = AnthropicChatGenerator()
+    result = generator.run(messages)
+    ```
     """
 
     # The parameters that can be passed to the Anthropic API https://docs.anthropic.com/claude/reference/messages_post
