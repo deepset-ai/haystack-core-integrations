@@ -70,9 +70,10 @@ tracing_context_var: ContextVar[Dict[Any, Any]] = ContextVar("tracing_context")
 # Manages parent-child relationships and prevents cross-request span interleaving
 span_stack_var: ContextVar[Optional[List["LangfuseSpan"]]] = ContextVar("span_stack", default=None)
 
-# Root trace client for the current logical request/session. This is used as a
-# stable anchor to attach child spans across async/task boundaries where the
-# span stack might not be directly available.
+# Root trace client for the current logical request/session. Acts as a stable
+# anchor to attach child spans across async/task boundaries where the span stack
+# might not be directly available. Not cleared at span end on purpose; overwritten
+# when a new top-level trace is created in the same logical task.
 root_trace_client_var: ContextVar[Optional[StatefulTraceClient]] = ContextVar("root_trace_client", default=None)
 
 
@@ -268,7 +269,16 @@ class SpanHandler(ABC):
 
 
 class DefaultSpanHandler(SpanHandler):
-    """DefaultSpanHandler provides the default Langfuse tracing behavior for Haystack."""
+    """DefaultSpanHandler provides the default Langfuse tracing behavior for Haystack.
+
+    Attachment precedence when creating a top-level span (no effective parent):
+    1) Use implicit root from root_trace_client_var if set (same logical task)
+    2) Reuse per-session root from this handler instance via session_id
+    3) Create a brand new root trace
+
+    Rationale: ensures single hierarchical trace even when ContextVars don't
+    propagate (threads/executors), by falling back to a session-scoped registry.
+    """
 
     def create_span(self, context: SpanContext) -> LangfuseSpan:
         if self.tracer is None:
@@ -279,7 +289,7 @@ class DefaultSpanHandler(SpanHandler):
             )
             raise RuntimeError(message)
 
-        # Get external tracing context for root trace creation (correlation metadata)
+        # External correlation metadata used when creating a new root
         tracing_ctx = tracing_context_var.get({})
         # Determine effective parent using current span stack if parent_span is not given
         current_stack = span_stack_var.get()
@@ -288,16 +298,17 @@ class DefaultSpanHandler(SpanHandler):
             effective_parent = current_stack[-1]
 
         if not effective_parent:
-            # If there's no effective parent but we have an existing root trace in the context,
-            # create a child span under that trace. This preserves hierarchy across async/task boundaries
-            # where the span stack might not be propagated but the context is.
+            # If there's no effective parent but we have an implicit root in the current task
+            # context, create a child under that. This preserves hierarchy across async/task
+            # boundaries where the span stack isn't propagated but the task-local root is.
             root_trace_client = root_trace_client_var.get() or tracing_ctx.get("root_trace_client")
             if root_trace_client is not None:
                 if context.component_type in _ALL_SUPPORTED_GENERATORS:
                     return LangfuseSpan(root_trace_client.generation(name=context.name))
                 return LangfuseSpan(root_trace_client.span(name=context.name))
 
-            # Otherwise, create a brand new trace and store it in the context for nested tasks to use
+            # Otherwise, try to reuse a per-session root maintained on this handler instance,
+            # or create a brand new root and cache it for future top-level spans in the same session.
             session_id = context.session_id or tracing_ctx.get("session_id")
 
             # Try to reuse an existing root for this session if available on this handler instance
