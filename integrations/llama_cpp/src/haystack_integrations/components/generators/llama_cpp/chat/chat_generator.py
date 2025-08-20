@@ -1,6 +1,7 @@
+import importlib
 import json
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Union, cast
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
@@ -33,12 +34,14 @@ from llama_cpp import (
     CreateChatCompletionStreamResponse,
     Llama,
 )
-
-try:
-    from llama_cpp.llama_chat_format import Llava15ChatHandler
-except ImportError:
-    Llava15ChatHandler = None  # type: ignore[assignment,misc]
 from llama_cpp.llama_tokenizer import LlamaHFTokenizer
+
+# Available chat handlers for multimodal support
+SUPPORTED_CHAT_HANDLERS = {
+    "llava-1-5": "llama_cpp.llama_chat_format.Llava15ChatHandler",
+    "llava-1-6": "llama_cpp.llama_chat_format.Llava16ChatHandler",
+    "moondream2": "llama_cpp.llama_chat_format.MoondreamChatHandler",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +114,8 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> ChatCompletionR
                     image_url = f"data:{part.mime_type};base64,{part.base64_image}"
                     content_parts.append({"type": "image_url", "image_url": {"url": image_url}})  # type: ignore[dict-item]
 
-            return {"role": "user", "content": content_parts}  # type: ignore[return-value,dict-item,misc]
+            # Return multimodal user message - mypy can't verify complex message union types
+            return cast(ChatCompletionRequestMessage, {"role": "user", "content": content_parts})
         else:
             # Simple text-only message
             content = text_contents[0] if text_contents else None
@@ -177,7 +181,8 @@ class LlamaCppChatGenerator:
     # Initialize with multimodal support
     generator = LlamaCppChatGenerator(
         model="llava-v1.5-7b-q4_0.gguf",
-        clip_model_path="mmproj-model-f16.gguf",  # Vision model
+        chat_handler_name="llava-1-5",  # Use llava-1-5 handler
+        model_clip_path="mmproj-model-f16.gguf",  # Vision model
         n_ctx=4096  # Larger context for image processing
     )
     generator.warm_up()
@@ -197,8 +202,8 @@ class LlamaCppChatGenerator:
         *,
         tools: Optional[Union[List[Tool], Toolset]] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
-        chat_handler: Optional[Any] = None,
-        clip_model_path: Optional[str] = None,
+        chat_handler_name: Optional[str] = None,
+        model_clip_path: Optional[str] = None,
     ):
         """
         :param model: The path of a quantized model for text generation, for example, "zephyr-7b-beta.Q4_0.gguf".
@@ -217,10 +222,11 @@ class LlamaCppChatGenerator:
             A list of tools or a Toolset for which the model can prepare calls.
             This parameter can accept either a list of `Tool` objects or a `Toolset` instance.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
-        :param chat_handler: Optional chat handler for multimodal models (e.g., Llava15ChatHandler).
-            Required for multimodal functionality. If not provided, the model will only support text.
-        :param clip_model_path: Path to the CLIP model for vision processing (e.g., "mmproj.bin").
-            Required for multimodal models when chat_handler is not provided.
+        :param chat_handler_name: Name of the chat handler for multimodal models.
+            Supported options: "llava-1-5", "llava-1-6", "moondream2".
+            If provided, model_clip_path must also be specified.
+        :param model_clip_path: Path to the CLIP model for vision processing (e.g., "mmproj.bin").
+            Required when chat_handler_name is provided for multimodal models.
         """
 
         model_kwargs = model_kwargs or {}
@@ -234,6 +240,16 @@ class LlamaCppChatGenerator:
 
         _check_duplicate_tool_names(list(tools or []))
 
+        # Validate multimodal requirements
+        if chat_handler_name is not None:
+            if model_clip_path is None:
+                msg = "model_clip_path must be provided when chat_handler_name is specified for multimodal models"
+                raise ValueError(msg)
+            if chat_handler_name not in SUPPORTED_CHAT_HANDLERS:
+                supported = ", ".join(SUPPORTED_CHAT_HANDLERS.keys())
+                msg = f"Unsupported chat_handler_name: {chat_handler_name}. Supported options: {supported}"
+                raise ValueError(msg)
+
         self.model_path = model
         self.n_ctx = n_ctx
         self.n_batch = n_batch
@@ -242,8 +258,8 @@ class LlamaCppChatGenerator:
         self._model: Optional[Llama] = None
         self.tools = tools
         self.streaming_callback = streaming_callback
-        self.chat_handler = chat_handler
-        self.clip_model_path = clip_model_path
+        self.chat_handler_name = chat_handler_name
+        self.model_clip_path = model_clip_path
 
     def warm_up(self):
         if "hf_tokenizer_path" in self.model_kwargs and "tokenizer" not in self.model_kwargs:
@@ -251,19 +267,20 @@ class LlamaCppChatGenerator:
             self.model_kwargs["tokenizer"] = tokenizer
 
         # Handle multimodal initialization
-        if self.chat_handler is not None:
-            # Use provided chat handler
-            self.model_kwargs["chat_handler"] = self.chat_handler
-        elif self.clip_model_path is not None:
-            # Create a basic multimodal chat handler
-            if Llava15ChatHandler is None:
+        if self.chat_handler_name is not None and self.model_clip_path is not None:
+            try:
+                handler_path = SUPPORTED_CHAT_HANDLERS[self.chat_handler_name]
+                module_path, class_name = handler_path.rsplit(".", 1)
+                module = importlib.import_module(module_path)
+                chat_handler_class = getattr(module, class_name)
+                chat_handler = chat_handler_class(clip_model_path=self.model_clip_path)
+                self.model_kwargs["chat_handler"] = chat_handler
+            except (ImportError, AttributeError) as e:
                 msg = (
-                    "Llava15ChatHandler not available. Please ensure llama-cpp-python is "
-                    "installed with multimodal support."
+                    f"Failed to import chat handler '{self.chat_handler_name}' from '{handler_path}'. "
+                    f"Please ensure llama-cpp-python is installed with multimodal support. Error: {e}"
                 )
-                raise ImportError(msg)
-            chat_handler = Llava15ChatHandler(clip_model_path=self.clip_model_path)
-            self.model_kwargs["chat_handler"] = chat_handler
+                raise ImportError(msg) from e
 
         if self._model is None:
             self._model = Llama(**self.model_kwargs)
@@ -285,8 +302,8 @@ class LlamaCppChatGenerator:
             generation_kwargs=self.generation_kwargs,
             tools=serialize_tools_or_toolset(self.tools),
             streaming_callback=callback_name,
-            chat_handler=self.chat_handler,
-            clip_model_path=self.clip_model_path,
+            chat_handler_name=self.chat_handler_name,
+            model_clip_path=self.model_clip_path,
         )
 
     @classmethod

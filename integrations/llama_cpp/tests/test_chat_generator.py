@@ -726,18 +726,26 @@ class TestLlamaCppChatGenerator:
     def test_init_with_multimodal_params(self):
         """Test initialization with multimodal parameters."""
         generator = LlamaCppChatGenerator(
-            model="llava-v1.5-7b-q4_0.gguf", clip_model_path="mmproj-model-f16.gguf", n_ctx=4096
+            model="llava-v1.5-7b-q4_0.gguf",
+            chat_handler_name="llava-1-5",
+            model_clip_path="mmproj-model-f16.gguf",
+            n_ctx=4096,
         )
-        assert generator.clip_model_path == "mmproj-model-f16.gguf"
-        assert generator.chat_handler is None
+        assert generator.model_clip_path == "mmproj-model-f16.gguf"
+        assert generator.chat_handler_name == "llava-1-5"
         assert generator.n_ctx == 4096
 
-    def test_init_with_custom_chat_handler(self):
-        """Test initialization with custom chat handler."""
-        mock_handler = MagicMock()
-        generator = LlamaCppChatGenerator(model="llava-v1.5-7b-q4_0.gguf", chat_handler=mock_handler)
-        assert generator.chat_handler == mock_handler
-        assert generator.clip_model_path is None
+    def test_init_validation_clip_path_required(self):
+        """Test that model_clip_path is required when chat_handler_name is provided."""
+        with pytest.raises(ValueError, match="model_clip_path must be provided when chat_handler_name is specified"):
+            LlamaCppChatGenerator(model="llava-v1.5-7b-q4_0.gguf", chat_handler_name="llava-1-5")
+
+    def test_init_validation_unsupported_handler(self):
+        """Test that unsupported chat handler names raise ValueError."""
+        with pytest.raises(ValueError, match="Unsupported chat_handler_name: invalid"):
+            LlamaCppChatGenerator(
+                model="llava-v1.5-7b-q4_0.gguf", chat_handler_name="invalid", model_clip_path="mmproj-model-f16.gguf"
+            )
 
     def test_to_dict(self):
         generator = LlamaCppChatGenerator(model="test_model.gguf", n_ctx=8192, n_batch=512)
@@ -751,20 +759,23 @@ class TestLlamaCppChatGenerator:
                 "generation_kwargs": {},
                 "tools": None,
                 "streaming_callback": None,
-                "chat_handler": None,
-                "clip_model_path": None,
+                "chat_handler_name": None,
+                "model_clip_path": None,
             },
         }
 
     def test_to_dict_with_multimodal_params(self):
         """Test serialization with multimodal parameters."""
         generator = LlamaCppChatGenerator(
-            model="llava-v1.5-7b-q4_0.gguf", clip_model_path="mmproj-model-f16.gguf", n_ctx=4096
+            model="llava-v1.5-7b-q4_0.gguf",
+            chat_handler_name="llava-1-5",
+            model_clip_path="mmproj-model-f16.gguf",
+            n_ctx=4096,
         )
         data = generator.to_dict()
 
-        assert data["init_parameters"]["clip_model_path"] == "mmproj-model-f16.gguf"
-        assert data["init_parameters"]["chat_handler"] is None
+        assert data["init_parameters"]["model_clip_path"] == "mmproj-model-f16.gguf"
+        assert data["init_parameters"]["chat_handler_name"] == "llava-1-5"
         assert data["init_parameters"]["n_ctx"] == 4096
 
     def test_to_dict_with_toolset(self, temperature_tool):
@@ -1069,7 +1080,9 @@ class TestLlamaCppChatGenerator:
         }
         mock_model.create_chat_completion.return_value = mock_response
 
-        generator = LlamaCppChatGenerator(model="test_model.gguf", clip_model_path="test_clip.gguf")
+        generator = LlamaCppChatGenerator(
+            model="test_model.gguf", chat_handler_name="llava-1-5", model_clip_path="test_clip.gguf"
+        )
         generator._model = mock_model
 
         result = generator.run(messages)
@@ -1228,3 +1241,55 @@ class TestLlamaCppChatGeneratorChatML:
         assert "age" in arguments
         assert arguments["name"] == "Jason"
         assert arguments["age"] == 25
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.path.exists("tests/models/moondream2-text-model-f16.gguf")
+        or not os.path.exists("tests/models/moondream2-mmproj-f16.gguf"),
+        reason="Moondream2 models not found. Please download the required models for integration testing.",
+    )
+    def test_multimodal_integration_moondream2(self):
+        """
+        Integration test for multimodal support with Moondream2 model.
+
+        This test requires downloading the Moondream2 models:
+        - Text model: moondream2-text-model-f16.gguf
+        - Vision model: moondream2-mmproj-f16.gguf
+
+        These can be downloaded from HuggingFace or other GGUF model repositories.
+        """
+        # Create a simple test image (1x1 pixel PNG)
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+
+        # Create multimodal message
+        messages = [ChatMessage.from_user(content_parts=["What do you see in this image?", image_content])]
+
+        # Initialize generator with Moondream2
+        generator = LlamaCppChatGenerator(
+            model="tests/models/moondream2-text-model-f16.gguf",
+            chat_handler_name="moondream2",
+            model_clip_path="tests/models/moondream2-mmproj-f16.gguf",
+            n_ctx=2048,
+            generation_kwargs={"max_tokens": 50, "temperature": 0.1},
+        )
+
+        generator.warm_up()
+
+        # Test multimodal processing
+        result = generator.run(messages)
+
+        assert "replies" in result
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) > 0
+
+        reply = result["replies"][0]
+        assert isinstance(reply, ChatMessage)
+        assert reply.text is not None
+        assert len(reply.text.strip()) > 0
+
+        # The response should contain some form of image description
+        # Since it's a 1x1 pixel image, responses may vary but should be reasonable
+        assert isinstance(reply.text, str)
