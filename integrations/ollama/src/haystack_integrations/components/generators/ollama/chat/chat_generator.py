@@ -2,7 +2,7 @@ import json
 from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
-from haystack.dataclasses.chat_message import ChatMessage, ToolCall
+from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.dataclasses.streaming_chunk import ComponentInfo, FinishReason, StreamingChunk, ToolCallDelta
 from haystack.tools import (
     Tool,
