@@ -209,7 +209,7 @@ class TestAnthropicVertexChatGeneratorAsync:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
         assert "claude-sonnet-4-20250514" in message.meta["model"]
-        assert message.meta["finish_reason"] == "end_turn"
+        assert message.meta["finish_reason"] == "stop"
 
     # Anthropic messages API is similar for AnthropicVertex and Anthropic endpoint,
     # remaining tests are skipped for AnthropicVertexChatGenerator as they are already tested in AnthropicChatGenerator.

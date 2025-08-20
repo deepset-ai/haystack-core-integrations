@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import base64
 import json
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Union
@@ -15,10 +16,13 @@ from haystack.dataclasses import (
     AsyncStreamingCallbackT,
     ComponentInfo,
     FinishReason,
+    ImageContent,
     StreamingCallbackT,
     StreamingChunk,
+    TextContent,
     ToolCall,
     ToolCallDelta,
+    ToolCallResult,
     select_streaming_callback,
 )
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
@@ -44,10 +48,20 @@ FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
     "PROHIBITED_CONTENT": "content_filter",
     "SPII": "content_filter",
     "IMAGE_SAFETY": "content_filter",
-    "FUNCTION_CALL": "tool_calls",
 }
 
 logger = logging.getLogger(__name__)
+
+# Google AI supported image MIME types based on documentation
+# https://ai.google.dev/gemini-api/docs/image-understanding?lang=python
+GOOGLE_AI_SUPPORTED_MIME_TYPES = {
+    "image/png": "png",
+    "image/jpeg": "jpeg",
+    "image/jpg": "jpeg",  # Common alias
+    "image/webp": "webp",
+    "image/heic": "heic",
+    "image/heif": "heif",
+}
 
 
 def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Content:
@@ -58,34 +72,66 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
     :returns: Google Gen AI Content object.
     """
     # Check if message has content
-    if not message.texts and not message.tool_calls and not message.tool_call_results:
-        msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
+    if not message._content:
+        msg = "A `ChatMessage` must contain at least one content part."
         raise ValueError(msg)
 
     parts = []
 
-    # Handle text content
-    if message.texts and message.texts[0]:
-        parts.append(types.Part(text=message.texts[0]))
+    # Process all content parts in order to preserve text/image ordering
+    for content_part in message._content:
+        if isinstance(content_part, TextContent):
+            # Only add text parts that are not empty to avoid unnecessary empty text parts
+            if content_part.text.strip():
+                parts.append(types.Part(text=content_part.text))
 
-    # Handle tool calls (from assistant)
-    if message.tool_calls:
-        for tool_call in message.tool_calls:
+        elif isinstance(content_part, ImageContent):
+            if not message.is_from(ChatRole.USER):
+                msg = "Image content is only supported for user messages"
+                raise ValueError(msg)
+
+            # Validate image MIME type and format
+            if not content_part.mime_type:
+                msg = "Image MIME type could not be determined. Please provide a valid image with detectable format."
+                raise ValueError(msg)
+
+            if content_part.mime_type not in GOOGLE_AI_SUPPORTED_MIME_TYPES:
+                supported_types = list(GOOGLE_AI_SUPPORTED_MIME_TYPES.keys())
+                msg = (
+                    f"Unsupported image MIME type: {content_part.mime_type}. "
+                    f"Google AI supports the following MIME types: {supported_types}"
+                )
+                raise ValueError(msg)
+
+            # Use inline image data approach
+            try:
+                # ImageContent already has base64 data, decode it for bytes
+                image_bytes = base64.b64decode(content_part.base64_image)
+
+                # Create Part using from_bytes method
+                image_part = types.Part.from_bytes(data=image_bytes, mime_type=content_part.mime_type)
+                parts.append(image_part)
+
+            except Exception as e:
+                msg = f"Failed to process image data: {e}"
+                raise RuntimeError(msg) from e
+
+        elif isinstance(content_part, ToolCall):
             parts.append(
                 types.Part(
                     function_call=types.FunctionCall(
-                        id=tool_call.id, name=tool_call.tool_name, args=tool_call.arguments
+                        id=content_part.id, name=content_part.tool_name, args=content_part.arguments
                     )
                 )
             )
 
-    # Handle tool call results (from tool/user)
-    if message.tool_call_results:
-        for result in message.tool_call_results:
+        elif isinstance(content_part, ToolCallResult):
             parts.append(
                 types.Part(
                     function_response=types.FunctionResponse(
-                        id=result.origin.id, name=result.origin.tool_name, response={"result": result.result}
+                        id=content_part.origin.id,
+                        name=content_part.origin.tool_name,
+                        response={"result": content_part.result},
                     )
                 )
             )
@@ -199,7 +245,7 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
         tool_calls=tool_calls,
         meta={
             "model": model,
-            "finish_reason": str(finish_reason) if finish_reason else None,
+            "finish_reason": FINISH_REASON_MAPPING.get(finish_reason or ""),
             "usage": {
                 "prompt_tokens": getattr(usage_metadata, "prompt_token_count", 0),
                 "completion_tokens": getattr(usage_metadata, "candidates_token_count", 0),
@@ -433,7 +479,7 @@ class GoogleGenAIChatGenerator:
             component_info=component_info,
             index=index,
             start=start,
-            finish_reason=FINISH_REASON_MAPPING.get(finish_reason) if finish_reason else None,
+            finish_reason=FINISH_REASON_MAPPING.get(finish_reason or ""),
             meta={
                 "received_at": datetime.now(timezone.utc).isoformat(),
                 "model": self._model,
@@ -558,7 +604,7 @@ class GoogleGenAIChatGenerator:
             chat_messages = messages[1:]
 
         # Convert messages to Google Gen AI Content format
-        contents = []
+        contents: List[types.ContentUnionDict] = []
         for msg in chat_messages:
             contents.append(_convert_message_to_google_genai_format(msg))
 
@@ -581,12 +627,18 @@ class GoogleGenAIChatGenerator:
             if streaming_callback:
                 # Use streaming
                 response_stream = self._client.models.generate_content_stream(
-                    model=self._model, contents=contents, config=config
+                    model=self._model,
+                    contents=contents,
+                    config=config,
                 )
                 return self._handle_streaming_response(response_stream, streaming_callback)
             else:
                 # Use non-streaming
-                response = self._client.models.generate_content(model=self._model, contents=contents, config=config)
+                response = self._client.models.generate_content(
+                    model=self._model,
+                    contents=contents,
+                    config=config,
+                )
                 reply = _convert_google_genai_response_to_chatmessage(response, self._model)
                 return {"replies": [reply]}
 
@@ -646,7 +698,7 @@ class GoogleGenAIChatGenerator:
             chat_messages = messages[1:]
 
         # Convert messages to Google Gen AI Content format
-        contents = []
+        contents: List[types.ContentUnion] = []
         for msg in chat_messages:
             contents.append(_convert_message_to_google_genai_format(msg))
 
@@ -667,15 +719,19 @@ class GoogleGenAIChatGenerator:
             config = types.GenerateContentConfig(**config_params) if config_params else None
 
             if streaming_callback:
-                # Use async streaming
+                # Use streaming
                 response_stream = await self._client.aio.models.generate_content_stream(
-                    model=self._model, contents=contents, config=config
+                    model=self._model,
+                    contents=contents,
+                    config=config,
                 )
                 return await self._handle_streaming_response_async(response_stream, streaming_callback)
             else:
-                # Use async non-streaming
+                # Use non-streaming
                 response = await self._client.aio.models.generate_content(
-                    model=self._model, contents=contents, config=config
+                    model=self._model,
+                    contents=contents,
+                    config=config,
                 )
                 reply = _convert_google_genai_response_to_chatmessage(response, self._model)
                 return {"replies": [reply]}

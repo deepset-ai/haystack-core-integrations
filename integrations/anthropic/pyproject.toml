@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.15.1", "anthropic>=0.47.0"]
+dependencies = ["haystack-ai>=2.16.1", "anthropic>=0.47.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/anthropic#readme"
@@ -57,7 +57,8 @@ dependencies = [
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
-    "pip"
+    "pip",
+    "pillow",  # image support
 ]
 
 [tool.hatch.envs.test.scripts]

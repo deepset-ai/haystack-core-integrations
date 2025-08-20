@@ -23,6 +23,7 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   LLM_FOR_TESTS: "qwen3:0.6b"
+  VISION_LLM_FOR_TESTS: "moondream:1.8b"
   EMBEDDER_FOR_TESTS: "nomic-embed-text"
 
 jobs:
@@ -36,7 +37,7 @@ jobs:
         python-version: ["3.9", "3.13"]  
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install and run Ollama
         uses: nick-fields/retry@v3
@@ -70,6 +71,9 @@ jobs:
           command: |
             ollama pull ${{ env.LLM_FOR_TESTS }}
             ollama list | grep -q "${{ env.LLM_FOR_TESTS }}" || { echo "Model ${{ env.LLM_FOR_TESTS }} not pulled."; exit 1; }
+
+            ollama pull ${{ env.VISION_LLM_FOR_TESTS }}
+            ollama list | grep -q "${{ env.VISION_LLM_FOR_TESTS }}" || { echo "Model ${{ env.VISION_LLM_FOR_TESTS }} not pulled."; exit 1; }            
 
             ollama pull ${{ env.EMBEDDER_FOR_TESTS }}
             ollama list | grep -q "${{ env.EMBEDDER_FOR_TESTS }}" || { echo "Model ${{ env.EMBEDDER_FOR_TESTS }} not pulled."; exit 1; }
