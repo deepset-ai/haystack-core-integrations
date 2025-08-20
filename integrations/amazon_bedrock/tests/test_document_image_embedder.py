@@ -254,7 +254,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
         reason="AWS credentials are not set",
     )
     def test_live_run_with_titan(self, test_files_path):
-        embedder = AmazonBedrockDocumentImageEmbedder(model="amazon.titan-embed-image-v1")
+        embedder = AmazonBedrockDocumentImageEmbedder(model="amazon.titan-embed-image-v1", image_size=(100, 100))
 
         image_paths = glob.glob(str(test_files_path / "*.*"))
         documents = []
