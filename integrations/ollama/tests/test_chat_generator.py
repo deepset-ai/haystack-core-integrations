@@ -1,8 +1,10 @@
 import json
+from typing import Annotated
 from unittest.mock import Mock, patch
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
+from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
@@ -12,7 +14,7 @@ from haystack.dataclasses import (
     TextContent,
     ToolCall,
 )
-from haystack.tools import Tool
+from haystack.tools import Tool, tool
 from haystack.tools.toolset import Toolset
 from ollama._types import ChatResponse, Message, ResponseError
 
@@ -23,25 +25,15 @@ from haystack_integrations.components.generators.ollama.chat.chat_generator impo
 )
 
 
-def get_weather(city: str) -> str:
+@tool
+def weather(city: Annotated[str, "The city to get the weather for"]) -> str:
+    """Get the weather in a given city."""
     return f"The weather in {city} is sunny"
 
 
 @pytest.fixture
 def tools():
-    tool_parameters = {
-        "type": "object",
-        "properties": {"city": {"type": "string"}},
-        "required": ["city"],
-    }
-    tool = Tool(
-        name="weather",
-        description="useful to determine the weather in a given location",
-        parameters=tool_parameters,
-        function=get_weather,
-    )
-
-    return [tool]
+    return [weather]
 
 
 def test_convert_chatmessage_to_ollama_format():
@@ -57,10 +49,13 @@ def test_convert_chatmessage_to_ollama_format():
         "content": "I have a question",
     }
 
-    message = ChatMessage.from_assistant(text="I have an answer", meta={"finish_reason": "stop"})
+    message = ChatMessage.from_assistant(
+        text="I have an answer", reasoning="I thought about it", meta={"finish_reason": "stop"}
+    )
     assert _convert_chatmessage_to_ollama_format(message) == {
         "role": "assistant",
         "content": "I have an answer",
+        "thinking": "I thought about it",
     }
 
     message = ChatMessage.from_assistant(
@@ -550,8 +545,51 @@ class TestOllamaChatGenerator:
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "There are three 'r's in the word 'strawberry'"
         assert result["replies"][0].role == "assistant"
-        assert "thinking" in result["replies"][0].meta
-        assert result["replies"][0].meta["thinking"] == "I'm tired of answering this question for the thousandth time."
+        assert (
+            result["replies"][0].reasoning.reasoning_text
+            == "I'm tired of answering this question for the thousandth time."
+        )
+
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
+    def test_run_with_toolset(self, mock_client, tools):
+        """Test that the OllamaChatGenerator can run with a Toolset."""
+        toolset = Toolset(tools)
+        generator = OllamaChatGenerator(model="qwen3", tools=toolset)
+
+        mock_response = ChatResponse(
+            model="qwen3",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "weather",
+                            "arguments": {"city": "Paris"},
+                        }
+                    }
+                ],
+            },
+            done=True,
+            total_duration=5191566416,
+            load_duration=2154458,
+            prompt_eval_count=26,
+            prompt_eval_duration=383809000,
+            eval_count=298,
+            eval_duration=4799921000,
+        )
+
+        mock_client_instance = mock_client.return_value
+        mock_client_instance.chat.return_value = mock_response
+
+        result = generator.run(messages=[ChatMessage.from_user("What's the weather in Paris?")])
+
+        mock_client_instance.chat.assert_called_once()
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+        assert result["replies"][0].tool_call.tool_name == "weather"
+        assert result["replies"][0].tool_call.arguments == {"city": "Paris"}
 
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run_streaming_at_runtime(self, mock_client):
@@ -786,15 +824,60 @@ class TestOllamaChatGenerator:
         )
 
     @pytest.mark.integration
-    def test_live_run_with_thinking(self):
-        chat_generator = OllamaChatGenerator(model="qwen3:0.6b", think=True)
+    @pytest.mark.parametrize("streaming_callback", [None, print_streaming_chunk])
+    def test_live_run_with_thinking(self, streaming_callback):
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b", think=True, streaming_callback=streaming_callback)
 
-        message = ChatMessage.from_user("How many times does the letter 'r' appear in the word 'strawberry'?")
-        response = chat_generator.run([message])
+        message = ChatMessage.from_user("2+3?")
+        response = chat_generator.run([message])["replies"][0]
 
-        assert isinstance(response, dict)
-        assert isinstance(response["replies"], list)
-        assert "thinking" in response["replies"][0].meta
+        assert isinstance(response, ChatMessage)
+        assert response.text and len(response.text) > 0
+        assert response.reasoning is not None
+        assert len(response.reasoning.reasoning_text) > 0
+
+        new_message = ChatMessage.from_user("Now multiply the result by 10.")
+        new_response = chat_generator.run([message, response, new_message])["replies"][0]
+        assert isinstance(new_response, ChatMessage)
+        assert new_response.text and len(new_response.text) > 0
+        assert new_response.reasoning is not None
+        assert len(new_response.reasoning.reasoning_text) > 0
+
+    @pytest.mark.integration
+    def test_live_run_with_thinking_and_tools(self):
+        @tool
+        def add(a: int, b: int) -> int:
+            """Add two numbers together."""
+            return a + b
+
+        @tool
+        def multiply(a: int, b: int) -> int:
+            """Multiply two numbers together."""
+            return a * b
+
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b", think=True, tools=[add, multiply])
+        tool_invoker = ToolInvoker(tools=[add, multiply])
+
+        message = ChatMessage.from_user("2+3?")
+        response = chat_generator.run([message])["replies"][0]
+
+        assert isinstance(response, ChatMessage)
+        assert response.reasoning is not None
+        assert len(response.reasoning.reasoning_text) > 0
+        assert response.tool_calls
+        assert response.tool_calls[0].tool_name == "add"
+        assert response.tool_calls[0].arguments == {"a": 2, "b": 3}
+
+        tool_result = tool_invoker.run(messages=[response])["tool_messages"][0]
+
+        new_message = ChatMessage.from_user("Now multiply the result by 10.")
+        new_response = chat_generator.run([message, response, tool_result, new_message])["replies"][0]
+        assert isinstance(new_response, ChatMessage)
+        assert new_response.reasoning is not None
+        assert len(new_response.reasoning.reasoning_text) > 0
+        assert new_response.tool_calls
+        assert new_response.tool_calls[0].tool_name == "multiply"
+        assert new_response.tool_calls[0].arguments == {"a": 5, "b": 10}
 
     @pytest.mark.integration
     def test_run_model_unavailable(self):
@@ -928,44 +1011,3 @@ class TestOllamaChatGenerator:
         assert "population" in response_data
         assert isinstance(response_data["population"], (int, float))
         assert response_data["capital"].lower() == "paris"
-
-    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
-    def test_run_with_toolset(self, mock_client, tools):
-        """Test that the OllamaChatGenerator can run with a Toolset."""
-        toolset = Toolset(tools)
-        generator = OllamaChatGenerator(model="qwen3", tools=toolset)
-
-        mock_response = ChatResponse(
-            model="qwen3",
-            created_at="2023-12-12T14:13:43.416799Z",
-            message={
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [
-                    {
-                        "function": {
-                            "name": "weather",
-                            "arguments": {"city": "Paris"},
-                        }
-                    }
-                ],
-            },
-            done=True,
-            total_duration=5191566416,
-            load_duration=2154458,
-            prompt_eval_count=26,
-            prompt_eval_duration=383809000,
-            eval_count=298,
-            eval_duration=4799921000,
-        )
-
-        mock_client_instance = mock_client.return_value
-        mock_client_instance.chat.return_value = mock_response
-
-        result = generator.run(messages=[ChatMessage.from_user("What's the weather in Paris?")])
-
-        mock_client_instance.chat.assert_called_once()
-        assert "replies" in result
-        assert len(result["replies"]) == 1
-        assert result["replies"][0].tool_call.tool_name == "weather"
-        assert result["replies"][0].tool_call.arguments == {"city": "Paris"}

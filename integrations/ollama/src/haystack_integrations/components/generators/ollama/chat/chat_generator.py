@@ -2,7 +2,7 @@ import json
 from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
-from haystack.dataclasses import ChatMessage, ToolCall
+from haystack.dataclasses.chat_message import ChatMessage, ToolCall
 from haystack.dataclasses.streaming_chunk import ComponentInfo, FinishReason, StreamingChunk, ToolCallDelta
 from haystack.tools import (
     Tool,
@@ -58,6 +58,8 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any
             {"type": "function", "function": {"name": tool_call.tool_name, "arguments": tool_call.arguments}}
             for tool_call in tool_calls
         ]
+    if message.reasoning:
+        ollama_msg["thinking"] = message.reasoning.reasoning_text
     return ollama_msg
 
 
@@ -131,14 +133,11 @@ def _convert_ollama_response_to_chatmessage(ollama_response: ChatResponse) -> Ch
                 )
             )
 
-    chat_msg = ChatMessage.from_assistant(text=text, tool_calls=tool_calls)
+    reasoning = ollama_message.get("thinking", None)
+
+    chat_msg = ChatMessage.from_assistant(text=text, tool_calls=tool_calls, reasoning=reasoning)
 
     chat_msg._meta = _convert_ollama_meta_to_openai_format(response_dict)
-
-    thinking = ollama_message.get("thinking", None)
-
-    if thinking is not None:
-        chat_msg._meta["thinking"] = thinking
 
     return chat_msg
 
@@ -205,7 +204,7 @@ class OllamaChatGenerator:
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
         response_format: Optional[Union[None, Literal["json"], JsonSchemaValue]] = None,
-        think: bool = False,
+        think: Union[bool, Literal["low", "medium", "high"]] = False,
     ):
         """
         :param model:
@@ -219,9 +218,11 @@ class OllamaChatGenerator:
         :param timeout:
             The number of seconds before throwing a timeout error from the Ollama API.
         :param think
-            If True, the modell will "think" before producing a response.
+            If True, the model will "think" before producing a response.
             Only [thinking models](https://ollama.com/search?c=thinking) support this feature.
-            The intermediate "thinking" output can be found in the `meta` property of the returned `ChatMessage`.
+            Some models like gpt-oss support different levels of thinking: "low", "medium", "high".
+            The intermediate "thinking" output can be found by inspecting the `reasoning` property of the returned
+            `ChatMessage`.
         :param keep_alive:
             The option that controls how long the model will stay loaded into memory following the request.
             If not set, it will use the default value from the Ollama (5 minutes).
@@ -310,6 +311,10 @@ class OllamaChatGenerator:
 
         meta = {key: value for key, value in chunk_response_dict.items() if key != "message"}
         meta["role"] = chunk_response_dict["message"]["role"]
+
+        # until a specific field in StreamingChunk is available, we store the thinking in the meta
+        meta["reasoning"] = chunk_response_dict["message"].get("thinking", None)
+
         if tool_calls := chunk_response_dict["message"].get("tool_calls"):
             for tool_call in tool_calls:
                 tool_calls_list.append(
@@ -389,8 +394,13 @@ class OllamaChatGenerator:
 
             if callback:
                 callback(chunk)
+
         # Compose final reply
-        text = "".join(c.content for c in chunks)
+        text = ""
+        reasoning = ""
+        for c in chunks:
+            text += c.content
+            reasoning += c.meta.pop("reasoning", None) or ""
 
         tool_calls = []
         for tool_call_id in id_order:
@@ -402,6 +412,7 @@ class OllamaChatGenerator:
         reply = ChatMessage.from_assistant(
             text=text,
             tool_calls=tool_calls or None,
+            reasoning=reasoning,
             meta=_convert_ollama_meta_to_openai_format(chunks[-1].meta) if chunks else {},
         )
 
