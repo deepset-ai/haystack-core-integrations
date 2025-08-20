@@ -135,68 +135,74 @@ def _convert_ollama_response_to_chatmessage(ollama_response: ChatResponse) -> Ch
 
     reasoning = ollama_message.get("thinking", None)
 
-    chat_msg = ChatMessage.from_assistant(text=text, tool_calls=tool_calls, reasoning=reasoning)
+    chat_msg = ChatMessage.from_assistant(text=text or None, tool_calls=tool_calls, reasoning=reasoning)
 
     chat_msg._meta = _convert_ollama_meta_to_openai_format(response_dict)
 
     return chat_msg
 
 
+def _build_chunk(
+    chunk_response: ChatResponse, component_info: ComponentInfo, index: int, tool_call_index: int
+) -> StreamingChunk:
+    """
+    Convert one Ollama stream-chunk to Haystack StreamingChunk.
+    """
+    chunk_response_dict = chunk_response.model_dump()
+    finish_reason = FINISH_REASON_MAPPING.get(chunk_response.done_reason or "")
+    tool_calls_list = []
+
+    content = chunk_response_dict["message"]["content"]
+
+    meta = {key: value for key, value in chunk_response_dict.items() if key != "message"}
+    meta["role"] = chunk_response_dict["message"]["role"]
+
+    # until a specific field in StreamingChunk is available, we store the thinking in the meta
+    meta["reasoning"] = chunk_response_dict["message"].get("thinking", None)
+
+    if tool_calls := chunk_response_dict["message"].get("tool_calls"):
+        for tool_call in tool_calls:
+            tool_calls_list.append(
+                ToolCallDelta(
+                    index=tool_call_index,
+                    tool_name=tool_call["function"]["name"],
+                    arguments=json.dumps(tool_call["function"]["arguments"])
+                    if tool_call["function"]["arguments"]
+                    else "",
+                )
+            )
+
+    return StreamingChunk(
+        content=content,
+        meta=meta,
+        index=index,
+        finish_reason=finish_reason,
+        component_info=component_info,
+        tool_calls=tool_calls_list,
+    )
+
+
 @component
 class OllamaChatGenerator:
     """
-    Haystack generator for models served by Ollama (https://ollama.ai).
+    Haystack Chat Generator for models served with Ollama (https://ollama.ai).
 
-    * Fully supports streaming.
-    * Correctly passes tool-calls to Haystack when `stream=True`.
+    Supports streaming, tool calls, reasoning, and structured outputs.
 
     Usage example:
     ```python
-    from haystack.components.generators.utils import print_streaming_chunk
-    from haystack.components.agents import Agent
     from haystack_integrations.components.generators.ollama.chat import OllamaChatGenerator
     from haystack.dataclasses import ChatMessage
-    from haystack.tools import Tool
 
-    def echo(query: str) -> str:
-        print(f"Tool executed with QUERY: {query}")
-        return query
-
-    echo_tool = Tool(
-        name="echo_tool",
-        description="Echoes the query (demo tool).",
-        function=echo,
-        parameters={"query": {"type": "string", "description": "Search query"}},
-    )
-    agent = Agent(
-        chat_generator=OllamaChatGenerator(model="mistral-small3.1:24b"),
-        tools=[echo_tool],
-        system_prompt=(
-            "Use tool to print the query to test tools. Do not answer the question, just send the query to the tool"
-        ),
-        max_agent_steps=5,
-        raise_on_tool_invocation_failure=True,
-        streaming_callback=print_streaming_chunk,
-    )
-    messages = [ChatMessage.from_user("This is stream test of tool usage")]
-    result = agent.run(messages=messages)
-    for message in result["messages"]:
-        print("\n======")
-        if message.role == "system":
-            continue
-        elif message.role == "tool":
-            print(f"{message.role}:")
-            print(f"Tool Results: {[tool.result for tool in message.tool_call_results]}")
-            print(f"Used Tools: {[tool.origin.tool_name for tool in message.tool_call_results]}\n")
-        else:
-            print(f"{message.role}: {message.text}")
-            print(f"Used Tools: {[tool.tool_name for tool in message.tool_calls]}\n")
+    llm = OllamaChatGenerator(model="qwen3:0.6b")
+    result = llm.run(messages=[ChatMessage.from_user("What is the capital of France?")])
+    print(result)
     ```
     """
 
     def __init__(
         self,
-        model: str = "orca-mini",
+        model: str = "qwen3:0.6b",
         url: str = "http://localhost:11434",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: int = 120,
@@ -296,46 +302,6 @@ class OllamaChatGenerator:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(callback_ser)
         return default_from_dict(cls, data)
 
-    @staticmethod
-    def _build_chunk(
-        chunk_response: ChatResponse, component_info: ComponentInfo, index: int, tool_call_index: int
-    ) -> StreamingChunk:
-        """
-        Convert one Ollama stream-chunk to Haystack StreamingChunk.
-        """
-        chunk_response_dict = chunk_response.model_dump()
-        finish_reason = FINISH_REASON_MAPPING.get(chunk_response.done_reason or "")
-        tool_calls_list = []
-
-        content = chunk_response_dict["message"]["content"]
-
-        meta = {key: value for key, value in chunk_response_dict.items() if key != "message"}
-        meta["role"] = chunk_response_dict["message"]["role"]
-
-        # until a specific field in StreamingChunk is available, we store the thinking in the meta
-        meta["reasoning"] = chunk_response_dict["message"].get("thinking", None)
-
-        if tool_calls := chunk_response_dict["message"].get("tool_calls"):
-            for tool_call in tool_calls:
-                tool_calls_list.append(
-                    ToolCallDelta(
-                        index=tool_call_index,
-                        tool_name=tool_call["function"]["name"],
-                        arguments=json.dumps(tool_call["function"]["arguments"])
-                        if tool_call["function"]["arguments"]
-                        else "",
-                    )
-                )
-
-        return StreamingChunk(
-            content=content,
-            meta=meta,
-            index=index,
-            finish_reason=finish_reason,
-            component_info=component_info,
-            tool_calls=tool_calls_list,
-        )
-
     def _handle_streaming_response(
         self,
         response_iter: Iterator[ChatResponse],
@@ -360,7 +326,7 @@ class OllamaChatGenerator:
         for index, raw in enumerate(response_iter):
             if raw.message.tool_calls:
                 tool_call_index += 1
-            chunk = self._build_chunk(
+            chunk = _build_chunk(
                 chunk_response=raw, component_info=component_info, index=index, tool_call_index=tool_call_index
             )
             chunks.append(chunk)
@@ -410,9 +376,9 @@ class OllamaChatGenerator:
         # We can't use _convert_streaming_chunks_to_chat_message because
         # we need to map tool_call name and args by order.
         reply = ChatMessage.from_assistant(
-            text=text,
+            text=text or None,
             tool_calls=tool_calls or None,
-            reasoning=reasoning,
+            reasoning=reasoning or None,
             meta=_convert_ollama_meta_to_openai_format(chunks[-1].meta) if chunks else {},
         )
 
