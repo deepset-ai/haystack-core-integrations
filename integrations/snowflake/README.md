@@ -3,21 +3,11 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/snowflake-haystack.svg)](https://pypi.org/project/snowflake-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/snowflake-haystack.svg)](https://pypi.org/project/snowflake-haystack)
 
------
+- [Integration page](https://haystack.deepset.ai/integrations/snowflake)
+- [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/snowflake/CHANGELOG.md)
 
-**Table of Contents**
+---
 
-- [Installation](#installation)
-- [License](#license)
+## Contributing
 
-## Installation
-
-```console
-pip install snowflake-haystack
-```
-## Examples
-You can find a code example showing how to use the Retriever under the `example/` folder of this repo.
-
-## License
-
-`snowflake-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
+Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
