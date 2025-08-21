@@ -21,6 +21,7 @@ from haystack_integrations.tracing.langfuse.tracer import (
     LangfuseTracer,
     SpanContext,
 )
+from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 
 
 class MockSpan:
