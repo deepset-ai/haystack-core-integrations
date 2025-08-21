@@ -6,12 +6,6 @@
 
 - Add `AmazonBedrockDocumentImageEmbedder` component (#2185)
 
-### 🧹 Chores
-
-- Add framework name into UserAgent header for bedrock integration (#2168)
-- Standardize readmes - part 1 (#2202)
-
-
 ## [integrations/amazon_bedrock-v3.10.0] - 2025-08-06
 
 ### 🚀 Features
