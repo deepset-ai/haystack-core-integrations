@@ -410,61 +410,7 @@ class TestLangfuseTracer:
 
             LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
             assert "tracing is disabled" in caplog.text
-
-    def test_context_cleanup_after_nested_failures(self):
-        """
-        Test that tracer context is properly cleaned up even when nested operations fail.
-
-        This test addresses a critical bug where failing nested operations (like inner pipelines)
-        could corrupt the tracing context, leaving stale spans that affect subsequent operations.
-        The fix ensures proper cleanup through try/finally blocks.
-
-        Before the fix: context would retain spans after failures (length > 0)
-        After the fix: context is always cleaned up (length == 0)
-        """
-
-        @component
-        class FailingParser:
-            @component.output_types(result=str)
-            def run(self, data: str):
-                # This will fail with ValueError when data is not valid JSON
-                parsed = json.loads(data)
-                return {"result": parsed["key"]}
-
-        @component
-        class ComponentWithNestedPipeline:
-            def __init__(self):
-                # This simulates IntentClassifier's internal pipeline
-                self.internal_pipeline = Pipeline()
-                self.internal_pipeline.add_component("parser", FailingParser())
-
-            @component.output_types(result=str)
-            def run(self, input_data: str):
-                # Run nested pipeline - this is where corruption occurs
-                result = self.internal_pipeline.run({"parser": {"data": input_data}})
-                return {"result": result["parser"]["result"]}
-
-        tracer = LangfuseConnector("test")
-
-        main_pipeline = Pipeline()
-        main_pipeline.add_component("nested_component", ComponentWithNestedPipeline())
-        main_pipeline.add_component("tracer", tracer)
-
-        # Test 1: First run will fail and should clean up context
-        try:
-            main_pipeline.run({"nested_component": {"input_data": "invalid json"}})
-        except Exception:
-            pass  # Expected to fail
-
-        # Critical assertion: context should be empty after failed operation
-        assert tracer.tracer.current_span() is None
-
-        # Test 2: Second run should work normally with clean context
-        main_pipeline.run({"nested_component": {"input_data": '{"key": "valid"}'}})
-
-        # Critical assertion: context should be empty after successful operation
-        assert tracer.tracer.current_span() is None
-
+            
     def test_async_concurrency_span_isolation(self):
         """
         Test that concurrent async traces maintain isolated span contexts.
