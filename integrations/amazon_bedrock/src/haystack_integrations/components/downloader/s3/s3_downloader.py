@@ -3,8 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-import hashlib
-import boto3
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
@@ -12,8 +10,7 @@ from urllib.parse import urlparse
 from uuid import UUID
 
 from botocore.config import Config
-from botocore.exceptions import ClientError, NoCredentialsError
-
+from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ByteStream, Document
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
@@ -46,7 +43,7 @@ class S3Downloader:
         file_extensions=[".json"],
         sources_target_type="str",
     )
-    
+
     docs = [
         Document(content="", meta={"s3_bucket": "bucket_name", "s3_key": "your_key", "file_name": "file_name"}),
     ]
@@ -68,7 +65,6 @@ class S3Downloader:
         aws_session_token: Optional[Secret] = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
         aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
-        endpoint_url: Optional[str] = None,
         verify_ssl: bool = True,
         boto3_config: Optional[Dict[str, Any]] = None,
         download_dir: Optional[str] = None,
@@ -86,23 +82,23 @@ class S3Downloader:
         :param aws_session_token: AWS session token.
         :param aws_region_name: AWS region name.
         :param aws_profile_name: AWS profile name.
-        :param endpoint_url: The endpoint URL to use for the S3 client.
         :param verify_ssl: Whether to verify SSL.
         :param boto3_config: The configuration for the boto3 client.
-        :param download_dir: The directory to download the files to.
+        :param download_dir: The directory where the files will be downloaded.
         :param file_extensions: The file extensions that are permitted to be downloaded.
-        :param sources_target_type: The target type for the sources. Can be "str", "pathlib.Path" or "haystack.dataclasses.ByteStream".
+        :param sources_target_type: The target type for the sources.
+            Can be "str", "pathlib.Path" or
+            "haystack.dataclasses.ByteStream".
         :param max_workers: The maximum number of workers to use for concurrent downloads.
         :param max_cache_size: The maximum number of files to cache.
         :raises AmazonS3ConfigurationError: If the AWS configuration is not correct.
         """
-        
+
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
         self.aws_region_name = aws_region_name
         self.aws_session_token = aws_session_token
         self.aws_profile_name = aws_profile_name
-        self.endpoint_url = endpoint_url
         self.verify_ssl = verify_ssl
         self.boto3_config = boto3_config
         self.file_extensions = [e.lower() for e in file_extensions] if file_extensions else None
@@ -132,10 +128,8 @@ class S3Downloader:
             config = Config(
                 user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
             )
-            if self.endpoint_url:
-                self._client = session.client("s3", config=config, endpoint_url=self.endpoint_url)
-            else:
-                self._client = session.client("s3", config=config)
+
+            self._client = session.client("s3", config=config)
         except Exception as exception:
             msg = (
                 "Could not connect to Amazon S3. Make sure the AWS environment is configured correctly. "
@@ -156,20 +150,25 @@ class S3Downloader:
         documents: Optional[List[Document]] = None,
         sources: Optional[List[Union[ByteStream, UUID, str]]] = None,
     ) -> Dict[str, Union[List[Document], List[Union[str, Path, ByteStream]]]]:
-        """
-        Downloads files linked to S3.
-        If `sources` is provided, it will be used to build the documents.
-        If `documents` is provided, it will be used to download the files.
-        The expected meta keys are: 's3_bucket' + 's3_key' OR 's3_url' OR ('s3_key' with default bucket set). 
-        If the meta keys are not present, the document will be skipped.
+        """Download S3-linked files and return enriched `Document`s and source paths.
 
-        :param documents: The documents to download the files from.
-        :param sources: The sources to download the files from.
-        :returns: A dictionary with the following keys:
-            - `documents`: The documents with the `file_path` field populated.
-            - `sources`: The sources in the requested target type.
-        :raises ValueError: If the S3 URL is invalid.
-        :raises Exception: If the download fails.
+        You can pass existing `Document`s (with S3 coordinates in `meta`) and/or `sources`
+        (e.g., `s3://...` URLs or `ByteStream` with S3 metadata). Files are cached locally.
+
+        :param documents: Documents to download. Each must include one of:
+            - `meta['s3_bucket']` + `meta['s3_key']`, or
+            - `meta['s3_url']` (e.g., `s3://bucket/key`), or
+            - `meta['s3_key']` (with default bucket provided elsewhere).
+            Non-conforming documents are skipped.
+        :param sources: Optional heterogeneous inputs used to build `Document`s:
+            - `str` with `s3://bucket/key`,
+            - `ByteStream` whose `meta` contains `s3_url` or (`s3_bucket` + `s3_key`),
+            - Other types are ignored with a warning.
+        :returns: A dictionary with:
+            - `documents`: The downloaded `Document`s; each has `meta['file_path']` and may include `mime_type`.
+            - `sources`: The sources in the requested target type (`str`, `Path`, or `ByteStream`).
+        :raises AmazonS3Error: If a download attempt fails.
+        :raises ValueError: If an S3 URL in inputs is invalid.
         """
         # Ensure cache dir
         self.warm_up()
@@ -189,8 +188,6 @@ class S3Downloader:
 
         if not requested:
             return {"documents": [], "sources": []}
-
-        print (documents)
 
         try:
             if len(requested) == 1:
@@ -221,32 +218,31 @@ class S3Downloader:
         sources_target_type: Literal["str", "pathlib.Path", "haystack.dataclasses.ByteStream"],
     ) -> List[Union[str, Path, ByteStream]]:
         file_paths = [doc.meta.get("file_path", "") for doc in documents if doc.meta.get("file_path")]
-        match sources_target_type:
-            case "str":
-                return file_paths
-            case "pathlib.Path":
-                return [Path(p) for p in file_paths]
-            case "haystack.dataclasses.ByteStream":
-                return [
-                    ByteStream.from_file_path(
-                        Path(doc.meta.get("file_path", "")),
-                        mime_type=doc.meta.get("mime_type"),
-                        meta=doc.meta,
-                    )
-                    for doc in documents
-                ]
+        if sources_target_type == "str":
+            return file_paths
+        elif sources_target_type == "pathlib.Path":
+            return [Path(p) for p in file_paths]
+        elif sources_target_type == "haystack.dataclasses.ByteStream":
+            return [
+                ByteStream.from_file_path(
+                    Path(doc.meta.get("file_path", "")),
+                    mime_type=doc.meta.get("mime_type"),
+                    meta=doc.meta,
+                )
+                for doc in documents
+            ]
+
 
     def _build_source_documents(self, sources: List[Union[ByteStream, UUID, str]]) -> List[Document]:
         """
         Builds the documents from the provided sources.
 
         :param sources: Contains the information about the files to download. Can include:
-            - str: "s3://bucket/key"
-            - ByteStream: meta must contain 's3_url' or ('s3_bucket' + 's3_key').
-            - UUID/other str IDs: used as 's3_key' if 's3_bucket' is provided.
-        :returns: A list of documents with the `file_path` field populated.
-        :raises ValueError: If the S3 URL is invalid.
-        :raises Exception: If the download fails.
+            - str: S3 URL in the form `s3://bucket/key`.
+            - ByteStream: `meta` must contain `s3_url` or (`s3_bucket` + `s3_key`).
+            - `UUID`/other types: ignored with a warning.
+        :returns: A list of documents with metadata required for downloading.
+        :raises ValueError: If the S3 URL cannot be parsed.
         """
         docs: List[Document] = []
         for src in sources:
@@ -256,9 +252,10 @@ class S3Downloader:
                     bkt, key = self._parse_s3_url(src)
                     file_name = os.path.basename(key) or "s3_file"
                     docs.append(Document(content="", meta={"s3_bucket": bkt, "s3_key": key, "file_name": file_name}))
-                
+
                 else:
                     logger.warning(f"Unsupported non-S3 source string: {src!r}. Skipping.")
+
             # ByteStream carrying S3 metadata
             elif isinstance(src, ByteStream):
                 meta = dict(src.meta or {})
@@ -266,10 +263,7 @@ class S3Downloader:
                 key = meta.get("s3_key")
                 url = meta.get("s3_url")
                 if url and (not bucket or not key):
-                    try:
                         bucket, key = self._parse_s3_url(url)
-                    except Exception:  # noqa: BLE001
-                        pass
                 if bucket and key:
                     file_name = meta.get("file_name") or os.path.basename(key) or "s3_file"
                     m = {"s3_bucket": bucket, "s3_key": key, "file_name": file_name, **meta}
@@ -283,11 +277,19 @@ class S3Downloader:
 
     def download_file(self, document: Document) -> Optional[Document]:
         """
-        Download a single document from S3 into the local cache.
-        Expects doc.meta to provide:
-          - 's3_bucket' + 's3_key'  OR
-          - 's3_url'  OR
-          - 's3_key'
+
+        Download a single S3 object into the local cache and enrich the `Document`.
+
+        Expected S3 information in `document.meta`:
+          - `s3_bucket` + `s3_key` **or**
+          - `s3_url` (e.g., `s3://bucket/key`) **or**
+          - `s3_key` (with default bucket provided elsewhere).
+
+        :param document: `Document` describing the S3 object to download.
+        :returns:
+            The same `Document` with `meta` containing the path of the
+            downloaded file and the mime type or `None` if skipped.
+        :raises AmazonS3Error: If the download or head request fails.
         """
         try:
             bucket = document.meta.get("s3_bucket")
@@ -304,7 +306,7 @@ class S3Downloader:
             file_name = document.meta.get("file_name") or os.path.basename(key) or "s3_file"
             ext = Path(file_name).suffix
             cache_id = f"{bucket}/{key}"
-            stem = hashlib.sha1(cache_id.encode("utf-8")).hexdigest()
+            stem = str(abs(hash(cache_id)))  # abs() to avoid negative numbers
             file_path = self.file_root_path / f"{stem}{ext}"
 
             if file_path.is_file():
@@ -316,7 +318,7 @@ class S3Downloader:
             # enrich meta (best-effort head call)
             head = self._client.head_object(Bucket=bucket, Key=key)
             document.meta.setdefault("mime_type", head.get("ContentType"))
-                
+
 
             document.meta["file_path"] = str(file_path)
             document.meta["cache_id"] = cache_id
@@ -325,7 +327,7 @@ class S3Downloader:
         except ClientError as e:
             msg = f"Error downloading from S3: {e}"
             raise AmazonS3Error(msg) from e
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             msg = f"Unexpected error downloading from S3: {e}"
             raise AmazonS3Error(msg) from e
 
@@ -334,7 +336,7 @@ class S3Downloader:
         Remove least-recently-accessed cache files when cache exceeds max_cache_size.
         """
         requested_ids = {
-            hashlib.sha1(str(doc.meta.get("cache_id", "")).encode("utf-8")).hexdigest()
+            str(abs(hash(str(doc.meta.get("cache_id", "")))))
             for doc in documents
             if doc.meta.get("cache_id")
         }
@@ -349,10 +351,10 @@ class S3Downloader:
             for p in misses[:overflow]:
                 try:
                     p.unlink()
-                except Exception:  # noqa: BLE001
+                except Exception:
                     logger.warning(f"Failed to remove cache file {p}")
 
- 
+
     def to_dict(self) -> Dict[str, Any]:
         """Serialize the component to a dictionary."""
         return default_to_dict(
@@ -362,7 +364,6 @@ class S3Downloader:
             aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
             aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
             aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
-            endpoint_url=self.endpoint_url,
             verify_ssl=self.verify_ssl,
             download_dir=str(self.download_dir),
             max_workers=self.max_workers,
@@ -375,6 +376,10 @@ class S3Downloader:
     def from_dict(cls, data: Dict[str, Any]) -> "S3Downloader":
         """
         Deserializes the component from a dictionary.
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
         """
         deserialize_secrets_inplace(
             data["init_parameters"],
@@ -385,9 +390,20 @@ class S3Downloader:
 
     @staticmethod
     def _parse_s3_url(url: str) -> tuple[str, str]:
+        """
+        Parse an S3 URL into (bucket, key).
+
+        :param url: S3 URL, e.g., `s3://bucket/key`.
+        :returns: Tuple of (`bucket`, `key`).
+        :raises ValueError: If the URL does not use the `s3` scheme or is otherwise invalid.
+        """
         parsed = urlparse(url)
+        if parsed.scheme != "s3":
+            msg = f"Invalid S3 URL scheme: {url!r}. Expected scheme 's3://'"
+            raise ValueError(msg)
         bucket = parsed.netloc
         key = parsed.path.lstrip("/")
         if not bucket or not key:
-            raise ValueError(f"Invalid S3 URL: {url!r}. Expected s3://bucket/key")
+            msg = f"Invalid S3 URL: {url!r}. Expected s3://bucket/key"
+            raise ValueError(msg)
         return bucket, key

@@ -26,4 +26,4 @@ class AmazonS3Error(Exception):
 
 class AmazonS3ConfigurationError(AmazonS3Error):
     """Exception raised when AmazonS3 node is not configured correctly"""
-    
+
