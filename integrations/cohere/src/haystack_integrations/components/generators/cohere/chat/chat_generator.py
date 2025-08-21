@@ -182,7 +182,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
     chunk: StreamedChatResponseV2,
     model: str,
     component_info: Optional[ComponentInfo] = None,
-    tool_call_index: int = 0,
+    global_index: int = 0,
 ) -> StreamingChunk:
     """
     Converts a Cohere streaming response chunk to a StreamingChunk.
@@ -196,7 +196,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
     :param component_info: An optional `ComponentInfo` object containing information about the component that
         generated the chunk, such as the component name and type.
     :param model: The model name for metadata.
-    :param tool_call_index: The index of the current tool call in the sequence of tool calls.
+    :param global_index: The index of the current block in the sequence of chunks.
 
     :returns:
         A StreamingChunk object representing the content of the chunk from the Cohere API.
@@ -209,7 +209,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
 
     # Initialize default values
     content = ""
-    index = getattr(chunk, "index", None)
+    index = global_index
     start = False
     finish_reason = None
     tool_calls = None
@@ -230,7 +230,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
             if function is not None and function.name is not None:
                 tool_calls = [
                     ToolCallDelta(
-                        index=tool_call_index,
+                        index=global_index,
                         id=tool_call.id,
                         tool_name=function.name,
                         arguments=None,
@@ -250,7 +250,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
             arguments = chunk.delta.message.tool_calls.function.arguments
             tool_calls = [
                 ToolCallDelta(
-                    index=tool_call_index,
+                    index=global_index,
                     tool_name=None,
                     arguments=arguments,
                 )
@@ -313,17 +313,17 @@ def _parse_streaming_response(
     Loops through each stream object from Cohere and converts it into a StreamingChunk.
     """
     chunks: List[StreamingChunk] = []
-    tool_call_index = -1
+    global_index = 0
 
     for chunk in response:
-        if chunk.type == "tool-call-start":
-            tool_call_index += 1
+        if chunk.type in ["tool-call-start", "content-start", "citation-start"]:
+            global_index += 1
 
         streaming_chunk = _convert_cohere_chunk_to_streaming_chunk(
             chunk=chunk,
             component_info=component_info,
             model=model,
-            tool_call_index=tool_call_index,
+            global_index=global_index,
         )
 
         if not streaming_chunk:
@@ -345,14 +345,14 @@ async def _parse_async_streaming_response(
     Parses Cohere's async streaming chat response into a Haystack ChatMessage.
     """
     chunks: List[StreamingChunk] = []
-    tool_call_index = -1
+    global_index = 0
 
     async for chunk in response:
-        if chunk.type == "tool-call-start":
-            tool_call_index += 1
+        if chunk.type in ["tool-call-start", "content-start", "citation-start"]:
+            global_index += 1
 
         streaming_chunk = _convert_cohere_chunk_to_streaming_chunk(
-            chunk=chunk, component_info=component_info, model=model, tool_call_index=tool_call_index
+            chunk=chunk, component_info=component_info, model=model, global_index=global_index
         )
         if not streaming_chunk:
             continue
