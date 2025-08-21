@@ -13,10 +13,11 @@ COHERE_API_URL = "https://api.cohere.com"
 
 
 class TestCohereTextEmbedder:
-    def test_init_default(self):
+    def test_init_default(self, monkeypatch):
         """
         Test default initialization parameters for CohereTextEmbedder.
         """
+        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         embedder = CohereTextEmbedder()
 
         assert embedder.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
@@ -46,10 +47,11 @@ class TestCohereTextEmbedder:
         assert embedder.timeout == 60
         assert embedder.embedding_type == EmbeddingTypes.FLOAT
 
-    def test_to_dict(self):
+    def test_to_dict(self, monkeypatch):
         """
         Test serialization of this component to a dictionary, using default initialization parameters.
         """
+        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         embedder_component = CohereTextEmbedder()
         component_dict = embedder_component.to_dict()
         assert component_dict == {
@@ -65,10 +67,11 @@ class TestCohereTextEmbedder:
             },
         }
 
-    def test_to_dict_with_custom_init_parameters(self):
+    def test_to_dict_with_custom_init_parameters(self, monkeypatch):
         """
         Test serialization of this component to a dictionary, using custom initialization parameters.
         """
+        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         embedder_component = CohereTextEmbedder(
             api_key=Secret.from_env_var("ENV_VAR", strict=False),
             model="embed-multilingual-v2.0",
@@ -92,7 +95,8 @@ class TestCohereTextEmbedder:
             },
         }
 
-    def test_from_dict(self):
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         component_dict = {
             "type": "haystack_integrations.components.embedders.cohere.text_embedder.CohereTextEmbedder",
             "init_parameters": {
