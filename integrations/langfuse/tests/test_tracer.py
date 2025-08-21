@@ -3,17 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import datetime
-import json
 import logging
 import sys
 from typing import Optional
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from haystack import Pipeline, component
 from haystack.dataclasses import ChatMessage, ToolCall
 
-from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 from haystack_integrations.tracing.langfuse.tracer import (
     _COMPONENT_OUTPUT_KEY, DefaultSpanHandler, LangfuseSpan, LangfuseTracer,
     SpanContext)
