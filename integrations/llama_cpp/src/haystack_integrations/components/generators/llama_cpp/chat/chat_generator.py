@@ -33,15 +33,9 @@ from llama_cpp import (
     CreateChatCompletionResponse,
     CreateChatCompletionStreamResponse,
     Llama,
+    llama_chat_format,
 )
 from llama_cpp.llama_tokenizer import LlamaHFTokenizer
-
-# Available chat handlers for multimodal support
-SUPPORTED_CHAT_HANDLERS = {
-    "llava-1-5": "llama_cpp.llama_chat_format.Llava15ChatHandler",
-    "llava-1-6": "llama_cpp.llama_chat_format.Llava16ChatHandler",
-    "moondream2": "llama_cpp.llama_chat_format.MoondreamChatHandler",
-}
 
 logger = logging.getLogger(__name__)
 
@@ -105,14 +99,14 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> ChatCompletionR
                     )
                     raise ValueError(msg)
 
-            content_parts = []
+            content_parts: list[dict[str, Any]] = []
             for part in message._content:
                 if isinstance(part, TextContent) and part.text:
                     content_parts.append({"type": "text", "text": part.text})
                 elif isinstance(part, ImageContent):
                     # LlamaCpp expects base64 data URI format
                     image_url = f"data:{part.mime_type};base64,{part.base64_image}"
-                    content_parts.append({"type": "image_url", "image_url": {"url": image_url}})  # type: ignore[dict-item]
+                    content_parts.append({"type": "image_url", "image_url": {"url": image_url}})
 
             # Return multimodal user message - mypy can't verify complex message union types
             return cast(ChatCompletionRequestMessage, {"role": "user", "content": content_parts})
@@ -223,7 +217,8 @@ class LlamaCppChatGenerator:
             This parameter can accept either a list of `Tool` objects or a `Toolset` instance.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :param chat_handler_name: Name of the chat handler for multimodal models.
-            Supported options: "llava-1-5", "llava-1-6", "moondream2".
+            Common options include: "llava-1-5", "llava-1-6", "moondream2", "nano-llava", etc.
+            The system will automatically find the corresponding ChatHandler class.
             If provided, model_clip_path must also be specified.
         :param model_clip_path: Path to the CLIP model for vision processing (e.g., "mmproj.bin").
             Required when chat_handler_name is provided for multimodal models.
@@ -245,10 +240,13 @@ class LlamaCppChatGenerator:
             if model_clip_path is None:
                 msg = "model_clip_path must be provided when chat_handler_name is specified for multimodal models"
                 raise ValueError(msg)
-            if chat_handler_name not in SUPPORTED_CHAT_HANDLERS:
-                supported = ", ".join(SUPPORTED_CHAT_HANDLERS.keys())
-                msg = f"Unsupported chat_handler_name: {chat_handler_name}. Supported options: {supported}"
-                raise ValueError(msg)
+
+            # Validate chat handler by attempting to import it
+            try:
+                self._validate_chat_handler(chat_handler_name)
+            except (ImportError, AttributeError) as e:
+                msg = f"Failed to import chat handler '{chat_handler_name}'. Error: {e}"
+                raise ValueError(msg) from e
 
         self.model_path = model
         self.n_ctx = n_ctx
@@ -261,6 +259,89 @@ class LlamaCppChatGenerator:
         self.chat_handler_name = chat_handler_name
         self.model_clip_path = model_clip_path
 
+    def _validate_chat_handler(self, chat_handler_name: str) -> None:
+        """
+        Validate that the specified chat handler can be imported.
+
+        :param chat_handler_name: The name of the chat handler to validate.
+        :raises ImportError: If the chat handler cannot be imported.
+        """
+        handler_path = self._get_chat_handler_path(chat_handler_name)
+        module_path, class_name = handler_path.rsplit(".", 1)
+        module = importlib.import_module(module_path)
+        getattr(module, class_name)  # This will raise AttributeError if class doesn't exist
+
+    def _get_chat_handler_path(self, chat_handler_name: str) -> str:
+        """
+        Generate the import path for a chat handler based on its name.
+
+        :param chat_handler_name: The name of the chat handler.
+        :returns: The full import path for the handler class.
+        """
+        # Get all available ChatHandler classes
+        available_handlers = [
+            name for name in dir(llama_chat_format) if "ChatHandler" in name and not name.startswith("_")
+        ]
+
+        # Create possible class name variations to match against
+        possible_names = self._generate_possible_class_names(chat_handler_name)
+
+        # Find the first matching handler
+        for possible_name in possible_names:
+            if possible_name in available_handlers:
+                return f"llama_cpp.llama_chat_format.{possible_name}"
+
+        # If no match found, raise an error with helpful information
+        available_str = ", ".join(available_handlers)
+        msg = f"No matching ChatHandler found for '{chat_handler_name}'. Available handlers: {available_str}"
+        raise AttributeError(msg)
+
+    def _generate_possible_class_names(self, chat_handler_name: str) -> list[str]:
+        """
+        Generate possible class name variations for a chat handler name.
+
+        :param chat_handler_name: The name of the chat handler.
+        :returns: A list of possible class names to try.
+        """
+        possible_names = []
+
+        # Common naming patterns observed:
+        # "llava-1-5" -> "Llava15ChatHandler"
+        # "llava-1-6" -> "Llava16ChatHandler"
+        # "moondream2" -> "MoondreamChatHandler"
+        # "nano-llava" -> "NanoLlavaChatHandler"
+
+        # Pattern 1: Direct conversion with digits and capitalization
+        class_name_parts = []
+        for part in chat_handler_name.split("-"):
+            if part.isdigit():
+                class_name_parts.append(part)
+            else:
+                class_name_parts.append(part.capitalize())
+        possible_names.append("".join(class_name_parts) + "ChatHandler")
+
+        # Pattern 2: Remove numbers and just capitalize (for cases like "moondream2" -> "MoondreamChatHandler")
+        name_no_numbers = "".join(c for c in chat_handler_name if not c.isdigit() and c != "-")
+        if name_no_numbers:
+            possible_names.append(name_no_numbers.capitalize() + "ChatHandler")
+
+        # Pattern 3: Handle compound names (like "nano-llava" -> "NanoLlavaChatHandler")
+        if "-" in chat_handler_name:
+            compound_name = "".join(part.capitalize() for part in chat_handler_name.split("-"))
+            possible_names.append(compound_name + "ChatHandler")
+
+        # Pattern 4: Direct capitalization without modifications
+        possible_names.append(chat_handler_name.capitalize() + "ChatHandler")
+
+        # Remove duplicates while preserving order
+        seen = set()
+        result = []
+        for name in possible_names:
+            if name not in seen:
+                seen.add(name)
+                result.append(name)
+        return result
+
     def warm_up(self):
         if "hf_tokenizer_path" in self.model_kwargs and "tokenizer" not in self.model_kwargs:
             tokenizer = LlamaHFTokenizer.from_pretrained(self.model_kwargs["hf_tokenizer_path"])
@@ -269,17 +350,14 @@ class LlamaCppChatGenerator:
         # Handle multimodal initialization
         if self.chat_handler_name is not None and self.model_clip_path is not None:
             try:
-                handler_path = SUPPORTED_CHAT_HANDLERS[self.chat_handler_name]
+                handler_path = self._get_chat_handler_path(self.chat_handler_name)
                 module_path, class_name = handler_path.rsplit(".", 1)
                 module = importlib.import_module(module_path)
                 chat_handler_class = getattr(module, class_name)
                 chat_handler = chat_handler_class(clip_model_path=self.model_clip_path)
                 self.model_kwargs["chat_handler"] = chat_handler
             except (ImportError, AttributeError) as e:
-                msg = (
-                    f"Failed to import chat handler '{self.chat_handler_name}' from '{handler_path}'. "
-                    f"Please ensure llama-cpp-python is installed with multimodal support. Error: {e}"
-                )
+                msg = f"Failed to import chat handler '{self.chat_handler_name}'. Error: {e}"
                 raise ImportError(msg) from e
 
         if self._model is None:

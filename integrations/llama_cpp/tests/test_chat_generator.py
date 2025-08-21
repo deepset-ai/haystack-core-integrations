@@ -742,7 +742,7 @@ class TestLlamaCppChatGenerator:
 
     def test_init_validation_unsupported_handler(self):
         """Test that unsupported chat handler names raise ValueError."""
-        with pytest.raises(ValueError, match="Unsupported chat_handler_name: invalid"):
+        with pytest.raises(ValueError, match="Failed to import chat handler 'invalid'"):
             LlamaCppChatGenerator(
                 model="llava-v1.5-7b-q4_0.gguf", chat_handler_name="invalid", model_clip_path="mmproj-model-f16.gguf"
             )
@@ -1242,22 +1242,30 @@ class TestLlamaCppChatGeneratorChatML:
         assert arguments["name"] == "Jason"
         assert arguments["age"] == 25
 
+    @pytest.fixture
+    def moondream2_models(self, model_path, capsys):
+        """Download Moondream2 models for integration testing."""
+        # Download text model
+        text_model_url = "https://huggingface.co/moondream/moondream2-gguf/resolve/main/moondream2-text-model-f16.gguf"
+        text_model_file = "moondream2-text-model-f16.gguf"
+        download_file(text_model_url, str(model_path / text_model_file), capsys)
+
+        # Download vision model
+        mmproj_url = "https://huggingface.co/moondream/moondream2-gguf/resolve/main/moondream2-mmproj-f16.gguf"
+        mmproj_file = "moondream2-mmproj-f16.gguf"
+        download_file(mmproj_url, str(model_path / mmproj_file), capsys)
+
+        return str(model_path / text_model_file), str(model_path / mmproj_file)
+
     @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.path.exists("tests/models/moondream2-text-model-f16.gguf")
-        or not os.path.exists("tests/models/moondream2-mmproj-f16.gguf"),
-        reason="Moondream2 models not found. Please download the required models for integration testing.",
-    )
-    def test_multimodal_integration_moondream2(self):
+    def test_multimodal_integration_moondream2(self, moondream2_models):
         """
         Integration test for multimodal support with Moondream2 model.
 
-        This test requires downloading the Moondream2 models:
-        - Text model: moondream2-text-model-f16.gguf
-        - Vision model: moondream2-mmproj-f16.gguf
-
-        These can be downloaded from HuggingFace or other GGUF model repositories.
+        This test downloads the required Moondream2 models and tests multimodal functionality.
         """
+        text_model_path, mmproj_model_path = moondream2_models
+
         # Create a simple test image (1x1 pixel PNG)
         base64_image = (
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
@@ -1269,9 +1277,9 @@ class TestLlamaCppChatGeneratorChatML:
 
         # Initialize generator with Moondream2
         generator = LlamaCppChatGenerator(
-            model="tests/models/moondream2-text-model-f16.gguf",
+            model=text_model_path,
             chat_handler_name="moondream2",
-            model_clip_path="tests/models/moondream2-mmproj-f16.gguf",
+            model_clip_path=mmproj_model_path,
             n_ctx=2048,
             generation_kwargs={"max_tokens": 50, "temperature": 0.1},
         )
