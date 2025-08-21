@@ -13,17 +13,3 @@
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
 To run integration tests locally, you need to export the `STACKIT_API_KEY` environment variable.
-
-
-
-
-
-## Installation
-
-```console
-pip install stackit-haystack
-```
-
-## License
-
-`stackit-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
