@@ -6,10 +6,12 @@ import asyncio
 import datetime
 import logging
 import sys
+import json
 from typing import Optional
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+from haystack import Pipeline, component
 from haystack.dataclasses import ChatMessage, ToolCall
 
 from haystack_integrations.tracing.langfuse.tracer import (
