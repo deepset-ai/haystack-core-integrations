@@ -4,17 +4,14 @@
 
 import asyncio
 import datetime
-import json
 import logging
 import sys
 from typing import Optional
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from haystack import Pipeline, component
 from haystack.dataclasses import ChatMessage, ToolCall
 
-from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 from haystack_integrations.tracing.langfuse.tracer import (
     _COMPONENT_OUTPUT_KEY,
     DefaultSpanHandler,
@@ -536,3 +533,4 @@ class TestLangfuseTracer:
         assert task2_spans[1][2] == task2_inner  # current_span during inner
         assert task2_spans[2][2] == task2_outer  # current_span after inner
         assert task2_spans[3][2] is None  # current_span after outer
+  

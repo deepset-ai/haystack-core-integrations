@@ -25,7 +25,15 @@ from anthropic.types import (
 from anthropic.types.raw_message_delta_event import Delta
 from haystack import Pipeline
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, print_streaming_chunk
-from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, ToolCall, ToolCallDelta
+from haystack.dataclasses import (
+    ChatMessage,
+    ChatRole,
+    ComponentInfo,
+    ImageContent,
+    StreamingChunk,
+    ToolCall,
+    ToolCallDelta,
+)
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 
@@ -337,6 +345,8 @@ class TestAnthropicChatGenerator:
         component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
         component_info = ComponentInfo.from_component(component)
 
+        raw_chunks = []
+
         # Test message_start chunk
         message_start_chunk = RawMessageStartEvent(
             message=Message(
@@ -358,6 +368,7 @@ class TestAnthropicChatGenerator:
             ),
             type="message_start",
         )
+        raw_chunks.append(message_start_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             message_start_chunk, component_info=component_info, tool_call_index=0
         )
@@ -373,6 +384,7 @@ class TestAnthropicChatGenerator:
         text_block_start_chunk = RawContentBlockStartEvent(
             content_block=TextBlock(citations=None, text="", type="text"), index=0, type="content_block_start"
         )
+        raw_chunks.append(text_block_start_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             text_block_start_chunk, component_info=component_info, tool_call_index=0
         )
@@ -390,6 +402,7 @@ class TestAnthropicChatGenerator:
             index=0,
             type="content_block_delta",
         )
+        raw_chunks.append(text_delta_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             text_delta_chunk, component_info=component_info, tool_call_index=0
         )
@@ -414,6 +427,7 @@ class TestAnthropicChatGenerator:
             index=1,
             type="content_block_start",
         )
+        raw_chunks.append(tool_block_start_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             tool_block_start_chunk, component_info=component_info, tool_call_index=0
         )
@@ -431,6 +445,7 @@ class TestAnthropicChatGenerator:
         empty_json_delta_chunk = RawContentBlockDeltaEvent(
             delta=InputJSONDelta(partial_json="", type="input_json_delta"), index=1, type="content_block_delta"
         )
+        raw_chunks.append(empty_json_delta_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             empty_json_delta_chunk, component_info=component_info, tool_call_index=0
         )
@@ -450,6 +465,7 @@ class TestAnthropicChatGenerator:
             index=1,
             type="content_block_delta",
         )
+        raw_chunks.append(json_delta_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             json_delta_chunk, component_info=component_info, tool_call_index=0
         )
@@ -473,6 +489,7 @@ class TestAnthropicChatGenerator:
                 server_tool_use=None,
             ),
         )
+        raw_chunks.append(message_delta_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             message_delta_chunk, component_info=component_info, tool_call_index=0
         )
@@ -496,6 +513,7 @@ class TestAnthropicChatGenerator:
             index=2,
             type="content_block_start",
         )
+        raw_chunks.append(tool_block_start_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             tool_block_start_chunk, component_info=component_info, tool_call_index=1
         )
@@ -513,6 +531,7 @@ class TestAnthropicChatGenerator:
         empty_json_delta_chunk = RawContentBlockDeltaEvent(
             delta=InputJSONDelta(partial_json="", type="input_json_delta"), index=1, type="content_block_delta"
         )
+        raw_chunks.append(empty_json_delta_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             empty_json_delta_chunk, component_info=component_info, tool_call_index=1
         )
@@ -532,6 +551,7 @@ class TestAnthropicChatGenerator:
             index=2,
             type="content_block_delta",
         )
+        raw_chunks.append(json_delta_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             json_delta_chunk, component_info=component_info, tool_call_index=1
         )
@@ -555,6 +575,7 @@ class TestAnthropicChatGenerator:
                 server_tool_use=None,
             ),
         )
+        raw_chunks.append(message_delta_chunk)
         streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
             message_delta_chunk, component_info=component_info, tool_call_index=0
         )
@@ -573,6 +594,16 @@ class TestAnthropicChatGenerator:
         # Then a message_stop chunk
         # message_stop_chunk = RawMessageStopEvent(type="message_stop")
         # but we don't stream it
+
+        generator = AnthropicChatGenerator(Secret.from_token("test-api-key"))
+        message = generator._process_response(raw_chunks)
+        assert message["replies"][0].meta["usage"] == {
+            "cache_creation_input_tokens": None,
+            "cache_read_input_tokens": None,
+            "input_tokens": 393,
+            "output_tokens": 77,
+            "server_tool_use": None,
+        }
 
     def test_convert_streaming_chunks_to_chat_message_with_multiple_tool_calls(self):
         """
@@ -703,7 +734,7 @@ class TestAnthropicChatGenerator:
                 meta={
                     "type": "message_delta",
                     "delta": {"stop_reason": "tool_calls", "stop_sequence": None},
-                    "usage": {"completion_tokens": 40},
+                    "usage": {"output_tokens": 40},
                 },
                 component_info=ComponentInfo.from_component(self),
                 finish_reason="tool_calls",
@@ -728,7 +759,7 @@ class TestAnthropicChatGenerator:
         # Verify meta information
         assert message._meta["index"] == 0
         assert message._meta["finish_reason"] == "tool_calls"
-        assert message._meta["usage"] == {"completion_tokens": 40}
+        assert message._meta["usage"] == {"output_tokens": 40}
 
     def test_convert_streaming_chunks_to_chat_message_tool_call_with_empty_arguments(self):
         """
@@ -815,7 +846,7 @@ class TestAnthropicChatGenerator:
                 meta={
                     "type": "message_delta",
                     "delta": {"stop_reason": "tool_calls", "stop_sequence": None},
-                    "usage": {"completion_tokens": 40},
+                    "usage": {"output_tokens": 40},
                 },
                 component_info=ComponentInfo.from_component(self),
                 index=1,
@@ -838,7 +869,7 @@ class TestAnthropicChatGenerator:
         # Verify meta information
         assert message._meta["index"] == 0
         assert message._meta["finish_reason"] == "tool_calls"
-        assert message._meta["usage"] == {"completion_tokens": 40}
+        assert message._meta["usage"] == {"output_tokens": 40}
 
     def test_serde_in_pipeline(self):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
@@ -971,9 +1002,10 @@ class TestAnthropicChatGenerator:
 
         assert "claude-sonnet-4-20250514" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
-
         assert callback.counter > 1
         assert "Paris" in callback.responses
+        assert "input_tokens" in message.meta["usage"]
+        assert "output_tokens" in message.meta["usage"]
 
     def test_convert_message_to_anthropic_format(self):
         """
@@ -1131,6 +1163,53 @@ class TestAnthropicChatGenerator:
             },
         ]
 
+    def test_convert_message_to_anthropic_format_with_image(self):
+        """Test that a ChatMessage with ImageContent is converted to Anthropic format correctly."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
+
+        system_messages, non_system_messages = _convert_messages_to_anthropic_format([message])
+
+        assert len(non_system_messages) == 1
+        anthropic_message = non_system_messages[0]
+        assert anthropic_message["role"] == "user"
+        assert len(anthropic_message["content"]) == 2
+
+        # Check text and image blocks
+        assert anthropic_message["content"][0]["type"] == "text"
+        assert anthropic_message["content"][0]["text"] == "What's in this image?"
+        assert anthropic_message["content"][1]["type"] == "image"
+        assert anthropic_message["content"][1]["source"]["type"] == "base64"
+        assert anthropic_message["content"][1]["source"]["media_type"] == "image/png"
+        assert anthropic_message["content"][1]["source"]["data"] == base64_image
+
+    def test_convert_message_to_anthropic_format_with_unsupported_mime_type(self):
+        """Test that a ChatMessage with unsupported mime type raises ValueError."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/bmp")  # Unsupported format
+        message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
+
+        with pytest.raises(ValueError, match="Unsupported image format: image/bmp"):
+            _convert_messages_to_anthropic_format([message])
+
+    def test_convert_message_to_anthropic_format_with_none_mime_type(self):
+        """Test that a ChatMessage with None mime type raises ValueError."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        # Manually set mime_type to None to test the validation
+        image_content.mime_type = None
+        message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
+
+        with pytest.raises(ValueError, match="Unsupported image format: None"):
+            _convert_messages_to_anthropic_format([message])
+
     def test_convert_message_to_anthropic_invalid(self):
         """
         Test that the AnthropicChatGenerator component fails to convert an invalid ChatMessage to Anthropic format.
@@ -1171,6 +1250,7 @@ class TestAnthropicChatGenerator:
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
         assert message.meta["finish_reason"] == "tool_calls"
+        assert "completion_tokens" in message.meta["usage"]
 
         new_messages = [
             *initial_messages,
@@ -1268,6 +1348,8 @@ class TestAnthropicChatGenerator:
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
         assert message.meta["finish_reason"] == "tool_calls"
+        assert "output_tokens" in message.meta["usage"]
+        assert "input_tokens" in message.meta["usage"]
 
         new_messages = [
             *initial_messages,
@@ -1537,6 +1619,7 @@ class TestAnthropicChatGenerator:
         assert non_sys[0]["content"][0]["cache_control"]["type"] == "ephemeral"
 
     @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY", None), reason="ANTHROPIC_API_KEY not set")
+    @pytest.mark.integration
     @pytest.mark.parametrize("cache_enabled", [True, False])
     def test_prompt_caching_live_run(self, cache_enabled):
         generation_kwargs = {"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}} if cache_enabled else {}
@@ -1568,6 +1651,7 @@ class TestAnthropicChatGenerator:
             assert token_usage["cache_read_input_tokens"] == 0
 
     @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
+    @pytest.mark.integration
     @pytest.mark.parametrize("cache_enabled", [True, False])
     def test_prompt_caching_live_run_with_user_message(self, cache_enabled):
         claude_llm = AnthropicChatGenerator(
@@ -1673,6 +1757,7 @@ class TestAnthropicChatGeneratorAsync:
         assert "Hello! I'm Claude." in response["replies"][0].text
         assert response["replies"][0].meta["model"] == "claude-sonnet-4-20250514"
         assert response["replies"][0].meta["finish_reason"] == "stop"
+        assert "completion_tokens" in response["replies"][0].meta["usage"]
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(
@@ -1691,6 +1776,7 @@ class TestAnthropicChatGeneratorAsync:
         assert "Paris" in message.text
         assert "claude-sonnet-4-20250514" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
+        assert "completion_tokens" in message.meta["usage"]
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(
@@ -1726,6 +1812,8 @@ class TestAnthropicChatGeneratorAsync:
         assert "paris" in message.text.lower()
         assert "claude-sonnet-4-20250514" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
+        assert "input_tokens" in message.meta["usage"]
+        assert "output_tokens" in message.meta["usage"]
 
         # Verify streaming behavior
         assert counter > 1  # Should have received multiple chunks
@@ -1767,3 +1855,27 @@ class TestAnthropicChatGeneratorAsync:
         assert not final_message.tool_calls
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
+        assert "completion_tokens" in final_message.meta["usage"]
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic token to run this test.",
+    )
+    def test_live_run_multimodal(self, test_files_path):
+        """Integration test for multimodal functionality with real API."""
+        image_path = test_files_path / "apple.jpg"
+        # Resize the image to keep this test fast
+        image_content = ImageContent.from_file_path(file_path=image_path, size=(100, 100))
+        messages = [ChatMessage.from_user(content_parts=["What does this image show? Max 5 words", image_content])]
+
+        generator = AnthropicChatGenerator(generation_kwargs={"max_tokens": 20})
+        response = generator.run(messages=messages)
+
+        assert "replies" in response
+        assert isinstance(response["replies"], list)
+        assert len(response["replies"]) > 0
+        message = response["replies"][0]
+        assert message.text
+        assert len(message.text) > 0
+        assert any(word in message.text.lower() for word in ["apple", "fruit", "red"])
