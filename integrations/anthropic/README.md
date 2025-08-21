@@ -5,7 +5,7 @@
 
 - [Integration page](https://haystack.deepset.ai/integrations/anthropic)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/anthropic/CHANGELOG.md)
------
+---
 
 ## Contributing
 

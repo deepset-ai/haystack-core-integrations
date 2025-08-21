@@ -5,7 +5,7 @@
 
 - [Integration page](https://haystack.deepset.ai/integrations/amazon-bedrock)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/amazon_bedrock/CHANGELOG.md)
------
+---
 
 ## Contributing
 
