@@ -44,7 +44,6 @@ class TestS3Downloader:
         assert d.file_extensions == [".pdf", ".txt"]
         assert d.sources_target_type == "haystack.dataclasses.ByteStream"
 
-
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 10}])
     def test_to_dict(self, mock_boto3_session: Any, tmp_path, boto3_config: Optional[Dict[str, Any]]):
         d = S3Downloader(download_dir=str(tmp_path), boto3_config=boto3_config)
@@ -78,7 +77,6 @@ class TestS3Downloader:
                 "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
                 "verify_ssl": False,
                 "download_dir": str(tmp_path),
-
             },
         }
         d = S3Downloader.from_dict(data)
@@ -95,18 +93,15 @@ class TestS3Downloader:
         with pytest.raises(ValueError):
             d._parse_s3_url("http://example.com/file.txt")
 
-
     def test_run_no_inputs(self):
         d = S3Downloader()
         out = d.run()
         assert out["documents"] == [] and out["sources"] == []
 
-
     def test_run_invalid_s3_url(self):
         d = S3Downloader()
         with pytest.raises(ValueError):
             d.run(sources=["s3://"])  # invalid: missing bucket/key
-
 
     def test_run_success_single(self, tmp_path):
         d = S3Downloader(download_dir=str(tmp_path))
@@ -131,7 +126,6 @@ class TestS3Downloader:
         assert doc.meta["mime_type"] == "text/plain"
         assert out["sources"][0] == doc.meta["file_path"]
 
-
     def test_run_multiple(self, tmp_path):
         d = S3Downloader(download_dir=str(tmp_path))
         mock_s3 = MagicMock()
@@ -146,7 +140,6 @@ class TestS3Downloader:
         out = d.run(sources=["s3://b/x.pdf", "s3://b/y.pdf"])
         assert len(out["documents"]) == 2
         assert mock_s3.download_file.call_count == 2
-
 
     def test_filter_extensions(self, tmp_path):
         d = S3Downloader(download_dir=str(tmp_path), file_extensions=[".pdf"])
@@ -163,7 +156,6 @@ class TestS3Downloader:
         assert len(out["documents"]) == 1
         assert out["documents"][0].meta["file_path"].endswith(".pdf")
 
-
     def test_run_file_not_found_raises_amazons3error(self, tmp_path):
         d = S3Downloader(download_dir=str(tmp_path))
         mock_s3 = MagicMock()
@@ -173,7 +165,6 @@ class TestS3Downloader:
         d._client = mock_s3
         with pytest.raises(AmazonS3Error):
             d.run(sources=["s3://b/missing.txt"])
-
 
     def test_run_bucket_not_found_raises_amazons3error(self, tmp_path):
         d = S3Downloader(download_dir=str(tmp_path))
@@ -185,7 +176,6 @@ class TestS3Downloader:
         with pytest.raises(AmazonS3Error):
             d.run(sources=["s3://missing/file.txt"])
 
-
     def test_run_credentials_error_is_wrapped(self, tmp_path):
         d = S3Downloader(download_dir=str(tmp_path))
         mock_s3 = MagicMock()
@@ -194,7 +184,6 @@ class TestS3Downloader:
         d._client = mock_s3
         with pytest.raises(AmazonS3Error):
             d.run(sources=["s3://b/a.txt"])
-
 
     def test_run_access_denied_is_wrapped(self, tmp_path):
         d = S3Downloader(download_dir=str(tmp_path))
@@ -206,7 +195,6 @@ class TestS3Downloader:
         with pytest.raises(AmazonS3Error):
             d.run(sources=["s3://b/a.txt"])
 
-
     def test_run_unexpected_error_is_wrapped(self, tmp_path):
         d = S3Downloader(download_dir=str(tmp_path))
         mock_s3 = MagicMock()
@@ -214,7 +202,6 @@ class TestS3Downloader:
         d._client = mock_s3
         with pytest.raises(AmazonS3Error, match="boom"):
             d.run(sources=["s3://b/a.txt"])
-
 
     def test_sources_as_bytestream(self, tmp_path):
         d = S3Downloader(download_dir=str(tmp_path), sources_target_type="haystack.dataclasses.ByteStream")

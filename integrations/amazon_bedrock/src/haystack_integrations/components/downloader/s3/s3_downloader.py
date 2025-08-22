@@ -54,6 +54,7 @@ class S3Downloader:
 
     ```
     """
+
     max_cache_size: int = 100
 
     def __init__(
@@ -202,6 +203,7 @@ class S3Downloader:
         downloaded_documents = [d for d in iterable if d is not None]
         target_sources = self._to_sources(downloaded_documents, self.sources_target_type)
         return {"documents": downloaded_documents, "sources": target_sources}
+
     def _filter_documents_by_extensions(self, documents: List[Document]) -> List[Document]:
         if not self.file_extensions:
             return documents
@@ -231,7 +233,6 @@ class S3Downloader:
                 )
                 for doc in documents
             ]
-
 
     def _build_source_documents(self, sources: List[Union[ByteStream, UUID, str]]) -> List[Document]:
         """
@@ -263,7 +264,7 @@ class S3Downloader:
                 key = meta.get("s3_key")
                 url = meta.get("s3_url")
                 if url and (not bucket or not key):
-                        bucket, key = self._parse_s3_url(url)
+                    bucket, key = self._parse_s3_url(url)
                 if bucket and key:
                     file_name = meta.get("file_name") or os.path.basename(key) or "s3_file"
                     m = {"s3_bucket": bucket, "s3_key": key, "file_name": file_name, **meta}
@@ -319,7 +320,6 @@ class S3Downloader:
             head = self._client.head_object(Bucket=bucket, Key=key)
             document.meta.setdefault("mime_type", head.get("ContentType"))
 
-
             document.meta["file_path"] = str(file_path)
             document.meta["cache_id"] = cache_id
             return document
@@ -336,9 +336,7 @@ class S3Downloader:
         Remove least-recently-accessed cache files when cache exceeds max_cache_size.
         """
         requested_ids = {
-            str(abs(hash(str(doc.meta.get("cache_id", "")))))
-            for doc in documents
-            if doc.meta.get("cache_id")
+            str(abs(hash(str(doc.meta.get("cache_id", ""))))) for doc in documents if doc.meta.get("cache_id")
         }
 
         all_files = [p for p in self.file_root_path.iterdir() if p.is_file()]
@@ -353,7 +351,6 @@ class S3Downloader:
                     p.unlink()
                 except Exception:
                     logger.warning(f"Failed to remove cache file {p}")
-
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize the component to a dictionary."""
@@ -386,7 +383,6 @@ class S3Downloader:
             ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
         )
         return default_from_dict(cls, data)
-
 
     @staticmethod
     def _parse_s3_url(url: str) -> tuple[str, str]:
