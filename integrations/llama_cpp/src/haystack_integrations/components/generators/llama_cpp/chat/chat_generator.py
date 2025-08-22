@@ -86,8 +86,7 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> ChatCompletionR
         }
 
     if role == "system":
-        content = text_contents[0] if text_contents else None
-        return {"role": "system", "content": content}
+        return {"role": "system", "content": text_contents[0]}
 
     if role == "user":
         # Handle multimodal content (text + images) preserving order
@@ -114,8 +113,7 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> ChatCompletionR
             return {"role": "user", "content": content_parts}
 
         # Simple text-only message
-        content = text_contents[0] if text_contents else None
-        return {"role": "user", "content": content}
+        return {"role": "user", "content": text_contents[0]}
 
     if role == "assistant":
         result: ChatCompletionRequestAssistantMessage = {"role": "assistant"}
@@ -177,8 +175,8 @@ class LlamaCppChatGenerator:
     # Initialize with multimodal support
     generator = LlamaCppChatGenerator(
         model="llava-v1.5-7b-q4_0.gguf",
-        chat_handler_name="llava-1-5",  # Use llava-1-5 handler
-        model_clip_path="mmproj-model-f16.gguf",  # Vision model
+        chat_handler_name="Llava15ChatHandler",  # Use llava-1-5 handler
+        model_clip_path="mmproj-model-f16.gguf",  # CLIP model
         n_ctx=4096  # Larger context for image processing
     )
     generator.warm_up()
@@ -273,9 +271,8 @@ class LlamaCppChatGenerator:
 
         # Handle multimodal initialization
         if self._handler is not None and self.model_clip_path is not None:
-            # equivalent to self._handler(clip_model_path=self.model_clip_path)
-            # but mypy complains because handlers also have a __call__ method
-            kwargs["chat_handler"] = self._handler(clip_model_path=self.model_clip_path)
+            # the following command is correct, but mypy complains because handlers also have a __call__ method
+            kwargs["chat_handler"] = self._handler(clip_model_path=self.model_clip_path)  # type: ignore[call-arg]
 
         self._model = Llama(**kwargs)
 
