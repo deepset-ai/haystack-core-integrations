@@ -31,7 +31,7 @@ class S3Downloader:
     ```python
     from haystack import Document
     from haystack.utils import Secret
-    from haystack_integrations.components.downloader.s3 import S3Downloader
+    from haystack_integrations.components.downloaders.s3 import S3Downloader
 
     import os
     from pathlib import Path

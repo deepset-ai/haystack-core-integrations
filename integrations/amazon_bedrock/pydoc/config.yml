@@ -10,6 +10,7 @@ loaders:
       "haystack_integrations.common.amazon_bedrock.errors",
       "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator",
       "haystack_integrations.components.rankers.amazon_bedrock.ranker",
+      "haystack_integrations.components.downloaders.s3.s3_downloader",
     ]
     ignore_when_discovered: ["__init__"]
 processors:

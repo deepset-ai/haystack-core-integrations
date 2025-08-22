@@ -4,9 +4,10 @@ from pathlib import Path
 from haystack.dataclasses import Document
 from haystack.utils import Secret
 
-from haystack_integrations.components.downloader.s3 import S3Downloader
-from haystack_integrations.common.amazon_bedrock.errors import AmazonS3Error
+from haystack_integrations.components.downloaders.s3 import S3Downloader
 
+# Set up AWS credentials
+# You can also set these as environment variables
 aws_profile_name = os.environ.get("AWS_PROFILE") or "default"
 aws_region_name = os.environ.get("AWS_DEFAULT_REGION") or "eu-central-1"
 
@@ -21,7 +22,8 @@ downloader = S3Downloader(
 # Only s3:// URLs are accepted in this implementation
 sources = [
     "s3://bucket_name/key_name/file_name.json",
-    "https://bucket_name.s3.eu-central-1.amazonaws.com/key_name/file_name.json" ## This will be skipped because it's not an s3:// URL
+    ## This will be skipped because it's not an s3:// URL
+    "https://bucket_name.s3.eu-central-1.amazonaws.com/key_name/file_name.json",
 ]
 
 docs = [
@@ -44,15 +46,5 @@ docs = [
     ),
 ]
 
-try:
-    result = downloader.run(documents=docs, sources=sources)
-except AmazonS3Error as e:
-    print(f"Download failed: {e}")
-else:
-    print("Downloaded docs:")
-    for d in result["documents"]:
-        print(f"- {d.meta.get('file_name')} -> {d.meta.get('file_path')} (mime: {d.meta.get('mime_type')})")
 
-    print("Sources:")
-    for s in result["sources"]:
-        print("-", s)
+result = downloader.run(documents=docs, sources=sources)

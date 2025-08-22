@@ -9,9 +9,9 @@ from haystack.dataclasses import ByteStream
 from haystack.utils import Secret
 
 from haystack_integrations.common.amazon_bedrock.errors import AmazonS3Error
-from haystack_integrations.components.downloader.s3.s3_downloader import S3Downloader
+from haystack_integrations.components.downloaders.s3.s3_downloader import S3Downloader
 
-TYPE = "haystack_integrations.components.downloader.s3.s3_downloader.S3Downloader"
+TYPE = "haystack_integrations.components.downloaders.s3.s3_downloader.S3Downloader"
 
 
 class TestS3Downloader:
