@@ -24,7 +24,7 @@ class ChatCompletionMessageCustomToolCall:
 
 
 if not hasattr(chat, "ChatCompletionMessageCustomToolCall"):
-    chat.ChatCompletionMessageCustomToolCall = ChatCompletionMessageCustomToolCall
+    chat.ChatCompletionMessageCustomToolCall = ChatCompletionMessageCustomToolCall  # type: ignore[attr-defined]
 
 from haystack.components.generators.chat import OpenAIChatGenerator
 
