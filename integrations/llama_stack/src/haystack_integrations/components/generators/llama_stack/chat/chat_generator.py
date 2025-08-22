@@ -2,14 +2,31 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# ruff: noqa: E402  # Module level import not at top of file: needed for the workaround below
+
 from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import StreamingCallbackT
 from haystack.tools import Tool, Toolset, deserialize_tools_or_toolset_inplace, serialize_tools_or_toolset
 from haystack.utils import deserialize_callable, serialize_callable
 from haystack.utils.auth import Secret
+
+# NOTE: Temporary workaround
+# Llama Stack only supports openai<1.100.0 where the ChatCompletionMessageCustomToolCall is not available.
+# Haystack assumes that the ChatCompletionMessageCustomToolCall is available, so we need to inject a dummy class.
+from openai.types import chat
+
+
+class ChatCompletionMessageCustomToolCall:
+    def __init__(self, *args, **kwargs):
+        pass
+
+
+if not hasattr(chat, "ChatCompletionMessageCustomToolCall"):
+    chat.ChatCompletionMessageCustomToolCall = ChatCompletionMessageCustomToolCall
+
+from haystack.components.generators.chat import OpenAIChatGenerator
 
 logger = logging.getLogger(__name__)
 
