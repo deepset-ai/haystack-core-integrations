@@ -18,9 +18,7 @@ from haystack.utils.auth import Secret
 from openai.types import chat
 
 
-class ChatCompletionMessageCustomToolCall:
-    def __init__(self, *args, **kwargs):
-        pass
+class ChatCompletionMessageCustomToolCall: ...
 
 
 if not hasattr(chat, "ChatCompletionMessageCustomToolCall"):
