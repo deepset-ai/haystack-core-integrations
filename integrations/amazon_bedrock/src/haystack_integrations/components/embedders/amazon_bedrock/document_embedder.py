@@ -21,6 +21,7 @@ SUPPORTED_EMBEDDING_MODELS = [
     "cohere.embed-english-v3",
     "cohere.embed-multilingual-v3",
     "amazon.titan-embed-text-v2:0",
+    "amazon.titan-embed-image-v1",
 ]
 
 
@@ -38,7 +39,7 @@ class AmazonBedrockDocumentEmbedder:
 
     os.environ["AWS_ACCESS_KEY_ID"] = "..."
     os.environ["AWS_SECRET_ACCESS_KEY_ID"] = "..."
-    os.environ["AWS_REGION_NAME"] = "..."
+    os.environ["AWS_DEFAULT_REGION"] = "..."
 
     embedder = AmazonBedrockDocumentEmbedder(
         model="cohere.embed-english-v3",
@@ -61,6 +62,7 @@ class AmazonBedrockDocumentEmbedder:
             "cohere.embed-english-v3",
             "cohere.embed-multilingual-v3",
             "amazon.titan-embed-text-v2:0",
+            "amazon.titan-embed-image-v1",
         ],
         aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008

@@ -3,19 +3,11 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/hanlp-haystack.svg)](https://pypi.org/project/hanlp-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/hanlp-haystack.svg)](https://pypi.org/project/hanlp-haystack)
 
------
+- [Integration page](https://haystack.deepset.ai/integrations/hanlp)
+- [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/hanlp/CHANGELOG.md)
 
-## Table of Contents
+---
 
-- [Installation](#installation)
-- [License](#license)
+## Contributing
 
-## Installation
-
-```console
-pip install hanlp-haystack
-```
-
-## License
-
-`hanlp-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
+Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).

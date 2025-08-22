@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from .document_embedder import AmazonBedrockDocumentEmbedder
+from .document_image_embedder import AmazonBedrockDocumentImageEmbedder
 from .text_embedder import AmazonBedrockTextEmbedder
 
-__all__ = ["AmazonBedrockDocumentEmbedder", "AmazonBedrockTextEmbedder"]
+__all__ = ["AmazonBedrockDocumentEmbedder", "AmazonBedrockDocumentImageEmbedder", "AmazonBedrockTextEmbedder"]
