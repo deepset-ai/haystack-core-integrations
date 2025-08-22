@@ -5,6 +5,7 @@ loaders:
       "haystack_integrations.common.amazon_bedrock.errors",
       "haystack_integrations.components.embedders.amazon_bedrock.document_embedder",
       "haystack_integrations.components.embedders.amazon_bedrock.text_embedder",
+      "haystack_integrations.components.embedders.amazon_bedrock.document_image_embedder",
       "haystack_integrations.components.generators.amazon_bedrock.generator",
       "haystack_integrations.components.generators.amazon_bedrock.adapters",
       "haystack_integrations.common.amazon_bedrock.errors",

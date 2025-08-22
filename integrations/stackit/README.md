@@ -1,21 +1,15 @@
-# stackit
+# stackit-haystack
 
 [![PyPI - Version](https://img.shields.io/pypi/v/stackit-haystack.svg)](https://pypi.org/project/stackit-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/stackit-haystack.svg)](https://pypi.org/project/stackit-haystack)
 
------
+- [Integration page](https://haystack.deepset.ai/integrations/stackit)
+- [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/stackit/CHANGELOG.md)
 
-## Table of Contents
+---
 
-- [Installation](#installation)
-- [License](#license)
+## Contributing
 
-## Installation
+Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
-```console
-pip install stackit-haystack
-```
-
-## License
-
-`stackit-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
+To run integration tests locally, you need to export the `STACKIT_API_KEY` environment variable.

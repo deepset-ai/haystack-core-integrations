@@ -1,27 +1,13 @@
-# Chroma Document Store for Haystack
+# chroma-haystack
 
 [![PyPI - Version](https://img.shields.io/pypi/v/chroma-haystack.svg)](https://pypi.org/project/chroma-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/chroma-haystack.svg)](https://pypi.org/project/chroma-haystack)
-[![test](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/chroma.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/chroma.yml)
 
------
+- [Integration page](https://haystack.deepset.ai/integrations/chroma-documentstore)
+- [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/chroma/CHANGELOG.md)
 
-**Table of Contents**
+---
 
-- [Chroma Document Store for Haystack](#chroma-document-store-for-haystack)
-  - [Installation](#installation)
-  - [Examples](#examples)
-  - [License](#license)
+## Contributing
 
-## Installation
-
-```console
-pip install chroma-haystack
-```
-
-## Examples
-You can find a code example showing how to use the Document Store and the Retriever under the `example/` folder of this repo or in [this Colab](https://colab.research.google.com/drive/1YpDetI8BRbObPDEVdfqUcwhEX9UUXP-m?usp=sharing).
-
-## License
-
-`chroma-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
+Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
