@@ -331,8 +331,10 @@ class OllamaChatGenerator:
             )
             chunks.append(chunk)
 
+            start = index == 0 or bool(chunk.tool_calls)
+            chunk.start = start
+
             if chunk.tool_calls:
-                chunk.start = True
                 for tool_call in chunk.tool_calls:
                     # the Ollama server doesn't guarantee an id field in every tool_calls entry.
                     # OpenAI-compatible endpoint (/v1/chat/completions) - recent releases do add an auto-generated id
@@ -366,7 +368,7 @@ class OllamaChatGenerator:
         reasoning = ""
         for c in chunks:
             text += c.content
-            reasoning += c.meta.pop("reasoning", None) or ""
+            reasoning += c.meta.get("reasoning", None) or ""
 
         tool_calls = []
         for tool_call_id in id_order:
