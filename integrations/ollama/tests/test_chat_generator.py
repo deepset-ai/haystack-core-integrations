@@ -225,9 +225,7 @@ class TestUtils:
                 model="qwen3:0.6b",
                 created_at="2025-07-31T15:27:09.265818Z",
                 done=False,
-                message=Message(
-                    role="assistant", content=" of Jordan is Amman."
-                ),
+                message=Message(role="assistant", content=" of Jordan is Amman."),
             ),
             ChatResponse(
                 model="qwen3:0.6b",
