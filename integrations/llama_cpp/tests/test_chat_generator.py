@@ -669,9 +669,9 @@ class TestLlamaCppChatGenerator:
     @pytest.fixture
     def generator(self, model_path, capsys):
         gguf_model_path = (
-            "https://huggingface.co/TheBloke/openchat-3.5-1210-GGUF/resolve/main/openchat-3.5-1210.Q3_K_S.gguf"
+            "https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q5_K_S.gguf"
         )
-        filename = "openchat-3.5-1210.Q3_K_S.gguf"
+        filename = "Qwen_Qwen3-0.6B-Q5_K_S.gguf"
 
         # Download GGUF model from HuggingFace
         download_file(gguf_model_path, str(model_path / filename), capsys)
@@ -727,18 +727,18 @@ class TestLlamaCppChatGenerator:
         """Test initialization with multimodal parameters."""
         generator = LlamaCppChatGenerator(
             model="llava-v1.5-7b-q4_0.gguf",
-            chat_handler_name="llava-1-5",
+            chat_handler_name="Llava15ChatHandler",
             model_clip_path="mmproj-model-f16.gguf",
             n_ctx=4096,
         )
         assert generator.model_clip_path == "mmproj-model-f16.gguf"
-        assert generator.chat_handler_name == "llava-1-5"
+        assert generator.chat_handler_name == "Llava15ChatHandler"
         assert generator.n_ctx == 4096
 
     def test_init_validation_clip_path_required(self):
         """Test that model_clip_path is required when chat_handler_name is provided."""
         with pytest.raises(ValueError, match="model_clip_path must be provided when chat_handler_name is specified"):
-            LlamaCppChatGenerator(model="llava-v1.5-7b-q4_0.gguf", chat_handler_name="llava-1-5")
+            LlamaCppChatGenerator(model="llava-v1.5-7b-q4_0.gguf", chat_handler_name="Llava15ChatHandler")
 
     def test_init_validation_unsupported_handler(self):
         """Test that unsupported chat handler names raise ValueError."""
@@ -768,14 +768,14 @@ class TestLlamaCppChatGenerator:
         """Test serialization with multimodal parameters."""
         generator = LlamaCppChatGenerator(
             model="llava-v1.5-7b-q4_0.gguf",
-            chat_handler_name="llava-1-5",
+            chat_handler_name="Llava15ChatHandler",
             model_clip_path="mmproj-model-f16.gguf",
             n_ctx=4096,
         )
         data = generator.to_dict()
 
         assert data["init_parameters"]["model_clip_path"] == "mmproj-model-f16.gguf"
-        assert data["init_parameters"]["chat_handler_name"] == "llava-1-5"
+        assert data["init_parameters"]["chat_handler_name"] == "Llava15ChatHandler"
         assert data["init_parameters"]["n_ctx"] == 4096
 
     def test_to_dict_with_toolset(self, temperature_tool):
@@ -1081,7 +1081,7 @@ class TestLlamaCppChatGenerator:
         mock_model.create_chat_completion.return_value = mock_response
 
         generator = LlamaCppChatGenerator(
-            model="test_model.gguf", chat_handler_name="llava-1-5", model_clip_path="test_clip.gguf"
+            model="test_model.gguf", chat_handler_name="Llava15ChatHandler", model_clip_path="test_clip.gguf"
         )
         generator._model = mock_model
 
@@ -1194,9 +1194,9 @@ class TestLlamaCppChatGeneratorChatML:
     @pytest.fixture
     def generator(self, model_path, capsys):
         gguf_model_path = (
-            "https://huggingface.co/TheBloke/openchat-3.5-1210-GGUF/resolve/main/openchat-3.5-1210.Q3_K_S.gguf"
+            "https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q5_K_S.gguf"
         )
-        filename = "openchat-3.5-1210.Q3_K_S.gguf"
+        filename = "Qwen_Qwen3-0.6B-Q5_K_S.gguf"
         download_file(gguf_model_path, str(model_path / filename), capsys)
         model_path = str(model_path / filename)
         generator = LlamaCppChatGenerator(
@@ -1243,42 +1243,31 @@ class TestLlamaCppChatGeneratorChatML:
         assert arguments["age"] == 25
 
     @pytest.fixture
-    def moondream2_models(self, model_path, capsys):
-        """Download Moondream2 models for integration testing."""
+    def vision_language_model(self, model_path, capsys):
+        """Download Vision Language Model for integration testing."""
         # Download text model
-        text_model_url = "https://huggingface.co/moondream/moondream2-gguf/resolve/main/moondream2-text-model-f16.gguf"
-        text_model_file = "moondream2-text-model-f16.gguf"
+        text_model_url = "https://huggingface.co/abetlen/nanollava-gguf/resolve/main/nanollava-text-model-f16.gguf"
+        text_model_file = "nanollava-text-model-f16.gguf"
         download_file(text_model_url, str(model_path / text_model_file), capsys)
 
         # Download vision model
-        mmproj_url = "https://huggingface.co/moondream/moondream2-gguf/resolve/main/moondream2-mmproj-f16.gguf"
-        mmproj_file = "moondream2-mmproj-f16.gguf"
+        mmproj_url = "https://huggingface.co/abetlen/nanollava-gguf/resolve/main/nanollava-mmproj-f16.gguf"
+        mmproj_file = "nanollava-mmproj-f16.gguf"
         download_file(mmproj_url, str(model_path / mmproj_file), capsys)
 
         return str(model_path / text_model_file), str(model_path / mmproj_file)
 
     @pytest.mark.integration
-    def test_multimodal_integration_moondream2(self, moondream2_models):
-        """
-        Integration test for multimodal support with Moondream2 model.
+    def test_live_run_image_support(self, vision_language_model):
+        text_model_path, mmproj_model_path = vision_language_model
 
-        This test downloads the required Moondream2 models and tests multimodal functionality.
-        """
-        text_model_path, mmproj_model_path = moondream2_models
+        image_content = ImageContent.from_file_path("tests/test_files/apple.jpg")
 
-        # Create a simple test image (1x1 pixel PNG)
-        base64_image = (
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
-        )
-        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        messages = [ChatMessage.from_user(content_parts=["What do you see in this image? Max 5 words.", image_content])]
 
-        # Create multimodal message
-        messages = [ChatMessage.from_user(content_parts=["What do you see in this image?", image_content])]
-
-        # Initialize generator with Moondream2
         generator = LlamaCppChatGenerator(
             model=text_model_path,
-            chat_handler_name="moondream2",
+            chat_handler_name="NanoLlavaChatHandler",
             model_clip_path=mmproj_model_path,
             n_ctx=2048,
             generation_kwargs={"max_tokens": 50, "temperature": 0.1},
@@ -1286,7 +1275,6 @@ class TestLlamaCppChatGeneratorChatML:
 
         generator.warm_up()
 
-        # Test multimodal processing
         result = generator.run(messages)
 
         assert "replies" in result
@@ -1296,8 +1284,4 @@ class TestLlamaCppChatGeneratorChatML:
         reply = result["replies"][0]
         assert isinstance(reply, ChatMessage)
         assert reply.text is not None
-        assert len(reply.text.strip()) > 0
-
-        # The response should contain some form of image description
-        # Since it's a 1x1 pixel image, responses may vary but should be reasonable
-        assert isinstance(reply.text, str)
+        assert "apple" in reply.text.lower()
