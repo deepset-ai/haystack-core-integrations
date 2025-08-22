@@ -1,32 +1,16 @@
-[![test](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/opensearch.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/opensearch.yml)
+# opensearch-haystack
 
 [![PyPI - Version](https://img.shields.io/pypi/v/opensearch-haystack.svg)](https://pypi.org/project/opensearch-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/opensearch-haystack.svg)](https://pypi.org/project/opensearch-haystack)
 
-# OpenSearch Document Store
+- [Integration page](https://haystack.deepset.ai/integrations/opensearch)
+- [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/opensearch/CHANGELOG.md)
 
-Document Store for Haystack 2.x, supports OpenSearch.
+---
 
-## Installation
+## Contributing
 
-```console
-pip install opensearch-haystack
-```
+Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
-## Testing
-
-To run tests first start a Docker container running OpenSearch. We provide a utility `docker-compose.yml` for that:
-
-```console
-docker-compose up
-```
-
-Then run tests:
-
-```console
-hatch run test:all
-```
-
-## License
-
-`opensearch-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
+To run integration tests locally, you need a Docker container running OpenSearch.
+Use the provided `docker-compose.yml` file to start the container: `docker compose up -d`.
