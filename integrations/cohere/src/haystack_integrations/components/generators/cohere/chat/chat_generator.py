@@ -236,7 +236,6 @@ def _convert_cohere_chunk_to_streaming_chunk(
                         arguments=None,
                     )
                 ]
-                index = +1  # to adjust for the print_streaming_chunk condition
                 start = True  # This starts a tool call
                 meta["tool_call_id"] = tool_call.id  # type: ignore[assignment]
 
@@ -255,12 +254,10 @@ def _convert_cohere_chunk_to_streaming_chunk(
                     arguments=arguments,
                 )
             ]
-            index = +1  # to adjust for the print_streaming_chunk condition
 
     elif chunk.type == "tool-call-end":
         # Tool call end doesn't have content, just signals completion
-        # start=True    # if commented it fixes for the first tool call but breaks for the second
-        index = 1
+        start=True    # if commented it fixes for the first tool call but breaks for the second
 
     elif chunk.type == "message-end":
         finish_reason_raw = getattr(chunk.delta, "finish_reason", None)
@@ -316,6 +313,7 @@ def _parse_streaming_response(
     global_index = 0
 
     for chunk in response:
+        print(chunk)
         if chunk.type in ["tool-call-start", "content-start", "citation-start"]:
             global_index += 1
 
