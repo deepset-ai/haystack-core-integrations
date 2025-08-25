@@ -880,6 +880,9 @@ def expected_streaming_chunks():
 
 class TestCohereChunkConversion:
     def test_convert_cohere_chunk_to_streaming_chunk_complete_sequence(self, cohere_chunks, expected_streaming_chunks):
+        # TODO: the indexes are not correctly checked because of missing global_index
+        # all the streaming chunks have index 0, but the expected indexes increase with tool calls.
+
         for cohere_chunk, haystack_chunk in zip(cohere_chunks, expected_streaming_chunks):
             stream_chunk = _convert_cohere_chunk_to_streaming_chunk(
                 chunk=cohere_chunk,

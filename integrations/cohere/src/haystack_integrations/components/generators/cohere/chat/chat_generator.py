@@ -257,7 +257,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
 
     elif chunk.type == "tool-call-end":
         # Tool call end doesn't have content, just signals completion
-        start=True
+        start = True
 
     elif chunk.type == "message-end":
         finish_reason_raw = getattr(chunk.delta, "finish_reason", None)
