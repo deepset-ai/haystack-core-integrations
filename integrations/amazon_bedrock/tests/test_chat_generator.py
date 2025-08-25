@@ -137,6 +137,7 @@ class TestAmazonBedrockChatGenerator:
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "boto3_config": boto3_config,
                 "tools": None,
+                "prompt_router_config": None,
             },
         }
 
@@ -165,6 +166,7 @@ class TestAmazonBedrockChatGenerator:
                     "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                     "boto3_config": boto3_config,
                     "tools": None,
+                    "prompt_router_config": None,
                 },
             }
         )
@@ -294,6 +296,7 @@ class TestAmazonBedrockChatGenerator:
                                 },
                             }
                         ],
+                        "prompt_router_config": None,
                     },
                 }
             },
