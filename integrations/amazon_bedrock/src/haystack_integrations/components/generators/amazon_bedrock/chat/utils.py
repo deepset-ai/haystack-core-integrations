@@ -282,7 +282,7 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
             base_meta = {
                 "model": model,
                 "index": 0,
-                "finish_reason": FINISH_REASON_MAPPING.get(response_body.get("stopReason")),
+                "finish_reason": FINISH_REASON_MAPPING.get(response_body.get("stopReason", "")),
                 "usage": {
                     # OpenAI's format for usage for cross ChatGenerator compatibility
                     "prompt_tokens": response_body.get("usage", {}).get("inputTokens", 0),
