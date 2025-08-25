@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/llama_cpp-v1.3.0] - 2025-08-22
+
+### 🚀 Features
+
+- Add image support to LlamaCppChatGenerator (#2197)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+
 ## [integrations/llama_cpp-v1.2.0] - 2025-07-28
 
 ### 🚀 Features
