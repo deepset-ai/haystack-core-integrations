@@ -1157,6 +1157,13 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
                     "received_at": "2025-07-31T08:46:08.592175+00:00",
                 },
+            ),
+            StreamingChunk(
+                content="",
+                meta={
+                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "received_at": "2025-07-31T08:46:08.592175+00:00",
+                },
                 finish_reason="tool_calls",
             ),
             StreamingChunk(
