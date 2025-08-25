@@ -203,10 +203,34 @@ class TestAmazonBedrockChatGenerator:
 
     def test_constructor_with_empty_model(self):
         """
-        Test that the constructor raises an error when the model is empty
+        Test that the constructor raises an error when the model is empty and no prompt_router_config is provided
         """
-        with pytest.raises(ValueError, match="cannot be None or empty string"):
+        with pytest.raises(
+            ValueError, match=("'model' can be None or empty string, only if prompt_router_config is provided")
+        ):
             AmazonBedrockChatGenerator(model="")
+
+    def test_constructor_with_empty_model_and_prompt_router_config(self, mock_boto3_session):
+        """
+        Test that the constructor accepts empty model when prompt_router_config is provided
+        """
+        prompt_router_config = {
+            "promptRouterName": "test-router",
+            "models": [{"modelArn": "arn:aws:bedrock:us-east-1:123456789012:foundation-model/anthropic.claude-v2"}],
+            "description": "Test router",
+            "routingCriteria": {"responseQualityDifference": 10.0},
+            "fallbackModel": {
+                "modelArn": "arn:aws:bedrock:us-east-1:123456789012:foundation-model/anthropic.claude-v2"
+            },
+        }
+
+        # This should not raise an error
+        generator = AmazonBedrockChatGenerator(model="", prompt_router_config=prompt_router_config)
+        assert generator.prompt_router_config == prompt_router_config
+
+        # This should also work with None
+        generator = AmazonBedrockChatGenerator(model=None, prompt_router_config=prompt_router_config)
+        assert generator.prompt_router_config == prompt_router_config
 
     def test_serde_in_pipeline(self, mock_boto3_session, monkeypatch):
         # Set mock AWS credentials
