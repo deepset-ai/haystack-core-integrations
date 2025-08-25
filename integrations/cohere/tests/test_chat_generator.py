@@ -595,35 +595,35 @@ def cohere_chunks():
         # Chunk 1: Initial content-delta with text
         create_mock_cohere_chunk("content-delta", text="I'll help you get the weather", index=0),
         # Chunk 2: Tool plan delta
-        create_mock_cohere_chunk("tool-plan-delta", tool_plan="I need to call the weather tool", index=1),
+        create_mock_cohere_chunk("tool-plan-delta", tool_plan="I need to call the weather tool"),
         # Chunk 3: Tool call start - first tool call
         create_mock_cohere_chunk(
-            "tool-call-start", tool_call_id="call_weather_paris_123", tool_name="weather", index=0, arguments=None
+            "tool-call-start", tool_call_id="call_weather_paris_123", tool_name="weather", index=1, arguments=None
         ),
         # Chunk 4: Tool call delta - arguments streaming
-        create_mock_cohere_chunk("tool-call-delta", index=3, arguments='{"ci'),
+        create_mock_cohere_chunk("tool-call-delta", index=1, arguments='{"ci'),
         # Chunk 5: Tool call delta - more arguments
-        create_mock_cohere_chunk("tool-call-delta", index=4, arguments='ty": "'),
+        create_mock_cohere_chunk("tool-call-delta", index=1, arguments='ty": "'),
         # Chunk 6: Tool call delta - city name
-        create_mock_cohere_chunk("tool-call-delta", index=5, arguments='Paris"'),
+        create_mock_cohere_chunk("tool-call-delta", index=1, arguments='Paris"'),
         # Chunk 7: Tool call delta - closing brace
-        create_mock_cohere_chunk("tool-call-delta", index=6, arguments="}"),
+        create_mock_cohere_chunk("tool-call-delta", index=1, arguments="}"),
         # Chunk 8: Tool call end - first tool call complete
-        create_mock_cohere_chunk("tool-call-end", index=7),
+        create_mock_cohere_chunk("tool-call-end", index=1),
         # Chunk 9: Tool call start - second tool call
         create_mock_cohere_chunk(
-            "tool-call-start", tool_call_id="call_weather_berlin_456", tool_name="weather", index=8, arguments=None
+            "tool-call-start", tool_call_id="call_weather_berlin_456", tool_name="weather", index=2, arguments=None
         ),
         # Chunk 10: Tool call delta - second tool arguments
-        create_mock_cohere_chunk("tool-call-delta", index=9, arguments='{"ci'),
+        create_mock_cohere_chunk("tool-call-delta", index=2, arguments='{"ci'),
         # Chunk 11: Tool call delta - more second tool arguments
-        create_mock_cohere_chunk("tool-call-delta", index=10, arguments='ty": "'),
+        create_mock_cohere_chunk("tool-call-delta", index=2, arguments='ty": "'),
         # Chunk 12: Tool call delta - second city name
-        create_mock_cohere_chunk("tool-call-delta", index=11, arguments='Berlin"'),
+        create_mock_cohere_chunk("tool-call-delta", index=2, arguments='Berlin"'),
         # Chunk 13: Tool call delta - closing brace for second tool
-        create_mock_cohere_chunk("tool-call-delta", index=12, arguments="}"),
+        create_mock_cohere_chunk("tool-call-delta", index=2, arguments="}"),
         # Chunk 14: Tool call end - second tool call complete
-        create_mock_cohere_chunk("tool-call-end", index=13),
+        create_mock_cohere_chunk("tool-call-end", index=2),
         # Chunk 15: Message end with finish reason and usage
         create_mock_cohere_chunk(
             "message-end",
@@ -666,7 +666,7 @@ def expected_streaming_chunks():
         # Chunk 3: Tool call start
         StreamingChunk(
             content="",
-            index=1,
+            index=0,
             start=True,  # Tool call start
             finish_reason=None,
             tool_calls=[
@@ -685,7 +685,7 @@ def expected_streaming_chunks():
         # Chunk 4: Tool call delta - arguments
         StreamingChunk(
             content="",
-            index=1,
+            index=0,
             start=False,
             finish_reason=None,
             tool_calls=[
@@ -702,7 +702,7 @@ def expected_streaming_chunks():
         # Chunk 5: Tool call delta - more arguments
         StreamingChunk(
             content="",
-            index=1,
+            index=0,
             start=False,
             finish_reason=None,
             tool_calls=[
@@ -719,7 +719,7 @@ def expected_streaming_chunks():
         # Chunk 6: Tool call delta - city name
         StreamingChunk(
             content="",
-            index=1,
+            index=0,
             start=False,
             finish_reason=None,
             tool_calls=[
@@ -736,7 +736,7 @@ def expected_streaming_chunks():
         # Chunk 7: Tool call delta - closing brace
         StreamingChunk(
             content="",
-            index=1,
+            index=0,
             start=False,
             finish_reason=None,
             tool_calls=[
@@ -753,8 +753,8 @@ def expected_streaming_chunks():
         # Chunk 8: Tool call end
         StreamingChunk(
             content="",
-            index=1,
-            start=False,
+            index=0,
+            start=True,
             finish_reason=None,
             tool_calls=None,
             meta={
@@ -764,7 +764,7 @@ def expected_streaming_chunks():
         # Chunk 9: Tool call start - second tool
         StreamingChunk(
             content="",
-            index=1,
+            index=0,
             start=True,  # Tool call start
             finish_reason=None,
             tool_calls=[
@@ -783,7 +783,7 @@ def expected_streaming_chunks():
         # Chunk 10: Tool call delta - second tool arguments
         StreamingChunk(
             content="",
-            index=1,
+            index=0,
             start=False,
             finish_reason=None,
             tool_calls=[
@@ -800,7 +800,7 @@ def expected_streaming_chunks():
         # Chunk 11: Tool call delta - more second tool arguments
         StreamingChunk(
             content="",
-            index=1,
+            index=0,
             start=False,
             finish_reason=None,
             tool_calls=[
@@ -817,7 +817,7 @@ def expected_streaming_chunks():
         # Chunk 12: Tool call delta - second city name
         StreamingChunk(
             content="",
-            index=1,
+            index=0,
             start=False,
             finish_reason=None,
             tool_calls=[
@@ -834,7 +834,7 @@ def expected_streaming_chunks():
         # Chunk 13: Tool call delta - closing brace for second tool
         StreamingChunk(
             content="",
-            index=1,
+            index=0,
             start=False,
             finish_reason=None,
             tool_calls=[
@@ -851,8 +851,8 @@ def expected_streaming_chunks():
         # Chunk 14: Tool call end - second tool
         StreamingChunk(
             content="",
-            index=1,
-            start=False,
+            index=0,
+            start=True,
             finish_reason=None,
             tool_calls=None,
             meta={
@@ -918,7 +918,7 @@ class TestCohereChunkConversion:
 
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, model="command-r-08-2024")
         assert result.content == ""
-        assert result.index == 1
+        assert result.index == 0
         assert result.start is True
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0].id == "call_123"
@@ -931,7 +931,7 @@ class TestCohereChunkConversion:
 
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, model="command-r-08-2024")
         assert result.content == ""
-        assert result.index == 1
+        assert result.index == 0
         assert result.start is False
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0].tool_name is None  # name was set in start chunk
@@ -942,8 +942,8 @@ class TestCohereChunkConversion:
 
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, model="command-r-08-2024")
         assert result.content == ""
-        assert result.index == 1
-        assert result.start is False
+        assert result.index == 0
+        assert result.start
         assert result.tool_calls is None
 
     def test_convert_message_end_chunk(self):
