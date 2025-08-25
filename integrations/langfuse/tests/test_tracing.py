@@ -6,6 +6,7 @@ import os
 import time
 from typing import Any, Dict, List
 from urllib.parse import urlparse
+import json
 
 import pytest
 import requests
@@ -189,3 +190,67 @@ def test_tracing_with_sub_pipelines():
     component_names = [key for obs in haystack_pipeline_run_observations for key in obs["input"].keys()]
     assert "prompt_builder" in component_names
     assert "llm" in component_names
+
+@pytest.mark.skipif(
+    not all(
+        [
+            os.environ.get("LANGFUSE_SECRET_KEY"),
+            os.environ.get("LANGFUSE_PUBLIC_KEY"),
+        ]
+    ),
+    reason="Missing required environment variables: LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY",
+)
+@pytest.mark.integration
+def test_context_cleanup_after_nested_failures():
+    """
+    Test that tracer context is properly cleaned up even when nested operations fail.
+
+    This test addresses a critical bug where failing nested operations (like inner pipelines)
+    could corrupt the tracing context, leaving stale spans that affect subsequent operations.
+    The fix ensures proper cleanup through try/finally blocks.
+
+    Before the fix: context would retain spans after failures (length > 0)
+    After the fix: context is always cleaned up (length == 0)
+    """
+
+    @component
+    class FailingParser:
+        @component.output_types(result=str)
+        def run(self, data: str):
+            # This will fail with ValueError when data is not valid JSON
+            parsed = json.loads(data)
+            return {"result": parsed["key"]}
+
+    @component
+    class ComponentWithNestedPipeline:
+        def __init__(self):
+            # This simulates IntentClassifier's internal pipeline
+            self.internal_pipeline = Pipeline()
+            self.internal_pipeline.add_component("parser", FailingParser())
+
+        @component.output_types(result=str)
+        def run(self, input_data: str):
+            # Run nested pipeline - this is where corruption occurs
+            result = self.internal_pipeline.run({"parser": {"data": input_data}})
+            return {"result": result["parser"]["result"]}
+
+    tracer = LangfuseConnector("test")
+
+    main_pipeline = Pipeline()
+    main_pipeline.add_component("nested_component", ComponentWithNestedPipeline())
+    main_pipeline.add_component("tracer", tracer)
+
+    # Test 1: First run will fail and should clean up context
+    try:
+        main_pipeline.run({"nested_component": {"input_data": "invalid json"}})
+    except Exception:
+        pass  # Expected to fail
+
+    # Critical assertion: context should be empty after failed operation
+    assert len(tracer.tracer._context) == 0
+
+    # Test 2: Second run should work normally with clean context
+    main_pipeline.run({"nested_component": {"input_data": '{"key": "valid"}'}})
+    
+    # Critical assertion: context should be empty after successful operation
+    assert len(tracer.tracer._context) == 0    

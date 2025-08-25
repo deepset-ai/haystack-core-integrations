@@ -1,24 +1,15 @@
-[![test](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/pinecone.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/pinecone.yml)
+# pinecone-haystack
 
 [![PyPI - Version](https://img.shields.io/pypi/v/pinecone-haystack.svg)](https://pypi.org/project/pinecone-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/pinecone-haystack.svg)](https://pypi.org/project/pinecone-haystack)
 
-# Pinecone Document Store
+- [Integration page](https://haystack.deepset.ai/integrations/pinecone-document-store)
+- [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/pinecone/CHANGELOG.md)
 
-Document Store for Haystack 2.x, supports Pinecone.
+---
 
-## Installation
+## Contributing
 
-```console
-pip install pinecone-haystack
-```
+Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
-## Testing
-
-```console
-hatch run test:all
-```
-
-## License
-
-`pinecone-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
+To run integration tests locally, you need to export the `PINECONE_API_KEY` environment variable.

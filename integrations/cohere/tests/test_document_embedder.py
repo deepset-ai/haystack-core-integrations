@@ -15,7 +15,8 @@ COHERE_API_URL = "https://api.cohere.com"
 
 
 class TestCohereDocumentEmbedder:
-    def test_init_default(self):
+    def test_init_default(self, monkeypatch):
+        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         embedder = CohereDocumentEmbedder()
         assert embedder.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
         assert embedder.model == "embed-english-v2.0"
@@ -54,7 +55,8 @@ class TestCohereDocumentEmbedder:
         assert embedder.embedding_separator == "-"
         assert embedder.embedding_type == EmbeddingTypes.FLOAT
 
-    def test_to_dict(self):
+    def test_to_dict(self, monkeypatch):
+        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         embedder_component = CohereDocumentEmbedder()
         component_dict = embedder_component.to_dict()
         assert component_dict == {
@@ -74,7 +76,8 @@ class TestCohereDocumentEmbedder:
             },
         }
 
-    def test_to_dict_with_custom_init_parameters(self):
+    def test_to_dict_with_custom_init_parameters(self, monkeypatch):
+        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         embedder_component = CohereDocumentEmbedder(
             api_key=Secret.from_env_var("ENV_VAR", strict=False),
             model="embed-multilingual-v2.0",
@@ -106,7 +109,8 @@ class TestCohereDocumentEmbedder:
             },
         }
 
-    def test_from_dict(self):
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         component_dict = {
             "type": "haystack_integrations.components.embedders.cohere.document_embedder.CohereDocumentEmbedder",
             "init_parameters": {

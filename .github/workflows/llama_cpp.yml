@@ -30,9 +30,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest] # we don't test on windows because of issues on llama-cpp-python
-        # we test with 3.12 since sentencepiece has issues with 3.13: https://github.com/google/sentencepiece/issues/1103
-        python-version: ["3.9", "3.12"]  
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.9", "3.13"]  
 
     steps:
       - name: Support longpaths

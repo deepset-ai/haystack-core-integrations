@@ -24,7 +24,7 @@ env:
   FORCE_COLOR: "1"
   LLM_FOR_TESTS: "qwen3:0.6b"
   VISION_LLM_FOR_TESTS: "moondream:1.8b"
-  EMBEDDER_FOR_TESTS: "nomic-embed-text"
+  EMBEDDER_FOR_TESTS: "all-minilm"
 
 jobs:
   run:

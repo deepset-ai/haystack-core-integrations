@@ -65,11 +65,11 @@ jobs:
       - name: Run unit tests
         run: hatch run test:unit
 
-      # Do not authenticate on pull requests from forks
+      # Do not authenticate on PRs from forks and on PRs created by dependabot
       - name: AWS authentication
         id: aws-auth
-        if: github.event.pull_request.head.repo.full_name == github.repository
-        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
+        if: github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.event.pull_request.head.ref, 'dependabot/')
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
