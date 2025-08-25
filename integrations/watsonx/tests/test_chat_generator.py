@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from haystack import logging
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage, StreamingChunk
+from haystack.dataclasses import ChatMessage, ImageContent, StreamingChunk
 from haystack.utils import Secret
 
 from haystack_integrations.components.generators.watsonx.chat.chat_generator import WatsonxChatGenerator
@@ -380,6 +380,168 @@ class TestWatsonxChatGenerator:
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "Async streaming response"
 
+    # Multimodal Tests
+    def test_prepare_api_call_with_image(self, mock_watsonx):
+        """Test that a ChatMessage with ImageContent is converted to WatsonX format correctly."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
+
+        generator = WatsonxChatGenerator(
+            model="meta-llama/llama-3-2-11b-vision-instruct",
+            project_id=Secret.from_token("test-project"),
+        )
+
+        api_call = generator._prepare_api_call(messages=[message])
+
+        assert "messages" in api_call
+        assert len(api_call["messages"]) == 1
+
+        watsonx_message = api_call["messages"][0]
+        assert watsonx_message["role"] == "user"
+        assert isinstance(watsonx_message["content"], list)
+        assert len(watsonx_message["content"]) == 2
+
+        # Check text content
+        assert watsonx_message["content"][0]["type"] == "text"
+        assert watsonx_message["content"][0]["text"] == "What's in this image?"
+
+        # Check image content
+        assert watsonx_message["content"][1]["type"] == "image_url"
+        assert "image_url" in watsonx_message["content"][1]
+        assert "url" in watsonx_message["content"][1]["image_url"]
+        assert watsonx_message["content"][1]["image_url"]["url"] == f"data:image/png;base64,{base64_image}"
+
+    def test_prepare_api_call_with_unsupported_mime_type(self, mock_watsonx):
+        """Test that a ChatMessage with unsupported mime type raises ValueError."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/bmp")
+        message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
+
+        generator = WatsonxChatGenerator(
+            model="meta-llama/llama-3-2-11b-vision-instruct",
+            project_id=Secret.from_token("test-project"),
+        )
+
+        with pytest.raises(ValueError, match="Unsupported image format: image/bmp"):
+            generator._prepare_api_call(messages=[message])
+
+    def test_prepare_api_call_with_none_mime_type(self, mock_watsonx):
+        """Test that a ChatMessage with None mime type raises ValueError."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        # Manually set mime_type to None to test the edge case
+        image_content.mime_type = None
+        message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
+
+        generator = WatsonxChatGenerator(
+            model="meta-llama/llama-3-2-11b-vision-instruct",
+            project_id=Secret.from_token("test-project"),
+        )
+
+        with pytest.raises(ValueError, match="Unsupported image format: None"):
+            generator._prepare_api_call(messages=[message])
+
+    def test_prepare_api_call_image_in_non_user_message(self, mock_watsonx):
+        """Test that images in non-user messages raise ValueError."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        # Create assistant message with image (should fail)
+        message = ChatMessage.from_assistant(text="Here's an image.")
+        message._content = [image_content]  # Manually add image to assistant message
+
+        generator = WatsonxChatGenerator(
+            model="meta-llama/llama-3-2-11b-vision-instruct",
+            project_id=Secret.from_token("test-project"),
+        )
+
+        with pytest.raises(ValueError, match="Image content is only supported for user messages"):
+            generator._prepare_api_call(messages=[message])
+
+    def test_multimodal_message_processing(self, mock_watsonx):
+        """Test multimodal message processing with mocked model."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        messages = [ChatMessage.from_user(content_parts=["What's in this image?", image_content])]
+
+        generator = WatsonxChatGenerator(
+            model="meta-llama/llama-3-2-11b-vision-instruct",
+            project_id=Secret.from_token("test-project"),
+        )
+
+        result = generator.run(messages=messages)
+
+        # Verify the multimodal message was processed correctly
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+        assert result["replies"][0].text == "This is a generated response"
+
+        # Verify the model was called with the correct multimodal format
+        mock_watsonx["model_instance"].chat.assert_called_once()
+        call_args = mock_watsonx["model_instance"].chat.call_args
+        messages_arg = call_args[1]["messages"]
+
+        assert len(messages_arg) == 1
+        assert messages_arg[0]["role"] == "user"
+        assert isinstance(messages_arg[0]["content"], list)
+        assert len(messages_arg[0]["content"]) == 2
+        assert messages_arg[0]["content"][0]["type"] == "text"
+        assert messages_arg[0]["content"][1]["type"] == "image_url"
+
+    def test_supported_image_formats(self, mock_watsonx):
+        """Test that all supported image formats work correctly."""
+        supported_formats = ["image/jpeg", "image/png"]
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+
+        generator = WatsonxChatGenerator(
+            model="meta-llama/llama-3-2-11b-vision-instruct",
+            project_id=Secret.from_token("test-project"),
+        )
+
+        for mime_type in supported_formats:
+            image_content = ImageContent(base64_image=base64_image, mime_type=mime_type)
+            message = ChatMessage.from_user(content_parts=["Test image", image_content])
+
+            # Should not raise any exception
+            api_call = generator._prepare_api_call(messages=[message])
+            assert api_call is not None
+
+    def test_multiple_images_in_single_message(self, mock_watsonx):
+        """Test handling multiple images in a single message."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image1 = ImageContent(base64_image=base64_image, mime_type="image/png")
+        image2 = ImageContent(base64_image=base64_image, mime_type="image/jpeg")
+
+        message = ChatMessage.from_user(content_parts=["Compare these images:", image1, image2])
+
+        generator = WatsonxChatGenerator(
+            model="meta-llama/llama-3-2-11b-vision-instruct",
+            project_id=Secret.from_token("test-project"),
+        )
+
+        api_call = generator._prepare_api_call(messages=[message])
+
+        assert "messages" in api_call
+        watsonx_message = api_call["messages"][0]
+        assert len(watsonx_message["content"]) == 3  # 1 text + 2 images
+        assert watsonx_message["content"][0]["type"] == "text"
+        assert watsonx_message["content"][1]["type"] == "image_url"
+        assert watsonx_message["content"][2]["type"] == "image_url"
+
 
 @pytest.mark.integration
 class TestWatsonxChatGeneratorIntegration:
@@ -439,6 +601,36 @@ class TestWatsonxChatGeneratorIntegration:
         )
         messages = [ChatMessage.from_user("What's the capital of Germany? Answer concisely.")]
         results = await generator.run_async(messages=messages)
+
+        assert isinstance(results, dict)
+        assert "replies" in results
+        assert isinstance(results["replies"], list)
+        assert len(results["replies"]) == 1
+        assert isinstance(results["replies"][0], ChatMessage)
+        assert len(results["replies"][0].text) > 0
+
+    @pytest.mark.skipif(
+        not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
+        reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
+    )
+    def test_live_run_multimodal(self):
+        generator = WatsonxChatGenerator(
+            model="meta-llama/llama-3-2-11b-vision-instruct",
+            project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
+        )
+
+        image_content = ImageContent.from_file_path("tests/test_files/apple.jpg")
+
+        messages = [
+            ChatMessage.from_user(
+                content_parts=[
+                    "What do you see in this image? Be concise.",
+                    image_content,
+                ]
+            )
+        ]
+
+        results = generator.run(messages=messages)
 
         assert isinstance(results, dict)
         assert "replies" in results
