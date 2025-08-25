@@ -7,7 +7,15 @@ from unittest.mock import Mock
 import pytest
 from google.genai import types
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, ImageContent, StreamingChunk, ToolCall
+from haystack.dataclasses import (
+    ChatMessage,
+    ChatRole,
+    ComponentInfo,
+    ImageContent,
+    ReasoningContent,
+    StreamingChunk,
+    ToolCall,
+)
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 
@@ -58,6 +66,9 @@ class TestStreamingChunkConversion:
         mock_part = Mock()
         mock_part.text = "Hello, world!"
         mock_part.function_call = None
+        # To make the mock more realistic, we ensure the thought attribute does not exist.
+        if hasattr(mock_part, "thought"):
+            del mock_part.thought
         mock_content.parts.append(mock_part)
         mock_candidate.content = mock_content
 
@@ -797,6 +808,115 @@ class TestGoogleGenAIChatGenerator:
         # Check that the response mentions both temperature readings
         assert "22" in message.text or "15" in message.text
 
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_thinking(self):
+        """
+        Integration test for the thinking feature with a model that supports it.
+        """
+        # We use a model that supports the thinking feature
+        chat_messages = [ChatMessage.from_user("Why is the sky blue? Explain in one sentence.")]
+        component = GoogleGenAIChatGenerator(model="gemini-2.5-pro", generation_kwargs={"thinking_budget": -1})
+        results = component.run(chat_messages)
+
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        assert message.text
+
+        # Check for reasoning content, which should be present when thinking is enabled
+        assert message.reasonings
+        assert len(message.reasonings) > 0
+        assert all(isinstance(r, ReasoningContent) for r in message.reasonings)
+
+        # Check for thinking token usage
+        assert "usage" in message.meta
+        assert "thoughts_token_count" in message.meta["usage"]
+        assert message.meta["usage"]["thoughts_token_count"] is not None
+        assert message.meta["usage"]["thoughts_token_count"] > 0
+
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_thinking_and_tools_multi_turn(self, tools):
+        """
+        Integration test for thought signatures preservation in multi-turn conversations with tools.
+        This verifies that thought context is maintained across turns when using tools with thinking.
+        """
+        # Use a model that supports thinking with tools
+        component = GoogleGenAIChatGenerator(
+            model="gemini-2.5-pro",
+            tools=tools,
+            generation_kwargs={"thinking_budget": -1},  # Dynamic allocation
+        )
+
+        # First turn: Ask about weather
+        messages = [ChatMessage.from_user("What's the weather in Paris?")]
+        result = component.run(messages)
+
+        assert len(result["replies"]) == 1
+        first_response = result["replies"][0]
+
+        # Should have tool calls
+        assert first_response.tool_calls
+        assert len(first_response.tool_calls) == 1
+        assert first_response.tool_calls[0].tool_name == "weather"
+
+        # Check for thought signatures in meta (only present with tools)
+        assert "thought_signatures" in first_response.meta
+        assert len(first_response.meta["thought_signatures"]) > 0
+
+        # Second turn: Provide tool result and continue conversation
+        tool_call = first_response.tool_calls[0]
+        messages.extend(
+            [
+                first_response,  # Include the assistant's response with thought signatures
+                ChatMessage.from_tool(tool_result="22°C, sunny", origin=tool_call),
+                ChatMessage.from_user("Is that good weather for a picnic?"),
+            ]
+        )
+
+        # The thought signatures from first_response should be preserved automatically
+        result2 = component.run(messages)
+
+        assert len(result2["replies"]) == 1
+        second_response = result2["replies"][0]
+
+        # check that the thought signatures are there
+        assert "thought_signatures" in second_response.meta
+        assert len(second_response.meta["thought_signatures"]) > 0
+
+        # Should have a text response about picnic weather
+        assert second_response.text
+        assert "picnic" in second_response.text.lower() or "yes" in second_response.text.lower()
+
+        # The model should maintain context from previous turns
+        assert "22" in second_response.text or "sunny" in second_response.text.lower()
+
+    @pytest.mark.integration
+    def test_live_run_with_thinking_unsupported_model_fails_fast(self):
+        """
+        Integration test to verify that thinking configuration fails fast with unsupported models.
+        """
+        # gemini-1.5-pro-latest is known to not support thinking
+        chat_messages = [ChatMessage.from_user("Why is the sky blue?")]
+        component = GoogleGenAIChatGenerator(model="gemini-1.5-pro-latest", generation_kwargs={"thinking_budget": 1024})
+
+        # The call should raise a RuntimeError with a helpful message
+        with pytest.raises(RuntimeError) as exc_info:
+            component.run(chat_messages)
+
+        # Verify the error message is helpful and mentions thinking configuration
+        error_message = str(exc_info.value)
+        assert "Thinking configuration error" in error_message
+        assert "gemini-1.5" in error_message
+        assert "thinking_budget" in error_message or "thinking features" in error_message
+        assert "Try removing" in error_message or "use a different model" in error_message
+
 
 @pytest.mark.skipif(
     not os.environ.get("GOOGLE_API_KEY", None),
@@ -859,6 +979,49 @@ class TestAsyncGoogleGenAIChatGenerator:
         assert tool_message.tool_calls[0].tool_name == "weather"
         assert tool_message.tool_calls[0].arguments == {"city": "Paris"}
         assert tool_message.meta["finish_reason"] == "stop"
+
+    async def test_live_run_async_with_thinking(self):
+        """
+        Async integration test for the thinking feature.
+        """
+        chat_messages = [ChatMessage.from_user("Why is the sky blue? Explain in one sentence.")]
+        component = GoogleGenAIChatGenerator(model="gemini-2.5-pro", generation_kwargs={"thinking_budget": -1})
+        results = await component.run_async(chat_messages)
+
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        assert message.text
+
+        # Check for reasoning content
+        assert message.reasonings
+        assert len(message.reasonings) > 0
+        assert all(isinstance(r, ReasoningContent) for r in message.reasonings)
+
+        # Check for thinking token usage
+        assert "usage" in message.meta
+        assert "thoughts_token_count" in message.meta["usage"]
+        assert message.meta["usage"]["thoughts_token_count"] is not None
+        assert message.meta["usage"]["thoughts_token_count"] > 0
+
+    async def test_live_run_async_with_thinking_unsupported_model_fails_fast(self):
+        """
+        Async integration test to verify that thinking configuration fails fast with unsupported models.
+        This tests the fail-fast principle - no silent fallbacks.
+        """
+        # Use a model that does NOT support thinking features
+        chat_messages = [ChatMessage.from_user("Why is the sky blue?")]
+        component = GoogleGenAIChatGenerator(model="gemini-1.5-pro-latest", generation_kwargs={"thinking_budget": 1024})
+
+        # The call should raise a RuntimeError with a helpful message
+        with pytest.raises(RuntimeError) as exc_info:
+            await component.run_async(chat_messages)
+
+        # Verify the error message is helpful and mentions thinking configuration
+        error_message = str(exc_info.value)
+        assert "Thinking configuration error" in error_message
+        assert "gemini-1.5-pro" in error_message
+        assert "thinking_budget" in error_message or "thinking features" in error_message
+        assert "Try removing" in error_message or "use a different model" in error_message
 
     async def test_concurrent_async_calls(self):
         """Test multiple concurrent async calls."""

@@ -25,7 +25,7 @@ from haystack.dataclasses import (
     ToolCallResult,
     select_streaming_callback,
 )
-from haystack.dataclasses.chat_message import ChatMessage, ChatRole
+from haystack.dataclasses.chat_message import ChatMessage, ChatRole, ReasoningContent
 from haystack.tools import (
     Tool,
     Toolset,
@@ -49,6 +49,9 @@ FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
     "SPII": "content_filter",
     "IMAGE_SAFETY": "content_filter",
 }
+
+# Maximum thinking budget for Gemini 2.5 Flash models
+MAX_THINKING_BUDGET = 24576
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +81,52 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
 
     parts = []
 
-    # Process all content parts in order to preserve text/image ordering
+    # Check if this message has thought signatures from a previous response
+    # These need to be reconstructed in their original part structure
+    thought_signatures = message.meta.get("thought_signatures", []) if message.meta else []
+
+    # If we have thought signatures, we need to reconstruct the exact part structure
+    # from the previous assistant response to maintain multi-turn thinking context
+    if thought_signatures and message.is_from(ChatRole.ASSISTANT):
+        # Track which tool calls we've used (to handle multiple tool calls)
+        tool_call_index = 0
+
+        # Reconstruct parts with their original thought signatures
+        for sig_info in thought_signatures:
+            part_dict: Dict[str, Any] = {}
+
+            # Check what type of content this part had
+            if sig_info.get("has_text"):
+                # Find the corresponding text content
+                if sig_info.get("is_thought"):
+                    # This was a thought part - find it in reasoning content
+                    if message.reasoning:
+                        part_dict["text"] = message.reasoning.reasoning_text
+                        part_dict["thought"] = True
+                else:
+                    # Regular text part
+                    part_dict["text"] = message.text or ""
+
+            if sig_info.get("has_function_call"):
+                # Find the corresponding tool call by index
+                if message.tool_calls and tool_call_index < len(message.tool_calls):
+                    tool_call = message.tool_calls[tool_call_index]
+                    part_dict["function_call"] = types.FunctionCall(
+                        id=tool_call.id, name=tool_call.tool_name, args=tool_call.arguments
+                    )
+                    tool_call_index += 1  # Move to next tool call for next part
+
+            # Add the thought signature to preserve context
+            part_dict["thought_signature"] = sig_info["signature"]
+
+            parts.append(types.Part(**part_dict))
+
+        # If we reconstructed from signatures, we're done
+        if parts:
+            role = "model"  # Assistant messages with signatures are always from the model
+            return types.Content(role=role, parts=parts)
+
+    # Standard processing for messages without thought signatures
     for content_part in message._content:
         if isinstance(content_part, TextContent):
             # Only add text parts that are not empty to avoid unnecessary empty text parts
@@ -135,6 +183,14 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
                     )
                 )
             )
+        elif isinstance(content_part, ReasoningContent):
+            # For assistant messages, check if they contain reasoning content that should be included
+            if message.is_from(ChatRole.ASSISTANT):
+                # Include thought content as a separate part to maintain context
+                thought_text = content_part.reasoning_text
+                if thought_text:
+                    # Create a thought part - this maintains the thought context
+                    parts.append(types.Part(text=thought_text, thought=True))
 
     # Determine role
     if message.is_from(ChatRole.USER) or message.tool_call_results:
@@ -216,15 +272,30 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
     """
     text_parts = []
     tool_calls = []
+    reasoning_parts = []
+    thought_signatures = []  # Store thought signatures for multi-turn context
 
-    # Extract text and function calls from response
+    # Extract text, function calls, thoughts, and thought signatures from response
     finish_reason = None
     if response.candidates:
         candidate = response.candidates[0]
         finish_reason = getattr(candidate, "finish_reason", None)
         if candidate.content is not None and candidate.content.parts is not None:
-            for part in candidate.content.parts:
-                if part.text is not None:
+            for i, part in enumerate(candidate.content.parts):
+                # Check for thought signature on this part
+                if hasattr(part, "thought_signature") and part.thought_signature:
+                    # Store the thought signature with its part index for reconstruction
+                    thought_signatures.append(
+                        {
+                            "part_index": i,
+                            "signature": part.thought_signature,
+                            "has_text": part.text is not None,
+                            "has_function_call": part.function_call is not None,
+                            "is_thought": hasattr(part, "thought") and part.thought,
+                        }
+                    )
+
+                if part.text is not None and not (hasattr(part, "thought") and part.thought):
                     text_parts.append(part.text)
                 if part.function_call is not None:
                     tool_call = ToolCall(
@@ -233,26 +304,47 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
                         id=part.function_call.id,
                     )
                     tool_calls.append(tool_call)
+                # Handle thought parts for Gemini 2.5 series
+                if hasattr(part, "thought") and part.thought:
+                    # Extract thought content
+                    if part.text:
+                        reasoning_parts.append(part.text)
 
     # Combine text parts
     text = " ".join(text_parts) if text_parts else ""
 
     usage_metadata = response.usage_metadata
 
+    # Create usage metadata including thinking tokens if available
+    usage = {
+        "prompt_tokens": getattr(usage_metadata, "prompt_token_count", 0),
+        "completion_tokens": getattr(usage_metadata, "candidates_token_count", 0),
+        "total_tokens": getattr(usage_metadata, "total_token_count", 0),
+    }
+
+    # Add thinking token count if available
+    if usage_metadata and hasattr(usage_metadata, "thoughts_token_count") and usage_metadata.thoughts_token_count:
+        usage["thoughts_token_count"] = usage_metadata.thoughts_token_count
+
+        # Create meta with reasoning content and thought signatures if available
+    meta: Dict[str, Any] = {
+        "model": model,
+        "finish_reason": FINISH_REASON_MAPPING.get(finish_reason or ""),
+        "usage": usage,
+    }
+
+    # Add thought signatures to meta if present (for multi-turn context preservation)
+    if thought_signatures:
+        meta["thought_signatures"] = thought_signatures
+
+    # Create ReasoningContent object if there are reasoning parts
+    reasoning_content = None
+    if reasoning_parts:
+        reasoning_text = " ".join(reasoning_parts)
+        reasoning_content = ReasoningContent(reasoning_text=reasoning_text)
+
     # Create ChatMessage
-    message = ChatMessage.from_assistant(
-        text=text,
-        tool_calls=tool_calls,
-        meta={
-            "model": model,
-            "finish_reason": FINISH_REASON_MAPPING.get(finish_reason or ""),
-            "usage": {
-                "prompt_tokens": getattr(usage_metadata, "prompt_token_count", 0),
-                "completion_tokens": getattr(usage_metadata, "candidates_token_count", 0),
-                "total_tokens": getattr(usage_metadata, "total_token_count", 0),
-            },
-        },
-    )
+    message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls, meta=meta, reasoning=reasoning_content)
 
     return message
 
@@ -264,6 +356,50 @@ class GoogleGenAIChatGenerator:
 
     This component provides an interface to Google's Gemini models through the new google-genai SDK,
     supporting models like gemini-2.0-flash and other Gemini variants.
+
+    ### Thinking Support (Gemini 2.5 Series)
+
+    For Gemini 2.5 series models, this component supports the "thinking" feature which provides:
+    - **Reasoning transparency**: Models can show their reasoning process
+    - **Thought signatures**: Maintains thought context across multi-turn conversations with tools
+    - **Configurable thinking budgets**: Control token allocation for reasoning
+
+    Configure thinking behavior via `generation_kwargs={"thinking_budget": value}`:
+    - `thinking_budget: -1`: Dynamic allocation (default)
+    - `thinking_budget: 0`: Disable thinking (Flash/Flash-Lite only)
+    - `thinking_budget: N`: Set explicit token budget
+
+    When thinking is enabled, reasoning content is available in the response:
+    - **Non-streaming**: `response["replies"][0].reasonings` returns list of ReasoningContent objects
+    - **Streaming**: Final ChatMessage contains aggregated reasoning in `reasonings` property
+    - **Usage tracking**: Thinking tokens are tracked in `meta["usage"]["thoughts_token_count"]`
+
+    ### Multi-Turn Thinking with Thought Signatures
+
+    While the model can output its reasoning text (the "thinking trace"), this trace is a human-readable summary.
+    Forcing the model to re-read its own thoughts on every turn is inefficient and can lead to context loss.
+
+    To solve this, Gemini uses **thought signatures** when tools are present. A thought signature is a compact,
+    encrypted, machine-readable "save state" of the model's internal reasoning process. Sending this signature
+    back allows the model to instantly and perfectly restore its mental state, ensuring true context preservation
+    across complex, multi-step tool calls.
+
+    GoogleGenAIChatGenerator handles both automatically:
+    - **Reasoning Text (`ReasoningContent`)**: Extracted for your transparency and debugging. This is the human-readable
+      audit log of the model's thought process.
+    - **Thought Signatures (`meta["thought_signatures"]`)**: Extracted and stored in the `ChatMessage`'s metadata.
+      This is the machine-readable state file for the model's benefit.
+
+    By simply including the previous assistant response in your chat history, you get a system that is both
+    transparent to humans and perfectly stateful for LLMs.
+
+    Accessing reasoning content:
+    ```python
+    message = response["replies"][0]
+    if message.reasonings:
+        for reasoning in message.reasonings:
+            print("Reasoning:", reasoning.reasoning_text)
+    ```
 
     ### Authentication Examples
 
@@ -305,15 +441,24 @@ class GoogleGenAIChatGenerator:
     from haystack.tools import Tool, Toolset
     from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
 
-    # Initialize the chat generator
-    chat_generator = GoogleGenAIChatGenerator(model="gemini-2.0-flash")
+    # Initialize the chat generator with thinking support
+    chat_generator = GoogleGenAIChatGenerator(
+        model="gemini-2.5-flash",
+        generation_kwargs={"thinking_budget": 1024}  # Enable thinking with 1024 token budget
+    )
 
     # Generate a response
     messages = [ChatMessage.from_user("Tell me about the future of AI")]
     response = chat_generator.run(messages=messages)
     print(response["replies"][0].text)
 
-    # Tool usage example
+    # Access reasoning content if available
+    message = response["replies"][0]
+    if message.reasonings:
+        for reasoning in message.reasonings:
+            print("Reasoning:", reasoning.reasoning_text)
+
+    # Tool usage example with thinking
     def weather_function(city: str):
         return f"The weather in {city} is sunny and 25°C"
 
@@ -326,8 +471,9 @@ class GoogleGenAIChatGenerator:
 
     # Can use either List[Tool] or Toolset
     chat_generator_with_tools = GoogleGenAIChatGenerator(
-        model="gemini-2.0-flash",
-        tools=[weather_tool]  # or tools=Toolset([weather_tool])
+        model="gemini-2.5-flash",
+        tools=[weather_tool],  # or tools=Toolset([weather_tool])
+        generation_kwargs={"thinking_budget": -1}  # Dynamic thinking allocation
     )
 
     messages = [ChatMessage.from_user("What's the weather in Paris?")]
@@ -361,7 +507,12 @@ class GoogleGenAIChatGenerator:
         :param vertex_ai_location: Google Cloud location for Vertex AI (e.g., "us-central1", "europe-west1").
             Required when using Vertex AI with Application Default Credentials.
         :param model: Name of the model to use (e.g., "gemini-2.0-flash")
-        :param generation_kwargs: Configuration for generation (temperature, max_tokens, etc.)
+        :param generation_kwargs: Configuration for generation (temperature, max_tokens, etc.).
+            For Gemini 2.5 series, supports `thinking_budget` to configure thinking behavior:
+            - `thinking_budget`: int, controls thinking token allocation
+              - `-1`: Dynamic (default for most models)
+              - `0`: Disable thinking (Flash/Flash-Lite only)
+              - Positive integer: Set explicit budget
         :param safety_settings: Safety settings for content filtering
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
@@ -432,12 +583,13 @@ class GoogleGenAIChatGenerator:
 
         :param chunk: The chunk from Google Gen AI.
         :param index: The index of the chunk.
-        :param component_info: The component info.
         :returns: A StreamingChunk object.
         """
         content = ""
-        tool_calls = []
+        tool_calls: List[ToolCallDelta] = []
         finish_reason = None
+        reasoning_deltas: List[Dict[str, str]] = []
+        thought_signature_deltas: List[Dict[str, Any]] = []  # Track thought signatures in streaming
 
         if chunk.candidates:
             candidate = chunk.candidates[0]
@@ -451,10 +603,26 @@ class GoogleGenAIChatGenerator:
             "total_tokens": getattr(usage_metadata, "total_token_count", 0) if usage_metadata else 0,
         }
 
+        # Add thinking token count if available
+        if usage_metadata and hasattr(usage_metadata, "thoughts_token_count") and usage_metadata.thoughts_token_count:
+            usage["thoughts_token_count"] = usage_metadata.thoughts_token_count
+
         if candidate.content and candidate.content.parts:
             tc_index = -1
-            for part in candidate.content.parts:
-                if part.text:
+            for part_index, part in enumerate(candidate.content.parts):
+                # Check for thought signature on this part (for multi-turn context)
+                if hasattr(part, "thought_signature") and part.thought_signature:
+                    thought_signature_deltas.append(
+                        {
+                            "part_index": part_index,
+                            "signature": part.thought_signature,
+                            "has_text": part.text is not None,
+                            "has_function_call": part.function_call is not None,
+                            "is_thought": hasattr(part, "thought") and part.thought,
+                        }
+                    )
+
+                if part.text is not None and not (hasattr(part, "thought") and part.thought):
                     content += part.text
 
                 elif part.function_call:
@@ -469,9 +637,32 @@ class GoogleGenAIChatGenerator:
                         )
                     )
 
+                # Handle thought parts for Gemini 2.5 series
+                elif hasattr(part, "thought") and part.thought:
+                    thought_delta = {
+                        "type": "reasoning",
+                        "content": part.text if part.text else "",
+                    }
+                    reasoning_deltas.append(thought_delta)
+
         # start is only used by print_streaming_chunk. We try to make a reasonable assumption here but it should not be
         # a problem if we change it in the future.
         start = index == 0 or len(tool_calls) > 0
+
+        # Create meta with reasoning deltas and thought signatures if available
+        meta: Dict[str, Any] = {
+            "received_at": datetime.now(timezone.utc).isoformat(),
+            "model": self._model,
+            "usage": usage,
+        }
+
+        # Add reasoning deltas to meta if available
+        if reasoning_deltas:
+            meta["reasoning_deltas"] = reasoning_deltas
+
+        # Add thought signature deltas to meta if available (for multi-turn context)
+        if thought_signature_deltas:
+            meta["thought_signature_deltas"] = thought_signature_deltas
 
         return StreamingChunk(
             content="" if tool_calls else content,  # prioritize tool calls over content when both are present
@@ -480,12 +671,70 @@ class GoogleGenAIChatGenerator:
             index=index,
             start=start,
             finish_reason=FINISH_REASON_MAPPING.get(finish_reason or ""),
-            meta={
-                "received_at": datetime.now(timezone.utc).isoformat(),
-                "model": self._model,
-                "usage": usage,
-            },
+            meta=meta,
         )
+
+    def _aggregate_streaming_chunks_with_reasoning(self, chunks: List[StreamingChunk]) -> ChatMessage:
+        """
+        Aggregate streaming chunks into a final ChatMessage with reasoning content and thought signatures.
+
+        This method extends the standard streaming chunk aggregation to handle Google GenAI's
+        specific reasoning content, thinking token usage, and thought signatures for multi-turn context.
+
+        :param chunks: List of streaming chunks to aggregate.
+        :returns: Final ChatMessage with aggregated content, reasoning, and thought signatures.
+        """
+
+        # Use the generic aggregator for standard content (text, tool calls, basic meta)
+        message = _convert_streaming_chunks_to_chat_message(chunks)
+
+        # Now enhance with Google-specific features: reasoning content, thinking token usage, and thought signatures
+        reasoning_text_parts: list[str] = []
+        thought_signatures: List[Dict[str, Any]] = []
+        thoughts_token_count = None
+
+        for chunk in chunks:
+            # Extract reasoning deltas
+            if chunk.meta and "reasoning_deltas" in chunk.meta:
+                reasoning_deltas = chunk.meta["reasoning_deltas"]
+                if isinstance(reasoning_deltas, list):
+                    for delta in reasoning_deltas:
+                        if delta.get("type") == "reasoning":
+                            reasoning_text_parts.append(delta.get("content", ""))
+
+            # Extract thought signature deltas (for multi-turn context preservation)
+            if chunk.meta and "thought_signature_deltas" in chunk.meta:
+                signature_deltas = chunk.meta["thought_signature_deltas"]
+                if isinstance(signature_deltas, list):
+                    # Aggregate thought signatures - they should come from the final chunks
+                    # We'll keep the last set of signatures as they represent the complete state
+                    thought_signatures = signature_deltas
+
+            # Extract thinking token usage (from the last chunk that has it)
+            if chunk.meta and "usage" in chunk.meta:
+                chunk_usage = chunk.meta["usage"]
+                if "thoughts_token_count" in chunk_usage:
+                    thoughts_token_count = chunk_usage["thoughts_token_count"]
+
+        # Add thinking token count to usage if present
+        if thoughts_token_count is not None and "usage" in message.meta:
+            if message.meta["usage"] is None:
+                message.meta["usage"] = {}
+            message.meta["usage"]["thoughts_token_count"] = thoughts_token_count
+
+        # Add thought signatures to meta if present (for multi-turn context preservation)
+        if thought_signatures:
+            message.meta["thought_signatures"] = thought_signatures
+
+        # If we have reasoning content, reconstruct the message to include it
+        # Note: ChatMessage doesn't support adding reasoning after creation, reconstruction is necessary
+        if reasoning_text_parts:
+            reasoning_content = ReasoningContent(reasoning_text="".join(reasoning_text_parts))
+            return ChatMessage.from_assistant(
+                text=message.text, tool_calls=message.tool_calls, meta=message.meta, reasoning=reasoning_content
+            )
+
+        return message
 
     def _handle_streaming_response(
         self, response_stream: Iterator[types.GenerateContentResponse], streaming_callback: StreamingCallbackT
@@ -511,7 +760,8 @@ class GoogleGenAIChatGenerator:
                 # Stream the chunk
                 streaming_callback(streaming_chunk)
 
-            message = _convert_streaming_chunks_to_chat_message(chunks)
+            # Use custom aggregation that supports reasoning content
+            message = self._aggregate_streaming_chunks_with_reasoning(chunks)
             return {"replies": [message]}
 
         except Exception as e:
@@ -545,12 +795,99 @@ class GoogleGenAIChatGenerator:
                 # Stream the chunk
                 await streaming_callback(streaming_chunk)
 
-            message = _convert_streaming_chunks_to_chat_message(chunks)
+            # Use custom aggregation that supports reasoning content
+            message = self._aggregate_streaming_chunks_with_reasoning(chunks)
             return {"replies": [message]}
 
         except Exception as e:
             msg = f"Error in async streaming response: {e}"
             raise RuntimeError(msg) from e
+
+    def _get_thinking_model_family(self) -> Optional[str]:
+        """
+        Identifies the family of the thinking model to apply specific validation rules.
+
+        :returns: "pro", "flash", or None if not a known thinking model.
+        """
+        model_lower = self._model.lower()
+        # Pro models have different rules (e.g., thinking cannot be disabled), so we check for them first.
+        if "gemini-2.5-pro" in model_lower or "gemini-2.0-pro" in model_lower:
+            return "pro"
+        # Flash and Flash-Lite models share the same validation rules.
+        if "gemini-2.5-flash" in model_lower or "gemini-2.0-flash" in model_lower:
+            return "flash"
+        return None
+
+    def _validate_thinking_budget(self, thinking_budget: int) -> int:
+        """
+        Validate thinking budget value based on model capabilities.
+
+        The validation logic is based on the official Google Gemini API documentation:
+        https://ai.google.dev/gemini-api/docs/thinking
+
+        :param thinking_budget: The thinking budget value to validate.
+        :returns: Validated thinking budget value.
+        """
+        model_family = self._get_thinking_model_family()
+
+        if model_family is None:
+            msg = f"Model {self._model} may not support thinking features. Proceeding anyway."
+            logger.warning(msg)
+            return thinking_budget
+
+        # Model-specific validation based on the identified family
+        if model_family == "pro":
+            # Pro models cannot disable thinking.
+            if thinking_budget == 0:
+                logger.warning("Gemini Pro models cannot disable thinking. Using dynamic allocation (-1) instead.")
+                return -1
+        elif model_family == "flash":
+            # Flash models support 0 (disable), -1 (dynamic), and positive values up to a limit.
+            if thinking_budget < -1:
+                msg = f"Invalid negative thinking_budget: {thinking_budget}. Using dynamic allocation (-1)."
+                logger.warning(msg)
+                return -1
+            if thinking_budget > MAX_THINKING_BUDGET:
+                msg = f"Thinking budget {thinking_budget} exceeds maximum ({MAX_THINKING_BUDGET}). Using maximum value."
+                logger.warning(msg)
+                return MAX_THINKING_BUDGET
+
+        return thinking_budget
+
+    def _process_thinking_config(self, generation_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process thinking configuration from generation_kwargs.
+
+        :param generation_kwargs: The generation configuration dictionary.
+        :returns: Updated generation_kwargs with thinking_config if applicable.
+        """
+        if "thinking_budget" in generation_kwargs:
+            thinking_budget = generation_kwargs.pop("thinking_budget")
+
+            # Validate thinking budget value
+            if not isinstance(thinking_budget, int):
+                logger.warning(
+                    f"Invalid thinking_budget type: {type(thinking_budget)}. Expected int, using dynamic allocation."
+                )
+                thinking_budget = -1
+
+            # Validate and adjust thinking budget based on model capabilities
+            thinking_budget = self._validate_thinking_budget(thinking_budget)
+
+            # Create thinking config
+            thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget, include_thoughts=True)
+
+            generation_kwargs["thinking_config"] = thinking_config
+
+            # Log thinking configuration
+            if thinking_budget == -1:
+                logger.info("Thinking enabled with dynamic budget allocation")
+            elif thinking_budget == 0:
+                logger.info("Thinking disabled (budget set to 0)")
+            else:
+                logger.info(f"Thinking enabled with {thinking_budget} token budget")
+
+        return generation_kwargs
 
     @component.output_types(replies=List[ChatMessage])
     def run(
@@ -566,7 +903,7 @@ class GoogleGenAIChatGenerator:
 
         :param messages: A list of ChatMessage instances representing the input messages.
         :param generation_kwargs: Configuration for generation. If provided, it will override
-        the default config.
+        the default config. Supports `thinking_budget` for Gemini 2.5 series thinking configuration.
         :param safety_settings: Safety settings for content filtering. If provided, it will override the
         default settings.
         :param streaming_callback: A callback function that is called when a new token is
@@ -584,6 +921,9 @@ class GoogleGenAIChatGenerator:
         generation_kwargs = generation_kwargs or self._generation_kwargs
         safety_settings = safety_settings or self._safety_settings
         tools = tools or self._tools
+
+        # Process thinking configuration
+        generation_kwargs = self._process_thinking_config(generation_kwargs)
 
         # Select appropriate streaming callback
         streaming_callback = select_streaming_callback(
@@ -643,6 +983,17 @@ class GoogleGenAIChatGenerator:
                 return {"replies": [reply]}
 
         except Exception as e:
+            # Check if the error is related to thinking configuration
+            error_str = str(e).lower()
+            if ("thinking" in error_str or "thinking_config" in error_str) and "thinking_config" in config_params:
+                # Provide a more helpful error message for thinking configuration issues
+                error_msg = (
+                    f"Thinking configuration error for model '{self._model}': {e}\n"
+                    f"The model may not support thinking features or the thinking_budget value may be invalid. "
+                    f"Try removing the 'thinking_budget' parameter from generation_kwargs or use a different model."
+                )
+                raise RuntimeError(error_msg) from e
+
             error_msg = f"Error in Google Gen AI chat generation: {e}"
             raise RuntimeError(error_msg) from e
 
@@ -660,7 +1011,7 @@ class GoogleGenAIChatGenerator:
 
         :param messages: A list of ChatMessage instances representing the input messages.
         :param generation_kwargs: Configuration for generation. If provided, it will override
-        the default config.
+        the default config. Supports `thinking_budget` for Gemini 2.5 series thinking configuration.
         :param safety_settings: Safety settings for content filtering. If provided, it will override the
         default settings.
         :param streaming_callback: A callback function that is called when a new token is
@@ -670,7 +1021,7 @@ class GoogleGenAIChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated ChatMessage responses.
 
-        :raises RuntimeError: If there is an error in the Google Gen AI chat generation.
+        :raises RuntimeError: If there is an error in the async Google Gen AI chat generation.
         :raises ValueError: If a ChatMessage does not contain at least one of TextContent, ToolCall, or
         ToolCallResult or if the role in ChatMessage is different from User, System, Assistant.
         """
@@ -678,6 +1029,9 @@ class GoogleGenAIChatGenerator:
         generation_kwargs = generation_kwargs or self._generation_kwargs
         safety_settings = safety_settings or self._safety_settings
         tools = tools or self._tools
+
+        # Process thinking configuration
+        generation_kwargs = self._process_thinking_config(generation_kwargs)
 
         # Select appropriate streaming callback
         streaming_callback = select_streaming_callback(
@@ -737,5 +1091,16 @@ class GoogleGenAIChatGenerator:
                 return {"replies": [reply]}
 
         except Exception as e:
+            # Check if the error is related to thinking configuration
+            error_str = str(e).lower()
+            if ("thinking" in error_str or "thinking_config" in error_str) and "thinking_config" in config_params:
+                # Provide a more helpful error message for thinking configuration issues
+                error_msg = (
+                    f"Thinking configuration error for model '{self._model}': {e}\n"
+                    f"The model may not support thinking features or the thinking_budget value may be invalid. "
+                    f"Try removing the 'thinking_budget' parameter from generation_kwargs or use a different model."
+                )
+                raise RuntimeError(error_msg) from e
+
             error_msg = f"Error in async Google Gen AI chat generation: {e}"
             raise RuntimeError(error_msg) from e
