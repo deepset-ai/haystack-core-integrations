@@ -5,16 +5,19 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from botocore.eventstream import EventStream
 from haystack import logging
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.dataclasses import (
     AsyncStreamingCallbackT,
     ChatMessage,
     ChatRole,
     ComponentInfo,
+    FinishReason,
     ImageContent,
     StreamingChunk,
     SyncStreamingCallbackT,
     TextContent,
     ToolCall,
+    ToolCallDelta,
 )
 from haystack.tools import Tool
 
@@ -23,6 +26,16 @@ logger = logging.getLogger(__name__)
 
 # see https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ImageBlock.html for supported formats
 IMAGE_SUPPORTED_FORMATS = ["png", "jpeg", "gif", "webp"]
+
+# see https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_MessageStopEvent.html
+FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
+    "end_turn": "stop",
+    "stop_sequence": "stop",
+    "max_tokens": "length",
+    "guardrail_intervened": "content_filter",
+    "content_filtered": "content_filter",
+    "tool_use": "tool_calls",
+}
 
 
 # Haystack to Bedrock util methods
@@ -269,7 +282,7 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
             base_meta = {
                 "model": model,
                 "index": 0,
-                "finish_reason": response_body.get("stopReason"),
+                "finish_reason": FINISH_REASON_MAPPING.get(response_body.get("stopReason", "")),
                 "usage": {
                     # OpenAI's format for usage for cross ChatGenerator compatibility
                     "prompt_tokens": response_body.get("usage", {}).get("inputTokens", 0),
@@ -328,9 +341,8 @@ def _convert_event_to_streaming_chunk(
     """
     # Initialize an empty StreamingChunk to return if no relevant event is found
     # (e.g. for messageStart and contentBlockStop)
-    streaming_chunk = StreamingChunk(
-        content="", meta={"model": model, "received_at": datetime.now(timezone.utc).isoformat()}
-    )
+    base_meta = {"model": model, "received_at": datetime.now(timezone.utc).isoformat()}
+    streaming_chunk = StreamingChunk(content="", meta=base_meta)
 
     if "contentBlockStart" in event:
         # contentBlockStart always has the key "contentBlockIndex"
@@ -340,26 +352,15 @@ def _convert_event_to_streaming_chunk(
             tool_start = block_start["start"]["toolUse"]
             streaming_chunk = StreamingChunk(
                 content="",
-                meta={
-                    "model": model,
-                    # This is always 0 b/c it represents the choice index
-                    "index": 0,
-                    # We follow the same format used in the OpenAIChatGenerator
-                    "tool_calls": [  # Optional[List[ChoiceDeltaToolCall]]
-                        {
-                            "index": block_idx,  # int
-                            "id": tool_start["toolUseId"],  # Optional[str]
-                            "function": {  # Optional[ChoiceDeltaToolCallFunction]
-                                # Will accumulate deltas as string
-                                "arguments": "",  # Optional[str]
-                                "name": tool_start["name"],  # Optional[str]
-                            },
-                            "type": "function",  # Optional[Literal["function"]]
-                        }
-                    ],
-                    "finish_reason": None,
-                    "received_at": datetime.now(timezone.utc).isoformat(),
-                },
+                index=block_idx,
+                tool_calls=[
+                    ToolCallDelta(
+                        index=block_idx,
+                        id=tool_start["toolUseId"],
+                        tool_name=tool_start["name"],
+                    )
+                ],
+                meta=base_meta,
             )
 
     elif "contentBlockDelta" in event:
@@ -370,39 +371,22 @@ def _convert_event_to_streaming_chunk(
         if "text" in delta:
             streaming_chunk = StreamingChunk(
                 content=delta["text"],
-                meta={
-                    "model": model,
-                    # This is always 0 b/c it represents the choice index
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
-                    "received_at": datetime.now(timezone.utc).isoformat(),
-                },
+                index=block_idx,
+                meta=base_meta,
             )
         # This only occurs when accumulating the arguments for a toolUse
         # The content_block for this tool should already exist at this point
         elif "toolUse" in delta:
             streaming_chunk = StreamingChunk(
                 content="",
-                meta={
-                    "model": model,
-                    # This is always 0 b/c it represents the choice index
-                    "index": 0,
-                    "tool_calls": [  # Optional[List[ChoiceDeltaToolCall]]
-                        {
-                            "index": block_idx,  # int
-                            "id": None,  # Optional[str]
-                            "function": {  # Optional[ChoiceDeltaToolCallFunction]
-                                # Will accumulate deltas as string
-                                "arguments": delta["toolUse"].get("input", ""),  # Optional[str]
-                                "name": None,  # Optional[str]
-                            },
-                            "type": "function",  # Optional[Literal["function"]]
-                        }
-                    ],
-                    "finish_reason": None,
-                    "received_at": datetime.now(timezone.utc).isoformat(),
-                },
+                index=block_idx,
+                tool_calls=[
+                    ToolCallDelta(
+                        index=block_idx,
+                        arguments=delta["toolUse"].get("input", ""),
+                    )
+                ],
+                meta=base_meta,
             )
         # This is for accumulating reasoning content deltas
         elif "reasoningContent" in delta:
@@ -411,28 +395,19 @@ def _convert_event_to_streaming_chunk(
                 reasoning_content["redacted_content"] = reasoning_content.pop("redactedContent")
             streaming_chunk = StreamingChunk(
                 content="",
+                index=block_idx,
                 meta={
-                    "model": model,
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
-                    "received_at": datetime.now(timezone.utc).isoformat(),
+                    **base_meta,
                     "reasoning_contents": [{"index": block_idx, "reasoning_content": reasoning_content}],
                 },
             )
 
     elif "messageStop" in event:
-        finish_reason = event["messageStop"].get("stopReason")
+        finish_reason = FINISH_REASON_MAPPING.get(event["messageStop"].get("stopReason"))
         streaming_chunk = StreamingChunk(
             content="",
-            meta={
-                "model": model,
-                # This is always 0 b/c it represents the choice index
-                "index": 0,
-                "tool_calls": None,
-                "finish_reason": finish_reason,
-                "received_at": datetime.now(timezone.utc).isoformat(),
-            },
+            finish_reason=finish_reason,
+            meta=base_meta,
         )
 
     elif "metadata" in event and "usage" in event["metadata"]:
@@ -440,12 +415,7 @@ def _convert_event_to_streaming_chunk(
         streaming_chunk = StreamingChunk(
             content="",
             meta={
-                "model": model,
-                # This is always 0 b/c it represents the choice index
-                "index": 0,
-                "tool_calls": None,
-                "finish_reason": None,
-                "received_at": datetime.now(timezone.utc).isoformat(),
+                **base_meta,
                 "usage": {
                     "prompt_tokens": metadata["usage"].get("inputTokens", 0),
                     "completion_tokens": metadata["usage"].get("outputTokens", 0),
@@ -519,84 +489,6 @@ def _process_reasoning_contents(chunks: List[StreamingChunk]) -> List[Dict[str, 
     return formatted_reasoning_contents
 
 
-def _convert_streaming_chunks_to_chat_message(chunks: List[StreamingChunk]) -> ChatMessage:
-    """
-    Converts a list of streaming chunks into a ChatMessage object.
-
-    The function processes streaming chunks to build a ChatMessage object, including extracting and constructing
-    tool calls, managing metadata such as model type, finish reason, and usage information.
-    The tool call processing handles accumulating data across the chunks and attempts to parse JSON-formatted
-    arguments for tool calls.
-
-    :param chunks: A list of StreamingChunk objects representing parts of the assistant's response.
-
-    :returns:
-        A ChatMessage object constructed from the streaming chunks, containing the aggregated text, processed tool
-        calls, and metadata.
-    """
-    # Join all text content from the chunks
-    text = "".join([chunk.content for chunk in chunks])
-
-    # If reasoning content is present in any chunk, accumulate it
-    reasoning_contents = _process_reasoning_contents(chunks=chunks)
-
-    # Process tool calls if present in any chunk
-    tool_calls = []
-    tool_call_data: Dict[int, Dict[str, str]] = {}  # Track tool calls by index
-    for chunk_payload in chunks:
-        tool_calls_meta = chunk_payload.meta.get("tool_calls")
-        if tool_calls_meta is not None:
-            for delta in tool_calls_meta:
-                # We use the index of the tool call to track it across chunks since the ID is not always provided
-                if delta["index"] not in tool_call_data:
-                    tool_call_data[delta["index"]] = {"id": "", "name": "", "arguments": ""}
-
-                # Save the ID if present
-                if delta.get("id"):
-                    tool_call_data[delta["index"]]["id"] = delta["id"]
-
-                if delta.get("function"):
-                    if delta["function"].get("name"):
-                        tool_call_data[delta["index"]]["name"] += delta["function"]["name"]
-                    if delta["function"].get("arguments"):
-                        tool_call_data[delta["index"]]["arguments"] += delta["function"]["arguments"]
-
-    # Convert accumulated tool call data into ToolCall objects
-    for call_data in tool_call_data.values():
-        try:
-            arguments = json.loads(call_data.get("arguments", "{}")) if call_data.get("arguments") else {}
-            tool_calls.append(ToolCall(id=call_data["id"], tool_name=call_data["name"], arguments=arguments))
-        except json.JSONDecodeError:
-            logger.warning(
-                "Amazon Bedrock returned a malformed JSON string for tool call arguments. This tool call will be "
-                "skipped. Tool call ID: {tool_id}, Tool name: {tool_name}, Arguments: {tool_arguments}",
-                tool_id=call_data["id"],
-                tool_name=call_data["name"],
-                tool_arguments=call_data["arguments"],
-            )
-
-    # finish_reason can appear in different places so we look for the last one
-    finish_reasons = [
-        chunk.meta.get("finish_reason") for chunk in chunks if chunk.meta.get("finish_reason") is not None
-    ]
-    finish_reason = finish_reasons[-1] if finish_reasons else None
-
-    # usage is usually last but we look for it as well
-    usages = [chunk.meta.get("usage") for chunk in chunks if chunk.meta.get("usage") is not None]
-    usage = usages[-1] if usages else None
-
-    meta = {
-        "model": chunks[-1].meta["model"],
-        "index": 0,
-        "finish_reason": finish_reason,
-        "completion_start_time": chunks[0].meta.get("received_at"),  # first chunk received
-        "usage": usage,
-        "reasoning_contents": reasoning_contents,
-    }
-
-    return ChatMessage.from_assistant(text=text or None, tool_calls=tool_calls, meta=meta)
-
-
 def _parse_streaming_response(
     response_stream: EventStream,
     streaming_callback: SyncStreamingCallbackT,
@@ -612,13 +504,20 @@ def _parse_streaming_response(
     :param component_info: ComponentInfo object
     :return: List of ChatMessage objects
     """
+    content_block_idxs = set()
     chunks: List[StreamingChunk] = []
     for event in response_stream:
         streaming_chunk = _convert_event_to_streaming_chunk(event=event, model=model, component_info=component_info)
+        content_block_idx = streaming_chunk.index
+        if content_block_idx is not None and content_block_idx not in content_block_idxs:
+            streaming_chunk.start = True
+            content_block_idxs.add(content_block_idx)
         streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
-    replies = [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
-    return replies
+    reply = _convert_streaming_chunks_to_chat_message(chunks=chunks)
+    reasoning_contents = _process_reasoning_contents(chunks=chunks)
+    reply.meta["reasoning_contents"] = reasoning_contents
+    return [reply]
 
 
 async def _parse_streaming_response_async(
@@ -636,10 +535,17 @@ async def _parse_streaming_response_async(
     :param component_info: ComponentInfo object
     :return: List of ChatMessage objects
     """
+    content_block_idxs = set()
     chunks: List[StreamingChunk] = []
     async for event in response_stream:
         streaming_chunk = _convert_event_to_streaming_chunk(event=event, model=model, component_info=component_info)
+        content_block_idx = streaming_chunk.index
+        if content_block_idx is not None and content_block_idx not in content_block_idxs:
+            streaming_chunk.start = True
+            content_block_idxs.add(content_block_idx)
         await streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
-    replies = [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
-    return replies
+    reply = _convert_streaming_chunks_to_chat_message(chunks=chunks)
+    reasoning_contents = _process_reasoning_contents(chunks=chunks)
+    reply.meta["reasoning_contents"] = reasoning_contents
+    return [reply]
