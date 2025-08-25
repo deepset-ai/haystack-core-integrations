@@ -2,7 +2,15 @@ import base64
 from unittest.mock import ANY
 
 import pytest
-from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, ImageContent, StreamingChunk, ToolCall
+from haystack.dataclasses import (
+    ChatMessage,
+    ChatRole,
+    ComponentInfo,
+    ImageContent,
+    StreamingChunk,
+    ToolCall,
+    ToolCallDelta,
+)
 from haystack.tools import Tool
 
 from haystack_integrations.components.generators.amazon_bedrock.chat.utils import (
@@ -380,7 +388,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
         text_response = {
             "output": {"message": {"role": "assistant", "content": [{"text": "This is a test response"}]}},
-            "stopReason": "complete",
+            "stopReason": "end_turn",
             "usage": {"inputTokens": 10, "outputTokens": 20, "totalTokens": 30},
         }
 
@@ -390,7 +398,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert replies[0].role == ChatRole.ASSISTANT
         assert replies[0].meta == {
             "model": model,
-            "finish_reason": "complete",
+            "finish_reason": "stop",
             "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
             "index": 0,
             "reasoning_contents": [],
@@ -405,7 +413,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "content": [{"toolUse": {"toolUseId": "123", "name": "test_tool", "input": {"key": "value"}}}],
                 }
             },
-            "stopReason": "tool_call",
+            "stopReason": "tool_use",
             "usage": {"inputTokens": 15, "outputTokens": 25, "totalTokens": 40},
         }
 
@@ -418,7 +426,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert replies[0].role == ChatRole.ASSISTANT
         assert replies[0].meta == {
             "model": model,
-            "finish_reason": "tool_call",
+            "finish_reason": "tool_calls",
             "usage": {"prompt_tokens": 15, "completion_tokens": 25, "total_tokens": 40},
             "index": 0,
             "reasoning_contents": [],
@@ -436,7 +444,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     ],
                 }
             },
-            "stopReason": "complete",
+            "stopReason": "end_turn",
             "usage": {"inputTokens": 25, "outputTokens": 35, "totalTokens": 60},
         }
 
@@ -450,7 +458,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert replies[0].role == ChatRole.ASSISTANT
         assert replies[0].meta == {
             "model": model,
-            "finish_reason": "complete",
+            "finish_reason": "stop",
             "usage": {"prompt_tokens": 25, "completion_tokens": 35, "total_tokens": 60},
             "index": 0,
             "reasoning_contents": [],
@@ -519,7 +527,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             meta={
                 "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
                 "index": 0,
-                "finish_reason": "tool_use",
+                "finish_reason": "tool_calls",
                 "usage": {"prompt_tokens": 366, "completion_tokens": 134, "total_tokens": 500},
                 "reasoning_contents": [],
             },
@@ -588,7 +596,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             meta={
                 "model": "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
                 "index": 0,
-                "finish_reason": "tool_use",
+                "finish_reason": "tool_calls",
                 "usage": {"prompt_tokens": 412, "completion_tokens": 146, "total_tokens": 558},
                 "reasoning_contents": [
                     {
@@ -656,9 +664,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             },
         ]
 
-        component_info = ComponentInfo(
-            type=type_,
-        )
+        component_info = ComponentInfo(type=type_)
 
         replies = _parse_streaming_response(events, test_callback, model, component_info)
         # Pop completion_start_time since it will always change
@@ -676,25 +682,18 @@ class TestAmazonBedrockChatGeneratorUtils:
                 meta={
                     "model": model,
                     "index": 0,
-                    "finish_reason": "tool_use",
+                    "finish_reason": "tool_calls",
                     "usage": {"prompt_tokens": 364, "completion_tokens": 71, "total_tokens": 435},
                     "reasoning_contents": [],
                 },
             )
         ]
 
+        # TODO Could update to check all streaming chunks
         # Verify streaming chunks were received for all content
         assert len(streaming_chunks) == 21
         assert streaming_chunks[1].content == "Certainly! I can"
         assert streaming_chunks[2].content == " help you find out"
-        assert streaming_chunks[12].meta["tool_calls"] == [
-            {
-                "index": 1,
-                "id": "tooluse_pLGRAmK7TNKoZQ_rntVN_Q",
-                "function": {"arguments": "", "name": "weather_tool"},
-                "type": "function",
-            }
-        ]
         for chunk in streaming_chunks:
             assert chunk.component_info.type == type_
             assert chunk.component_info.name is None  # not in a pipeline
@@ -803,7 +802,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                 meta={
                     "model": "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0",
                     "index": 0,
-                    "finish_reason": "tool_use",
+                    "finish_reason": "tool_calls",
                     "usage": {"prompt_tokens": 412, "completion_tokens": 104, "total_tokens": 516},
                     "completion_start_time": ANY,
                     "reasoning_contents": [
@@ -891,7 +890,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                 meta={
                     "model": model,
                     "index": 0,
-                    "finish_reason": "end_turn",
+                    "finish_reason": "stop",
                     "usage": {"prompt_tokens": 461, "completion_tokens": 138, "total_tokens": 599},
                     "completion_start_time": ANY,
                     "reasoning_contents": [{"reasoning_content": {"redacted_content": b"Some encrypted byte string"}}],
@@ -970,7 +969,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
                     "index": 0,
-                    "finish_reason": "tool_use",
+                    "finish_reason": "tool_calls",
                     "usage": {"prompt_tokens": 366, "completion_tokens": 83, "total_tokens": 449},
                     "completion_start_time": ANY,
                     "reasoning_contents": [],
@@ -985,152 +984,124 @@ class TestAmazonBedrockChatGeneratorUtils:
                 content="Certainly! I",
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:07.072764+00:00",
                 },
+                index=0,
+                start=True,
             ),
             StreamingChunk(
                 content=" can help",
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:07.111264+00:00",
                 },
+                index=0,
             ),
             StreamingChunk(
                 content=" you print",
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:07.162575+00:00",
                 },
+                index=0,
             ),
             StreamingChunk(
                 content=' "Hello World"',
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:07.215535+00:00",
                 },
+                index=0,
             ),
             StreamingChunk(
                 content=" using the available",
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:07.270642+00:00",
                 },
+                index=0,
             ),
             StreamingChunk(
                 content=' "',
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:07.349415+00:00",
                 },
+                index=0,
             ),
             StreamingChunk(
                 content='hello_world" tool',
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:07.426891+00:00",
                 },
+                index=0,
             ),
             StreamingChunk(
                 content=". This tool is",
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:07.495910+00:00",
                 },
+                index=0,
             ),
             StreamingChunk(
                 content=' designed to print "',
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:07.527426+00:00",
                 },
+                index=0,
             ),
             StreamingChunk(
                 content='Hello World" an',
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:07.590629+00:00",
                 },
+                index=0,
             ),
             StreamingChunk(
                 content="d doesn't require any parameters",
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:07.682261+00:00",
                 },
+                index=0,
             ),
             StreamingChunk(
                 content=". Let",
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:07.790526+00:00",
                 },
+                index=0,
             ),
             StreamingChunk(
                 content="'s go ahead an",
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:07.845332+00:00",
                 },
+                index=0,
             ),
             StreamingChunk(
                 content="d use",
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:07.990588+00:00",
                 },
+                index=0,
             ),
             StreamingChunk(
                 content=" it.",
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:07.994309+00:00",
                 },
+                index=0,
             ),
+            # TODO Does it make sense that this chunk is present?
             StreamingChunk(
                 content="",
                 meta={
@@ -1142,68 +1113,42 @@ class TestAmazonBedrockChatGeneratorUtils:
                 content="",
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": [
-                        {
-                            "index": 1,
-                            "id": "tooluse_QZlUqTveTwyUaCQGQbWP6g",
-                            "function": {"arguments": "", "name": "hello_world"},
-                            "type": "function",
-                        }
-                    ],
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:08.359912+00:00",
                 },
+                index=1,
+                tool_calls=[
+                    ToolCallDelta(
+                        index=1,
+                        id="tooluse_QZlUqTveTwyUaCQGQbWP6g",
+                        tool_name="hello_world",
+                        arguments="",
+                    )
+                ],
             ),
             StreamingChunk(
                 content="",
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": [
-                        {"index": 1, "id": None, "function": {"arguments": "", "name": None}, "type": "function"}
-                    ],
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:08.361612+00:00",
                 },
+                index=1,
+                tool_calls=[ToolCallDelta(index=1, arguments="")],
             ),
             StreamingChunk(
                 content="",
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "received_at": "2025-07-31T08:46:08.591668+00:00",
-                },
-            ),
-            StreamingChunk(
-                content="",
-                meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": "tool_use",
                     "received_at": "2025-07-31T08:46:08.592175+00:00",
                 },
-                index=None,
-                tool_calls=None,
-                tool_call_result=None,
-                start=False,
-                finish_reason=None,
+                finish_reason="tool_calls",
             ),
             StreamingChunk(
                 content="",
                 meta={
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                    "index": 0,
-                    "tool_calls": None,
-                    "finish_reason": None,
                     "received_at": "2025-07-31T08:46:08.596700+00:00",
                     "usage": {"prompt_tokens": 349, "completion_tokens": 84, "total_tokens": 433},
                 },
-                index=None,
-                tool_calls=None,
-                tool_call_result=None,
-                start=False,
-                finish_reason=None,
             ),
         ]
 
@@ -1225,7 +1170,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         # Verify meta information
         assert message._meta["model"] == "anthropic.claude-3-5-sonnet-20240620-v1:0"
         assert message._meta["index"] == 0
-        assert message._meta["finish_reason"] == "tool_use"
+        assert message._meta["finish_reason"] == "tool_calls"
         assert message._meta["usage"] == {
             "completion_tokens": 84,
             "prompt_tokens": 349,

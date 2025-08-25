@@ -514,8 +514,10 @@ def _parse_streaming_response(
             content_block_idxs.add(content_block_idx)
         streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
-    replies = [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
-    return replies
+    reply = _convert_streaming_chunks_to_chat_message(chunks=chunks)
+    reasoning_contents = _process_reasoning_contents(chunks=chunks)
+    reply.meta["reasoning_contents"] = reasoning_contents
+    return [reply]
 
 
 async def _parse_streaming_response_async(
@@ -543,5 +545,7 @@ async def _parse_streaming_response_async(
             content_block_idxs.add(content_block_idx)
         await streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
-    replies = [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
-    return replies
+    reply = _convert_streaming_chunks_to_chat_message(chunks=chunks)
+    reasoning_contents = _process_reasoning_contents(chunks=chunks)
+    reply.meta["reasoning_contents"] = reasoning_contents
+    return [reply]
