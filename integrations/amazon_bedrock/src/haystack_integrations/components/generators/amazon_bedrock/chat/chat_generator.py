@@ -175,7 +175,7 @@ class AmazonBedrockChatGenerator:
 
         :param model: The model to use for text generation. The model must be available in Amazon Bedrock and must
             be specified in the format outlined in the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html).
-            Can be None only if `prompt_router_config` is provided.
+            Must be None if `prompt_router_config` is provided.
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
         :param aws_session_token: AWS session token.
@@ -195,11 +195,12 @@ class AmazonBedrockChatGenerator:
             the streaming mode on.
         :param boto3_config: The configuration for the boto3 client.
         :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
-        :param prompt_router_config: A dictionary of configuration for the prompt router.
-        This will be used to create the prompt router.
+        :param prompt_router_config: Dictionary containing the configuration parameters for
+            creating a Bedrock prompt router.
         For details on how to configure the prompt router, see the
         [bedrock documentation](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock/client/create_prompt_router.html).
-        :raises ValueError: If the model name is empty or None.
+        Must be None if `model` is provided.
+        :raises ValueError: If the both `model` and `prompt_router_config` are provided or if both are None.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
             not supported.
         """
