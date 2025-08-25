@@ -655,7 +655,7 @@ def expected_streaming_chunks():
         # Chunk 2: Tool plan delta
         StreamingChunk(
             content="I need to call the weather tool",
-            index=1,
+            index=0,
             start=False,
             finish_reason=None,
             tool_calls=None,
@@ -862,7 +862,7 @@ def expected_streaming_chunks():
         # Chunk 15: Message end with finish reason and usage
         StreamingChunk(
             content="",
-            index=None,
+            index=0,
             start=False,
             finish_reason="tool_calls",
             tool_calls=None,
@@ -899,7 +899,7 @@ class TestCohereChunkConversion:
         assert result.content == ""
         assert result.start is False
         assert result.tool_calls is None
-        assert result.index is None
+        assert result.index==0
         assert result.meta["model"] == "command-r-08-2024"
 
     def test_convert_tool_plan_delta_chunk(self):
@@ -907,7 +907,7 @@ class TestCohereChunkConversion:
 
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, model="command-r-08-2024")
         assert result.content == "I will call the weather tool"
-        assert result.index is None
+        assert result.index==0
         assert result.start is False
         assert result.tool_calls is None
 
@@ -958,7 +958,7 @@ class TestCohereChunkConversion:
 
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, model="command-r-08-2024")
         assert result.content == ""
-        assert result.index is None
+        assert result.index==0
         assert result.start is False
         assert result.finish_reason == "stop"  # Mapped from "COMPLETE"
         assert result.tool_calls is None
