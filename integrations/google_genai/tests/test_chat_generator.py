@@ -837,6 +837,66 @@ class TestGoogleGenAIChatGenerator:
         assert message.meta["usage"]["thoughts_token_count"] is not None
         assert message.meta["usage"]["thoughts_token_count"] > 0
 
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_thinking_and_tools_multi_turn(self, tools):
+        """
+        Integration test for thought signatures preservation in multi-turn conversations with tools.
+        This verifies that thought context is maintained across turns when using tools with thinking.
+        """
+        # Use a model that supports thinking with tools
+        component = GoogleGenAIChatGenerator(
+            model="gemini-2.5-pro",
+            tools=tools,
+            generation_kwargs={"thinking_budget": -1},  # Dynamic allocation
+        )
+
+        # First turn: Ask about weather
+        messages = [ChatMessage.from_user("What's the weather in Paris?")]
+        result = component.run(messages)
+
+        assert len(result["replies"]) == 1
+        first_response = result["replies"][0]
+
+        # Should have tool calls
+        assert first_response.tool_calls
+        assert len(first_response.tool_calls) == 1
+        assert first_response.tool_calls[0].tool_name == "weather"
+
+        # Check for thought signatures in meta (only present with tools)
+        assert "thought_signatures" in first_response.meta
+        assert len(first_response.meta["thought_signatures"]) > 0
+
+        # Second turn: Provide tool result and continue conversation
+        tool_call = first_response.tool_calls[0]
+        messages.extend(
+            [
+                first_response,  # Include the assistant's response with thought signatures
+                ChatMessage.from_tool(tool_result="22°C, sunny", origin=tool_call),
+                ChatMessage.from_user("Is that good weather for a picnic?"),
+            ]
+        )
+
+        # The thought signatures from first_response should be preserved automatically
+        result2 = component.run(messages)
+
+        assert len(result2["replies"]) == 1
+        second_response = result2["replies"][0]
+
+        # check that the thought signatures are there
+        assert "thought_signatures" in second_response.meta
+        assert len(second_response.meta["thought_signatures"]) > 0
+
+        # Should have a text response about picnic weather
+        assert second_response.text
+        assert "picnic" in second_response.text.lower() or "yes" in second_response.text.lower()
+
+        # The model should maintain context from previous turns
+        assert "22" in second_response.text or "sunny" in second_response.text.lower()
+
     @pytest.mark.integration
     def test_live_run_with_thinking_unsupported_model_fails_fast(self):
         """

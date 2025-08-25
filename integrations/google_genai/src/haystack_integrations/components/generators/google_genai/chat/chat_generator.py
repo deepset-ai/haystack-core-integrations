@@ -81,7 +81,52 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
 
     parts = []
 
-    # Process all content parts in order to preserve text/image ordering
+    # Check if this message has thought signatures from a previous response
+    # These need to be reconstructed in their original part structure
+    thought_signatures = message.meta.get("thought_signatures", []) if message.meta else []
+
+    # If we have thought signatures, we need to reconstruct the exact part structure
+    # from the previous assistant response to maintain multi-turn thinking context
+    if thought_signatures and message.is_from(ChatRole.ASSISTANT):
+        # Track which tool calls we've used (to handle multiple tool calls)
+        tool_call_index = 0
+
+        # Reconstruct parts with their original thought signatures
+        for sig_info in thought_signatures:
+            part_dict: Dict[str, Any] = {}
+
+            # Check what type of content this part had
+            if sig_info.get("has_text"):
+                # Find the corresponding text content
+                if sig_info.get("is_thought"):
+                    # This was a thought part - find it in reasoning content
+                    if message.reasoning:
+                        part_dict["text"] = message.reasoning.reasoning_text
+                        part_dict["thought"] = True
+                else:
+                    # Regular text part
+                    part_dict["text"] = message.text or ""
+
+            if sig_info.get("has_function_call"):
+                # Find the corresponding tool call by index
+                if message.tool_calls and tool_call_index < len(message.tool_calls):
+                    tool_call = message.tool_calls[tool_call_index]
+                    part_dict["function_call"] = types.FunctionCall(
+                        id=tool_call.id, name=tool_call.tool_name, args=tool_call.arguments
+                    )
+                    tool_call_index += 1  # Move to next tool call for next part
+
+            # Add the thought signature to preserve context
+            part_dict["thought_signature"] = sig_info["signature"]
+
+            parts.append(types.Part(**part_dict))
+
+        # If we reconstructed from signatures, we're done
+        if parts:
+            role = "model"  # Assistant messages with signatures are always from the model
+            return types.Content(role=role, parts=parts)
+
+    # Standard processing for messages without thought signatures
     for content_part in message._content:
         if isinstance(content_part, TextContent):
             # Only add text parts that are not empty to avoid unnecessary empty text parts
@@ -228,14 +273,28 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
     text_parts = []
     tool_calls = []
     reasoning_parts = []
+    thought_signatures = []  # Store thought signatures for multi-turn context
 
-    # Extract text, function calls, and thoughts from response
+    # Extract text, function calls, thoughts, and thought signatures from response
     finish_reason = None
     if response.candidates:
         candidate = response.candidates[0]
         finish_reason = getattr(candidate, "finish_reason", None)
         if candidate.content is not None and candidate.content.parts is not None:
-            for part in candidate.content.parts:
+            for i, part in enumerate(candidate.content.parts):
+                # Check for thought signature on this part
+                if hasattr(part, "thought_signature") and part.thought_signature:
+                    # Store the thought signature with its part index for reconstruction
+                    thought_signatures.append(
+                        {
+                            "part_index": i,
+                            "signature": part.thought_signature,
+                            "has_text": part.text is not None,
+                            "has_function_call": part.function_call is not None,
+                            "is_thought": hasattr(part, "thought") and part.thought,
+                        }
+                    )
+
                 if part.text is not None and not (hasattr(part, "thought") and part.thought):
                     text_parts.append(part.text)
                 if part.function_call is not None:
@@ -267,12 +326,16 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
     if usage_metadata and hasattr(usage_metadata, "thoughts_token_count") and usage_metadata.thoughts_token_count:
         usage["thoughts_token_count"] = usage_metadata.thoughts_token_count
 
-    # Create meta with reasoning content if available
-    meta = {
+        # Create meta with reasoning content and thought signatures if available
+    meta: Dict[str, Any] = {
         "model": model,
         "finish_reason": FINISH_REASON_MAPPING.get(finish_reason or ""),
         "usage": usage,
     }
+
+    # Add thought signatures to meta if present (for multi-turn context preservation)
+    if thought_signatures:
+        meta["thought_signatures"] = thought_signatures
 
     # Create ReasoningContent object if there are reasoning parts
     reasoning_content = None
@@ -308,8 +371,27 @@ class GoogleGenAIChatGenerator:
 
     When thinking is enabled, reasoning content is available in the response:
     - **Non-streaming**: `response["replies"][0].reasonings` returns list of ReasoningContent objects
-    - **Streaming**: Final message contains aggregated reasoning in `reasonings` property
+    - **Streaming**: Final ChatMessage contains aggregated reasoning in `reasonings` property
     - **Usage tracking**: Thinking tokens are tracked in `meta["usage"]["thoughts_token_count"]`
+
+    ### Multi-Turn Thinking with Thought Signatures
+
+    While the model can output its reasoning text (the "thinking trace"), this trace is a human-readable summary.
+    Forcing the model to re-read its own thoughts on every turn is inefficient and can lead to context loss.
+
+    To solve this, Gemini uses **thought signatures** when tools are present. A thought signature is a compact,
+    encrypted, machine-readable "save state" of the model's internal reasoning process. Sending this signature
+    back allows the model to instantly and perfectly restore its mental state, ensuring true context preservation
+    across complex, multi-step tool calls.
+
+    GoogleGenAIChatGenerator handles both automatically:
+    - **Reasoning Text (`ReasoningContent`)**: Extracted for your transparency and debugging. This is the human-readable
+      audit log of the model's thought process.
+    - **Thought Signatures (`meta["thought_signatures"]`)**: Extracted and stored in the `ChatMessage`'s metadata.
+      This is the machine-readable state file for the model's benefit.
+
+    By simply including the previous assistant response in your chat history, you get a system that is both
+    transparent to humans and perfectly stateful for LLMs.
 
     Accessing reasoning content:
     ```python
@@ -507,6 +589,7 @@ class GoogleGenAIChatGenerator:
         tool_calls: List[ToolCallDelta] = []
         finish_reason = None
         reasoning_deltas: List[Dict[str, str]] = []
+        thought_signature_deltas: List[Dict[str, Any]] = []  # Track thought signatures in streaming
 
         if chunk.candidates:
             candidate = chunk.candidates[0]
@@ -526,7 +609,19 @@ class GoogleGenAIChatGenerator:
 
         if candidate.content and candidate.content.parts:
             tc_index = -1
-            for part in candidate.content.parts:
+            for part_index, part in enumerate(candidate.content.parts):
+                # Check for thought signature on this part (for multi-turn context)
+                if hasattr(part, "thought_signature") and part.thought_signature:
+                    thought_signature_deltas.append(
+                        {
+                            "part_index": part_index,
+                            "signature": part.thought_signature,
+                            "has_text": part.text is not None,
+                            "has_function_call": part.function_call is not None,
+                            "is_thought": hasattr(part, "thought") and part.thought,
+                        }
+                    )
+
                 if part.text is not None and not (hasattr(part, "thought") and part.thought):
                     content += part.text
 
@@ -554,7 +649,7 @@ class GoogleGenAIChatGenerator:
         # a problem if we change it in the future.
         start = index == 0 or len(tool_calls) > 0
 
-        # Create meta with reasoning deltas if available
+        # Create meta with reasoning deltas and thought signatures if available
         meta: Dict[str, Any] = {
             "received_at": datetime.now(timezone.utc).isoformat(),
             "model": self._model,
@@ -564,6 +659,10 @@ class GoogleGenAIChatGenerator:
         # Add reasoning deltas to meta if available
         if reasoning_deltas:
             meta["reasoning_deltas"] = reasoning_deltas
+
+        # Add thought signature deltas to meta if available (for multi-turn context)
+        if thought_signature_deltas:
+            meta["thought_signature_deltas"] = thought_signature_deltas
 
         return StreamingChunk(
             content="" if tool_calls else content,  # prioritize tool calls over content when both are present
@@ -577,20 +676,21 @@ class GoogleGenAIChatGenerator:
 
     def _aggregate_streaming_chunks_with_reasoning(self, chunks: List[StreamingChunk]) -> ChatMessage:
         """
-        Aggregate streaming chunks into a final ChatMessage with reasoning content.
+        Aggregate streaming chunks into a final ChatMessage with reasoning content and thought signatures.
 
         This method extends the standard streaming chunk aggregation to handle Google GenAI's
-        specific reasoning content and thinking token usage.
+        specific reasoning content, thinking token usage, and thought signatures for multi-turn context.
 
         :param chunks: List of streaming chunks to aggregate.
-        :returns: Final ChatMessage with aggregated content and reasoning.
+        :returns: Final ChatMessage with aggregated content, reasoning, and thought signatures.
         """
 
         # Use the generic aggregator for standard content (text, tool calls, basic meta)
         message = _convert_streaming_chunks_to_chat_message(chunks)
 
-        # Now enhance with Google-specific features: reasoning content and thinking token usage
+        # Now enhance with Google-specific features: reasoning content, thinking token usage, and thought signatures
         reasoning_text_parts: list[str] = []
+        thought_signatures: List[Dict[str, Any]] = []
         thoughts_token_count = None
 
         for chunk in chunks:
@@ -601,6 +701,14 @@ class GoogleGenAIChatGenerator:
                     for delta in reasoning_deltas:
                         if delta.get("type") == "reasoning":
                             reasoning_text_parts.append(delta.get("content", ""))
+
+            # Extract thought signature deltas (for multi-turn context preservation)
+            if chunk.meta and "thought_signature_deltas" in chunk.meta:
+                signature_deltas = chunk.meta["thought_signature_deltas"]
+                if isinstance(signature_deltas, list):
+                    # Aggregate thought signatures - they should come from the final chunks
+                    # We'll keep the last set of signatures as they represent the complete state
+                    thought_signatures = signature_deltas
 
             # Extract thinking token usage (from the last chunk that has it)
             if chunk.meta and "usage" in chunk.meta:
@@ -613,6 +721,10 @@ class GoogleGenAIChatGenerator:
             if message.meta["usage"] is None:
                 message.meta["usage"] = {}
             message.meta["usage"]["thoughts_token_count"] = thoughts_token_count
+
+        # Add thought signatures to meta if present (for multi-turn context preservation)
+        if thought_signatures:
+            message.meta["thought_signatures"] = thought_signatures
 
         # If we have reasoning content, reconstruct the message to include it
         # Note: ChatMessage doesn't support adding reasoning after creation, reconstruction is necessary
