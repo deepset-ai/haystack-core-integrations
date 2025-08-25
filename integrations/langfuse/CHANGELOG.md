@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/langfuse-v2.3.0] - 2025-08-25
+
+### 🐛 Bug Fixes
+
+- Avoid mixed Langfuse traces in async envs (#2207)
+
+### 🧪 Testing
+
+- Make tests successfully run from forks (#2203)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+
 ## [integrations/langfuse-v2.2.1] - 2025-08-07
 
 ### 🚀 Features
