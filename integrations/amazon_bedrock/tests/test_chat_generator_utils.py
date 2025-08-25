@@ -129,7 +129,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                                 "text": "This is the reasoning behind the message.",
                                 "signature": "reasoning_signature",
                             }
-                        },
+                        }
                     }
                 ]
             },
@@ -161,7 +161,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                                 "text": "This is the reasoning behind the tool call.",
                                 "signature": "reasoning_signature",
                             }
-                        },
+                        }
                     }
                 ]
             },
@@ -179,26 +179,14 @@ class TestAmazonBedrockChatGeneratorUtils:
                     }
                 },
                 {"text": "This is a test message with a tool call."},
-                {
-                    "toolUse": {
-                        "toolUseId": "123",
-                        "name": "test_tool",
-                        "input": {"key": "value"},
-                    }
-                },
+                {"toolUse": {"toolUseId": "123", "name": "test_tool", "input": {"key": "value"}}},
             ],
         }
 
         tool_call_message_with_redacted = ChatMessage.from_assistant(
             "This is a test message with a tool call.",
             tool_calls=[ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})],
-            meta={
-                "reasoning_contents": [
-                    {
-                        "reasoning_content": {"redacted_content": b"Some encrypted byte string"},
-                    }
-                ]
-            },
+            meta={"reasoning_contents": [{"reasoning_content": {"redacted_content": b"Some encrypted byte string"}}]},
         )
         formatted_message = _format_messages([tool_call_message_with_redacted])[1][0]
         assert formatted_message == {
@@ -206,13 +194,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             "content": [
                 {"reasoningContent": {"redactedContent": b"Some encrypted byte string"}},
                 {"text": "This is a test message with a tool call."},
-                {
-                    "toolUse": {
-                        "toolUseId": "123",
-                        "name": "test_tool",
-                        "input": {"key": "value"},
-                    }
-                },
+                {"toolUse": {"toolUseId": "123", "name": "test_tool", "input": {"key": "value"}}},
             ],
         }
 
@@ -221,16 +203,14 @@ class TestAmazonBedrockChatGeneratorUtils:
             tool_calls=[ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})],
             meta={
                 "reasoning_contents": [
-                    {
-                        "reasoning_content": {"redacted_content": b"Some encrypted byte string"},
-                    },
+                    {"reasoning_content": {"redacted_content": b"Some encrypted byte string"}},
                     {
                         "reasoning_content": {
                             "reasoningText": {
                                 "text": "This is the reasoning behind the tool call.",
                                 "signature": "reasoning_signature",
                             }
-                        },
+                        }
                     },
                 ]
             },
@@ -249,30 +229,18 @@ class TestAmazonBedrockChatGeneratorUtils:
                     }
                 },
                 {"text": "This is a test message with a tool call."},
-                {
-                    "toolUse": {
-                        "toolUseId": "123",
-                        "name": "test_tool",
-                        "input": {"key": "value"},
-                    }
-                },
+                {"toolUse": {"toolUseId": "123", "name": "test_tool", "input": {"key": "value"}}},
             ],
         }
 
     def test_format_text_image_message(self):
         plain_assistant_message = ChatMessage.from_assistant("This is a test message.")
         formatted_message = _format_text_image_message(plain_assistant_message)
-        assert formatted_message == {
-            "role": "assistant",
-            "content": [{"text": "This is a test message."}],
-        }
+        assert formatted_message == {"role": "assistant", "content": [{"text": "This is a test message."}]}
 
         plain_user_message = ChatMessage.from_user("This is a test message.")
         formatted_message = _format_text_image_message(plain_user_message)
-        assert formatted_message == {
-            "role": "user",
-            "content": [{"text": "This is a test message."}],
-        }
+        assert formatted_message == {"role": "user", "content": [{"text": "This is a test message."}]}
 
         base64_image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="
         image_content = ImageContent(base64_image)
@@ -591,7 +559,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         expected_message = ChatMessage.from_assistant(
             text="I'll check the current weather in Paris for you.",
             tool_calls=[
-                ToolCall(tool_name="weather", arguments={"city": "Paris"}, id="tooluse_iUqy8-ypSByLK5zFkka8uA"),
+                ToolCall(tool_name="weather", arguments={"city": "Paris"}, id="tooluse_iUqy8-ypSByLK5zFkka8uA")
             ],
             meta={
                 "model": "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
@@ -624,6 +592,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         type_ = (
             "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
         )
+        base_meta = {"model": model, "received_at": ANY}
         streaming_chunks = []
 
         def test_callback(chunk: StreamingChunk):
@@ -664,9 +633,9 @@ class TestAmazonBedrockChatGeneratorUtils:
             },
         ]
 
-        component_info = ComponentInfo(type=type_)
+        c_info = ComponentInfo(type=type_)
 
-        replies = _parse_streaming_response(events, test_callback, model, component_info)
+        replies = _parse_streaming_response(events, test_callback, model, c_info)
         # Pop completion_start_time since it will always change
         replies[0].meta.pop("completion_start_time")
         expected_messages = [
@@ -689,14 +658,78 @@ class TestAmazonBedrockChatGeneratorUtils:
             )
         ]
 
-        # TODO Could update to check all streaming chunks
+        expected_chunks = [
+            StreamingChunk(content="", meta=base_meta, component_info=c_info),
+            StreamingChunk(content="Certainly! I can", meta=base_meta, component_info=c_info, index=0, start=True),
+            StreamingChunk(content=" help you find out", meta=base_meta, component_info=c_info, index=0),
+            StreamingChunk(content=" the weather", meta=base_meta, component_info=c_info, index=0),
+            StreamingChunk(content=" in Berlin. To", meta=base_meta, component_info=c_info, index=0),
+            StreamingChunk(content=" get this information, I'll", meta=base_meta, component_info=c_info, index=0),
+            StreamingChunk(content=" use the weather tool available", meta=base_meta, component_info=c_info, index=0),
+            StreamingChunk(content=" to me.", meta=base_meta, component_info=c_info, index=0),
+            StreamingChunk(content=" Let me fetch", meta=base_meta, component_info=c_info, index=0),
+            StreamingChunk(content=" that data for", meta=base_meta, component_info=c_info, index=0),
+            StreamingChunk(content=" you.", meta=base_meta, component_info=c_info, index=0),
+            StreamingChunk(content="", meta=base_meta, component_info=c_info),
+            StreamingChunk(
+                content="",
+                meta=base_meta,
+                component_info=c_info,
+                index=1,
+                tool_calls=[ToolCallDelta(index=1, tool_name="weather_tool", id="tooluse_pLGRAmK7TNKoZQ_rntVN_Q")],
+                start=True,
+            ),
+            StreamingChunk(
+                content="",
+                meta=base_meta,
+                component_info=c_info,
+                index=1,
+                tool_calls=[ToolCallDelta(index=1, arguments="")],
+            ),
+            StreamingChunk(
+                content="",
+                meta=base_meta,
+                component_info=c_info,
+                index=1,
+                tool_calls=[ToolCallDelta(index=1, arguments='{"')],
+            ),
+            StreamingChunk(
+                content="",
+                meta=base_meta,
+                component_info=c_info,
+                index=1,
+                tool_calls=[ToolCallDelta(index=1, arguments='location": ')],
+            ),
+            StreamingChunk(
+                content="",
+                meta=base_meta,
+                component_info=c_info,
+                index=1,
+                tool_calls=[ToolCallDelta(index=1, arguments='"B')],
+            ),
+            StreamingChunk(
+                content="",
+                meta=base_meta,
+                component_info=c_info,
+                index=1,
+                tool_calls=[ToolCallDelta(index=1, arguments='erlin"}')],
+            ),
+            StreamingChunk(content="", meta=base_meta, component_info=c_info),
+            StreamingChunk(content="", meta=base_meta, component_info=c_info, finish_reason="tool_calls"),
+            StreamingChunk(
+                content="",
+                meta={
+                    "model": model,
+                    "received_at": ANY,
+                    "usage": {"prompt_tokens": 364, "completion_tokens": 71, "total_tokens": 435},
+                },
+                component_info=c_info,
+            ),
+        ]
         # Verify streaming chunks were received for all content
         assert len(streaming_chunks) == 21
-        assert streaming_chunks[1].content == "Certainly! I can"
-        assert streaming_chunks[2].content == " help you find out"
-        for chunk in streaming_chunks:
-            assert chunk.component_info.type == type_
-            assert chunk.component_info.name is None  # not in a pipeline
+        for idx, chunk in enumerate(streaming_chunks):
+            assert chunk == expected_chunks[idx]
 
         # Verify final replies
         assert len(replies) == 1
@@ -726,12 +759,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "contentBlockIndex": 0,
                 }
             },
-            {
-                "contentBlockDelta": {
-                    "delta": {"reasoningContent": {"text": " access to a"}},
-                    "contentBlockIndex": 0,
-                }
-            },
+            {"contentBlockDelta": {"delta": {"reasoningContent": {"text": " access to a"}}, "contentBlockIndex": 0}},
             {
                 "contentBlockDelta": {
                     "delta": {"reasoningContent": {"text": " weather function that takes"}},
@@ -762,12 +790,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "contentBlockIndex": 0,
                 }
             },
-            {
-                "contentBlockDelta": {
-                    "delta": {"reasoningContent": {"text": " function call."}},
-                    "contentBlockIndex": 0,
-                }
-            },
+            {"contentBlockDelta": {"delta": {"reasoningContent": {"text": " function call."}}, "contentBlockIndex": 0}},
             {"contentBlockDelta": {"delta": {"reasoningContent": {"signature": "..."}}, "contentBlockIndex": 0}},
             {"contentBlockStop": {"contentBlockIndex": 0}},
             {
@@ -797,7 +820,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         expected_messages = [
             ChatMessage.from_assistant(
                 tool_calls=[
-                    ToolCall(tool_name="weather", arguments={"city": "Paris"}, id="tooluse_1gPhO4A1RNWgzKbt1PXWLg"),
+                    ToolCall(tool_name="weather", arguments={"city": "Paris"}, id="tooluse_1gPhO4A1RNWgzKbt1PXWLg")
                 ],
                 meta={
                     "model": "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0",
@@ -814,11 +837,11 @@ class TestAmazonBedrockChatGeneratorUtils:
                                     "so I have all the required parameters to make the function call.",
                                     "signature": "...",
                                 }
-                            },
+                            }
                         }
                     ],
                 },
-            ),
+            )
         ]
         assert replies == expected_messages
 
@@ -895,7 +918,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "completion_start_time": ANY,
                     "reasoning_contents": [{"reasoning_content": {"redacted_content": b"Some encrypted byte string"}}],
                 },
-            ),
+            )
         ]
         assert replies == expected_messages
 
@@ -974,7 +997,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "completion_start_time": ANY,
                     "reasoning_contents": [],
                 },
-            ),
+            )
         ]
         assert replies == expected_messages
 
@@ -1101,7 +1124,6 @@ class TestAmazonBedrockChatGeneratorUtils:
                 },
                 index=0,
             ),
-            # TODO Does it make sense that this chunk is present?
             StreamingChunk(
                 content="",
                 meta={
@@ -1117,12 +1139,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                 },
                 index=1,
                 tool_calls=[
-                    ToolCallDelta(
-                        index=1,
-                        id="tooluse_QZlUqTveTwyUaCQGQbWP6g",
-                        tool_name="hello_world",
-                        arguments="",
-                    )
+                    ToolCallDelta(index=1, id="tooluse_QZlUqTveTwyUaCQGQbWP6g", tool_name="hello_world", arguments="")
                 ],
             ),
             StreamingChunk(
@@ -1171,8 +1188,4 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert message._meta["model"] == "anthropic.claude-3-5-sonnet-20240620-v1:0"
         assert message._meta["index"] == 0
         assert message._meta["finish_reason"] == "tool_calls"
-        assert message._meta["usage"] == {
-            "completion_tokens": 84,
-            "prompt_tokens": 349,
-            "total_tokens": 433,
-        }
+        assert message._meta["usage"] == {"completion_tokens": 84, "prompt_tokens": 349, "total_tokens": 433}
