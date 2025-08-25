@@ -352,7 +352,6 @@ def _convert_event_to_streaming_chunk(
             streaming_chunk = StreamingChunk(
                 content="",
                 index=block_idx,
-                start=True,
                 tool_calls=[ToolCallDelta(
                     index=block_idx,
                     id=tool_start["toolUseId"],
@@ -370,8 +369,6 @@ def _convert_event_to_streaming_chunk(
             streaming_chunk = StreamingChunk(
                 content=delta["text"],
                 index=block_idx,
-                # TODO start should be True only for the first chunk of a content block delta + content block idx combo
-                start=False,
                 meta=base_meta,
             )
         # This only occurs when accumulating the arguments for a toolUse
@@ -394,8 +391,6 @@ def _convert_event_to_streaming_chunk(
             streaming_chunk = StreamingChunk(
                 content="",
                 index=block_idx,
-                # TODO start should be True only for the first chunk of a content block delta + content block idx combo
-                start=False,
                 meta={
                     **base_meta,
                     "reasoning_contents": [{"index": block_idx, "reasoning_content": reasoning_content}],
@@ -504,9 +499,14 @@ def _parse_streaming_response(
     :param component_info: ComponentInfo object
     :return: List of ChatMessage objects
     """
+    content_block_idxs = set()
     chunks: List[StreamingChunk] = []
     for event in response_stream:
         streaming_chunk = _convert_event_to_streaming_chunk(event=event, model=model, component_info=component_info)
+        content_block_idx = streaming_chunk.index
+        if content_block_idx is not None and content_block_idx not in content_block_idxs:
+            streaming_chunk.start = True
+            content_block_idxs.add(content_block_idx)
         streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
     replies = [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
@@ -528,9 +528,14 @@ async def _parse_streaming_response_async(
     :param component_info: ComponentInfo object
     :return: List of ChatMessage objects
     """
+    content_block_idxs = set()
     chunks: List[StreamingChunk] = []
     async for event in response_stream:
         streaming_chunk = _convert_event_to_streaming_chunk(event=event, model=model, component_info=component_info)
+        content_block_idx = streaming_chunk.index
+        if content_block_idx is not None and content_block_idx not in content_block_idxs:
+            streaming_chunk.start = True
+            content_block_idxs.add(content_block_idx)
         await streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
     replies = [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
