@@ -144,6 +144,49 @@ class TestAmazonBedrockChatGenerator:
         assert generator.to_dict() == expected_dict
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
+    def test_to_dict_with_prompt_router_config(self, mock_boto3_session, boto3_config):
+        """
+        Test that the to_dict method returns the correct dictionary without aws credentials
+        """
+        generator = AmazonBedrockChatGenerator(
+            generation_kwargs={"temperature": 0.7},
+            streaming_callback=print_streaming_chunk,
+            boto3_config=boto3_config,
+            prompt_router_config={
+                "promptRouterName": "test-router",
+                "models": [{"modelArn": "cohere.command-r-plus-v1:0"}],
+                "description": "Test router",
+                "routingCriteria": {"responseQualityDifference": 10.0},
+                "fallbackModel": {"modelArn": "cohere.command-r-plus-v1:0"},
+            },
+        )
+        expected_dict = {
+            "type": CLASS_TYPE,
+            "init_parameters": {
+                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                "model": None,
+                "generation_kwargs": {"temperature": 0.7},
+                "stop_words": [],
+                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
+                "boto3_config": boto3_config,
+                "tools": None,
+                "prompt_router_config": {
+                    "promptRouterName": "test-router",
+                    "models": [{"modelArn": "cohere.command-r-plus-v1:0"}],
+                    "description": "Test router",
+                    "routingCriteria": {"responseQualityDifference": 10.0},
+                    "fallbackModel": {"modelArn": "cohere.command-r-plus-v1:0"},
+                },
+            },
+        }
+
+        assert generator.to_dict() == expected_dict
+
+    @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
     def test_from_dict(self, mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]):
         """
         Test that the from_dict method returns the correct object
@@ -208,7 +251,7 @@ class TestAmazonBedrockChatGenerator:
         Test that the constructor raises an error when the model is empty and no prompt_router_config is provided
         """
         with pytest.raises(
-            ValueError, match=("'model' can be None or empty string, only if prompt_router_config is provided")
+            ValueError, match=("'model' can be None or empty string, only if 'prompt_router_config' is provided")
         ):
             AmazonBedrockChatGenerator(model="")
 
@@ -233,6 +276,16 @@ class TestAmazonBedrockChatGenerator:
         # This should also work with None
         generator = AmazonBedrockChatGenerator(model=None, prompt_router_config=prompt_router_config)
         assert generator.prompt_router_config == prompt_router_config
+
+    def test_constructor_with_model_and_prompt_router_config(self, mock_boto3_session):
+        """
+        Test that the constructor raises an error when both the model and prompt_router_config is provided
+        """
+        with pytest.raises(ValueError, match=("'model' and 'prompt_router_config' cannot be provided together")):
+            AmazonBedrockChatGenerator(
+                model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+                prompt_router_config={"promptRouterName": "test-router"},
+            )
 
     def test_serde_in_pipeline(self, mock_boto3_session, monkeypatch):
         # Set mock AWS credentials

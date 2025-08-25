@@ -204,8 +204,12 @@ class AmazonBedrockChatGenerator:
             not supported.
         """
         if not model and not prompt_router_config:
-            msg = "'model' can be None or empty string, only if prompt_router_config is provided"
+            msg = "'model' can be None or empty string, only if 'prompt_router_config' is provided."
             raise ValueError(msg)
+        if model and prompt_router_config:
+            msg = "'model' and 'prompt_router_config' cannot be provided together."
+            raise ValueError(msg)
+
         self.model = model
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
@@ -237,22 +241,22 @@ class AmazonBedrockChatGenerator:
             )
 
             self.client = session.client("bedrock-runtime", config=config)
-            self.bedrock_client = session.client("bedrock", config=config)
 
             if self.prompt_router_config:
+                bedrock_client = session.client("bedrock", config=config)
+
+                # check if prompt router already exists
                 router_name = self.prompt_router_config["promptRouterName"]
-                existing_routers = self.bedrock_client.list_prompt_routers(type="custom")["promptRouterSummaries"]
+                existing_routers = bedrock_client.list_prompt_routers(type="custom")["promptRouterSummaries"]
                 for router in existing_routers:
                     if router["promptRouterName"] == router_name:
                         logger.warning(
-                            f"Prompt router with name {router_name} already exists. Fetching existing router."
+                            f'Prompt router with name "{router_name}" already exists. Fetching existing router.'
                         )
-                        config_response = self.bedrock_client.get_prompt_router(
-                            promptRouterArn=router["promptRouterArn"]
-                        )
+                        config_response = bedrock_client.get_prompt_router(promptRouterArn=router["promptRouterArn"])
                         break
                 else:
-                    config_response = self.bedrock_client.create_prompt_router(**self.prompt_router_config)
+                    config_response = bedrock_client.create_prompt_router(**self.prompt_router_config)
 
                 self.model = config_response["promptRouterArn"]
 
@@ -317,7 +321,8 @@ class AmazonBedrockChatGenerator:
             aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
             aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
             aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
-            model=self.model,
+            # model is router ARN if prompt router is provided
+            model=self.model if not self.prompt_router_config else None,
             stop_words=self.stop_words,
             generation_kwargs=self.generation_kwargs,
             streaming_callback=callback_name,
