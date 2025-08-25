@@ -37,6 +37,7 @@ FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
     "tool_use": "tool_calls",
 }
 
+
 # Haystack to Bedrock util methods
 def _format_tools(tools: Optional[List[Tool]] = None) -> Optional[Dict[str, Any]]:
     """
@@ -352,11 +353,13 @@ def _convert_event_to_streaming_chunk(
             streaming_chunk = StreamingChunk(
                 content="",
                 index=block_idx,
-                tool_calls=[ToolCallDelta(
-                    index=block_idx,
-                    id=tool_start["toolUseId"],
-                    tool_name=tool_start["name"],
-                )],
+                tool_calls=[
+                    ToolCallDelta(
+                        index=block_idx,
+                        id=tool_start["toolUseId"],
+                        tool_name=tool_start["name"],
+                    )
+                ],
                 meta=base_meta,
             )
 
@@ -377,10 +380,12 @@ def _convert_event_to_streaming_chunk(
             streaming_chunk = StreamingChunk(
                 content="",
                 index=block_idx,
-                tool_calls=[ToolCallDelta(
-                    index=block_idx,
-                    arguments=delta["toolUse"].get("input", ""),
-                )],
+                tool_calls=[
+                    ToolCallDelta(
+                        index=block_idx,
+                        arguments=delta["toolUse"].get("input", ""),
+                    )
+                ],
                 meta=base_meta,
             )
         # This is for accumulating reasoning content deltas
