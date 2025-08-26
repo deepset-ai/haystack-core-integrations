@@ -6,6 +6,7 @@ from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, StreamingChunk, ToolCall
 from haystack.tools import Tool
+from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 
@@ -137,14 +138,14 @@ class TestAmazonBedrockChatGenerator:
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "boto3_config": boto3_config,
                 "tools": None,
-                "prompt_router_config": None,
+                "prompt_router_arn": None,
             },
         }
 
         assert generator.to_dict() == expected_dict
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
-    def test_to_dict_with_prompt_router_config(self, mock_boto3_session, boto3_config):
+    def test_to_dict_with_prompt_router_arn(self, mock_boto3_session, boto3_config):
         """
         Test that the to_dict method returns the correct dictionary without aws credentials
         """
@@ -152,14 +153,9 @@ class TestAmazonBedrockChatGenerator:
             generation_kwargs={"temperature": 0.7},
             streaming_callback=print_streaming_chunk,
             boto3_config=boto3_config,
-            prompt_router_config={
-                "promptRouterName": "test-router",
-                "models": [{"modelArn": "cohere.command-r-plus-v1:0"}],
-                "description": "Test router",
-                "routingCriteria": {"responseQualityDifference": 10.0},
-                "fallbackModel": {"modelArn": "cohere.command-r-plus-v1:0"},
-            },
+            prompt_router_arn=Secret.from_env_var("AWS_PROMPT_ROUTER_ARN"),
         )
+
         expected_dict = {
             "type": CLASS_TYPE,
             "init_parameters": {
@@ -174,13 +170,7 @@ class TestAmazonBedrockChatGenerator:
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "boto3_config": boto3_config,
                 "tools": None,
-                "prompt_router_config": {
-                    "promptRouterName": "test-router",
-                    "models": [{"modelArn": "cohere.command-r-plus-v1:0"}],
-                    "description": "Test router",
-                    "routingCriteria": {"responseQualityDifference": 10.0},
-                    "fallbackModel": {"modelArn": "cohere.command-r-plus-v1:0"},
-                },
+                "prompt_router_arn": {"type": "env_var", "env_vars": ["AWS_PROMPT_ROUTER_ARN"], "strict": True},
             },
         }
 
@@ -209,7 +199,7 @@ class TestAmazonBedrockChatGenerator:
                     "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                     "boto3_config": boto3_config,
                     "tools": None,
-                    "prompt_router_config": None,
+                    "prompt_router_arn": None,
                 },
             }
         )
@@ -248,43 +238,35 @@ class TestAmazonBedrockChatGenerator:
 
     def test_constructor_with_empty_model(self):
         """
-        Test that the constructor raises an error when the model is empty and no prompt_router_config is provided
+        Test that the constructor raises an error when the model is empty and no prompt_router_arn is provided
         """
         with pytest.raises(
-            ValueError, match=("'model' can be None or empty string, only if 'prompt_router_config' is provided")
+            ValueError, match=("'model' can be None or an empty string only if 'prompt_router_arn' is provided.")
         ):
             AmazonBedrockChatGenerator(model="")
 
-    def test_constructor_with_empty_model_and_prompt_router_config(self, mock_boto3_session):
+    def test_constructor_with_empty_model_and_prompt_router_arn(self, mock_boto3_session):
         """
-        Test that the constructor accepts empty model when prompt_router_config is provided
+        Test that the constructor accepts empty model when prompt_router_arn is provided
         """
-        prompt_router_config = {
-            "promptRouterName": "test-router",
-            "models": [{"modelArn": "arn:aws:bedrock:us-east-1:123456789012:foundation-model/anthropic.claude-v2"}],
-            "description": "Test router",
-            "routingCriteria": {"responseQualityDifference": 10.0},
-            "fallbackModel": {
-                "modelArn": "arn:aws:bedrock:us-east-1:123456789012:foundation-model/anthropic.claude-v2"
-            },
-        }
+        prompt_router_arn = Secret.from_token("arn:aws:bedrock:us-east-1:123456789012:prompt-router/test-router")
 
         # This should not raise an error
-        generator = AmazonBedrockChatGenerator(model="", prompt_router_config=prompt_router_config)
-        assert generator.prompt_router_config == prompt_router_config
+        generator = AmazonBedrockChatGenerator(model="", prompt_router_arn=prompt_router_arn)
+        assert generator.prompt_router_arn == prompt_router_arn
 
         # This should also work with None
-        generator = AmazonBedrockChatGenerator(model=None, prompt_router_config=prompt_router_config)
-        assert generator.prompt_router_config == prompt_router_config
+        generator = AmazonBedrockChatGenerator(model=None, prompt_router_arn=prompt_router_arn)
+        assert generator.prompt_router_arn == prompt_router_arn
 
-    def test_constructor_with_model_and_prompt_router_config(self, mock_boto3_session):
+    def test_constructor_with_model_and_prompt_router_arn(self, mock_boto3_session):
         """
-        Test that the constructor raises an error when both the model and prompt_router_config is provided
+        Test that the constructor raises an error when both the model and prompt_router_arn is provided
         """
-        with pytest.raises(ValueError, match=("'model' and 'prompt_router_config' cannot be provided together")):
+        with pytest.raises(ValueError, match=("'model' and 'prompt_router_arn' cannot be provided together")):
             AmazonBedrockChatGenerator(
                 model="anthropic.claude-3-5-sonnet-20240620-v1:0",
-                prompt_router_config={"promptRouterName": "test-router"},
+                prompt_router_arn=Secret.from_token("arn:aws:bedrock:us-east-1:123456789012:prompt-router/test-router"),
             )
 
     def test_serde_in_pipeline(self, mock_boto3_session, monkeypatch):
@@ -349,7 +331,7 @@ class TestAmazonBedrockChatGenerator:
                                 },
                             }
                         ],
-                        "prompt_router_config": None,
+                        "prompt_router_arn": None,
                     },
                 }
             },

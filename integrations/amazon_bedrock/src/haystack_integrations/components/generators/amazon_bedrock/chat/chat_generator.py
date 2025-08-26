@@ -40,8 +40,10 @@ class AmazonBedrockChatGenerator:
     For example, to use the Anthropic Claude 3 Sonnet model, initialize this component with the
     'anthropic.claude-3-5-sonnet-20240620-v1:0' model name.
 
-    Alternatively, you can use prompt routing by providing a prompt_router_config instead of a model.
-    When using prompt routing, the model parameter can be None or empty.
+    Alternatively, you can use prompt routing by providing a prompt_router_arn instead of a model.
+    When using prompt routing, the model parameter must be None or an empty string.
+    You can find the ARN of a prompt router in the AWS console.
+    For more information on prompt routing, see the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-routing.html).
 
     ### Usage example
 
@@ -161,7 +163,7 @@ class AmazonBedrockChatGenerator:
         streaming_callback: Optional[StreamingCallbackT] = None,
         boto3_config: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
-        prompt_router_config: Optional[Dict[str, Any]] = None,
+        prompt_router_arn: Optional[Secret] = None,
     ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
@@ -175,7 +177,7 @@ class AmazonBedrockChatGenerator:
 
         :param model: The model to use for text generation. The model must be available in Amazon Bedrock and must
             be specified in the format outlined in the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html).
-            Must be None if `prompt_router_config` is provided.
+            If you want to use prompt routing, set this parameter to None or an empty string.
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
         :param aws_session_token: AWS session token.
@@ -195,22 +197,20 @@ class AmazonBedrockChatGenerator:
             the streaming mode on.
         :param boto3_config: The configuration for the boto3 client.
         :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
-        :param prompt_router_config: Dictionary containing the configuration parameters for
-            creating a Bedrock prompt router.
-        For details on how to configure the prompt router, see the
-        [bedrock documentation](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock/client/create_prompt_router.html).
-        Must be None if `model` is provided.
-        :raises ValueError: If the both `model` and `prompt_router_config` are provided or if both are None.
+        :param prompt_router_arn: The ARN of a Bedrock prompt router.
+            You can find the ARN of a prompt router in the AWS console.
+            For more information on prompt routing, see the
+            [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-routing.html).
+        :raises ValueError: If both the `model` and `prompt_router_arn` are provided or if both are None.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
             not supported.
         """
-        if not model and not prompt_router_config:
-            msg = "'model' can be None or empty string, only if 'prompt_router_config' is provided."
+        if not model and not prompt_router_arn:
+            msg = "'model' can be None or an empty string only if 'prompt_router_arn' is provided."
             raise ValueError(msg)
-        if model and prompt_router_config:
-            msg = "'model' and 'prompt_router_config' cannot be provided together."
+        if model and prompt_router_arn:
+            msg = "'model' and 'prompt_router_arn' cannot be provided together."
             raise ValueError(msg)
-
         self.model = model
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
@@ -222,7 +222,7 @@ class AmazonBedrockChatGenerator:
         self.boto3_config = boto3_config
         _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
         self.tools = tools
-        self.prompt_router_config = prompt_router_config
+        self.prompt_router_arn = prompt_router_arn
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
@@ -242,24 +242,13 @@ class AmazonBedrockChatGenerator:
             )
 
             self.client = session.client("bedrock-runtime", config=config)
-
-            if self.prompt_router_config:
+            if self.prompt_router_arn:
+                prompt_router_arn = self.prompt_router_arn.resolve_value()
                 bedrock_client = session.client("bedrock", config=config)
-
-                # check if prompt router already exists
-                router_name = self.prompt_router_config["promptRouterName"]
-                existing_routers = bedrock_client.list_prompt_routers(type="custom")["promptRouterSummaries"]
-                for router in existing_routers:
-                    if router["promptRouterName"] == router_name:
-                        logger.warning(
-                            f'Prompt router with name "{router_name}" already exists. Fetching existing router.'
-                        )
-                        config_response = bedrock_client.get_prompt_router(promptRouterArn=router["promptRouterArn"])
-                        break
-                else:
-                    config_response = bedrock_client.create_prompt_router(**self.prompt_router_config)
-
-                self.model = config_response["promptRouterArn"]
+                prompt_router = bedrock_client.get_prompt_router(
+                    promptRouterArn=prompt_router_arn,
+                )
+                self.model = prompt_router["promptRouterArn"]
 
         except Exception as exception:
             msg = (
@@ -322,14 +311,13 @@ class AmazonBedrockChatGenerator:
             aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
             aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
             aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
-            # model is router ARN if prompt router is provided
-            model=self.model if not self.prompt_router_config else None,
+            model=self.model if self.prompt_router_arn is None else None,
             stop_words=self.stop_words,
             generation_kwargs=self.generation_kwargs,
             streaming_callback=callback_name,
             boto3_config=self.boto3_config,
             tools=serialize_tools_or_toolset(self.tools),
-            prompt_router_config=self.prompt_router_config,
+            prompt_router_arn=self.prompt_router_arn.to_dict() if self.prompt_router_arn else None,
         )
 
     @classmethod

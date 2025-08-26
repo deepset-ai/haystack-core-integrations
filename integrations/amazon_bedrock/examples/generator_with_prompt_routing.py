@@ -2,32 +2,17 @@
 # 1) set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_DEFAULT_REGION` environment variables
 # 2) enable access to the selected models for prompt routing in Amazon Bedrock
 
-# To see how to setup prompt router, you can refer to
-# https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock/client/create_prompt_router.html
+# You can find the ARN of a prompt router in the AWS console.
+# For more information on prompt routing, see the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-routing.html).
 
 from haystack.dataclasses import ChatMessage
+from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 
-# You can use either foundation-model ARNs OR inference-profile ARNs.
-NOVA_PRO = "nove_pro_model_arn"
-NOVA_LITE = "nova_lite_model_arn"
-
-ROUTER_NAME = "custom_nova_router"
-
-RESPONSE_QUALITY_DIFF = 10.0  # interpreted as a quality delta threshold
-PromptRouterConfig = {
-    "promptRouterName": ROUTER_NAME,
-    "models": [{"modelArn": NOVA_PRO}, {"modelArn": NOVA_LITE}],
-    "description": "Demo prompt router that picks between Nova Pro and Nova Lite.",
-    "routingCriteria": {"responseQualityDifference": RESPONSE_QUALITY_DIFF},
-    "fallbackModel": {"modelArn": NOVA_LITE},
-    "tags": [{"key": "env", "value": "demo"}],
-}
-
 # we can skip the model parameter because we are using prompt routing
 generator = AmazonBedrockChatGenerator(
-    prompt_router_config=PromptRouterConfig,
+    prompt_router_arn=Secret.from_env_var("AWS_PROMPT_ROUTER_ARN"),
 )
 
 system_prompt = """
