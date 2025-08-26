@@ -292,6 +292,11 @@ class WatsonxChatGenerator:
                 logger.debug("Skipping tool message - tool calls are not currently supported")
                 continue
 
+            # Check that images are only in user messages
+            if msg.images and not msg.is_from(ChatRole.USER):
+                error_msg = "Image content is only supported for user messages"
+                raise ValueError(error_msg)
+
             # Handle multimodal content (text + images) preserving order
             if msg.images:
                 # Pre-validate all images first (following LlamaCpp pattern)
@@ -304,16 +309,13 @@ class WatsonxChatGenerator:
                         )
                         raise ValueError(msg_error)
 
-                if not msg.is_from(ChatRole.USER):
-                    msg_error = "Image content is only supported for user messages"
-                    raise ValueError(msg_error)
-
                 content_parts: list[dict[str, Any]] = []
                 for part in msg._content:
                     if isinstance(part, TextContent) and part.text:
                         content_parts.append({"type": "text", "text": part.text})
                     elif isinstance(part, ImageContent):
                         # WatsonX expects base64 data URI format
+                        # See: https://dataplatform.cloud.ibm.com/docs/content/wsj/analyze-data/fm-api-chat.html?context=wx
                         image_url = f"data:{part.mime_type};base64,{part.base64_image}"
                         content_parts.append({"type": "image_url", "image_url": {"url": image_url}})
 
