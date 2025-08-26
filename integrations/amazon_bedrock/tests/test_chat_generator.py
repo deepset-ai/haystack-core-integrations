@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, Optional
 
 import pytest
@@ -878,6 +879,7 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
 
+    @pytest.mark.skipif(not os.getenv("AWS_PROMPT_ROUTER_ARN"), reason="AWS_PROMPT_ROUTER_ARN is not set")
     def test_live_run_with_prompt_router_arn(self):
         """
         Integration test that the AmazonBedrockChatGenerator component can run with a prompt router ARN
