@@ -40,8 +40,8 @@ class AmazonBedrockChatGenerator:
     For example, to use the Anthropic Claude 3 Sonnet model, initialize this component with the
     'anthropic.claude-3-5-sonnet-20240620-v1:0' model name.
 
-    Alternatively, you can use prompt routing by providing a prompt_router_arn instead of a model.
-    When using prompt routing, the model parameter must be None or an empty string.
+    Alternatively, you can use prompt routing by providing a `prompt_router_arn` instead of a `model`.
+    When using prompt routing, the `model` parameter must be None or an empty string.
     You can find the ARN of a prompt router in the AWS console.
     For more information on prompt routing, see the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-routing.html).
 
