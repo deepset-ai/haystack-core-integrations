@@ -243,17 +243,11 @@ class AmazonBedrockChatGenerator:
             )
 
             self.client = session.client("bedrock-runtime", config=config)
-            if self.prompt_router_arn:
-                try:
-                    prompt_router_arn = self.prompt_router_arn.resolve_value()
-                except Exception as exception:
-                    msg = (
-                        "Could not resolve the prompt router ARN. Make sure the AWS environment is configured correctly. "
-                    )
-                    raise AmazonBedrockConfigurationError(msg) from exception
+            if self.prompt_router_arn is not None:
+                resolved_router_arn = resolve_secret(self.prompt_router_arn)
                 bedrock_client = session.client("bedrock", config=config)
                 prompt_router = bedrock_client.get_prompt_router(
-                    promptRouterArn=prompt_router_arn,
+                    promptRouterArn=resolved_router_arn,
                 )
                 self.model = prompt_router["promptRouterArn"]
 

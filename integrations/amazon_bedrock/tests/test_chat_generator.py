@@ -877,3 +877,14 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
+
+    def test_live_run_with_prompt_router_arn(self):
+        """
+        Integration test that the AmazonBedrockChatGenerator component can run with a prompt router ARN
+        """
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
+        component = AmazonBedrockChatGenerator(prompt_router_arn=Secret.from_env_var("AWS_PROMPT_ROUTER_ARN"))
+        results = component.run(messages=initial_messages)
+        assert results["replies"][0].text is not None
+        assert "paris" in results["replies"][0].text.lower()
+        assert "berlin" in results["replies"][0].text.lower()
