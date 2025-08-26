@@ -66,7 +66,6 @@ class S3Downloader:
         aws_session_token: Optional[Secret] = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
         aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
-        verify_ssl: bool = True,
         boto3_config: Optional[Dict[str, Any]] = None,
         download_dir: Optional[str] = None,
         file_extensions: Optional[List[str]] = None,
@@ -83,7 +82,6 @@ class S3Downloader:
         :param aws_session_token: AWS session token.
         :param aws_region_name: AWS region name.
         :param aws_profile_name: AWS profile name.
-        :param verify_ssl: Whether to verify SSL.
         :param boto3_config: The configuration for the boto3 client.
         :param download_dir: The directory where the files will be downloaded.
         :param file_extensions: The file extensions that are permitted to be downloaded.
@@ -100,7 +98,6 @@ class S3Downloader:
         self.aws_region_name = aws_region_name
         self.aws_session_token = aws_session_token
         self.aws_profile_name = aws_profile_name
-        self.verify_ssl = verify_ssl
         self.boto3_config = boto3_config
         self.file_extensions = [e.lower() for e in file_extensions] if file_extensions else None
         self.sources_target_type = sources_target_type
@@ -361,7 +358,6 @@ class S3Downloader:
             aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
             aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
             aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
-            verify_ssl=self.verify_ssl,
             download_dir=str(self.download_dir),
             max_workers=self.max_workers,
             max_cache_size=self.max_cache_size,

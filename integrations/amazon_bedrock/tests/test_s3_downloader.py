@@ -35,12 +35,10 @@ class TestS3Downloader:
             aws_session_token=Secret.from_token("t"),
             aws_region_name=Secret.from_token("eu-central-1"),
             aws_profile_name=Secret.from_token("prof"),
-            verify_ssl=False,
             download_dir=str(tmp_path),
             file_extensions=[".pdf", ".txt"],
             sources_target_type="haystack.dataclasses.ByteStream",
         )
-        assert d.verify_ssl is False
         assert d.file_extensions == [".pdf", ".txt"]
         assert d.sources_target_type == "haystack.dataclasses.ByteStream"
 
@@ -55,7 +53,6 @@ class TestS3Downloader:
                 "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
                 "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
                 "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
-                "verify_ssl": True,
                 "download_dir": str(tmp_path),
                 "file_extensions": None,
                 "max_cache_size": 100,
@@ -75,12 +72,10 @@ class TestS3Downloader:
                 "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
                 "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
                 "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
-                "verify_ssl": False,
                 "download_dir": str(tmp_path),
             },
         }
         d = S3Downloader.from_dict(data)
-        assert d.verify_ssl is False
         assert Path(d.download_dir) == tmp_path
 
     def test_parse_s3_url_valid(self):
