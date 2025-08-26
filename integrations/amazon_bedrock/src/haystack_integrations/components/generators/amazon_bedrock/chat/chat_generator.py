@@ -163,6 +163,7 @@ class AmazonBedrockChatGenerator:
         streaming_callback: Optional[StreamingCallbackT] = None,
         boto3_config: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
+        *,
         prompt_router_arn: Optional[Secret] = None,
     ) -> None:
         """
@@ -243,7 +244,13 @@ class AmazonBedrockChatGenerator:
 
             self.client = session.client("bedrock-runtime", config=config)
             if self.prompt_router_arn:
-                prompt_router_arn = self.prompt_router_arn.resolve_value()
+                try:
+                    prompt_router_arn = self.prompt_router_arn.resolve_value()
+                except Exception as exception:
+                    msg = (
+                        "Could not resolve the prompt router ARN. Make sure the AWS environment is configured correctly. "
+                    )
+                    raise AmazonBedrockConfigurationError(msg) from exception
                 bedrock_client = session.client("bedrock", config=config)
                 prompt_router = bedrock_client.get_prompt_router(
                     promptRouterArn=prompt_router_arn,
