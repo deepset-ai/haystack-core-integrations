@@ -145,7 +145,7 @@ class TestAmazonBedrockChatGenerator:
         assert generator.to_dict() == expected_dict
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
-    def test_to_dict_with_prompt_router_arn(self, mock_boto3_session, boto3_config):
+    def test_to_dict_with_prompt_router_arn(self, mock_boto3_session, boto3_config, set_env_variables):
         """
         Test that the to_dict method returns the correct dictionary without aws credentials
         """

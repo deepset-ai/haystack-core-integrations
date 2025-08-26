@@ -12,7 +12,7 @@ from haystack_integrations.components.generators.amazon_bedrock import AmazonBed
 
 # we can skip the model parameter because we are using prompt routing
 generator = AmazonBedrockChatGenerator(
-    prompt_router_arn=Secret.from_env_var("AWS_PROMPT_ROUTER_ARN"),
+    prompt_router_arn=Secret.from_token("your-prompt-router-arn"),
 )
 
 system_prompt = """

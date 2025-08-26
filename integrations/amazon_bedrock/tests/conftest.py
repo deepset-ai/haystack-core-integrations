@@ -11,6 +11,7 @@ def set_env_variables(monkeypatch):
     monkeypatch.setenv("AWS_SESSION_TOKEN", "some_fake_token")
     monkeypatch.setenv("AWS_DEFAULT_REGION", "fake_region")
     monkeypatch.setenv("AWS_PROFILE", "some_fake_profile")
+    monkeypatch.setenv("AWS_PROMPT_ROUTER_ARN", "arn:aws:bedrock:us-east-1:123456789012:prompt-router/test-router")
 
 
 # create a fixture with mocked boto3 client and session
