@@ -1045,3 +1045,97 @@ class TestAsyncGoogleGenAIChatGenerator:
             assert result["replies"][0].text
             assert result["replies"][0].meta["model"]
             assert result["replies"][0].meta["finish_reason"] == "stop"
+
+
+def test_aggregate_streaming_chunks_with_reasoning(monkeypatch):
+    """Test the _aggregate_streaming_chunks_with_reasoning method for reasoning content aggregation."""
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    component = GoogleGenAIChatGenerator()
+    component_info = ComponentInfo.from_component(component)
+
+    # Create mock streaming chunks with reasoning content
+    chunk1 = Mock()
+    chunk1.content = "Hello"
+    chunk1.tool_calls = []
+    chunk1.meta = {"usage": {"prompt_tokens": 10, "completion_tokens": 5}}
+    chunk1.component_info = component_info
+
+    chunk2 = Mock()
+    chunk2.content = " world"
+    chunk2.tool_calls = []
+    chunk2.meta = {"usage": {"prompt_tokens": 10, "completion_tokens": 8}}
+    chunk2.component_info = component_info
+
+    # Mock the reasoning content that would be extracted
+    mock_reasoning = Mock()
+    mock_reasoning.reasoning_text = "I should greet the user politely"
+    mock_reasoning.reasoning_type = "REASONING_TYPE_UNSPECIFIED"
+
+    # Mock the final chunk with reasoning
+    final_chunk = Mock()
+    final_chunk.content = ""
+    final_chunk.tool_calls = []
+    final_chunk.meta = {
+        "usage": {"prompt_tokens": 10, "completion_tokens": 13, "thoughts_token_count": 5},
+        "model": "gemini-2.5-pro",
+    }
+    final_chunk.component_info = component_info
+
+    # Add reasoning deltas to the final chunk meta (this is how the real method works)
+    final_chunk.meta["reasoning_deltas"] = [{"type": "reasoning", "content": "I should greet the user politely"}]
+
+    # Test aggregation
+    result = component._aggregate_streaming_chunks_with_reasoning([chunk1, chunk2, final_chunk])
+
+    # Verify the aggregated message
+    assert result.text == "Hello world"
+    assert result.tool_calls == []
+    assert result.reasoning is not None
+    assert result.reasoning.reasoning_text == "I should greet the user politely"
+    assert result.meta["usage"]["prompt_tokens"] == 10
+    assert result.meta["usage"]["completion_tokens"] == 13
+    assert result.meta["usage"]["thoughts_token_count"] == 5
+    assert result.meta["model"] == "gemini-2.5-pro"
+
+
+def test_process_thinking_config(monkeypatch):
+    """Test the _process_thinking_config method with different thinking_budget values."""
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    component = GoogleGenAIChatGenerator()
+
+    # Test valid thinking_budget values
+    generation_kwargs = {"thinking_budget": 1024, "temperature": 0.7}
+    result = component._process_thinking_config(generation_kwargs.copy())
+
+    # thinking_budget should be moved to thinking_config
+    assert "thinking_budget" not in result
+    assert "thinking_config" in result
+    assert result["thinking_config"].thinking_budget == 1024
+    # Other kwargs should be preserved
+    assert result["temperature"] == 0.7
+
+    # Test dynamic allocation (-1)
+    generation_kwargs = {"thinking_budget": -1}
+    result = component._process_thinking_config(generation_kwargs.copy())
+    assert result["thinking_config"].thinking_budget == -1
+
+    # Test zero (disable thinking)
+    generation_kwargs = {"thinking_budget": 0}
+    result = component._process_thinking_config(generation_kwargs.copy())
+    assert result["thinking_config"].thinking_budget == 0
+
+    # Test large value
+    generation_kwargs = {"thinking_budget": 24576}
+    result = component._process_thinking_config(generation_kwargs.copy())
+    assert result["thinking_config"].thinking_budget == 24576
+
+    # Test when thinking_budget is not present
+    generation_kwargs = {"temperature": 0.5}
+    result = component._process_thinking_config(generation_kwargs.copy())
+    assert result == generation_kwargs  # No changes
+
+    # Test invalid type (should fall back to dynamic)
+    generation_kwargs = {"thinking_budget": "invalid", "temperature": 0.5}
+    result = component._process_thinking_config(generation_kwargs.copy())
+    assert result["thinking_config"].thinking_budget == -1  # Dynamic allocation
+    assert result["temperature"] == 0.5
