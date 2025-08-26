@@ -50,8 +50,6 @@ FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
     "IMAGE_SAFETY": "content_filter",
 }
 
-# Maximum thinking budget for Gemini 2.5 Flash models
-MAX_THINKING_BUDGET = 24576
 
 logger = logging.getLogger(__name__)
 
@@ -184,13 +182,10 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
                 )
             )
         elif isinstance(content_part, ReasoningContent):
-            # For assistant messages, check if they contain reasoning content that should be included
-            if message.is_from(ChatRole.ASSISTANT):
-                # Include thought content as a separate part to maintain context
-                thought_text = content_part.reasoning_text
-                if thought_text:
-                    # Create a thought part - this maintains the thought context
-                    parts.append(types.Part(text=thought_text, thought=True))
+            # Reasoning content is for human transparency only, not for maintaining LLM context
+            # Thought signatures (stored in message.meta) handle context preservation
+            # Leave this here so we don't implement reasoning content handling in the future accidentally
+            pass
 
     # Determine role
     if message.is_from(ChatRole.USER) or message.tool_call_results:
@@ -354,52 +349,26 @@ class GoogleGenAIChatGenerator:
     """
     A component for generating chat completions using Google's Gemini models via the Google Gen AI SDK.
 
-    This component provides an interface to Google's Gemini models through the new google-genai SDK,
-    supporting models like gemini-2.0-flash and other Gemini variants.
+    Supports models like gemini-2.0-flash and other Gemini variants. For Gemini 2.5 series models,
+    enables thinking features via `generation_kwargs={"thinking_budget": value}`.
 
     ### Thinking Support (Gemini 2.5 Series)
-
-    For Gemini 2.5 series models, this component supports the "thinking" feature which provides:
     - **Reasoning transparency**: Models can show their reasoning process
     - **Thought signatures**: Maintains thought context across multi-turn conversations with tools
     - **Configurable thinking budgets**: Control token allocation for reasoning
 
-    Configure thinking behavior via `generation_kwargs={"thinking_budget": value}`:
+    Configure thinking behavior:
     - `thinking_budget: -1`: Dynamic allocation (default)
     - `thinking_budget: 0`: Disable thinking (Flash/Flash-Lite only)
     - `thinking_budget: N`: Set explicit token budget
 
-    When thinking is enabled, reasoning content is available in the response:
-    - **Non-streaming**: `response["replies"][0].reasonings` returns list of ReasoningContent objects
-    - **Streaming**: Final ChatMessage contains aggregated reasoning in `reasonings` property
-    - **Usage tracking**: Thinking tokens are tracked in `meta["usage"]["thoughts_token_count"]`
-
     ### Multi-Turn Thinking with Thought Signatures
+    Gemini uses **thought signatures** when tools are present - encrypted "save states" that maintain
+    context across turns. Include previous assistant responses in chat history for context preservation.
 
-    While the model can output its reasoning text (the "thinking trace"), this trace is a human-readable summary.
-    Forcing the model to re-read its own thoughts on every turn is inefficient and can lead to context loss.
-
-    To solve this, Gemini uses **thought signatures** when tools are present. A thought signature is a compact,
-    encrypted, machine-readable "save state" of the model's internal reasoning process. Sending this signature
-    back allows the model to instantly and perfectly restore its mental state, ensuring true context preservation
-    across complex, multi-step tool calls.
-
-    GoogleGenAIChatGenerator handles both automatically:
-    - **Reasoning Text (`ReasoningContent`)**: Extracted for your transparency and debugging. This is the human-readable
-      audit log of the model's thought process.
-    - **Thought Signatures (`meta["thought_signatures"]`)**: Extracted and stored in the `ChatMessage`'s metadata.
-      This is the machine-readable state file for the model's benefit.
-
-    By simply including the previous assistant response in your chat history, you get a system that is both
-    transparent to humans and perfectly stateful for LLMs.
-
-    Accessing reasoning content:
-    ```python
-    message = response["replies"][0]
-    if message.reasonings:
-        for reasoning in message.reasonings:
-            print("Reasoning:", reasoning.reasoning_text)
-    ```
+    ### Authentication
+    **Gemini Developer API**: Set `GOOGLE_API_KEY` or `GEMINI_API_KEY` environment variable
+    **Vertex AI**: Use `api="vertex"` with Application Default Credentials or API key
 
     ### Authentication Examples
 
@@ -409,6 +378,7 @@ class GoogleGenAIChatGenerator:
 
     # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
     chat_generator = GoogleGenAIChatGenerator(model="gemini-2.0-flash")
+    ```
 
     **2. Vertex AI (Application Default Credentials)**
     ```python
@@ -803,57 +773,6 @@ class GoogleGenAIChatGenerator:
             msg = f"Error in async streaming response: {e}"
             raise RuntimeError(msg) from e
 
-    def _get_thinking_model_family(self) -> Optional[str]:
-        """
-        Identifies the family of the thinking model to apply specific validation rules.
-
-        :returns: "pro", "flash", or None if not a known thinking model.
-        """
-        model_lower = self._model.lower()
-        # Pro models have different rules (e.g., thinking cannot be disabled), so we check for them first.
-        if "gemini-2.5-pro" in model_lower or "gemini-2.0-pro" in model_lower:
-            return "pro"
-        # Flash and Flash-Lite models share the same validation rules.
-        if "gemini-2.5-flash" in model_lower or "gemini-2.0-flash" in model_lower:
-            return "flash"
-        return None
-
-    def _validate_thinking_budget(self, thinking_budget: int) -> int:
-        """
-        Validate thinking budget value based on model capabilities.
-
-        The validation logic is based on the official Google Gemini API documentation:
-        https://ai.google.dev/gemini-api/docs/thinking
-
-        :param thinking_budget: The thinking budget value to validate.
-        :returns: Validated thinking budget value.
-        """
-        model_family = self._get_thinking_model_family()
-
-        if model_family is None:
-            msg = f"Model {self._model} may not support thinking features. Proceeding anyway."
-            logger.warning(msg)
-            return thinking_budget
-
-        # Model-specific validation based on the identified family
-        if model_family == "pro":
-            # Pro models cannot disable thinking.
-            if thinking_budget == 0:
-                logger.warning("Gemini Pro models cannot disable thinking. Using dynamic allocation (-1) instead.")
-                return -1
-        elif model_family == "flash":
-            # Flash models support 0 (disable), -1 (dynamic), and positive values up to a limit.
-            if thinking_budget < -1:
-                msg = f"Invalid negative thinking_budget: {thinking_budget}. Using dynamic allocation (-1)."
-                logger.warning(msg)
-                return -1
-            if thinking_budget > MAX_THINKING_BUDGET:
-                msg = f"Thinking budget {thinking_budget} exceeds maximum ({MAX_THINKING_BUDGET}). Using maximum value."
-                logger.warning(msg)
-                return MAX_THINKING_BUDGET
-
-        return thinking_budget
-
     def _process_thinking_config(self, generation_kwargs: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process thinking configuration from generation_kwargs.
@@ -864,28 +783,16 @@ class GoogleGenAIChatGenerator:
         if "thinking_budget" in generation_kwargs:
             thinking_budget = generation_kwargs.pop("thinking_budget")
 
-            # Validate thinking budget value
+            # Basic type validation
             if not isinstance(thinking_budget, int):
                 logger.warning(
                     f"Invalid thinking_budget type: {type(thinking_budget)}. Expected int, using dynamic allocation."
                 )
                 thinking_budget = -1
 
-            # Validate and adjust thinking budget based on model capabilities
-            thinking_budget = self._validate_thinking_budget(thinking_budget)
-
             # Create thinking config
             thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget, include_thoughts=True)
-
             generation_kwargs["thinking_config"] = thinking_config
-
-            # Log thinking configuration
-            if thinking_budget == -1:
-                logger.info("Thinking enabled with dynamic budget allocation")
-            elif thinking_budget == 0:
-                logger.info("Thinking disabled (budget set to 0)")
-            else:
-                logger.info(f"Thinking enabled with {thinking_budget} token budget")
 
         return generation_kwargs
 
@@ -1012,6 +919,7 @@ class GoogleGenAIChatGenerator:
         :param messages: A list of ChatMessage instances representing the input messages.
         :param generation_kwargs: Configuration for generation. If provided, it will override
         the default config. Supports `thinking_budget` for Gemini 2.5 series thinking configuration.
+        See https://ai.google.dev/gemini-api/docs/thinking for possible values.
         :param safety_settings: Safety settings for content filtering. If provided, it will override the
         default settings.
         :param streaming_callback: A callback function that is called when a new token is
