@@ -66,9 +66,8 @@ class TestStreamingChunkConversion:
         mock_part = Mock()
         mock_part.text = "Hello, world!"
         mock_part.function_call = None
-        # To make the mock more realistic, we ensure the thought attribute does not exist.
-        if hasattr(mock_part, "thought"):
-            del mock_part.thought
+        # Explicitly set thought=False to simulate a regular (non-thought) part
+        mock_part.thought = False
         mock_content.parts.append(mock_part)
         mock_candidate.content = mock_content
 
@@ -138,6 +137,8 @@ class TestStreamingChunkConversion:
         mock_text_part = Mock()
         mock_text_part.text = "I'll check the weather for you."
         mock_text_part.function_call = None
+        # Explicitly set thought=False to simulate a regular (non-thought) part
+        mock_text_part.thought = False
         mock_content.parts.append(mock_text_part)
 
         mock_tool_part = Mock()
