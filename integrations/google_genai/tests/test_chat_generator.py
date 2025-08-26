@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import asyncio
+import base64
 import os
 from unittest.mock import Mock
 
@@ -588,6 +589,70 @@ class TestGoogleGenAIChatGenerator:
         assert hasattr(google_content.parts[0], "inline_data")
         assert google_content.parts[0].inline_data.mime_type == "image/jpeg"
         assert google_content.parts[0].inline_data.data is not None
+
+    def test_convert_message_to_google_genai_format_with_thought_signatures(self):
+        """Test converting an assistant message with thought signatures for multi-turn context preservation."""
+
+        # Create an assistant message with tool calls and thought signatures in meta
+        tool_call = ToolCall(id="call_123", tool_name="weather", arguments={"city": "Paris"})
+
+        # Thought signatures are stored in meta when thinking is enabled with tools
+        # They must be base64 encoded as per the API requirements
+        thought_signatures = [
+            {
+                "part_index": 0,
+                "signature": base64.b64encode(b"encrypted_mock_thought_signature_1").decode("utf-8"),
+                "has_text": True,
+                "has_function_call": False,
+                "is_thought": False,
+            },
+            {
+                "part_index": 1,
+                "signature": base64.b64encode(b"encrypted_mock_thought_signature_2").decode("utf-8"),
+                "has_text": False,
+                "has_function_call": True,
+                "is_thought": False,
+            },
+        ]
+
+        message = ChatMessage.from_assistant(
+            text="I'll check the weather for you",
+            tool_calls=[tool_call],
+            meta={"thought_signatures": thought_signatures},
+        )
+
+        google_content = _convert_message_to_google_genai_format(message)
+
+        assert google_content.role == "model"
+        assert len(google_content.parts) == 2
+
+        # First part should have text and its thought signature
+        assert google_content.parts[0].text == "I'll check the weather for you"
+        # thought_signature is returned as bytes from the API
+        assert google_content.parts[0].thought_signature == b"encrypted_mock_thought_signature_1"
+
+        # Second part should have function call and its thought signature
+        assert google_content.parts[1].function_call.name == "weather"
+        assert google_content.parts[1].function_call.args == {"city": "Paris"}
+        assert google_content.parts[1].thought_signature == b"encrypted_mock_thought_signature_2"
+
+    def test_convert_message_to_google_genai_format_with_reasoning_content(self):
+        """Test that ReasoningContent is properly skipped during conversion."""
+        # ReasoningContent is for human transparency only, not sent to the API
+        reasoning = ReasoningContent(reasoning_text="Of Life, the Universe and Everything...")
+
+        # Create a message with both text and reasoning content
+        message = ChatMessage.from_assistant(text="Forty-two", reasoning=reasoning)
+
+        google_content = _convert_message_to_google_genai_format(message)
+
+        assert google_content.role == "model"
+        assert len(google_content.parts) == 1
+
+        # Only the text should be included, reasoning content should be skipped
+        assert google_content.parts[0].text == "Forty-two"
+        # Verify no thought part was created (reasoning is not sent to API)
+        assert not hasattr(google_content.parts[0], "thought") or not google_content.parts[0].thought
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
