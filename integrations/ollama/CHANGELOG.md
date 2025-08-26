@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/ollama-v5.0.0] - 2025-08-25
+
+### 🚜 Refactor
+
+- [**breaking**] `OllamaChatGenerator` - refine reasoning support + refactoring (#2200)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+
 ## [integrations/ollama-v4.1.0] - 2025-08-06
 
 ### 🚀 Features
