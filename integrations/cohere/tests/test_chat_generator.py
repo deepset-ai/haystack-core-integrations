@@ -7,7 +7,7 @@ from cohere.core import ApiError
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, ImageContent, StreamingChunk, ToolCall
 from haystack.dataclasses.streaming_chunk import ToolCallDelta
 from haystack.tools import Tool
 from haystack.utils import Secret
@@ -1035,3 +1035,180 @@ class TestCohereChunkConversion:
 
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, model="command-r-08-2024")
         assert result.meta["usage"] == {"completion_tokens": 0.0, "prompt_tokens": 0.0}
+
+
+class TestCohereMultimodal:
+    """Test cases for multimodal (text + image) functionality."""
+
+    def test_format_message_with_image(self):
+        """Test that a ChatMessage with ImageContent is converted to Cohere format correctly."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
+
+        formatted_message = _format_message(message)
+
+        # Should return a dict for multimodal messages
+        assert isinstance(formatted_message, dict)
+        assert formatted_message["role"] == "user"
+        assert isinstance(formatted_message["content"], list)
+        assert len(formatted_message["content"]) == 2
+
+        # Check text content
+        assert formatted_message["content"][0]["type"] == "text"
+        assert formatted_message["content"][0]["text"] == "What's in this image?"
+
+        # Check image content
+        assert formatted_message["content"][1]["type"] == "image_url"
+        assert "image_url" in formatted_message["content"][1]
+        assert "url" in formatted_message["content"][1]["image_url"]
+        assert formatted_message["content"][1]["image_url"]["url"] == f"data:image/png;base64,{base64_image}"
+
+    def test_format_message_with_unsupported_mime_type(self):
+        """Test that a ChatMessage with unsupported mime type raises ValueError."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/bmp")
+        message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
+
+        with pytest.raises(ValueError, match="Unsupported image format: image/bmp"):
+            _format_message(message)
+
+    def test_format_message_with_none_mime_type(self):
+        """Test that a ChatMessage with None mime type raises ValueError."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        # Manually set mime_type to None to test the edge case
+        image_content.mime_type = None
+        message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
+
+        with pytest.raises(ValueError, match="Unsupported image format: None"):
+            _format_message(message)
+
+    def test_format_message_image_in_non_user_message(self):
+        """Test that images in non-user messages raise ValueError."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        # Create assistant message with both text and image (should fail because image in assistant message)
+        message = ChatMessage.from_assistant(text="Here's an image.")
+        message._content.append(image_content)  # Add image to assistant message
+
+        with pytest.raises(ValueError, match="Image content is only supported for user messages"):
+            _format_message(message)
+
+    def test_supported_image_formats(self):
+        """Test that all supported image formats work correctly."""
+        supported_formats = ["image/png", "image/jpeg", "image/webp", "image/gif"]
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+
+        for mime_type in supported_formats:
+            image_content = ImageContent(base64_image=base64_image, mime_type=mime_type)
+            message = ChatMessage.from_user(content_parts=["Test image", image_content])
+
+            # Should not raise any exception
+            formatted_message = _format_message(message)
+            assert formatted_message is not None
+            assert isinstance(formatted_message, dict)
+
+    def test_multiple_images_in_single_message(self):
+        """Test handling multiple images in a single message."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image1 = ImageContent(base64_image=base64_image, mime_type="image/png")
+        image2 = ImageContent(base64_image=base64_image, mime_type="image/jpeg")
+
+        message = ChatMessage.from_user(content_parts=["Compare these images:", image1, image2])
+
+        formatted_message = _format_message(message)
+
+        assert isinstance(formatted_message, dict)
+        assert len(formatted_message["content"]) == 3  # 1 text + 2 images
+        assert formatted_message["content"][0]["type"] == "text"
+        assert formatted_message["content"][1]["type"] == "image_url"
+        assert formatted_message["content"][2]["type"] == "image_url"
+
+    def test_multimodal_message_processing_with_mock(self):
+        """Test multimodal message processing with mocked client."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        messages = [ChatMessage.from_user(content_parts=["What's in this image?", image_content])]
+
+        generator = CohereChatGenerator(api_key=Secret.from_token("test-api-key"))
+
+        # Mock the client's chat method
+        mock_response = MagicMock()
+        mock_response.message.content = [MagicMock()]
+        mock_response.message.content[0].text = "This is a test image response"
+        mock_response.message.tool_calls = None
+        mock_response.finish_reason = "COMPLETE"
+        mock_response.usage = None
+
+        generator.client.chat = MagicMock(return_value=mock_response)
+
+        result = generator.run(messages=messages)
+
+        # Verify the multimodal message was processed correctly
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+        assert result["replies"][0].text == "This is a test image response"
+
+        # Verify the client was called with the correct format
+        generator.client.chat.assert_called_once()
+        call_args = generator.client.chat.call_args
+        formatted_messages = call_args[1]["messages"]
+
+        assert len(formatted_messages) == 1
+        # The multimodal message should be passed as a dict
+        multimodal_msg = formatted_messages[0]
+        assert isinstance(multimodal_msg, dict)
+        assert multimodal_msg["role"] == "user"
+        assert len(multimodal_msg["content"]) == 2
+        assert multimodal_msg["content"][0]["type"] == "text"
+        assert multimodal_msg["content"][1]["type"] == "image_url"
+
+
+@pytest.mark.integration
+class TestCohereMultimodalIntegration:
+    """Integration tests for multimodal functionality."""
+
+    @pytest.mark.skipif(
+        not os.environ.get("COHERE_API_KEY"),
+        reason="COHERE_API_KEY not set",
+    )
+    def test_live_run_multimodal(self):
+        generator = CohereChatGenerator(
+            model="command-a-vision-07-2025",  # Use a vision model
+            api_key=Secret.from_env_var("COHERE_API_KEY"),
+        )
+
+        image_content = ImageContent.from_file_path("tests/test_files/apple.jpg")
+
+        messages = [
+            ChatMessage.from_user(
+                content_parts=[
+                    "What do you see in this image? Be concise.",
+                    image_content,
+                ]
+            )
+        ]
+
+        results = generator.run(messages=messages)
+
+        assert isinstance(results, dict)
+        assert "replies" in results
+        assert isinstance(results["replies"], list)
+        assert len(results["replies"]) == 1
+        assert isinstance(results["replies"][0], ChatMessage)
+        assert len(results["replies"][0].text) > 0

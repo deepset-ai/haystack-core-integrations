@@ -1,9 +1,9 @@
 import json
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
+from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Union, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
-from haystack.dataclasses import ChatMessage, ComponentInfo, ToolCall
+from haystack.dataclasses import ChatMessage, ComponentInfo, ImageContent, TextContent, ToolCall
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
     FinishReason,
@@ -31,7 +31,6 @@ from cohere import (
     StreamedChatResponseV2,
     SystemChatMessageV2,
     TextAssistantMessageV2ContentItem,
-    TextContent,
     TextSystemMessageV2ContentItem,
     ToolCallV2,
     ToolCallV2Function,
@@ -39,8 +38,17 @@ from cohere import (
     Usage,
     UserChatMessageV2,
 )
+from cohere import (
+    TextContent as CohereTextContent,
+)
 
 logger = logging.getLogger(__name__)
+
+
+# Supported image formats based on Cohere's documentation
+# See: https://docs.cohere.com/docs/image-inputs
+ImageFormat = Literal["image/png", "image/jpeg", "image/webp", "image/gif"]
+IMAGE_SUPPORTED_FORMATS: list[ImageFormat] = list(get_args(ImageFormat))
 
 
 def _format_tool(tool: Tool) -> Dict[str, Any]:
@@ -65,20 +73,23 @@ def _format_tool(tool: Tool) -> Dict[str, Any]:
 
 def _format_message(
     message: ChatMessage,
-) -> Union[UserChatMessageV2, AssistantChatMessageV2, SystemChatMessageV2, ToolChatMessageV2]:
+) -> Union[UserChatMessageV2, AssistantChatMessageV2, SystemChatMessageV2, ToolChatMessageV2, Dict[str, Any]]:
     """
     Formats a Haystack ChatMessage into Cohere's chat format.
 
     The function handles message components including:
     - Text content
+    - Image content (multimodal)
     - Tool calls
     - Tool call results
 
     :param message: Haystack ChatMessage to format.
-    :return: A Cohere message object.
+    :return: A Cohere message object or dict for multimodal messages.
     """
-    if not message.texts and not message.tool_calls and not message.tool_call_results:
-        msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
+    if not message.texts and not message.tool_calls and not message.tool_call_results and not message.images:
+        msg = (
+            "A `ChatMessage` must contain at least one `TextContent`, `ImageContent`, `ToolCall`, or `ToolCallResult`."
+        )
         raise ValueError(msg)
 
     # Format the message based on its content type
@@ -113,8 +124,39 @@ def _format_message(
             msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
             raise ValueError(msg)
 
+        # Check that images are only in user messages
+        if message.images and not message.is_from("user"):
+            error_msg = "Image content is only supported for user messages"
+            raise ValueError(error_msg)
+
         if message.role.value == "user":
-            return UserChatMessageV2(content=[TextContent(text=message.texts[0])])
+            # Handle multimodal content (text + images)
+            if message.images:
+                # Validate image formats
+                for image in message.images:
+                    if image.mime_type not in IMAGE_SUPPORTED_FORMATS:
+                        supported_formats = ", ".join(IMAGE_SUPPORTED_FORMATS)
+                        msg = (
+                            f"Unsupported image format: {image.mime_type}. "
+                            f"Cohere supports the following formats: {supported_formats}"
+                        )
+                        raise ValueError(msg)
+
+                # Build multimodal content following Cohere's API specification
+                content_parts = []
+                for part in message._content:
+                    if isinstance(part, TextContent) and part.text:
+                        content_parts.append({"type": "text", "text": part.text})
+                    elif isinstance(part, ImageContent):
+                        # Cohere expects base64 data URI format
+                        # See: https://docs.cohere.com/docs/image-inputs
+                        image_url = f"data:{part.mime_type};base64,{part.base64_image}"
+                        content_parts.append({"type": "image_url", "image_url": {"url": image_url}})  # type: ignore[dict-item]
+
+                # Return dict format for multimodal messages
+                return {"role": "user", "content": content_parts}
+            else:
+                return UserChatMessageV2(content=[CohereTextContent(text=message.texts[0])])
         elif message.role.value == "assistant":
             return AssistantChatMessageV2(content=[TextAssistantMessageV2ContentItem(text=message.texts[0])])
         elif message.role.value == "system":
@@ -365,6 +407,12 @@ class CohereChatGenerator:
     """
     Completes chats using Cohere's models using cohere.ClientV2 `chat` endpoint.
 
+    This component supports both text-only and multimodal (text + image) conversations
+    using Cohere's vision models like Command A Vision.
+
+    Supported image formats: PNG, JPEG, WEBP, GIF (non-animated).
+    Maximum 20 images per request with 20MB total limit.
+
     You can customize how the chat response is generated by passing parameters to the
     Cohere API through the `**generation_kwargs` parameter. You can do this when
     initializing or running the component. Any parameter that works with
@@ -385,6 +433,24 @@ class CohereChatGenerator:
 
     # Output: {'replies': [ChatMessage(_role=<ChatRole.ASSISTANT: 'assistant'>,
     # _content=[TextContent(text='Natural Language Processing (NLP) is an interdisciplinary...
+    ```
+
+    ### Multimodal example
+    ```python
+    from haystack.dataclasses import ChatMessage, ImageContent
+    from haystack.utils import Secret
+    from haystack_integrations.components.generators.cohere import CohereChatGenerator
+
+    # Create an image from file path or base64
+    image_content = ImageContent.from_file_path("path/to/your/image.jpg")
+
+    # Create a multimodal message with both text and image
+    messages = [ChatMessage.from_user(content_parts=["What's in this image?", image_content])]
+
+    # Use a multimodal model like Command A Vision
+    client = CohereChatGenerator(model="command-a-vision-07-2025", api_key=Secret.from_env_var("COHERE_API_KEY"))
+    response = client.run(messages)
+    print(response)
     ```
 
     ### Advanced example
@@ -584,7 +650,7 @@ class CohereChatGenerator:
             component_info = ComponentInfo.from_component(self)
             streamed_response = self.client.chat_stream(
                 model=self.model,
-                messages=formatted_messages,
+                messages=formatted_messages,  # type: ignore[arg-type]
                 **generation_kwargs,
             )
             chat_message = _parse_streaming_response(
@@ -596,7 +662,7 @@ class CohereChatGenerator:
         else:
             response = self.client.chat(
                 model=self.model,
-                messages=formatted_messages,
+                messages=formatted_messages,  # type: ignore[arg-type]
                 **generation_kwargs,
             )
             chat_message = _parse_response(response, self.model)
@@ -650,7 +716,7 @@ class CohereChatGenerator:
             component_info = ComponentInfo.from_component(self)
             streamed_response = self.async_client.chat_stream(
                 model=self.model,
-                messages=formatted_messages,
+                messages=formatted_messages,  # type: ignore[arg-type]
                 **generation_kwargs,
             )
             chat_message = await _parse_async_streaming_response(
@@ -662,7 +728,7 @@ class CohereChatGenerator:
         else:
             response = await self.async_client.chat(
                 model=self.model,
-                messages=formatted_messages,
+                messages=formatted_messages,  # type: ignore[arg-type]
                 **generation_kwargs,
             )
             chat_message = _parse_response(response, self.model)
