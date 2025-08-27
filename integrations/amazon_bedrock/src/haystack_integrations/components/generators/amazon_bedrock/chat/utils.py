@@ -13,6 +13,7 @@ from haystack.dataclasses import (
     ComponentInfo,
     FinishReason,
     ImageContent,
+    ReasoningContent,
     StreamingChunk,
     SyncStreamingCallbackT,
     TextContent,
@@ -429,7 +430,7 @@ def _convert_event_to_streaming_chunk(
     return streaming_chunk
 
 
-def _process_reasoning_contents(chunks: List[StreamingChunk]) -> List[Dict[str, Any]]:
+def _process_reasoning_contents(chunks: List[StreamingChunk]) -> ReasoningContent:
     """
     Process reasoning contents from a list of StreamingChunk objects into the Bedrock expected format.
 
@@ -486,7 +487,18 @@ def _process_reasoning_contents(chunks: List[StreamingChunk]) -> List[Dict[str, 
         if redacted_content:
             formatted_reasoning_contents.append({"reasoning_content": {"redacted_content": redacted_content}})
 
-    return formatted_reasoning_contents
+    # TODO Need to preserve original order of reasoning contents if multiple exist
+    # Combine all reasoning contents into a single ReasoningContent object
+    final_reasoning_text = ""
+    final_reasoning_extra = {"signature": None, "redacted_contents": []}
+    for content in formatted_reasoning_contents:
+        if "reasoning_text" in content["reasoning_content"]:
+            final_reasoning_text = content["reasoning_content"]["reasoning_text"]["text"]
+            final_reasoning_extra["signature"] = content["reasoning_content"]["reasoning_text"]["signature"]
+        elif "redacted_content" in content["reasoning_content"]:
+            final_reasoning_extra["redacted_contents"].extend(content["reasoning_content"]["redacted_content"])
+
+    return ReasoningContent(reasoning_text=final_reasoning_text, extra=final_reasoning_extra)
 
 
 def _parse_streaming_response(
@@ -516,7 +528,9 @@ def _parse_streaming_response(
         chunks.append(streaming_chunk)
     reply = _convert_streaming_chunks_to_chat_message(chunks=chunks)
     reasoning_contents = _process_reasoning_contents(chunks=chunks)
-    reply.meta["reasoning_contents"] = reasoning_contents
+    reply = ChatMessage.from_assistant(
+        text=reply.text, meta=reply.meta, name=reply.name, tool_calls=reply.tool_calls, reasoning=reasoning_contents,
+    )
     return [reply]
 
 
