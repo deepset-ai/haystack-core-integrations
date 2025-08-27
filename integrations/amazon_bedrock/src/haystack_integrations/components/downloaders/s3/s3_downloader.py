@@ -2,20 +2,21 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
 from concurrent.futures import ThreadPoolExecutor
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
+from uuid import UUID
 
 from botocore.config import Config
-from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.common.amazon_bedrock.errors import AmazonS3ConfigurationError, AmazonS3Error
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
+from haystack_integrations.components.downloaders.s3.utils import S3DownloaderSettings, IndexableStorage
+
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ class S3Downloader:
     downloader = S3Downloader(
         aws_profile_name=Secret.from_token("prof"),
         aws_region_name=Secret.from_token("eu-central-1"),
-        download_file_path=str(Path.cwd() / "s3_cache"),
+        file_root_path=str(Path.cwd() / "s3_cache"),
         file_extensions=[".json"],
     )
 
@@ -57,6 +58,7 @@ class S3Downloader:
 
     def __init__(
         self,
+        *,
         aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
             "AWS_SECRET_ACCESS_KEY", strict=False
@@ -65,7 +67,7 @@ class S3Downloader:
         aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         boto3_config: Optional[Dict[str, Any]] = None,
-        download_file_path: Optional[str] = None,
+        file_root_path: Optional[str] = None,
         file_extensions: Optional[List[str]] = None,
         max_workers: int = 32,
         max_cache_size: int = 100,
@@ -80,7 +82,7 @@ class S3Downloader:
         :param aws_region_name: AWS region name.
         :param aws_profile_name: AWS profile name.
         :param boto3_config: The configuration for the boto3 client.
-        :param download_file_path: The path where the file will be downloaded.
+        :param file_root_path: The path where the file will be downloaded.
         :param file_extensions: The file extensions that are permitted to be downloaded.
         :param max_workers: The maximum number of workers to use for concurrent downloads.
         :param max_cache_size: The maximum number of files to cache.
@@ -96,16 +98,18 @@ class S3Downloader:
         self.file_extensions = [e.lower() for e in file_extensions] if file_extensions else None
         self.max_workers = max_workers
         self.max_cache_size = max_cache_size
+        self.storage : IndexableStorage = None
 
         # Set up download directory
-        if download_file_path:
-            self.download_file_path = Path(download_file_path)
+        self.file_root_path = Path(file_root_path) or os.getenv("FILE_ROOT_PATH")
+        if self.file_root_path is None:
+            raise ValueError("file_root_path is not set. Please set the file_root_path parameter or the FILE_ROOT_PATH environment variable.")
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
 
         try:
-            session = get_aws_session(
+            self.session = get_aws_session(
                 aws_access_key_id=resolve_secret(aws_access_key_id),
                 aws_secret_access_key=resolve_secret(aws_secret_access_key),
                 aws_session_token=resolve_secret(aws_session_token),
@@ -116,7 +120,7 @@ class S3Downloader:
                 user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
             )
 
-            self._client = session.client("s3", config=config)
+            self._client = self.session.client("s3", config=config)
         except Exception as exception:
             msg = (
                 "Could not connect to Amazon S3. Make sure the AWS environment is configured correctly. "
@@ -125,77 +129,63 @@ class S3Downloader:
             raise AmazonS3ConfigurationError(msg) from exception
 
     def warm_up(self) -> None:
-        """Ensure the download directory exists."""
-        self.download_file_path.mkdir(parents=True, exist_ok=True)
+        """Warm up the component by initializing the settings and storage."""
+        if self.storage is None:
+            settings = S3DownloaderSettings.from_env()
 
-    @component.output_types(
-        documents=List[Document],
-    )
+            self.file_root_path = settings.file_root_path
+            self.file_root_path.mkdir(parents=True, exist_ok=True)
+
+            self.storage = IndexableStorage(
+                settings.workspace_id,
+                settings.organization_id,
+                settings.s3_bucket,
+                endpoint_url=settings.aws_endpoint_url,
+                session=self.session,
+            )
+
+    @component.output_types(documents=List[Document])
     def run(
         self,
         documents: Optional[List[Document]] = None,
     ) -> Dict[str, List[Document]]:
-        """Download S3-linked files and return enriched `Document`s and source paths.
+        """Download S3-linked files and return enriched `Document`s.
 
         You can pass existing `Document`s (with S3 coordinates in `meta`). Files are cached locally.
-
-        :param documents: Documents to download. Each must include one of:
-            - `meta['s3_bucket']` + `meta['s3_key']`, or
-            - `meta['s3_url']` (e.g., `s3://bucket/key`), or
-            - `meta['s3_key']` (with default bucket provided elsewhere).
-            Non-conforming documents are skipped.
+        :param documents: Documents to download. 
         :returns: A dictionary with:
             - `documents`: The downloaded `Document`s; each has `meta['file_path']` and may include `mime_type`.
         :raises AmazonS3Error: If a download attempt fails.
         :raises ValueError: If an S3 URL in inputs is invalid.
         """
-        # Ensure cache dir
-        self.warm_up()
-
-        requested: List[Document] = []
-
-        if documents:
-            requested.extend(documents)
-
-        if not requested:
+    
+        if not documents:
             return {"documents": []}
 
-        requested = self._filter_documents_by_extensions(requested)
+        filtered_documents = self._filter_documents_by_extensions(documents)
 
         try:
-            if len(requested) == 1:
-                iterable = iter([self.download_file(requested[0])])
+            if len(filtered_documents) == 1:
+                iterable = iter([self.download_file(filtered_documents[0])])
             else:
-                max_workers = min(self.max_workers, len(requested))
+                max_workers = min(self.max_workers, len(filtered_documents))
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    iterable = executor.map(self.download_file, requested)
+                    iterable = executor.map(self.download_file, filtered_documents)
         finally:
-            self.cleanup_cache(requested)
+            self.cleanup_cache(filtered_documents)
 
         downloaded_documents = [d for d in iterable if d is not None]
         return {"documents": downloaded_documents}
 
     def _filter_documents_by_extensions(self, documents: List[Document]) -> List[Document]:
-        if not self.file_extensions:
-            return documents
-        out: List[Document] = []
-        for doc in documents:
-            name = doc.meta.get("file_name") or doc.meta.get("s3_key") or ""
-            if Path(name).suffix.lower() in self.file_extensions:
-                out.append(doc)
-        return out
-
-
+                return [doc for doc in documents if Path(doc.meta.get("file_name", "")).suffix.lower() in self.file_extensions]
 
     def download_file(self, document: Document) -> Optional[Document]:
         """
-
         Download a single S3 object into the local cache and enrich the `Document`.
 
         Expected S3 information in `document.meta`:
-          - `s3_bucket` + `s3_key` **or**
-          - `s3_url` (e.g., `s3://bucket/key`) **or**
-          - `s3_key` (with default bucket provided elsewhere).
+          - `file_id`
 
         :param document: `Document` describing the S3 object to download.
         :returns:
@@ -203,44 +193,31 @@ class S3Downloader:
             downloaded file and the mime type or `None` if skipped.
         :raises AmazonS3Error: If the download or head request fails.
         """
+        if self.file_root_path is None or self.storage is None:
+            raise RuntimeError(
+                f"The component {self.__class__.__name__} was not warmed up. "
+                """Call "warm_up()" before calling "download_file()"."""
+            )
+
         try:
-            bucket = document.meta.get("s3_bucket")
-            key = document.meta.get("s3_key")
-            url = document.meta.get("s3_url")
+            file_id = UUID(document.meta["file_id"])
+        except KeyError:
+            logger.warning(f"Document with ID {document.id!r} does not have a file_id in the meta field", exc_info=True)
+            return None
 
-            if (not bucket or not key) and url:
-                bucket, key = self._parse_s3_url(url)
+        file_name = Path(document.meta.get("file_name", ""))
+        extension = file_name.suffix
+        file_path = self.file_root_path / f"{file_id!s}{extension}"
 
-            if not (bucket and key):
-                logger.warning("Document missing S3 coordinates ('s3_bucket'/'s3_key' or 's3_url'). Skipping.")
-                return None
+        if file_path.is_file():
+            # set access and modification time to now without redownloading the file
+            file_path.touch()
 
-            file_name = document.meta.get("file_name") or os.path.basename(key) or "s3_file"
-            ext = Path(file_name).suffix
-            cache_id = f"{bucket}/{key}"
-            stem = str(abs(hash(cache_id)))  # abs() to avoid negative numbers
-            file_path = self.download_file_path / f"{stem}{ext}"
+        else:
+            self.storage.download(file_id, file_path)
 
-            if file_path.is_file():
-                file_path.touch()
-            else:
-                # download
-                self._client.download_file(bucket, key, file_path)
-
-            # enrich meta (best-effort head call)
-            head = self._client.head_object(Bucket=bucket, Key=key)
-            document.meta.setdefault("mime_type", head.get("ContentType"))
-
-            document.meta["file_path"] = str(file_path)
-            document.meta["cache_id"] = cache_id
-            return document
-
-        except ClientError as e:
-            msg = f"Error downloading from S3: {e}"
-            raise AmazonS3Error(msg) from e
-        except Exception as e:
-            msg = f"Unexpected error downloading from S3: {e}"
-            raise AmazonS3Error(msg) from e
+        document.meta["file_path"] = str(file_path)
+        return document
 
     def cleanup_cache(self, documents: List[Document]) -> None:
         """
@@ -250,7 +227,7 @@ class S3Downloader:
             str(abs(hash(str(doc.meta.get("cache_id", ""))))) for doc in documents if doc.meta.get("cache_id")
         }
 
-        all_files = [p for p in self.download_file_path.iterdir() if p.is_file()]
+        all_files = [p for p in self.file_root_path.iterdir() if p.is_file()]
         misses = [p for p in all_files if p.stem not in requested_ids]
 
         # cache budget = requested + misses; trim oldest misses if overflow
@@ -272,7 +249,7 @@ class S3Downloader:
             aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
             aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
             aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
-            download_file_path=str(self.download_file_path),
+            file_root_path=str(self.file_root_path),
             max_workers=self.max_workers,
             max_cache_size=self.max_cache_size,
             file_extensions=self.file_extensions,
@@ -293,22 +270,3 @@ class S3Downloader:
         )
         return default_from_dict(cls, data)
 
-    @staticmethod
-    def _parse_s3_url(url: str) -> tuple[str, str]:
-        """
-        Parse an S3 URL into (bucket, key).
-
-        :param url: S3 URL, e.g., `s3://bucket/key`.
-        :returns: Tuple of (`bucket`, `key`).
-        :raises ValueError: If the URL does not use the `s3` scheme or is otherwise invalid.
-        """
-        parsed = urlparse(url)
-        if parsed.scheme != "s3":
-            msg = f"Invalid S3 URL scheme: {url!r}. Expected scheme 's3://'"
-            raise ValueError(msg)
-        bucket = parsed.netloc
-        key = parsed.path.lstrip("/")
-        if not bucket or not key:
-            msg = f"Invalid S3 URL: {url!r}. Expected s3://bucket/key"
-            raise ValueError(msg)
-        return bucket, key
