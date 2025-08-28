@@ -135,7 +135,12 @@ class OllamaDocumentEmbedder:
             range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
         ):
             batch = texts_to_embed[i : i + batch_size]
-            result = self._client.embed(model=self.model, input=batch, options=generation_kwargs, keep_alive=self.keep_alive)
+            result = self._client.embed(
+                model=self.model,
+                input=batch,
+                options=generation_kwargs,
+                keep_alive=self.keep_alive,
+            )
             all_embeddings.extend(result["embeddings"])
 
         return all_embeddings

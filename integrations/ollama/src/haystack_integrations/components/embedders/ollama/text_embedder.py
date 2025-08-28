@@ -75,7 +75,12 @@ class OllamaTextEmbedder:
             - `embedding`: The computed embeddings
             - `meta`: The metadata collected during the embedding process
         """
-        result = self._client.embeddings(model=self.model, prompt=text, options=generation_kwargs, keep_alive=self.keep_alive).model_dump()
+        result = self._client.embeddings(
+            model=self.model,
+            prompt=text,
+            options=generation_kwargs,
+            keep_alive=self.keep_alive,
+        ).model_dump()
         result["meta"] = {"model": self.model}
 
         return result
@@ -97,7 +102,12 @@ class OllamaTextEmbedder:
             - `embedding`: The computed embeddings
             - `meta`: The metadata collected during the embedding process
         """
-        response = await self._async_client.embeddings(model=self.model, prompt=text, options=generation_kwargs, keep_alive=self.keep_alive)
+        response = await self._async_client.embeddings(
+            model=self.model,
+            prompt=text,
+            options=generation_kwargs,
+            keep_alive=self.keep_alive,
+        )
         result = response.model_dump()
         result["meta"] = {"model": self.model}
 
