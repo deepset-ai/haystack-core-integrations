@@ -538,7 +538,7 @@ class TestAmazonBedrockChatGeneratorInference:
         assert len(results["replies"]) > 0, "No replies received"
         assert isinstance(
             results["replies"][0].reasoning.extra["reasoning_contents"][0]["reasoning_content"]["redacted_content"],
-            bytes
+            bytes,
         )
 
     def test_live_run_with_redacted_thinking_streaming(self, tools):
@@ -566,7 +566,7 @@ class TestAmazonBedrockChatGeneratorInference:
         assert len(results["replies"]) > 0, "No replies received"
         assert isinstance(
             results["replies"][0].reasoning.extra["reasoning_contents"][0]["reasoning_content"]["redacted_content"],
-            bytes
+            bytes,
         )
 
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
