@@ -1,5 +1,5 @@
 import json
-from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Union, get_args
+from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, TypedDict, Union, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
@@ -51,6 +51,32 @@ ImageFormat = Literal["image/png", "image/jpeg", "image/webp", "image/gif"]
 IMAGE_SUPPORTED_FORMATS: list[ImageFormat] = list(get_args(ImageFormat))
 
 
+# TypedDict for multimodal content structure
+class ImageUrlDict(TypedDict):
+    url: str
+
+
+class ImageContentDict(TypedDict):
+    type: str
+    image_url: ImageUrlDict
+
+
+class TextContentDict(TypedDict):
+    type: str
+    text: str
+
+
+class MultimodalMessageDict(TypedDict):
+    role: str
+    content: List[Union[TextContentDict, ImageContentDict]]
+
+
+# Type alias for all possible message types
+FormattedMessage = Union[
+    UserChatMessageV2, AssistantChatMessageV2, SystemChatMessageV2, ToolChatMessageV2, MultimodalMessageDict
+]
+
+
 def _format_tool(tool: Tool) -> Dict[str, Any]:
     """
     Formats a Haystack Tool into Cohere's function specification format.
@@ -71,9 +97,7 @@ def _format_tool(tool: Tool) -> Dict[str, Any]:
     }
 
 
-def _format_message(
-    message: ChatMessage,
-) -> Union[UserChatMessageV2, AssistantChatMessageV2, SystemChatMessageV2, ToolChatMessageV2, Dict[str, Any]]:
+def _format_message(message: ChatMessage) -> FormattedMessage:
     """
     Formats a Haystack ChatMessage into Cohere's chat format.
 
@@ -84,7 +108,7 @@ def _format_message(
     - Tool call results
 
     :param message: Haystack ChatMessage to format.
-    :return: A Cohere message object or dict for multimodal messages.
+    :return: A Cohere message object or MultimodalMessageDict for multimodal messages.
     """
     if not message.texts and not message.tool_calls and not message.tool_call_results and not message.images:
         msg = (
@@ -121,7 +145,10 @@ def _format_message(
         )
     else:
         if not message.texts or not message.texts[0]:
-            msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
+            msg = (
+                "A `ChatMessage` must contain at least one `TextContent`, `ImageContent`, "
+                "`ToolCall`, or `ToolCallResult`."
+            )
             raise ValueError(msg)
 
         # Check that images are only in user messages
@@ -143,18 +170,21 @@ def _format_message(
                         raise ValueError(msg)
 
                 # Build multimodal content following Cohere's API specification
-                content_parts = []
+                content_parts: List[Union[TextContentDict, ImageContentDict]] = []
                 for part in message._content:
                     if isinstance(part, TextContent) and part.text:
-                        content_parts.append({"type": "text", "text": part.text})
+                        text_content: TextContentDict = {"type": "text", "text": part.text}
+                        content_parts.append(text_content)
                     elif isinstance(part, ImageContent):
                         # Cohere expects base64 data URI format
                         # See: https://docs.cohere.com/docs/image-inputs
                         image_url = f"data:{part.mime_type};base64,{part.base64_image}"
-                        content_parts.append({"type": "image_url", "image_url": {"url": image_url}})  # type: ignore[dict-item]
+                        image_content: ImageContentDict = {"type": "image_url", "image_url": {"url": image_url}}
+                        content_parts.append(image_content)
 
-                # Return dict format for multimodal messages
-                return {"role": "user", "content": content_parts}
+                # Return typed dict for multimodal messages
+                multimodal_message: MultimodalMessageDict = {"role": "user", "content": content_parts}
+                return multimodal_message
             else:
                 return UserChatMessageV2(content=[CohereTextContent(text=message.texts[0])])
         elif message.role.value == "assistant":
@@ -640,7 +670,7 @@ class CohereChatGenerator:
             _check_duplicate_tool_names(tools)
             generation_kwargs["tools"] = [_format_tool(tool) for tool in tools]
 
-        formatted_messages = [_format_message(message) for message in messages]
+        formatted_messages: List[FormattedMessage] = [_format_message(message) for message in messages]
 
         streaming_callback = select_streaming_callback(
             init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
@@ -650,7 +680,7 @@ class CohereChatGenerator:
             component_info = ComponentInfo.from_component(self)
             streamed_response = self.client.chat_stream(
                 model=self.model,
-                messages=formatted_messages,  # type: ignore[arg-type]
+                messages=formatted_messages,  # type: ignore[arg-type]  # Client accepts MultimodalMessageDict at runtime
                 **generation_kwargs,
             )
             chat_message = _parse_streaming_response(
@@ -662,7 +692,7 @@ class CohereChatGenerator:
         else:
             response = self.client.chat(
                 model=self.model,
-                messages=formatted_messages,  # type: ignore[arg-type]
+                messages=formatted_messages,  # type: ignore[arg-type]  # Client accepts MultimodalMessageDict at runtime
                 **generation_kwargs,
             )
             chat_message = _parse_response(response, self.model)
@@ -706,7 +736,7 @@ class CohereChatGenerator:
             _check_duplicate_tool_names(tools)
             generation_kwargs["tools"] = [_format_tool(tool) for tool in tools]
 
-        formatted_messages = [_format_message(message) for message in messages]
+        formatted_messages: List[FormattedMessage] = [_format_message(message) for message in messages]
 
         streaming_callback = select_streaming_callback(
             init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=True
@@ -716,7 +746,7 @@ class CohereChatGenerator:
             component_info = ComponentInfo.from_component(self)
             streamed_response = self.async_client.chat_stream(
                 model=self.model,
-                messages=formatted_messages,  # type: ignore[arg-type]
+                messages=formatted_messages,  # type: ignore[arg-type]  # Client accepts MultimodalMessageDict at runtime
                 **generation_kwargs,
             )
             chat_message = await _parse_async_streaming_response(
@@ -728,7 +758,7 @@ class CohereChatGenerator:
         else:
             response = await self.async_client.chat(
                 model=self.model,
-                messages=formatted_messages,  # type: ignore[arg-type]
+                messages=formatted_messages,  # type: ignore[arg-type]  # Client accepts MultimodalMessageDict at runtime
                 **generation_kwargs,
             )
             chat_message = _parse_response(response, self.model)
