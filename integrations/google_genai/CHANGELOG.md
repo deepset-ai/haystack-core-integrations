@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/google_genai-v2.1.2] - 2025-08-28
+
+### 🚀 Features
+
+- Add Gemini "Thinking" support to GoogleGenAIChatGenerator (#2212)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+
 ## [integrations/google_genai-v2.1.1] - 2025-08-07
 
 ### 🐛 Bug Fixes
