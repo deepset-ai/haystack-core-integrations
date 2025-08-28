@@ -8,8 +8,6 @@ from haystack.utils import Secret
 
 from haystack_integrations.components.embedders.mistral.text_embedder import MistralTextEmbedder
 
-pytestmark = pytest.mark.embedders
-
 
 class TestMistralTextEmbedder:
     def test_init_default(self, monkeypatch):
@@ -46,10 +44,11 @@ class TestMistralTextEmbedder:
                 "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "mistral-embed",
                 "api_base_url": "https://api.mistral.ai/v1",
-                "dimensions": None,
-                "organization": None,
                 "prefix": "",
                 "suffix": "",
+                "timeout": None,
+                "max_retries": None,
+                "http_client_kwargs": None,
             },
         }
 
@@ -61,6 +60,9 @@ class TestMistralTextEmbedder:
             api_base_url="https://custom-api-base-url.com",
             prefix="START",
             suffix="END",
+            timeout=10.0,
+            max_retries=2,
+            http_client_kwargs={"proxy": "http://localhost:8080"},
         )
         component_dict = embedder.to_dict()
         assert component_dict == {
@@ -69,12 +71,38 @@ class TestMistralTextEmbedder:
                 "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
                 "model": "mistral-embed-v2",
                 "api_base_url": "https://custom-api-base-url.com",
-                "dimensions": None,
-                "organization": None,
                 "prefix": "START",
                 "suffix": "END",
+                "timeout": 10.0,
+                "max_retries": 2,
+                "http_client_kwargs": {"proxy": "http://localhost:8080"},
             },
         }
+
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+        data = {
+            "type": "haystack_integrations.components.embedders.mistral.text_embedder.MistralTextEmbedder",
+            "init_parameters": {
+                "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
+                "model": "mistral-embed",
+                "api_base_url": "https://api.mistral.ai/v1",
+                "prefix": "",
+                "suffix": "",
+                "timeout": None,
+                "max_retries": None,
+                "http_client_kwargs": None,
+            },
+        }
+        component = MistralTextEmbedder.from_dict(data)
+        assert component.api_key == Secret.from_env_var(["MISTRAL_API_KEY"])
+        assert component.api_base_url == "https://api.mistral.ai/v1"
+        assert component.model == "mistral-embed"
+        assert component.prefix == ""
+        assert component.suffix == ""
+        assert component.timeout is None
+        assert component.max_retries is None
+        assert component.http_client_kwargs is None
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),

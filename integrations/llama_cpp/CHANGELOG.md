@@ -1,5 +1,73 @@
 # Changelog
 
+## [integrations/llama_cpp-v1.3.0] - 2025-08-22
+
+### 🚀 Features
+
+- Add image support to LlamaCppChatGenerator (#2197)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+
+## [integrations/llama_cpp-v1.2.0] - 2025-07-28
+
+### 🚀 Features
+
+- `LlamaCppChatGenerator` streaming support (#2108)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+
+
+## [integrations/llama_cpp-v1.1.0] - 2025-06-19
+
+### 🐛 Bug Fixes
+
+- Fix llama.cpp types; add py.typed; Toolset support (#1973)
+
+### 🧪 Testing
+
+- Test llama.cpp with python 3.12 (#1601)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+- Use Haystack logging across integrations (#1484)
+- Update ChatGenerators with `deserialize_tools_or_toolset_inplace` (#1623)
+- Align core-integrations Hatch scripts (#1898)
+
+### 🌀 Miscellaneous
+
+- Chore: remove `jsonschema` dependency from `default` environment (#1368)
+
+## [integrations/llama_cpp-v1.0.0] - 2025-02-07
+
+### 🚀 Features
+
+- [**breaking**] Llama.cpp - unified support for tools + refactoring (#1357)
+
+
+## [integrations/llama_cpp-v0.4.4] - 2025-01-16
+
+### 🧹 Chores
+
+- Llama.cpp - gently handle the removal of ChatMessage.from_function (#1298)
+
+
+## [integrations/llama_cpp-v0.4.3] - 2024-12-19
+
+### 🐛 Bug Fixes
+
+- Make llama.cpp Chat Generator compatible with new `ChatMessage` (#1254)
+
+
 ## [integrations/llama_cpp-v0.4.2] - 2024-12-10
 
 ### 🧪 Testing

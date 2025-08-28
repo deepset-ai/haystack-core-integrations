@@ -56,7 +56,7 @@ class TestOptimumDocumentEmbedder:
         assert embedder._backend.parameters.model_kwargs == {
             "model_id": "sentence-transformers/all-mpnet-base-v2",
             "provider": "CPUExecutionProvider",
-            "use_auth_token": "fake-api-token",
+            "token": "fake-api-token",
         }
 
     def test_init_with_parameters(self, mock_check_valid_model):  # noqa: ARG002
@@ -93,13 +93,15 @@ class TestOptimumDocumentEmbedder:
             "trust_remote_code": True,
             "model_id": "sentence-transformers/all-minilm-l6-v2",
             "provider": "CUDAExecutionProvider",
-            "use_auth_token": "fake-api-token",
+            "token": "fake-api-token",
         }
         assert embedder._backend.parameters.working_dir == "working_dir"
         assert embedder._backend.parameters.optimizer_settings is None
         assert embedder._backend.parameters.quantizer_settings is None
 
-    def test_to_and_from_dict(self, mock_check_valid_model, mock_get_pooling_mode):  # noqa: ARG002
+    def test_to_and_from_dict(self, mock_check_valid_model, mock_get_pooling_mode, monkeypatch):  # noqa: ARG002
+        monkeypatch.delenv("HF_API_TOKEN", raising=False)
+        monkeypatch.delenv("HF_TOKEN", raising=False)
         component = OptimumDocumentEmbedder()
         data = component.to_dict()
 
@@ -142,7 +144,7 @@ class TestOptimumDocumentEmbedder:
         assert embedder._backend.parameters.model_kwargs == {
             "model_id": "sentence-transformers/all-mpnet-base-v2",
             "provider": "CPUExecutionProvider",
-            "use_auth_token": None,
+            "token": None,
         }
         assert embedder._backend.parameters.working_dir is None
         assert embedder._backend.parameters.optimizer_settings is None
@@ -211,7 +213,7 @@ class TestOptimumDocumentEmbedder:
             "trust_remote_code": True,
             "model_id": "sentence-transformers/all-minilm-l6-v2",
             "provider": "CUDAExecutionProvider",
-            "use_auth_token": None,
+            "token": None,
         }
         assert embedder._backend.parameters.working_dir == "working_dir"
         assert embedder._backend.parameters.optimizer_settings == OptimumEmbedderOptimizationConfig(
@@ -233,7 +235,7 @@ class TestOptimumDocumentEmbedder:
                 model="sentence-transformers/all-mpnet-base-v2", pooling_mode="Invalid_pooling_mode"
             )
 
-    def test_infer_pooling_mode_from_str(self):
+    def test_infer_pooling_mode_from_str(self, mock_check_valid_model):  # noqa: ARG002
         """
         Test that the pooling mode is correctly inferred from a string.
         The pooling mode is "mean" as per the model config.
@@ -309,7 +311,7 @@ class TestOptimumDocumentEmbedder:
 
     def test_run_wrong_input_format(self, mock_check_valid_model):  # noqa: ARG002
         embedder = OptimumDocumentEmbedder(model="sentence-transformers/all-mpnet-base-v2", pooling_mode="mean")
-        embedder.warm_up()
+        embedder._initialized = True
         # wrong formats
         string_input = "text"
         list_integers_input = [1, 2, 3]
@@ -324,7 +326,7 @@ class TestOptimumDocumentEmbedder:
         embedder = OptimumDocumentEmbedder(
             model="sentence-transformers/paraphrase-albert-small-v2",
         )
-        embedder.warm_up()
+        embedder._initialized = True
         empty_list_input = []
         result = embedder.run(documents=empty_list_input)
 
@@ -372,7 +374,7 @@ class TestOptimumDocumentEmbedder:
             embedder.warm_up()
 
             result = embedder.run(documents=docs)
-            expected = [embedder.run([d]) for d in docs_copy]
+            _ = [embedder.run([d]) for d in docs_copy]
 
         documents_with_embeddings = result["documents"]
 

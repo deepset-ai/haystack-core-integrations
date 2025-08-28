@@ -1,10 +1,9 @@
 import json
-import logging
 from typing import Any, Dict, List, Literal, Optional
 
 from botocore.config import Config
 from botocore.exceptions import ClientError
-from haystack import component, default_from_dict, default_to_dict
+from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.common.amazon_bedrock.errors import (
@@ -20,6 +19,7 @@ SUPPORTED_EMBEDDING_MODELS = [
     "cohere.embed-english-v3",
     "cohere.embed-multilingual-v3",
     "amazon.titan-embed-text-v2:0",
+    "amazon.titan-embed-image-v1",
 ]
 
 
@@ -35,7 +35,7 @@ class AmazonBedrockTextEmbedder:
 
     os.environ["AWS_ACCESS_KEY_ID"] = "..."
     os.environ["AWS_SECRET_ACCESS_KEY_ID"] = "..."
-    os.environ["AWS_REGION_NAME"] = "..."
+    os.environ["AWS_DEFAULT_REGION"] = "..."
 
     embedder = AmazonBedrockTextEmbedder(
         model="cohere.embed-english-v3",
@@ -55,6 +55,7 @@ class AmazonBedrockTextEmbedder:
             "cohere.embed-english-v3",
             "cohere.embed-multilingual-v3",
             "amazon.titan-embed-text-v2:0",
+            "amazon.titan-embed-image-v1",
         ],
         aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
@@ -64,8 +65,8 @@ class AmazonBedrockTextEmbedder:
         aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         boto3_config: Optional[Dict[str, Any]] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """
         Initializes the AmazonBedrockTextEmbedder with the provided parameters. The parameters are passed to the
         Amazon Bedrock client.
@@ -115,9 +116,9 @@ class AmazonBedrockTextEmbedder:
                 aws_region_name=resolve_secret(aws_region_name),
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
-            config: Optional[Config] = None
-            if self.boto3_config:
-                config = Config(**self.boto3_config)
+            config = Config(
+                user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
+            )
             self._client = session.client("bedrock-runtime", config=config)
         except Exception as exception:
             msg = (
@@ -127,7 +128,7 @@ class AmazonBedrockTextEmbedder:
             raise AmazonBedrockConfigurationError(msg) from exception
 
     @component.output_types(embedding=List[float])
-    def run(self, text: str):
+    def run(self, text: str) -> Dict[str, List[float]]:
         """Embeds the input text using the Amazon Bedrock model.
 
         :param text: The input text to embed.
@@ -161,11 +162,7 @@ class AmazonBedrockTextEmbedder:
                 body=json.dumps(body), modelId=self.model, accept="*/*", contentType="application/json"
             )
         except ClientError as exception:
-            msg = (
-                f"Could not connect to Amazon Bedrock model {self.model}. "
-                f"Make sure your AWS environment is configured correctly, "
-                f"the model is available in the configured AWS region, and you have access."
-            )
+            msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
             raise AmazonBedrockInferenceError(msg) from exception
 
         response_body = json.loads(response.get("body").read())
@@ -174,6 +171,9 @@ class AmazonBedrockTextEmbedder:
             embedding = response_body["embeddings"][0]
         elif "titan" in self.model:
             embedding = response_body["embedding"]
+        else:
+            msg = f"Unsupported model {self.model}. Supported models are: {', '.join(SUPPORTED_EMBEDDING_MODELS)}"
+            raise ValueError(msg)
 
         return {"embedding": embedding}
 

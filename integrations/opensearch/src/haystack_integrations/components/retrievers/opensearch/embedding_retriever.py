@@ -1,10 +1,12 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import logging
+
+# ruff: noqa: FBT001  Boolean-typed positional argument in function definition
+
 from typing import Any, Dict, List, Optional, Union
 
-from haystack import component, default_from_dict, default_to_dict
+from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
@@ -152,7 +154,7 @@ class OpenSearchEmbeddingRetriever:
         top_k: Optional[int] = None,
         custom_query: Optional[Dict[str, Any]] = None,
         efficient_filtering: Optional[bool] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Retrieve documents using a vector similarity metric.
 
@@ -235,9 +237,107 @@ class OpenSearchEmbeddingRetriever:
                 raise e
             else:
                 logger.warning(
-                    "An error during embedding retrieval occurred and will be ignored by returning empty results: %s",
-                    str(e),
+                    "An error during embedding retrieval occurred and will be ignored by returning empty results:"
+                    "{error}",
+                    error=str(e),
                     exc_info=True,
                 )
+
+        return {"documents": docs}
+
+    @component.output_types(documents=List[Document])
+    async def run_async(
+        self,
+        query_embedding: List[float],
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: Optional[int] = None,
+        custom_query: Optional[Dict[str, Any]] = None,
+        efficient_filtering: Optional[bool] = None,
+    ) -> Dict[str, List[Document]]:
+        """
+        Asynchronously retrieve documents using a vector similarity metric.
+
+        :param query_embedding: Embedding of the query.
+        :param filters: Filters applied when fetching documents from the Document Store.
+            Filters are applied during the approximate kNN search to ensure the Retriever
+              returns `top_k` matching documents.
+            The way runtime filters are applied depends on the `filter_policy` selected when initializing the Retriever.
+        :param top_k: Maximum number of documents to return.
+        :param custom_query: A custom OpenSearch query containing a mandatory `$query_embedding` and an
+          optional `$filters` placeholder.
+
+            **An example custom_query:**
+
+            ```python
+            {
+                "query": {
+                    "bool": {
+                        "must": [
+                            {
+                                "knn": {
+                                    "embedding": {
+                                        "vector": "$query_embedding",   // mandatory query placeholder
+                                        "k": 10000,
+                                    }
+                                }
+                            }
+                        ],
+                        "filter": "$filters"                            // optional filter placeholder
+                    }
+                }
+            }
+            ```
+
+        For this `custom_query`, an example `run()` could be:
+
+        ```python
+        retriever.run(
+            query_embedding=embedding,
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.years", "operator": "==", "value": "2019"},
+                    {"field": "meta.quarters", "operator": "in", "value": ["Q1", "Q2"]},
+                ],
+            },
+        )
+        ```
+
+        :param efficient_filtering: If `True`, the filter will be applied during the approximate kNN search.
+            This is only supported for knn engines "faiss" and "lucene" and does not work with the default "nmslib".
+
+        :returns:
+            Dictionary with key "documents" containing the retrieved Documents.
+            - documents: List of Document similar to `query_embedding`.
+        """
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        top_k = top_k or self._top_k
+        if filters is None:
+            filters = self._filters
+        if top_k is None:
+            top_k = self._top_k
+        if custom_query is None:
+            custom_query = self._custom_query
+        if efficient_filtering is None:
+            efficient_filtering = self._efficient_filtering
+
+        docs: List[Document] = []
+
+        try:
+            docs = await self._document_store._embedding_retrieval_async(
+                query_embedding=query_embedding,
+                filters=filters,
+                top_k=top_k,
+                custom_query=custom_query,
+                efficient_filtering=efficient_filtering,
+            )
+        except Exception as e:
+            if self._raise_on_failure:
+                raise e
+            logger.warning(
+                "An error during embedding retrieval occurred and will be ignored by returning empty results: {error}",
+                error=str(e),
+                exc_info=True,
+            )
 
         return {"documents": docs}

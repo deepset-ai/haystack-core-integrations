@@ -116,11 +116,13 @@ class ElasticsearchBM25Retriever:
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
-    def run(self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
+    def run(
+        self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> Dict[str, List[Document]]:
         """
         Retrieve documents using the BM25 keyword-based algorithm.
 
-        :param query: String to search in `Document`s' text.
+        :param query: String to search in the `Document`s text.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
                         the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
@@ -130,6 +132,31 @@ class ElasticsearchBM25Retriever:
         """
         filters = apply_filter_policy(self._filter_policy, self._filters, filters)
         docs = self._document_store._bm25_retrieval(
+            query=query,
+            filters=filters,
+            fuzziness=self._fuzziness,
+            top_k=top_k or self._top_k,
+            scale_score=self._scale_score,
+        )
+        return {"documents": docs}
+
+    @component.output_types(documents=List[Document])
+    async def run_async(
+        self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> Dict[str, List[Document]]:
+        """
+        Asynchronously retrieve documents using the BM25 keyword-based algorithm.
+
+        :param query: String to search in the `Document` text.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
+                        details.
+        :param top_k: Maximum number of `Document` to return.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of `Document`s that match the query.
+        """
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        docs = await self._document_store._bm25_retrieval_async(
             query=query,
             filters=filters,
             fuzziness=self._fuzziness,

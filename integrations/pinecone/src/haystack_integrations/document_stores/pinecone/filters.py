@@ -1,10 +1,9 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from haystack.errors import FilterError
-from pandas import DataFrame
 
 
 def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
@@ -61,8 +60,6 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         field = field[5:]
 
     value: Any = condition["value"]
-    if isinstance(value, DataFrame):
-        value = value.to_json()
 
     return COMPARISON_OPERATORS[operator](field, value)
 
@@ -164,10 +161,7 @@ def _in(field: str, value: Any) -> Dict[str, Any]:
     supported_types = (int, float, str)
     for v in value:
         if not isinstance(v, supported_types):
-            msg = (
-                f"Unsupported type for 'in' comparison: {type(v)}. "
-                f"Types supported by Pinecone are: {supported_types}"
-            )
+            msg = f"Unsupported type for 'in' comparison: {type(v)}. Types supported by Pinecone are: {supported_types}"
             raise FilterError(msg)
 
     return {field: {"$in": value}}
@@ -185,3 +179,12 @@ COMPARISON_OPERATORS = {
 }
 
 LOGICAL_OPERATORS = {"AND": "$and", "OR": "$or"}
+
+
+def _validate_filters(filters: Optional[Dict[str, Any]]) -> None:
+    """
+    Helper method to validate filter syntax.
+    """
+    if filters and "operator" not in filters and "conditions" not in filters:
+        msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
+        raise ValueError(msg)

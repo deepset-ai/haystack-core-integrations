@@ -1,6 +1,163 @@
 # Changelog
 
-## [unreleased]
+## [integrations/langfuse-v2.3.0] - 2025-08-25
+
+### 🐛 Bug Fixes
+
+- Avoid mixed Langfuse traces in async envs (#2207)
+
+### 🧪 Testing
+
+- Make tests successfully run from forks (#2203)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+
+## [integrations/langfuse-v2.2.1] - 2025-08-07
+
+### 🚀 Features
+
+- Add AmazonBedrockChatGenerator to supported chat generators in Langfuse (#2164)
+
+
+## [integrations/langfuse-v2.2.0] - 2025-07-03
+
+### 🚀 Features
+
+- Simpler generation spans, use Haystack's to_openai_dict_format (#2044)
+
+### 🐛 Bug Fixes
+
+- Properly cleanup Langfuse tracing context after pipeline run failures (#1999)
+
+
+### 🧹 Chores
+
+- Pin langfuse<3.0.0 (#1904)
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+- Remove black (#1985)
+
+
+## [integrations/langfuse-v2.0.1] - 2025-06-02
+
+### 🚀 Features
+
+- Use Langfuse local to_openai_dict_format function to serialize messages (#1885)
+
+### 🌀 Miscellaneous
+
+- Feat: Add detailed tracing for GoogleGenAIChatGenerator (#1887)
+
+## [integrations/langfuse-v2.0.0] - 2025-05-27
+
+### 🌀 Miscellaneous
+
+- Add Langfuse pins (#1837)
+
+## [integrations/langfuse-v1.1.2] - 2025-05-16
+
+### 🌀 Miscellaneous
+
+- Test: Update how test skipping works in Langfuse (#1756)
+- `OllamaGenerator` support in Langfuse (#1759)
+
+## [integrations/langfuse-v1.1.1] - 2025-05-08
+
+### 🚀 Features
+
+- Add more options to LangfuseConnector (#1657)
+
+
+## [integrations/langfuse-v1.1.0] - 2025-05-06
+
+### 🚀 Features
+
+- Enhance Langfuse ToolInvoker span naming (#1682)
+
+
+## [integrations/langfuse-v1.0.1] - 2025-04-28
+
+### 🐛 Bug Fixes
+
+- Langfuse - remove warning "Creating a new trace without a parent span is not recommended"
+
+
+## [integrations/langfuse-v1.0.0] - 2025-04-11
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Make sure to JSON serialize objects before setting content tags (#1627)
+
+
+## [integrations/langfuse-v0.10.1] - 2025-04-11
+
+### 🚀 Features
+
+- Adapt Ollama metadata to OpenAI format; support Ollama in Langfuse (#1577)
+- Unify traces of sub-pipelines within pipelines with Langfuse (#1624)
+
+
+
+## [integrations/langfuse-v0.9.0] - 2025-04-04
+
+### 🚀 Features
+
+- Correctly set pipeline input and output by updating DefaultHandler (#1589)
+- Add trace_id to output of LangfuseConnector (#1587)
+
+### 📚 Documentation
+
+- Fixing typo in Langfuse API docstring
+
+### 🧪 Testing
+
+- Langfuse - wait before retrieving the trace in `test_custom_span_handler` (#1359)
+- Langfuse - make polling more robust in tests (#1375)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+
+
+## [integrations/langfuse-v0.8.0] - 2025-01-28
+
+### 🚀 Features
+
+- Add custom Langfuse span handling support (#1313)
+
+
+## [integrations/langfuse-v0.7.0] - 2025-01-21
+
+### 🚀 Features
+
+- LangfuseConnector - add httpx.Client init param (#1308)
+
+### 🐛 Bug Fixes
+
+- End langfuse generation spans properly (#1301)
+
+
+## [integrations/langfuse-v0.6.4] - 2025-01-17
+
+### 🚀 Features
+
+- Add LangfuseConnector secure key management and serialization  (#1287)
+
+
+## [integrations/langfuse-v0.6.3] - 2025-01-15
+
+### 🌀 Miscellaneous
+
+- Chore: Langfuse - pin `haystack-ai>=2.9.0` and simplify message conversion (#1292)
+
+## [integrations/langfuse-v0.6.2] - 2025-01-02
 
 ### 🚀 Features
 
@@ -13,6 +170,7 @@
 ### 🌀 Miscellaneous
 
 - Chore: Fix tracing_context_var lint errors (#1220)
+- Fix messages conversion to OpenAI format (#1272)
 
 ## [integrations/langfuse-v0.6.0] - 2024-11-18
 

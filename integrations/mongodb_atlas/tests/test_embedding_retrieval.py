@@ -11,7 +11,7 @@ from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocu
 
 
 @pytest.mark.skipif(
-    "MONGO_CONNECTION_STRING" not in os.environ,
+    not os.environ.get("MONGO_CONNECTION_STRING"),
     reason="No MongoDB Atlas connection string provided",
 )
 @pytest.mark.integration
@@ -83,7 +83,7 @@ class TestEmbeddingRetrieval:
     def test_embedding_retrieval_with_filters(self):
         """
         Note: we can combine embedding retrieval with filters
-        becuse the `cosine_index` vector_search_index was created with the `content` field as the filter field.
+        because the `cosine_index` vector_search_index was created with the `content` field as the filter field.
         {
         "fields": [
             {

@@ -1,0 +1,194 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mcp-haystack"
+dynamic = ["version"]
+description = "Haystack integration for Model Context Protocol (MCP)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+keywords = [
+    "MCP",
+    "Haystack",
+    "Model Context Protocol",
+]
+authors = [
+    { name = "deepset GmbH", email = "info@deepset.ai" },
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+dependencies = [
+    "mcp>=1.8.0",
+    "haystack-ai>=2.13.0",
+    "exceptiongroup",  # Backport of ExceptionGroup for Python < 3.11
+    "httpx"  # HTTP client library used for SSE connections
+]
+
+[project.urls]
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/mcp#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/mcp"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
+[tool.hatch.version]
+source = "vcs"
+tag-pattern = 'integrations\/mcp-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/mcp-v[0-9]*"'
+
+[tool.hatch.envs.default]
+installer = "uv"
+dependencies = ["haystack-pydoc-tools", "ruff"]
+
+[tool.hatch.envs.default.scripts]
+docs = ["pydoc-markdown pydoc/config.yml"]
+fmt = "ruff check --fix {args} && ruff format {args}"
+fmt-check = "ruff check {args} && ruff format --check {args}"
+
+[tool.hatch.envs.test]
+dependencies = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-rerunfailures",
+    "mypy",
+    "pip",
+    "anyio", 
+    "pytest-tornasync",
+    "pytest-pythonpath",
+    "mcp-server-time"
+]
+
+[tool.hatch.envs.test.scripts]
+unit = 'pytest -m "not integration" {args:tests}'
+integration = 'pytest -m "integration" {args:tests}'
+all = 'pytest {args:tests}'
+cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
+types = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+
+# TODO: remove lint environment once this integration is properly typed
+# test environment should be used instead
+# https://github.com/deepset-ai/haystack-core-integrations/issues/1771
+[tool.hatch.envs.lint]
+installer = "uv"
+detached = true
+dependencies = ["pip", "mypy>=1.0.0", "ruff>=0.0.243"]
+
+[tool.hatch.envs.lint.scripts]
+typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "A",
+    "ARG",
+    "B",
+    "C",
+    "DTZ",
+    "E",
+    "EM",
+    "F",
+    "I",
+    "ICN",
+    "ISC",
+    "N",
+    "PLC",
+    "PLE",
+    "PLR",
+    "PLW",
+    "Q",
+    "RUF",
+    "S",
+    "T",
+    "TID",
+    "UP",
+    "W",
+    "YTT",
+]
+ignore = [
+    # Allow non-abstract empty methods in abstract base classes
+    "B027",
+    # Ignore checks for possible passwords
+    "S105",
+    "S106",
+    "S107",
+    # Ignore complexity
+    "C901",
+    "PLR0911",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+    # Ignore the errors for process open we're seeing in tests
+    "RUF005",
+    "S603",
+    "S607",
+]
+unfixable = [
+    # Don't touch unused imports
+    "F401",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["haystack_integrations"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use magic values, assertions, and relative imports
+"tests/**/*" = ["PLR2004", "S101", "TID252"]
+"examples/**/*" = ["T201", "E501"] 
+
+[tool.coverage.run]
+source = ["haystack_integrations"]
+branch = true
+parallel = false
+
+[tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing = true
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
+
+[[tool.mypy.overrides]]
+module = [
+    "haystack.*",
+    "haystack_integrations.*",
+    "pytest.*",
+    "pytest_asyncio",
+    "anyio.*",
+    "mcp.*",
+    "mcp",
+    "httpx",
+    "exceptiongroup"
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+    "unit: unit tests",
+    "integration: integration tests",
+]
+log_cli = true
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.hatch.metadata]
+allow-direct-references = true 

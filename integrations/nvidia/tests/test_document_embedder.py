@@ -9,6 +9,7 @@ from haystack import Document
 from haystack.utils import Secret
 
 from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaDocumentEmbedder
+from haystack_integrations.utils.nvidia import DEFAULT_API_URL
 
 from . import MockBackend
 
@@ -17,10 +18,10 @@ class TestNvidiaDocumentEmbedder:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         embedder = NvidiaDocumentEmbedder()
+        embedder.warm_up()
 
         assert embedder.api_key == Secret.from_env_var("NVIDIA_API_KEY")
         assert embedder.model == "nvidia/nv-embedqa-e5-v5"
-        assert embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia"
         assert embedder.prefix == ""
         assert embedder.suffix == ""
         assert embedder.batch_size == 32
@@ -29,28 +30,26 @@ class TestNvidiaDocumentEmbedder:
         assert embedder.embedding_separator == "\n"
 
     def test_init_with_parameters(self):
-        with pytest.raises(ValueError):
-            embedder = NvidiaDocumentEmbedder(
-                api_key=Secret.from_token("fake-api-key"),
-                model="nvolveqa_40k",
-                api_url="https://ai.api.nvidia.com/v1/retrieval/nvidia/test",
-                prefix="prefix",
-                suffix="suffix",
-                batch_size=30,
-                progress_bar=False,
-                meta_fields_to_embed=["test_field"],
-                embedding_separator=" | ",
-            )
+        embedder = NvidiaDocumentEmbedder(
+            api_key=Secret.from_token("fake-api-key"),
+            model="nvolveqa_40k",
+            prefix="prefix",
+            suffix="suffix",
+            batch_size=30,
+            progress_bar=False,
+            meta_fields_to_embed=["test_field"],
+            embedding_separator=" | ",
+        )
 
-            assert embedder.api_key == Secret.from_token("fake-api-key")
-            assert embedder.model == "nvolveqa_40k"
-            assert embedder.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia/test"
-            assert embedder.prefix == "prefix"
-            assert embedder.suffix == "suffix"
-            assert embedder.batch_size == 30
-            assert embedder.progress_bar is False
-            assert embedder.meta_fields_to_embed == ["test_field"]
-            assert embedder.embedding_separator == " | "
+        assert embedder.api_key == Secret.from_token("fake-api-key")
+        assert embedder.model == "nvolveqa_40k"
+        assert embedder.api_url == DEFAULT_API_URL
+        assert embedder.prefix == "prefix"
+        assert embedder.suffix == "suffix"
+        assert embedder.batch_size == 30
+        assert embedder.progress_bar is False
+        assert embedder.meta_fields_to_embed == ["test_field"]
+        assert embedder.embedding_separator == " | "
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
@@ -66,7 +65,7 @@ class TestNvidiaDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.nvidia.document_embedder.NvidiaDocumentEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
-                "api_url": "https://ai.api.nvidia.com/v1/retrieval/nvidia",
+                "api_url": DEFAULT_API_URL,
                 "model": "playground_nvolveqa_40k",
                 "prefix": "",
                 "suffix": "",
@@ -148,8 +147,10 @@ class TestNvidiaDocumentEmbedder:
             "init_parameters": {},
         }
         component = NvidiaDocumentEmbedder.from_dict(data)
-        assert component.model == "nvidia/nv-embedqa-e5-v5"
-        assert component.api_url == "https://ai.api.nvidia.com/v1/retrieval/nvidia"
+        ## updating this as model set to None as the warm_up is not done
+        ## default model will be set post warm_up()
+        assert component.model is None
+        assert component.api_url == DEFAULT_API_URL
         assert component.prefix == ""
         assert component.suffix == ""
         assert component.batch_size == 32
@@ -430,19 +431,11 @@ class TestNvidiaDocumentEmbedder:
         "model, api_url",
         [
             ("NV-Embed-QA", None),
-            ("snowflake/arctic-embed-l", "https://integrate.api.nvidia.com/v1"),
-            ("nvidia/nv-embed-v1", "https://integrate.api.nvidia.com/v1"),
-            ("nvidia/nv-embedqa-mistral-7b-v2", "https://integrate.api.nvidia.com/v1"),
             ("nvidia/nv-embedqa-e5-v5", "https://integrate.api.nvidia.com/v1"),
-            ("baai/bge-m3", "https://integrate.api.nvidia.com/v1"),
         ],
         ids=[
             "NV-Embed-QA",
-            "snowflake/arctic-embed-l",
-            "nvidia/nv-embed-v1",
-            "nvidia/nv-embedqa-mistral-7b-v2",
             "nvidia/nv-embedqa-e5-v5",
-            "baai/bge-m3",
         ],
     )
     @pytest.mark.skipif(

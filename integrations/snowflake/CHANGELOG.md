@@ -1,5 +1,44 @@
 # Changelog
 
+## [integrations/snowflake-v1.1.0] - 2025-06-30
+
+### 🐛 Bug Fixes
+
+- Fix Snowflake types + add py.typed (#2021)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Remove black (#1985)
+
+
+## [integrations/snowflake-v1.0.1] - 2025-05-28
+
+### 🌀 Miscellaneous
+
+- Add pins for Snowflake + small refactoring (#1860)
+
+## [integrations/snowflake-v1.0.0] - 2025-04-10
+
+### 🚜 Refactor
+
+- Update the Snowflake component to utilize Polars and ADBC for improved performance. (#1630)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+
+## [integrations/snowflake-v0.0.4] - 2025-03-11
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+
+### 🌀 Miscellaneous
+
+- Snowflake - add pandas depenency (#1520)
+
 ## [integrations/snowflake-v0.0.3] - 2024-12-13
 
 ### ⚙️ CI

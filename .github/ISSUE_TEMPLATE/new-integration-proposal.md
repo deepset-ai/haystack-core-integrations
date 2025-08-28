@@ -20,16 +20,14 @@ Also, if there's any new terminology involved, define it here.
 ## Checklist
 
 If the request is accepted, ensure the following checklist is complete before closing this issue.
-```[tasklist]
+
 ### Tasks
 - [ ] The code is documented with docstrings and was merged in the `main` branch
 - [ ] Docs are published at https://docs.haystack.deepset.ai/
 - [ ] There is a Github workflow running the tests for the integration nightly and at every PR
-- [ ] A label named like `integration:<your integration name>` has been added to this repo
+- [ ] A new label named like `integration:<your integration name>` has been added to the list of labels for this [repository](https://github.com/deepset-ai/haystack-core-integrations/labels)
 - [ ] The [labeler.yml](https://github.com/deepset-ai/haystack-core-integrations/blob/main/.github/labeler.yml) file has been updated
 - [ ] The package has been released on PyPI
-- [ ] An integration tile has been added to https://github.com/deepset-ai/haystack-integrations
+- [ ] An integration tile with a usage example has been added to https://github.com/deepset-ai/haystack-integrations
 - [ ] The integration has been listed in the [Inventory section](https://github.com/deepset-ai/haystack-core-integrations#inventory) of this repo README
-- [ ] There is an example available to demonstrate the feature
 - [ ] The feature was announced through social media
-```

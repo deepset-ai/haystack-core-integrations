@@ -1,5 +1,31 @@
 # Changelog
 
+## [integrations/jina-v0.7.0] - 2025-06-30
+
+### 🐛 Bug Fixes
+
+- Fix Jina types + add py.typed (#2020)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Remove black (#1985)
+
+
+## [integrations/jina-v0.6.0] - 2025-05-27
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+
+### 🌀 Miscellaneous
+
+- Add Jina pins (#1836)
+
 ## [integrations/jina-v0.5.1] - 2024-11-26
 
 ### 🧹 Chores

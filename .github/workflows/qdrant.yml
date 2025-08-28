@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/qdrant/**"
+      - "!integrations/qdrant/*.md"
       - ".github/workflows/qdrant.yml"
 
 defaults:
@@ -30,7 +31,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.9", "3.10"]
+        python-version: ["3.9", "3.13"]
 
     steps:
       - name: Support longpaths
@@ -38,7 +39,7 @@ jobs:
         working-directory: .
         run: git config --system core.longpaths true
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -50,20 +51,27 @@ jobs:
 
       - name: Lint
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
-        run: hatch run lint:all
+        run: hatch run fmt-check && hatch run test:types
 
       - name: Generate docs
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run docs
 
       - name: Run tests
-        run: hatch run cov-retry
+        run: hatch run test:cov-retry
+
+      - name: Run unit tests with lowest direct dependencies
+        run: |
+          hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
+          hatch run uv pip install -r requirements_lowest_direct.txt
+          hatch run test:unit
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
-          hatch run pip install git+https://github.com/deepset-ai/haystack.git
-          hatch run cov-retry -m "not integration"
+          hatch env prune
+          hatch run uv pip install git+https://github.com/deepset-ai/haystack.git@main
+          hatch run test:unit
 
       - name: Send event to Datadog for nightly failures
         if: failure() && github.event_name == 'schedule'

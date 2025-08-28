@@ -1,11 +1,11 @@
 import json
-import logging
 from typing import Dict, List, Optional, Union
 from warnings import warn
 
 from astrapy import DataAPIClient as AstraDBClient
 from astrapy.constants import ReturnDocument
 from astrapy.exceptions import CollectionAlreadyExistsException
+from haystack import logging
 from haystack.version import __version__ as integration_version
 from pydantic.dataclasses import dataclass
 
@@ -144,6 +144,7 @@ class AstraClient:
 
     def query(
         self,
+        *,
         vector: Optional[List[float]] = None,
         query_filter: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
         top_k: Optional[int] = None,
@@ -277,7 +278,7 @@ class AstraClient:
 
         return formatted_docs
 
-    def insert(self, documents: List[Dict]):
+    def insert(self, documents: List[Dict]) -> List[str]:
         """
         Insert documents into the Astra index.
 
@@ -289,7 +290,7 @@ class AstraClient:
 
         return inserted_ids
 
-    def update_document(self, document: Dict, id_key: str):
+    def update_document(self, document: Dict, id_key: str) -> bool:
         """
         Update a document in the Astra index.
 
@@ -317,6 +318,7 @@ class AstraClient:
 
     def delete(
         self,
+        *,
         ids: Optional[List[str]] = None,
         delete_all: Optional[bool] = None,
         filters: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,

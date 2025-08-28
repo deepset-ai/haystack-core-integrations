@@ -3,41 +3,31 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+import warnings
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import requests
 from haystack import logging
 from haystack.utils import Secret
+
+from .client import Client
+from .models import DEFAULT_MODELS, Model
+from .utils import determine_model, is_hosted, validate_hosted_model
 
 logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = 60.0
 
 
-@dataclass
-class Model:
-    """
-    Model information.
-
-    id: unique identifier for the model, passed as model parameter for requests
-    aliases: list of aliases for the model
-    base_model: root model for the model
-    All aliases are deprecated and will trigger a warning when used.
-    """
-
-    id: str
-    aliases: Optional[List[str]] = field(default_factory=list)
-    base_model: Optional[str] = None
-
-
 class NimBackend:
     def __init__(
         self,
-        model: str,
         api_url: str,
+        model_type: Optional[Literal["chat", "embedding", "ranking"]] = None,
+        model: Optional[str] = None,
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_kwargs: Optional[Dict[str, Any]] = None,
+        client: Optional[Union[str, Client]] = None,
         timeout: Optional[float] = None,
     ):
         headers = {
@@ -51,9 +41,34 @@ class NimBackend:
         self.session = requests.Session()
         self.session.headers.update(headers)
 
-        self.model = model
         self.api_url = api_url
+        if isinstance(client, str):
+            client = Client.from_str(client)
+        validated_model: Optional[Model] = None
+        if is_hosted(self.api_url):
+            if not api_key:
+                warnings.warn(
+                    "An API key is required for the hosted NIM. This will become an error in the future.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            if not model:
+                if not model_type:
+                    msg = "`model_type` is required when `model` is not specified and a valid `api_url` is provided."
+                    raise ValueError(msg)
+                # infer the default model for the given model type
+                model = DEFAULT_MODELS[model_type]
+
+            validated_model = validate_hosted_model(model_name=model, client=client)
+            if validated_model and validated_model.endpoint:
+                # we override the endpoint to use the custom endpoint
+                self.api_url = validated_model.endpoint
+                self.model_type = validated_model.model_type
+
+        self.model = validated_model.id if validated_model else model
         self.model_kwargs = model_kwargs or {}
+        self.client = client
+        self.model_type = model_type
         if timeout is None:
             timeout = float(os.environ.get("NVIDIA_TIMEOUT", REQUEST_TIMEOUT))
         self.timeout = timeout
@@ -146,20 +161,21 @@ class NimBackend:
         res.raise_for_status()
 
         data = res.json()["data"]
-        models = [Model(element["id"]) for element in data if "id" in element]
+        models = []
+        for element in data:
+            assert "id" in element, f"No id found in {element}"
+            if not (model := determine_model(element["id"])):
+                model = Model(id=element["id"], client=self.client, model_type=self.model_type)
+            model.base_model = element.get("root")
+            models.append(model)
         if not models:
             logger.error("No hosted model were found at URL '{u}'.", u=url)
             msg = f"No hosted model were found at URL '{url}'."
             raise ValueError(msg)
         return models
 
-    def rank(
-        self,
-        query_text: str,
-        document_texts: List[str],
-        endpoint: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
-        url = endpoint or f"{self.api_url}/ranking"
+    def rank(self, query_text: str, document_texts: List[str]) -> List[Dict[str, Any]]:
+        url = self.api_url
 
         try:
             res = self.session.post(

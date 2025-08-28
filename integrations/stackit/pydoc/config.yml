@@ -1,0 +1,31 @@
+loaders:
+  - type: haystack_pydoc_tools.loaders.CustomPythonLoader
+    search_path: [../src]
+    modules: [
+      "haystack_integrations.components.generators.stackit.chat.chat_generator",
+      "haystack_integrations.components.embedders.stackit.document_embedder",
+      "haystack_integrations.components.embedders.stackit.text_embedder",
+    ]
+    ignore_when_discovered: ["__init__"]
+processors:
+  - type: filter
+    expression:
+    documented_only: true
+    do_not_filter_modules: false
+    skip_empty_modules: true
+  - type: smart
+  - type: crossref
+renderer:
+  type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
+  excerpt: STACKIT integration for Haystack
+  category_slug: integrations-api
+  title: STACKIT
+  slug: integrations-stackit
+  order: 150
+  markdown:
+    descriptive_class_title: false
+    classdef_code_block: false
+    descriptive_module_title: true
+    add_method_class_prefix: true
+    add_member_class_prefix: false
+    filename: _readme_stackit.md

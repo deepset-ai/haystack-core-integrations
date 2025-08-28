@@ -1,0 +1,126 @@
+# This workflow comes from https://github.com/ofek/hatch-mypyc
+# https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
+name: Test / llama_stack
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  pull_request:
+    paths:
+      - "integrations/llama_stack/**"
+      - "!integrations/llama_stack/*.md"
+      - ".github/workflows/llama_stack.yml"
+
+defaults:
+  run:
+    working-directory: integrations/llama_stack
+
+concurrency:
+  group: llama_stack-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  FORCE_COLOR: "1"
+
+jobs:
+  run:
+    name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]  # to test on other Operating Systems, we need to install Ollama differently
+        python-version: ["3.12", "3.13"]  
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install and run Ollama Server as inference provider (needed for Llama Stack Server)
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 2
+          max_attempts: 3
+          command: |
+            curl -fsSL https://ollama.com/install.sh | sh
+            ollama serve &
+
+            # Check if the service is up and running with a timeout of 60 seconds
+            timeout=60
+            while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:11434/ > /dev/null; do
+              echo "Waiting for Ollama service to start..."
+              sleep 5
+              ((timeout-=5))
+            done
+
+            if [ $timeout -eq 0 ]; then
+              echo "Timed out waiting for Ollama service to start."
+              exit 1
+            fi
+
+            echo "Ollama service started successfully."
+      
+      - name: Pull models
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 2
+          max_attempts: 5
+          command: |
+            ollama pull llama3.2:3b
+            ollama list | grep -q "llama3.2:3b" || { echo "Model llama3.2:3b not pulled."; exit 1; }
+
+            echo "Models pulled successfully."
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Test Llama Stack Server
+        env:
+          OLLAMA_INFERENCE_MODEL: llama3.2:3b
+          OLLAMA_URL: http://localhost:11434
+        shell: bash
+        run: |
+          pip install uv
+          uv run --with llama-stack llama stack build --distro starter --image-type venv --run < /dev/null > server.log 2>&1 &
+          sleep 120
+          # Verify it's running
+          curl -f http://localhost:8321/v1/models || { cat server.log; exit 1; }
+          
+          echo "Llama Stack Server started successfully."
+
+      - name: Install Hatch
+        run: pip install --upgrade hatch
+
+      - name: Lint
+        if: matrix.python-version == '3.12' && runner.os == 'Linux'
+        run: hatch run fmt-check && hatch run test:types
+
+      - name: Generate docs
+        if: matrix.python-version == '3.12' && runner.os == 'Linux'
+        run: hatch run docs
+
+      - name: Run tests
+        run: hatch run test:cov-retry
+
+      - name: Run unit tests with lowest direct dependencies
+        run: |
+          hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
+          hatch run uv pip install -r requirements_lowest_direct.txt
+          hatch run test:unit
+
+      - name: Nightly - run unit tests with Haystack main branch
+        if: github.event_name == 'schedule'
+        run: |
+          hatch env prune
+          hatch run uv pip install git+https://github.com/deepset-ai/haystack.git@main
+          hatch run test:unit
+
+      - name: Send event to Datadog for nightly failures
+        if: failure() && github.event_name == 'schedule'
+        uses: ./.github/actions/send_failure
+        with:
+          title: |
+            Core integrations nightly tests failure: ${{ github.workflow }}
+          api-key: ${{ secrets.CORE_DATADOG_API_KEY }}

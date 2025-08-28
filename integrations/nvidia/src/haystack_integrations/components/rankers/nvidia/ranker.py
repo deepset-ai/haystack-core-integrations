@@ -10,16 +10,9 @@ from haystack import Document, component, default_from_dict, default_to_dict, lo
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.rankers.nvidia.truncate import RankerTruncateMode
-from haystack_integrations.utils.nvidia import NimBackend, url_validation
+from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Client, NimBackend, is_hosted, url_validation
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_MODEL = "nvidia/nv-rerankqa-mistral-4b-v3"
-
-_MODEL_ENDPOINT_MAP = {
-    "nvidia/nv-rerankqa-mistral-4b-v3": "https://ai.api.nvidia.com/v1/retrieval/nvidia/nv-rerankqa-mistral-4b-v3/reranking",
-    "nvidia/llama-3.2-nv-rerankqa-1b-v1": "https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-3_2-nv-rerankqa-1b-v1/reranking",
-}
 
 
 @component
@@ -56,7 +49,7 @@ class NvidiaRanker:
         self,
         model: Optional[str] = None,
         truncate: Optional[Union[RankerTruncateMode, str]] = None,
-        api_url: Optional[str] = None,
+        api_url: str = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         top_k: int = 5,
         query_prefix: str = "",
@@ -105,34 +98,29 @@ class NvidiaRanker:
             raise TypeError(msg)
 
         # todo: detect default in non-hosted case (when api_url is provided)
-        self.model = model or _DEFAULT_MODEL
         self.truncate = truncate
         self.api_key = api_key
+        self.model = model
         # if no api_url is provided, we're using a hosted model and can
         #  - assume the default url will work, because there's only one model
         #  - assume we won't call backend.models()
-        if api_url is not None:
-            self.api_url = url_validation(api_url, None, ["v1/ranking"])
-            self.endpoint = None  # we let backend.rank() handle the endpoint
-        else:
-            if self.model not in _MODEL_ENDPOINT_MAP:
-                msg = f"Model '{model}' is unknown. Please provide an api_url to access it."
-                raise ValueError(msg)
-            self.api_url = None  # we handle the endpoint
-            self.endpoint = _MODEL_ENDPOINT_MAP[self.model]
-            if api_key is None:
-                self._api_key = Secret.from_env_var("NVIDIA_API_KEY")
+        self.api_url = url_validation(api_url)
         self.top_k = top_k
         self._initialized = False
-        self._backend: Optional[Any] = None
+        self.backend: Optional[Any] = None
+        self.is_hosted = is_hosted(api_url)
 
         self.query_prefix = query_prefix
         self.document_prefix = document_prefix
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
         if timeout is None:
-            timeout = float(os.environ.get("NVIDIA_TIMEOUT", 60.0))
+            timeout = float(os.environ.get("NVIDIA_TIMEOUT", "60.0"))
         self.timeout = timeout
+
+    @classmethod
+    def class_name(cls) -> str:
+        return "NvidiaRanker"
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -174,18 +162,21 @@ class NvidiaRanker:
         :raises ValueError: If the API key is required for hosted NVIDIA NIMs.
         """
         if not self._initialized:
-            model_kwargs = {}
+            model_kwargs: Dict[str, Any] = {}
             if self.truncate is not None:
                 model_kwargs.update(truncate=str(self.truncate))
-            self._backend = NimBackend(
+            self.backend = NimBackend(
                 model=self.model,
+                model_type="ranking",
                 api_url=self.api_url,
                 api_key=self.api_key,
                 model_kwargs=model_kwargs,
                 timeout=self.timeout,
+                client=Client.NVIDIA_RANKER,
             )
-            if not self.model:
-                self.model = _DEFAULT_MODEL
+            if not self.is_hosted and not self.model:
+                if self.backend.model:
+                    self.model = self.backend.model
             self._initialized = True
 
     def _prepare_documents_to_embed(self, documents: List[Document]) -> List[str]:
@@ -244,17 +235,13 @@ class NvidiaRanker:
             warnings.warn("top_k should be at least 1, returning nothing", stacklevel=2)
             return {"documents": []}
 
-        assert self._backend is not None
+        assert self.backend is not None
 
         query_text = self.query_prefix + query
         document_texts = self._prepare_documents_to_embed(documents=documents)
 
         # rank result is list[{index: int, logit: float}] sorted by logit
-        sorted_indexes_and_scores = self._backend.rank(
-            query_text=query_text,
-            document_texts=document_texts,
-            endpoint=self.endpoint,
-        )
+        sorted_indexes_and_scores = self.backend.rank(query_text=query_text, document_texts=document_texts)
         sorted_documents = []
         for item in sorted_indexes_and_scores[:top_k]:
             # mutate (don't copy) the document because we're only updating the score

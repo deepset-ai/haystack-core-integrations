@@ -1,0 +1,170 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "watsonx-haystack"
+dynamic = ["version"]
+description = "Watsonx integration for Haystack"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [
+    { name = "Divya", email = "divyaruhil999@gmail.com" },
+    { name = "deepset GmbH", email = "info@deepset.ai" },
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = ["haystack-ai>=2.17.1", "ibm-watsonx-ai>=1.3.26", "pandas>=2.2.3"]
+
+[project.urls]
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/watsonx#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/watsonx"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
+[tool.hatch.version]
+source = "vcs"
+tag-pattern = 'integrations\/watsonx-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/watsonx-v[0-9]*"'
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.envs.default]
+installer = "uv"
+dependencies = ["haystack-pydoc-tools", "ruff"]
+
+[tool.hatch.envs.default.scripts]
+docs = ["pydoc-markdown pydoc/config.yml"]
+fmt = "ruff check --fix {args} && ruff format {args}"
+fmt-check = "ruff check {args} && ruff format --check {args}"
+
+[tool.hatch.envs.test]
+dependencies = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-rerunfailures",
+    "mypy",
+    "pip",
+    "anyio",
+    "pytest-mock"
+]
+
+[tool.hatch.envs.test.scripts]
+unit = 'pytest -m "not integration" {args:tests}'
+integration = 'pytest -m "integration" {args:tests}'
+all = 'pytest {args:tests}'
+cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
+types = """mypy -p haystack_integrations.components.generators.watsonx \
+-p haystack_integrations.components.embedders.watsonx  {args}"""
+
+[tool.mypy]
+install_types = true
+non_interactive = true
+check_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = [
+  "ibm_watsonx_ai.*",
+]
+ignore_missing_imports = true
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+  "A",
+  "ARG",
+  "B",
+  "C",
+  "DTZ",
+  "E",
+  "EM",
+  "F",
+  "I",
+  "ICN",
+  "ISC",
+  "N",
+  "PLC",
+  "PLE",
+  "PLR",
+  "PLW",
+  "Q",
+  "RUF",
+  "S",
+  "T",
+  "TID",
+  "UP",
+  "W",
+  "YTT",
+]
+ignore = [
+  "T201", # print statements
+  # Allow non-abstract empty methods in abstract base classes
+  "B027",
+  # Ignore checks for possible passwords
+  "S105",
+  "S106",
+  "S107",
+  # Ignore complexity
+  "C901",
+  "PLR0911",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+  # Ignore unused params
+  "ARG001",
+  "ARG002",
+  "ARG005",
+]
+unfixable = [
+  # Don't touch unused imports
+  "F401",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["haystack_integrations"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use magic values, assertions, and relative imports
+"tests/**/*" = ["PLR2004", "S101", "TID252"]
+
+[tool.coverage.run]
+source = ["haystack_integrations"]
+branch = true
+parallel = true
+
+[tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing = true
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
+
+[tool.pytest.ini_options]
+addopts = "--tb=short -v"
+asyncio_default_fixture_loop_scope = "class"
+asyncio_mode = "auto"
+log_cli = true
+markers = [
+    "asyncio: mark tests as using asyncio",
+    "integration: mark tests as integration tests"
+]

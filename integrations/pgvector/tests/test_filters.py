@@ -3,9 +3,7 @@ from typing import List
 import pytest
 from haystack.dataclasses.document import Document
 from haystack.testing.document_store import FilterDocumentsTest
-from pandas import DataFrame
 from psycopg.sql import SQL
-from psycopg.types.json import Jsonb
 
 from haystack_integrations.document_stores.pgvector.filters import (
     FilterError,
@@ -13,6 +11,7 @@ from haystack_integrations.document_stores.pgvector.filters import (
     _parse_comparison_condition,
     _parse_logical_condition,
     _treat_meta_field,
+    _validate_filters,
 )
 
 
@@ -39,6 +38,62 @@ class TestFilters(FilterDocumentsTest):
 
     @pytest.mark.skip(reason="NOT operator is not supported in PgvectorDocumentStore")
     def test_not_operator(self, document_store, filterable_docs): ...
+
+    def test_like_operator(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        filters = {"field": "content", "operator": "like", "value": "%Foo%"}
+        result = document_store.filter_documents(filters=filters)
+
+        self.assert_documents_are_equal(result, [d for d in filterable_docs if "Foo" in d.content])
+
+    def test_like_operator_startswith(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        filters = {"field": "content", "operator": "like", "value": "Foo%"}
+        result = document_store.filter_documents(filters=filters)
+
+        self.assert_documents_are_equal(result, [d for d in filterable_docs if d.content.startswith("Foo")])
+
+    def test_like_operator_nb_chars(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        filters = {"field": "content", "operator": "like", "value": "A Foobar Document__"}
+        result = document_store.filter_documents(filters=filters)
+
+        self.assert_documents_are_equal(
+            result,
+            [
+                d
+                for d in filterable_docs
+                if (d.content.startswith("A Foobar Document") and len(d.content) == (len("A Foobar Document") + 2))
+            ],
+        )
+
+    def test_not_like_operator(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        filters = {"field": "content", "operator": "not like", "value": "%Foo%"}
+        result = document_store.filter_documents(filters=filters)
+
+        self.assert_documents_are_equal(result, [d for d in filterable_docs if "Foo" not in d.content])
+
+    def test_not_like_operator_startswith(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        filters = {"field": "content", "operator": "not like", "value": "Foo%"}
+        result = document_store.filter_documents(filters=filters)
+
+        self.assert_documents_are_equal(result, [d for d in filterable_docs if not d.content.startswith("Foo")])
+
+    def test_not_like_operator_nb_chars(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        filters = {"field": "content", "operator": "not like", "value": "A Foobar Document__"}
+        result = document_store.filter_documents(filters=filters)
+
+        self.assert_documents_are_equal(
+            result,
+            [
+                d
+                for d in filterable_docs
+                if not (d.content.startswith("A Foobar Document") and len(d.content) == (len("A Foobar Document") + 2))
+            ],
+        )
 
     def test_complex_filter(self, document_store, filterable_docs):
         document_store.write_documents(filterable_docs)
@@ -89,17 +144,6 @@ def test_treat_meta_field():
     assert _treat_meta_field(field="meta.other", value={"a": 3, "b": "example"}) == "meta->>'other'"
     assert _treat_meta_field(field="meta.empty_list", value=[]) == "meta->>'empty_list'"
     assert _treat_meta_field(field="meta.name", value=None) == "meta->>'name'"
-
-
-def test_comparison_condition_dataframe_jsonb_conversion():
-    dataframe = DataFrame({"a": [1, 2, 3], "b": ["a", "b", "c"]})
-    condition = {"field": "meta.df", "operator": "==", "value": dataframe}
-    field, values = _parse_comparison_condition(condition)
-    assert field == "(meta.df)::jsonb = %s"
-
-    # we check each slot of the Jsonb object because it does not implement __eq__
-    assert values[0].obj == Jsonb(dataframe.to_json()).obj
-    assert values[0].dumps == Jsonb(dataframe.to_json()).dumps
 
 
 def test_comparison_condition_missing_operator():
@@ -190,3 +234,16 @@ def test_convert_filters_to_where_clause_and_params_handle_null():
     where_clause, params = _convert_filters_to_where_clause_and_params(filters)
     assert where_clause == SQL(" WHERE ") + SQL("(meta->>'number' IS NULL AND meta->>'chapter' = %s)")
     assert params == ("intro",)
+
+
+def test_validate_filters():
+    filters = {"field": "meta.number", "operator": "==", "value": 100}
+    _validate_filters(filters)
+
+    my_list = ["a", "nice", "list"]
+    with pytest.raises(TypeError):
+        _validate_filters(my_list)
+
+    invalid_filters = {"field": "meta.number", "value": "100"}
+    with pytest.raises(ValueError):
+        _validate_filters(invalid_filters)

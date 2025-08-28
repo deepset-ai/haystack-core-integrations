@@ -94,7 +94,7 @@ class JinaTextEmbedder:
         :returns:
             Dictionary with serialized data.
         """
-        kwargs = {
+        kwargs: Dict[str, Any] = {
             "api_key": self.api_key.to_dict(),
             "model": self.model_name,
             "prefix": self.prefix,
@@ -122,7 +122,7 @@ class JinaTextEmbedder:
         return default_from_dict(cls, data)
 
     @component.output_types(embedding=List[float], meta=Dict[str, Any])
-    def run(self, text: str):
+    def run(self, text: str) -> Dict[str, Any]:
         """
         Embed a string.
 

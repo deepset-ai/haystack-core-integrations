@@ -7,7 +7,7 @@ name = "amazon-bedrock-haystack"
 dynamic = ["version"]
 description = 'An integration of Amazon Bedrock as an AmazonBedrockGenerator component.'
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
@@ -15,15 +15,15 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "boto3>=1.28.57", "transformers"]
+dependencies = ["haystack-ai>=2.16.0", "boto3>=1.28.57", "aioboto3>=14.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/amazon_bedrock#readme"
@@ -43,40 +43,50 @@ git_describe_command = 'git describe --tags --match="integrations/amazon_bedrock
 
 [tool.hatch.envs.default]
 installer = "uv"
-dependencies = [
-  "coverage[toml]>=6.5",
-  "pytest",
-  "pytest-rerunfailures",
-  "haystack-pydoc-tools",
-]
+dependencies = ["haystack-pydoc-tools", "ruff"]
+
 [tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}"
-test-cov = "coverage run -m pytest {args:tests}"
-test-cov-retry = "test-cov --reruns 3 --reruns-delay 30 -x"
-cov-report = ["- coverage combine", "coverage report"]
-cov = ["test-cov", "cov-report"]
-cov-retry = ["test-cov-retry", "cov-report"]
 docs = ["pydoc-markdown pydoc/config.yml"]
-[[tool.hatch.envs.all.matrix]]
-python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
+fmt = "ruff check --fix {args} && ruff format {args}"
+fmt-check = "ruff check {args} && ruff format --check {args}"
 
-[tool.hatch.envs.lint]
-installer = "uv"
-detached = true
-dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
-[tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+[tool.hatch.envs.test]
+dependencies = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-rerunfailures",
+    "mypy",
+    "pip",
+    "pillow", # image resizing,
+    "pypdfium2"
+]
 
-style = ["ruff check {args:.}", "black --check --diff {args:.}"]
+[tool.hatch.envs.test.scripts]
+unit = 'pytest -m "not integration" {args:tests}'
+integration = 'pytest -m "integration" {args:tests}'
+all = 'pytest {args:tests}'
+cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
 
-fmt = ["black {args:.}", "ruff check --fix {args:.}", "style"]
+types = """mypy -p haystack_integrations.common.amazon_bedrock \
+-p haystack_integrations.components.embedders.amazon_bedrock \
+-p haystack_integrations.components.generators.amazon_bedrock \
+-p haystack_integrations.components.rankers.amazon_bedrock {args}"""
 
-all = ["style", "typing"]
+[tool.mypy]
+install_types = true
+non_interactive = true
+check_untyped_defs = true
+disallow_incomplete_defs = true
 
-[tool.black]
-target-version = ["py38"]
-line-length = 120
-skip-string-normalization = true
+[[tool.mypy.overrides]]
+# unfortunately, unofficial type stubs do not play well with some features of Bedrock
+module = [
+"aioboto3.*",
+"botocore.*",
+"boto3.*",
+]
+ignore_missing_imports = true
 
 [tool.ruff]
 target-version = "py38"
@@ -152,24 +162,9 @@ omit = ["*/tests/*", "*/__init__.py"]
 show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
-[[tool.mypy.overrides]]
-module = [
-  "botocore.*",
-  "transformers.*",
-  "boto3.*",
-  "haystack.*",
-  "haystack_integrations.*",
-  "pytest.*",
-  "numpy.*",
-]
-ignore_missing_imports = true
-
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
 markers = [
-  "unit: unit tests",
   "integration: integration tests",
-  "embedders: embedders tests",
-  "generators: generators tests",
 ]
 log_cli = true

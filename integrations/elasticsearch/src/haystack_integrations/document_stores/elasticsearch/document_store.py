@@ -1,21 +1,19 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import logging
-from typing import Any, Dict, List, Literal, Mapping, Optional, Union
+from collections.abc import Mapping
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import numpy as np
-
-# There are no import stubs for elastic_transport and elasticsearch so mypy fails
-from elastic_transport import NodeConfig  # type: ignore[import-not-found]
-from haystack import default_from_dict, default_to_dict
+from elastic_transport import NodeConfig
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.version import __version__ as haystack_version
 
-from elasticsearch import Elasticsearch, helpers  # type: ignore[import-not-found]
+from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
 
 from .filters import _normalize_filters
 
@@ -31,11 +29,12 @@ Hosts = Union[str, List[Union[str, Mapping[str, Union[str, int]], NodeConfig]]]
 # Increase the default if most unscaled scores are larger than expected (>30) and otherwise would incorrectly
 # all be mapped to scores ~1.
 BM25_SCALING_FACTOR = 8
+DOC_ALREADY_EXISTS = 409
 
 
 class ElasticsearchDocumentStore:
     """
-    ElasticsearchDocumentStore is a Document Store for Elasticsearch. It can be used with Elastic Cloud or your own
+    An ElasticsearchDocumentStore instance that works with Elastic Cloud or your own
     Elasticsearch cluster.
 
     Usage example (Elastic Cloud):
@@ -72,7 +71,7 @@ class ElasticsearchDocumentStore:
             "DOCUMENT_STORE_PARAMS_API_KEY_ID", strict=True
         ),
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
-        **kwargs,
+        **kwargs: Any,
     ):
         """
         Creates a new ElasticsearchDocumentStore instance.
@@ -99,32 +98,44 @@ class ElasticsearchDocumentStore:
         :param **kwargs: Optional arguments that `Elasticsearch` takes.
         """
         self._hosts = hosts
-        self._client = None
+        self._client: Optional[Elasticsearch] = None
+        self._async_client: Optional[AsyncElasticsearch] = None
         self._index = index
         self._embedding_similarity_function = embedding_similarity_function
         self._custom_mapping = custom_mapping
         self.api_key = api_key
         self.api_key_id = api_key_id
         self._kwargs = kwargs
+        self._initialized = False
 
         if self._custom_mapping and not isinstance(self._custom_mapping, Dict):
             msg = "custom_mapping must be a dictionary"
             raise ValueError(msg)
 
-    @property
-    def client(self) -> Elasticsearch:
-        if self._client is None:
+    def _ensure_initialized(self):
+        """
+        Ensures both sync and async clients are initialized and the index exists.
+        """
+        if not self._initialized:
             headers = self._kwargs.pop("headers", {})
             headers["user-agent"] = f"haystack-py-ds/{haystack_version}"
 
-            client = Elasticsearch(
+            # Initialize both sync and async clients
+            self._client = Elasticsearch(
                 self._hosts,
                 api_key=(self.api_key_id.resolve_value(), self.api_key.resolve_value()),
                 headers=headers,
                 **self._kwargs,
             )
+            self._async_client = AsyncElasticsearch(
+                self._hosts,
+                api_key=(self.api_key_id.resolve_value(), self.api_key.resolve_value()),
+                headers=headers,
+                **self._kwargs,
+            )
+
             # Check client connection, this will raise if not connected
-            client.info()
+            self._client.info()
 
             if self._custom_mapping:
                 mappings = self._custom_mapping
@@ -153,13 +164,28 @@ class ElasticsearchDocumentStore:
                 }
 
             # Create the index if it doesn't exist
-            if not client.indices.exists(index=self._index):
-                logger.info(f"Creating index '{self._index}' in Elasticsearch with mapping: {mappings}")
-                client.indices.create(index=self._index, mappings=mappings)
+            if not self._client.indices.exists(index=self._index):
+                self._client.indices.create(index=self._index, mappings=mappings)
 
-            self._client = client
+            self._initialized = True
 
+    @property
+    def client(self) -> Elasticsearch:
+        """
+        Returns the synchronous Elasticsearch client, initializing it if necessary.
+        """
+        self._ensure_initialized()
+        assert self._client is not None  # noqa: S101
         return self._client
+
+    @property
+    def async_client(self) -> AsyncElasticsearch:
+        """
+        Returns the asynchronous Elasticsearch client, initializing it if necessary.
+        """
+        self._ensure_initialized()
+        assert self._async_client is not None  # noqa: S101
+        return self._async_client
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -198,15 +224,26 @@ class ElasticsearchDocumentStore:
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
-        :returns: Number of documents in the document store.
+
+        :returns:
+            Number of documents in the document store.
         """
+        self._ensure_initialized()
         return self.client.count(index=self._index)["count"]
 
-    def _search_documents(self, **kwargs) -> List[Document]:
+    async def count_documents_async(self) -> int:
+        """
+        Asynchronously returns how many documents are present in the document store.
+        :returns: Number of documents in the document store.
+        """
+        self._ensure_initialized()
+        result = await self._async_client.count(index=self._index)  # type: ignore
+        return result["count"]
+
+    def _search_documents(self, **kwargs: Any) -> List[Document]:
         """
         Calls the Elasticsearch client's search method and handles pagination.
         """
-
         top_k = kwargs.get("size")
         if top_k is None and "knn" in kwargs and "k" in kwargs["knn"]:
             top_k = kwargs["knn"]["k"]
@@ -221,13 +258,38 @@ class ElasticsearchDocumentStore:
                 **kwargs,
             )
 
-            documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])
+            documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])  # type: ignore
             from_ = len(documents)
 
             if top_k is not None and from_ >= top_k:
                 break
             if from_ >= res["hits"]["total"]["value"]:
                 break
+        return documents
+
+    async def _search_documents_async(self, **kwargs: Any) -> List[Document]:
+        """
+        Asynchronously calls the Elasticsearch client's search method and handles pagination.
+        """
+        top_k = kwargs.get("size")
+        if top_k is None and "knn" in kwargs and "k" in kwargs["knn"]:
+            top_k = kwargs["knn"]["k"]
+
+        documents: List[Document] = []
+        from_ = 0
+
+        # handle pagination
+        while True:
+            res = await self._async_client.search(index=self._index, from_=from_, **kwargs)  # type: ignore
+            documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])  # type: ignore
+            from_ = len(documents)
+
+            if top_k is not None and from_ >= top_k:
+                break
+
+            if from_ >= res["hits"]["total"]["value"]:
+                break
+
         return documents
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
@@ -243,9 +305,44 @@ class ElasticsearchDocumentStore:
             msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
             raise ValueError(msg)
 
+        self._ensure_initialized()
         query = {"bool": {"filter": _normalize_filters(filters)}} if filters else None
         documents = self._search_documents(query=query)
         return documents
+
+    async def filter_documents_async(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+        """
+        Asynchronously retrieves all documents that match the filters.
+
+        :param filters: A dictionary of filters to apply. For more information on the structure of the filters,
+            see the official Elasticsearch
+            [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html)
+        :returns: List of `Document`s that match the filters.
+        """
+        if filters and "operator" not in filters and "conditions" not in filters:
+            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
+            raise ValueError(msg)
+
+        self._ensure_initialized()
+        query = {"bool": {"filter": _normalize_filters(filters)}} if filters else None
+        documents = await self._search_documents_async(query=query)
+        return documents
+
+    @staticmethod
+    def _deserialize_document(hit: Dict[str, Any]) -> Document:
+        """
+        Creates a `Document` from the search hit provided.
+        This is mostly useful in self.filter_documents().
+        :param hit: A search hit from Elasticsearch.
+        :returns: `Document` created from the search hit.
+        """
+        data = hit["_source"]
+
+        if "highlight" in hit:
+            data["metadata"]["highlighted"] = hit["highlight"]
+        data["score"] = hit["_score"]
+
+        return Document.from_dict(data)
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
@@ -272,14 +369,15 @@ class ElasticsearchDocumentStore:
         elasticsearch_actions = []
         for doc in documents:
             doc_dict = doc.to_dict()
+
             if "sparse_embedding" in doc_dict:
                 sparse_embedding = doc_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
                     logger.warning(
-                        "Document %s has the `sparse_embedding` field set,"
+                        "Document {doc_id} has the `sparse_embedding` field set,"
                         "but storing sparse embeddings in Elasticsearch is not currently supported."
                         "The `sparse_embedding` field will be ignored.",
-                        doc.id,
+                        doc_id=doc.id,
                     )
             elasticsearch_actions.append(
                 {
@@ -295,9 +393,12 @@ class ElasticsearchDocumentStore:
             refresh="wait_for",
             index=self._index,
             raise_on_error=False,
+            stats_only=False,
         )
 
         if errors:
+            # with stats_only=False, errors is guaranteed to be a list of dicts
+            assert isinstance(errors, list)  # noqa: S101
             duplicate_errors_ids = []
             other_errors = []
             for e in errors:
@@ -320,31 +421,81 @@ class ElasticsearchDocumentStore:
 
         return documents_written
 
-    @staticmethod
-    def _deserialize_document(hit: Dict[str, Any]) -> Document:
+    async def write_documents_async(
+        self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
+    ) -> int:
         """
-        Creates a `Document` from the search hit provided.
+        Asynchronously writes `Document`s to Elasticsearch.
 
-        This is mostly useful in self.filter_documents().
-
-        :param hit: A search hit from Elasticsearch.
-        :returns: `Document` created from the search hit.
+        :param documents: List of Documents to write to the document store.
+        :param policy: DuplicatePolicy to apply when a document with the same ID already exists in the document store.
+        :raises ValueError: If `documents` is not a list of `Document`s.
+        :raises DuplicateDocumentError: If a document with the same ID already exists in the document store and
+            `policy` is set to `DuplicatePolicy.FAIL` or `DuplicatePolicy.NONE`.
+        :raises DocumentStoreError: If an error occurs while writing the documents to the document store.
+        :returns: Number of documents written to the document store.
         """
-        data = hit["_source"]
+        self._ensure_initialized()
 
-        if "highlight" in hit:
-            data["metadata"]["highlighted"] = hit["highlight"]
-        data["score"] = hit["_score"]
+        if len(documents) > 0:
+            if not isinstance(documents[0], Document):
+                msg = "param 'documents' must contain a list of objects of type Document"
+                raise ValueError(msg)
 
-        return Document.from_dict(data)
+        if policy == DuplicatePolicy.NONE:
+            policy = DuplicatePolicy.FAIL
+
+        actions = []
+        for doc in documents:
+            doc_dict = doc.to_dict()
+
+            if "sparse_embedding" in doc_dict:
+                sparse_embedding = doc_dict.pop("sparse_embedding", None)
+                if sparse_embedding:
+                    logger.warning(
+                        "Document {doc_id} has the `sparse_embedding` field set,"
+                        "but storing sparse embeddings in Elasticsearch is not currently supported."
+                        "The `sparse_embedding` field will be ignored.",
+                        doc_id=doc.id,
+                    )
+
+            action = {
+                "_op_type": "create" if policy == DuplicatePolicy.FAIL else "index",
+                "_id": doc.id,
+                "_source": doc_dict,
+            }
+            actions.append(action)
+
+        try:
+            success, failed = await helpers.async_bulk(
+                client=self.async_client,
+                actions=actions,
+                index=self._index,
+                refresh=True,
+                raise_on_error=False,
+                stats_only=False,
+            )
+            if failed:
+                # with stats_only=False, failed is guaranteed to be a list of dicts
+                assert isinstance(failed, list)  # noqa: S101
+                if policy == DuplicatePolicy.FAIL:
+                    for error in failed:
+                        if "create" in error and error["create"]["status"] == DOC_ALREADY_EXISTS:
+                            msg = f"ID '{error['create']['_id']}' already exists in the document store"
+                            raise DuplicateDocumentError(msg)
+                msg = f"Failed to write documents to Elasticsearch. Errors:\n{failed}"
+                raise DocumentStoreError(msg)
+            return success
+        except Exception as e:
+            msg = f"Failed to write documents to Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
 
     def delete_documents(self, document_ids: List[str]) -> None:
         """
-        Deletes all `Document`s with a matching `document_ids` from the document store.
+        Deletes all documents with a matching document_ids from the document store.
 
-        :param document_ids: the object IDs to delete
+        :param document_ids: the document ids to delete
         """
-
         helpers.bulk(
             client=self.client,
             actions=({"_op_type": "delete", "_id": id_} for id_ in document_ids),
@@ -352,6 +503,25 @@ class ElasticsearchDocumentStore:
             index=self._index,
             raise_on_error=False,
         )
+
+    async def delete_documents_async(self, document_ids: List[str]) -> None:
+        """
+        Asynchronously deletes all documents with a matching document_ids from the document store.
+
+        :param document_ids: the document ids to delete
+        """
+        self._ensure_initialized()
+
+        try:
+            await helpers.async_bulk(
+                client=self.async_client,
+                actions=({"_op_type": "delete", "_id": id_} for id_ in document_ids),
+                index=self._index,
+                refresh=True,
+            )
+        except Exception as e:
+            msg = f"Failed to delete documents from Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
 
     def _bm25_retrieval(
         self,
@@ -363,27 +533,15 @@ class ElasticsearchDocumentStore:
         scale_score: bool = False,
     ) -> List[Document]:
         """
-        Retrieves `Document`s from Elasticsearch using the BM25 search algorithm.
+        Retrieves documents using BM25 retrieval.
 
-        Even though this method is called `bm25_retrieval` it searches for `query`
-        using the search algorithm `_client` was configured with.
-
-        This method is not meant to be part of the public interface of
-        `ElasticsearchDocumentStore` nor called directly.
-        `ElasticsearchBM25Retriever` uses this method directly and is the public interface for it.
-
-        :param query: String to search in saved `Document`s' text.
-        :param filters: Filters applied to the retrieved `Document`s, for more info
-                        see `ElasticsearchDocumentStore.filter_documents`.
-        :param fuzziness: Fuzziness parameter passed to Elasticsearch. See the official
-            [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#fuzziness)
-            for valid values.
-        :param top_k: Maximum number of `Document`s to return.
-        :param scale_score: If `True` scales the `Document``s scores between 0 and 1.
-        :raises ValueError: If `query` is an empty string
-        :returns: List of `Document` that match `query`
+        :param query: The query string to search for
+        :param filters: Optional filters to narrow down the search space
+        :param fuzziness: Fuzziness parameter for the search query
+        :param top_k: Maximum number of documents to return
+        :param scale_score: Whether to scale the similarity score to the range [0,1]
+        :returns: List of Documents that match the query
         """
-
         if not query:
             msg = "query must be a non empty string"
             raise ValueError(msg)
@@ -413,7 +571,65 @@ class ElasticsearchDocumentStore:
 
         if scale_score:
             for doc in documents:
+                if doc.score is None:
+                    continue
                 doc.score = float(1 / (1 + np.exp(-np.asarray(doc.score / BM25_SCALING_FACTOR))))
+
+        return documents
+
+    async def _bm25_retrieval_async(
+        self,
+        query: str,
+        *,
+        filters: Optional[Dict[str, Any]] = None,
+        fuzziness: str = "AUTO",
+        top_k: int = 10,
+        scale_score: bool = False,
+    ) -> List[Document]:
+        """
+        Asynchronously retrieves documents using BM25 retrieval.
+
+        :param query: The query string to search for
+        :param filters: Optional filters to narrow down the search space
+        :param fuzziness: Fuzziness parameter for the search query
+        :param top_k: Maximum number of documents to return
+        :param scale_score: Whether to scale the similarity score to the range [0,1]
+        :returns: List of Documents that match the query
+        """
+        self._ensure_initialized()
+
+        if not query:
+            msg = "query must be a non empty string"
+            raise ValueError(msg)
+
+        # Prepare the search body
+        search_body = {
+            "size": top_k,
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "multi_match": {
+                                "query": query,
+                                "type": "most_fields",
+                                "operator": "OR",
+                                "fuzziness": fuzziness,
+                            }
+                        }
+                    ]
+                }
+            },
+        }
+
+        if filters:
+            search_body["query"]["bool"]["filter"] = _normalize_filters(filters)  # type:ignore
+
+        documents = await self._search_documents_async(**search_body)
+
+        if scale_score:
+            for doc in documents:
+                if doc.score is not None:
+                    doc.score = float(1 / (1 + np.exp(-(doc.score / float(BM25_SCALING_FACTOR)))))
 
         return documents
 
@@ -426,26 +642,14 @@ class ElasticsearchDocumentStore:
         num_candidates: Optional[int] = None,
     ) -> List[Document]:
         """
-        Retrieves documents that are most similar to the query embedding using a vector similarity metric.
+        Retrieves documents using dense vector similarity search.
 
-        It uses the Elasticsearch's Approximate k-Nearest Neighbors search algorithm.
-
-        This method is not meant to be part of the public interface of
-        `ElasticsearchDocumentStore` nor called directly.
-        `ElasticsearchEmbeddingRetriever` uses this method directly and is the public interface for it.
-
-        :param query_embedding: Embedding of the query.
-        :param filters: Filters applied to the retrieved `Document`s.
-            Filters are applied during the approximate kNN search to ensure that top_k matching documents are returned.
-        :param top_k: Maximum number of `Document`s to return.
-        :param num_candidates: Number of approximate nearest neighbor candidates on each shard. Defaults to top_k * 10.
-            Increasing this value will improve search accuracy at the cost of slower search speeds.
-            You can read more about it in the Elasticsearch
-            [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy)
-        :raises ValueError: If `query_embedding` is an empty list.
-        :returns: List of `Document` that are most similar to `query_embedding`.
+        :param query_embedding: Embedding vector to search for
+        :param filters: Optional filters to narrow down the search space
+        :param top_k: Maximum number of documents to return
+        :param num_candidates: Number of candidates to consider in the search
+        :returns: List of Documents most similar to query_embedding
         """
-
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
             raise ValueError(msg)
@@ -467,3 +671,45 @@ class ElasticsearchDocumentStore:
 
         docs = self._search_documents(**body)
         return docs
+
+    async def _embedding_retrieval_async(
+        self,
+        query_embedding: List[float],
+        *,
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: int = 10,
+        num_candidates: Optional[int] = None,
+    ) -> List[Document]:
+        """
+        Asynchronously retrieves documents using dense vector similarity search.
+
+        :param query_embedding: Embedding vector to search for
+        :param filters: Optional filters to narrow down the search space
+        :param top_k: Maximum number of documents to return
+        :param num_candidates: Number of candidates to consider in the search
+        :returns: List of Documents most similar to query_embedding
+        """
+        self._ensure_initialized()
+
+        if not query_embedding:
+            msg = "query_embedding must be a non-empty list of floats"
+            raise ValueError(msg)
+
+        # If num_candidates is not set, use top_k * 10 as default
+        if num_candidates is None:
+            num_candidates = top_k * 10
+
+        # Prepare the search body
+        search_body = {
+            "knn": {
+                "field": "embedding",
+                "query_vector": query_embedding,
+                "k": top_k,
+                "num_candidates": num_candidates,
+            },
+        }
+
+        if filters:
+            search_body["knn"]["filter"] = _normalize_filters(filters)
+
+        return await self._search_documents_async(**search_body)

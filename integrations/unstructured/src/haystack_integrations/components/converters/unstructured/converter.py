@@ -2,13 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import copy
-import logging
 import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from haystack import Document, component, default_from_dict, default_to_dict
+from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.utils import normalize_metadata
 from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
@@ -38,7 +37,9 @@ class UnstructuredFileConverter:
     # docker run -p 8000:8000 -d --rm --name unstructured-api quay.io/unstructured-io/unstructured-api:latest
     # --port 8000 --host 0.0.0.0
 
-    converter = UnstructuredFileConverter()
+    converter = UnstructuredFileConverter(
+        # api_url="http://localhost:8000/general/v0/general"  # <-- Uncomment this if running Unstructured locally
+    )
     documents = converter.run(paths = ["a/file/path.pdf", "a/directory/path"])["documents"]
     ```
     """
@@ -125,7 +126,7 @@ class UnstructuredFileConverter:
         self,
         paths: Union[List[str], List[os.PathLike]],
         meta: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Convert files to Haystack Documents using the Unstructured API.
 
@@ -226,11 +227,16 @@ class UnstructuredFileConverter:
         Partition a file into elements using the Unstructured API.
         """
         elements = []
+
+        resolved_api_key = ""
+        if self.api_key:
+            resolved_api_key = self.api_key.resolve_value() or ""
+
         try:
             elements = partition_via_api(
                 filename=str(filepath),
                 api_url=self.api_url,
-                api_key=self.api_key.resolve_value() if self.api_key else None,
+                api_key=resolved_api_key,
                 **self.unstructured_kwargs,
             )
         except Exception as e:

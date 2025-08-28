@@ -1,10 +1,12 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import logging
+
+# ruff: noqa: FBT001  Boolean-typed positional argument in function definition
+
 from typing import Any, Dict, List, Optional, Union
 
-from haystack import component, default_from_dict, default_to_dict
+from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
@@ -152,6 +154,42 @@ class OpenSearchBM25Retriever:
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
+    def _prepare_bm25_args(
+        self,
+        *,
+        query: str,
+        filters: Optional[Dict[str, Any]],
+        all_terms_must_match: Optional[bool],
+        top_k: Optional[int],
+        fuzziness: Optional[Union[str, int]],
+        scale_score: Optional[bool],
+        custom_query: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+
+        if filters is None:
+            filters = self._filters
+        if all_terms_must_match is None:
+            all_terms_must_match = self._all_terms_must_match
+        if top_k is None:
+            top_k = self._top_k
+        if fuzziness is None:
+            fuzziness = self._fuzziness
+        if scale_score is None:
+            scale_score = self._scale_score
+        if custom_query is None:
+            custom_query = self._custom_query
+
+        return {
+            "query": query,
+            "filters": filters,
+            "fuzziness": fuzziness,
+            "top_k": top_k,
+            "scale_score": scale_score,
+            "all_terms_must_match": all_terms_must_match,
+            "custom_query": custom_query,
+        }
+
     @component.output_types(documents=List[Document])
     def run(
         self,
@@ -162,7 +200,7 @@ class OpenSearchBM25Retriever:
         fuzziness: Optional[Union[int, str]] = None,
         scale_score: Optional[bool] = None,
         custom_query: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Retrieve documents using BM25 retrieval.
 
@@ -215,41 +253,83 @@ class OpenSearchBM25Retriever:
             - documents: List of retrieved Documents.
 
         """
-        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
-
-        if filters is None:
-            filters = self._filters
-        if all_terms_must_match is None:
-            all_terms_must_match = self._all_terms_must_match
-        if top_k is None:
-            top_k = self._top_k
-        if fuzziness is None:
-            fuzziness = self._fuzziness
-        if scale_score is None:
-            scale_score = self._scale_score
-        if custom_query is None:
-            custom_query = self._custom_query
-
         docs: List[Document] = []
 
+        bm25_args = self._prepare_bm25_args(
+            query=query,
+            filters=filters,
+            all_terms_must_match=all_terms_must_match,
+            top_k=top_k,
+            fuzziness=fuzziness,
+            scale_score=scale_score,
+            custom_query=custom_query,
+        )
+
         try:
-            docs = self._document_store._bm25_retrieval(
-                query=query,
-                filters=filters,
-                fuzziness=fuzziness,
-                top_k=top_k,
-                scale_score=scale_score,
-                all_terms_must_match=all_terms_must_match,
-                custom_query=custom_query,
-            )
+            docs = self._document_store._bm25_retrieval(**bm25_args)
         except Exception as e:
             if self._raise_on_failure:
                 raise e
             else:
                 logger.warning(
-                    "An error during BM25 retrieval occurred and will be ignored by returning empty results: %s",
-                    str(e),
+                    "An error during BM25 retrieval occurred and will be ignored by returning empty results: {error}",
+                    error=str(e),
                     exc_info=True,
                 )
+
+        return {"documents": docs}
+
+    @component.output_types(documents=List[Document])
+    async def run_async(  # pylint: disable=too-many-positional-arguments
+        self,
+        query: str,
+        filters: Optional[Dict[str, Any]] = None,
+        all_terms_must_match: Optional[bool] = None,
+        top_k: Optional[int] = None,
+        fuzziness: Optional[Union[int, str]] = None,
+        scale_score: Optional[bool] = None,
+        custom_query: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, List[Document]]:
+        """
+        Asynchronously retrieve documents using BM25 retrieval.
+
+        :param query: The query string.
+        :param filters: Filters applied to the retrieved documents. The way runtime filters are applied depends on
+                        the `filter_policy` specified at Retriever's initialization.
+        :param all_terms_must_match: If `True`, all terms in the query string must be present in the
+        retrieved documents.
+        :param top_k: Maximum number of documents to return.
+        :param fuzziness: Fuzziness parameter for full-text queries to apply approximate string matching.
+        For more information, see [OpenSearch fuzzy query](https://opensearch.org/docs/latest/query-dsl/term/fuzzy/).
+        :param scale_score: If `True`, scales the score of retrieved documents to a range between 0 and 1.
+            This is useful when comparing documents across different indexes.
+        :param custom_query: A custom OpenSearch query. It must include a `$query` and may optionally
+        include a `$filters` placeholder.
+
+        :returns:
+            A dictionary containing the retrieved documents with the following structure:
+            - documents: List of retrieved Documents.
+
+        """
+        docs: List[Document] = []
+        bm25_args = self._prepare_bm25_args(
+            query=query,
+            filters=filters,
+            all_terms_must_match=all_terms_must_match,
+            top_k=top_k,
+            fuzziness=fuzziness,
+            scale_score=scale_score,
+            custom_query=custom_query,
+        )
+        try:
+            docs = await self._document_store._bm25_retrieval_async(**bm25_args)
+        except Exception as e:
+            if self._raise_on_failure:
+                raise e
+            logger.warning(
+                "An error during BM25 retrieval occurred and will be ignored by returning empty results: {error}",
+                error=str(e),
+                exc_info=True,
+            )
 
         return {"documents": docs}

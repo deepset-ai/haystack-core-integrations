@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import os
 from time import sleep
 from typing import List, Union
@@ -13,18 +14,19 @@ from haystack.utils import Secret
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 
 
-def get_document_store():
+def get_document_store(**kwargs):
     return MongoDBAtlasDocumentStore(
         mongo_connection_string=Secret.from_env_var("MONGO_CONNECTION_STRING_2"),
         database_name="haystack_test",
         collection_name="test_collection",
         vector_search_index="cosine_index",
         full_text_search_index="full_text_index",
+        **kwargs,
     )
 
 
 @pytest.mark.skipif(
-    "MONGO_CONNECTION_STRING_2" not in os.environ,
+    not os.environ.get("MONGO_CONNECTION_STRING_2"),
     reason="No MongoDB Atlas connection string provided",
 )
 @pytest.mark.integration
@@ -35,7 +37,8 @@ class TestFullTextRetrieval:
 
     @pytest.fixture(autouse=True, scope="class")
     def setup_teardown(self, document_store):
-        document_store.collection.delete_many({})
+        document_store._ensure_connection_setup()
+        document_store._collection.delete_many({})
         document_store.write_documents(
             [
                 Document(content="The quick brown fox chased the dog", meta={"meta_field": "right_value"}),
@@ -50,7 +53,7 @@ class TestFullTextRetrieval:
 
         yield
 
-    def test_pipeline_correctly_passes_parameters(self):
+    def test_pipeline_correctly_passes_parameters(self, document_store):
         document_store = get_document_store()
         mock_collection = MagicMock()
         document_store._collection = mock_collection
@@ -88,20 +91,40 @@ class TestFullTextRetrieval:
             },
             {"$match": {"meta.meta_field": {"$eq": "right_value"}}},
             {"$limit": 5},
-            {
-                "$project": {
-                    "_id": 0,
-                    "blob": 1,
-                    "content": 1,
-                    "dataframe": 1,
-                    "embedding": 1,
-                    "meta": 1,
-                    "score": {"$meta": "searchScore"},
-                }
-            },
+            {"$addFields": {"score": {"$meta": "searchScore"}}},
+            {"$project": {"_id": 0}},
         ]
 
         assert actual_pipeline == expected_pipeline
+        # Explicitly verify that the path in the text search is using the content_field
+        assert actual_pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == document_store.content_field
+
+    def test_pipeline_with_custom_content_field(self, document_store):
+        # Create a document store with a custom content field
+        document_store = get_document_store(content_field="custom_text")
+        mock_collection = MagicMock()
+        document_store._collection = mock_collection
+        mock_collection.aggregate.return_value = []
+
+        # Execute the fulltext retrieval with the custom content field
+        document_store._fulltext_retrieval(
+            query="test query",
+            top_k=3,
+        )
+
+        # Assert aggregate was called with the correct pipeline
+        assert mock_collection.aggregate.called
+        actual_pipeline = mock_collection.aggregate.call_args[0][0]
+
+        # Verify the text search path is set to the custom content field
+        # This is crucial - the path should use self.content_field, not be hardcoded to "content"
+        assert actual_pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == "custom_text"
+
+        # Verify the pipeline structure
+        assert len(actual_pipeline) == 5
+        assert "$limit" in actual_pipeline[2]
+        assert "$addFields" in actual_pipeline[3]
+        assert "$project" in actual_pipeline[4]
 
     def test_query_retrieval(self, document_store: MongoDBAtlasDocumentStore):
         results = document_store._fulltext_retrieval(query="fox", top_k=2)

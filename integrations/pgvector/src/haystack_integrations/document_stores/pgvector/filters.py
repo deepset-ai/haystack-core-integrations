@@ -3,11 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 from datetime import datetime
 from itertools import chain
-from typing import Any, Dict, List, Literal, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from haystack.errors import FilterError
-from pandas import DataFrame
-from psycopg.sql import SQL
+from psycopg.sql import SQL, Composed
 from psycopg.types.json import Jsonb
 
 # we need this mapping to cast meta values to the correct type,
@@ -22,9 +21,22 @@ PYTHON_TYPES_TO_PG_TYPES = {
 NO_VALUE = "no_value"
 
 
+def _validate_filters(filters: Optional[Dict[str, Any]] = None) -> None:
+    """
+    Validates the filters provided.
+    """
+    if filters:
+        if not isinstance(filters, dict):
+            msg = "Filters must be a dictionary"
+            raise TypeError(msg)
+        if "operator" not in filters and "conditions" not in filters:
+            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
+            raise ValueError(msg)
+
+
 def _convert_filters_to_where_clause_and_params(
     filters: Dict[str, Any], operator: Literal["WHERE", "AND"] = "WHERE"
-) -> Tuple[SQL, Tuple]:
+) -> Tuple[Composed, Tuple]:
     """
     Convert Haystack filters to a WHERE clause and a tuple of params to query PostgreSQL.
     """
@@ -93,10 +105,6 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Tuple[str, List[An
         raise FilterError(msg)
 
     value: Any = condition["value"]
-    if isinstance(value, DataFrame):
-        # DataFrames are stored as JSONB and we query them as such
-        value = Jsonb(value.to_json())
-        field = f"({field})::jsonb"
 
     if field.startswith("meta."):
         field = _treat_meta_field(field, value)
@@ -232,6 +240,20 @@ def _in(field: str, value: Any) -> Tuple[str, List]:
     return f"{field} = ANY(%s)", [value]
 
 
+def _like(field: str, value: Any) -> Tuple[str, Any]:
+    if not isinstance(value, str):
+        msg = f"{field}'s value must be a str when using 'LIKE' "
+        raise FilterError(msg)
+    return f"{field} LIKE %s", value
+
+
+def _not_like(field: str, value: Any) -> Tuple[str, Any]:
+    if not isinstance(value, str):
+        msg = f"{field}'s value must be a str when using 'LIKE' "
+        raise FilterError(msg)
+    return f"{field} NOT LIKE %s", value
+
+
 COMPARISON_OPERATORS = {
     "==": _equal,
     "!=": _not_equal,
@@ -241,4 +263,6 @@ COMPARISON_OPERATORS = {
     "<=": _less_than_equal,
     "in": _in,
     "not in": _not_in,
+    "like": _like,
+    "not like": _not_like,
 }

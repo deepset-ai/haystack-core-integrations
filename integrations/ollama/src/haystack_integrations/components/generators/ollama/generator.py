@@ -7,6 +7,73 @@ from haystack.utils.callable_serialization import deserialize_callable, serializ
 from ollama import Client, GenerateResponse
 
 
+def _convert_ollama_meta_to_openai_format(intput_response_dict: Dict) -> Dict:
+    """
+    Converts Ollama metadata format to OpenAI-metadata format for standardization.
+
+    The conversion follows these mapping rules:
+    - 'done_reason' -> 'finish_reason'
+    - 'created_at' -> 'completion_start_time'
+    - 'eval_count' and 'prompt_eval_count' -> 'usage' dict with token counts
+    - All other fields are preserved as-is except 'response'.
+
+    Input Ollama-metadata format example:
+    {
+        'model': 'llama3.2:3b',
+        'created_at': '2025-05-15T14:11:57.8920338Z',
+        'done': True,
+        'done_reason': 'stop',
+        'total_duration': 871519900,
+        'load_duration': 44376100,
+        'prompt_eval_count': 29,
+        'prompt_eval_duration': 380700800,
+        'eval_count': 8,
+        'eval_duration': 445131300,
+        'context': [28006,
+         9125,
+         ...
+         220,
+         18]
+    }
+
+    Returned OpenAI-metadata format example:
+    {
+        'model': 'llama3.2:3b',
+        'finish_reason': 'stop',
+        'usage': {
+            'completion_tokens': 8,
+            'prompt_tokens': 29,
+            'total_tokens': 37,
+        }
+        'created_at': '2025-05-15T14:11:57.8920338Z',
+        'done': True,
+        'total_duration': 871519900,
+        'load_duration': 44376100,
+        'prompt_eval_duration': 380700800,
+        'eval_duration': 445131300,
+        'context': [28006,
+         9125,
+         ...
+         220,
+         18]
+    }
+    """
+
+    meta = {key: value for key, value in intput_response_dict.items() if key != "response"}
+
+    if "done_reason" in meta:
+        meta["finish_reason"] = meta.pop("done_reason")
+    if "eval_count" in meta and "prompt_eval_count" in meta:
+        eval_count = meta.pop("eval_count")
+        prompt_eval_count = meta.pop("prompt_eval_count")
+        meta["usage"] = {
+            "completion_tokens": eval_count,
+            "prompt_tokens": prompt_eval_count,
+            "total_tokens": eval_count + prompt_eval_count,
+        }
+    return meta
+
+
 @component
 class OllamaGenerator:
     """
@@ -122,8 +189,9 @@ class OllamaGenerator:
         """
         Converts a response from the Ollama API to the required Haystack format.
         """
-        reply = ollama_response.response
-        meta = {key: value for key, value in ollama_response.model_dump().items() if key != "response"}
+        response_dict = ollama_response.model_dump()
+        reply = response_dict["response"]
+        meta = _convert_ollama_meta_to_openai_format(response_dict)
 
         return {"replies": [reply], "meta": [meta]}
 
@@ -133,11 +201,15 @@ class OllamaGenerator:
         """
 
         replies = ["".join([c.content for c in chunks])]
-        meta = {key: value for key, value in chunks[0].meta.items() if key != "response"}
+
+        # Convert the metadata from the last chunk
+        meta = _convert_ollama_meta_to_openai_format(chunks[-1].meta)
 
         return {"replies": replies, "meta": [meta]}
 
-    def _handle_streaming_response(self, response) -> List[StreamingChunk]:
+    def _handle_streaming_response(
+        self, response: Any, streaming_callback: Optional[Callable[[StreamingChunk], None]]
+    ) -> List[StreamingChunk]:
         """
         Handles Streaming response cases
         """
@@ -145,8 +217,8 @@ class OllamaGenerator:
         for chunk in response:
             chunk_delta: StreamingChunk = self._build_chunk(chunk)
             chunks.append(chunk_delta)
-            if self.streaming_callback is not None:
-                self.streaming_callback(chunk_delta)
+            if streaming_callback is not None:
+                streaming_callback(chunk_delta)
         return chunks
 
     def _build_chunk(self, chunk_response: Any) -> StreamingChunk:
@@ -165,7 +237,9 @@ class OllamaGenerator:
         self,
         prompt: str,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-    ):
+        *,
+        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+    ) -> Dict[str, List[Any]]:
         """
         Runs an Ollama Model on the given prompt.
 
@@ -175,20 +249,27 @@ class OllamaGenerator:
             Optional arguments to pass to the Ollama generation endpoint, such as temperature,
             top_p, and others. See the available arguments in
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
+        :param streaming_callback:
+            A callback function that is called when a new token is received from the stream.
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
             - `meta`: The metadata collected during the run
         """
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
-        stream = self.streaming_callback is not None
+        resolved_streaming_callback = streaming_callback or self.streaming_callback
+        stream = resolved_streaming_callback is not None
 
         response = self._client.generate(
-            model=self.model, prompt=prompt, stream=stream, keep_alive=self.keep_alive, options=generation_kwargs
+            model=self.model,
+            prompt=prompt,
+            stream=stream,  # type: ignore[call-overload]  # Ollama expects Literal[True] or Literal[False], not bool
+            keep_alive=self.keep_alive,
+            options=generation_kwargs,
         )
 
         if stream:
-            chunks: List[StreamingChunk] = self._handle_streaming_response(response)
+            chunks: List[StreamingChunk] = self._handle_streaming_response(response, resolved_streaming_callback)
             return self._convert_to_streaming_response(chunks)
 
         return self._convert_to_response(response)

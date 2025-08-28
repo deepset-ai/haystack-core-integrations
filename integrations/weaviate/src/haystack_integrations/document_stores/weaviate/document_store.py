@@ -4,10 +4,10 @@
 import base64
 import datetime
 import json
-import logging
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
+from haystack import logging
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
@@ -39,7 +39,6 @@ logger = logging.getLogger(__name__)
 DOCUMENT_COLLECTION_PROPERTIES = [
     {"name": "_original_id", "dataType": ["text"]},
     {"name": "content", "dataType": ["text"]},
-    {"name": "dataframe", "dataType": ["text"]},
     {"name": "blob_data", "dataType": ["blob"]},
     {"name": "blob_mime_type", "dataType": ["text"]},
     {"name": "score", "dataType": ["number"]},
@@ -58,8 +57,8 @@ DEFAULT_QUERY_LIMIT = 9999
 
 class WeaviateDocumentStore:
     """
-    WeaviateDocumentStore is a Document Store for Weaviate.
-    It can be used with Weaviate Cloud Services or self-hosted instances.
+    A WeaviateDocumentStore instance you
+    can use with Weaviate Cloud Services or self-hosted instances.
 
     Usage example with Weaviate Cloud Services:
     ```python
@@ -105,7 +104,6 @@ class WeaviateDocumentStore:
             properties:
             - _original_id: text
             - content: text
-            - dataframe: text
             - blob_data: blob
             - blob_mime_type: text
             - score: number
@@ -146,8 +144,8 @@ class WeaviateDocumentStore:
         self._additional_config = additional_config
         self._grpc_port = grpc_port
         self._grpc_secure = grpc_secure
-        self._client = None
-        self._collection = None
+        self._client: Optional[weaviate.WeaviateClient] = None
+        self._collection: Optional[weaviate.Collection] = None
         # Store the connection settings dictionary
         self._collection_settings = collection_settings or {
             "class": "Default",
@@ -175,9 +173,12 @@ class WeaviateDocumentStore:
             # If we detect that the URL is a Weaviate Cloud URL, we use the utility function to connect
             # instead of using WeaviateClient directly like in other cases.
             # Among other things, the utility function takes care of parsing the URL.
+            if not self._auth_client_secret:
+                msg = "Auth credentials are required for Weaviate Cloud Services"
+                raise ValueError(msg)
             self._client = weaviate.connect_to_weaviate_cloud(
                 self._url,
-                auth_credentials=self._auth_client_secret.resolve_value() if self._auth_client_secret else None,
+                auth_credentials=self._auth_client_secret.resolve_value(),
                 headers=self._additional_headers,
                 additional_config=self._additional_config,
             )
@@ -291,17 +292,18 @@ class WeaviateDocumentStore:
         if "_split_overlap" in data:
             data.pop("_split_overlap")
             logger.warning(
-                "Document %s has the unsupported `_split_overlap` meta field. It will be ignored.", data["_original_id"]
+                "Document {id} has the unsupported `_split_overlap` meta field. It will be ignored.",
+                id=data["_original_id"],
             )
 
         if "sparse_embedding" in data:
             sparse_embedding = data.pop("sparse_embedding", None)
             if sparse_embedding:
                 logger.warning(
-                    "Document %s has the `sparse_embedding` field set,"
+                    "Document {id} has the `sparse_embedding` field set,"
                     "but storing sparse embeddings in Weaviate is not currently supported."
                     "The `sparse_embedding` field will be ignored.",
-                    data["_original_id"],
+                    id=data["_original_id"],
                 )
 
         return data
@@ -344,7 +346,7 @@ class WeaviateDocumentStore:
 
         return Document.from_dict(document_data)
 
-    def _query(self) -> List[Dict[str, Any]]:
+    def _query(self) -> List[DataObject[Dict[str, Any], None]]:
         properties = [p.name for p in self.collection.config.get().properties]
         try:
             result = self.collection.iterator(include_vector=True, return_properties=properties)
@@ -353,7 +355,7 @@ class WeaviateDocumentStore:
             raise DocumentStoreError(msg) from e
         return result
 
-    def _query_with_filters(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _query_with_filters(self, filters: Dict[str, Any]) -> List[DataObject[Dict[str, Any], None]]:
         properties = [p.name for p in self.collection.config.get().properties]
         # When querying with filters we need to paginate using limit and offset as using
         # a cursor with after is not possible. See the official docs:

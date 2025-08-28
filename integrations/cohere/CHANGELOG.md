@@ -1,5 +1,150 @@
 # Changelog
 
+## [integrations/cohere-v5.4.0] - 2025-08-26
+
+### 🚀 Features
+
+- Add `StreamingChunk` to Cohere ChatGenerator  (#2157)
+
+### 🧪 Testing
+
+- Make tests successfully run from forks (#2203)
+
+### 🧹 Chores
+
+- Standardize readmes - part 1 (#2202)
+- Standardize readmes - part 2 (#2205)
+
+### 🌀 Miscellaneous
+
+- Docs: add Cohere document image embedder to pydocs (#2196)
+
+## [integrations/cohere-v5.3.0] - 2025-08-18
+
+### 🚀 Features
+
+- Add Cohere Image Document Embedder (#2190)
+
+### 🧹 Chores
+
+- CohereChatGenerator - make finish_reason and usage handling more robust (#2149)
+
+
+## [integrations/cohere-v5.2.0] - 2025-07-10
+
+### 🐛 Bug Fixes
+
+- Update Cohere to client 5.16.0 (#2086)
+
+
+## [integrations/cohere-v5.1.1] - 2025-07-10
+
+### 🌀 Miscellaneous
+
+- Fix: Pin cohere to less than 5.16 (#2081)
+
+## [integrations/cohere-v5.1.0] - 2025-07-02
+
+### 🚀 Features
+
+- Cohere - add support for ComponentInfo + refactor streaming (#2043)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+- Improve typing for select_streaming_callback (#2008)
+
+
+## [integrations/cohere-v5.0.0] - 2025-06-17
+
+### 🚀 Features
+
+- Add run_async support for CohereTextEmbedder (#1873)
+- Add async support for CohereDocumentEmbedder (#1876)
+
+### 🚜 Refactor
+
+- [**breaking**] Cohere: remove `use_async_client` parameter; fix types and add py.typed  (#1946)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+
+
+## [integrations/cohere-v4.2.1] - 2025-05-27
+
+### 🌀 Miscellaneous
+
+- Add pins for Cohere (#1817)
+
+## [integrations/cohere-v4.2.0] - 2025-05-26
+
+### 🚀 Features
+
+- Add run_async for CohereChatGenerator (#1689)
+
+
+## [integrations/cohere-v4.1.0] - 2025-05-05
+
+### 🚀 Features
+
+- Add Toolset support to CohereChatGenerator (#1700)
+
+### 🧹 Chores
+
+- Upgrade default model to command-r-08-2024 (#1691)
+
+
+## [integrations/cohere-v4.0.0] - 2025-05-02
+
+### 🐛 Bug Fixes
+
+- Update serialization/deserialization tests to add new parameter `connection_type_validation` (#1464)
+
+### 🧪 Testing
+
+- Update tool serialization in tests to include `inputs_from_state` and `outputs_to_state` (#1581)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+- Use Haystack logging across integrations (#1484)
+- Update ChatGenerators with `deserialize_tools_or_toolset_inplace` (#1623)
+- [**breaking**] `CohereRanker` - change default model and remove `max_chunks_per_doc parameter` (#1687)
+
+### 🌀 Miscellaneous
+
+- Chore: remove `jsonschema` dependency from `default` environment (#1368)
+- Test: Update tests to check for `outputs_to_string` in Tool when running haystack-ai>=2.12 (#1585)
+
+## [integrations/cohere-v3.0.0] - 2025-01-28
+
+### 🚀 Features
+
+- CohereChatGenerator - add tools support  (#1318)
+
+### 🚜 Refactor
+
+- Migrate Cohere to V2 (#1321)
+
+
+## [integrations/cohere-v2.0.2] - 2025-01-15
+
+### 🐛 Bug Fixes
+
+- Make GoogleAI Chat Generator compatible with new `ChatMessage`; small fixes to Cohere tests (#1253)
+- Cohere - fix chat message creation (#1289)
+
+### 🌀 Miscellaneous
+
+- Test: remove tests involving serialization of lambdas (#1281)
+- Test: remove more tests involving serialization of lambdas (#1285)
+
 ## [integrations/cohere-v2.0.1] - 2024-12-09
 
 ### ⚙️ CI

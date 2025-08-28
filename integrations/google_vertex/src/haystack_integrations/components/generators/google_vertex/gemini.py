@@ -1,6 +1,6 @@
-import logging
 from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
+from haystack import logging
 from haystack.core.component import component
 from haystack.core.component.types import Variadic
 from haystack.core.serialization import default_from_dict, default_to_dict
@@ -61,7 +61,7 @@ class VertexAIGeminiGenerator:
     def __init__(
         self,
         *,
-        model: str = "gemini-1.5-flash",
+        model: str = "gemini-2.0-flash",
         project_id: Optional[str] = None,
         location: Optional[str] = None,
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,

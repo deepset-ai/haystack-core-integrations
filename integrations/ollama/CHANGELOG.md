@@ -1,5 +1,155 @@
 # Changelog
 
+## [integrations/ollama-v5.0.0] - 2025-08-25
+
+### 🚜 Refactor
+
+- [**breaking**] `OllamaChatGenerator` - refine reasoning support + refactoring (#2200)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+
+## [integrations/ollama-v4.1.0] - 2025-08-06
+
+### 🚀 Features
+
+- `OllamaChatGenerator` - image support (#2147)
+
+
+## [integrations/ollama-v4.0.0] - 2025-08-05
+
+### 🚀 Features
+
+- Adopt new `StreamingChunk` in Ollama (#2109)
+
+
+## [integrations/ollama-v3.4.0] - 2025-07-04
+
+### 🚀 Features
+
+- Pass `component_info` to `StreamingChunk` in `OllamaChatGenerator` (#2039)
+- Add "think" parameter for Ollama (#1948)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+
+
+## [integrations/ollama-v3.3.0] - 2025-06-12
+
+### 🐛 Bug Fixes
+
+- Fix Ollama types + add py.typed (#1922)
+
+
+## [integrations/ollama-v3.2.0] - 2025-06-10
+
+### 🚀 Features
+
+- Add run_async support for OllamaDocumentEmbedder (#1878)
+
+
+## [integrations/ollama-v3.1.0] - 2025-06-10
+
+### 🚀 Features
+
+- Add run_async support for OllamaTextEmbedder (#1877)
+
+### 🐛 Bug Fixes
+
+- Ollama tools with streaming (#1906)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+
+
+## [integrations/ollama-v3.0.1] - 2025-05-22
+
+### 🚀 Features
+
+- OllamaChatGenerator - add Toolset support (#1765)
+
+
+## [integrations/ollama-v3.0.0] - 2025-05-16
+
+### 🚀 Features
+
+- Adapt `OllamaGenerator` metadata to OpenAI format (#1753)
+
+### 🧪 Testing
+
+- Ollama - make test_run_with_response_format more robust (#1757)
+
+### 🌀 Miscellaneous
+
+- Removing import try for 2.2.12 `deserialize_tools_or_toolset_inplace` (#1713)
+
+## [integrations/ollama-v2.4.2] - 2025-05-07
+
+### 🐛 Bug Fixes
+
+- Ollama streaming metadata 1686 (#1698)
+
+
+## [integrations/ollama-v2.4.1] - 2025-04-10
+
+### 🚀 Features
+
+- Add `streaming_callback` to run methods of OllamaGenerator and OllamaChatGenerator (#1636)
+
+### 🧹 Chores
+
+- Update ChatGenerators with `deserialize_tools_or_toolset_inplace` (#1623)
+
+
+## [integrations/ollama-v2.4.0] - 2025-04-04
+
+### 🚀 Features
+
+- Adapt Ollama metadata to OpenAI format; support Ollama in Langfuse (#1577)
+
+### 🧪 Testing
+
+- Update tool serialization in tests to include `inputs_from_state` and `outputs_to_state` (#1581)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+
+### 🌀 Miscellaneous
+
+- Chore: remove `jsonschema` dependency from `default` environment (#1368)
+- Test: Update tests to check for `outputs_to_string` in Tool when running haystack-ai>=2.12 (#1585)
+
+## [integrations/ollama-v2.3.0] - 2025-01-29
+
+### 🚀 Features
+
+- Add `response_format` param to `OllamaChatGenerator` (#1326)
+
+
+## [integrations/ollama-v2.2.0] - 2025-01-16
+
+### 🚀 Features
+
+- Ollama - add support for tools (#1294)
+
+
+## [integrations/ollama-v2.1.2] - 2024-12-18
+
+### 🐛 Bug Fixes
+
+- Make Ollama Chat Generator compatible with new ChatMessage (#1256)
+
+
 ## [integrations/ollama-v2.1.1] - 2024-12-10
 
 ### 🌀 Miscellaneous

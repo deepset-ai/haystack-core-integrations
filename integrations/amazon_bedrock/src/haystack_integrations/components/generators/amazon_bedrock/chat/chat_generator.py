@@ -1,12 +1,18 @@
-import json
-import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+import aioboto3
 from botocore.config import Config
 from botocore.eventstream import EventStream
 from botocore.exceptions import ClientError
-from haystack import component, default_from_dict, default_to_dict
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
+from haystack import component, default_from_dict, default_to_dict, logging
+from haystack.dataclasses import ChatMessage, ComponentInfo, StreamingCallbackT, select_streaming_callback
+from haystack.tools import (
+    Tool,
+    Toolset,
+    _check_duplicate_tool_names,
+    deserialize_tools_or_toolset_inplace,
+    serialize_tools_or_toolset,
+)
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
@@ -15,6 +21,13 @@ from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockInferenceError,
 )
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
+from haystack_integrations.components.generators.amazon_bedrock.chat.utils import (
+    _format_messages,
+    _format_tools,
+    _parse_completion_response,
+    _parse_streaming_response,
+    _parse_streaming_response_async,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +54,80 @@ class AmazonBedrockChatGenerator:
     client = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0",
                                         streaming_callback=print_streaming_chunk)
     client.run(messages, generation_kwargs={"max_tokens": 512})
+    ```
+
+    ### Multimodal example
+    ```python
+    from haystack.dataclasses import ChatMessage, ImageContent
+    from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
+
+    generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+
+    image_content = ImageContent.from_file_path(file_path="apple.jpg")
+
+    message = ChatMessage.from_user(content_parts=["Describe the image using 10 words at most.", image_content])
+
+    response = generator.run(messages=[message])["replies"][0].text
+
+    print(response)
+    > The image shows a red apple.
+
+    ### Tool usage example
+    # AmazonBedrockChatGenerator supports Haystack's unified tool architecture, allowing tools to be used
+    # across different chat generators. The same tool definitions and usage patterns work consistently
+    # whether using Amazon Bedrock, OpenAI, Ollama, or any other supported LLM providers.
+
+    ```python
+    from haystack.dataclasses import ChatMessage
+    from haystack.tools import Tool
+    from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
+
+    def weather(city: str):
+        return f'The weather in {city} is sunny and 32°C'
+
+    # Define tool parameters
+    tool_parameters = {
+        "type": "object",
+        "properties": {"city": {"type": "string"}},
+        "required": ["city"]
+    }
+
+    # Create weather tool
+    weather_tool = Tool(
+        name="weather",
+        description="useful to determine the weather in a given location",
+        parameters=tool_parameters,
+        function=weather
+    )
+
+    # Initialize generator with tool
+    client = AmazonBedrockChatGenerator(
+        model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+        tools=[weather_tool]
+    )
+
+    # Run initial query
+    messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+    results = client.run(messages=messages)
+
+    # Get tool call from response
+    tool_message = next(msg for msg in results["replies"] if msg.tool_call)
+    tool_call = tool_message.tool_call
+
+    # Execute tool and send result back
+    weather_result = weather(**tool_call.arguments)
+    new_messages = [
+        messages[0],
+        tool_message,
+        ChatMessage.from_tool(tool_result=weather_result, origin=tool_call)
+    ]
+
+    # Get final response
+    final_result = client.run(new_messages)
+    print(final_result["replies"][0].text)
+
+    > Based on the information I've received, I can tell you that the weather in Paris is
+    > currently sunny with a temperature of 32°C (which is about 90°F).
 
     ```
 
@@ -68,9 +155,10 @@ class AmazonBedrockChatGenerator:
         aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         generation_kwargs: Optional[Dict[str, Any]] = None,
         stop_words: Optional[List[str]] = None,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         boto3_config: Optional[Dict[str, Any]] = None,
-    ):
+        tools: Optional[Union[List[Tool], Toolset]] = None,
+    ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
         Amazon Bedrock client.
@@ -82,27 +170,26 @@ class AmazonBedrockChatGenerator:
         and `aws_region_name`.
 
         :param model: The model to use for text generation. The model must be available in Amazon Bedrock and must
-        be specified in the format outlined in the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html).
+            be specified in the format outlined in the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html).
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
         :param aws_session_token: AWS session token.
         :param aws_region_name: AWS region name. Make sure the region you set supports Amazon Bedrock.
         :param aws_profile_name: AWS profile name.
-        :param generation_kwargs: Keyword arguments sent to the model. These
-        parameters are specific to a model. You can find them in the model's documentation.
-          For example, you can find the
-        Anthropic Claude generation parameters in [Anthropic documentation](https://docs.anthropic.com/claude/reference/complete_post).
+        :param generation_kwargs: Keyword arguments sent to the model. These parameters are specific to a model.
+            You can find the model specific arguments in the AWS Bedrock API
+            [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html).
         :param stop_words: A list of stop words that stop the model from generating more text
-          when encountered. You can provide them using
-        this parameter or using the model's `generation_kwargs` under a model's specific key for stop words.
-          For example, you can provide
-        stop words for Anthropic Claude in the `stop_sequences` key.
+            when encountered. You can provide them using this parameter or using the model's `generation_kwargs`
+            under a model's specific key for stop words.
+            For example, you can provide stop words for Anthropic Claude in the `stop_sequences` key.
         :param streaming_callback: A callback function called when a new token is received from the stream.
-        By default, the model is not set up for streaming. To enable streaming, set this parameter to a callback
-        function that handles the streaming chunks. The callback function receives a
-          [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk) object and
-        switches the streaming mode on.
+            By default, the model is not set up for streaming. To enable streaming, set this parameter to a callback
+            function that handles the streaming chunks. The callback function receives a
+            [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk) object and switches
+            the streaming mode on.
         :param boto3_config: The configuration for the boto3 client.
+        :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
 
         :raises ValueError: If the model name is empty or None.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
@@ -120,11 +207,18 @@ class AmazonBedrockChatGenerator:
         self.stop_words = stop_words or []
         self.streaming_callback = streaming_callback
         self.boto3_config = boto3_config
+        _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
+        self.tools = tools
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
 
+        config = Config(
+            user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
+        )
+
         try:
+            # sync session
             session = get_aws_session(
                 aws_access_key_id=resolve_secret(aws_access_key_id),
                 aws_secret_access_key=resolve_secret(aws_secret_access_key),
@@ -132,10 +226,9 @@ class AmazonBedrockChatGenerator:
                 aws_region_name=resolve_secret(aws_region_name),
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
-            config: Optional[Config] = None
-            if self.boto3_config:
-                config = Config(**self.boto3_config)
+
             self.client = session.client("bedrock-runtime", config=config)
+
         except Exception as exception:
             msg = (
                 "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
@@ -145,7 +238,42 @@ class AmazonBedrockChatGenerator:
 
         self.generation_kwargs = generation_kwargs or {}
         self.stop_words = stop_words or []
-        self.streaming_callback = streaming_callback
+        self.async_session: Optional[aioboto3.Session] = None
+
+    def _get_async_session(self) -> aioboto3.Session:
+        """
+        Initializes and returns an asynchronous AWS session for accessing Amazon Bedrock.
+
+        If the session is already created, it is reused. Otherwise, a new session is created using the provided AWS
+        credentials and configuration.
+
+        :returns:
+            An async-compatible boto3 session configured for use with Amazon Bedrock.
+        :raises AmazonBedrockConfigurationError:
+            If unable to establish an async session due to misconfiguration.
+        """
+        if self.async_session:
+            return self.async_session
+
+        try:
+            self.async_session = get_aws_session(
+                aws_access_key_id=self.aws_access_key_id.resolve_value() if self.aws_access_key_id else None,
+                aws_secret_access_key=(
+                    self.aws_secret_access_key.resolve_value() if self.aws_secret_access_key else None
+                ),
+                aws_session_token=self.aws_session_token.resolve_value() if self.aws_session_token else None,
+                aws_region_name=self.aws_region_name.resolve_value() if self.aws_region_name else None,
+                aws_profile_name=self.aws_profile_name.resolve_value() if self.aws_profile_name else None,
+                async_mode=True,
+            )
+            return self.async_session
+
+        except Exception as exception:
+            msg = (
+                "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
+                "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
+            )
+            raise AmazonBedrockConfigurationError(msg) from exception
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -167,6 +295,7 @@ class AmazonBedrockChatGenerator:
             generation_kwargs=self.generation_kwargs,
             streaming_callback=callback_name,
             boto3_config=self.boto3_config,
+            tools=serialize_tools_or_toolset(self.tools),
         )
 
     @classmethod
@@ -186,15 +315,36 @@ class AmazonBedrockChatGenerator:
             data["init_parameters"],
             ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
         )
+        deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         return default_from_dict(cls, data)
 
-    @component.output_types(replies=List[ChatMessage])
-    def run(
+    def _prepare_request_params(
         self,
         messages: List[ChatMessage],
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-    ):
+        tools: Optional[Union[List[Tool], Toolset]] = None,
+        requires_async: bool = False,
+    ) -> Tuple[Dict[str, Any], Optional[StreamingCallbackT]]:
+        """
+        Prepares and formats parameters required to call the Amazon Bedrock Converse API.
+
+        This includes merging default and runtime generation parameters, formatting messages and tools, and
+        selecting the appropriate streaming callback.
+
+        :param messages: List of `ChatMessage` objects representing the conversation history.
+        :param streaming_callback: Optional streaming callback provided at runtime.
+        :param generation_kwargs: Optional dictionary of generation parameters. Some common parameters are:
+            - `maxTokens`: Maximum number of tokens to generate.
+            - `stopSequences`: List of stop sequences to stop generation.
+            - `temperature`: Sampling temperature.
+            - `topP`: Nucleus sampling parameter.
+        :param tools: Optional list of Tool objects or a Toolset that the model can use.
+        :param requires_async: Boolean flag to indicate if an async-compatible streaming callback function is needed.
+
+        :returns:
+            A tuple of (API-ready parameter dictionary, streaming callback function).
+        """
         generation_kwargs = generation_kwargs or {}
 
         # Merge generation_kwargs with defaults
@@ -209,20 +359,22 @@ class AmazonBedrockChatGenerator:
             if key in merged_kwargs
         }
 
-        # Extract tool configuration if present
-        # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolConfiguration.html
+        # Handle tools - either toolConfig or Haystack Tool objects but not both
+        tools = tools or self.tools
+        _check_duplicate_tool_names(list(tools or []))
         tool_config = merged_kwargs.pop("toolConfig", None)
+        if tools:
+            # Convert Toolset to list if needed
+            if isinstance(tools, Toolset):
+                tools = list(tools)
+            # Format Haystack tools to Bedrock format
+            tool_config = _format_tools(tools)
 
         # Any remaining kwargs go to additionalModelRequestFields
         additional_fields = merged_kwargs if merged_kwargs else None
 
-        # Prepare system prompts and messages
-        system_prompts = []
-        if messages and messages[0].is_from(ChatRole.SYSTEM):
-            system_prompts = [{"text": messages[0].text}]
-            messages = messages[1:]
-
-        messages_list = [{"role": msg.role.value, "content": [{"text": msg.text}]} for msg in messages]
+        # Format messages to Bedrock format
+        system_prompts, messages_list = _format_messages(messages)
 
         # Build API parameters
         params = {
@@ -236,7 +388,52 @@ class AmazonBedrockChatGenerator:
         if additional_fields:
             params["additionalModelRequestFields"] = additional_fields
 
-        callback = streaming_callback or self.streaming_callback
+        # overloads that exhaust finite Literals(bool) not treated as exhaustive
+        # see https://github.com/python/mypy/issues/14764
+        callback = select_streaming_callback(  # type: ignore[call-overload]
+            init_callback=self.streaming_callback,
+            runtime_callback=streaming_callback,
+            requires_async=requires_async,
+        )
+
+        return params, callback
+
+    @component.output_types(replies=List[ChatMessage])
+    def run(
+        self,
+        messages: List[ChatMessage],
+        streaming_callback: Optional[StreamingCallbackT] = None,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
+    ) -> Dict[str, List[ChatMessage]]:
+        """
+        Executes a synchronous inference call to the Amazon Bedrock model using the Converse API.
+
+        Supports both standard and streaming responses depending on whether a streaming callback is provided.
+
+        :param messages: A list of `ChatMessage` objects forming the chat history.
+        :param streaming_callback: Optional callback for handling streaming outputs.
+        :param generation_kwargs: Optional dictionary of generation parameters. Some common parameters are:
+            - `maxTokens`: Maximum number of tokens to generate.
+            - `stopSequences`: List of stop sequences to stop generation.
+            - `temperature`: Sampling temperature.
+            - `topP`: Nucleus sampling parameter.
+        :param tools: Optional list of Tools that the model may call during execution.
+
+        :returns:
+            A dictionary containing the model-generated replies under the `"replies"` key.
+        :raises AmazonBedrockInferenceError:
+            If the Bedrock inference API call fails.
+        """
+        component_info = ComponentInfo.from_component(self)
+
+        params, callback = self._prepare_request_params(
+            messages=messages,
+            streaming_callback=streaming_callback,
+            generation_kwargs=generation_kwargs,
+            tools=tools,
+            requires_async=False,
+        )
 
         try:
             if callback:
@@ -245,114 +442,86 @@ class AmazonBedrockChatGenerator:
                 if not response_stream:
                     msg = "No stream found in the response."
                     raise AmazonBedrockInferenceError(msg)
-                replies = self.process_streaming_response(response_stream, callback)
+                # the type of streaming callback is checked in _prepare_request_params, but mypy doesn't know
+                replies = _parse_streaming_response(
+                    response_stream=response_stream,
+                    streaming_callback=callback,  # type: ignore[arg-type]
+                    model=self.model,
+                    component_info=component_info,
+                )
             else:
                 response = self.client.converse(**params)
-                replies = self.extract_replies_from_response(response)
+                replies = _parse_completion_response(response, self.model)
         except ClientError as exception:
-            msg = f"Could not generate inference for Amazon Bedrock model {self.model} due: {exception}"
+            msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
             raise AmazonBedrockInferenceError(msg) from exception
 
         return {"replies": replies}
 
-    def extract_replies_from_response(self, response_body: Dict[str, Any]) -> List[ChatMessage]:
-        replies = []
-        if "output" in response_body and "message" in response_body["output"]:
-            message = response_body["output"]["message"]
-            if message["role"] == "assistant":
-                content_blocks = message["content"]
+    @component.output_types(replies=List[ChatMessage])
+    async def run_async(
+        self,
+        messages: List[ChatMessage],
+        streaming_callback: Optional[StreamingCallbackT] = None,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
+    ) -> Dict[str, List[ChatMessage]]:
+        """
+        Executes an asynchronous inference call to the Amazon Bedrock model using the Converse API.
 
-                # Common meta information
-                base_meta = {
-                    "model": self.model,
-                    "index": 0,
-                    "finish_reason": response_body.get("stopReason"),
-                    "usage": {
-                        # OpenAI's format for usage for cross ChatGenerator compatibility
-                        "prompt_tokens": response_body.get("usage", {}).get("inputTokens", 0),
-                        "completion_tokens": response_body.get("usage", {}).get("outputTokens", 0),
-                        "total_tokens": response_body.get("usage", {}).get("totalTokens", 0),
-                    },
-                }
+        Designed for use cases where non-blocking or concurrent execution is desired.
 
-                # Process each content block separately
-                for content_block in content_blocks:
-                    if "text" in content_block:
-                        replies.append(ChatMessage.from_assistant(content=content_block["text"], meta=base_meta.copy()))
-                    elif "toolUse" in content_block:
-                        replies.append(
-                            ChatMessage.from_assistant(
-                                content=json.dumps(content_block["toolUse"]), meta=base_meta.copy()
-                            )
-                        )
-        return replies
+        :param messages: A list of `ChatMessage` objects forming the chat history.
+        :param streaming_callback: Optional async-compatible callback for handling streaming outputs.
+        :param generation_kwargs: Optional dictionary of generation parameters. Some common parameters are:
+            - `maxTokens`: Maximum number of tokens to generate.
+            - `stopSequences`: List of stop sequences to stop generation.
+            - `temperature`: Sampling temperature.
+            - `topP`: Nucleus sampling parameter.
+        :param tools: Optional list of Tool objects or a Toolset that the model can use.
 
-    def process_streaming_response(
-        self, response_stream: EventStream, streaming_callback: Callable[[StreamingChunk], None]
-    ) -> List[ChatMessage]:
-        replies = []
-        current_content = ""
-        current_tool_use = None
-        base_meta = {
-            "model": self.model,
-            "index": 0,
-        }
+        :returns:
+            A dictionary containing the model-generated replies under the `"replies"` key.
+        :raises AmazonBedrockInferenceError:
+            If the Bedrock inference API call fails.
+        """
+        component_info = ComponentInfo.from_component(self)
 
-        for event in response_stream:
-            if "contentBlockStart" in event:
-                # Reset accumulators for new message
-                current_content = ""
-                current_tool_use = None
-                block_start = event["contentBlockStart"]
-                if "start" in block_start and "toolUse" in block_start["start"]:
-                    tool_start = block_start["start"]["toolUse"]
-                    current_tool_use = {
-                        "toolUseId": tool_start["toolUseId"],
-                        "name": tool_start["name"],
-                        "input": "",  # Will accumulate deltas as string
-                    }
+        params, callback = self._prepare_request_params(
+            messages=messages,
+            streaming_callback=streaming_callback,
+            generation_kwargs=generation_kwargs,
+            tools=tools,
+            requires_async=True,
+        )
 
-            elif "contentBlockDelta" in event:
-                delta = event["contentBlockDelta"]["delta"]
-                if "text" in delta:
-                    delta_text = delta["text"]
-                    current_content += delta_text
-                    streaming_chunk = StreamingChunk(content=delta_text, meta=None)
-                    # it only makes sense to call callback on text deltas
-                    streaming_callback(streaming_chunk)
-                elif "toolUse" in delta and current_tool_use:
-                    # Accumulate tool use input deltas
-                    current_tool_use["input"] += delta["toolUse"].get("input", "")
-            elif "contentBlockStop" in event:
-                if current_tool_use:
-                    # Parse accumulated input if it's a JSON string
-                    try:
-                        input_json = json.loads(current_tool_use["input"])
-                        current_tool_use["input"] = input_json
-                    except json.JSONDecodeError:
-                        # Keep as string if not valid JSON
-                        pass
+        try:
+            session = self._get_async_session()
+            # Note: https://aioboto3.readthedocs.io/en/latest/usage.html
+            # we need to create a new client for each request
+            config = Config(
+                user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
+            )
+            async with session.client("bedrock-runtime", config=config) as async_client:
+                if callback:
+                    response = await async_client.converse_stream(**params)
+                    response_stream: EventStream = response.get("stream")
+                    if not response_stream:
+                        msg = "No stream found in the response."
+                        raise AmazonBedrockInferenceError(msg)
+                    # the type of streaming callback is checked in _prepare_request_params, but mypy doesn't know
+                    replies = await _parse_streaming_response_async(
+                        response_stream=response_stream,
+                        streaming_callback=callback,  # type: ignore[arg-type]
+                        model=self.model,
+                        component_info=component_info,
+                    )
+                else:
+                    response = await async_client.converse(**params)
+                    replies = _parse_completion_response(response, self.model)
 
-                    tool_content = json.dumps(current_tool_use)
-                    replies.append(ChatMessage.from_assistant(content=tool_content, meta=base_meta.copy()))
-                elif current_content:
-                    replies.append(ChatMessage.from_assistant(content=current_content, meta=base_meta.copy()))
+        except ClientError as exception:
+            msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
+            raise AmazonBedrockInferenceError(msg) from exception
 
-            elif "messageStop" in event:
-                # not 100% correct for multiple messages but no way around it
-                for reply in replies:
-                    reply.meta["finish_reason"] = event["messageStop"].get("stopReason")
-
-            elif "metadata" in event:
-                metadata = event["metadata"]
-                # not 100% correct for multiple messages but no way around it
-                for reply in replies:
-                    if "usage" in metadata:
-                        usage = metadata["usage"]
-                        reply.meta["usage"] = {
-                            "prompt_tokens": usage.get("inputTokens", 0),
-                            "completion_tokens": usage.get("outputTokens", 0),
-                            "total_tokens": usage.get("totalTokens", 0),
-                        }
-
-        return replies
+        return {"replies": replies}

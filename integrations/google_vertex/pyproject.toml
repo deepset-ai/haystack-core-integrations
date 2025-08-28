@@ -7,7 +7,7 @@ name = "google-vertex-haystack"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
@@ -15,14 +15,15 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "google-cloud-aiplatform>=1.61", "pyarrow>3"]
+dependencies = ["haystack-ai>=2.11.0", "google-cloud-aiplatform>=1.61"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_vertex#readme"
@@ -42,37 +43,42 @@ git_describe_command = 'git describe --tags --match="integrations/google_vertex-
 
 [tool.hatch.envs.default]
 installer = "uv"
-dependencies = [
-  "coverage[toml]>=6.5",
-  "pytest",
-  "pytest-rerunfailures",
-  "haystack-pydoc-tools",
-]
-[tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}"
-test-cov = "coverage run -m pytest {args:tests}"
-test-cov-retry = "test-cov --reruns 3 --reruns-delay 30 -x"
-cov-report = ["- coverage combine", "coverage report"]
-cov = ["test-cov", "cov-report"]
-cov-retry = ["test-cov-retry", "cov-report"]
-docs = ["pydoc-markdown pydoc/config.yml"]
-[[tool.hatch.envs.all.matrix]]
-python = ["3.8", "3.9", "3.10", "3.11"]
+dependencies = ["haystack-pydoc-tools", "ruff"]
 
+[tool.hatch.envs.default.scripts]
+docs = ["pydoc-markdown pydoc/config.yml"]
+fmt = "ruff check --fix {args} && ruff format {args}"
+fmt-check = "ruff check {args} && ruff format --check {args}"
+
+[tool.hatch.envs.test]
+dependencies = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-rerunfailures",
+    "mypy",
+    "pip"
+]
+
+[tool.hatch.envs.test.scripts]
+unit = 'pytest -m "not integration" {args:tests}'
+integration = 'pytest -m "integration" {args:tests}'
+all = 'pytest {args:tests}'
+cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
+
+types = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+
+# TODO: remove lint environment once this integration is properly typed
+# test environment should be used instead
+# https://github.com/deepset-ai/haystack-core-integrations/issues/1771
 [tool.hatch.envs.lint]
 installer = "uv"
 detached = true
-dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243"]
+dependencies = ["pip", "mypy>=1.0.0", "ruff>=0.0.243"]
+
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-style = ["ruff check {args:.}", "black --check --diff {args:.}"]
-fmt = ["black {args:.}", "ruff check --fix {args:.}", "style"]
-all = ["style", "typing"]
 
-[tool.black]
-target-version = ["py38"]
-line-length = 120
-skip-string-normalization = true
 
 [tool.ruff]
 target-version = "py38"

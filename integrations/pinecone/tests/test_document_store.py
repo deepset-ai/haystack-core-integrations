@@ -35,7 +35,7 @@ def test_init(mock_pinecone):
     )
 
     # Trigger an actual connection
-    _ = document_store.index
+    _ = document_store._initialize_index()
 
     mock_pinecone.assert_called_with(api_key="fake-api-key", source_tag="haystack")
 
@@ -59,7 +59,7 @@ def test_init_api_key_in_environment_variable(mock_pinecone, monkeypatch):
     )
 
     # Trigger an actual connection
-    _ = ds.index
+    _ = ds._initialize_index()
 
     mock_pinecone.assert_called_with(api_key="env-api-key", source_tag="haystack")
 
@@ -77,7 +77,7 @@ def test_to_from_dict(mock_pinecone, monkeypatch):
     )
 
     # Trigger an actual connection
-    _ = document_store.index
+    document_store._initialize_index()
 
     dict_output = {
         "type": "haystack_integrations.document_stores.pinecone.document_store.PineconeDocumentStore",
@@ -114,7 +114,7 @@ def test_init_fails_wo_api_key(monkeypatch):
     with pytest.raises(ValueError):
         _ = PineconeDocumentStore(
             index="my_index",
-        ).index
+        )._initialize_index()
 
 
 def test_convert_dict_spec_to_pinecone_object_serverless():
@@ -158,13 +158,13 @@ def test_discard_invalid_meta_invalid():
             ],
         },
     )
-    pinecone_doc = PineconeDocumentStore._discard_invalid_meta(invalid_metadata_doc)
+    PineconeDocumentStore._discard_invalid_meta(invalid_metadata_doc)
 
-    assert pinecone_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
-    assert pinecone_doc.meta["page_number"] == 1
-    assert pinecone_doc.meta["split_id"] == 0
-    assert pinecone_doc.meta["split_idx_start"] == 0
-    assert "_split_overlap" not in pinecone_doc.meta
+    assert invalid_metadata_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
+    assert invalid_metadata_doc.meta["page_number"] == 1
+    assert invalid_metadata_doc.meta["split_id"] == 0
+    assert invalid_metadata_doc.meta["split_idx_start"] == 0
+    assert "_split_overlap" not in invalid_metadata_doc.meta
 
 
 def test_discard_invalid_meta_valid():
@@ -175,10 +175,10 @@ def test_discard_invalid_meta_valid():
             "page_number": 1,
         },
     )
-    pinecone_doc = PineconeDocumentStore._discard_invalid_meta(valid_metadata_doc)
+    PineconeDocumentStore._discard_invalid_meta(valid_metadata_doc)
 
-    assert pinecone_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
-    assert pinecone_doc.meta["page_number"] == 1
+    assert valid_metadata_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
+    assert valid_metadata_doc.meta["page_number"] == 1
 
 
 def test_convert_meta_to_int():
@@ -212,7 +212,7 @@ def test_convert_meta_to_int():
 
 
 @pytest.mark.integration
-@pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
+@pytest.mark.skipif(not os.environ.get("PINECONE_API_KEY"), reason="PINECONE_API_KEY not set")
 def test_serverless_index_creation_from_scratch(sleep_time):
     # we use a fixed index name to avoid hitting the limit of Pinecone's free tier (max 5 indexes)
     # the index name is defined in the test matrix of the GitHub Actions workflow
@@ -236,7 +236,7 @@ def test_serverless_index_creation_from_scratch(sleep_time):
         spec={"serverless": {"region": "us-east-1", "cloud": "aws"}},
     )
     # Trigger the connection
-    _ = ds.index
+    _ = ds._initialize_index()
 
     index_description = client.describe_index(name=index_name)
     assert index_description["name"] == index_name
@@ -252,7 +252,7 @@ def test_serverless_index_creation_from_scratch(sleep_time):
 
 
 @pytest.mark.integration
-@pytest.mark.skipif("PINECONE_API_KEY" not in os.environ, reason="PINECONE_API_KEY not set")
+@pytest.mark.skipif(not os.environ.get("PINECONE_API_KEY"), reason="PINECONE_API_KEY not set")
 class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest):
     def test_write_documents(self, document_store: PineconeDocumentStore):
         docs = [Document(id="1")]
@@ -290,6 +290,18 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         assert len(results) == 2
         assert results[0].content == "Most similar document"
         assert results[1].content == "2nd best document"
+
+    def test_close(self, document_store: PineconeDocumentStore):
+        document_store._initialize_index()
+        assert document_store._index is not None
+
+        document_store.close()
+        assert document_store._index is None
+
+        document_store._initialize_index()
+        assert document_store._index is not None
+        # test that the index is still usable after closing and reopening
+        assert document_store.count_documents() == 0
 
     def test_sentence_window_retriever(self, document_store: PineconeDocumentStore):
         # indexing

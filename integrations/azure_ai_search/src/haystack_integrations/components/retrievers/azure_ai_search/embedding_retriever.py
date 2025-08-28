@@ -1,7 +1,6 @@
-import logging
 from typing import Any, Dict, List, Optional, Union
 
-from haystack import Document, component, default_from_dict, default_to_dict
+from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
 
@@ -25,7 +24,7 @@ class AzureAISearchEmbeddingRetriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
-        **kwargs,
+        **kwargs: Any,
     ):
         """
         Create the AzureAISearchEmbeddingRetriever component.
@@ -94,7 +93,9 @@ class AzureAISearchEmbeddingRetriever:
         return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document])
-    def run(self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None):
+    def run(
+        self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> Dict[str, List[Document]]:
         """Retrieve documents from the AzureAISearchDocumentStore.
 
         :param query_embedding: A list of floats representing the query embedding.
@@ -108,11 +109,11 @@ class AzureAISearchEmbeddingRetriever:
 
         top_k = top_k or self._top_k
         filters = filters or self._filters
-        if filters:
-            applied_filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+
+        normalized_filters = ""
+        applied_filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        if applied_filters:
             normalized_filters = _normalize_filters(applied_filters)
-        else:
-            normalized_filters = ""
 
         try:
             docs = self._document_store._embedding_retrieval(

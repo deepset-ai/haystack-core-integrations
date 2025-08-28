@@ -1,0 +1,160 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "github-haystack"
+dynamic = ["version"]
+description = 'Haystack components for interacting with GitHub repositories'
+readme = "README.md"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+keywords = []
+authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = ["haystack-ai>=2.12.0"]
+
+[project.urls]
+Source = "https://github.com/deepset-ai/haystack-core-integrations/github"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/github/README.md"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
+[tool.hatch.version]
+source = "vcs"
+tag-pattern = 'integrations\/github-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/github-v[0-9]*"'
+
+[tool.hatch.envs.default]
+installer = "uv"
+dependencies = ["haystack-pydoc-tools", "ruff"]
+
+[tool.hatch.envs.default.scripts]
+docs = ["pydoc-markdown pydoc/config.yml"]
+fmt = "ruff check --fix {args} && ruff format {args}"
+fmt-check = "ruff check {args} && ruff format --check {args}"
+
+[tool.hatch.envs.test]
+dependencies = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-rerunfailures",
+    "mypy",
+    "pip"
+]
+
+[tool.hatch.envs.test.scripts]
+unit = 'pytest -m "not integration" {args:tests}'
+integration = 'pytest -m "integration" {args:tests}'
+all = 'pytest {args:tests}'
+cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
+
+types = """mypy -p haystack_integrations.components.connectors.github \
+-p haystack_integrations.prompts.github \
+-p haystack_integrations.tools.github {args}"""
+
+[tool.mypy]
+install_types = true
+non_interactive = true
+check_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.ruff]
+target-version = "py38"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+  "A",
+  "ARG",
+  "B",
+  "C",
+  "DTZ",
+  "E",
+  "EM",
+  "F",
+  "I",
+  "ICN",
+  "ISC",
+  "N",
+  "PLC",
+  "PLE",
+  "PLR",
+  "PLW",
+  "Q",
+  "RUF",
+  "S",
+  "T",
+  "TID",
+  "UP",
+  "W",
+  "YTT",
+]
+ignore = [
+  # Allow non-abstract empty methods in abstract base classes
+  "B027",
+  # Ignore checks for possible passwords
+  "S105",
+  "S106",
+  "S107",
+  # Ignore complexity
+  "C901",
+  "PLR0911",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+  # Misc
+  "B008",
+  "S101",
+]
+unfixable = [
+  # Don't touch unused imports
+  "F401",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["haystack_integrations"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use magic values, assertions, and relative imports
+"tests/**/*" = ["PLR2004", "S101", "TID252"]
+# Ignore RUF001 for all files in the prompts directory
+"src/haystack_integrations/components/prompts/**/*" = ["RUF001"]
+
+[tool.coverage.run]
+source = ["haystack_integrations"]
+branch = true
+parallel = false
+
+
+[tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing = true
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+  "integration: integration tests",
+]
+log_cli = true

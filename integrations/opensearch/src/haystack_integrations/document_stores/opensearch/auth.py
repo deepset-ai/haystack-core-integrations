@@ -1,15 +1,17 @@
 from dataclasses import dataclass, field, fields
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Type, TypeVar
 
 from haystack import default_from_dict, default_to_dict
 from haystack.document_stores.errors import DocumentStoreError
 from haystack.lazy_imports import LazyImport
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
-from opensearchpy import Urllib3AWSV4SignerAuth
+from opensearchpy import AWSV4SignerAsyncAuth, Urllib3AWSV4SignerAuth
 
 with LazyImport("Run 'pip install \"boto3\"' to install boto3.") as boto3_import:
     import boto3
     from botocore.exceptions import BotoCoreError
+
+TSignerAuth = TypeVar("TSignerAuth", Urllib3AWSV4SignerAuth, AWSV4SignerAsyncAuth)
 
 
 AWS_CONFIGURATION_KEYS = [
@@ -25,14 +27,18 @@ class AWSConfigurationError(DocumentStoreError):
     """Exception raised when AWS is not configured correctly"""
 
 
+def _resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+    return secret.resolve_value() if secret else None
+
+
 def _get_aws_session(
     aws_access_key_id: Optional[str] = None,
     aws_secret_access_key: Optional[str] = None,
     aws_session_token: Optional[str] = None,
     aws_region_name: Optional[str] = None,
     aws_profile_name: Optional[str] = None,
-    **kwargs,
-):
+    **kwargs: Any,
+) -> "boto3.Session":
     """
     Creates an AWS Session with the given parameters.
     Checks if the provided AWS credentials are valid and can be used to connect to AWS.
@@ -62,7 +68,7 @@ def _get_aws_session(
         raise AWSConfigurationError(msg) from e
 
 
-@dataclass()
+@dataclass
 class AWSAuth:
     """
     Auth credentials for AWS OpenSearch services.
@@ -91,7 +97,7 @@ class AWSAuth:
         """
         Initializes the AWSAuth object.
         """
-        self._urllib3_aws_v4_signer_auth = self._get_urllib3_aws_v4_signer_auth()
+        self._urllib3_aws_v4_signer_auth = self._get_aws_v4_signer_auth(Urllib3AWSV4SignerAuth)
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -128,27 +134,67 @@ class AWSAuth:
         :param method: HTTP method
         :param url: URL
         :param body: Body
+        :return:
+            A dictionary containing the signed headers.
         """
         return self._urllib3_aws_v4_signer_auth(method, url, body)
 
-    def _get_urllib3_aws_v4_signer_auth(self) -> Urllib3AWSV4SignerAuth:
-        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
-            return secret.resolve_value() if secret else None
-
+    def _get_aws_v4_signer_auth(self, signer_auth_class: Type[TSignerAuth]) -> TSignerAuth:
         try:
-            region_name = resolve_secret(self.aws_region_name)
+            region_name = _resolve_secret(self.aws_region_name)
             session = _get_aws_session(
-                aws_access_key_id=resolve_secret(self.aws_access_key_id),
-                aws_secret_access_key=resolve_secret(self.aws_secret_access_key),
-                aws_session_token=resolve_secret(self.aws_session_token),
+                aws_access_key_id=_resolve_secret(self.aws_access_key_id),
+                aws_secret_access_key=_resolve_secret(self.aws_secret_access_key),
+                aws_session_token=_resolve_secret(self.aws_session_token),
                 aws_region_name=region_name,
-                aws_profile_name=resolve_secret(self.aws_profile_name),
+                aws_profile_name=_resolve_secret(self.aws_profile_name),
             )
             credentials = session.get_credentials()
-            return Urllib3AWSV4SignerAuth(credentials, region_name, self.aws_service)
+            return signer_auth_class(
+                credentials=credentials,
+                # if region is None, the underlying classes raise a clear error at initialization time
+                region=region_name,  # type: ignore[arg-type]
+                service=self.aws_service,
+            )
         except Exception as exception:
             msg = (
                 "Could not connect to AWS OpenSearch. Make sure the AWS environment is configured correctly. "
                 "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
             )
             raise AWSConfigurationError(msg) from exception
+
+
+class AsyncAWSAuth:
+    """
+    Adapter for using `AWSAuth` with `AsyncOpenSearch`.
+
+    This class works as an adapter for the `AWSAuth` class to be used with the `AsyncOpenSearch` class.
+    It facilitates the creation of the `AWSV4SignerAsyncAuth` by making use of Haystack secrets and taking care of
+    the necessary `AWSV4SignerAsyncAuth` creation steps including boto3 Sessions and boto3 credentials.
+
+    Note that `AsyncHttpConnection` must be used as `connection_class` with `AsyncOpenSearch` to use this adapter.
+    """
+
+    def __init__(self, aws_auth: AWSAuth) -> None:
+        """
+        Initializes an AsyncAWSAuth instance
+
+        :param aws_auth: The AWSAuth instance to be used for signing requests.
+        """
+        self.aws_auth = aws_auth
+        self._async_aws_v4_signer_auth = self.aws_auth._get_aws_v4_signer_auth(AWSV4SignerAsyncAuth)
+
+    def __call__(self, method: str, url: str, query_string: str, body: Any) -> Dict[str, str]:
+        """
+        Signs the request and returns headers.
+
+        This method is executed by AsyncHttpConnection when making a request to the OpenSearch service.
+
+        :param method: HTTP method
+        :param url: URL
+        :param query_string: Query string
+        :param body: Body
+        :return:
+            A dictionary containing the signed headers.
+        """
+        return self._async_aws_v4_signer_auth(method, url, query_string, body)

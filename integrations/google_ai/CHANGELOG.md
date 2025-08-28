@@ -1,5 +1,82 @@
 # Changelog
 
+## [integrations/google_ai-v5.4.0] - 2025-07-28
+
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Remove black (#1985)
+- Google AI - suggest users to switch to Google GenAI (#2106)
+
+## [integrations/google_ai-v5.2.1] - 2025-05-28
+
+### 🚀 Features
+
+- Add run_async for GoogleAIGeminiChatGenerator (#1543)
+
+### 🐛 Bug Fixes
+
+- Update serialization/deserialization tests to add new parameter `connection_type_validation` (#1464)
+
+
+### 🧪 Testing
+
+- Change model from unsupported gemini-pro to gemini-1.5-pro (#1436)
+- Update tool serialization in tests to include `inputs_from_state` and `outputs_to_state` (#1581)
+- Upgrade gemini models (#1617)
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+### 🧹 Chores
+
+- Use Haystack logging across integrations (#1484)
+- Update ChatGenerators with `deserialize_tools_or_toolset_inplace` (#1623)
+
+### 🌀 Miscellaneous
+
+- Chore: remove `jsonschema` dependency from `default` environment (#1368)
+- Test: Update tests to check for `outputs_to_string` in Tool when running haystack-ai>=2.12 (#1585)
+- Ci: Update to `GoogleAIGeminiGenerator` tests (#1648)
+- Add pins for Google AI (#1828)
+
+## [integrations/google_ai-v5.1.0] - 2025-01-30
+
+### 🚀 Features
+
+- Google AI Chat Generator - add tool config + improvements (#1333)
+
+
+## [integrations/google_ai-v5.0.1] - 2025-01-23
+
+### 🚜 Refactor
+
+- GoogleAIGeminiGenerator - make some attributes public (#1317)
+
+
+## [integrations/google_ai-v5.0.0] - 2025-01-23
+
+### 🚀 Features
+
+- [**breaking**] Google AI - support for Tool + general refactoring (#1316)
+
+
+## [integrations/google_ai-v4.1.0] - 2025-01-16
+
+### 🧹 Chores
+
+- Google-ai - gently handle the removal of function role (#1297)
+
+
+## [integrations/google_ai-v4.0.1] - 2024-12-19
+
+### 🐛 Bug Fixes
+
+- Make GoogleAI Chat Generator compatible with new `ChatMessage`; small fixes to Cohere tests (#1253)
+
+
 ## [integrations/google_ai-v4.0.0] - 2024-12-10
 
 ### 🐛 Bug Fixes

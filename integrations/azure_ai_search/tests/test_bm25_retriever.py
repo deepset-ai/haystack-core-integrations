@@ -41,13 +41,13 @@ def test_to_dict():
                 "init_parameters": {
                     "azure_endpoint": {
                         "type": "env_var",
-                        "env_vars": ["AZURE_SEARCH_SERVICE_ENDPOINT"],
+                        "env_vars": ["AZURE_AI_SEARCH_ENDPOINT"],
                         "strict": True,
                     },
-                    "api_key": {"type": "env_var", "env_vars": ["AZURE_SEARCH_API_KEY"], "strict": False},
+                    "api_key": {"type": "env_var", "env_vars": ["AZURE_AI_SEARCH_API_KEY"], "strict": False},
                     "index_name": "default",
                     "embedding_dimension": 768,
-                    "metadata_fields": None,
+                    "metadata_fields": {},
                     "vector_search_configuration": {
                         "profiles": [
                             {"name": "default-vector-config", "algorithm_configuration_name": "cosine-algorithm-config"}
@@ -149,18 +149,33 @@ def test_run_time_params():
 
 
 @pytest.mark.skipif(
-    not os.environ.get("AZURE_SEARCH_SERVICE_ENDPOINT", None) and not os.environ.get("AZURE_SEARCH_API_KEY", None),
-    reason="Missing AZURE_SEARCH_SERVICE_ENDPOINT or AZURE_SEARCH_API_KEY.",
+    not os.environ.get("AZURE_AI_SEARCH_ENDPOINT", None) and not os.environ.get("AZURE_AI_SEARCH_API_KEY", None),
+    reason="Missing AZURE_AI_SEARCH_ENDPOINT or AZURE_AI_SEARCH_API_KEY.",
 )
 @pytest.mark.integration
 class TestRetriever:
-
     def test_run(self, document_store: AzureAISearchDocumentStore):
         docs = [Document(id="1", content="Test document")]
         document_store.write_documents(docs)
         retriever = AzureAISearchBM25Retriever(document_store=document_store)
         res = retriever.run(query="Test document")
-        assert res["documents"] == docs
+        assert res["documents"][0].content == docs[0].content
+        assert res["documents"][0].score is not None
+        assert res["documents"][0].id == docs[0].id
+
+    @pytest.mark.parametrize(
+        "document_store",
+        [
+            {"include_search_metadata": True},
+        ],
+        indirect=True,
+    )
+    def test_run_with_search_metadata(self, document_store: AzureAISearchDocumentStore):
+        docs = [Document(id="1", content="Test document")]
+        document_store.write_documents(docs)
+        retriever = AzureAISearchBM25Retriever(document_store=document_store)
+        res = retriever.run(query="Test document")
+        assert all(key.startswith("@search") for key in res["documents"][0].meta.keys())
 
     def test_document_retrieval(self, document_store: AzureAISearchDocumentStore):
         docs = [

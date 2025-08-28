@@ -49,7 +49,7 @@ class TestOptimumTextEmbedder:
         assert embedder._backend.parameters.model_kwargs == {
             "model_id": "sentence-transformers/all-mpnet-base-v2",
             "provider": "CPUExecutionProvider",
-            "use_auth_token": "fake-api-token",
+            "token": "fake-api-token",
         }
 
     def test_init_with_parameters(self, mock_check_valid_model):  # noqa: ARG002
@@ -78,13 +78,15 @@ class TestOptimumTextEmbedder:
             "trust_remote_code": True,
             "model_id": "sentence-transformers/all-minilm-l6-v2",
             "provider": "CUDAExecutionProvider",
-            "use_auth_token": "fake-api-token",
+            "token": "fake-api-token",
         }
         assert embedder._backend.parameters.working_dir == "working_dir"
         assert embedder._backend.parameters.optimizer_settings is None
         assert embedder._backend.parameters.quantizer_settings is None
 
-    def test_to_and_from_dict(self, mock_check_valid_model, mock_get_pooling_mode):  # noqa: ARG002
+    def test_to_and_from_dict(self, mock_check_valid_model, mock_get_pooling_mode, monkeypatch):  # noqa: ARG002
+        monkeypatch.delenv("HF_API_TOKEN", raising=False)
+        monkeypatch.delenv("HF_TOKEN", raising=False)
         component = OptimumTextEmbedder()
         data = component.to_dict()
 
@@ -119,7 +121,7 @@ class TestOptimumTextEmbedder:
         assert embedder._backend.parameters.model_kwargs == {
             "model_id": "sentence-transformers/all-mpnet-base-v2",
             "provider": "CPUExecutionProvider",
-            "use_auth_token": None,
+            "token": None,
         }
         assert embedder._backend.parameters.working_dir is None
         assert embedder._backend.parameters.optimizer_settings is None
@@ -176,7 +178,7 @@ class TestOptimumTextEmbedder:
             "trust_remote_code": True,
             "model_id": "sentence-transformers/all-minilm-l6-v2",
             "provider": "CUDAExecutionProvider",
-            "use_auth_token": None,
+            "token": None,
         }
         assert embedder._backend.parameters.working_dir == "working_dir"
         assert embedder._backend.parameters.optimizer_settings == OptimumEmbedderOptimizationConfig(
@@ -196,7 +198,7 @@ class TestOptimumTextEmbedder:
         with pytest.raises(ValueError):
             OptimumTextEmbedder(model="sentence-transformers/all-mpnet-base-v2", pooling_mode="Invalid_pooling_mode")
 
-    def test_infer_pooling_mode_from_str(self):
+    def test_infer_pooling_mode_from_str(self, mock_check_valid_model):  # noqa: ARG002
         """
         Test that the pooling mode is correctly inferred from a string.
         The pooling mode is "mean" as per the model config.
@@ -234,7 +236,7 @@ class TestOptimumTextEmbedder:
             token=Secret.from_token("fake-api-token"),
             pooling_mode="mean",
         )
-        embedder.warm_up()
+        embedder._initialized = True
 
         list_integers_input = [1, 2, 3]
 

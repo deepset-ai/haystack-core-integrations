@@ -1,5 +1,5 @@
 from typing import List
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack import Document
@@ -12,9 +12,11 @@ from haystack.testing.document_store import (
     WriteDocumentsTest,
     _random_embeddings,
 )
+from haystack.utils import Secret
 from qdrant_client.http import models as rest
 
 from haystack_integrations.document_stores.qdrant.document_store import (
+    DENSE_VECTORS_NAME,
     SPARSE_VECTORS_NAME,
     QdrantDocumentStore,
     QdrantStoreError,
@@ -36,6 +38,79 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         with patch("haystack_integrations.document_stores.qdrant.document_store.qdrant_client") as mocked_qdrant:
             QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
             mocked_qdrant.assert_not_called()
+
+    def test_prepare_client_params_no_mutability(self):
+        metadata = {"key": "value"}
+        doc_store = QdrantDocumentStore(
+            ":memory:",
+            recreate_index=True,
+            return_embedding=True,
+            wait_result_from_api=True,
+            use_sparse_embeddings=False,
+            metadata=metadata,
+        )
+        client_params = doc_store._prepare_client_params()
+        # Mutate value of metadata in client_params
+        client_params["metadata"] = client_params["metadata"].update({"new_key": "new_value"})
+
+        # Assert that the original metadata in the document store is unchanged
+        assert metadata == {"key": "value"}
+
+    def test_to_dict(self, monkeypatch):
+        monkeypatch.setenv("QDRANT_API_KEY", "test_api_key")
+        doc_store = QdrantDocumentStore(
+            ":memory:",
+            recreate_index=True,
+            return_embedding=True,
+            wait_result_from_api=True,
+            use_sparse_embeddings=False,
+            api_key=Secret.from_env_var("QDRANT_API_KEY"),
+        )
+        expected_dict = {
+            "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
+            "init_parameters": {
+                "location": ":memory:",
+                "url": None,
+                "port": 6333,
+                "grpc_port": 6334,
+                "prefer_grpc": False,
+                "https": None,
+                "api_key": {
+                    "env_vars": ["QDRANT_API_KEY"],
+                    "strict": True,
+                    "type": "env_var",
+                },
+                "prefix": None,
+                "timeout": None,
+                "host": None,
+                "path": None,
+                "force_disable_check_same_thread": False,
+                "index": "Document",
+                "embedding_dim": 768,
+                "on_disk": False,
+                "use_sparse_embeddings": False,
+                "sparse_idf": False,
+                "similarity": "cosine",
+                "return_embedding": True,
+                "progress_bar": True,
+                "recreate_index": True,
+                "shard_number": None,
+                "replication_factor": None,
+                "write_consistency_factor": None,
+                "on_disk_payload": None,
+                "hnsw_config": None,
+                "optimizers_config": None,
+                "wal_config": None,
+                "quantization_config": None,
+                "init_from": None,
+                "wait_result_from_api": True,
+                "metadata": {},
+                "write_batch_size": 100,
+                "scroll_size": 10000,
+                "payload_fields_to_index": None,
+            },
+        }
+        assert doc_store.to_dict() == expected_dict
 
     def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
         """
@@ -62,9 +137,9 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             use_sparse_embeddings=True,
             sparse_idf=True,
         )
+        document_store._initialize_client()
 
-        client = document_store.client
-        sparse_config = client.get_collection("Document").config.params.sparse_vectors
+        sparse_config = document_store._client.get_collection("Document").config.params.sparse_vectors
 
         assert SPARSE_VECTORS_NAME in sparse_config
 
@@ -135,7 +210,6 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         embedding = [0.1] * 768
 
         with pytest.raises(QdrantStoreError):
-
             document_store._query_hybrid(
                 query_sparse_embedding=sparse_embedding,
                 query_embedding=embedding,
@@ -143,11 +217,83 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
 
     def test_query_hybrid_search_batch_failure(self):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
-
+        document_store._initialize_client()
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
         embedding = [0.1] * 768
 
-        with patch.object(document_store.client, "query_points", side_effect=Exception("query_points")):
-
+        with patch.object(document_store._client, "query_points", side_effect=Exception("query_points")):
             with pytest.raises(QdrantStoreError):
                 document_store._query_hybrid(query_sparse_embedding=sparse_embedding, query_embedding=embedding)
+
+    def test_set_up_collection_with_existing_incompatible_collection(self):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+        document_store._initialize_client()
+        # Mock collection info with named vectors but missing DENSE_VECTORS_NAME
+        mock_collection_info = MagicMock()
+        mock_collection_info.config.params.vectors = {"some_other_vector": MagicMock()}
+
+        with patch.object(document_store._client, "collection_exists", return_value=True), patch.object(
+            document_store._client, "get_collection", return_value=mock_collection_info
+        ):
+            with pytest.raises(QdrantStoreError, match="created outside of Haystack"):
+                document_store._set_up_collection("test_collection", 768, False, "cosine", True, False)
+
+    def test_set_up_collection_use_sparse_embeddings_true_without_named_vectors(self):
+        """Test that an error is raised when use_sparse_embeddings is True but collection doesn't have named vectors"""
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+        document_store._initialize_client()
+
+        # Mock collection info without named vectors
+        mock_collection_info = MagicMock()
+        mock_collection_info.config.params.vectors = MagicMock(spec=rest.VectorsConfig)
+
+        with patch.object(document_store._client, "collection_exists", return_value=True), patch.object(
+            document_store._client, "get_collection", return_value=mock_collection_info
+        ):
+            with pytest.raises(QdrantStoreError, match="without sparse embedding vectors"):
+                document_store._set_up_collection("test_collection", 768, False, "cosine", True, False)
+
+    def test_set_up_collection_use_sparse_embeddings_false_with_named_vectors(self):
+        """Test that an error is raised when use_sparse_embeddings is False but collection has named vectors"""
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False)
+        document_store._initialize_client()
+        # Mock collection info with named vectors
+        mock_collection_info = MagicMock()
+        mock_collection_info.config.params.vectors = {DENSE_VECTORS_NAME: MagicMock()}
+
+        with patch.object(document_store._client, "collection_exists", return_value=True), patch.object(
+            document_store._client, "get_collection", return_value=mock_collection_info
+        ):
+            with pytest.raises(QdrantStoreError, match="with sparse embedding vectors"):
+                document_store._set_up_collection("test_collection", 768, False, "cosine", False, False)
+
+    def test_set_up_collection_with_distance_mismatch(self):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False, similarity="cosine")
+        document_store._initialize_client()
+
+        # Mock collection info with different distance
+        mock_collection_info = MagicMock()
+        mock_collection_info.config.params.vectors = MagicMock()
+        mock_collection_info.config.params.vectors.distance = rest.Distance.DOT
+        mock_collection_info.config.params.vectors.size = 768
+
+        with patch.object(document_store._client, "collection_exists", return_value=True), patch.object(
+            document_store._client, "get_collection", return_value=mock_collection_info
+        ):
+            with pytest.raises(ValueError, match="different similarity"):
+                document_store._set_up_collection("test_collection", 768, False, "cosine", False, False)
+
+    def test_set_up_collection_with_dimension_mismatch(self):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False, similarity="cosine")
+        document_store._initialize_client()
+        # Mock collection info with different vector size
+        mock_collection_info = MagicMock()
+        mock_collection_info.config.params.vectors = MagicMock()
+        mock_collection_info.config.params.vectors.distance = rest.Distance.COSINE
+        mock_collection_info.config.params.vectors.size = 512
+
+        with patch.object(document_store._client, "collection_exists", return_value=True), patch.object(
+            document_store._client, "get_collection", return_value=mock_collection_info
+        ):
+            with pytest.raises(ValueError, match="different vector size"):
+                document_store._set_up_collection("test_collection", 768, False, "cosine", False, False)

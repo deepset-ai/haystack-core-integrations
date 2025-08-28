@@ -1,5 +1,105 @@
 # Changelog
 
+## [integrations/azure_ai_search-v2.3.0] - 2025-06-27
+
+### 🚀 Features
+
+- Allow the @search metadata returned by AI Search to be populated in the Document.meta (#1907)
+- Update the Document.score with @search.score
+- Introduced a new param `include_search_metadata`
+
+
+## [integrations/azure_ai_search-v2.2.0] - 2025-06-27
+
+### 🐛 Bug Fixes
+
+- Fix Azure AI types + add py.typed (#2003)
+
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Remove black (#1985)
+
+## [integrations/azure_ai_search-v2.1.1] - 2025-06-04
+
+### 🐛 Bug Fixes
+
+- Correct Azure AI search _in delimiter (#1729)
+
+
+## [integrations/azure_ai_search-v2.1.0] - 2025-06-04
+
+### 🚀 Features
+
+- Allow full metadata field customization (#1893)
+
+
+## [integrations/azure_ai_search-v2.0.2] - 2025-05-14
+
+
+### 🌀 Miscellaneous
+
+- Feat: Add user-agent to `AzureAISearchDocumentStore` (#1743)
+
+## [integrations/azure_ai_search-v2.0.1] - 2025-04-16
+
+### 🚀 Features
+
+- Fix serialization errors in `AzureAIDocumentStore` (#1647)
+
+
+## [integrations/azure_ai_search-v2.0.0] - 2025-04-03
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Rename env variables for Azure AI (#1597)
+
+
+### ⚙️ CI
+
+- Review testing workflows (#1541)
+
+## [integrations/azure_ai_search-v1.0.0] - 2025-03-11
+
+
+### 🧪 Testing
+
+- Azure AI Search - improvements to the test suite (#1425)
+- Skip tests that require credentials on PRs from forks for some integrations (#1485)
+
+### 🧹 Chores
+
+- Remove Python 3.8 support (#1421)
+- Use Haystack logging across integrations (#1484)
+- Azure AI - pin haystack and remove dataframe checks (#1500)
+
+## [integrations/azure_ai_search-v0.1.3] - 2025-02-17
+
+
+### 🧹 Chores
+
+- Azure AI search - clarify that dataframe is not supported (#1407)
+
+## [integrations/azure_ai_search-v0.1.2] - 2025-02-03
+
+### 🐛 Bug Fixes
+
+- Logger for index deletion failures in Azure AI (#1240)
+
+### ⚙️ CI
+
+- Delete all azure_ai_search indexes (#1247)
+
+### 🧹 Chores
+
+- Fix linting/isort (#1215)
+- Inherit from `FilterDocumentsTestWithDataframe` in Document Stores (#1290)
+
+### 🌀 Miscellaneous
+
+- Fix: remove setting `query_type="simple"` in retrieval request (#1346)
+
 ## [integrations/azure_ai_search-v0.1.1] - 2024-11-22
 
 ### 🐛 Bug Fixes

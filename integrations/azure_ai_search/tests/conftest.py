@@ -10,7 +10,6 @@ from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
 
-
 # This is the approximate time in seconds it takes for the documents to be available in Azure Search index
 SLEEP_TIME_IN_SECONDS = 10
 MAX_WAIT_TIME_FOR_INDEX_DELETION = 10
@@ -29,21 +28,21 @@ def document_store(request):
     """
     index_name = f"haystack_test_{uuid.uuid4().hex}"
     metadata_fields = getattr(request, "param", {}).get("metadata_fields", None)
+    include_search_metadata = getattr(request, "param", {}).get("include_search_metadata", False)
 
-    azure_endpoint = os.environ["AZURE_SEARCH_SERVICE_ENDPOINT"]
-    api_key = os.environ["AZURE_SEARCH_API_KEY"]
+    azure_endpoint = os.environ["AZURE_AI_SEARCH_ENDPOINT"]
+    api_key = os.environ["AZURE_AI_SEARCH_API_KEY"]
 
     client = SearchIndexClient(azure_endpoint, AzureKeyCredential(api_key))
     if index_name in client.list_index_names():
         client.delete_index(index_name)
 
     store = AzureAISearchDocumentStore(
-        api_key=api_key,
-        azure_endpoint=azure_endpoint,
         index_name=index_name,
         create_index=True,
         embedding_dimension=768,
         metadata_fields=metadata_fields,
+        include_search_metadata=include_search_metadata,
     )
 
     # Override some methods to wait for the documents to be available
@@ -87,10 +86,16 @@ def document_store(request):
 def cleanup_indexes():
     """
     Fixture to clean up all remaining indexes at the end of the test session.
+    Only runs if Azure credentials are available.
     Automatically runs after all tests.
     """
-    azure_endpoint = os.environ["AZURE_SEARCH_SERVICE_ENDPOINT"]
-    api_key = os.environ["AZURE_SEARCH_API_KEY"]
+    azure_endpoint = os.getenv("AZURE_AI_SEARCH_ENDPOINT")
+    api_key = os.getenv("AZURE_AI_SEARCH_API_KEY")
+
+    # Skip cleanup if credentials aren't available
+    if not azure_endpoint or not api_key:
+        yield
+        return
 
     client = SearchIndexClient(azure_endpoint, AzureKeyCredential(api_key))
 

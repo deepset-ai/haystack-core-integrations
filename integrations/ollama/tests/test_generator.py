@@ -16,10 +16,10 @@ class TestOllamaGenerator:
         prompts_and_answers = [
             ("What's the capital of France?", "Paris"),
             ("What is the capital of Canada?", "Ottawa"),
-            ("What is the capital of Ghana?", "Accra"),
+            ("What is the capital of England?", "London"),
         ]
 
-        component = OllamaGenerator()
+        component = OllamaGenerator(model="qwen3:0.6b")
 
         for prompt, answer in prompts_and_answers:
             results = component.run(prompt=prompt)
@@ -135,7 +135,7 @@ class TestOllamaGenerator:
         assert component.keep_alive == "5m"
 
     @pytest.mark.integration
-    def test_ollama_generator_run_streaming(self):
+    def test_ollama_generator_streaming(self):
         class Callback:
             def __init__(self):
                 self.responses = ""
@@ -147,11 +147,33 @@ class TestOllamaGenerator:
                 return chunk
 
         callback = Callback()
-        component = OllamaGenerator(streaming_callback=callback)
-        results = component.run(prompt="What's the capital of Netherlands?")
+        component = OllamaGenerator(model="qwen3:0.6b", streaming_callback=callback)
+        results = component.run(prompt="What's the capital of England?")
 
         assert len(results["replies"]) == 1
-        assert "Amsterdam" in results["replies"][0]
+        assert "london" in results["replies"][0].lower()
+        assert len(results["meta"]) == 1
+        assert callback.responses == results["replies"][0]
+        assert callback.count_calls > 1
+
+    @pytest.mark.integration
+    def test_ollama_generator_streaming_in_run(self):
+        class Callback:
+            def __init__(self):
+                self.responses = ""
+                self.count_calls = 0
+
+            def __call__(self, chunk):
+                self.responses += chunk.content
+                self.count_calls += 1
+                return chunk
+
+        callback = Callback()
+        component = OllamaGenerator(model="qwen3:0.6b", streaming_callback=None)
+        results = component.run(prompt="What's the capital of England?", streaming_callback=callback)
+
+        assert len(results["replies"]) == 1
+        assert "london" in results["replies"][0].lower()
         assert len(results["meta"]) == 1
         assert callback.responses == results["replies"][0]
         assert callback.count_calls > 1

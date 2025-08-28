@@ -1,6 +1,9 @@
-# SPDX-FileCopyrightText: 2023-present John Doe <jd@example.com>
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
+from typing import Any
+
 from chromadb.api.types import EmbeddingFunction
 from chromadb.utils.embedding_functions import (
     CohereEmbeddingFunction,
@@ -33,7 +36,7 @@ FUNCTION_REGISTRY = {
 }
 
 
-def get_embedding_function(function_name: str, **kwargs) -> EmbeddingFunction:
+def get_embedding_function(function_name: str, **kwargs: Any) -> EmbeddingFunction:
     """Load an embedding function by name.
 
     :param function_name: the name of the embedding function.

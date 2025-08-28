@@ -1,10 +1,10 @@
-import logging
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import google.generativeai as genai
 from google.ai.generativelanguage import Content, Part
 from google.generativeai import GenerationConfig, GenerativeModel
 from google.generativeai.types import GenerateContentResponse, HarmBlockThreshold, HarmCategory
+from haystack import logging
 from haystack.core.component import component
 from haystack.core.component.types import Variadic
 from haystack.core.serialization import default_from_dict, default_to_dict
@@ -25,7 +25,7 @@ class GoogleAIGeminiGenerator:
     from haystack.utils import Secret
     from haystack_integrations.components.generators.google_ai import GoogleAIGeminiGenerator
 
-    gemini = GoogleAIGeminiGenerator(model="gemini-pro", api_key=Secret.from_token("<MY_API_KEY>"))
+    gemini = GoogleAIGeminiGenerator(model="gemini-2.0-flash", api_key=Secret.from_token("<MY_API_KEY>"))
     res = gemini.run(parts = ["What is the most interesting thing you know?"])
     for answer in res["replies"]:
         print(answer)
@@ -55,7 +55,7 @@ class GoogleAIGeminiGenerator:
         for url in URLS
     ]
 
-    gemini = GoogleAIGeminiGenerator(model="gemini-1.5-flash", api_key=Secret.from_token("<MY_API_KEY>"))
+    gemini = GoogleAIGeminiGenerator(model="gemini-2.0-flash", api_key=Secret.from_token("<MY_API_KEY>"))
     result = gemini.run(parts = ["What can you tell me about this robots?", *images])
     for answer in result["replies"]:
         print(answer)
@@ -76,7 +76,7 @@ class GoogleAIGeminiGenerator:
         self,
         *,
         api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),  # noqa: B008
-        model: str = "gemini-1.5-flash",
+        model: str = "gemini-2.0-flash",
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
@@ -101,11 +101,11 @@ class GoogleAIGeminiGenerator:
         genai.configure(api_key=api_key.resolve_value())
 
         self._api_key = api_key
-        self._model_name = model
-        self._generation_config = generation_config
-        self._safety_settings = safety_settings
-        self._model = GenerativeModel(self._model_name)
-        self._streaming_callback = streaming_callback
+        self.model_name = model
+        self.generation_config = generation_config
+        self.safety_settings = safety_settings
+        self._model = GenerativeModel(self.model_name)
+        self.streaming_callback = streaming_callback
 
     def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(config, dict):
@@ -126,13 +126,13 @@ class GoogleAIGeminiGenerator:
         :returns:
             Dictionary with serialized data.
         """
-        callback_name = serialize_callable(self._streaming_callback) if self._streaming_callback else None
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         data = default_to_dict(
             self,
             api_key=self._api_key.to_dict(),
-            model=self._model_name,
-            generation_config=self._generation_config,
-            safety_settings=self._safety_settings,
+            model=self.model_name,
+            generation_config=self.generation_config,
+            safety_settings=self.safety_settings,
             streaming_callback=callback_name,
         )
         if (generation_config := data["init_parameters"].get("generation_config")) is not None:
@@ -198,13 +198,13 @@ class GoogleAIGeminiGenerator:
         """
 
         # check if streaming_callback is passed
-        streaming_callback = streaming_callback or self._streaming_callback
+        streaming_callback = streaming_callback or self.streaming_callback
         converted_parts = [self._convert_part(p) for p in parts]
         contents = [Content(parts=converted_parts, role="user")]
         res = self._model.generate_content(
             contents=contents,
-            generation_config=self._generation_config,
-            safety_settings=self._safety_settings,
+            generation_config=self.generation_config,
+            safety_settings=self.safety_settings,
             stream=streaming_callback is not None,
         )
         self._model.start_chat()

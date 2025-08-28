@@ -1,8 +1,9 @@
 import json
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-from haystack.dataclasses import StreamingChunk
+from botocore.eventstream import EventStream
+from haystack.dataclasses import StreamingChunk, SyncStreamingCallbackT
 
 
 class BedrockModelAdapter(ABC):
@@ -11,6 +12,11 @@ class BedrockModelAdapter(ABC):
 
     Each subclass of this class is designed to address the unique specificities of a particular LLM it adapts,
     focusing on preparing the requests and extracting the responses from the Amazon Bedrock hosted LLMs.
+
+    :param model_kwargs: Keyword arguments for the model. You can find the full list of parameters in the
+        Amazon Bedrock API [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html).
+    :param max_length: Maximum length of generated text. This is mapped to the correct parameter for each model.
+        It will be overridden by the corresponding parameter in the `model_kwargs` if it is present.
     """
 
     def __init__(self, model_kwargs: Dict[str, Any], max_length: Optional[int]) -> None:
@@ -18,7 +24,7 @@ class BedrockModelAdapter(ABC):
         self.max_length = max_length
 
     @abstractmethod
-    def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
         """
         Prepares the body for the Amazon Bedrock request.
         Each subclass should implement this method to prepare the request body for the specific model.
@@ -39,7 +45,7 @@ class BedrockModelAdapter(ABC):
         responses = [completion.lstrip() for completion in completions]
         return responses
 
-    def get_stream_responses(self, stream, streaming_callback: Callable[[StreamingChunk], None]) -> List[str]:
+    def get_stream_responses(self, stream: EventStream, streaming_callback: SyncStreamingCallbackT) -> List[str]:
         """
         Extracts the responses from the Amazon Bedrock streaming response.
 
@@ -98,13 +104,26 @@ class BedrockModelAdapter(ABC):
 class AnthropicClaudeAdapter(BedrockModelAdapter):
     """
     Adapter for the Anthropic Claude models.
+
+    :param model_kwargs: Keyword arguments for the model. You can find the full list of parameters in the
+        Amazon Bedrock API documentation for the Claude model
+        [here](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-claude.html).
+        Some example parameters are:
+        - use_messages_api: Whether to use the messages API, default: True
+        - include_thinking: Whether to include thinking output, default: True
+        - thinking_tag: XML tag for thinking content, default: "thinking"
+    :param max_length: Maximum length of generated text
     """
 
     def __init__(self, model_kwargs: Dict[str, Any], max_length: Optional[int]) -> None:
         self.use_messages_api = model_kwargs.get("use_messages_api", True)
+        self.include_thinking = model_kwargs.get("include_thinking", True)
+        self.thinking_tag = model_kwargs.get("thinking_tag", "thinking")
+        self.thinking_tag_start = f"<{self.thinking_tag}>" if self.thinking_tag else ""
+        self.thinking_tag_end = f"</{self.thinking_tag}>\n\n" if self.thinking_tag else "\n\n"
         super().__init__(model_kwargs, max_length)
 
-    def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
         """
         Prepares the body for the Claude model
 
@@ -123,6 +142,7 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
                 "temperature": None,
                 "top_p": None,
                 "top_k": None,
+                "thinking": None,
             }
             params = self._get_params(inference_kwargs, default_params)
 
@@ -148,7 +168,16 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
         :returns: A list of string responses.
         """
         if self.use_messages_api:
-            return [content["text"] for content in response_body["content"]]
+            texts = [content["text"] for content in response_body["content"] if content.get("type", "text") == "text"]
+            thinking = [
+                content["thinking"] for content in response_body["content"] if content.get("type", "text") == "thinking"
+            ]
+            if self.include_thinking and len(thinking) == len(texts):
+                texts = [
+                    f"{self.thinking_tag_start}{thinking}{self.thinking_tag_end}{text}"
+                    for text, thinking in zip(texts, thinking)
+                ]
+            return texts
 
         return [response_body["completion"]]
 
@@ -160,7 +189,19 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
         :returns: A StreamingChunk object.
         """
         if self.use_messages_api:
-            return StreamingChunk(content=chunk.get("delta", {}).get("text", ""), meta=chunk)
+            delta = chunk.get("delta", {})
+            text = delta.get("text", "")
+            if self.include_thinking:
+                thinking = delta.get("thinking", "")
+                text = text or thinking
+                if chunk.get("type") == "content_block_start":
+                    content_block_type = chunk.get("content_block", {}).get("type")
+                    if content_block_type == "thinking":
+                        return StreamingChunk(content=self.thinking_tag_start, meta=chunk)
+                    if content_block_type == "text" and chunk.get("index", 0) > 0:
+                        return StreamingChunk(content=self.thinking_tag_end, meta=chunk)
+
+            return StreamingChunk(content=text, meta=chunk)
 
         return StreamingChunk(content=chunk.get("completion", ""), meta=chunk)
 
@@ -170,7 +211,7 @@ class MistralAdapter(BedrockModelAdapter):
     Adapter for the Mistral models.
     """
 
-    def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
         """
         Prepares the body for the Mistral model
 
@@ -220,7 +261,7 @@ class CohereCommandAdapter(BedrockModelAdapter):
     Adapter for the Cohere Command model.
     """
 
-    def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
         """
         Prepares the body for the Command model
 
@@ -332,7 +373,7 @@ class AI21LabsJurassic2Adapter(BedrockModelAdapter):
     Model adapter for AI21 Labs' Jurassic 2 models.
     """
 
-    def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
         """Prepares the body for the Jurassic 2 model.
 
         :param prompt: The prompt to be sent to the model.
@@ -370,7 +411,7 @@ class AmazonTitanAdapter(BedrockModelAdapter):
     Adapter for Amazon's Titan models.
     """
 
-    def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
         """
         Prepares the body for the Titan model
 
@@ -416,7 +457,7 @@ class MetaLlamaAdapter(BedrockModelAdapter):
     Adapter for Meta's Llama2 models.
     """
 
-    def prepare_body(self, prompt: str, **inference_kwargs) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
         """
         Prepares the body for the Llama2 model
 

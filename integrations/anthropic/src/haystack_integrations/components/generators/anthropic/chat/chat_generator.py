@@ -1,64 +1,264 @@
-import dataclasses
-import json
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Union
+from datetime import datetime, timezone
+from typing import Any, ClassVar, Dict, List, Literal, Optional, Tuple, Union, cast, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
-from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
+from haystack.dataclasses.chat_message import ChatMessage, ChatRole, TextContent, ToolCall, ToolCallResult
+from haystack.dataclasses.image_content import ImageContent
+from haystack.dataclasses.streaming_chunk import (
+    AsyncStreamingCallbackT,
+    ComponentInfo,
+    FinishReason,
+    StreamingCallbackT,
+    StreamingChunk,
+    SyncStreamingCallbackT,
+    ToolCallDelta,
+    select_streaming_callback,
+)
+from haystack.tools import (
+    Tool,
+    Toolset,
+    _check_duplicate_tool_names,
+    deserialize_tools_or_toolset_inplace,
+    serialize_tools_or_toolset,
+)
+from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
-from anthropic import Anthropic, Stream
+from anthropic import Anthropic, AsyncAnthropic
+from anthropic.resources.messages.messages import Message, RawMessageStreamEvent, Stream
 from anthropic.types import (
-    ContentBlockDeltaEvent,
-    Message,
-    MessageDeltaEvent,
-    MessageStartEvent,
-    MessageStreamEvent,
-    TextBlock,
-    TextDelta,
-    ToolUseBlock,
+    ImageBlockParam,
+    MessageParam,
+    TextBlockParam,
+    ToolParam,
+    ToolResultBlockParam,
+    ToolUseBlockParam,
 )
 
 logger = logging.getLogger(__name__)
 
 
+# See https://docs.anthropic.com/en/api/messages for supported formats
+ImageFormat = Literal["image/jpeg", "image/png", "image/gif", "image/webp"]
+IMAGE_SUPPORTED_FORMATS: list[ImageFormat] = list(get_args(ImageFormat))
+
+
+# Mapping from Anthropic stop reasons to Haystack FinishReason values
+FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
+    "end_turn": "stop",
+    "stop_sequence": "stop",
+    "max_tokens": "length",
+    "refusal": "content_filter",
+    "pause_turn": "stop",
+    "tool_use": "tool_calls",
+}
+
+
+def _update_anthropic_message_with_tool_call_results(
+    tool_call_results: List[ToolCallResult],
+    content: List[Union[TextBlockParam, ToolUseBlockParam, ToolResultBlockParam, ImageBlockParam]],
+) -> None:
+    """
+    Update an Anthropic message content list with tool call results.
+
+    :param tool_call_results: The list of ToolCallResults to update the message with.
+    :param content: The Anthropic message content list to update.
+    """
+    for tool_call_result in tool_call_results:
+        if tool_call_result.origin.id is None:
+            msg = "`ToolCall` must have a non-null `id` attribute to be used with Anthropic."
+            raise ValueError(msg)
+
+        tool_result_block = ToolResultBlockParam(
+            type="tool_result",
+            tool_use_id=tool_call_result.origin.id,
+            content=[{"type": "text", "text": tool_call_result.result}],
+            is_error=tool_call_result.error,
+        )
+        content.append(tool_result_block)
+
+
+def _convert_tool_calls_to_anthropic_format(tool_calls: List[ToolCall]) -> List[ToolUseBlockParam]:
+    """
+    Convert a list of tool calls to the format expected by Anthropic Chat API.
+
+    :param tool_calls: The list of ToolCalls to convert.
+    :return: A list of ToolUseBlockParam objects in the format expected by Anthropic API.
+    """
+    anthropic_tool_calls = []
+    for tc in tool_calls:
+        if tc.id is None:
+            msg = "`ToolCall` must have a non-null `id` attribute to be used with Anthropic."
+            raise ValueError(msg)
+
+        tool_use_block = ToolUseBlockParam(
+            type="tool_use",
+            id=tc.id,
+            name=tc.tool_name,
+            input=tc.arguments,
+        )
+        anthropic_tool_calls.append(tool_use_block)
+    return anthropic_tool_calls
+
+
+def _convert_messages_to_anthropic_format(
+    messages: List[ChatMessage],
+) -> Tuple[List[TextBlockParam], List[MessageParam]]:
+    """
+    Convert a list of messages to the format expected by Anthropic Chat API.
+
+    :param messages: The list of ChatMessages to convert.
+    :return: A tuple of two lists:
+        - A list of system message TextBlockParam objects in the format expected by Anthropic API.
+        - A list of non-system MessageParam objects in the format expected by Anthropic API.
+    """
+
+    anthropic_system_messages: List[TextBlockParam] = []
+    anthropic_non_system_messages: List[MessageParam] = []
+
+    i = 0
+    while i < len(messages):
+        message = messages[i]
+        cache_control = message.meta.get("cache_control")
+        # system messages have special format requirements for Anthropic API
+        # they can have only type and text fields, and they need to be passed separately
+        # to the Anthropic API endpoint
+        if message.is_from(ChatRole.SYSTEM) and message.text:
+            sys_message = TextBlockParam(type="text", text=message.text)
+            if cache_control:
+                sys_message["cache_control"] = cache_control
+            anthropic_system_messages.append(sys_message)
+            i += 1
+            continue
+
+        content: List[Union[TextBlockParam, ToolUseBlockParam, ToolResultBlockParam, ImageBlockParam]] = []
+
+        # Handle multimodal content (text and images) preserving order
+        for part in message._content:
+            if isinstance(part, TextContent) and part.text:
+                text_block = TextBlockParam(type="text", text=part.text)
+                if cache_control:
+                    text_block["cache_control"] = cache_control
+                content.append(text_block)
+            elif isinstance(part, ImageContent):
+                if not message.is_from(ChatRole.USER):
+                    msg = "Image content is only supported for user messages"
+                    raise ValueError(msg)
+
+                if part.mime_type not in IMAGE_SUPPORTED_FORMATS:
+                    supported_formats = ", ".join(IMAGE_SUPPORTED_FORMATS)
+                    msg = (
+                        f"Unsupported image format: {part.mime_type}. "
+                        f"Anthropic supports the following formats: {supported_formats}"
+                    )
+                    raise ValueError(msg)
+
+                image_block = ImageBlockParam(
+                    type="image",
+                    source={
+                        "type": "base64",
+                        "media_type": cast(ImageFormat, part.mime_type),
+                        "data": part.base64_image,
+                    },
+                )
+                if cache_control:
+                    image_block["cache_control"] = cache_control
+                content.append(image_block)
+
+        if message.tool_calls:
+            tool_use_blocks = _convert_tool_calls_to_anthropic_format(message.tool_calls)
+            if cache_control:
+                for tool_use_block in tool_use_blocks:
+                    tool_use_block["cache_control"] = cache_control
+            content.extend(tool_use_blocks)
+
+        if message.tool_call_results:
+            results = message.tool_call_results.copy()
+            # Handle consecutive tool call results
+            while (i + 1) < len(messages) and messages[i + 1].tool_call_results:
+                i += 1
+                results.extend(messages[i].tool_call_results)
+
+            _update_anthropic_message_with_tool_call_results(results, content)
+            if cache_control:
+                for blk in content:
+                    if blk.get("type") == "tool_result":
+                        blk["cache_control"] = cache_control
+
+        if not content:
+            msg = (
+                "A `ChatMessage` must contain at least one `TextContent`, `ImageContent`, "
+                "`ToolCall`, or `ToolCallResult`."
+            )
+            raise ValueError(msg)
+
+        # Anthropic only supports assistant and user roles in messages. User role is also used for tool messages.
+        # System messages are passed separately.
+        role: Union[Literal["assistant"], Literal["user"]] = "user"
+        if message._role == ChatRole.ASSISTANT:
+            role = "assistant"
+
+        anthropic_message = MessageParam(role=role, content=content)
+        anthropic_non_system_messages.append(anthropic_message)
+        i += 1
+
+    return anthropic_system_messages, anthropic_non_system_messages
+
+
 @component
 class AnthropicChatGenerator:
     """
-    Enables text generation using Anthropic state-of-the-art Claude 3 family of large language models (LLMs) through
-    the Anthropic messaging API.
+    Completes chats using Anthropic's large language models (LLMs).
 
-    It supports models like `claude-3-5-sonnet`, `claude-3-opus`, `claude-3-sonnet`, and `claude-3-haiku`,
-    accessed through the [`/v1/messages`](https://docs.anthropic.com/en/api/messages) API endpoint.
+    It uses [ChatMessage](https://docs.haystack.deepset.ai/docs/data-classes#chatmessage)
+    format in input and output. Supports multimodal inputs including text and images.
 
-    Users can pass any text generation parameters valid for the Anthropic messaging API directly to this component
-    via the `generation_kwargs` parameter in `__init__` or the `generation_kwargs` parameter in the `run` method.
+    You can customize how the text is generated by passing parameters to the
+    Anthropic API. Use the `**generation_kwargs` argument when you initialize
+    the component or when you run it. Any parameter that works with
+    `anthropic.Message.create` will work here too.
 
-    For more details on the parameters supported by the Anthropic API, refer to the
-    Anthropic Message API [documentation](https://docs.anthropic.com/en/api/messages).
+    For details on Anthropic API parameters, see
+    [Anthropic documentation](https://docs.anthropic.com/en/api/messages).
 
+    Usage example:
     ```python
-    from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
+    from haystack_integrations.components.generators.anthropic import (
+        AnthropicChatGenerator,
+    )
     from haystack.dataclasses import ChatMessage
 
-    messages = [ChatMessage.from_user("What's Natural Language Processing?")]
-    client = AnthropicChatGenerator(model="claude-3-5-sonnet-20240620")
-    response = client.run(messages)
-    print(response)
+    generator = AnthropicChatGenerator(
+        model="claude-sonnet-4-20250514",
+        generation_kwargs={
+            "max_tokens": 1000,
+            "temperature": 0.7,
+        },
+    )
 
-    >> {'replies': [ChatMessage(content='Natural Language Processing (NLP) is a field of artificial intelligence that
-    >> focuses on enabling computers to understand, interpret, and generate human language. It involves developing
-    >> techniques and algorithms to analyze and process text or speech data, allowing machines to comprehend and
-    >> communicate in natural languages like English, Spanish, or Chinese.', role=<ChatRole.ASSISTANT: 'assistant'>,
-    >> name=None, meta={'model': 'claude-3-5-sonnet-20240620', 'index': 0, 'finish_reason': 'end_turn',
-    >> 'usage': {'input_tokens': 15, 'output_tokens': 64}})]}
+    messages = [
+        ChatMessage.from_system(
+            "You are a helpful, respectful and honest assistant"
+        ),
+        ChatMessage.from_user("What's Natural Language Processing?"),
+    ]
+    print(generator.run(messages=messages))
     ```
 
-    For more details on supported models and their capabilities, refer to the Anthropic
-    [documentation](https://docs.anthropic.com/claude/docs/intro-to-claude).
+    Usage example with images:
+    ```python
+    from haystack.dataclasses import ChatMessage, ImageContent
 
-    Note: We only support text input/output modalities, and
-    image [modality](https://docs.anthropic.com/en/docs/build-with-claude/vision) is not supported in
-    this version of AnthropicChatGenerator.
+    image_content = ImageContent.from_file_path("path/to/image.jpg")
+    messages = [
+        ChatMessage.from_user(
+            content_parts=["What's in this image?", image_content]
+        )
+    ]
+    generator = AnthropicChatGenerator()
+    result = generator.run(messages)
+    ```
     """
 
     # The parameters that can be passed to the Anthropic API https://docs.anthropic.com/claude/reference/messages_post
@@ -73,15 +273,20 @@ class AnthropicChatGenerator:
         "top_p",
         "top_k",
         "extra_headers",
+        "thinking",
     ]
 
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("ANTHROPIC_API_KEY"),  # noqa: B008
-        model: str = "claude-3-5-sonnet-20240620",
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        model: str = "claude-sonnet-4-20250514",
+        streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         ignore_tools_thinking_messages: bool = True,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
+        *,
+        timeout: Optional[float] = None,
+        max_retries: Optional[int] = None,
     ):
         """
         Creates an instance of AnthropicChatGenerator.
@@ -108,13 +313,35 @@ class AnthropicChatGenerator:
             `ignore_tools_thinking_messages` is `True`, the generator will drop so-called thinking messages when tool
             use is detected. See the Anthropic [tools](https://docs.anthropic.com/en/docs/tool-use#chain-of-thought-tool-use)
             for more details.
+        :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
+        :param timeout:
+            Timeout for Anthropic client calls. If not set, it defaults to the default set by the Anthropic client.
+        :param max_retries:
+            Maximum number of retries to attempt for failed requests. If not set, it defaults to the default set by
+            the Anthropic client.
         """
+        _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
+
         self.api_key = api_key
         self.model = model
         self.generation_kwargs = generation_kwargs or {}
         self.streaming_callback = streaming_callback
-        self.client = Anthropic(api_key=self.api_key.resolve_value())
+        self.timeout = timeout
+        self.max_retries = max_retries
+
+        client_kwargs: Dict[str, Any] = {"api_key": api_key.resolve_value()}
+        # We do this since timeout=None is not the same as not setting it in Anthropic
+        if timeout is not None:
+            client_kwargs["timeout"] = timeout
+        # We do this since max_retries must be an int when passing to Anthropic
+        if max_retries is not None:
+            client_kwargs["max_retries"] = max_retries
+
+        self.client = Anthropic(**client_kwargs)
+        self.async_client = AsyncAnthropic(**client_kwargs)
+
         self.ignore_tools_thinking_messages = ignore_tools_thinking_messages
+        self.tools = tools
 
     def _get_telemetry_data(self) -> Dict[str, Any]:
         """
@@ -137,6 +364,9 @@ class AnthropicChatGenerator:
             generation_kwargs=self.generation_kwargs,
             api_key=self.api_key.to_dict(),
             ignore_tools_thinking_messages=self.ignore_tools_thinking_messages,
+            tools=serialize_tools_or_toolset(self.tools),
+            timeout=self.timeout,
+            max_retries=self.max_retries,
         )
 
     @classmethod
@@ -149,177 +379,348 @@ class AnthropicChatGenerator:
             The deserialized component instance.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+        deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         init_params = data.get("init_parameters", {})
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
+
         return default_from_dict(cls, data)
 
-    @component.output_types(replies=List[ChatMessage])
-    def run(self, messages: List[ChatMessage], generation_kwargs: Optional[Dict[str, Any]] = None):
+    @staticmethod
+    def _get_openai_compatible_usage(response_dict: dict) -> dict:
         """
-        Invoke the text generation inference based on the provided messages and generation parameters.
+        Converts Anthropic usage metadata to OpenAI compatible format.
+        """
+        usage = response_dict.get("usage", {})
+        if usage:
+            if "input_tokens" in usage:
+                usage["prompt_tokens"] = usage.pop("input_tokens")
+            if "output_tokens" in usage:
+                usage["completion_tokens"] = usage.pop("output_tokens")
+
+        return usage
+
+    def _convert_chat_completion_to_chat_message(
+        self, anthropic_response: Any, ignore_tools_thinking_messages: bool
+    ) -> ChatMessage:
+        """
+        Converts the response from the Anthropic API to a ChatMessage.
+        """
+        tool_calls = [
+            ToolCall(tool_name=block.name, arguments=block.input, id=block.id)
+            for block in anthropic_response.content
+            if block.type == "tool_use"
+        ]
+
+        # Extract and join text blocks, respecting ignore_tools_thinking_messages
+        text = ""
+        if not (ignore_tools_thinking_messages and tool_calls):
+            text = " ".join(block.text for block in anthropic_response.content if block.type == "text")
+
+        message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls)
+
+        # Dump the chat completion to a dict
+        response_dict = anthropic_response.model_dump()
+        usage = self._get_openai_compatible_usage(response_dict)
+        message._meta.update(
+            {
+                "model": response_dict.get("model", None),
+                "index": 0,
+                "finish_reason": FINISH_REASON_MAPPING.get(response_dict.get("stop_reason" or "")),
+                "usage": usage,
+            }
+        )
+        return message
+
+    @staticmethod
+    def _convert_anthropic_chunk_to_streaming_chunk(
+        chunk: RawMessageStreamEvent, component_info: ComponentInfo, tool_call_index: int
+    ) -> StreamingChunk:
+        """
+        Converts an Anthropic StreamEvent to a StreamingChunk.
+
+        :param chunk: The Anthropic StreamEvent to convert.
+        :param component_info: The component info.
+        :param tool_call_index: The index of the tool call among the tool calls in the message.
+        :returns: The StreamingChunk.
+        """
+        content = ""
+        tool_calls = []
+        start = False
+        finish_reason = None
+
+        index = getattr(chunk, "index", None)
+
+        # starting streaming message
+        if chunk.type == "message_start":
+            start = True
+
+        # start of a content block
+        if chunk.type == "content_block_start":
+            start = True
+            if chunk.content_block.type == "tool_use":
+                tool_calls.append(
+                    ToolCallDelta(
+                        index=tool_call_index,
+                        id=chunk.content_block.id,
+                        tool_name=chunk.content_block.name,
+                    )
+                )
+        # delta of a content block
+        elif chunk.type == "content_block_delta":
+            if chunk.delta.type == "text_delta":
+                content = chunk.delta.text
+            elif chunk.delta.type == "input_json_delta":
+                tool_calls.append(ToolCallDelta(index=tool_call_index, arguments=chunk.delta.partial_json))
+        # end of streaming message
+        elif chunk.type == "message_delta":
+            finish_reason = FINISH_REASON_MAPPING.get(getattr(chunk.delta, "stop_reason" or ""))
+
+        return StreamingChunk(
+            content=content,
+            index=index,
+            component_info=component_info,
+            start=start,
+            finish_reason=finish_reason,
+            tool_calls=tool_calls if tool_calls else None,
+            meta=chunk.model_dump(),
+        )
+
+    def _prepare_request_params(
+        self,
+        messages: List[ChatMessage],
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
+    ) -> Tuple[List[TextBlockParam], List[MessageParam], Dict[str, Any], List[ToolParam]]:
+        """
+        Prepare the parameters for the Anthropic API request.
 
         :param messages: A list of ChatMessage instances representing the input messages.
-        :param generation_kwargs: Additional keyword arguments for text generation. These parameters will
-                                  potentially override the parameters passed in the `__init__` method.
-                                  For more details on the parameters supported by the Anthropic API, refer to the
-                                  Anthropic [documentation](https://www.anthropic.com/python-library).
-
-        :returns:
-            - `replies`: A list of ChatMessage instances representing the generated responses.
+        :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint.
+        :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should
+        have a unique name.
+        :returns: A tuple containing:
+            - system_messages: List of system messages in Anthropic format
+            - non_system_messages: List of non-system messages in Anthropic format
+            - generation_kwargs: Processed generation kwargs
+            - anthropic_tools: List of tools in Anthropic format
         """
-
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        filtered_generation_kwargs = {k: v for k, v in generation_kwargs.items() if k in self.ALLOWED_PARAMS}
         disallowed_params = set(generation_kwargs) - set(self.ALLOWED_PARAMS)
         if disallowed_params:
             logger.warning(
-                f"Model parameters {disallowed_params} are not allowed and will be ignored. "
-                f"Allowed parameters are {self.ALLOWED_PARAMS}."
+                "Model parameters {disallowed_params} are not allowed and will be ignored. "
+                "Allowed parameters are {allowed_params}.",
+                disallowed_params=disallowed_params,
+                allowed_params=self.ALLOWED_PARAMS,
             )
-        system_messages: List[ChatMessage] = [msg for msg in messages if msg.is_from(ChatRole.SYSTEM)]
-        non_system_messages: List[ChatMessage] = [msg for msg in messages if not msg.is_from(ChatRole.SYSTEM)]
-        system_messages_formatted: List[Dict[str, Any]] = (
-            self._convert_to_anthropic_format(system_messages) if system_messages else []
-        )
-        messages_formatted: List[Dict[str, Any]] = (
-            self._convert_to_anthropic_format(non_system_messages) if non_system_messages else []
-        )
+        generation_kwargs = {k: v for k, v in generation_kwargs.items() if k in self.ALLOWED_PARAMS}
 
-        extra_headers = filtered_generation_kwargs.get("extra_headers", {})
-        prompt_caching_on = "anthropic-beta" in extra_headers and "prompt-caching" in extra_headers["anthropic-beta"]
-        has_cached_messages = any("cache_control" in m for m in system_messages_formatted) or any(
-            "cache_control" in m for m in messages_formatted
-        )
-        if has_cached_messages and not prompt_caching_on:
-            # this avoids Anthropic errors when prompt caching is not enabled
-            # but user requested individual messages to be cached
-            logger.warn(
-                "Prompt caching is not enabled but you requested individual messages to be cached. "
-                "Messages will be sent to the API without prompt caching."
-            )
-            system_messages_formatted = list(map(self._remove_cache_control, system_messages_formatted))
-            messages_formatted = list(map(self._remove_cache_control, messages_formatted))
+        system_messages, non_system_messages = _convert_messages_to_anthropic_format(messages)
 
-        response: Union[Message, Stream[MessageStreamEvent]] = self.client.messages.create(
-            max_tokens=filtered_generation_kwargs.pop("max_tokens", 512),
-            system=system_messages_formatted or filtered_generation_kwargs.pop("system", ""),
-            model=self.model,
-            messages=messages_formatted,
-            stream=self.streaming_callback is not None,
-            **filtered_generation_kwargs,
-        )
+        # prompt caching
 
-        completions: List[ChatMessage] = []
-        # if streaming is enabled, the response is a Stream[MessageStreamEvent]
-        if isinstance(response, Stream):
+        # tools management
+        tools = tools or self.tools
+        tools = list(tools) if isinstance(tools, Toolset) else tools
+        _check_duplicate_tool_names(tools)  # handles Toolset as well
+
+        anthropic_tools: List[ToolParam] = []
+        if tools:
+            for tool in tools:
+                anthropic_tools.append(
+                    ToolParam(name=tool.name, description=tool.description, input_schema=tool.parameters)
+                )
+
+        return system_messages, non_system_messages, generation_kwargs, anthropic_tools
+
+    def _process_response(
+        self,
+        response: Union[Message, Stream[RawMessageStreamEvent]],
+        streaming_callback: Optional[SyncStreamingCallbackT] = None,
+    ) -> Dict[str, List[ChatMessage]]:
+        """
+        Process the response from the Anthropic API.
+
+        :param response: The response from the Anthropic API.
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
+        :returns: A dictionary containing the processed response as a list of ChatMessage objects.
+        """
+        # workaround for https://github.com/DataDog/dd-trace-py/issues/12562
+        # we cannot use isinstance(Stream)
+        if not isinstance(response, Message):
             chunks: List[StreamingChunk] = []
-            stream_event, delta, start_event = None, None, None
-            for stream_event in response:
-                if isinstance(stream_event, MessageStartEvent):
-                    # capture start message to count input tokens
-                    start_event = stream_event
-                if isinstance(stream_event, ContentBlockDeltaEvent):
-                    chunk_delta: StreamingChunk = self._build_chunk(stream_event.delta)
-                    chunks.append(chunk_delta)
-                    if self.streaming_callback:
-                        self.streaming_callback(chunk_delta)  # invoke callback with the chunk_delta
-                if isinstance(stream_event, MessageDeltaEvent):
-                    # capture stop reason and stop sequence
-                    delta = stream_event
-            completions = [self._connect_chunks(chunks, start_event, delta)]
+            model: Optional[str] = None
+            tool_call_index = -1
+            input_tokens = None
+            component_info = ComponentInfo.from_component(self)
+            for chunk in response:
+                if chunk.type in ["message_start", "content_block_start", "content_block_delta", "message_delta"]:
+                    # Extract model from message_start chunks
+                    if chunk.type == "message_start":
+                        model = chunk.message.model
+                        if chunk.message.usage.input_tokens is not None:
+                            input_tokens = chunk.message.usage.input_tokens
 
-        # if streaming is disabled, the response is an Anthropic Message
-        elif isinstance(response, Message):
-            has_tools_msgs = any(isinstance(content_block, ToolUseBlock) for content_block in response.content)
-            if has_tools_msgs and self.ignore_tools_thinking_messages:
-                response.content = [block for block in response.content if isinstance(block, ToolUseBlock)]
-            completions = [self._build_message(content_block, response) for content_block in response.content]
+                    if chunk.type == "content_block_start" and chunk.content_block.type == "tool_use":
+                        tool_call_index += 1
 
-        # rename the meta key to be inline with OpenAI meta output keys
-        for response in completions:
-            if response.meta is not None and "usage" in response.meta:
-                response.meta["usage"]["prompt_tokens"] = response.meta["usage"].pop("input_tokens")
-                response.meta["usage"]["completion_tokens"] = response.meta["usage"].pop("output_tokens")
+                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(
+                        chunk, component_info, tool_call_index
+                    )
+                    chunks.append(streaming_chunk)
+                    if streaming_callback:
+                        streaming_callback(streaming_chunk)
 
-        return {"replies": completions}
+            completion = _convert_streaming_chunks_to_chat_message(chunks)
+            completion.meta.update(
+                {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},
+            )
 
-    def _build_message(self, content_block: Union[TextBlock, ToolUseBlock], message: Message) -> ChatMessage:
-        """
-        Converts the non-streaming Anthropic Message to a ChatMessage.
-        :param content_block: The content block of the message.
-        :param message: The non-streaming Anthropic Message.
-        :returns: The ChatMessage.
-        """
-        if isinstance(content_block, TextBlock):
-            chat_message = ChatMessage.from_assistant(content_block.text)
+            if input_tokens is not None:
+                if "usage" not in completion.meta:
+                    completion.meta["usage"] = {}
+                completion.meta["usage"]["input_tokens"] = input_tokens
+            return {"replies": [completion]}
         else:
-            chat_message = ChatMessage.from_assistant(json.dumps(content_block.model_dump(mode="json")))
-        chat_message.meta.update(
-            {
-                "model": message.model,
-                "index": 0,
-                "finish_reason": message.stop_reason,
-                "usage": dict(message.usage or {}),
+            return {
+                "replies": [
+                    self._convert_chat_completion_to_chat_message(response, self.ignore_tools_thinking_messages)
+                ]
             }
-        )
-        return chat_message
 
-    def _convert_to_anthropic_format(self, messages: List[ChatMessage]) -> List[Dict[str, Any]]:
+    async def _process_response_async(
+        self,
+        response: Any,
+        streaming_callback: Optional[AsyncStreamingCallbackT] = None,
+    ) -> Dict[str, List[ChatMessage]]:
         """
-        Converts the list of ChatMessage to the list of messages in the format expected by the Anthropic API.
-        :param messages: The list of ChatMessage.
-        :returns: The list of messages in the format expected by the Anthropic API.
-        """
-        anthropic_formatted_messages = []
-        for m in messages:
-            message_dict = dataclasses.asdict(m)
-            formatted_message = {k: v for k, v in message_dict.items() if k in {"role", "content"} and v}
-            if m.is_from(ChatRole.SYSTEM):
-                # system messages are treated differently and MUST be in the format expected by the Anthropic API
-                # remove role and content from the message dict, add type and text
-                formatted_message.pop("role")
-                formatted_message["type"] = "text"
-                formatted_message["text"] = formatted_message.pop("content")
-            formatted_message.update(m.meta or {})
-            anthropic_formatted_messages.append(formatted_message)
-        return anthropic_formatted_messages
+        Process the response from the Anthropic API asynchronously.
 
-    def _connect_chunks(
-        self, chunks: List[StreamingChunk], message_start: MessageStartEvent, delta: MessageDeltaEvent
-    ) -> ChatMessage:
+        :param response: The response from the Anthropic API.
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
+
+        :returns:
+            A dictionary containing the processed response as a list of ChatMessage objects.
         """
-        Connects the streaming chunks into a single ChatMessage.
-        :param chunks: The list of all chunks returned by the Anthropic API.
-        :param message_start: The MessageStartEvent.
-        :param delta: The MessageDeltaEvent.
-        :returns: The complete ChatMessage.
-        """
-        complete_response = ChatMessage.from_assistant("".join([chunk.content for chunk in chunks]))
-        complete_response.meta.update(
-            {
-                "model": self.model,
-                "index": 0,
-                "finish_reason": delta.delta.stop_reason if delta else "end_turn",
-                "usage": {**dict(message_start.message.usage, **dict(delta.usage))} if delta and message_start else {},
+        # workaround for https://github.com/DataDog/dd-trace-py/issues/12562
+        if not isinstance(response, Message):
+            chunks: List[StreamingChunk] = []
+            model: Optional[str] = None
+            tool_call_index = -1
+            component_info = ComponentInfo.from_component(self)
+            async for chunk in response:
+                if chunk.type in [
+                    "message_start",
+                    "content_block_start",
+                    "content_block_delta",
+                    "message_delta",
+                ]:
+                    # Extract model from message_start chunks
+                    if chunk.type == "message_start":
+                        model = chunk.message.model
+                    if chunk.type == "content_block_start" and chunk.content_block.type == "tool_use":
+                        tool_call_index += 1
+
+                    streaming_chunk = self._convert_anthropic_chunk_to_streaming_chunk(
+                        chunk, component_info, tool_call_index
+                    )
+                    chunks.append(streaming_chunk)
+                    if streaming_callback:
+                        await streaming_callback(streaming_chunk)
+
+            completion = _convert_streaming_chunks_to_chat_message(chunks)
+            completion.meta.update(
+                {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},
+            )
+            return {"replies": [completion]}
+        else:
+            return {
+                "replies": [
+                    self._convert_chat_completion_to_chat_message(response, self.ignore_tools_thinking_messages)
+                ]
             }
+
+    @component.output_types(replies=List[ChatMessage])
+    def run(
+        self,
+        messages: List[ChatMessage],
+        streaming_callback: Optional[StreamingCallbackT] = None,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
+    ) -> Dict[str, List[ChatMessage]]:
+        """
+        Invokes the Anthropic API with the given messages and generation kwargs.
+
+        :param messages: A list of ChatMessage instances representing the input messages.
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
+        :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint.
+        :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should
+        have a unique name. If set, it will override the `tools` parameter set during component initialization.
+        :returns: A dictionary with the following keys:
+            - `replies`: The responses from the model
+        """
+        system_messages, non_system_messages, generation_kwargs, anthropic_tools = self._prepare_request_params(
+            messages, generation_kwargs, tools
         )
-        return complete_response
 
-    def _build_chunk(self, delta: TextDelta) -> StreamingChunk:
-        """
-        Converts the ContentBlockDeltaEvent to a StreamingChunk.
-        :param delta: The ContentBlockDeltaEvent.
-        :returns: The StreamingChunk.
-        """
-        return StreamingChunk(content=delta.text)
+        streaming_callback = select_streaming_callback(
+            init_callback=self.streaming_callback,
+            runtime_callback=streaming_callback,
+            requires_async=False,
+        )
 
-    def _remove_cache_control(self, message: Dict[str, Any]) -> Dict[str, Any]:
+        response = self.client.messages.create(
+            model=self.model,
+            messages=non_system_messages,
+            system=system_messages,
+            tools=anthropic_tools,
+            stream=streaming_callback is not None,
+            max_tokens=generation_kwargs.pop("max_tokens", 1024),
+            **generation_kwargs,
+        )
+
+        return self._process_response(response=response, streaming_callback=streaming_callback)
+
+    @component.output_types(replies=List[ChatMessage])
+    async def run_async(
+        self,
+        messages: List[ChatMessage],
+        streaming_callback: Optional[StreamingCallbackT] = None,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
+    ) -> Dict[str, List[ChatMessage]]:
         """
-        Removes the cache_control key from the message.
-        :param message: The message to remove the cache_control key from.
-        :returns: The message with the cache_control key removed.
+        Async version of the run method. Invokes the Anthropic API with the given messages and generation kwargs.
+
+        :param messages: A list of ChatMessage instances representing the input messages.
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
+        :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint.
+        :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should
+        have a unique name. If set, it will override the `tools` parameter set during component initialization.
+        :returns: A dictionary with the following keys:
+            - `replies`: The responses from the model
         """
-        return {k: v for k, v in message.items() if k != "cache_control"}
+        system_messages, non_system_messages, generation_kwargs, anthropic_tools = self._prepare_request_params(
+            messages, generation_kwargs, tools
+        )
+
+        streaming_callback = select_streaming_callback(
+            init_callback=self.streaming_callback,
+            runtime_callback=streaming_callback,
+            requires_async=True,
+        )
+
+        response = await self.async_client.messages.create(
+            model=self.model,
+            messages=non_system_messages,
+            system=system_messages,
+            tools=anthropic_tools,
+            stream=streaming_callback is not None,
+            max_tokens=generation_kwargs.pop("max_tokens", 1024),
+            **generation_kwargs,
+        )
+
+        return await self._process_response_async(response, streaming_callback)

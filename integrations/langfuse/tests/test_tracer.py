@@ -1,58 +1,250 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+import asyncio
 import datetime
 import logging
 import sys
+import json
+from typing import Optional
 from unittest.mock import MagicMock, Mock, patch
 
-from haystack.dataclasses import ChatMessage
-from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer
+import pytest
+from haystack import Pipeline, component
+from haystack.dataclasses import ChatMessage, ToolCall
+
+from haystack_integrations.tracing.langfuse.tracer import (
+    _COMPONENT_OUTPUT_KEY,
+    DefaultSpanHandler,
+    LangfuseSpan,
+    LangfuseTracer,
+    SpanContext,
+)
+from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 
 
 class MockSpan:
-    def __init__(self):
+    def __init__(self, name="mock_span"):
         self._data = {}
         self._span = self
-        self.operation_name = "operation_name"
+        self.operation_name = name
+        self._name = name
 
     def raw_span(self):
         return self
 
     def span(self, name=None):
-        # assert correct operation name passed to the span
-        assert name == "operation_name"
-        return self
+        # Return a new mock span for child spans
+        return MockSpan(name=name or "child_span")
 
     def update(self, **kwargs):
         self._data.update(kwargs)
 
     def generation(self, name=None):
-        return self
+        # Return a new mock span for generation spans
+        return MockSpan(name=name or "generation_span")
 
     def end(self):
         pass
 
 
 class MockTracer:
-
     def trace(self, name, **kwargs):
-        return MockSpan()
+        # Return a unique mock span for each trace call
+        return MockSpan(name=name)
 
     def flush(self):
         pass
 
 
-class TestLangfuseTracer:
+class CustomSpanHandler(DefaultSpanHandler):
+    def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
+        if component_type == "OpenAIChatGenerator":
+            output = span.get_data().get(_COMPONENT_OUTPUT_KEY, {})
+            replies = output.get("replies", [])
+            if len(replies[0].text) > 10:
+                span.raw_span().update(level="WARNING", status_message="Response too long (> 10 chars)")
 
-    #  LangfuseTracer can be initialized with a Langfuse instance, a name and a boolean value for public.
+
+class TestLangfuseSpan:
+    #  LangfuseSpan can be initialized with a span object
+    def test_initialized_with_span_object(self):
+        mock_span = Mock()
+        span = LangfuseSpan(mock_span)
+        assert span.raw_span() == mock_span
+
+    #  set_tag method can update metadata of the span object
+    def test_set_tag_updates_metadata(self):
+        mock_span = Mock()
+        span = LangfuseSpan(mock_span)
+
+        span.set_tag("key", "value")
+        mock_span.update.assert_called_once_with(metadata={"key": "value"})
+        assert span._data["key"] == "value"
+
+    #  set_content_tag method can update input and output of the span object
+    def test_set_content_tag_updates_input_and_output(self):
+        mock_span = Mock()
+
+        span = LangfuseSpan(mock_span)
+        span.set_content_tag("input_key", "input_value")
+        assert span._data["input_key"] == "input_value"
+
+        mock_span.reset_mock()
+        span.set_content_tag("output_key", "output_value")
+        assert span._data["output_key"] == "output_value"
+
+    # set_content_tag method can update input and output of the span object with messages/replies
+    def test_set_content_tag_updates_input_and_output_with_messages(self):
+        mock_span = Mock()
+
+        # test message input
+        span = LangfuseSpan(mock_span)
+        span.set_content_tag("key.input", {"messages": [ChatMessage.from_user("message")]})
+        assert mock_span.update.call_count == 1
+        # check we converted ChatMessage to OpenAI format
+        assert mock_span.update.call_args_list[0][1] == {"input": [{"role": "user", "content": "message"}]}
+        assert span._data["key.input"] == {"messages": [ChatMessage.from_user("message")]}
+
+        # test replies ChatMessage list
+        mock_span.reset_mock()
+        span.set_content_tag("key.output", {"replies": [ChatMessage.from_system("reply")]})
+        assert mock_span.update.call_count == 1
+        # check we converted ChatMessage to OpenAI format
+        assert mock_span.update.call_args_list[0][1] == {"output": [{"role": "system", "content": "reply"}]}
+        assert span._data["key.output"] == {"replies": [ChatMessage.from_system("reply")]}
+
+        # test replies string list
+        mock_span.reset_mock()
+        span.set_content_tag("key.output", {"replies": ["reply1", "reply2"]})
+        assert mock_span.update.call_count == 1
+        # check we handle properly string list replies
+        assert mock_span.update.call_args_list[0][1] == {"output": ["reply1", "reply2"]}
+        assert span._data["key.output"] == {"replies": ["reply1", "reply2"]}
+
+
+class TestSpanContext:
+    def test_post_init(self):
+        with pytest.raises(ValueError):
+            SpanContext(name=None, operation_name="operation_name", component_type=None, tags={}, parent_span=None)
+        with pytest.raises(ValueError):
+            SpanContext(name="name", operation_name=None, component_type=None, tags={}, parent_span=None)
+        with pytest.raises(ValueError):
+            SpanContext(
+                name="name",
+                operation_name="operation_name",
+                component_type=None,
+                tags={},
+                parent_span=None,
+                trace_name=None,
+            )
+
+
+class TestDefaultSpanHandler:
+    def test_handle_generator(self):
+        mock_span = Mock()
+        mock_span.raw_span.return_value = mock_span
+        mock_span.get_data.return_value = {
+            "haystack.component.type": "OpenAIGenerator",
+            "haystack.component.output": {"replies": ["This the LLM's response"], "meta": [{"model": "test_model"}]},
+        }
+
+        handler = DefaultSpanHandler()
+        handler.handle(mock_span, component_type="OpenAIGenerator")
+
+        assert mock_span.update.call_count == 1
+        assert mock_span.update.call_args_list[0][1] == {"usage": None, "model": "test_model"}
+
+    def test_handle_chat_generator(self):
+        mock_span = Mock()
+        mock_span.raw_span.return_value = mock_span
+        mock_span.get_data.return_value = {
+            "haystack.component.type": "OpenAIChatGenerator",
+            "haystack.component.output": {
+                "replies": [
+                    ChatMessage.from_assistant(
+                        "This the LLM's response",
+                        meta={"model": "test_model", "completion_start_time": "2021-07-27T16:02:08.012345"},
+                    )
+                ]
+            },
+        }
+
+        handler = DefaultSpanHandler()
+        handler.handle(mock_span, component_type="OpenAIChatGenerator")
+
+        assert mock_span.update.call_count == 1
+        assert mock_span.update.call_args_list[0][1] == {
+            "usage": None,
+            "model": "test_model",
+            "completion_start_time": datetime.datetime(2021, 7, 27, 16, 2, 8, 12345),
+        }
+
+    def test_handle_bad_completion_start_time(self, caplog):
+        mock_span = Mock()
+        mock_span.raw_span.return_value = mock_span
+        mock_span.get_data.return_value = {
+            "haystack.component.type": "OpenAIChatGenerator",
+            "haystack.component.output": {
+                "replies": [
+                    ChatMessage.from_assistant(
+                        "This the LLM's response",
+                        meta={"model": "test_model", "completion_start_time": "2021-07-32"},
+                    )
+                ]
+            },
+        }
+
+        handler = DefaultSpanHandler()
+        with caplog.at_level(logging.ERROR):
+            handler.handle(mock_span, component_type="OpenAIChatGenerator")
+            assert "Failed to parse completion_start_time" in caplog.text
+
+        assert mock_span.update.call_count == 1
+        assert mock_span.update.call_args_list[0][1] == {
+            "usage": None,
+            "model": "test_model",
+            "completion_start_time": None,
+        }
+
+
+class TestCustomSpanHandler:
+    def test_handle(self):
+        mock_span = Mock()
+        mock_span.raw_span.return_value = mock_span
+        mock_span.get_data.return_value = {
+            "haystack.component.type": "OpenAIChatGenerator",
+            "haystack.component.output": {
+                "replies": [
+                    ChatMessage.from_assistant(
+                        "This the LLM's response",
+                        meta={"model": "test_model", "completion_start_time": "2021-07-32"},
+                    )
+                ]
+            },
+        }
+
+        handler = CustomSpanHandler()
+        handler.handle(mock_span, component_type="OpenAIChatGenerator")
+
+        assert mock_span.update.call_count == 1
+        assert mock_span.update.call_args_list[0][1] == {
+            "level": "WARNING",
+            "status_message": "Response too long (> 10 chars)",
+        }
+
+
+class TestLangfuseTracer:
     def test_initialization(self):
         langfuse_instance = Mock()
         tracer = LangfuseTracer(tracer=langfuse_instance, name="Haystack", public=True)
         assert tracer._tracer == langfuse_instance
-        assert tracer._context == []
+        # Check behavioral state instead of internal _context list
+        assert tracer.current_span() is None
         assert tracer._name == "Haystack"
         assert tracer._public
 
-    # check that the trace method is called on the tracer instance with the provided operation name and tags
-    # check that the span is added to the context and removed after the context manager exits
     def test_create_new_span(self):
         mock_raw_span = MagicMock()
         mock_raw_span.operation_name = "operation_name"
@@ -70,14 +262,16 @@ class TestLangfuseTracer:
 
             tracer = LangfuseTracer(tracer=mock_tracer, name="Haystack", public=False)
 
+            # check that the trace method is called on the tracer instance with the provided operation name and tags
             with tracer.trace("operation_name", tags={"tag1": "value1", "tag2": "value2"}) as span:
-                assert len(tracer._context) == 1, "The trace span should have been added to the the root context span"
+                # Check that there is a current active span during tracing
+                assert tracer.current_span() is not None, "There should be an active span during tracing"
+                assert tracer.current_span() == span, "The current span should be the active span"
                 assert span.raw_span().operation_name == "operation_name"
                 assert span.raw_span().metadata == {"tag1": "value1", "tag2": "value2"}
 
-            assert (
-                len(tracer._context) == 0
-            ), "The trace span should have been popped, and the root span is closed as well"
+            # Check that the span is cleaned up after tracing
+            assert tracer.current_span() is None, "There should be no active span after tracing completes"
 
     # check that update method is called on the span instance with the provided key value pairs
     def test_update_span_with_pipeline_input_output_data(self):
@@ -105,6 +299,56 @@ class TestLangfuseTracer:
         assert span.raw_span()._data["usage"] is None
         assert span.raw_span()._data["model"] == "test_model"
         assert span.raw_span()._data["completion_start_time"] == datetime.datetime(2021, 7, 27, 16, 2, 8, 12345)
+
+    def test_handle_tool_invoker(self):
+        """
+        Test that the ToolInvoker span name is updated correctly with the tool names invoked for better UI/UX
+        """
+        mock_span = Mock()
+        mock_span.raw_span.return_value = mock_span
+
+        # Simulate data for the ToolInvoker component
+        span_data = {
+            "haystack.component.name": "tool_invoker",
+            "haystack.component.type": "ToolInvoker",
+            "haystack.component.input": {
+                "messages": [
+                    # Create a chat message with tool calls
+                    ChatMessage.from_assistant(
+                        text="Calling tools",
+                        tool_calls=[
+                            ToolCall(tool_name="search_tool", arguments={"query": "test"}),
+                            ToolCall(tool_name="search_tool", arguments={"query": "another test"}),
+                            ToolCall(tool_name="weather_tool", arguments={"location": "Berlin"}),
+                        ],
+                    )
+                ]
+            },
+        }
+
+        mock_span.get_data.return_value = span_data
+
+        handler = DefaultSpanHandler()
+        handler.handle(mock_span, component_type="ToolInvoker")
+
+        assert mock_span.update.call_count >= 1
+        name_update_call = None
+        for call in mock_span.update.call_args_list:
+            if "name" in call[1]:
+                name_update_call = call
+                break
+
+        assert name_update_call is not None, "No call to update the span name was made"
+        updated_name = name_update_call[1]["name"]
+
+        # verify the format of the updated span name to be: `original_component_name - [list_of_tool_names]`
+        assert updated_name != "tool_invoker", f"Expected 'tool_invoker` to be upddated with tool names"
+        assert " - " in updated_name, f"Expected ' - ' in {updated_name}"
+        assert "[" in updated_name, f"Expected '[' in {updated_name}"
+        assert "]" in updated_name, f"Expected ']' in {updated_name}"
+        assert "tool_invoker" in updated_name, f"Expected 'tool_invoker' in {updated_name}"
+        assert "search_tool (x2)" in updated_name, f"Expected 'search_tool (x2)' in {updated_name}"
+        assert "weather_tool" in updated_name, f"Expected 'weather_tool' in {updated_name}"
 
     def test_trace_generation_invalid_start_time(self):
         tracer = LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
@@ -150,11 +394,12 @@ class TestLangfuseTracer:
         with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
             pass
 
-        assert tracer._context == []
+        # Check behavioral state instead of internal _context list
+        assert tracer.current_span() is None
 
     def test_init_with_tracing_disabled(self, monkeypatch, caplog):
         # Clear haystack modules because ProxyTracer is initialized whenever haystack is imported
-        modules_to_clear = [name for name in sys.modules if name.startswith('haystack')]
+        modules_to_clear = [name for name in sys.modules if name.startswith("haystack")]
         for name in modules_to_clear:
             sys.modules.pop(name, None)
 
@@ -165,3 +410,76 @@ class TestLangfuseTracer:
 
             LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
             assert "tracing is disabled" in caplog.text
+            
+    def test_async_concurrency_span_isolation(self):
+        """
+        Test that concurrent async traces maintain isolated span contexts.
+
+        This test verifies that the context-local span stack prevents cross-request
+        span interleaving in concurrent environments like FastAPI servers.
+        """
+        tracer = LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
+
+        # Track spans from each task for verification
+        task1_spans = []
+        task2_spans = []
+
+        async def trace_task(task_id: str, spans_list: list):
+            """Simulate a request with nested tracing operations"""
+            with tracer.trace(f"outer_operation_{task_id}") as outer_span:
+                spans_list.append(("outer", outer_span, tracer.current_span()))
+
+                # Simulate some async work
+                await asyncio.sleep(0.01)
+
+                with tracer.trace(f"inner_operation_{task_id}") as inner_span:
+                    spans_list.append(("inner", inner_span, tracer.current_span()))
+
+                    # Simulate more async work
+                    await asyncio.sleep(0.01)
+
+                    # Verify nested relationship within this task
+                    assert tracer.current_span() == inner_span
+
+                # After inner span, outer should be current again
+                spans_list.append(("after_inner", None, tracer.current_span()))
+                assert tracer.current_span() == outer_span
+
+            # After all spans, should be None
+            spans_list.append(("after_outer", None, tracer.current_span()))
+            assert tracer.current_span() is None
+
+        async def run_concurrent_traces():
+            """Run two concurrent tracing tasks"""
+            await asyncio.gather(trace_task("task1", task1_spans), trace_task("task2", task2_spans))
+
+        # Run the concurrent test
+        asyncio.run(run_concurrent_traces())
+
+        # Verify both tasks completed successfully
+        assert len(task1_spans) == 4
+        assert len(task2_spans) == 4
+
+        # Verify each task had proper span isolation
+        # Task 1 spans should be different from Task 2 spans
+        task1_outer = task1_spans[0][1]  # outer span from task1
+        task2_outer = task2_spans[0][1]  # outer span from task2
+        assert task1_outer != task2_outer
+
+        task1_inner = task1_spans[1][1]  # inner span from task1
+        task2_inner = task2_spans[1][1]  # inner span from task2
+        assert task1_inner != task2_inner
+
+        # Verify proper nesting within each task
+        # Task 1: outer -> inner -> outer -> None
+        assert task1_spans[0][2] == task1_outer  # current_span during outer
+        assert task1_spans[1][2] == task1_inner  # current_span during inner
+        assert task1_spans[2][2] == task1_outer  # current_span after inner
+        assert task1_spans[3][2] is None  # current_span after outer
+
+        # Task 2: outer -> inner -> outer -> None
+        assert task2_spans[0][2] == task2_outer  # current_span during outer
+        assert task2_spans[1][2] == task2_inner  # current_span during inner
+        assert task2_spans[2][2] == task2_outer  # current_span after inner
+        assert task2_spans[3][2] is None  # current_span after outer
+  

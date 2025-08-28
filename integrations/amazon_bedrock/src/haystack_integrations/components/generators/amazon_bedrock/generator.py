@@ -1,11 +1,11 @@
 import json
-import logging
 import re
-from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Type, get_args
+import warnings
+from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Type, Union, get_args
 
 from botocore.config import Config
 from botocore.exceptions import ClientError
-from haystack import component, default_from_dict, default_to_dict
+from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingChunk
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
@@ -24,9 +24,6 @@ from .adapters import (
     CohereCommandRAdapter,
     MetaLlamaAdapter,
     MistralAdapter,
-)
-from .handlers import (
-    DefaultPromptHandler,
 )
 
 logger = logging.getLogger(__name__)
@@ -105,13 +102,13 @@ class AmazonBedrockGenerator:
         aws_session_token: Optional[Secret] = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
         aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
-        max_length: Optional[int] = 100,
-        truncate: Optional[bool] = True,
+        max_length: Optional[int] = None,
+        truncate: Optional[bool] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         boto3_config: Optional[Dict[str, Any]] = None,
         model_family: Optional[MODEL_FAMILIES] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """
         Create a new `AmazonBedrockGenerator` instance.
 
@@ -121,14 +118,17 @@ class AmazonBedrockGenerator:
         :param aws_session_token: The AWS session token.
         :param aws_region_name: The AWS region name. Make sure the region you set supports Amazon Bedrock.
         :param aws_profile_name: The AWS profile name.
-        :param max_length: The maximum length of the generated text.
-        :param truncate: Whether to truncate the prompt or not.
+        :param max_length: The maximum length of the generated text. This can also be set in the `kwargs` parameter
+            by using the model specific parameter name.
+        :param truncate: Deprecated. This parameter no longer has any effect.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         :param boto3_config: The configuration for the boto3 client.
         :param model_family: The model family to use. If not provided, the model adapter is selected based on the model
             name.
         :param kwargs: Additional keyword arguments to be passed to the model.
+            You can find the model specific arguments in AWS Bedrock's
+            [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html).
         These arguments are specific to the model. You can find them in the model's documentation.
         :raises ValueError: If the model name is empty or None.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
@@ -138,8 +138,14 @@ class AmazonBedrockGenerator:
             msg = "'model' cannot be None or empty string"
             raise ValueError(msg)
         self.model = model
-        self.max_length = max_length
+
+        if truncate is not None:
+            msg = "The 'truncate' parameter no longer has any effect. No truncation will be performed."
+            logger.warning(msg)
+            warnings.warn(msg, stacklevel=2)
         self.truncate = truncate
+
+        self.max_length = max_length
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
         self.aws_session_token = aws_session_token
@@ -161,9 +167,9 @@ class AmazonBedrockGenerator:
                 aws_region_name=resolve_secret(aws_region_name),
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
-            config: Optional[Config] = None
-            if self.boto3_config:
-                config = Config(**self.boto3_config)
+            config = Config(
+                user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
+            )
             self.client = session.client("bedrock-runtime", config=config)
         except Exception as exception:
             msg = (
@@ -173,51 +179,17 @@ class AmazonBedrockGenerator:
             raise AmazonBedrockConfigurationError(msg) from exception
 
         model_input_kwargs = kwargs
-        # We pop the model_max_length as it is not sent to the model but used to truncate the prompt if needed
-        model_max_length = kwargs.get("model_max_length", 4096)
-
-        # we initialize the prompt handler only if truncate is True: we avoid unnecessarily downloading the tokenizer
-        if self.truncate:
-            # Truncate prompt if prompt tokens > model_max_length-max_length
-            # (max_length is the length of the generated text)
-            # we use GPT2 tokenizer which will likely provide good token count approximation
-            self.prompt_handler = DefaultPromptHandler(
-                tokenizer="gpt2",
-                model_max_length=model_max_length,
-                max_length=self.max_length or 100,
-            )
 
         model_adapter_cls = self.get_model_adapter(model=model, model_family=model_family)
         self.model_adapter = model_adapter_cls(model_kwargs=model_input_kwargs, max_length=self.max_length)
 
-    def _ensure_token_limit(self, prompt: str) -> str:
-        """
-        Ensures that the prompt and answer token lengths together are within the model_max_length specified during
-        the initialization of the component.
-
-        :param prompt: The prompt to be sent to the model.
-        :returns: The resized prompt.
-        """
-        resize_info = self.prompt_handler(prompt)
-        if resize_info["prompt_length"] != resize_info["new_prompt_length"]:
-            logger.warning(
-                "The prompt was truncated from %s tokens to %s tokens so that the prompt length and "
-                "the answer length (%s tokens) fit within the model's max token limit (%s tokens). "
-                "Shorten the prompt or it will be cut off.",
-                resize_info["prompt_length"],
-                max(0, resize_info["model_max_length"] - resize_info["max_length"]),  # type: ignore
-                resize_info["max_length"],
-                resize_info["model_max_length"],
-            )
-        return str(resize_info["resized_prompt"])
-
-    @component.output_types(replies=List[str])
+    @component.output_types(replies=List[str], meta=Dict[str, Any])
     def run(
         self,
         prompt: str,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> Dict[str, Union[List[str], Dict[str, Any]]]:
         """
         Generates a list of string response to the given prompt.
 
@@ -227,6 +199,7 @@ class AmazonBedrockGenerator:
         :param generation_kwargs: Additional keyword arguments passed to the generator.
         :returns: A dictionary with the following keys:
             - `replies`: A list of generated responses.
+            - `meta`: A dictionary containing response metadata.
         :raises ValueError: If the prompt is empty or None.
         :raises AmazonBedrockInferenceError: If the model cannot be invoked.
         """
@@ -234,9 +207,6 @@ class AmazonBedrockGenerator:
         generation_kwargs = generation_kwargs.copy()
         streaming_callback = streaming_callback or self.streaming_callback
         generation_kwargs["stream"] = streaming_callback is not None
-
-        if self.truncate:
-            prompt = self._ensure_token_limit(prompt)
 
         body = self.model_adapter.prepare_body(prompt=prompt, **generation_kwargs)
         try:
@@ -260,15 +230,14 @@ class AmazonBedrockGenerator:
                 )
                 response_body = json.loads(response.get("body").read().decode("utf-8"))
                 replies = self.model_adapter.get_responses(response_body=response_body)
+
+            metadata = response.get("ResponseMetadata", {})
+
         except ClientError as exception:
-            msg = (
-                f"Could not connect to Amazon Bedrock model {self.model}. "
-                f"Make sure your AWS environment is configured correctly, "
-                f"the model is available in the configured AWS region, and you have access."
-            )
+            msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
             raise AmazonBedrockInferenceError(msg) from exception
 
-        return {"replies": replies}
+        return {"replies": replies, "meta": metadata}
 
     @classmethod
     def get_model_adapter(cls, model: str, model_family: Optional[str] = None) -> Type[BedrockModelAdapter]:
@@ -296,7 +265,11 @@ class AmazonBedrockGenerator:
 
         msg = (
             f"Could not auto-detect model family of {model}. "
-            f"`model_family` parameter must be one of {get_args(cls.MODEL_FAMILIES)}."
+            f"`model_family` parameter must be one of {get_args(cls.MODEL_FAMILIES)}. "
+            f"We highly recommend using the `AmazonBedrockChatGenerator` instead. "
+            f"It has additional support for Amazon's Nova Canvas, Nova Lite, "
+            f"Nova Pro, DeepSeek's DeepSeek-R1, and more models. "
+            f"See https://haystack.deepset.ai/integrations/amazon-bedrock"
         )
         raise AmazonBedrockConfigurationError(msg)
 
@@ -317,7 +290,6 @@ class AmazonBedrockGenerator:
             aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
             model=self.model,
             max_length=self.max_length,
-            truncate=self.truncate,
             streaming_callback=callback_name,
             boto3_config=self.boto3_config,
             model_family=self.model_family,

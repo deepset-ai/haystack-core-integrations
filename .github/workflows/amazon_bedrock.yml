@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "integrations/amazon_bedrock/**"
+      - "!integrations/amazon_bedrock/*.md"
       - ".github/workflows/amazon_bedrock.yml"
 
 defaults:
@@ -26,7 +27,6 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   AWS_REGION: us-east-1
-  HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
 jobs:
   run:
@@ -36,7 +36,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.9", "3.10"]
+        python-version: ["3.9", "3.13"]
 
     steps:
       - name: Support longpaths
@@ -44,7 +44,7 @@ jobs:
         working-directory: .
         run: git config --system core.longpaths true
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -56,33 +56,40 @@ jobs:
 
       - name: Lint
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
-        run: hatch run lint:all
+        run: hatch run fmt-check && hatch run test:types
 
       - name: Generate docs
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run docs
 
       - name: Run unit tests
-        run: hatch run cov-retry -m "not integration"
+        run: hatch run test:unit
 
-      # Do not authenticate on pull requests from forks
+      # Do not authenticate on PRs from forks and on PRs created by dependabot
       - name: AWS authentication
-        if: github.event.pull_request.head.repo.full_name == github.repository
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        id: aws-auth
+        if: github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.event.pull_request.head.ref, 'dependabot/')
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
 
-      # Do not run integration tests on pull requests from forks
       - name: Run integration tests
-        if: github.event.pull_request.head.repo.full_name == github.repository
-        run: hatch run cov-retry -m "integration"
+        if: success() && steps.aws-auth.outcome == 'success'
+        run: hatch run test:cov-retry -m "integration"
+
+      - name: Run unit tests with lowest direct dependencies
+        run: |
+          hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
+          hatch run uv pip install -r requirements_lowest_direct.txt
+          hatch run test:unit
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
-          hatch run pip install git+https://github.com/deepset-ai/haystack.git
-          hatch run cov-retry -m "not integration"
+          hatch env prune
+          hatch run uv pip install git+https://github.com/deepset-ai/haystack.git@main
+          hatch run test:unit
 
       - name: Send event to Datadog for nightly failures
         if: failure() && github.event_name == 'schedule'

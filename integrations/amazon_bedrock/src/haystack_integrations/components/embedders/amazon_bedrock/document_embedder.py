@@ -1,10 +1,9 @@
 import json
-import logging
 from typing import Any, Dict, List, Literal, Optional
 
 from botocore.config import Config
 from botocore.exceptions import ClientError
-from haystack import component, default_from_dict, default_to_dict
+from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
@@ -22,6 +21,7 @@ SUPPORTED_EMBEDDING_MODELS = [
     "cohere.embed-english-v3",
     "cohere.embed-multilingual-v3",
     "amazon.titan-embed-text-v2:0",
+    "amazon.titan-embed-image-v1",
 ]
 
 
@@ -39,7 +39,7 @@ class AmazonBedrockDocumentEmbedder:
 
     os.environ["AWS_ACCESS_KEY_ID"] = "..."
     os.environ["AWS_SECRET_ACCESS_KEY_ID"] = "..."
-    os.environ["AWS_REGION_NAME"] = "..."
+    os.environ["AWS_DEFAULT_REGION"] = "..."
 
     embedder = AmazonBedrockDocumentEmbedder(
         model="cohere.embed-english-v3",
@@ -62,6 +62,7 @@ class AmazonBedrockDocumentEmbedder:
             "cohere.embed-english-v3",
             "cohere.embed-multilingual-v3",
             "amazon.titan-embed-text-v2:0",
+            "amazon.titan-embed-image-v1",
         ],
         aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
@@ -75,8 +76,8 @@ class AmazonBedrockDocumentEmbedder:
         meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
         boto3_config: Optional[Dict[str, Any]] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """
         Initializes the AmazonBedrockDocumentEmbedder with the provided parameters. The parameters are passed to the
         Amazon Bedrock client.
@@ -137,9 +138,9 @@ class AmazonBedrockDocumentEmbedder:
                 aws_region_name=resolve_secret(aws_region_name),
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
-            config: Optional[Config] = None
-            if self.boto3_config:
-                config = Config(**self.boto3_config)
+            config = Config(
+                user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
+            )
             self._client = session.client("bedrock-runtime", config=config)
         except Exception as exception:
             msg = (
@@ -187,11 +188,7 @@ class AmazonBedrockDocumentEmbedder:
                     body=json.dumps(body), modelId=self.model, accept="*/*", contentType="application/json"
                 )
             except ClientError as exception:
-                msg = (
-                    f"Could not connect to Amazon Bedrock model {self.model}. "
-                    f"Make sure your AWS environment is configured correctly, "
-                    f"the model is available in the configured AWS region, and you have access."
-                )
+                msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
                 raise AmazonBedrockInferenceError(msg) from exception
 
             response_body = json.loads(response.get("body").read())
@@ -218,11 +215,7 @@ class AmazonBedrockDocumentEmbedder:
                     body=json.dumps(body), modelId=self.model, accept="*/*", contentType="application/json"
                 )
             except ClientError as exception:
-                msg = (
-                    f"Could not connect to Amazon Bedrock model {self.model}. "
-                    f"Make sure your AWS environment is configured correctly, "
-                    f"the model is available in the configured AWS region, and you have access."
-                )
+                msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
                 raise AmazonBedrockInferenceError(msg) from exception
 
             response_body = json.loads(response.get("body").read())
@@ -235,7 +228,7 @@ class AmazonBedrockDocumentEmbedder:
         return documents
 
     @component.output_types(documents=List[Document])
-    def run(self, documents: List[Document]):
+    def run(self, documents: List[Document]) -> Dict[str, List[Document]]:
         """Embed the provided `Document`s using the specified model.
 
         :param documents: The `Document`s to embed.
@@ -254,6 +247,9 @@ class AmazonBedrockDocumentEmbedder:
             documents_with_embeddings = self._embed_cohere(documents=documents)
         elif "titan" in self.model:
             documents_with_embeddings = self._embed_titan(documents=documents)
+        else:
+            msg = f"Model {self.model} is not supported. Supported models are: {', '.join(SUPPORTED_EMBEDDING_MODELS)}."
+            raise ValueError(msg)
 
         return {"documents": documents_with_embeddings}
 

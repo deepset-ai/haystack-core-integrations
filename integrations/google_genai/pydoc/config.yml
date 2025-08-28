@@ -1,0 +1,31 @@
+loaders:
+  - type: haystack_pydoc_tools.loaders.CustomPythonLoader
+    search_path: [../src]
+    modules: [
+      "haystack_integrations.components.generators.google_genai.chat.chat_generator",
+      "haystack_integrations.components.embedders.google_genai.document_embedder",
+      "haystack_integrations.components.embedders.google_genai.text_embedder"
+    ]
+    ignore_when_discovered: ["__init__"]
+processors:
+  - type: filter
+    expression:
+    documented_only: true
+    do_not_filter_modules: false
+    skip_empty_modules: true
+  - type: smart
+  - type: crossref
+renderer:
+  type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
+  excerpt: Google GenAI integration for Haystack
+  category_slug: integrations-api
+  title: Google GenAI
+  slug: integrations-google-genai
+  order: 91
+  markdown:
+    descriptive_class_title: false
+    classdef_code_block: false
+    descriptive_module_title: true
+    add_method_class_prefix: true
+    add_member_class_prefix: false
+    filename: _readme_google_genai.md 

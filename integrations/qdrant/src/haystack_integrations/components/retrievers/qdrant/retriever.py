@@ -8,6 +8,11 @@ from qdrant_client.http import models
 
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
+FILTER_POLICY_MERGE_ERROR_MESSAGE = (
+    "Native Qdrant filters cannot be used with filter_policy set to MERGE. "
+    "Set filter_policy to REPLACE or use Haystack filters instead."
+)
+
 
 @component
 class QdrantEmbeddingRetriever:
@@ -46,7 +51,7 @@ class QdrantEmbeddingRetriever:
         score_threshold: Optional[float] = None,
         group_by: Optional[str] = None,
         group_size: Optional[int] = None,
-    ):
+    ) -> None:
         """
         Create a QdrantEmbeddingRetriever component.
 
@@ -136,7 +141,7 @@ class QdrantEmbeddingRetriever:
         score_threshold: Optional[float] = None,
         group_by: Optional[str] = None,
         group_size: Optional[int] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Run the Embedding Retriever on the given input data.
 
@@ -153,10 +158,76 @@ class QdrantEmbeddingRetriever:
         :returns:
             The retrieved documents.
 
+        :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
         """
-        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        if self._filter_policy == FilterPolicy.MERGE and (
+            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
+        ):
+            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
+
+        # Replacing filters works with native Qdrant filters even if the type is wrong
+        filters = apply_filter_policy(
+            filter_policy=self._filter_policy,
+            init_filters=self._filters,  # type: ignore[arg-type]
+            runtime_filters=filters,  # type: ignore[arg-type]
+        )
 
         docs = self._document_store._query_by_embedding(
+            query_embedding=query_embedding,
+            filters=filters,
+            top_k=top_k or self._top_k,
+            scale_score=scale_score or self._scale_score,
+            return_embedding=return_embedding or self._return_embedding,
+            score_threshold=score_threshold or self._score_threshold,
+            group_by=group_by or self._group_by,
+            group_size=group_size or self._group_size,
+        )
+
+        return {"documents": docs}
+
+    @component.output_types(documents=List[Document])
+    async def run_async(
+        self,
+        query_embedding: List[float],
+        filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
+        top_k: Optional[int] = None,
+        scale_score: Optional[bool] = None,
+        return_embedding: Optional[bool] = None,
+        score_threshold: Optional[float] = None,
+        group_by: Optional[str] = None,
+        group_size: Optional[int] = None,
+    ) -> Dict[str, List[Document]]:
+        """
+        Asynchronously run the Embedding Retriever on the given input data.
+
+        :param query_embedding: Embedding of the query.
+        :param filters: A dictionary with filters to narrow down the search space.
+        :param top_k: The maximum number of documents to return. If using `group_by` parameters, maximum number of
+             groups to return.
+        :param scale_score: Whether to scale the scores of the retrieved documents or not.
+        :param return_embedding: Whether to return the embedding of the retrieved Documents.
+        :param score_threshold: A minimal score threshold for the result.
+        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
+            value, all values will be used for grouping. One point can be in multiple groups.
+        :param group_size: Maximum amount of points to return per group. Default is 3.
+        :returns:
+            The retrieved documents.
+
+        :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
+        """
+        if self._filter_policy == FilterPolicy.MERGE and (
+            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
+        ):
+            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
+
+        # Replacing filters works with native Qdrant filters even if the type is wrong
+        filters = apply_filter_policy(
+            filter_policy=self._filter_policy,
+            init_filters=self._filters,  # type: ignore[arg-type]
+            runtime_filters=filters,  # type: ignore[arg-type]
+        )
+
+        docs = await self._document_store._query_by_embedding_async(
             query_embedding=query_embedding,
             filters=filters,
             top_k=top_k or self._top_k,
@@ -208,7 +279,7 @@ class QdrantSparseEmbeddingRetriever:
         score_threshold: Optional[float] = None,
         group_by: Optional[str] = None,
         group_size: Optional[int] = None,
-    ):
+    ) -> None:
         """
         Create a QdrantSparseEmbeddingRetriever component.
 
@@ -298,7 +369,7 @@ class QdrantSparseEmbeddingRetriever:
         score_threshold: Optional[float] = None,
         group_by: Optional[str] = None,
         group_size: Optional[int] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Run the Sparse Embedding Retriever on the given input data.
 
@@ -320,10 +391,81 @@ class QdrantSparseEmbeddingRetriever:
         :returns:
             The retrieved documents.
 
+        :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
         """
-        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        if self._filter_policy == FilterPolicy.MERGE and (
+            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
+        ):
+            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
+
+        # Replacing filters works with native Qdrant filters even if the type is wrong
+        filters = apply_filter_policy(
+            filter_policy=self._filter_policy,
+            init_filters=self._filters,  # type: ignore[arg-type]
+            runtime_filters=filters,  # type: ignore[arg-type]
+        )
 
         docs = self._document_store._query_by_sparse(
+            query_sparse_embedding=query_sparse_embedding,
+            filters=filters,
+            top_k=top_k or self._top_k,
+            scale_score=scale_score or self._scale_score,
+            return_embedding=return_embedding or self._return_embedding,
+            score_threshold=score_threshold or self._score_threshold,
+            group_by=group_by or self._group_by,
+            group_size=group_size or self._group_size,
+        )
+
+        return {"documents": docs}
+
+    @component.output_types(documents=List[Document])
+    async def run_async(
+        self,
+        query_sparse_embedding: SparseEmbedding,
+        filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
+        top_k: Optional[int] = None,
+        scale_score: Optional[bool] = None,
+        return_embedding: Optional[bool] = None,
+        score_threshold: Optional[float] = None,
+        group_by: Optional[str] = None,
+        group_size: Optional[int] = None,
+    ) -> Dict[str, List[Document]]:
+        """
+        Asynchronously run the Sparse Embedding Retriever on the given input data.
+
+        :param query_sparse_embedding: Sparse Embedding of the query.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
+                        details.
+        :param top_k: The maximum number of documents to return. If using `group_by` parameters, maximum number of
+             groups to return.
+        :param scale_score: Whether to scale the scores of the retrieved documents or not.
+        :param return_embedding: Whether to return the embedding of the retrieved Documents.
+        :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the Distance function used.
+            E.g. for cosine similarity only higher scores will be returned.
+        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
+            value, all values will be used for grouping. One point can be in multiple groups.
+        :param group_size: Maximum amount of points to return per group. Default is 3.
+        :returns:
+            The retrieved documents.
+
+        :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
+        """
+        if self._filter_policy == FilterPolicy.MERGE and (
+            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
+        ):
+            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
+
+        # Replacing filters works with native Qdrant filters even if the type is wrong
+        filters = apply_filter_policy(
+            filter_policy=self._filter_policy,
+            init_filters=self._filters,  # type: ignore[arg-type]
+            runtime_filters=filters,  # type: ignore[arg-type]
+        )
+
+        docs = await self._document_store._query_by_sparse_async(
             query_sparse_embedding=query_sparse_embedding,
             filters=filters,
             top_k=top_k or self._top_k,
@@ -380,7 +522,7 @@ class QdrantHybridRetriever:
         score_threshold: Optional[float] = None,
         group_by: Optional[str] = None,
         group_size: Optional[int] = None,
-    ):
+    ) -> None:
         """
         Create a QdrantHybridRetriever component.
 
@@ -464,7 +606,7 @@ class QdrantHybridRetriever:
         score_threshold: Optional[float] = None,
         group_by: Optional[str] = None,
         group_size: Optional[int] = None,
-    ):
+    ) -> Dict[str, List[Document]]:
         """
         Run the Sparse Embedding Retriever on the given input data.
 
@@ -486,10 +628,81 @@ class QdrantHybridRetriever:
         :returns:
             The retrieved documents.
 
+        :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
         """
-        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        if self._filter_policy == FilterPolicy.MERGE and (
+            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
+        ):
+            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
+
+        # Replacing filters works with native Qdrant filters even if the type is wrong
+        filters = apply_filter_policy(
+            filter_policy=self._filter_policy,
+            init_filters=self._filters,  # type: ignore[arg-type]
+            runtime_filters=filters,  # type: ignore[arg-type]
+        )
 
         docs = self._document_store._query_hybrid(
+            query_embedding=query_embedding,
+            query_sparse_embedding=query_sparse_embedding,
+            filters=filters,
+            top_k=top_k or self._top_k,
+            return_embedding=return_embedding or self._return_embedding,
+            score_threshold=score_threshold or self._score_threshold,
+            group_by=group_by or self._group_by,
+            group_size=group_size or self._group_size,
+        )
+
+        return {"documents": docs}
+
+    @component.output_types(documents=List[Document])
+    async def run_async(
+        self,
+        query_embedding: List[float],
+        query_sparse_embedding: SparseEmbedding,
+        filters: Optional[Union[Dict[str, Any], models.Filter]] = None,
+        top_k: Optional[int] = None,
+        return_embedding: Optional[bool] = None,
+        score_threshold: Optional[float] = None,
+        group_by: Optional[str] = None,
+        group_size: Optional[int] = None,
+    ) -> Dict[str, List[Document]]:
+        """
+        Asynchronously run the Sparse Embedding Retriever on the given input data.
+
+        :param query_embedding: Dense embedding of the query.
+        :param query_sparse_embedding: Sparse embedding of the query.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
+                        details.
+        :param top_k: The maximum number of documents to return. If using `group_by` parameters, maximum number of
+             groups to return.
+        :param return_embedding: Whether to return the embedding of the retrieved Documents.
+        :param score_threshold: A minimal score threshold for the result.
+            Score of the returned result might be higher or smaller than the threshold
+             depending on the Distance function used.
+            E.g. for cosine similarity only higher scores will be returned.
+        :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
+             value, all values will be used for grouping. One point can be in multiple groups.
+        :param group_size: Maximum amount of points to return per group. Default is 3.
+        :returns:
+            The retrieved documents.
+
+        :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
+        """
+        if self._filter_policy == FilterPolicy.MERGE and (
+            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
+        ):
+            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
+
+        # Replacing filters works with native Qdrant filters even if the type is wrong
+        filters = apply_filter_policy(
+            filter_policy=self._filter_policy,
+            init_filters=self._filters,  # type: ignore[arg-type]
+            runtime_filters=filters,  # type: ignore[arg-type]
+        )
+
+        docs = await self._document_store._query_hybrid_async(
             query_embedding=query_embedding,
             query_sparse_embedding=query_sparse_embedding,
             filters=filters,
