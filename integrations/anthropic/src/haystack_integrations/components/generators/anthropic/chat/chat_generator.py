@@ -1,8 +1,10 @@
 from datetime import datetime, timezone
 from typing import Any, ClassVar, Dict, List, Literal, Optional, Tuple, Union, cast, get_args
+import logging
+import json
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
+#from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole, TextContent, ToolCall, ToolCallResult
 from haystack.dataclasses.image_content import ImageContent
 from haystack.dataclasses.streaming_chunk import (
@@ -53,6 +55,70 @@ FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
     "pause_turn": "stop",
     "tool_use": "tool_calls",
 }
+
+def _convert_streaming_chunks_to_chat_message(chunks: list[StreamingChunk]) -> ChatMessage:
+    """
+    Connects the streaming chunks into a single ChatMessage.
+
+    :param chunks: The list of all `StreamingChunk` objects.
+
+    :returns: The ChatMessage.
+    """
+    text = "".join([chunk.content for chunk in chunks])
+    tool_calls = []
+    reasoning = ""
+    # Process tool calls if present in any chunk
+    tool_call_data: dict[int, dict[str, str]] = {}  # Track tool calls by index
+    for chunk in chunks:
+        if chunk.tool_calls:
+            for tool_call in chunk.tool_calls:
+                # We use the index of the tool_call to track the tool call across chunks since the ID is not always
+                # provided
+                if tool_call.index not in tool_call_data:
+                    tool_call_data[tool_call.index] = {"id": "", "name": "", "arguments": ""}
+
+                # Save the ID if present
+                if tool_call.id is not None:
+                    tool_call_data[tool_call.index]["id"] = tool_call.id
+
+                if tool_call.tool_name is not None:
+                    tool_call_data[tool_call.index]["name"] += tool_call.tool_name
+                if tool_call.arguments is not None:
+                    tool_call_data[tool_call.index]["arguments"] += tool_call.arguments
+
+        if chunk.meta.get("reasoning"):
+            reasoning = reasoning + chunk.meta.get("reasoning")
+
+    # Convert accumulated tool call data into ToolCall objects
+    sorted_keys = sorted(tool_call_data.keys())
+    for key in sorted_keys:
+        tool_call_dict = tool_call_data[key]
+        try:
+            arguments = json.loads(tool_call_dict.get("arguments", "{}")) if tool_call_dict.get("arguments") else {}
+            tool_calls.append(ToolCall(id=tool_call_dict["id"], tool_name=tool_call_dict["name"], arguments=arguments))
+        except json.JSONDecodeError:
+            logger.warning(
+                "The LLM provider returned a malformed JSON string for tool call arguments. This tool call "
+                "will be skipped. To always generate a valid JSON, set `tools_strict` to `True`. "
+                "Tool call ID: {_id}, Tool name: {_name}, Arguments: {_arguments}",
+                _id=tool_call_dict["id"],
+                _name=tool_call_dict["name"],
+                _arguments=tool_call_dict["arguments"],
+            )
+
+    # finish_reason can appear in different places so we look for the last one
+    finish_reasons = [chunk.finish_reason for chunk in chunks if chunk.finish_reason]
+    finish_reason = finish_reasons[-1] if finish_reasons else None
+
+    meta = {
+        "model": chunks[-1].meta.get("model"),
+        "index": 0,
+        "finish_reason": finish_reason,
+        "completion_start_time": chunks[0].meta.get("received_at"),  # first chunk received
+        "usage": chunks[-1].meta.get("usage"),  # last chunk has the final usage data if available
+    }
+
+    return ChatMessage.from_assistant(text=text or None, tool_calls=tool_calls, meta=meta, reasoning=reasoning)
 
 
 def _update_anthropic_message_with_tool_call_results(
@@ -287,6 +353,8 @@ class AnthropicChatGenerator:
         *,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
+        think: Union[bool, Dict[str, Any]] = False,
+
     ):
         """
         Creates an instance of AnthropicChatGenerator.
@@ -319,6 +387,20 @@ class AnthropicChatGenerator:
         :param max_retries:
             Maximum number of retries to attempt for failed requests. If not set, it defaults to the default set by
             the Anthropic client.
+
+        :param think:
+            If True, the model will "think" before producing a response.
+            Only models with [extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking) support this feature.
+            When enabled, anthropic requires you to pass `budget_tokens`.
+            Note: The budget_tokens must be greater than 10000 and less than max_tokens.
+            By default, the budget tokens is set to 10000 and max_tokens is set to 12000.
+
+            If you want to set your budget_tokens, you can pass a dictionary as:
+            think = {
+                "type": "enabled",
+                "budget_tokens": 17000,
+            }
+
         """
         _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
 
@@ -328,6 +410,18 @@ class AnthropicChatGenerator:
         self.streaming_callback = streaming_callback
         self.timeout = timeout
         self.max_retries = max_retries
+
+        if not think:
+            self.think = {"type": "disabled"}
+        elif think and isinstance(think, bool):
+            self.think = {"type": "enabled", "budget_tokens": 10000}
+            if "max_tokens" not in self.generation_kwargs:
+                self.generation_kwargs["max_tokens"] = 12000
+            elif self.generation_kwargs["max_tokens"] <= 10000:
+                raise ValueError("max_tokens must be greater than budget_tokens")
+        elif isinstance(think, dict):
+            self.think = think
+
 
         client_kwargs: Dict[str, Any] = {"api_key": api_key.resolve_value()}
         # We do this since timeout=None is not the same as not setting it in Anthropic
@@ -367,6 +461,7 @@ class AnthropicChatGenerator:
             tools=serialize_tools_or_toolset(self.tools),
             timeout=self.timeout,
             max_retries=self.max_retries,
+            think=self.think,
         )
 
     @classmethod
@@ -413,12 +508,14 @@ class AnthropicChatGenerator:
             if block.type == "tool_use"
         ]
 
+        thinking = " ".join(block.thinking for block in anthropic_response.content if block.type == "thinking")
+
         # Extract and join text blocks, respecting ignore_tools_thinking_messages
         text = ""
         if not (ignore_tools_thinking_messages and tool_calls):
             text = " ".join(block.text for block in anthropic_response.content if block.type == "text")
 
-        message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls)
+        message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls, reasoning=thinking)
 
         # Dump the chat completion to a dict
         response_dict = anthropic_response.model_dump()
@@ -449,7 +546,7 @@ class AnthropicChatGenerator:
         tool_calls = []
         start = False
         finish_reason = None
-
+        thinking = ""
         index = getattr(chunk, "index", None)
 
         # starting streaming message
@@ -467,15 +564,21 @@ class AnthropicChatGenerator:
                         tool_name=chunk.content_block.name,
                     )
                 )
+            
         # delta of a content block
         elif chunk.type == "content_block_delta":
             if chunk.delta.type == "text_delta":
                 content = chunk.delta.text
             elif chunk.delta.type == "input_json_delta":
                 tool_calls.append(ToolCallDelta(index=tool_call_index, arguments=chunk.delta.partial_json))
+            elif chunk.delta.type == "thinking_delta":
+                thinking = chunk.delta.thinking
         # end of streaming message
         elif chunk.type == "message_delta":
             finish_reason = FINISH_REASON_MAPPING.get(getattr(chunk.delta, "stop_reason" or ""))
+
+        meta = chunk.model_dump()
+        meta["reasoning"] = thinking
 
         return StreamingChunk(
             content=content,
@@ -484,7 +587,7 @@ class AnthropicChatGenerator:
             start=start,
             finish_reason=finish_reason,
             tool_calls=tool_calls if tool_calls else None,
-            meta=chunk.model_dump(),
+            meta=meta,
         )
 
     def _prepare_request_params(
@@ -664,7 +767,7 @@ class AnthropicChatGenerator:
         """
         system_messages, non_system_messages, generation_kwargs, anthropic_tools = self._prepare_request_params(
             messages, generation_kwargs, tools
-        )
+        )        
 
         streaming_callback = select_streaming_callback(
             init_callback=self.streaming_callback,
@@ -679,6 +782,7 @@ class AnthropicChatGenerator:
             tools=anthropic_tools,
             stream=streaming_callback is not None,
             max_tokens=generation_kwargs.pop("max_tokens", 1024),
+            thinking=self.think,
             **generation_kwargs,
         )
 
@@ -720,6 +824,7 @@ class AnthropicChatGenerator:
             tools=anthropic_tools,
             stream=streaming_callback is not None,
             max_tokens=generation_kwargs.pop("max_tokens", 1024),
+            thinking=self.think,
             **generation_kwargs,
         )
 

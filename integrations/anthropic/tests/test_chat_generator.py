@@ -4,7 +4,8 @@
 
 import json
 import os
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, Mock
+
 
 import anthropic
 import pytest
@@ -1680,6 +1681,33 @@ class TestAnthropicChatGenerator:
             assert token_usage.get("cache_creation_input_tokens", 0) == 0
             assert token_usage.get("cache_read_input_tokens", 0) == 0
 
+    @pytest.mark.parametrize("streaming_callback", [None, Mock()])
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_thinking(self, streaming_callback):
+        chat_generator = AnthropicChatGenerator(model="claude-sonnet-4-20250514", think=True, streaming_callback=streaming_callback)
+
+        message = ChatMessage.from_user("2+3?")
+        response = chat_generator.run([message])["replies"][0]
+
+        assert isinstance(response, ChatMessage)
+        assert response.text and len(response.text) > 0
+        assert response.reasoning is not None
+        assert len(response.reasoning.reasoning_text) > 0
+
+        new_message = ChatMessage.from_user("Now multiply the result by 10.")
+        new_response = chat_generator.run([message, response, new_message])["replies"][0]
+        assert isinstance(new_response, ChatMessage)
+        assert new_response.text and len(new_response.text) > 0
+        assert new_response.reasoning is not None
+        assert len(new_response.reasoning.reasoning_text) > 0
+
+        if streaming_callback:
+            streaming_callback.assert_called()
+
 
 class TestAnthropicChatGeneratorAsync:
     @pytest.fixture
@@ -1879,3 +1907,4 @@ class TestAnthropicChatGeneratorAsync:
         assert message.text
         assert len(message.text) > 0
         assert any(word in message.text.lower() for word in ["apple", "fruit", "red"])
+
