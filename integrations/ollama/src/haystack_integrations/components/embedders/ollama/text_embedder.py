@@ -27,6 +27,7 @@ class OllamaTextEmbedder:
         url: str = "http://localhost:11434",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: int = 120,
+        keep_alive: Optional[Union[float, str]] = None,
     ):
         """
         :param model:
@@ -39,7 +40,16 @@ class OllamaTextEmbedder:
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :param timeout:
             The number of seconds before throwing a timeout error from the Ollama API.
+        :param keep_alive:
+            The option that controls how long the model will stay loaded into memory following the request.
+            If not set, it will use the default value from the Ollama (5 minutes).
+            The value can be set to:
+            - a duration string (such as "10m" or "24h")
+            - a number in seconds (such as 3600)
+            - any negative number which will keep the model loaded in memory (e.g. -1 or "-1m")
+            - '0' which will unload the model immediately after generating a response.
         """
+        self.keep_alive = keep_alive
         self.timeout = timeout
         self.generation_kwargs = generation_kwargs or {}
         self.url = url
@@ -65,7 +75,12 @@ class OllamaTextEmbedder:
             - `embedding`: The computed embeddings
             - `meta`: The metadata collected during the embedding process
         """
-        result = self._client.embeddings(model=self.model, prompt=text, options=generation_kwargs).model_dump()
+        result = self._client.embeddings(
+            model=self.model,
+            prompt=text,
+            options=generation_kwargs,
+            keep_alive=self.keep_alive,
+        ).model_dump()
         result["meta"] = {"model": self.model}
 
         return result
@@ -87,7 +102,12 @@ class OllamaTextEmbedder:
             - `embedding`: The computed embeddings
             - `meta`: The metadata collected during the embedding process
         """
-        response = await self._async_client.embeddings(model=self.model, prompt=text, options=generation_kwargs)
+        response = await self._async_client.embeddings(
+            model=self.model,
+            prompt=text,
+            options=generation_kwargs,
+            keep_alive=self.keep_alive,
+        )
         result = response.model_dump()
         result["meta"] = {"model": self.model}
 
