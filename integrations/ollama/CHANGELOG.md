@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/ollama-v5.1.0] - 2025-08-28
+
+### 🚀 Features
+
+- Adding optional keepalive parameter to Ollama embedders (#2228)
+
+
 ## [integrations/ollama-v5.0.0] - 2025-08-25
 
 ### 🚜 Refactor
