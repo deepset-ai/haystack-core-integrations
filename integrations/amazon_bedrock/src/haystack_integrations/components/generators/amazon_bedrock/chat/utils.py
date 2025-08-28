@@ -508,7 +508,8 @@ def _process_reasoning_contents(chunks: List[StreamingChunk]) -> Optional[Reason
     final_reasoning_text = ""
     for content in formatted_reasoning_contents:
         if "reasoning_text" in content["reasoning_content"]:
-            final_reasoning_text += content["reasoning_content"]["reasoning_text"]["text"]
+            # mypy somehow thinks that content["reasoning_content"]["reasoning_text"]["text"] can be of type None
+            final_reasoning_text += content["reasoning_content"]["reasoning_text"]["text"]  # type: ignore[operator]
         elif "redacted_content" in content["reasoning_content"]:
             final_reasoning_text += "[REDACTED]"
 
