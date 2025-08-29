@@ -1,9 +1,9 @@
 import json
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
+from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Union, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
-from haystack.dataclasses import ChatMessage, ComponentInfo, ToolCall
+from haystack.dataclasses import ChatMessage, ComponentInfo, ImageContent, TextContent, ToolCall
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
     FinishReason,
@@ -28,10 +28,11 @@ from cohere import (
     AsyncClientV2,
     ChatResponse,
     ClientV2,
+    ImageUrl,
+    ImageUrlContent,
     StreamedChatResponseV2,
     SystemChatMessageV2,
     TextAssistantMessageV2ContentItem,
-    TextContent,
     TextSystemMessageV2ContentItem,
     ToolCallV2,
     ToolCallV2Function,
@@ -39,8 +40,17 @@ from cohere import (
     Usage,
     UserChatMessageV2,
 )
+from cohere import (
+    TextContent as CohereTextContent,
+)
 
 logger = logging.getLogger(__name__)
+
+
+# Supported image formats based on Cohere's documentation
+# See: https://docs.cohere.com/docs/image-inputs
+ImageFormat = Literal["image/png", "image/jpeg", "image/webp", "image/gif"]
+IMAGE_SUPPORTED_FORMATS: list[ImageFormat] = list(get_args(ImageFormat))
 
 
 def _format_tool(tool: Tool) -> Dict[str, Any]:
@@ -71,14 +81,21 @@ def _format_message(
 
     The function handles message components including:
     - Text content
+    - Image content (multimodal)
     - Tool calls
     - Tool call results
 
     :param message: Haystack ChatMessage to format.
     :return: A Cohere message object.
     """
-    if not message.texts and not message.tool_calls and not message.tool_call_results:
-        msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
+    if not message.texts and not message.tool_calls and not message.tool_call_results and not message.images:
+        msg = (
+            "A `ChatMessage` must contain at least one `TextContent`, `ImageContent`, `ToolCall`, or `ToolCallResult`."
+        )
+        raise ValueError(msg)
+
+    if message.images and not message.role.value == "user":
+        msg = "`ImageContent` is only supported for user messages."
         raise ValueError(msg)
 
     # Format the message based on its content type
@@ -88,7 +105,8 @@ def _format_message(
             msg = "`ToolCall` must have a non-null `id` attribute to be used with Cohere."
             raise ValueError(msg)
         return ToolChatMessageV2(tool_call_id=result.origin.id, content=json.dumps({"result": result.result}))
-    elif message.tool_calls:
+
+    if message.tool_calls:
         tool_calls = []
         for tool_call in message.tool_calls:
             if tool_call.id is None:
@@ -108,20 +126,53 @@ def _format_message(
             tool_calls=tool_calls,
             tool_plan=message.text if message.text else "",
         )
-    else:
-        if not message.texts or not message.texts[0]:
-            msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
+
+    if message.role.value == "user":
+        if not message.images and not message.text:
+            msg = "A `ChatMessage` from user must contain at least one non-empty `TextContent` or `ImageContent`."
             raise ValueError(msg)
 
-        if message.role.value == "user":
-            return UserChatMessageV2(content=[TextContent(text=message.texts[0])])
-        elif message.role.value == "assistant":
-            return AssistantChatMessageV2(content=[TextAssistantMessageV2ContentItem(text=message.texts[0])])
-        elif message.role.value == "system":
-            return SystemChatMessageV2(content=[TextSystemMessageV2ContentItem(text=message.texts[0])])
-        else:
-            msg = f"Unsupported message role: {message.role.value}"
+        # Handle multimodal content (text + images)
+        if message.images:
+            # Validate image formats
+            for image in message.images:
+                if image.mime_type not in IMAGE_SUPPORTED_FORMATS:
+                    supported_formats = ", ".join(IMAGE_SUPPORTED_FORMATS)
+                    msg = (
+                        f"Unsupported image format: {image.mime_type}. "
+                        f"Cohere supports the following formats: {supported_formats}"
+                    )
+                    raise ValueError(msg)
+
+        # Build multimodal content following Cohere's API specification
+        content_parts: List[Union[CohereTextContent, ImageUrlContent]] = []
+        for part in message._content:
+            if isinstance(part, TextContent) and part.text:
+                text_content = CohereTextContent(text=part.text)
+                content_parts.append(text_content)
+            elif isinstance(part, ImageContent):
+                # Cohere expects base64 data URI format
+                # See: https://docs.cohere.com/docs/image-inputs
+                image_url = f"data:{part.mime_type};base64,{part.base64_image}"
+                image_content = ImageUrlContent(image_url=ImageUrl(url=image_url))
+                content_parts.append(image_content)
+
+        return UserChatMessageV2(content=content_parts)
+
+    if message.role.value == "assistant":
+        if not message.text:
+            msg = "A `ChatMessage` from assistant without tool calls must contain a non-empty `TextContent`."
             raise ValueError(msg)
+        return AssistantChatMessageV2(content=[TextAssistantMessageV2ContentItem(text=message.text)])
+
+    if message.role.value == "system":
+        if not message.text:
+            msg = "A `ChatMessage` from system calls must contain a non-empty `TextContent`."
+            raise ValueError(msg)
+        return SystemChatMessageV2(content=[TextSystemMessageV2ContentItem(text=message.text)])
+
+    msg = f"Unsupported message role: {message.role.value}"
+    raise ValueError(msg)
 
 
 def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
@@ -213,7 +264,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
     start = False
     finish_reason = None
     tool_calls = None
-    meta = {"model": model}
+    meta: Dict[str, Any] = {"model": model}
 
     if chunk.type == "content-delta" and chunk.delta and chunk.delta.message:
         if chunk.delta.message and chunk.delta.message.content and chunk.delta.message.content.text is not None:
@@ -237,7 +288,8 @@ def _convert_cohere_chunk_to_streaming_chunk(
                     )
                 ]
                 start = True  # This starts a tool call
-                meta["tool_call_id"] = tool_call.id  # type: ignore[assignment]
+                if tool_call.id is not None:
+                    meta["tool_call_id"] = tool_call.id
 
     elif chunk.type == "tool-call-delta" and chunk.delta and chunk.delta.message:
         if (
@@ -284,8 +336,8 @@ def _convert_cohere_chunk_to_streaming_chunk(
 
         usage = {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens}
 
-        meta["finish_reason"] = finish_reason_raw  # type: ignore[assignment]
-        meta["usage"] = usage  # type: ignore[assignment]
+        meta["finish_reason"] = finish_reason_raw
+        meta["usage"] = usage
 
     return StreamingChunk(
         content=content,
@@ -365,6 +417,12 @@ class CohereChatGenerator:
     """
     Completes chats using Cohere's models using cohere.ClientV2 `chat` endpoint.
 
+    This component supports both text-only and multimodal (text + image) conversations
+    using Cohere's vision models like Command A Vision.
+
+    Supported image formats: PNG, JPEG, WEBP, GIF (non-animated).
+    Maximum 20 images per request with 20MB total limit.
+
     You can customize how the chat response is generated by passing parameters to the
     Cohere API through the `**generation_kwargs` parameter. You can do this when
     initializing or running the component. Any parameter that works with
@@ -385,6 +443,24 @@ class CohereChatGenerator:
 
     # Output: {'replies': [ChatMessage(_role=<ChatRole.ASSISTANT: 'assistant'>,
     # _content=[TextContent(text='Natural Language Processing (NLP) is an interdisciplinary...
+    ```
+
+    ### Multimodal example
+    ```python
+    from haystack.dataclasses import ChatMessage, ImageContent
+    from haystack.utils import Secret
+    from haystack_integrations.components.generators.cohere import CohereChatGenerator
+
+    # Create an image from file path or base64
+    image_content = ImageContent.from_file_path("path/to/your/image.jpg")
+
+    # Create a multimodal message with both text and image
+    messages = [ChatMessage.from_user(content_parts=["What's in this image?", image_content])]
+
+    # Use a multimodal model like Command A Vision
+    client = CohereChatGenerator(model="command-a-vision-07-2025", api_key=Secret.from_env_var("COHERE_API_KEY"))
+    response = client.run(messages)
+    print(response)
     ```
 
     ### Advanced example
