@@ -4,8 +4,7 @@
 
 import json
 import os
-from unittest.mock import AsyncMock, patch, Mock
-
+from unittest.mock import AsyncMock, Mock, patch
 
 import anthropic
 import pytest
@@ -1688,7 +1687,9 @@ class TestAnthropicChatGenerator:
     )
     @pytest.mark.integration
     def test_live_run_with_thinking(self, streaming_callback):
-        chat_generator = AnthropicChatGenerator(model="claude-sonnet-4-20250514", think=True, streaming_callback=streaming_callback)
+        chat_generator = AnthropicChatGenerator(
+            model="claude-sonnet-4-20250514", think=True, streaming_callback=streaming_callback
+        )
 
         message = ChatMessage.from_user("2+3?")
         response = chat_generator.run([message])["replies"][0]
@@ -1907,4 +1908,3 @@ class TestAnthropicChatGeneratorAsync:
         assert message.text
         assert len(message.text) > 0
         assert any(word in message.text.lower() for word in ["apple", "fruit", "red"])
-

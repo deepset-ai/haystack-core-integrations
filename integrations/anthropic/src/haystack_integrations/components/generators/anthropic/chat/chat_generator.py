@@ -1,11 +1,16 @@
 from datetime import datetime, timezone
 from typing import Any, ClassVar, Dict, List, Literal, Optional, Tuple, Union, cast, get_args
-import logging
-import json
 
 from haystack import component, default_from_dict, default_to_dict, logging
-#from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
-from haystack.dataclasses.chat_message import ChatMessage, ChatRole, TextContent, ToolCall, ToolCallResult
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
+from haystack.dataclasses.chat_message import (
+    ChatMessage,
+    ChatRole,
+    ReasoningContent,
+    TextContent,
+    ToolCall,
+    ToolCallResult,
+)
 from haystack.dataclasses.image_content import ImageContent
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
@@ -33,6 +38,7 @@ from anthropic.types import (
     ImageBlockParam,
     MessageParam,
     TextBlockParam,
+    ThinkingBlockParam,
     ToolParam,
     ToolResultBlockParam,
     ToolUseBlockParam,
@@ -55,70 +61,6 @@ FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
     "pause_turn": "stop",
     "tool_use": "tool_calls",
 }
-
-def _convert_streaming_chunks_to_chat_message(chunks: list[StreamingChunk]) -> ChatMessage:
-    """
-    Connects the streaming chunks into a single ChatMessage.
-
-    :param chunks: The list of all `StreamingChunk` objects.
-
-    :returns: The ChatMessage.
-    """
-    text = "".join([chunk.content for chunk in chunks])
-    tool_calls = []
-    reasoning = ""
-    # Process tool calls if present in any chunk
-    tool_call_data: dict[int, dict[str, str]] = {}  # Track tool calls by index
-    for chunk in chunks:
-        if chunk.tool_calls:
-            for tool_call in chunk.tool_calls:
-                # We use the index of the tool_call to track the tool call across chunks since the ID is not always
-                # provided
-                if tool_call.index not in tool_call_data:
-                    tool_call_data[tool_call.index] = {"id": "", "name": "", "arguments": ""}
-
-                # Save the ID if present
-                if tool_call.id is not None:
-                    tool_call_data[tool_call.index]["id"] = tool_call.id
-
-                if tool_call.tool_name is not None:
-                    tool_call_data[tool_call.index]["name"] += tool_call.tool_name
-                if tool_call.arguments is not None:
-                    tool_call_data[tool_call.index]["arguments"] += tool_call.arguments
-
-        if chunk.meta.get("reasoning"):
-            reasoning = reasoning + chunk.meta.get("reasoning")
-
-    # Convert accumulated tool call data into ToolCall objects
-    sorted_keys = sorted(tool_call_data.keys())
-    for key in sorted_keys:
-        tool_call_dict = tool_call_data[key]
-        try:
-            arguments = json.loads(tool_call_dict.get("arguments", "{}")) if tool_call_dict.get("arguments") else {}
-            tool_calls.append(ToolCall(id=tool_call_dict["id"], tool_name=tool_call_dict["name"], arguments=arguments))
-        except json.JSONDecodeError:
-            logger.warning(
-                "The LLM provider returned a malformed JSON string for tool call arguments. This tool call "
-                "will be skipped. To always generate a valid JSON, set `tools_strict` to `True`. "
-                "Tool call ID: {_id}, Tool name: {_name}, Arguments: {_arguments}",
-                _id=tool_call_dict["id"],
-                _name=tool_call_dict["name"],
-                _arguments=tool_call_dict["arguments"],
-            )
-
-    # finish_reason can appear in different places so we look for the last one
-    finish_reasons = [chunk.finish_reason for chunk in chunks if chunk.finish_reason]
-    finish_reason = finish_reasons[-1] if finish_reasons else None
-
-    meta = {
-        "model": chunks[-1].meta.get("model"),
-        "index": 0,
-        "finish_reason": finish_reason,
-        "completion_start_time": chunks[0].meta.get("received_at"),  # first chunk received
-        "usage": chunks[-1].meta.get("usage"),  # last chunk has the final usage data if available
-    }
-
-    return ChatMessage.from_assistant(text=text or None, tool_calls=tool_calls, meta=meta, reasoning=reasoning)
 
 
 def _update_anthropic_message_with_tool_call_results(
@@ -198,7 +140,9 @@ def _convert_messages_to_anthropic_format(
             i += 1
             continue
 
-        content: List[Union[TextBlockParam, ToolUseBlockParam, ToolResultBlockParam, ImageBlockParam]] = []
+        content: List[
+            Union[TextBlockParam, ToolUseBlockParam, ToolResultBlockParam, ImageBlockParam, ThinkingBlockParam]
+        ] = []
 
         # Handle multimodal content (text and images) preserving order
         for part in message._content:
@@ -207,6 +151,14 @@ def _convert_messages_to_anthropic_format(
                 if cache_control:
                     text_block["cache_control"] = cache_control
                 content.append(text_block)
+            elif isinstance(part, ReasoningContent) and part.reasoning_text:
+                reasoning_block = ThinkingBlockParam(
+                    type="thinking",
+                    thinking=part.reasoning_text,
+                    signature=part.extra.get("signature") if part.extra else None,
+                )
+
+                content.append(reasoning_block)
             elif isinstance(part, ImageContent):
                 if not message.is_from(ChatRole.USER):
                     msg = "Image content is only supported for user messages"
@@ -353,7 +305,6 @@ class AnthropicChatGenerator:
         *,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
-
     ):
         """
         Creates an instance of AnthropicChatGenerator.
@@ -482,14 +433,22 @@ class AnthropicChatGenerator:
             if block.type == "tool_use"
         ]
 
-        thinking = " ".join(block.thinking for block in anthropic_response.content if block.type == "thinking")
+        reasoning_text = " ".join(block.thinking for block in anthropic_response.content if block.type == "thinking")
+        reasoning_signature = " ".join(
+            block.signature for block in anthropic_response.content if block.type == "thinking"
+        )
+        reasoning = (
+            ReasoningContent(reasoning_text=reasoning_text, extra={"signature": reasoning_signature})
+            if reasoning_text or reasoning_signature
+            else None
+        )
 
         # Extract and join text blocks, respecting ignore_tools_thinking_messages
         text = ""
         if not (ignore_tools_thinking_messages and tool_calls):
             text = " ".join(block.text for block in anthropic_response.content if block.type == "text")
 
-        message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls, reasoning=thinking)
+        message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls, reasoning=reasoning)
 
         # Dump the chat completion to a dict
         response_dict = anthropic_response.model_dump()
@@ -520,7 +479,8 @@ class AnthropicChatGenerator:
         tool_calls = []
         start = False
         finish_reason = None
-        thinking = ""
+        reasoning = ""
+        reasoning_signature = ""
         index = getattr(chunk, "index", None)
 
         # starting streaming message
@@ -538,7 +498,7 @@ class AnthropicChatGenerator:
                         tool_name=chunk.content_block.name,
                     )
                 )
-            
+
         # delta of a content block
         elif chunk.type == "content_block_delta":
             if chunk.delta.type == "text_delta":
@@ -546,13 +506,16 @@ class AnthropicChatGenerator:
             elif chunk.delta.type == "input_json_delta":
                 tool_calls.append(ToolCallDelta(index=tool_call_index, arguments=chunk.delta.partial_json))
             elif chunk.delta.type == "thinking_delta":
-                thinking = chunk.delta.thinking
+                reasoning = chunk.delta.thinking
+            elif chunk.delta.type == "signature_delta":
+                reasoning_signature = chunk.delta.signature
         # end of streaming message
         elif chunk.type == "message_delta":
             finish_reason = FINISH_REASON_MAPPING.get(getattr(chunk.delta, "stop_reason" or ""))
 
         meta = chunk.model_dump()
-        meta["reasoning"] = thinking
+        meta["reasoning"] = reasoning
+        meta["reasoning_signature"] = reasoning_signature
 
         return StreamingChunk(
             content=content,
@@ -652,6 +615,14 @@ class AnthropicChatGenerator:
                         streaming_callback(streaming_chunk)
 
             completion = _convert_streaming_chunks_to_chat_message(chunks)
+            reasoning_content = " ".join([chunk.meta.get("reasoning") for chunk in chunks])
+            reasoning_signature = " ".join([chunk.meta.get("reasoning_signature") for chunk in chunks])
+            reasoning = (
+                ReasoningContent(reasoning_text=reasoning_content, extra={"signature": reasoning_signature})
+                if reasoning_content or reasoning_signature
+                else None
+            )
+
             completion.meta.update(
                 {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},
             )
@@ -660,7 +631,15 @@ class AnthropicChatGenerator:
                 if "usage" not in completion.meta:
                     completion.meta["usage"] = {}
                 completion.meta["usage"]["input_tokens"] = input_tokens
-            return {"replies": [completion]}
+
+            return ChatMessage.from_assistant(
+                text=completion.text,
+                tool_calls=completion.tool_calls,
+                meta=completion.meta,
+                name=completion.name,
+                reasoning=reasoning,
+            )
+
         else:
             return {
                 "replies": [
@@ -741,7 +720,7 @@ class AnthropicChatGenerator:
         """
         system_messages, non_system_messages, generation_kwargs, anthropic_tools = self._prepare_request_params(
             messages, generation_kwargs, tools
-        )        
+        )
 
         streaming_callback = select_streaming_callback(
             init_callback=self.streaming_callback,
@@ -756,7 +735,6 @@ class AnthropicChatGenerator:
             tools=anthropic_tools,
             stream=streaming_callback is not None,
             max_tokens=generation_kwargs.pop("max_tokens", 1024),
-            thinking=generation_kwargs.pop("thinking", None),
             **generation_kwargs,
         )
 
@@ -798,7 +776,6 @@ class AnthropicChatGenerator:
             tools=anthropic_tools,
             stream=streaming_callback is not None,
             max_tokens=generation_kwargs.pop("max_tokens", 1024),
-            thinking=generation_kwargs.pop("thinking", None),
             **generation_kwargs,
         )
 
