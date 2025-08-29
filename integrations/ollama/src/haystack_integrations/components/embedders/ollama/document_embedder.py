@@ -32,6 +32,7 @@ class OllamaDocumentEmbedder:
         url: str = "http://localhost:11434",
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: int = 120,
+        keep_alive: Optional[Union[float, str]] = None,
         prefix: str = "",
         suffix: str = "",
         progress_bar: bool = True,
@@ -50,6 +51,14 @@ class OllamaDocumentEmbedder:
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :param timeout:
             The number of seconds before throwing a timeout error from the Ollama API.
+        :param keep_alive:
+            The option that controls how long the model will stay loaded into memory following the request.
+            If not set, it will use the default value from the Ollama (5 minutes).
+            The value can be set to:
+            - a duration string (such as "10m" or "24h")
+            - a number in seconds (such as 3600)
+            - any negative number which will keep the model loaded in memory (e.g. -1 or "-1m")
+            - '0' which will unload the model immediately after generating a response.
         :param prefix:
             A string to add at the beginning of each text.
         :param suffix:
@@ -63,6 +72,7 @@ class OllamaDocumentEmbedder:
         :param batch_size:
             Number of documents to process at once.
         """
+        self.keep_alive = keep_alive
         self.timeout = timeout
         self.generation_kwargs = generation_kwargs or {}
         self.url = url
@@ -125,7 +135,12 @@ class OllamaDocumentEmbedder:
             range(0, len(texts_to_embed), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
         ):
             batch = texts_to_embed[i : i + batch_size]
-            result = self._client.embed(model=self.model, input=batch, options=generation_kwargs)
+            result = self._client.embed(
+                model=self.model,
+                input=batch,
+                options=generation_kwargs,
+                keep_alive=self.keep_alive,
+            )
             all_embeddings.extend(result["embeddings"])
 
         return all_embeddings
@@ -145,6 +160,7 @@ class OllamaDocumentEmbedder:
                 model=self.model,
                 input=batch,
                 options=generation_kwargs,
+                keep_alive=self.keep_alive,
             )
             for batch in batches
         ]

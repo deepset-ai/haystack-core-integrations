@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/watsonx-v0.2.0] - 2025-08-27
+
+### 🚀 Features
+
+- Watsonx multimodal support (#2213)
+
+### ⚙️ CI
+
+- Reduce impact of integration tests for Watsonx integration (#2099)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+
 ## [integrations/watsonx-v0.1.1] - 2025-07-10
 
 ### 🌀 Miscellaneous

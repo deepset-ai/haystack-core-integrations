@@ -3,15 +3,18 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import (
     AsyncStreamingCallbackT,
     ChatMessage,
+    ChatRole,
+    ImageContent,
     StreamingCallbackT,
     StreamingChunk,
     SyncStreamingCallbackT,
+    TextContent,
     select_streaming_callback,
 )
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
@@ -21,6 +24,12 @@ from ibm_watsonx_ai.foundation_models import ModelInference
 logger = logging.getLogger(__name__)
 
 
+# See https://dataplatform.cloud.ibm.com/docs/content/wsj/analyze-data/fm-prompt-data.html?context=wx
+# for supported formats
+ImageFormat = Literal["image/jpeg", "image/png"]
+IMAGE_SUPPORTED_FORMATS: list[ImageFormat] = list(get_args(ImageFormat))
+
+
 @component
 class WatsonxChatGenerator:
     """
@@ -28,12 +37,15 @@ class WatsonxChatGenerator:
 
     This component interacts with IBM's watsonx.ai platform to generate chat responses using various foundation
     models. It supports the [ChatMessage](https://docs.haystack.deepset.ai/docs/chatmessage) format for both input
-    and output.
+    and output, including multimodal inputs with text and images.
 
     The generator works with IBM's foundation models including:
     - granite-13b-chat-v2
     - llama-2-70b-chat
     - llama-3-70b-instruct
+    - llama-3-2-11b-vision-instruct (multimodal)
+    - llama-3-2-90b-vision-instruct (multimodal)
+    - pixtral-12b (multimodal)
     - Other watsonx.ai chat models
 
     You can customize the generation behavior by passing parameters to the watsonx.ai API through the
@@ -59,16 +71,26 @@ class WatsonxChatGenerator:
     response = client.run(messages)
     print(response)
     ```
-    Output:
-    ```
-    {'replies':
-        [ChatMessage(_role=<ChatRole.ASSISTANT: 'assistant'>, _content=
-        [TextContent(text="Quantum computing uses quantum-mechanical phenomena like ....")],
-         _name=None,
-         _meta={'model': 'ibm/granite-13b-chat-v2', 'project_id': 'your-project-id',
-         'usage': {'prompt_tokens': 12, 'completion_tokens': 45, 'total_tokens': 57}})
-        ]
-    }
+
+    ### Multimodal usage example
+
+    ```python
+    from haystack.dataclasses import ChatMessage, ImageContent
+
+    # Create an image from file path or base64
+    image_content = ImageContent.from_file_path("path/to/your/image.jpg")
+
+    # Create a multimodal message with both text and image
+    messages = [ChatMessage.from_user(content_parts=["What's in this image?", image_content])]
+
+    # Use a multimodal model
+    client = WatsonxChatGenerator(
+        api_key=Secret.from_env_var("WATSONX_API_KEY"),
+        model="meta-llama/llama-3-2-11b-vision-instruct",
+        project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
+    )
+    response = client.run(messages)
+    print(response)
     ```
     """
 
@@ -263,16 +285,43 @@ class WatsonxChatGenerator:
         merged_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
         watsonx_messages = []
-        content: str | None | dict[str, Any]
+        content: str | None | dict[str, Any] | list[dict[str, Any]]
+
         for msg in messages:
-            if msg.is_from("user"):
-                content = msg.text
-            elif msg.is_from("assistant"):
-                content = msg.text
-            elif msg.is_from("tool"):
+            if msg.is_from("tool"):
                 logger.debug("Skipping tool message - tool calls are not currently supported")
                 continue
+
+            # Check that images are only in user messages
+            if msg.images and not msg.is_from(ChatRole.USER):
+                error_msg = "Image content is only supported for user messages"
+                raise ValueError(error_msg)
+
+            # Handle multimodal content (text + images) preserving order
+            if msg.images:
+                # Pre-validate all images first (following LlamaCpp pattern)
+                for image in msg.images:
+                    if image.mime_type not in IMAGE_SUPPORTED_FORMATS:
+                        supported_formats = ", ".join(IMAGE_SUPPORTED_FORMATS)
+                        msg_error = (
+                            f"Unsupported image format: {image.mime_type}. "
+                            f"WatsonX supports the following formats: {supported_formats}"
+                        )
+                        raise ValueError(msg_error)
+
+                content_parts: list[dict[str, Any]] = []
+                for part in msg._content:
+                    if isinstance(part, TextContent) and part.text:
+                        content_parts.append({"type": "text", "text": part.text})
+                    elif isinstance(part, ImageContent):
+                        # WatsonX expects base64 data URI format
+                        # See: https://dataplatform.cloud.ibm.com/docs/content/wsj/analyze-data/fm-api-chat.html?context=wx
+                        image_url = f"data:{part.mime_type};base64,{part.base64_image}"
+                        content_parts.append({"type": "image_url", "image_url": {"url": image_url}})
+
+                content = content_parts
             else:
+                # Simple text-only message
                 content = msg.text
 
             watsonx_msg = {"role": msg.role.value, "content": content}
