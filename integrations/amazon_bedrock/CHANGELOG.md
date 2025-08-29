@@ -1,10 +1,28 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v4.0.0] - 2025-08-29
+
+### 🚀 Features
+
+- [**breaking**] Update AmazonBedrockChatGenerator to use the new fields in `StreamingChunk` (#2216)
+- [**breaking**] Use `ReasoningContent` to store reasoning content in `ChatMessage` instead of `ChatMessage.meta` (#2226)
+
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
 ## [integrations/amazon_bedrock-v3.11.0] - 2025-08-21
 
 ### 🚀 Features
 
 - Add `AmazonBedrockDocumentImageEmbedder` component (#2185)
+
+### 🧹 Chores
+
+- Add framework name into UserAgent header for bedrock integration (#2168)
+- Standardize readmes - part 1 (#2202)
+
 
 ## [integrations/amazon_bedrock-v3.10.0] - 2025-08-06
 
