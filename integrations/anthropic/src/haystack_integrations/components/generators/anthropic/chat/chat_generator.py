@@ -353,7 +353,6 @@ class AnthropicChatGenerator:
         *,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
-        think: Union[bool, Dict[str, Any]] = False,
 
     ):
         """
@@ -376,6 +375,7 @@ class AnthropicChatGenerator:
             - `top_p`: The top_p value to use for nucleus sampling.
             - `top_k`: The top_k value to use for top-k sampling.
             - `extra_headers`: A dictionary of extra headers to be passed to the model (i.e. for beta features).
+            - `thinking`: A dictionary of thinking parameters to be passed to the model.
         :param ignore_tools_thinking_messages: Anthropic's approach to tools (function calling) resolution involves a
             "chain of thought" messages before returning the actual function names and parameters in a message. If
             `ignore_tools_thinking_messages` is `True`, the generator will drop so-called thinking messages when tool
@@ -388,19 +388,6 @@ class AnthropicChatGenerator:
             Maximum number of retries to attempt for failed requests. If not set, it defaults to the default set by
             the Anthropic client.
 
-        :param think:
-            If True, the model will "think" before producing a response.
-            Only models with [extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking) support this feature.
-            When enabled, anthropic requires you to pass `budget_tokens`.
-            Note: The budget_tokens must be greater than 10000 and less than max_tokens.
-            By default, the budget tokens is set to 10000 and max_tokens is set to 12000.
-
-            If you want to set your budget_tokens, you can pass a dictionary as:
-            think = {
-                "type": "enabled",
-                "budget_tokens": 17000,
-            }
-
         """
         _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
 
@@ -410,18 +397,6 @@ class AnthropicChatGenerator:
         self.streaming_callback = streaming_callback
         self.timeout = timeout
         self.max_retries = max_retries
-
-        if not think:
-            self.think = {"type": "disabled"}
-        elif think and isinstance(think, bool):
-            self.think = {"type": "enabled", "budget_tokens": 10000}
-            if "max_tokens" not in self.generation_kwargs:
-                self.generation_kwargs["max_tokens"] = 12000
-            elif self.generation_kwargs["max_tokens"] <= 10000:
-                raise ValueError("max_tokens must be greater than budget_tokens")
-        elif isinstance(think, dict):
-            self.think = think
-
 
         client_kwargs: Dict[str, Any] = {"api_key": api_key.resolve_value()}
         # We do this since timeout=None is not the same as not setting it in Anthropic
@@ -461,7 +436,6 @@ class AnthropicChatGenerator:
             tools=serialize_tools_or_toolset(self.tools),
             timeout=self.timeout,
             max_retries=self.max_retries,
-            think=self.think,
         )
 
     @classmethod
@@ -782,7 +756,7 @@ class AnthropicChatGenerator:
             tools=anthropic_tools,
             stream=streaming_callback is not None,
             max_tokens=generation_kwargs.pop("max_tokens", 1024),
-            thinking=self.think,
+            thinking=generation_kwargs.pop("thinking", None),
             **generation_kwargs,
         )
 
@@ -824,7 +798,7 @@ class AnthropicChatGenerator:
             tools=anthropic_tools,
             stream=streaming_callback is not None,
             max_tokens=generation_kwargs.pop("max_tokens", 1024),
-            thinking=self.think,
+            thinking=generation_kwargs.pop("thinking", None),
             **generation_kwargs,
         )
 
