@@ -3,7 +3,14 @@ from typing import Any, ClassVar, Dict, List, Literal, Optional, Tuple, Union, c
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
-from haystack.dataclasses.chat_message import ChatMessage, ChatRole, TextContent, ToolCall, ToolCallResult
+from haystack.dataclasses.chat_message import (
+    ChatMessage,
+    ChatRole,
+    ReasoningContent,
+    TextContent,
+    ToolCall,
+    ToolCallResult,
+)
 from haystack.dataclasses.image_content import ImageContent
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
@@ -31,6 +38,7 @@ from anthropic.types import (
     ImageBlockParam,
     MessageParam,
     TextBlockParam,
+    ThinkingBlockParam,
     ToolParam,
     ToolResultBlockParam,
     ToolUseBlockParam,
@@ -132,7 +140,9 @@ def _convert_messages_to_anthropic_format(
             i += 1
             continue
 
-        content: List[Union[TextBlockParam, ToolUseBlockParam, ToolResultBlockParam, ImageBlockParam]] = []
+        content: List[
+            Union[TextBlockParam, ToolUseBlockParam, ToolResultBlockParam, ImageBlockParam, ThinkingBlockParam]
+        ] = []
 
         # Handle multimodal content (text and images) preserving order
         for part in message._content:
@@ -141,6 +151,14 @@ def _convert_messages_to_anthropic_format(
                 if cache_control:
                     text_block["cache_control"] = cache_control
                 content.append(text_block)
+            elif isinstance(part, ReasoningContent) and part.reasoning_text:
+                reasoning_block = ThinkingBlockParam(
+                    type="thinking",
+                    thinking=part.reasoning_text,
+                    signature=part.extra.get("signature") if part.extra else None,
+                )
+
+                content.append(reasoning_block)
             elif isinstance(part, ImageContent):
                 if not message.is_from(ChatRole.USER):
                     msg = "Image content is only supported for user messages"
@@ -308,6 +326,7 @@ class AnthropicChatGenerator:
             - `top_p`: The top_p value to use for nucleus sampling.
             - `top_k`: The top_k value to use for top-k sampling.
             - `extra_headers`: A dictionary of extra headers to be passed to the model (i.e. for beta features).
+            - `thinking`: A dictionary of thinking parameters to be passed to the model.
         :param ignore_tools_thinking_messages: Anthropic's approach to tools (function calling) resolution involves a
             "chain of thought" messages before returning the actual function names and parameters in a message. If
             `ignore_tools_thinking_messages` is `True`, the generator will drop so-called thinking messages when tool
@@ -319,6 +338,7 @@ class AnthropicChatGenerator:
         :param max_retries:
             Maximum number of retries to attempt for failed requests. If not set, it defaults to the default set by
             the Anthropic client.
+
         """
         _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
 
@@ -413,12 +433,22 @@ class AnthropicChatGenerator:
             if block.type == "tool_use"
         ]
 
+        reasoning_text = " ".join(block.thinking for block in anthropic_response.content if block.type == "thinking")
+        reasoning_signature = " ".join(
+            block.signature for block in anthropic_response.content if block.type == "thinking"
+        )
+        reasoning = (
+            ReasoningContent(reasoning_text=reasoning_text, extra={"signature": reasoning_signature})
+            if reasoning_text or reasoning_signature
+            else None
+        )
+
         # Extract and join text blocks, respecting ignore_tools_thinking_messages
         text = ""
         if not (ignore_tools_thinking_messages and tool_calls):
             text = " ".join(block.text for block in anthropic_response.content if block.type == "text")
 
-        message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls)
+        message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls, reasoning=reasoning)
 
         # Dump the chat completion to a dict
         response_dict = anthropic_response.model_dump()
@@ -449,7 +479,8 @@ class AnthropicChatGenerator:
         tool_calls = []
         start = False
         finish_reason = None
-
+        reasoning = ""
+        reasoning_signature = ""
         index = getattr(chunk, "index", None)
 
         # starting streaming message
@@ -467,15 +498,22 @@ class AnthropicChatGenerator:
                         tool_name=chunk.content_block.name,
                     )
                 )
+
         # delta of a content block
         elif chunk.type == "content_block_delta":
             if chunk.delta.type == "text_delta":
                 content = chunk.delta.text
             elif chunk.delta.type == "input_json_delta":
                 tool_calls.append(ToolCallDelta(index=tool_call_index, arguments=chunk.delta.partial_json))
+            elif chunk.delta.type == "thinking_delta":
+                reasoning = chunk.delta.thinking
+            elif chunk.delta.type == "signature_delta":
+                reasoning_signature = chunk.delta.signature
         # end of streaming message
         elif chunk.type == "message_delta":
             finish_reason = FINISH_REASON_MAPPING.get(getattr(chunk.delta, "stop_reason" or ""))
+
+        meta = chunk.model_dump()
 
         return StreamingChunk(
             content=content,
@@ -484,7 +522,7 @@ class AnthropicChatGenerator:
             start=start,
             finish_reason=finish_reason,
             tool_calls=tool_calls if tool_calls else None,
-            meta=chunk.model_dump(),
+            meta=meta,
         )
 
     def _prepare_request_params(
@@ -575,6 +613,16 @@ class AnthropicChatGenerator:
                         streaming_callback(streaming_chunk)
 
             completion = _convert_streaming_chunks_to_chat_message(chunks)
+
+            reasoning_content = " ".join([chunk.meta.get("delta").get("thinking") for chunk in chunks if "delta" in chunk.meta and chunk.meta.get("delta").get("type") == "thinking_delta"])
+            reasoning_signature = " ".join([chunk.meta.get("delta").get("signature") for chunk in chunks if "delta" in chunk.meta and chunk.meta.get("delta").get("type") == "signature_delta"])
+
+            reasoning = (
+                ReasoningContent(reasoning_text=reasoning_content, extra={"signature": reasoning_signature})
+                if reasoning_content or reasoning_signature
+                else None
+            )
+
             completion.meta.update(
                 {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},
             )
@@ -583,7 +631,15 @@ class AnthropicChatGenerator:
                 if "usage" not in completion.meta:
                     completion.meta["usage"] = {}
                 completion.meta["usage"]["input_tokens"] = input_tokens
-            return {"replies": [completion]}
+
+            return {"replies": [ChatMessage.from_assistant(
+                text=completion.text,
+                tool_calls=completion.tool_calls,
+                meta=completion.meta,
+                name=completion.name,
+                reasoning=reasoning,
+            )]}
+
         else:
             return {
                 "replies": [
