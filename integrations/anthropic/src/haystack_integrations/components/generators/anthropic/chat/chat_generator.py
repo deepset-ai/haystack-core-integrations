@@ -514,8 +514,6 @@ class AnthropicChatGenerator:
             finish_reason = FINISH_REASON_MAPPING.get(getattr(chunk.delta, "stop_reason" or ""))
 
         meta = chunk.model_dump()
-        meta["reasoning"] = reasoning
-        meta["reasoning_signature"] = reasoning_signature
 
         return StreamingChunk(
             content=content,
@@ -615,8 +613,10 @@ class AnthropicChatGenerator:
                         streaming_callback(streaming_chunk)
 
             completion = _convert_streaming_chunks_to_chat_message(chunks)
-            reasoning_content = " ".join([chunk.meta.get("reasoning") for chunk in chunks])
-            reasoning_signature = " ".join([chunk.meta.get("reasoning_signature") for chunk in chunks])
+
+            reasoning_content = " ".join([chunk.meta.get("delta").get("thinking") for chunk in chunks if "delta" in chunk.meta and chunk.meta.get("delta").get("type") == "thinking_delta"])
+            reasoning_signature = " ".join([chunk.meta.get("delta").get("signature") for chunk in chunks if "delta" in chunk.meta and chunk.meta.get("delta").get("type") == "signature_delta"])
+
             reasoning = (
                 ReasoningContent(reasoning_text=reasoning_content, extra={"signature": reasoning_signature})
                 if reasoning_content or reasoning_signature
@@ -632,13 +632,13 @@ class AnthropicChatGenerator:
                     completion.meta["usage"] = {}
                 completion.meta["usage"]["input_tokens"] = input_tokens
 
-            return ChatMessage.from_assistant(
+            return {"replies": [ChatMessage.from_assistant(
                 text=completion.text,
                 tool_calls=completion.tool_calls,
                 meta=completion.meta,
                 name=completion.name,
                 reasoning=reasoning,
-            )
+            )]}
 
         else:
             return {
