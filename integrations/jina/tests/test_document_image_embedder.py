@@ -13,8 +13,9 @@ MOCK_EMBEDDING_DIM = 512
 
 
 class TestJinaDocumentImageEmbedder:
-    def test_init_default(self):
-        embedder = JinaDocumentImageEmbedder()
+    def test_init_default(self, monkeypatch):
+        monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
+        embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
         assert embedder.model_name == "jina-clip-v1"
         assert embedder.file_path_meta_field == "file_path"
         assert embedder.root_path == ""
@@ -35,7 +36,8 @@ class TestJinaDocumentImageEmbedder:
         assert embedder.dimensions == 256
         assert embedder.api_key == Secret.from_token("fake-api-token")
 
-    def test_to_dict(self):
+    def test_to_dict(self, monkeypatch):
+        monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
         component = JinaDocumentImageEmbedder(
             api_key=Secret.from_env_var("JINA_API_KEY"),
             model="jina-clip-v2",
@@ -75,7 +77,7 @@ class TestJinaDocumentImageEmbedder:
         assert component.api_key == Secret.from_env_var("JINA_API_KEY")
 
     def test_run_wrong_input_format(self):
-        embedder = JinaDocumentImageEmbedder()
+        embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
         with patch("haystack_integrations.components.embedders.jina.document_image_embedder.pillow_import"):
             list_integers_input = [1, 2, 3]
             with pytest.raises(TypeError, match="JinaDocumentImageEmbedder expects a list of Documents as input"):
@@ -86,7 +88,7 @@ class TestJinaDocumentImageEmbedder:
                 embedder.run(documents=string_input)
 
     def test_run_on_empty_list(self):
-        embedder = JinaDocumentImageEmbedder()
+        embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
         with patch("haystack_integrations.components.embedders.jina.document_image_embedder.pillow_import"):
             empty_list_input = []
             result = embedder.run(documents=empty_list_input)
@@ -101,7 +103,7 @@ class TestJinaDocumentImageEmbedder:
         mock_pil_image = Mock()
         mock_image.open.return_value = mock_pil_image
 
-        embedder = JinaDocumentImageEmbedder()
+        embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
         with patch.object(embedder, "_image_to_base64", return_value="data:image/jpeg;base64,fake_base64"):
             with patch.object(embedder._session, "post") as mock_post:
                 mock_response = Mock()
@@ -127,7 +129,7 @@ class TestJinaDocumentImageEmbedder:
         mock_pil_image = Mock()
         mock_image.open.return_value = mock_pil_image
 
-        embedder = JinaDocumentImageEmbedder()
+        embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
         with patch.object(embedder, "_image_to_base64", return_value="data:image/jpeg;base64,fake_base64"):
             with patch.object(embedder._session, "post") as mock_post:
                 mock_response = Mock()
@@ -137,7 +139,7 @@ class TestJinaDocumentImageEmbedder:
                     embedder.run(documents=documents)
 
     def test_image_to_base64(self):
-        embedder = JinaDocumentImageEmbedder()
+        embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
         with patch("haystack_integrations.components.embedders.jina.document_image_embedder.pillow_import"):
             mock_pil_image = Mock()
             mock_pil_image.mode = "RGB"
