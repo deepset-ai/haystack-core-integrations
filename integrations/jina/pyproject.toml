@@ -59,6 +59,7 @@ dependencies = [
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
+    "pillow",
     "pip"
 ]
 
