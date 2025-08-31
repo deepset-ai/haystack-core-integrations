@@ -15,7 +15,7 @@ MOCK_EMBEDDING_DIM = 512
 class TestJinaDocumentImageEmbedder:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
-        embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
+        embedder = JinaDocumentImageEmbedder()
         assert embedder.model_name == "jina-clip-v1"
         assert embedder.file_path_meta_field == "file_path"
         assert embedder.root_path == ""
