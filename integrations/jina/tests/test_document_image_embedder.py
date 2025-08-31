@@ -58,7 +58,8 @@ class TestJinaDocumentImageEmbedder:
         }
         assert data == expected
 
-    def test_from_dict(self):
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
         data = {
             "type": "haystack_integrations.components.embedders.jina.document_image_embedder.JinaDocumentImageEmbedder",
             "init_parameters": {
@@ -153,7 +154,7 @@ class TestJinaDocumentImageEmbedder:
                 mock_pil_image.save.assert_called_once()
 
     def test_get_telemetry_data(self):
-        embedder = JinaDocumentImageEmbedder(model="jina-embeddings-v4")
+        embedder = JinaDocumentImageEmbedder(model="jina-embeddings-v4", api_key=Secret.from_token("fake-api-key"))
         with patch("haystack_integrations.components.embedders.jina.document_image_embedder.pillow_import"):
             telemetry_data = embedder._get_telemetry_data()
             assert telemetry_data == {"model": "jina-embeddings-v4"}
