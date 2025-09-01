@@ -29,7 +29,7 @@ classifiers = [
 dependencies = ["haystack-ai>=2.16.1", "llama-cpp-python>=0.2.87"]
 
 [[tool.uv]]
-index-strategy = "unsafe-best-match
+index-strategy = "unsafe-best-match"
 
 [[tool.uv.index]]
 # Optional name for the index.
