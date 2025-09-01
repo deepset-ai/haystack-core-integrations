@@ -1386,7 +1386,6 @@ class TestAnthropicChatGenerator:
             tools=tools, streaming_callback=print_streaming_chunk, generation_kwargs={"max_tokens": 11000}
         )
         results = component.run(messages=initial_messages)
-        print(results)
 
         assert len(results["replies"]) == 1
         message = results["replies"][0]
@@ -1413,7 +1412,6 @@ class TestAnthropicChatGenerator:
             ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
         ]
         results = component.run(new_messages)
-        print(results)
         assert len(results["replies"]) == 1
         final_message = results["replies"][0]
         assert not final_message.tool_calls
@@ -1439,7 +1437,6 @@ class TestAnthropicChatGenerator:
             },
         )
         results = component.run(messages=initial_messages)
-        print(results)
 
         assert len(results["replies"]) == 1
         message = results["replies"][0]
@@ -1464,7 +1461,6 @@ class TestAnthropicChatGenerator:
             ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
         ]
         results = component.run(new_messages)
-        print(results)
         assert len(results["replies"]) == 1
         final_message = results["replies"][0]
         assert not final_message.tool_calls
