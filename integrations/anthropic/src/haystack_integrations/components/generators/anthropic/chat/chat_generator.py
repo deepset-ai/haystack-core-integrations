@@ -152,13 +152,12 @@ def _convert_messages_to_anthropic_format(
                     text_block["cache_control"] = cache_control
                 content.append(text_block)
             elif isinstance(part, ReasoningContent):
-                signature_value = part.extra.get("signature") if part.extra else ""
                 reasoning_block = ThinkingBlockParam(
                     type="thinking",
                     thinking=part.reasoning_text,
+                    # signature is always a str, but mypy doesnt know that
+                    signature=part.extra.get("signature") if part.extra else "",  # type: ignore [typeddict-item]
                 )
-                if signature_value:
-                    reasoning_block["signature"] = signature_value
                 content.append(reasoning_block)
 
             elif isinstance(part, ImageContent):
@@ -204,7 +203,7 @@ def _convert_messages_to_anthropic_format(
             if cache_control:
                 for blk in content:
                     if blk.get("type") == "tool_result":
-                        # we checked the type of blk, so we know it has a cache_control key
+                        # Only apply cache_control to block types that support it
                         blk["cache_control"] = cache_control  # type: ignore [typeddict-unknown-key]
 
         if not content:
