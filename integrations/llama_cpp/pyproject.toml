@@ -28,7 +28,7 @@ classifiers = [
 ]
 dependencies = ["haystack-ai>=2.16.1", "llama-cpp-python>=0.2.87"]
 
-# On MacOs GitHub runners, we use a custom index to download pre-built wheels.
+# On macOS GitHub runners, we use a custom index to download pre-built wheels.
 # Installing from source might fail due to missing dependencies (CMake fails with "OpenMP not found")
 [tool.uv]
 index-strategy = "unsafe-best-match"  # this ensures that packages are not only searched in the below index but also in PyPI

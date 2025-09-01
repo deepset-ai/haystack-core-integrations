@@ -40,7 +40,7 @@ jobs:
           - os: windows-latest
             python-version: "3.13"
 
-        # on MacOs, we test with 3.10 and 3.12 because pre-built wheels are only available for these Python versions
+        # on macOS, we test with 3.10 and 3.12 because pre-built wheels are only available for these Python versions
         # and installing from source might fail due to missing dependencies (CMake fails with "OpenMP not found")
           - os: macos-latest
             python-version: "3.10"
