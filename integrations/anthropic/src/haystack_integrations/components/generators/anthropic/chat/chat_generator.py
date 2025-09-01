@@ -203,7 +203,9 @@ def _convert_messages_to_anthropic_format(
             if cache_control:
                 for blk in content:
                     if blk.get("type") == "tool_result":
-                        # Only apply cache_control to block types that support it
+                        # thinking block does not support cache_control
+                        # we have a check to ensure that block is not a thinking block
+                        # but mypy doesnt know that
                         blk["cache_control"] = cache_control  # type: ignore [typeddict-unknown-key]
 
         if not content:

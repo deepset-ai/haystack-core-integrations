@@ -844,7 +844,8 @@ class TestAnthropicChatGenerator:
 
         message = _convert_streaming_chunks_to_chat_message(chunks)
 
-        # Cannot Verify reasoning content
+        # Cannot conversion of reasoning content in streaming chunks
+        # because reasoning is added outside _convert_streaming_chunks_to_chat_message
 
         # Verify the message content
         assert message.text == "Let me check the weather"
