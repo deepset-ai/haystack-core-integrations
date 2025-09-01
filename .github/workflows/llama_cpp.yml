@@ -30,8 +30,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.9", "3.13"]  
+        include:
+          - os: ubuntu-latest
+            python-version: "3.9"
+          - os: ubuntu-latest
+            python-version: "3.13"
+          - os: windows-latest
+            python-version: "3.9"
+          - os: windows-latest
+            python-version: "3.13"
+
+        # on macOS, we test with 3.10 and 3.12 because pre-built wheels are only available for these Python versions
+        # and installing from source might fail due to missing dependencies (CMake fails with "OpenMP not found")
+          - os: macos-latest
+            python-version: "3.10"
+          - os: macos-latest
+            python-version: "3.12"
 
     steps:
       - name: Support longpaths
