@@ -330,7 +330,7 @@ class AnthropicChatGenerator:
             - `extra_headers`: A dictionary of extra headers to be passed to the model (i.e. for beta features).
             - `thinking`: A dictionary of thinking parameters to be passed to the model.
                 The `budget_tokens` passed for thinking should be less than `max_tokens`.
-                For more details and supported models, see: [Anthropic Extended Thinking](https://docs.anthropic.com/en/docs/extended-results)
+                For more details and supported models, see: [Anthropic Extended Thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking)
 
         :param ignore_tools_thinking_messages: Anthropic's approach to tools (function calling) resolution involves a
             "chain of thought" messages before returning the actual function names and parameters in a message. If
@@ -450,6 +450,7 @@ class AnthropicChatGenerator:
 
         # Extract and join text blocks, respecting ignore_tools_thinking_messages
         text = ""
+
         if not (ignore_tools_thinking_messages and tool_calls):
             text = " ".join(block.text for block in anthropic_response.content if block.type == "text")
 

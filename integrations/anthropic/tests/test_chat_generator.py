@@ -341,6 +341,56 @@ class TestAnthropicChatGenerator:
         with pytest.raises(ValueError):
             AnthropicChatGenerator(tools=tools + tools)
 
+    def test_convert_chat_completion_to_chat_message(self, mock_chat_completion):
+        """
+        Test converting Anthropic chat completion to ChatMessage
+        """
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        chat_completion = mock_chat_completion.return_value
+
+        chat_message = component._convert_chat_completion_to_chat_message(
+            chat_completion, ignore_tools_thinking_messages=True
+        )
+        assert chat_message.text == "Hello, world!"
+        assert chat_message.role == "assistant"
+        assert chat_message.meta["model"] == "claude-sonnet-4-20250514"
+        assert "usage" in chat_message.meta
+        assert chat_message.meta["usage"]["prompt_tokens"] == 57
+        assert chat_message.meta["usage"]["completion_tokens"] == 40
+
+    def test_convert_chat_completion_to_chat_message_with_reasoning_and_tool_call(self):
+        """
+        Test converting Anthropic chat completion to ChatMessage
+        """
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        chat_completion = Message(
+            id="msg_01MZF",
+            content=[
+                ThinkingBlock(signature="sign1", thinking="User has asked 2 questions", type="thinking"),
+                TextBlock(citations=None, text="I'll provide the answers!", type="text"),
+                ToolUseBlock(
+                    id="toolu_01XEkx", input={"expression": "7 * (4 + 2)"}, name="calculator", type="tool_use"
+                ),
+            ],
+            model="claude-sonnet-4-20250514",
+            role="assistant",
+            stop_reason="tool_use",
+            stop_sequence=None,
+            type="message",
+            usage=Usage(input_tokens=507, output_tokens=219),
+        )
+        chat_message = component._convert_chat_completion_to_chat_message(
+            chat_completion, ignore_tools_thinking_messages=False
+        )
+        assert chat_message.text == "I'll provide the answers!"
+        assert chat_message.reasoning.reasoning_text == "User has asked 2 questions"
+        assert chat_message.reasoning.extra == {"signature": "sign1"}
+        assert chat_message.meta["model"] == "claude-sonnet-4-20250514"
+        assert chat_message.meta["finish_reason"] == "tool_calls"
+        assert "usage" in chat_message.meta
+        assert chat_message.meta["usage"]["prompt_tokens"] == 507
+        assert chat_message.meta["usage"]["completion_tokens"] == 219
+
     def test_convert_anthropic_completion_chunks_with_multiple_tool_calls_and_reasoning_to_streaming_chunks(self):
         """
         Test converting Anthropic stream events with tools to Haystack StreamingChunks
@@ -1790,7 +1840,7 @@ class TestAnthropicChatGenerator:
         reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
     )
     @pytest.mark.integration
-    def test_live_run_with_thinking(self, streaming_callback):
+    def test_live_run_with_reasoning(self, streaming_callback):
         chat_generator = AnthropicChatGenerator(
             model="claude-sonnet-4-20250514",
             generation_kwargs={"thinking": {"type": "enabled", "budget_tokens": 10000}, "max_tokens": 11000},
