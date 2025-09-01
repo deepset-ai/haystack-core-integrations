@@ -156,8 +156,9 @@ def _convert_messages_to_anthropic_format(
                 reasoning_block = ThinkingBlockParam(
                     type="thinking",
                     thinking=part.reasoning_text,
-                    signature=signature_value,  # type: ignore [typeddict-item]
                 )
+                if signature_value:
+                    reasoning_block["signature"] = signature_value
                 content.append(reasoning_block)
 
             elif isinstance(part, ImageContent):
