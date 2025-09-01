@@ -28,6 +28,12 @@ classifiers = [
 ]
 dependencies = ["haystack-ai>=2.16.1", "llama-cpp-python>=0.2.87"]
 
+[[tool.uv.index]]
+# Optional name for the index.
+name = "llama-cpp-python"
+# Required URL for the index.
+url = "https://abetlen.github.io/llama-cpp-python/whl/metal/"
+
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/llama_cpp#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
