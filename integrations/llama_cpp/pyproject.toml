@@ -34,7 +34,6 @@ index-strategy = "unsafe-best-match"
 [[tool.uv.index]]
 # Optional name for the index.
 name = "llama-cpp-python"
-index-strategy = "unsafe-best-match
 # Required URL for the index.
 url = "https://abetlen.github.io/llama-cpp-python/whl/metal/"
 
