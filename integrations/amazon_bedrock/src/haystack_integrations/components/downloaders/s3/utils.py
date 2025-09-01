@@ -67,12 +67,10 @@ class S3DownloaderSettings:
         :rtype: S3DownloaderSettings
         """
 
+        s3_folder = os.getenv("S3_FOLDER") or None
         if not (s3_bucket := os.getenv("S3_BUCKET")):
             raise ValueError("S3_BUCKET environment variable not provided")
-
-        if not (s3_folder := os.getenv("S3_FOLDER")):
-            raise ValueError("S3_FOLDER environment variable not provided")
-
+        
         return cls(
             s3_bucket=s3_bucket,
             s3_folder=s3_folder,
