@@ -688,6 +688,7 @@ class AnthropicChatGenerator:
             chunks: List[StreamingChunk] = []
             model: Optional[str] = None
             tool_call_index = -1
+            input_tokens = None
             component_info = ComponentInfo.from_component(self)
             async for chunk in response:
                 if chunk.type in [
@@ -699,6 +700,9 @@ class AnthropicChatGenerator:
                     # Extract model from message_start chunks
                     if chunk.type == "message_start":
                         model = chunk.message.model
+                        if chunk.message.usage.input_tokens is not None:
+                            input_tokens = chunk.message.usage.input_tokens
+
                     if chunk.type == "content_block_start" and chunk.content_block.type == "tool_use":
                         tool_call_index += 1
 
@@ -710,10 +714,44 @@ class AnthropicChatGenerator:
                         await streaming_callback(streaming_chunk)
 
             completion = _convert_streaming_chunks_to_chat_message(chunks)
+            reasoning_content = ""
+            reasoning_signature = ""
+            for streaming_chunk in chunks:
+                if (delta := streaming_chunk.meta.get("delta")) is not None:
+                    if delta.get("type") == "thinking_delta" and delta.get("thinking") is not None:
+                        reasoning_content += delta.get("thinking", "")
+                    if delta.get("type") == "signature_delta" and delta.get("signature") is not None:
+                        reasoning_signature += delta.get("signature", "")
+                if (content_block := streaming_chunk.meta.get("content_block")) is not None and content_block.get(
+                    "type"
+                ) == "redacted_thinking":
+                    reasoning_content += content_block.get("data", "")
+
+            reasoning = (
+                ReasoningContent(reasoning_text=reasoning_content, extra={"signature": reasoning_signature})
+                if reasoning_content or reasoning_signature
+                else None
+            )
             completion.meta.update(
                 {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},
             )
-            return {"replies": [completion]}
+
+            if input_tokens is not None:
+                if "usage" not in completion.meta:
+                    completion.meta["usage"] = {}
+                completion.meta["usage"]["input_tokens"] = input_tokens
+
+            return {
+                "replies": [
+                    ChatMessage.from_assistant(
+                        text=completion.text,
+                        tool_calls=completion.tool_calls,
+                        meta=completion.meta,
+                        name=completion.name,
+                        reasoning=reasoning,
+                    )
+                ]
+            }
         else:
             return {
                 "replies": [
