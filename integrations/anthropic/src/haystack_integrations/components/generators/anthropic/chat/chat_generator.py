@@ -440,10 +440,15 @@ class AnthropicChatGenerator:
             if block.type == "tool_use"
         ]
 
-        reasoning_text = " ".join(block.thinking for block in anthropic_response.content if block.type == "thinking")
-        reasoning_signature = " ".join(
-            block.signature for block in anthropic_response.content if block.type == "thinking"
-        )
+        reasoning_text = ""
+        reasoning_signature = ""
+        for block in anthropic_response.content:
+            if block.type == "thinking":
+                reasoning_text = block.thinking
+                reasoning_signature = block.signature
+            elif block.type == "redacted_thinking":
+                reasoning_text += block.data
+
         reasoning = (
             ReasoningContent(reasoning_text=reasoning_text, extra={"signature": reasoning_signature})
             if reasoning_text or reasoning_signature
@@ -617,22 +622,18 @@ class AnthropicChatGenerator:
 
             completion = _convert_streaming_chunks_to_chat_message(chunks)
 
-            reasoning_content = " ".join(
-                delta.get("thinking", "")
-                for chunk in chunks
-                if "delta" in chunk.meta
-                and (delta := chunk.meta.get("delta")) is not None
-                and delta.get("type") == "thinking_delta"
-                and delta.get("thinking") is not None
-            )
-            reasoning_signature = " ".join(
-                delta.get("signature", "")
-                for chunk in chunks
-                if "delta" in chunk.meta
-                and (delta := chunk.meta.get("delta")) is not None
-                and delta.get("type") == "signature_delta"
-                and delta.get("signature") is not None
-            )
+            reasoning_content = ""
+            reasoning_signature = ""
+            for streaming_chunk in chunks:
+                if (delta := streaming_chunk.meta.get("delta")) is not None:
+                    if delta.get("type") == "thinking_delta" and delta.get("thinking") is not None:
+                        reasoning_content += delta.get("thinking", "")
+                    if delta.get("type") == "signature_delta" and delta.get("signature") is not None:
+                        reasoning_signature += delta.get("signature", "")
+                if (content_block := streaming_chunk.meta.get("content_block")) is not None and content_block.get(
+                    "type"
+                ) == "redacted_thinking":
+                    reasoning_content += content_block.get("data", "")
 
             reasoning = (
                 ReasoningContent(reasoning_text=reasoning_content, extra={"signature": reasoning_signature})
