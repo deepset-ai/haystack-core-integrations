@@ -469,19 +469,20 @@ class AnthropicChatGenerator:
         redacted_thinking = ""
         for block in anthropic_response.content:
             if block.type == "thinking":
-                reasoning_text = block.thinking
-                reasoning_signature = block.signature
+                reasoning_text += block.thinking
+                reasoning_signature += block.signature
             elif block.type == "redacted_thinking":
                 redacted_thinking += block.data
 
-        reasoning = (
-            ReasoningContent(
+        reasoning = None
+        if reasoning_text or reasoning_signature or redacted_thinking:
+            reasoning = ReasoningContent(
                 reasoning_text=reasoning_text,
-                extra={"signature": reasoning_signature, "redacted_thinking": redacted_thinking},
             )
-            if reasoning_text or reasoning_signature or redacted_thinking
-            else None
-        )
+            if reasoning_signature:
+                reasoning.extra["signature"] = reasoning_signature
+            if redacted_thinking:
+                reasoning.extra["redacted_thinking"] = redacted_thinking
 
         # Extract and join text blocks, respecting ignore_tools_thinking_messages
         text = ""
@@ -650,13 +651,13 @@ class AnthropicChatGenerator:
 
             completion = _convert_streaming_chunks_to_chat_message(chunks)
 
-            reasoning_content = ""
+            reasoning_text = ""
             reasoning_signature = ""
             redacted_thinking = ""
             for streaming_chunk in chunks:
                 if (delta := streaming_chunk.meta.get("delta")) is not None:
                     if delta.get("type") == "thinking_delta" and delta.get("thinking") is not None:
-                        reasoning_content += delta.get("thinking", "")
+                        reasoning_text += delta.get("thinking", "")
                     if delta.get("type") == "signature_delta" and delta.get("signature") is not None:
                         reasoning_signature += delta.get("signature", "")
                 if (content_block := streaming_chunk.meta.get("content_block")) is not None and content_block.get(
@@ -664,14 +665,15 @@ class AnthropicChatGenerator:
                 ) == "redacted_thinking":
                     redacted_thinking += content_block.get("data", "")
 
-            reasoning = (
-                ReasoningContent(
-                    reasoning_text=reasoning_content,
-                    extra={"signature": reasoning_signature, "redacted_thinking": redacted_thinking},
+            reasoning = None
+            if reasoning_text or reasoning_signature or redacted_thinking:
+                reasoning = ReasoningContent(
+                    reasoning_text=reasoning_text,
                 )
-                if reasoning_content or reasoning_signature or redacted_thinking
-                else None
-            )
+                if reasoning_signature:
+                    reasoning.extra["signature"] = reasoning_signature
+                if redacted_thinking:
+                    reasoning.extra["redacted_thinking"] = redacted_thinking
 
             completion.meta.update(
                 {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},
@@ -746,13 +748,13 @@ class AnthropicChatGenerator:
                         await streaming_callback(streaming_chunk)
 
             completion = _convert_streaming_chunks_to_chat_message(chunks)
-            reasoning_content = ""
+            reasoning_text = ""
             reasoning_signature = ""
             redacted_thinking = ""
             for streaming_chunk in chunks:
                 if (delta := streaming_chunk.meta.get("delta")) is not None:
                     if delta.get("type") == "thinking_delta" and delta.get("thinking") is not None:
-                        reasoning_content += delta.get("thinking", "")
+                        reasoning_text += delta.get("thinking", "")
                     if delta.get("type") == "signature_delta" and delta.get("signature") is not None:
                         reasoning_signature += delta.get("signature", "")
                 if (content_block := streaming_chunk.meta.get("content_block")) is not None and content_block.get(
@@ -760,14 +762,16 @@ class AnthropicChatGenerator:
                 ) == "redacted_thinking":
                     redacted_thinking += content_block.get("data", "")
 
-            reasoning = (
-                ReasoningContent(
-                    reasoning_text=reasoning_content,
-                    extra={"signature": reasoning_signature, "redacted_thinking": redacted_thinking},
+            reasoning = None
+            if reasoning_text or reasoning_signature or redacted_thinking:
+                reasoning = ReasoningContent(
+                    reasoning_text=reasoning_text,
                 )
-                if reasoning_content or reasoning_signature or redacted_thinking
-                else None
-            )
+                if reasoning_signature:
+                    reasoning.extra["signature"] = reasoning_signature
+                if redacted_thinking:
+                    reasoning.extra["redacted_thinking"] = redacted_thinking
+
             completion.meta.update(
                 {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},
             )
