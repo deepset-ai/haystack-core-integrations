@@ -1,23 +1,19 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import base64
 from dataclasses import replace
-from io import BytesIO
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.image.image_utils import (
     _batch_convert_pdf_pages_to_images,
+    _encode_image_to_base64,
     _extract_image_sources_info,
     _PDFPageInfo,
 )
-from haystack.lazy_imports import LazyImport
+from haystack.dataclasses import ByteStream
 from haystack.utils import Secret, deserialize_secrets_inplace
-
-with LazyImport("Run 'pip install pillow'") as pillow_import:
-    from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +37,7 @@ class JinaDocumentImageEmbedder:
 
     # Make sure that the environment variable JINA_API_KEY is set
 
-    embedder = JinaDocumentImageEmbedder(model="jina-clip-v1")
+    embedder = JinaDocumentImageEmbedder(model="jina-clip-v2")
 
     documents = [
         Document(content="A photo of a cat", meta={"file_path": "cat.jpg"}),
@@ -58,11 +54,14 @@ class JinaDocumentImageEmbedder:
 
     def __init__(
         self,
+        *,
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008
-        model: str = "jina-clip-v1",
+        model: str = "jina-clip-v2",
         file_path_meta_field: str = "file_path",
         root_path: Optional[str] = None,
-        dimensions: Optional[int] = None,
+        embedding_dimension: Optional[int] = None,
+        image_size: Optional[Tuple[int, int]] = None,
+        batch_size: int = 5,
     ):
         """
         Create a JinaDocumentImageEmbedder component.
@@ -71,18 +70,20 @@ class JinaDocumentImageEmbedder:
             environment variable `JINA_API_KEY` (recommended).
         :param model: The name of the Jina multimodal model to use.
             Supported models include:
-            - "jina-clip-v1" (default)
-            - "jina-clip-v2"
+            - "jina-clip-v1"
+            - "jina-clip-v2" (default)
             - "jina-embeddings-v4"
             Check the list of available models on [Jina documentation](https://jina.ai/embeddings/).
         :param file_path_meta_field: The metadata field in the Document that contains the file path to the image or PDF.
         :param root_path: The root directory path where document files are located. If provided, file paths in
             document metadata will be resolved relative to this path. If None, file paths are treated as absolute paths.
-        :param dimensions: Number of desired dimensions for the embedding.
+        :param embedding_dimension: Number of desired dimensions for the embedding.
             Smaller dimensions are easier to store and retrieve, with minimal performance impact thanks to MRL.
             Only supported by jina-embeddings-v4.
+        :param image_size: If provided, resizes the image to fit within the specified dimensions (width, height) while
+            maintaining aspect ratio. This reduces file size, memory usage, and processing time.
+        :param batch_size: Number of images to send in each API request. Defaults to 5.
         """
-        pillow_import.check()
 
         resolved_api_key = api_key.resolve_value()
 
@@ -90,7 +91,9 @@ class JinaDocumentImageEmbedder:
         self.model_name = model
         self.file_path_meta_field = file_path_meta_field
         self.root_path = root_path or ""
-        self.dimensions = dimensions
+        self.embedding_dimension = embedding_dimension
+        self.image_size = image_size
+        self.batch_size = batch_size
         self._session = requests.Session()
         self._session.headers.update(
             {
@@ -113,15 +116,16 @@ class JinaDocumentImageEmbedder:
         :returns:
             Dictionary with serialized data.
         """
-        kwargs: Dict[str, Any] = {
-            "api_key": self.api_key.to_dict(),
-            "model": self.model_name,
-            "file_path_meta_field": self.file_path_meta_field,
-            "root_path": self.root_path,
-        }
-        if self.dimensions is not None:
-            kwargs["dimensions"] = self.dimensions
-        return default_to_dict(self, **kwargs)
+        return default_to_dict(
+            self,
+            api_key=self.api_key.to_dict(),
+            model=self.model_name,
+            file_path_meta_field=self.file_path_meta_field,
+            root_path=self.root_path,
+            embedding_dimension=self.embedding_dimension,
+            image_size=self.image_size,
+            batch_size=self.batch_size,
+        )
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "JinaDocumentImageEmbedder":
@@ -136,57 +140,41 @@ class JinaDocumentImageEmbedder:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    def _image_to_base64(self, image: "Image.Image") -> str:
+    def _extract_images_to_embed(self, documents: List[Document]) -> List[str]:
         """
-        Convert PIL Image to base64 string.
+        Validates the input documents and extracts the images to embed in the format expected by the Jina API.
 
-        :param image: PIL Image object
-        :returns: Base64 encoded string
-        """
-        buffered = BytesIO()
-        # Convert to RGB if necessary (for RGBA, P mode images)
-        if image.mode in ("RGBA", "P", "L"):
-            image = image.convert("RGB")
-        image.save(buffered, format="JPEG")
-        img_str = base64.b64encode(buffered.getvalue()).decode()
-        return f"data:image/jpeg;base64,{img_str}"
+        :param documents:
+            Documents to embed.
 
-    @component.output_types(documents=List[Document])
-    def run(self, documents: List[Document]) -> Dict[str, List[Document]]:
-        """
-        Embed a list of documents with images.
+        :returns:
+            List of images to embed in the format expected by the Jina API.
 
-        :param documents: Documents to embed. Each document should have image file path in metadata.
-        :returns: A dictionary with the following keys:
-            - `documents`: Documents with embeddings.
-        :raises TypeError: If the input is not a list of Documents.
-        :raises RuntimeError: If image conversion fails or API request fails.
+        :raises TypeError:
+            If the input is not a list of `Documents`.
+        :raises RuntimeError:
+            If the conversion of some documents fails.
         """
-        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
+        if not isinstance(documents, list) or not all(isinstance(d, Document) for d in documents):
             msg = (
                 "JinaDocumentImageEmbedder expects a list of Documents as input. "
                 "In case you want to embed a string, please use the JinaTextEmbedder."
             )
             raise TypeError(msg)
 
-        if not documents:
-            return {"documents": []}
-
-        # Extract image source information from documents
         images_source_info = _extract_image_sources_info(
             documents=documents, file_path_meta_field=self.file_path_meta_field, root_path=self.root_path
         )
 
-        images_to_embed: List = [None] * len(documents)
+        images_to_embed: List[Optional[str]] = [None] * len(documents)
         pdf_page_infos: List[_PDFPageInfo] = []
 
-        # Process documents to extract images
         for doc_idx, image_source_info in enumerate(images_source_info):
             if image_source_info["mime_type"] == "application/pdf":
                 # Store PDF documents for later processing
                 page_number = image_source_info.get("page_number")
                 if page_number is None:
-                    msg = f"PDF page number is required for document {doc_idx}"
+                    msg = f"Page number is required for PDF document at index {doc_idx}"
                     raise ValueError(msg)
                 pdf_page_info: _PDFPageInfo = {
                     "doc_idx": doc_idx,
@@ -196,53 +184,80 @@ class JinaDocumentImageEmbedder:
                 pdf_page_infos.append(pdf_page_info)
             else:
                 # Process images directly
-                image = Image.open(image_source_info["path"])
-                images_to_embed[doc_idx] = image
+                image_byte_stream = ByteStream.from_file_path(
+                    filepath=image_source_info["path"], mime_type=image_source_info["mime_type"]
+                )
+                mime_type, base64_image = _encode_image_to_base64(bytestream=image_byte_stream, size=self.image_size)
+                images_to_embed[doc_idx] = f"data:{mime_type};base64,{base64_image}"
 
-        # Convert PDF pages to images
-        pdf_images_by_doc_idx = _batch_convert_pdf_pages_to_images(pdf_page_infos=pdf_page_infos, return_base64=False)
-        for doc_idx, pil_image in pdf_images_by_doc_idx.items():
-            images_to_embed[doc_idx] = pil_image
+        base64_jpeg_images_by_doc_idx = _batch_convert_pdf_pages_to_images(
+            pdf_page_infos=pdf_page_infos, return_base64=True, size=self.image_size
+        )
+        for doc_idx, base64_jpeg_image in base64_jpeg_images_by_doc_idx.items():
+            images_to_embed[doc_idx] = f"data:image/jpeg;base64,{base64_jpeg_image}"
 
-        # Check for failed conversions
         none_images_doc_ids = [documents[doc_idx].id for doc_idx, image in enumerate(images_to_embed) if image is None]
         if none_images_doc_ids:
             msg = f"Conversion failed for some documents. Document IDs: {none_images_doc_ids}."
             raise RuntimeError(msg)
 
-        # Convert images to base64 for API
-        image_inputs = []
-        for image in images_to_embed:
-            base64_image = self._image_to_base64(image)
-            image_inputs.append(base64_image)
+        # tested above that image is not None, but mypy doesn't know that
+        return images_to_embed  # type: ignore[return-value]
 
-        # Prepare request parameters
-        parameters: Dict[str, Any] = {}
-        if self.dimensions is not None:
-            parameters["dimensions"] = self.dimensions
+    @component.output_types(documents=List[Document])
+    def run(self, documents: List[Document]) -> Dict[str, List[Document]]:
+        """
+        Embed a list of image documents.
 
-        # Make API request
-        try:
-            resp = self._session.post(
-                JINA_API_URL,
-                json={"input": image_inputs, "model": self.model_name, **parameters},
-            ).json()
-        except Exception as e:
-            msg = f"Error calling Jina API: {e}"
-            raise RuntimeError(msg) from e
+        :param documents:
+            Documents to embed.
 
-        if "data" not in resp:
-            error_msg = resp.get("detail", "Unknown error occurred")
-            msg = f"Jina API error: {error_msg}"
-            raise RuntimeError(msg)
+        :returns:
+            A dictionary with the following keys:
+            - `documents`: Documents with embeddings.
+        """
 
-        # Extract embeddings
-        embeddings = [item["embedding"] for item in resp["data"]]
+        if not documents:
+            return {"documents": []}
 
-        # Create new documents with embeddings
+        images_to_embed = self._extract_images_to_embed(documents)
+
+        embeddings = []
+
+        # Process images in batches
+        for i in range(0, len(images_to_embed), self.batch_size):
+            batch_images = images_to_embed[i : i + self.batch_size]
+
+            # Prepare request parameters
+            parameters: Dict[str, Any] = {}
+            if self.embedding_dimension is not None:
+                parameters["dimensions"] = self.embedding_dimension
+
+            try:
+                response = self._session.post(
+                    JINA_API_URL,
+                    json={
+                        "input": batch_images,
+                        "model": self.model_name,
+                        **parameters,
+                    },
+                )
+                resp = response.json()
+            except Exception as e:
+                msg = f"Error calling Jina API: {e}"
+                raise RuntimeError(msg) from e
+
+            if "data" not in resp:
+                error_msg = resp.get("detail", "Unknown error occurred")
+                msg = f"Jina API error: {error_msg}"
+                raise RuntimeError(msg)
+
+            batch_embeddings = [item["embedding"] for item in resp["data"]]
+            embeddings.extend(batch_embeddings)
+
         docs_with_embeddings = []
         for doc, emb in zip(documents, embeddings):
-            # Store this information for later inspection
+            # we store this information for later inspection
             new_meta = {
                 **doc.meta,
                 "embedding_source": {"type": "image", "file_path_meta_field": self.file_path_meta_field},

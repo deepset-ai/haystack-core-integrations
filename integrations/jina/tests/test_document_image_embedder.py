@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+import os
+import tempfile
 from unittest.mock import Mock, patch
 
 import pytest
@@ -9,6 +11,11 @@ from haystack.utils.auth import Secret
 
 from haystack_integrations.components.embedders.jina.document_image_embedder import JinaDocumentImageEmbedder
 
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
+
 MOCK_EMBEDDING_DIM = 512
 
 
@@ -16,10 +23,12 @@ class TestJinaDocumentImageEmbedder:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
         embedder = JinaDocumentImageEmbedder()
-        assert embedder.model_name == "jina-clip-v1"
+        assert embedder.model_name == "jina-clip-v2"
         assert embedder.file_path_meta_field == "file_path"
         assert embedder.root_path == ""
-        assert embedder.dimensions is None
+        assert embedder.embedding_dimension is None
+        assert embedder.image_size is None
+        assert embedder.batch_size == 5
         assert embedder.api_key == Secret.from_env_var("JINA_API_KEY")
 
     def test_init_with_parameters(self):
@@ -28,12 +37,16 @@ class TestJinaDocumentImageEmbedder:
             model="jina-embeddings-v4",
             file_path_meta_field="custom_file_path",
             root_path="/custom/root",
-            dimensions=256,
+            embedding_dimension=256,
+            image_size=(512, 512),
+            batch_size=5,
         )
         assert embedder.model_name == "jina-embeddings-v4"
         assert embedder.file_path_meta_field == "custom_file_path"
         assert embedder.root_path == "/custom/root"
-        assert embedder.dimensions == 256
+        assert embedder.embedding_dimension == 256
+        assert embedder.image_size == (512, 512)
+        assert embedder.batch_size == 5
         assert embedder.api_key == Secret.from_token("fake-api-token")
 
     def test_to_dict(self, monkeypatch):
@@ -43,7 +56,9 @@ class TestJinaDocumentImageEmbedder:
             model="jina-clip-v2",
             file_path_meta_field="image_path",
             root_path="/images",
-            dimensions=512,
+            embedding_dimension=512,
+            image_size=(256, 256),
+            batch_size=5,
         )
         data = component.to_dict()
         expected = {
@@ -53,7 +68,9 @@ class TestJinaDocumentImageEmbedder:
                 "model": "jina-clip-v2",
                 "file_path_meta_field": "image_path",
                 "root_path": "/images",
-                "dimensions": 512,
+                "embedding_dimension": 512,
+                "image_size": (256, 256),
+                "batch_size": 5,
             },
         }
         assert data == expected
@@ -67,50 +84,48 @@ class TestJinaDocumentImageEmbedder:
                 "model": "jina-clip-v2",
                 "file_path_meta_field": "image_path",
                 "root_path": "/images",
-                "dimensions": 512,
+                "embedding_dimension": 512,
+                "image_size": (256, 256),
+                "batch_size": 5,
             },
         }
         component = JinaDocumentImageEmbedder.from_dict(data)
         assert component.model_name == "jina-clip-v2"
         assert component.file_path_meta_field == "image_path"
         assert component.root_path == "/images"
-        assert component.dimensions == 512
+        assert component.embedding_dimension == 512
+        assert component.image_size == (256, 256)
+        assert component.batch_size == 5
         assert component.api_key == Secret.from_env_var("JINA_API_KEY")
 
     def test_run_wrong_input_format(self):
         embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
-        with patch("haystack_integrations.components.embedders.jina.document_image_embedder.pillow_import"):
-            list_integers_input = [1, 2, 3]
-            with pytest.raises(TypeError, match="JinaDocumentImageEmbedder expects a list of Documents as input"):
-                embedder.run(documents=list_integers_input)
+        list_integers_input = [1, 2, 3]
+        with pytest.raises(TypeError, match="JinaDocumentImageEmbedder expects a list of Documents as input"):
+            embedder.run(documents=list_integers_input)
 
-            string_input = "text"
-            with pytest.raises(TypeError, match="JinaDocumentImageEmbedder expects a list of Documents as input"):
-                embedder.run(documents=string_input)
+        string_input = "text"
+        with pytest.raises(TypeError, match="JinaDocumentImageEmbedder expects a list of Documents as input"):
+            embedder.run(documents=string_input)
 
     def test_run_on_empty_list(self):
         embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
-        with patch("haystack_integrations.components.embedders.jina.document_image_embedder.pillow_import"):
-            empty_list_input = []
-            result = embedder.run(documents=empty_list_input)
-            assert result == {"documents": []}
+        empty_list_input = []
+        result = embedder.run(documents=empty_list_input)
+        assert result == {"documents": []}
 
-    @patch("haystack_integrations.components.embedders.jina.document_image_embedder.pillow_import")
-    @patch("haystack_integrations.components.embedders.jina.document_image_embedder._extract_image_sources_info")
-    @patch("haystack_integrations.components.embedders.jina.document_image_embedder.Image")
-    def test_run_with_successful_request(self, mock_image, mock_extract, _mock_pillow):
+    def test_run_with_successful_request(self):
         documents = [Document(content="Test image", meta={"file_path": "test.jpg"})]
-        mock_extract.return_value = [{"path": "test.jpg", "mime_type": "image/jpeg"}]
-        mock_pil_image = Mock()
-        mock_image.open.return_value = mock_pil_image
 
         embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
-        with patch.object(embedder, "_image_to_base64", return_value="data:image/jpeg;base64,fake_base64"):
+
+        # Mock the _extract_images_to_embed method to return base64 image data
+        with patch.object(embedder, "_extract_images_to_embed", return_value=["data:image/jpeg;base64,fake_base64"]):
             with patch.object(embedder._session, "post") as mock_post:
                 mock_response = Mock()
                 mock_response.json.return_value = {
                     "data": [{"embedding": [1.0] * MOCK_EMBEDDING_DIM}],
-                    "model": "jina-clip-v1",
+                    "model": "jina-clip-v2",
                     "usage": {"prompt_tokens": 1, "total_tokens": 1},
                 }
                 mock_post.return_value = mock_response
@@ -121,17 +136,13 @@ class TestJinaDocumentImageEmbedder:
                 assert result["documents"][0].embedding == [1.0] * MOCK_EMBEDDING_DIM
                 assert result["documents"][0].meta["embedding_source"]["type"] == "image"
 
-    @patch("haystack_integrations.components.embedders.jina.document_image_embedder.pillow_import")
-    @patch("haystack_integrations.components.embedders.jina.document_image_embedder._extract_image_sources_info")
-    @patch("haystack_integrations.components.embedders.jina.document_image_embedder.Image")
-    def test_run_with_api_error(self, mock_image, mock_extract, _mock_pillow):
+    def test_run_with_api_error(self):
         documents = [Document(content="Test image", meta={"file_path": "test.jpg"})]
-        mock_extract.return_value = [{"path": "test.jpg", "mime_type": "image/jpeg"}]
-        mock_pil_image = Mock()
-        mock_image.open.return_value = mock_pil_image
 
         embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
-        with patch.object(embedder, "_image_to_base64", return_value="data:image/jpeg;base64,fake_base64"):
+
+        # Mock the _extract_images_to_embed method to return base64 image data
+        with patch.object(embedder, "_extract_images_to_embed", return_value=["data:image/jpeg;base64,fake_base64"]):
             with patch.object(embedder._session, "post") as mock_post:
                 mock_response = Mock()
                 mock_response.json.return_value = {"detail": "API Error occurred"}
@@ -139,22 +150,40 @@ class TestJinaDocumentImageEmbedder:
                 with pytest.raises(RuntimeError, match="Jina API error: API Error occurred"):
                     embedder.run(documents=documents)
 
-    def test_image_to_base64(self):
-        embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
-        with patch("haystack_integrations.components.embedders.jina.document_image_embedder.pillow_import"):
-            mock_pil_image = Mock()
-            mock_pil_image.mode = "RGB"
-            mock_pil_image.save = Mock()
-
-            with patch("base64.b64encode") as mock_b64encode:
-                mock_b64encode.return_value = b"fake_base64"
-                result = embedder._image_to_base64(mock_pil_image)
-
-                assert result == "data:image/jpeg;base64,fake_base64"
-                mock_pil_image.save.assert_called_once()
-
     def test_get_telemetry_data(self):
         embedder = JinaDocumentImageEmbedder(model="jina-embeddings-v4", api_key=Secret.from_token("fake-api-key"))
-        with patch("haystack_integrations.components.embedders.jina.document_image_embedder.pillow_import"):
-            telemetry_data = embedder._get_telemetry_data()
-            assert telemetry_data == {"model": "jina-embeddings-v4"}
+        telemetry_data = embedder._get_telemetry_data()
+        assert telemetry_data == {"model": "jina-embeddings-v4"}
+
+    @pytest.mark.skipif(not os.environ.get("JINA_API_KEY", None), reason="JINA_API_KEY not set")
+    @pytest.mark.skipif(Image is None, reason="PIL not available")
+    @pytest.mark.integration
+    def test_run_integration(self):
+        """Integration test for JinaDocumentImageEmbedder."""
+        embedder = JinaDocumentImageEmbedder(model="jina-clip-v2")
+
+        # Create a simple test image
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp_file:
+            # Create a simple RGB image (100x100 red square)
+            test_image = Image.new("RGB", (100, 100), color="red")
+            test_image.save(tmp_file.name, "JPEG")
+
+            # Create document with the test image
+            documents = [Document(content="A red square", meta={"file_path": tmp_file.name})]
+
+            # Run the embedder
+            result = embedder.run(documents=documents)
+
+            # Verify the results
+            assert "documents" in result
+            assert len(result["documents"]) == 1
+
+            doc = result["documents"][0]
+            assert doc.embedding is not None
+            assert isinstance(doc.embedding, list)
+            assert len(doc.embedding) > 0  # Should have embedding dimensions
+            assert all(isinstance(x, (int, float)) for x in doc.embedding)
+            assert doc.meta["embedding_source"]["type"] == "image"
+
+            # Clean up
+            os.unlink(tmp_file.name)
