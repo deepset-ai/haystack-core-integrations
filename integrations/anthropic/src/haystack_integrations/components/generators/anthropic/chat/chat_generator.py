@@ -37,6 +37,7 @@ from anthropic.resources.messages.messages import Message, RawMessageStreamEvent
 from anthropic.types import (
     ImageBlockParam,
     MessageParam,
+    RedactedThinkingBlockParam,
     TextBlockParam,
     ThinkingBlockParam,
     ToolParam,
@@ -65,7 +66,16 @@ FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
 
 def _update_anthropic_message_with_tool_call_results(
     tool_call_results: List[ToolCallResult],
-    content: List[Union[TextBlockParam, ToolUseBlockParam, ToolResultBlockParam, ImageBlockParam, ThinkingBlockParam]],
+    content: List[
+        Union[
+            TextBlockParam,
+            ToolUseBlockParam,
+            ToolResultBlockParam,
+            ImageBlockParam,
+            ThinkingBlockParam,
+            RedactedThinkingBlockParam,
+        ]
+    ],
 ) -> None:
     """
     Update an Anthropic message content list with tool call results.
@@ -141,7 +151,14 @@ def _convert_messages_to_anthropic_format(
             continue
 
         content: List[
-            Union[TextBlockParam, ToolUseBlockParam, ToolResultBlockParam, ImageBlockParam, ThinkingBlockParam]
+            Union[
+                TextBlockParam,
+                ToolUseBlockParam,
+                ToolResultBlockParam,
+                ImageBlockParam,
+                ThinkingBlockParam,
+                RedactedThinkingBlockParam,
+            ]
         ] = []
 
         # Handle multimodal content (text and images) preserving order
@@ -152,6 +169,13 @@ def _convert_messages_to_anthropic_format(
                     text_block["cache_control"] = cache_control
                 content.append(text_block)
             elif isinstance(part, ReasoningContent):
+                if part.extra and part.extra.get("redacted_thinking"):
+                    redacted_thinking_block = RedactedThinkingBlockParam(
+                        type="redacted_thinking",
+                        data=str(part.extra.get("redacted_thinking")),
+                    )
+                    content.append(redacted_thinking_block)
+
                 reasoning_block = ThinkingBlockParam(
                     type="thinking",
                     thinking=part.reasoning_text,
@@ -442,16 +466,20 @@ class AnthropicChatGenerator:
 
         reasoning_text = ""
         reasoning_signature = ""
+        redacted_thinking = ""
         for block in anthropic_response.content:
             if block.type == "thinking":
                 reasoning_text = block.thinking
                 reasoning_signature = block.signature
             elif block.type == "redacted_thinking":
-                reasoning_text += block.data
+                redacted_thinking += block.data
 
         reasoning = (
-            ReasoningContent(reasoning_text=reasoning_text, extra={"signature": reasoning_signature})
-            if reasoning_text or reasoning_signature
+            ReasoningContent(
+                reasoning_text=reasoning_text,
+                extra={"signature": reasoning_signature, "redacted_thinking": redacted_thinking},
+            )
+            if reasoning_text or reasoning_signature or redacted_thinking
             else None
         )
 
