@@ -175,14 +175,14 @@ def _convert_messages_to_anthropic_format(
                         data=str(part.extra.get("redacted_thinking")),
                     )
                     content.append(redacted_thinking_block)
-
-                reasoning_block = ThinkingBlockParam(
-                    type="thinking",
-                    thinking=part.reasoning_text,
-                    # signature is always a str, but mypy doesnt know that
-                    signature=part.extra.get("signature") if part.extra else "",  # type: ignore [typeddict-item]
-                )
-                content.append(reasoning_block)
+                elif part.reasoning_text or part.extra.get("signature"):
+                    reasoning_block = ThinkingBlockParam(
+                        type="thinking",
+                        thinking=part.reasoning_text,
+                        # signature is always a str, but mypy doesnt know that
+                        signature=part.extra.get("signature") if part.extra else "",  # type: ignore [typeddict-item]
+                    )
+                    content.append(reasoning_block)
 
             elif isinstance(part, ImageContent):
                 if not message.is_from(ChatRole.USER):
@@ -652,6 +652,7 @@ class AnthropicChatGenerator:
 
             reasoning_content = ""
             reasoning_signature = ""
+            redacted_thinking = ""
             for streaming_chunk in chunks:
                 if (delta := streaming_chunk.meta.get("delta")) is not None:
                     if delta.get("type") == "thinking_delta" and delta.get("thinking") is not None:
@@ -661,11 +662,14 @@ class AnthropicChatGenerator:
                 if (content_block := streaming_chunk.meta.get("content_block")) is not None and content_block.get(
                     "type"
                 ) == "redacted_thinking":
-                    reasoning_content += content_block.get("data", "")
+                    redacted_thinking += content_block.get("data", "")
 
             reasoning = (
-                ReasoningContent(reasoning_text=reasoning_content, extra={"signature": reasoning_signature})
-                if reasoning_content or reasoning_signature
+                ReasoningContent(
+                    reasoning_text=reasoning_content,
+                    extra={"signature": reasoning_signature, "redacted_thinking": redacted_thinking},
+                )
+                if reasoning_content or reasoning_signature or redacted_thinking
                 else None
             )
 
@@ -744,6 +748,7 @@ class AnthropicChatGenerator:
             completion = _convert_streaming_chunks_to_chat_message(chunks)
             reasoning_content = ""
             reasoning_signature = ""
+            redacted_thinking = ""
             for streaming_chunk in chunks:
                 if (delta := streaming_chunk.meta.get("delta")) is not None:
                     if delta.get("type") == "thinking_delta" and delta.get("thinking") is not None:
@@ -753,11 +758,14 @@ class AnthropicChatGenerator:
                 if (content_block := streaming_chunk.meta.get("content_block")) is not None and content_block.get(
                     "type"
                 ) == "redacted_thinking":
-                    reasoning_content += content_block.get("data", "")
+                    redacted_thinking += content_block.get("data", "")
 
             reasoning = (
-                ReasoningContent(reasoning_text=reasoning_content, extra={"signature": reasoning_signature})
-                if reasoning_content or reasoning_signature
+                ReasoningContent(
+                    reasoning_text=reasoning_content,
+                    extra={"signature": reasoning_signature, "redacted_thinking": redacted_thinking},
+                )
+                if reasoning_content or reasoning_signature or redacted_thinking
                 else None
             )
             completion.meta.update(
