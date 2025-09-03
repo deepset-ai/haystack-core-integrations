@@ -844,7 +844,7 @@ class TestAnthropicChatGenerator:
 
         message = _convert_streaming_chunks_to_chat_message(chunks)
 
-        # Cannot conversion of reasoning content in streaming chunks
+        # Cannot test creating ReasoningContent from StreamingChunk objects
         # because reasoning is added outside _convert_streaming_chunks_to_chat_message
 
         # Verify the message content
