@@ -384,7 +384,7 @@ class TestAnthropicChatGenerator:
         )
         assert chat_message.text == "I'll provide the answers!"
         assert chat_message.reasoning.reasoning_text == "User has asked 2 questions"
-        assert chat_message.reasoning.extra == {"signature": "sign1", "redacted_thinking": ""}
+        assert chat_message.reasoning.extra == {"signature": "sign1"}
         assert chat_message.meta["model"] == "claude-sonnet-4-20250514"
         assert chat_message.meta["finish_reason"] == "tool_calls"
         assert "usage" in chat_message.meta

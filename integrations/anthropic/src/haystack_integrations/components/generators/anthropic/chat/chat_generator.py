@@ -469,10 +469,10 @@ class AnthropicChatGenerator:
         redacted_thinking = ""
         for block in anthropic_response.content:
             if block.type == "thinking":
-                reasoning_text += block.thinking
-                reasoning_signature += block.signature
+                reasoning_text = block.thinking
+                reasoning_signature = block.signature
             elif block.type == "redacted_thinking":
-                redacted_thinking += block.data
+                redacted_thinking = block.data
 
         reasoning = None
         if reasoning_text or reasoning_signature or redacted_thinking:
