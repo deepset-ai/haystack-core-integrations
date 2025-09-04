@@ -1,24 +1,20 @@
 import os
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock
 
 import pytest
+from cohere import UserChatMessageV2
 from cohere.core import ApiError
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, ToolCall
+from haystack.dataclasses.streaming_chunk import StreamingChunk
 from haystack.tools import Tool
 from haystack.utils import Secret
 
-from haystack_integrations.components.generators.cohere import (
-    CohereChatGenerator,
-)
+from haystack_integrations.components.generators.cohere import CohereChatGenerator
 from haystack_integrations.components.generators.cohere.chat.chat_generator import (
-    _finalize_streaming_message,
     _format_message,
-    _initialize_streaming_state,
-    _parse_streaming_response,
-    _process_cohere_chunk,
 )
 
 
@@ -30,7 +26,7 @@ def stock_price(ticker: str):
     return f"The current price of {ticker} is $100"
 
 
-class TestUtils:
+class TestFormatMessage:
     def test_format_message_empty_message_raises_error(self):
         message = ChatMessage.from_user("")
 
@@ -40,7 +36,7 @@ class TestUtils:
     def test_format_message_tool_call_result_with_none_id_raises_error(self):
         tool_call = ToolCall(id=None, tool_name="test_tool", arguments={})
 
-        message = ChatMessage.from_tool(tool_result="test result", origin=tool_call, error="no error")
+        message = ChatMessage.from_tool(tool_result="test result", origin=tool_call, error=False)
 
         with pytest.raises(ValueError):
             _format_message(message)
@@ -53,139 +49,101 @@ class TestUtils:
         with pytest.raises(ValueError):
             _format_message(message)
 
-    def test_process_cohere_chunk_none_chunk_returns_none(self):
-        state = _initialize_streaming_state()
-        result = _process_cohere_chunk(None, state, "test-model")
-        assert result is None
+    def test_format_message_with_image(self):
+        """Test that a ChatMessage with ImageContent is converted to Cohere format correctly."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
 
-    def test_process_cohere_chunk_unknown_type_returns_none(self):
-        chunk = Mock()
-        chunk.type = "unknown-type"
-        state = _initialize_streaming_state()
+        formatted_message = _format_message(message)
 
-        result = _process_cohere_chunk(chunk, state, "test-model")
-        assert result is None
+        assert isinstance(formatted_message, UserChatMessageV2)
+        assert formatted_message.role == "user"
+        assert isinstance(formatted_message.content, list)
+        assert len(formatted_message.content) == 2
 
-    def test_process_cohere_chunk_tool_call_end_without_current_tool_call(self):
-        chunk = Mock()
-        chunk.type = "tool-call-end"
+        # Check text content
+        assert formatted_message.content[0].type == "text"
+        assert formatted_message.content[0].text == "What's in this image?"
 
-        state = _initialize_streaming_state()
-        state["current_tool_call"] = None  # Explicitly set to None
+        # Check image content
+        assert formatted_message.content[1].type == "image_url"
+        assert hasattr(formatted_message.content[1], "image_url")
+        assert hasattr(formatted_message.content[1].image_url, "url")
+        assert formatted_message.content[1].image_url.url == f"data:image/png;base64,{base64_image}"
 
-        result = _process_cohere_chunk(chunk, state, "test-model")
+    def test_format_message_with_unsupported_mime_type(self):
+        """Test that a ChatMessage with unsupported mime type raises ValueError."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/bmp")
+        message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
 
-        assert result is None
-        assert len(state["tool_calls"]) == 0
+        with pytest.raises(ValueError, match="Unsupported image format: image/bmp"):
+            _format_message(message)
 
-    def test_process_cohere_chunk_tool_call_complete_flow(self):
-        state = _initialize_streaming_state()
-        model = "test-model"
+    def test_format_message_with_none_mime_type(self):
+        """Test that a ChatMessage with None mime type raises ValueError."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        # Manually set mime_type to None to test the edge case
+        image_content.mime_type = None
+        message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
 
-        # Tool call start
-        start_chunk = Mock()
-        start_chunk.type = "tool-call-start"
-        start_chunk.delta.message.tool_calls.id = "test-id"
-        start_chunk.delta.message.tool_calls.function.name = "test_function"
+        with pytest.raises(ValueError, match="Unsupported image format: None"):
+            _format_message(message)
 
-        _process_cohere_chunk(start_chunk, state, model)
-        assert state["current_tool_call"] is not None
-        assert state["current_tool_call"].id == "test-id"
+    def test_format_message_image_in_non_user_message(self):
+        """Test that images in non-user messages raise ValueError."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        # Create assistant message with both text and image (should fail because image in assistant message)
+        message = ChatMessage.from_assistant(text="Here's an image.")
+        message._content.append(image_content)  # Add image to assistant message
 
-        # Tool call delta
-        delta_chunk = Mock()
-        delta_chunk.type = "tool-call-delta"
-        delta_chunk.delta.message.tool_calls.function.arguments = '{"key": "value"'
+        with pytest.raises(ValueError, match="`ImageContent` is only supported for user messages."):
+            _format_message(message)
 
-        _process_cohere_chunk(delta_chunk, state, model)
-        assert state["current_tool_arguments"] == '{"key": "value"'
-
-        # Another delta to complete the JSON
-        delta_chunk2 = Mock()
-        delta_chunk2.type = "tool-call-delta"
-        delta_chunk2.delta.message.tool_calls.function.arguments = "}"
-
-        _process_cohere_chunk(delta_chunk2, state, model)
-        assert state["current_tool_arguments"] == '{"key": "value"}'
-
-        # Tool call end
-        end_chunk = Mock()
-        end_chunk.type = "tool-call-end"
-
-        _process_cohere_chunk(end_chunk, state, model)
-
-        assert len(state["tool_calls"]) == 1
-        assert state["tool_calls"][0].arguments == {"key": "value"}
-        assert state["current_tool_call"] is None
-        assert state["current_tool_arguments"] == ""
-
-    def test_finalize_streaming_message_with_tool_calls(self):
-        state = {
-            "response_text": "",
-            "tool_plan": "I need to check the weather",
-            "tool_calls": [ToolCall(id="test-id", tool_name="weather", arguments={"city": "Paris"})],
-            "current_tool_call": None,
-            "current_tool_arguments": "",
-            "captured_meta": {
-                "model": "test-model",
-                "finish_reason": "COMPLETE",
-                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-            },
-        }
-
-        message = _finalize_streaming_message(state)
-
-        assert message.text == "I need to check the weather"
-        assert len(message.tool_calls) == 1
-        assert message.tool_calls[0].tool_name == "weather"
-        assert message.meta["model"] == "test-model"
-
-    def test_finalize_streaming_message_without_tool_calls(self):
-        state = {
-            "response_text": "Simple response text",
-            "tool_plan": "",
-            "tool_calls": [],
-            "current_tool_call": None,
-            "current_tool_arguments": "",
-            "captured_meta": {
-                "model": "test-model",
-                "finish_reason": "COMPLETE",
-                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-            },
-        }
-
-        message = _finalize_streaming_message(state)
-
-        assert message.text == "Simple response text"
-        assert len(message.tool_calls) == 0
-        assert message.meta["model"] == "test-model"
-
-    def test_parse_streaming_response_uses_component_info(self):
-        mock_cohere_chunk = MagicMock()
-        mock_cohere_chunk.type = "content-delta"
-        mock_cohere_chunk.delta.message.content.text = "Hello"
-
-        mock_response = [mock_cohere_chunk]
-
-        captured_chunks = []
-
-        def callback(chunk: StreamingChunk):
-            captured_chunks.append(chunk)
-
-        component_info = ComponentInfo(name="test_component", type="test_type")
-
-        message = _parse_streaming_response(
-            response=mock_response,
-            model="test-model",
-            streaming_callback=callback,
-            component_info=component_info,
+    def test_supported_image_formats(self):
+        """Test that all supported image formats work correctly."""
+        supported_formats = ["image/png", "image/jpeg", "image/webp", "image/gif"]
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
         )
 
-        assert len(captured_chunks) == 1
-        assert captured_chunks[0].component_info == component_info
-        assert captured_chunks[0].content == "Hello"
+        for mime_type in supported_formats:
+            image_content = ImageContent(base64_image=base64_image, mime_type=mime_type)
+            message = ChatMessage.from_user(content_parts=["Test image", image_content])
 
-        assert message.text == "Hello"
+            # Should not raise any exception
+            formatted_message = _format_message(message)
+            assert formatted_message is not None
+            assert isinstance(formatted_message, UserChatMessageV2)
+
+    def test_multiple_images_in_single_message(self):
+        """Test handling multiple images in a single message."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image1 = ImageContent(base64_image=base64_image, mime_type="image/png")
+        image2 = ImageContent(base64_image=base64_image, mime_type="image/jpeg")
+
+        message = ChatMessage.from_user(content_parts=["Compare these images:", image1, image2])
+
+        formatted_message = _format_message(message)
+
+        assert isinstance(formatted_message, UserChatMessageV2)
+        assert len(formatted_message.content) == 3  # 1 text + 2 images
+        assert formatted_message.content[0].type == "text"
+        assert formatted_message.content[1].type == "image_url"
+        assert formatted_message.content[2].type == "image_url"
 
 
 class TestCohereChatGenerator:
@@ -194,7 +152,7 @@ class TestCohereChatGenerator:
 
         component = CohereChatGenerator()
         assert component.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
-        assert component.model == "command-r-08-2024"
+        assert component.model == "command-r-plus"
         assert component.streaming_callback is None
         assert component.api_base_url == "https://api.cohere.com"
         assert not component.generation_kwargs
@@ -232,7 +190,7 @@ class TestCohereChatGenerator:
         assert data == {
             "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model": "command-r-08-2024",
+                "model": "command-r-plus",
                 "streaming_callback": None,
                 "api_key": {
                     "env_vars": ["COHERE_API_KEY", "CO_API_KEY"],
@@ -284,7 +242,7 @@ class TestCohereChatGenerator:
         data = {
             "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model": "command-r-08-2024",
+                "model": "command-r-plus",
                 "api_base_url": "test-base-url",
                 "api_key": {
                     "env_vars": ["ENV_VAR"],
@@ -299,7 +257,7 @@ class TestCohereChatGenerator:
             },
         }
         component = CohereChatGenerator.from_dict(data)
-        assert component.model == "command-r-08-2024"
+        assert component.model == "command-r-plus"
         assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {
@@ -313,7 +271,7 @@ class TestCohereChatGenerator:
         data = {
             "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model": "command-r-08-2024",
+                "model": "command-r-plus",
                 "api_base_url": "test-base-url",
                 "api_key": {
                     "env_vars": ["COHERE_API_KEY", "CO_API_KEY"],
@@ -345,7 +303,7 @@ class TestCohereChatGenerator:
         )
 
         generator = CohereChatGenerator(
-            model="command-r-08-2024",
+            model="command-r-plus",
             generation_kwargs={"temperature": 0.7},
             streaming_callback=print_streaming_chunk,
             tools=[tool],
@@ -364,7 +322,7 @@ class TestCohereChatGenerator:
                 "generator": {
                     "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",  # noqa: E501
                     "init_parameters": {
-                        "model": "command-r-08-2024",
+                        "model": "command-r-plus",
                         "api_key": {"type": "env_var", "env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True},
                         "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                         "api_base_url": "https://api.cohere.com",
@@ -405,6 +363,48 @@ class TestCohereChatGenerator:
         assert loaded_generator.tools[0].name == generator.tools[0].name
         assert loaded_generator.tools[0].description == generator.tools[0].description
         assert loaded_generator.tools[0].parameters == generator.tools[0].parameters
+
+    def test_run_image(self):
+        """Test multimodal message processing with mocked client."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        messages = [ChatMessage.from_user(content_parts=["What's in this image?", image_content])]
+
+        generator = CohereChatGenerator(api_key=Secret.from_token("test-api-key"))
+
+        # Mock the client's chat method
+        mock_response = MagicMock()
+        mock_response.message.content = [MagicMock()]
+        mock_response.message.content[0].text = "This is a test image response"
+        mock_response.message.tool_calls = None
+        mock_response.finish_reason = "COMPLETE"
+        mock_response.usage = None
+
+        generator.client.chat = MagicMock(return_value=mock_response)
+
+        result = generator.run(messages=messages)
+
+        # Verify the multimodal message was processed correctly
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+        assert result["replies"][0].text == "This is a test image response"
+
+        # Verify the client was called with the correct format
+        generator.client.chat.assert_called_once()
+        call_args = generator.client.chat.call_args
+        formatted_messages = call_args[1]["messages"]
+
+        assert len(formatted_messages) == 1
+        # The multimodal message should be passed as a Cohere object
+        multimodal_msg = formatted_messages[0]
+
+        assert isinstance(multimodal_msg, UserChatMessageV2)
+        assert multimodal_msg.role == "user"
+        assert len(multimodal_msg.content) == 2
+        assert multimodal_msg.content[0].type == "text"
+        assert multimodal_msg.content[1].type == "image_url"
 
 
 @pytest.mark.skipif(
@@ -447,7 +447,7 @@ class TestCohereChatGeneratorInference:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert message.meta["finish_reason"] == "COMPLETE"
+        assert message.meta["finish_reason"] == "stop"
         assert callback.counter > 1
         assert "Paris" in callback.responses
         assert "usage" in message.meta
@@ -631,3 +631,28 @@ class TestCohereChatGeneratorInference:
             "The weather in Paris is sunny and 32°C"
             == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
         )
+
+    def test_live_run_multimodal(self):
+        generator = CohereChatGenerator(
+            model="command-a-vision-07-2025",  # Use a vision model
+        )
+
+        image_content = ImageContent.from_file_path("tests/test_files/apple.jpg")
+
+        messages = [
+            ChatMessage.from_user(
+                content_parts=[
+                    "What do you see in this image? Be concise.",
+                    image_content,
+                ]
+            )
+        ]
+
+        results = generator.run(messages=messages)
+
+        assert isinstance(results, dict)
+        assert "replies" in results
+        assert isinstance(results["replies"], list)
+        assert len(results["replies"]) == 1
+        assert isinstance(results["replies"][0], ChatMessage)
+        assert len(results["replies"][0].text) > 0

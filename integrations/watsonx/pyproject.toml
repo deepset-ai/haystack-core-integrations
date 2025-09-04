@@ -22,7 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
-dependencies = ["haystack-ai>=2.13.1", "ibm-watsonx-ai>=1.3.26", "pandas>=2.2.3"]
+dependencies = ["haystack-ai>=2.17.1", "ibm-watsonx-ai>=1.3.26", "pandas>=2.2.3"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/watsonx#readme"
