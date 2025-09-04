@@ -45,6 +45,8 @@ from anthropic.types import (
     ToolUseBlockParam,
 )
 
+from .utils import _process_reasoning_contents
+
 logger = logging.getLogger(__name__)
 
 
@@ -169,20 +171,22 @@ def _convert_messages_to_anthropic_format(
                     text_block["cache_control"] = cache_control
                 content.append(text_block)
             elif isinstance(part, ReasoningContent):
-                if part.extra and part.extra.get("redacted_thinking"):
-                    redacted_thinking_block = RedactedThinkingBlockParam(
-                        type="redacted_thinking",
-                        data=str(part.extra.get("redacted_thinking")),
-                    )
-                    content.append(redacted_thinking_block)
-                elif part.reasoning_text or part.extra.get("signature"):
-                    reasoning_block = ThinkingBlockParam(
-                        type="thinking",
-                        thinking=part.reasoning_text,
-                        # signature is always a str, but mypy doesnt know that
-                        signature=part.extra.get("signature") if part.extra else "",  # type: ignore [typeddict-item]
-                    )
-                    content.append(reasoning_block)
+                if part.extra:
+                    reasoning_contents = part.extra.get("reasoning_contents", [])
+                    for item in reasoning_contents:
+                        if item.get("reasoning_content").get("redacted_thinking"):
+                            redacted_thinking_block = RedactedThinkingBlockParam(
+                                type="redacted_thinking",
+                                data=str(item.get("reasoning_content").get("redacted_thinking")),
+                            )
+                            content.append(redacted_thinking_block)
+                        elif item.get("reasoning_content").get("reasoning_text"):
+                            reasoning_block = ThinkingBlockParam(
+                                type="thinking",
+                                thinking=item.get("reasoning_content").get("reasoning_text").get("text"),
+                                signature=item.get("reasoning_content").get("reasoning_text").get("signature"),
+                            )
+                            content.append(reasoning_block)
 
             elif isinstance(part, ImageContent):
                 if not message.is_from(ChatRole.USER):
@@ -458,31 +462,31 @@ class AnthropicChatGenerator:
         """
         Converts the response from the Anthropic API to a ChatMessage.
         """
-        tool_calls = [
-            ToolCall(tool_name=block.name, arguments=block.input, id=block.id)
-            for block in anthropic_response.content
-            if block.type == "tool_use"
-        ]
+        tool_calls = []
+        reasoning_contents = []
+        reasoning_text = ""
+
+        for block in anthropic_response.content:
+            reasoning_content: Dict[str, Any] = {}
+            if block.type == "tool_use":
+                tool_calls.append(ToolCall(tool_name=block.name, arguments=block.input, id=block.id))
+            elif block.type == "thinking":
+                reasoning_content["reasoning_text"] = {}
+                reasoning_content["reasoning_text"]["text"] = block.thinking
+                reasoning_content["reasoning_text"]["signature"] = block.signature
+                reasoning_contents.append({"reasoning_content": reasoning_content})
+            elif block.type == "redacted_thinking":
+                reasoning_content["redacted_thinking"] = block.data
+                reasoning_contents.append({"reasoning_content": reasoning_content})
 
         reasoning_text = ""
-        reasoning_signature = ""
-        redacted_thinking = ""
-        for block in anthropic_response.content:
-            if block.type == "thinking":
-                reasoning_text = block.thinking
-                reasoning_signature = block.signature
-            elif block.type == "redacted_thinking":
-                redacted_thinking = block.data
+        for content in reasoning_contents:
+            if "reasoning_text" in content["reasoning_content"]:
+                reasoning_text += content["reasoning_content"]["reasoning_text"]["text"]
+            elif "redacted_thinking" in content["reasoning_content"]:
+                reasoning_text += "[REDACTED]"
 
-        reasoning = None
-        if reasoning_text or reasoning_signature or redacted_thinking:
-            reasoning = ReasoningContent(
-                reasoning_text=reasoning_text,
-            )
-            if reasoning_signature:
-                reasoning.extra["signature"] = reasoning_signature
-            if redacted_thinking:
-                reasoning.extra["redacted_thinking"] = redacted_thinking
+        reasoning = ReasoningContent(reasoning_text=reasoning_text, extra={"reasoning_contents": reasoning_contents})
 
         # Extract and join text blocks, respecting ignore_tools_thinking_messages
         text = ""
@@ -650,30 +654,7 @@ class AnthropicChatGenerator:
                         streaming_callback(streaming_chunk)
 
             completion = _convert_streaming_chunks_to_chat_message(chunks)
-
-            reasoning_text = ""
-            reasoning_signature = ""
-            redacted_thinking = ""
-            for streaming_chunk in chunks:
-                if (delta := streaming_chunk.meta.get("delta")) is not None:
-                    if delta.get("type") == "thinking_delta" and delta.get("thinking") is not None:
-                        reasoning_text += delta.get("thinking", "")
-                    if delta.get("type") == "signature_delta" and delta.get("signature") is not None:
-                        reasoning_signature += delta.get("signature", "")
-                if (content_block := streaming_chunk.meta.get("content_block")) is not None and content_block.get(
-                    "type"
-                ) == "redacted_thinking":
-                    redacted_thinking += content_block.get("data", "")
-
-            reasoning = None
-            if reasoning_text or reasoning_signature or redacted_thinking:
-                reasoning = ReasoningContent(
-                    reasoning_text=reasoning_text,
-                )
-                if reasoning_signature:
-                    reasoning.extra["signature"] = reasoning_signature
-                if redacted_thinking:
-                    reasoning.extra["redacted_thinking"] = redacted_thinking
+            reasoning = _process_reasoning_contents(chunks)
 
             completion.meta.update(
                 {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},
@@ -748,29 +729,7 @@ class AnthropicChatGenerator:
                         await streaming_callback(streaming_chunk)
 
             completion = _convert_streaming_chunks_to_chat_message(chunks)
-            reasoning_text = ""
-            reasoning_signature = ""
-            redacted_thinking = ""
-            for streaming_chunk in chunks:
-                if (delta := streaming_chunk.meta.get("delta")) is not None:
-                    if delta.get("type") == "thinking_delta" and delta.get("thinking") is not None:
-                        reasoning_text += delta.get("thinking", "")
-                    if delta.get("type") == "signature_delta" and delta.get("signature") is not None:
-                        reasoning_signature += delta.get("signature", "")
-                if (content_block := streaming_chunk.meta.get("content_block")) is not None and content_block.get(
-                    "type"
-                ) == "redacted_thinking":
-                    redacted_thinking += content_block.get("data", "")
-
-            reasoning = None
-            if reasoning_text or reasoning_signature or redacted_thinking:
-                reasoning = ReasoningContent(
-                    reasoning_text=reasoning_text,
-                )
-                if reasoning_signature:
-                    reasoning.extra["signature"] = reasoning_signature
-                if redacted_thinking:
-                    reasoning.extra["redacted_thinking"] = redacted_thinking
+            reasoning = _process_reasoning_contents(chunks)
 
             completion.meta.update(
                 {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},

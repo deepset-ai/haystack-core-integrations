@@ -384,7 +384,11 @@ class TestAnthropicChatGenerator:
         )
         assert chat_message.text == "I'll provide the answers!"
         assert chat_message.reasoning.reasoning_text == "User has asked 2 questions"
-        assert chat_message.reasoning.extra == {"signature": "sign1"}
+        assert chat_message.reasoning.extra == {
+            "reasoning_contents": [
+                {"reasoning_content": {"reasoning_text": {"text": "User has asked 2 questions", "signature": "sign1"}}}
+            ]
+        }
         assert chat_message.meta["model"] == "claude-sonnet-4-20250514"
         assert chat_message.meta["finish_reason"] == "tool_calls"
         assert "usage" in chat_message.meta
@@ -1862,6 +1866,7 @@ class TestAnthropicChatGenerator:
         assert new_response.text and len(new_response.text) > 0
         assert new_response.reasoning is not None
         assert len(new_response.reasoning.reasoning_text) > 0
+        assert "reasoning_contents" in new_response.reasoning.extra
 
         if streaming_callback:
             streaming_callback.assert_called()
@@ -1891,7 +1896,13 @@ class TestAnthropicChatGenerator:
         assert isinstance(response, ChatMessage)
         assert response.text and len(response.text) > 0
         assert response.reasoning is not None
-        assert len(response.reasoning.extra.get("redacted_thinking")) > 0
+        # we cannot be sure how many redacted blocks will be returned with streaming
+        assert "[REDACTED]" in response.reasoning.reasoning_text
+        assert "reasoning_contents" in response.reasoning.extra
+        assert (
+            len(response.reasoning.extra.get("reasoning_contents")[0].get("reasoning_content").get("redacted_thinking"))
+            > 0
+        )
 
         new_message = ChatMessage.from_user("Now tell me whats the capital of France.")
         new_response = chat_generator.run([message, response, new_message])["replies"][0]
@@ -1899,8 +1910,16 @@ class TestAnthropicChatGenerator:
         assert isinstance(new_response, ChatMessage)
         assert new_response.text and len(new_response.text) > 0
         assert new_response.reasoning is not None
-        assert not new_response.reasoning.reasoning_text
-        assert len(new_response.reasoning.extra.get("redacted_thinking")) > 0
+        assert "[REDACTED]" in new_response.reasoning.reasoning_text
+        assert "reasoning_contents" in new_response.reasoning.extra
+        assert (
+            len(
+                new_response.reasoning.extra.get("reasoning_contents")[0]
+                .get("reasoning_content")
+                .get("redacted_thinking")
+            )
+            > 0
+        )
 
         if streaming_callback:
             streaming_callback.assert_called()
