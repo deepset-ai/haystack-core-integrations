@@ -41,8 +41,12 @@ from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.anthropic.chat.chat_generator import (
-    FINISH_REASON_MAPPING,
     AnthropicChatGenerator,
+)
+from haystack_integrations.components.generators.anthropic.chat.utils import (
+    FINISH_REASON_MAPPING,
+    _convert_anthropic_chunk_to_streaming_chunk,
+    _convert_chat_completion_to_chat_message,
     _convert_messages_to_anthropic_format,
 )
 
@@ -345,12 +349,9 @@ class TestAnthropicChatGenerator:
         """
         Test converting Anthropic chat completion to ChatMessage
         """
-        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
         chat_completion = mock_chat_completion.return_value
 
-        chat_message = component._convert_chat_completion_to_chat_message(
-            chat_completion, ignore_tools_thinking_messages=True
-        )
+        chat_message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=True)
         assert chat_message.text == "Hello, world!"
         assert chat_message.role == "assistant"
         assert chat_message.meta["model"] == "claude-sonnet-4-20250514"
@@ -362,7 +363,6 @@ class TestAnthropicChatGenerator:
         """
         Test converting Anthropic chat completion to ChatMessage
         """
-        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
         chat_completion = Message(
             id="msg_01MZF",
             content=[
@@ -379,9 +379,7 @@ class TestAnthropicChatGenerator:
             type="message",
             usage=Usage(input_tokens=507, output_tokens=219),
         )
-        chat_message = component._convert_chat_completion_to_chat_message(
-            chat_completion, ignore_tools_thinking_messages=False
-        )
+        chat_message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=False)
         assert chat_message.text == "I'll provide the answers!"
         assert chat_message.reasoning.reasoning_text == "User has asked 2 questions"
         assert chat_message.reasoning.extra == {
@@ -426,7 +424,7 @@ class TestAnthropicChatGenerator:
             type="message_start",
         )
         raw_chunks.append(message_start_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             message_start_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
@@ -442,7 +440,7 @@ class TestAnthropicChatGenerator:
             content_block=ThinkingBlock(type="thinking", signature="", thinking=""), index=0, type="content_block_start"
         )
         raw_chunks.append(reasoning_block_start_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             reasoning_block_start_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
@@ -460,7 +458,7 @@ class TestAnthropicChatGenerator:
             type="content_block_delta",
         )
         raw_chunks.append(reasoning_delta_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             reasoning_delta_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
@@ -478,7 +476,7 @@ class TestAnthropicChatGenerator:
             type="content_block_delta",
         )
         raw_chunks.append(reasoning_signature_delta_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             reasoning_signature_delta_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
@@ -490,7 +488,7 @@ class TestAnthropicChatGenerator:
             content_block=TextBlock(citations=None, text="", type="text"), index=1, type="content_block_start"
         )
         raw_chunks.append(text_block_start_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             text_block_start_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
@@ -508,7 +506,7 @@ class TestAnthropicChatGenerator:
             type="content_block_delta",
         )
         raw_chunks.append(text_delta_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             text_delta_chunk, component_info=component_info, tool_call_index=0
         )
 
@@ -533,7 +531,7 @@ class TestAnthropicChatGenerator:
             type="content_block_start",
         )
         raw_chunks.append(tool_block_start_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             tool_block_start_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
@@ -551,7 +549,7 @@ class TestAnthropicChatGenerator:
             delta=InputJSONDelta(partial_json="", type="input_json_delta"), index=2, type="content_block_delta"
         )
         raw_chunks.append(empty_json_delta_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             empty_json_delta_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
@@ -571,7 +569,7 @@ class TestAnthropicChatGenerator:
             type="content_block_delta",
         )
         raw_chunks.append(json_delta_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             json_delta_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
@@ -595,7 +593,7 @@ class TestAnthropicChatGenerator:
             ),
         )
         raw_chunks.append(message_delta_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             message_delta_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
@@ -619,7 +617,7 @@ class TestAnthropicChatGenerator:
             type="content_block_start",
         )
         raw_chunks.append(tool_block_start_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             tool_block_start_chunk, component_info=component_info, tool_call_index=1
         )
         assert streaming_chunk.component_info == component_info
@@ -637,7 +635,7 @@ class TestAnthropicChatGenerator:
             delta=InputJSONDelta(partial_json="", type="input_json_delta"), index=3, type="content_block_delta"
         )
         raw_chunks.append(empty_json_delta_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             empty_json_delta_chunk, component_info=component_info, tool_call_index=1
         )
         assert streaming_chunk.component_info == component_info
@@ -657,7 +655,7 @@ class TestAnthropicChatGenerator:
             type="content_block_delta",
         )
         raw_chunks.append(json_delta_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             json_delta_chunk, component_info=component_info, tool_call_index=1
         )
         assert streaming_chunk.component_info == component_info
@@ -681,7 +679,7 @@ class TestAnthropicChatGenerator:
             ),
         )
         raw_chunks.append(message_delta_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             message_delta_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
