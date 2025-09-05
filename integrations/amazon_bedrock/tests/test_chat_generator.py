@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, Optional
 
 import pytest
@@ -6,6 +7,7 @@ from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, StreamingChunk, ToolCall
 from haystack.tools import Tool
+from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 
@@ -137,6 +139,39 @@ class TestAmazonBedrockChatGenerator:
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "boto3_config": boto3_config,
                 "tools": None,
+                "prompt_router_arn": None,
+            },
+        }
+
+        assert generator.to_dict() == expected_dict
+
+    @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
+    def test_to_dict_with_prompt_router_arn(self, mock_boto3_session, boto3_config, set_env_variables):
+        """
+        Test that the to_dict method returns the correct dictionary without aws credentials
+        """
+        generator = AmazonBedrockChatGenerator(
+            generation_kwargs={"temperature": 0.7},
+            streaming_callback=print_streaming_chunk,
+            boto3_config=boto3_config,
+            prompt_router_arn=Secret.from_env_var("AWS_PROMPT_ROUTER_ARN"),
+        )
+
+        expected_dict = {
+            "type": CLASS_TYPE,
+            "init_parameters": {
+                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
+                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
+                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
+                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                "model": None,
+                "generation_kwargs": {"temperature": 0.7},
+                "stop_words": [],
+                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
+                "boto3_config": boto3_config,
+                "tools": None,
+                "prompt_router_arn": {"type": "env_var", "env_vars": ["AWS_PROMPT_ROUTER_ARN"], "strict": True},
             },
         }
 
@@ -165,6 +200,7 @@ class TestAmazonBedrockChatGenerator:
                     "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                     "boto3_config": boto3_config,
                     "tools": None,
+                    "prompt_router_arn": None,
                 },
             }
         )
@@ -203,10 +239,36 @@ class TestAmazonBedrockChatGenerator:
 
     def test_constructor_with_empty_model(self):
         """
-        Test that the constructor raises an error when the model is empty
+        Test that the constructor raises an error when the model is empty and no prompt_router_arn is provided
         """
-        with pytest.raises(ValueError, match="cannot be None or empty string"):
+        with pytest.raises(
+            ValueError, match=("'model' can be None or an empty string only if 'prompt_router_arn' is provided.")
+        ):
             AmazonBedrockChatGenerator(model="")
+
+    def test_constructor_with_empty_model_and_prompt_router_arn(self, mock_boto3_session):
+        """
+        Test that the constructor accepts empty model when prompt_router_arn is provided
+        """
+        prompt_router_arn = Secret.from_token("arn:aws:bedrock:us-east-1:123456789012:prompt-router/test-router")
+
+        # This should not raise an error
+        generator = AmazonBedrockChatGenerator(model="", prompt_router_arn=prompt_router_arn)
+        assert generator.prompt_router_arn == prompt_router_arn
+
+        # This should also work with None
+        generator = AmazonBedrockChatGenerator(model=None, prompt_router_arn=prompt_router_arn)
+        assert generator.prompt_router_arn == prompt_router_arn
+
+    def test_constructor_with_model_and_prompt_router_arn(self, mock_boto3_session):
+        """
+        Test that the constructor raises an error when both the model and prompt_router_arn is provided
+        """
+        with pytest.raises(ValueError, match=("'model' and 'prompt_router_arn' cannot be provided together")):
+            AmazonBedrockChatGenerator(
+                model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+                prompt_router_arn=Secret.from_token("arn:aws:bedrock:us-east-1:123456789012:prompt-router/test-router"),
+            )
 
     def test_serde_in_pipeline(self, mock_boto3_session, monkeypatch):
         # Set mock AWS credentials
@@ -270,6 +332,7 @@ class TestAmazonBedrockChatGenerator:
                                 },
                             }
                         ],
+                        "prompt_router_arn": None,
                     },
                 }
             },
@@ -821,3 +884,15 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
+
+    @pytest.mark.skipif(not os.getenv("AWS_PROMPT_ROUTER_ARN"), reason="AWS_PROMPT_ROUTER_ARN is not set")
+    def test_live_run_with_prompt_router_arn(self):
+        """
+        Integration test that the AmazonBedrockChatGenerator component can run with a prompt router ARN
+        """
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
+        component = AmazonBedrockChatGenerator(prompt_router_arn=Secret.from_env_var("AWS_PROMPT_ROUTER_ARN"))
+        results = component.run(messages=initial_messages)
+        assert results["replies"][0].text is not None
+        assert "paris" in results["replies"][0].text.lower()
+        assert "berlin" in results["replies"][0].text.lower()

@@ -40,6 +40,11 @@ class AmazonBedrockChatGenerator:
     For example, to use the Anthropic Claude 3 Sonnet model, initialize this component with the
     'anthropic.claude-3-5-sonnet-20240620-v1:0' model name.
 
+    Alternatively, you can use prompt routing by providing a `prompt_router_arn` instead of a `model`.
+    When using prompt routing, the `model` parameter must be None or an empty string.
+    You can find the ARN of a prompt router in the AWS console.
+    For more information on prompt routing, see the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-routing.html).
+
     ### Usage example
 
     ```python
@@ -145,7 +150,7 @@ class AmazonBedrockChatGenerator:
 
     def __init__(
         self,
-        model: str,
+        model: Optional[str] = None,
         aws_access_key_id: Optional[Secret] = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
             ["AWS_SECRET_ACCESS_KEY"], strict=False
@@ -158,6 +163,8 @@ class AmazonBedrockChatGenerator:
         streaming_callback: Optional[StreamingCallbackT] = None,
         boto3_config: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
+        *,
+        prompt_router_arn: Optional[Secret] = None,
     ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
@@ -171,6 +178,7 @@ class AmazonBedrockChatGenerator:
 
         :param model: The model to use for text generation. The model must be available in Amazon Bedrock and must
             be specified in the format outlined in the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids-arns.html).
+            If you want to use prompt routing, set this parameter to None or an empty string.
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
         :param aws_session_token: AWS session token.
@@ -190,13 +198,19 @@ class AmazonBedrockChatGenerator:
             the streaming mode on.
         :param boto3_config: The configuration for the boto3 client.
         :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
-
-        :raises ValueError: If the model name is empty or None.
+        :param prompt_router_arn: The ARN of a Bedrock prompt router.
+            You can find the ARN of a prompt router in the AWS console.
+            For more information on prompt routing, see the
+            [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-routing.html).
+        :raises ValueError: If both the `model` and `prompt_router_arn` are provided or if both are None.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
             not supported.
         """
-        if not model:
-            msg = "'model' cannot be None or empty string"
+        if not model and not prompt_router_arn:
+            msg = "'model' can be None or an empty string only if 'prompt_router_arn' is provided."
+            raise ValueError(msg)
+        if model and prompt_router_arn:
+            msg = "'model' and 'prompt_router_arn' cannot be provided together."
             raise ValueError(msg)
         self.model = model
         self.aws_access_key_id = aws_access_key_id
@@ -209,6 +223,7 @@ class AmazonBedrockChatGenerator:
         self.boto3_config = boto3_config
         _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
         self.tools = tools
+        self.prompt_router_arn = prompt_router_arn
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
@@ -228,6 +243,13 @@ class AmazonBedrockChatGenerator:
             )
 
             self.client = session.client("bedrock-runtime", config=config)
+            if self.prompt_router_arn is not None:
+                resolved_router_arn = resolve_secret(self.prompt_router_arn)
+                bedrock_client = session.client("bedrock", config=config)
+                prompt_router = bedrock_client.get_prompt_router(
+                    promptRouterArn=resolved_router_arn,
+                )
+                self.model = prompt_router["promptRouterArn"]
 
         except Exception as exception:
             msg = (
@@ -290,12 +312,13 @@ class AmazonBedrockChatGenerator:
             aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
             aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
             aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
-            model=self.model,
+            model=self.model if self.prompt_router_arn is None else None,
             stop_words=self.stop_words,
             generation_kwargs=self.generation_kwargs,
             streaming_callback=callback_name,
             boto3_config=self.boto3_config,
             tools=serialize_tools_or_toolset(self.tools),
+            prompt_router_arn=self.prompt_router_arn.to_dict() if self.prompt_router_arn else None,
         )
 
     @classmethod
@@ -446,12 +469,14 @@ class AmazonBedrockChatGenerator:
                 replies = _parse_streaming_response(
                     response_stream=response_stream,
                     streaming_callback=callback,  # type: ignore[arg-type]
-                    model=self.model,
+                    # model cannot be None but mypy doesn't know that
+                    model=self.model,  # type: ignore[arg-type]
                     component_info=component_info,
                 )
             else:
                 response = self.client.converse(**params)
-                replies = _parse_completion_response(response, self.model)
+                # model cannot be None but mypy doesn't know that
+                replies = _parse_completion_response(response, self.model)  # type: ignore[arg-type]
         except ClientError as exception:
             msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
             raise AmazonBedrockInferenceError(msg) from exception
@@ -513,12 +538,14 @@ class AmazonBedrockChatGenerator:
                     replies = await _parse_streaming_response_async(
                         response_stream=response_stream,
                         streaming_callback=callback,  # type: ignore[arg-type]
-                        model=self.model,
+                        # model cannot be None but mypy doesn't know that
+                        model=self.model,  # type: ignore[arg-type]
                         component_info=component_info,
                     )
                 else:
                     response = await async_client.converse(**params)
-                    replies = _parse_completion_response(response, self.model)
+                    # model cannot be None but mypy doesn't know that
+                    replies = _parse_completion_response(response, self.model)  # type: ignore[arg-type]
 
         except ClientError as exception:
             msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
