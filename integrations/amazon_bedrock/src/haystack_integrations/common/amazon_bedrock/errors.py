@@ -18,11 +18,3 @@ class AmazonBedrockConfigurationError(AmazonBedrockError):
 
 class AmazonBedrockInferenceError(AmazonBedrockError):
     """Exception for issues that occur in the Bedrock inference node"""
-
-
-class AmazonS3Error(Exception):
-    """Exception for issues that occur in the S3 node"""
-
-
-class AmazonS3ConfigurationError(AmazonS3Error):
-    """Exception raised when AmazonS3 node is not configured correctly"""

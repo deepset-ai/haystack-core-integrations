@@ -13,9 +13,9 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.common.amazon_bedrock.errors import AmazonS3ConfigurationError, AmazonS3Error
+from haystack_integrations.common.s3.errors import S3ConfigurationError, S3Error
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
-from haystack_integrations.components.downloaders.s3.utils import S3DownloaderSettings, S3Storage
+from haystack_integrations.common.s3.utils import S3Storage
 
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class S3Downloader:
     def __init__(
         self,
         *,
-        file_extensions: List[str],
+        file_extensions: Optional[List[str]] = None,
         aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
             "AWS_SECRET_ACCESS_KEY", strict=False
@@ -44,6 +44,7 @@ class S3Downloader:
         file_root_path: Optional[str] = None,
         max_workers: int = 32,
         max_cache_size: int = 100,
+        input_file_meta_key: str = "file_name",
     ) -> None:
         """
         Initializes the S3Downloader with the provided parameters. The parameters are passed to the
@@ -59,7 +60,7 @@ class S3Downloader:
         :param file_extensions: The file extensions that are permitted to be downloaded.
         :param max_workers: The maximum number of workers to use for concurrent downloads.
         :param max_cache_size: The maximum number of files to cache.
-        :raises AmazonS3ConfigurationError: If the AWS configuration is not correct.
+        :raises S3ConfigurationError: If the AWS configuration is not correct.
         """
         
         # Set up download directory
@@ -76,11 +77,12 @@ class S3Downloader:
         self.aws_session_token = aws_session_token
         self.aws_profile_name = aws_profile_name
         self.boto3_config = boto3_config
-        self.file_extensions = [e.lower() for e in file_extensions]
+        self.file_extensions = [e.lower() for e in file_extensions] if file_extensions else None
         self.max_workers = max_workers
         self.max_cache_size = max_cache_size
         self.storage : S3Storage = None
-
+        self.input_file_meta_key = input_file_meta_key
+        
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
 
@@ -92,50 +94,40 @@ class S3Downloader:
                 aws_region_name=resolve_secret(aws_region_name),
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
-            config = Config(
+            self.config = Config(
                 user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
             )
 
-            self._client = self.session.client("s3", config=config)
         except Exception as exception:
             msg = (
                 "Could not connect to Amazon S3. Make sure the AWS environment is configured correctly. "
                 "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
             )
-            raise AmazonS3ConfigurationError(msg) from exception
+            raise S3ConfigurationError(msg) from exception
 
     def warm_up(self) -> None:
         """Warm up the component by initializing the settings and storage."""
         if self.storage is None:
-            settings = S3DownloaderSettings.from_env()
-
             self.file_root_path.mkdir(parents=True, exist_ok=True)
-
-            self.storage = S3Storage(
-                settings.s3_bucket,
-                settings.s3_folder,
-                endpoint_url=settings.aws_endpoint_url,
-                session=self.session,
-            )
+            self.storage = S3Storage.from_env(session=self.session, config=self.config)
 
     @component.output_types(documents=List[Document])
     def run(
         self,
-        documents: Optional[List[Document]] = None,
+        documents: List[Document],
     ) -> Dict[str, List[Document]]:
         """Download S3-linked files and return enriched `Document`s.
 
         :param documents: Documents to download. 
         :returns: A dictionary with:
             - `documents`: The downloaded `Document`s; each has `meta['file_path']` and may include `mime_type`.
-        :raises AmazonS3Error: If a download attempt fails.
+        :raises S3Error: If a download attempt fails.
         :raises ValueError: If an S3 URL in inputs is invalid.
         """
-    
-        if not documents:
-            return {"documents": []}
-
-        filtered_documents = self._filter_documents_by_extensions(documents)
+        if self.file_extensions:
+            filtered_documents = self._filter_documents_by_extensions(documents)
+        else:
+            filtered_documents = documents
 
         try:
             max_workers = min(self.max_workers, len(filtered_documents))
@@ -148,7 +140,8 @@ class S3Downloader:
         return {"documents": downloaded_documents}
 
     def _filter_documents_by_extensions(self, documents: List[Document]) -> List[Document]:
-            return [doc for doc in documents if Path(doc.meta.get("file_name", "")).suffix.lower() in self.file_extensions]
+        return [doc for doc in documents if Path(doc.meta.get(self.input_file_meta_key, "")).suffix.lower() in self.file_extensions]
+        
 
     def download_file(self, document: Document) -> Optional[Document]:
         """
@@ -158,7 +151,7 @@ class S3Downloader:
         :returns:
             The same `Document` with `meta` containing the path of the
             downloaded file and the mime type or `None` if skipped.
-        :raises AmazonS3Error: If the download or head request fails.
+        :raises S3Error: If the download or head request fails.
         """
         if self.storage is None:
             raise RuntimeError(
@@ -172,7 +165,7 @@ class S3Downloader:
             logger.warning(f"Document with ID {document.id!r} does not have a file_id in the meta field", exc_info=True)
             return None
 
-        file_name = Path(document.meta.get("file_name", ""))
+        file_name = Path(document.meta.get(self.input_file_meta_key, ""))
         extension = file_name.suffix
         file_path = self.file_root_path / f"{file_id!s}{extension}"
 
@@ -220,6 +213,7 @@ class S3Downloader:
             max_workers=self.max_workers,
             max_cache_size=self.max_cache_size,
             file_extensions=self.file_extensions,
+            input_file_meta_key=self.input_file_meta_key,
         )
 
     @classmethod
