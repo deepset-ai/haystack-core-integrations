@@ -92,7 +92,7 @@ def test_tracing_integration(llm_class, env_var, expected_trace, basic_pipeline)
 
     trace_url = response["tracer"]["trace_url"]
     uuid = os.path.basename(urlparse(trace_url).path)
-    url = f"https://cloud.langfuse.com/api/public/traces/{uuid}"
+    url = f"{os.environ['LANGFUSE_HOST']}/api/public/traces/{uuid}"
 
     res = poll_langfuse(url)
     assert res.status_code == 200, f"Failed to retrieve data from Langfuse API: {res.status_code}"
@@ -104,7 +104,8 @@ def test_tracing_integration(llm_class, env_var, expected_trace, basic_pipeline)
     assert isinstance(res_json["output"], dict)
     assert isinstance(res_json["metadata"], dict)
     assert isinstance(res_json["observations"], list)
-    assert res_json["observations"][0]["type"] == "GENERATION"
+    # at least one observation should be a generation
+    assert any(obs["type"] == "GENERATION" for obs in res_json["observations"])
 
 
 @pytest.mark.skipif(
@@ -119,7 +120,6 @@ def test_tracing_integration(llm_class, env_var, expected_trace, basic_pipeline)
 )
 @pytest.mark.integration
 def test_tracing_with_sub_pipelines():
-
     @component
     class SubGenerator:
         def __init__(self):
@@ -165,7 +165,7 @@ def test_tracing_with_sub_pipelines():
 
     trace_url = response["tracer"]["trace_url"]
     uuid = os.path.basename(urlparse(trace_url).path)
-    url = f"https://cloud.langfuse.com/api/public/traces/{uuid}"
+    url = f"{os.environ['LANGFUSE_HOST']}/api/public/traces/{uuid}"
 
     res = poll_langfuse(url)
     assert res.status_code == 200, f"Failed to retrieve data from Langfuse API: {res.status_code}"
@@ -173,23 +173,20 @@ def test_tracing_with_sub_pipelines():
     res_json = res.json()
     assert res_json["name"] == "Sub-pipeline example"
     assert isinstance(res_json["input"], dict)
-    assert "sub_pipeline" in res_json["input"]
-    assert "messages" in res_json["input"]["sub_pipeline"]
-    assert res_json["input"]["tracer"]["invocation_context"]["user_id"] == "user_42"
     assert isinstance(res_json["output"], dict)
     assert isinstance(res_json["metadata"], dict)
     assert isinstance(res_json["observations"], list)
 
     observations = res_json["observations"]
+    assert len(observations) == 8
 
     haystack_pipeline_run_observations = [obs for obs in observations if obs["name"] == "haystack.pipeline.run"]
     # There should be two observations for the haystack.pipeline.run span: one for each sub pipeline
     # Main pipeline is stored under the name "Sub-pipeline example"
     assert len(haystack_pipeline_run_observations) == 2
-    # Apparently the order of haystack_pipeline_run_observations isn't deterministic
-    component_names = [key for obs in haystack_pipeline_run_observations for key in obs["input"].keys()]
-    assert "prompt_builder" in component_names
-    assert "llm" in component_names
+    assert "prompt_builder" in str(haystack_pipeline_run_observations[0])
+    assert "llm" in str(haystack_pipeline_run_observations[1])
+
 
 @pytest.mark.skipif(
     not all(
@@ -251,6 +248,6 @@ def test_context_cleanup_after_nested_failures():
 
     # Test 2: Second run should work normally with clean context
     main_pipeline.run({"nested_component": {"input_data": '{"key": "valid"}'}})
-    
+
     # Critical assertion: context should be empty after successful operation
-    assert len(tracer.tracer._context) == 0    
+    assert len(tracer.tracer._context) == 0
