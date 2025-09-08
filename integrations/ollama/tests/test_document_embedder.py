@@ -9,6 +9,7 @@ class TestOllamaDocumentEmbedder:
     def test_init_defaults(self):
         embedder = OllamaDocumentEmbedder()
 
+        assert embedder.keep_alive is None
         assert embedder.timeout == 120
         assert embedder.generation_kwargs == {}
         assert embedder.url == "http://localhost:11434"
@@ -20,8 +21,10 @@ class TestOllamaDocumentEmbedder:
             url="http://my-custom-endpoint:11434",
             generation_kwargs={"temperature": 0.5},
             timeout=3000,
+            keep_alive="10m",
         )
 
+        assert embedder.keep_alive == "10m"
         assert embedder.timeout == 3000
         assert embedder.generation_kwargs == {"temperature": 0.5}
         assert embedder.url == "http://my-custom-endpoint:11434"

@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/cohere-v5.5.0] - 2025-08-29
+
+### 🚀 Features
+
+- Add image support to Cohere Chat Generator (#2223)
+
+
 ## [integrations/cohere-v5.4.0] - 2025-08-26
 
 ### 🚀 Features
