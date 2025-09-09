@@ -70,7 +70,9 @@ cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
 types = """mypy -p haystack_integrations.common.amazon_bedrock \
 -p haystack_integrations.components.embedders.amazon_bedrock \
 -p haystack_integrations.components.generators.amazon_bedrock \
--p haystack_integrations.components.rankers.amazon_bedrock {args}"""
+-p haystack_integrations.components.rankers.amazon_bedrock \
+-p haystack_integrations.common.s3 {args}"""
+
 
 [tool.mypy]
 install_types = true
