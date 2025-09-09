@@ -13,10 +13,9 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.common.s3.errors import S3ConfigurationError, S3Error
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
+from haystack_integrations.common.s3.errors import S3ConfigurationError
 from haystack_integrations.common.s3.utils import S3Storage
-
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +46,13 @@ class S3Downloader:
         input_file_meta_key: str = "file_name",
     ) -> None:
         """
-        Initializes the S3Downloader with the provided parameters. The parameters are passed to the
-        Amazon S3 client.
+        Initializes the `S3Downloader` with the provided parameters.
+
+        Note that the AWS credentials are not required if the AWS environment is configured correctly. These are loaded
+        automatically from the environment or the AWS configuration file and do not need to be provided explicitly via
+        the constructor. If the AWS environment is not configured users need to provide the AWS credentials via the
+        constructor. Three required parameters are `aws_access_key_id`, `aws_secret_access_key`,
+        and `aws_region_name`.
 
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
@@ -60,17 +64,21 @@ class S3Downloader:
         :param file_extensions: The file extensions that are permitted to be downloaded.
         :param max_workers: The maximum number of workers to use for concurrent downloads.
         :param max_cache_size: The maximum number of files to cache.
-        :raises S3ConfigurationError: If the AWS configuration is not correct.
+        :raises S3ConfigurationError: If the AWS environment is not configured correctly.
         """
-        
+
         # Set up download directory
         file_root_path = file_root_path or os.getenv("FILE_ROOT_PATH")
-        
+
         if file_root_path is None:
-            raise ValueError("file_root_path is not set. Please set the file_root_path parameter or the FILE_ROOT_PATH environment variable.")
-        
+            msg = (
+                "file_root_path is not set. Please set the "
+                "`file_root_path` parameter or the `FILE_ROOT_PATH` environment variable."
+            )
+            raise ValueError(msg)
+
         self.file_root_path = Path(file_root_path)
-        
+
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
         self.aws_region_name = aws_region_name
@@ -80,21 +88,22 @@ class S3Downloader:
         self.file_extensions = [e.lower() for e in file_extensions] if file_extensions else None
         self.max_workers = max_workers
         self.max_cache_size = max_cache_size
-        self.storage : S3Storage = None
         self.input_file_meta_key = input_file_meta_key
-        
+
+        self._storage: S3Storage = None
+
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
 
         try:
-            self.session = get_aws_session(
+            self._session = get_aws_session(
                 aws_access_key_id=resolve_secret(aws_access_key_id),
                 aws_secret_access_key=resolve_secret(aws_secret_access_key),
                 aws_session_token=resolve_secret(aws_session_token),
                 aws_region_name=resolve_secret(aws_region_name),
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
-            self.config = Config(
+            self._config = Config(
                 user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
             )
 
@@ -107,9 +116,9 @@ class S3Downloader:
 
     def warm_up(self) -> None:
         """Warm up the component by initializing the settings and storage."""
-        if self.storage is None:
+        if self._storage is None:
             self.file_root_path.mkdir(parents=True, exist_ok=True)
-            self.storage = S3Storage.from_env(session=self.session, config=self.config)
+            self._storage = S3Storage.from_env(session=self._session, config=self._config)
 
     @component.output_types(documents=List[Document])
     def run(
@@ -118,7 +127,7 @@ class S3Downloader:
     ) -> Dict[str, List[Document]]:
         """Download S3-linked files and return enriched `Document`s.
 
-        :param documents: Documents to download. 
+        :param documents: Documents to download.
         :returns: A dictionary with:
             - `documents`: The downloaded `Document`s; each has `meta['file_path']` and may include `mime_type`.
         :raises S3Error: If a download attempt fails.
@@ -140,8 +149,11 @@ class S3Downloader:
         return {"documents": downloaded_documents}
 
     def _filter_documents_by_extensions(self, documents: List[Document]) -> List[Document]:
-        return [doc for doc in documents if Path(doc.meta.get(self.input_file_meta_key, "")).suffix.lower() in self.file_extensions]
-        
+        return [
+            doc
+            for doc in documents
+            if Path(doc.meta.get(self.input_file_meta_key, "")).suffix.lower() in self.file_extensions
+        ]
 
     def download_file(self, document: Document) -> Optional[Document]:
         """
@@ -153,11 +165,12 @@ class S3Downloader:
             downloaded file and the mime type or `None` if skipped.
         :raises S3Error: If the download or head request fails.
         """
-        if self.storage is None:
-            raise RuntimeError(
-                f"The component {self.__class__.__name__} was not warmed up. "
-                """Call "warm_up()" before calling "download_file()"."""
+        if self._storage is None:
+            msg = (
+                f"The component {self.__class__.__name__} was not warmed up."
+                f" Call 'warm_up()' before calling 'download_file()'."
             )
+            raise RuntimeError(msg)
 
         try:
             file_id = UUID(document.meta["file_id"])
@@ -174,7 +187,7 @@ class S3Downloader:
             file_path.touch()
 
         else:
-            self.storage.download(file_name, file_path)
+            self._storage.download(file_name, file_path)
 
         document.meta["file_path"] = str(file_path)
         return document
@@ -230,4 +243,3 @@ class S3Downloader:
             ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
         )
         return default_from_dict(cls, data)
-
