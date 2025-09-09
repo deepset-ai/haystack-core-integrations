@@ -139,7 +139,7 @@ class S3Downloader:
             filtered_documents = documents
 
         try:
-            max_workers = min(self.max_workers, len(filtered_documents))
+            max_workers = min(self.max_workers, len(filtered_documents) if filtered_documents else self.max_workers)
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 iterable = executor.map(self.download_file, filtered_documents)
         finally:
@@ -178,8 +178,8 @@ class S3Downloader:
             logger.warning(f"Document with ID {document.id!r} does not have a file_id in the meta field", exc_info=True)
             return None
 
-        file_name = Path(document.meta.get(self.input_file_meta_key, ""))
-        extension = file_name.suffix
+        file_name = document.meta.get(self.input_file_meta_key, "")
+        extension = Path(file_name).suffix
         file_path = self.file_root_path / f"{file_id!s}{extension}"
 
         if file_path.is_file():
@@ -187,7 +187,7 @@ class S3Downloader:
             file_path.touch()
 
         else:
-            self._storage.download(file_name, file_path)
+            self._storage.download(key=file_name, local_file_path=file_path)
 
         document.meta["file_path"] = str(file_path)
         return document

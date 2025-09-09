@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 from unittest.mock import MagicMock, patch
@@ -143,3 +144,48 @@ class TestS3Downloader:
         out = d.run(documents=docs)
         assert len(out["documents"]) == 1
         assert out["documents"][0].meta["file_name"] == "a.txt"
+
+    def test_run_with_input_file_meta_key(self, tmp_path, mock_s3_storage):
+        d = S3Downloader(file_root_path=str(tmp_path), input_file_meta_key="custom_file_key")
+        S3Downloader.warm_up(d)
+        d._storage = mock_s3_storage
+
+        docs = [
+            Document(meta={"file_id": str(uuid4()), "custom_file_key": "a.txt"}),
+        ]
+
+        out = d.run(documents=docs)
+        assert len(out["documents"]) == 1
+        assert out["documents"][0].meta["custom_file_key"] == "a.txt"
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("S3_BUCKET_FOR_DOWNLOADER", None),
+        reason="Export an env var called `S3_BUCKET_FOR_DOWNLOADER` containing the S3 bucket to run this test.",
+    )
+    def test_live_run(self, tmp_path):
+        d = S3Downloader(file_root_path=str(tmp_path))
+        os.environ["S3_PREFIX_FOR_DOWNLOADER"] = ""
+        S3Downloader.warm_up(d)
+
+        docs = [
+            Document(meta={"file_id": str(uuid4()), "file_name": "text-sample.txt"}),
+            Document(meta={"file_id": str(uuid4()), "file_name": "document-sample.pdf"}),
+        ]
+
+        out = d.run(documents=docs)
+        assert len(out["documents"]) == 2
+        assert out["documents"][0].meta["file_name"] == "text-sample.txt"
+        assert out["documents"][1].meta["file_name"] == "document-sample.pdf"
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("S3_BUCKET_FOR_DOWNLOADER", None),
+        reason="Export an env var called `S3_BUCKET_FOR_DOWNLOADER` containing the S3 bucket to run this test.",
+    )
+    def test_run_with_no_documents(self, tmp_path):
+        d = S3Downloader(file_root_path=str(tmp_path))
+        S3Downloader.warm_up(d)
+        docs = []
+        out = d.run(documents=docs)
+        assert len(out["documents"]) == 0
