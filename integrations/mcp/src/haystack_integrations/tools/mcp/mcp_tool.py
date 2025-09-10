@@ -332,7 +332,11 @@ class MCPClient(ABC):
         transport_tuple: tuple[
             MemoryObjectReceiveStream[SessionMessage | Exception],
             MemoryObjectSendStream[SessionMessage],
-            *tuple[Any, ...],
+        ]
+        | tuple[
+            MemoryObjectReceiveStream[SessionMessage | Exception],
+            MemoryObjectSendStream[SessionMessage],
+            Any,
         ],
         connection_type: str,
     ) -> list[types.Tool]:
