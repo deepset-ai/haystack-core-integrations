@@ -80,8 +80,8 @@ class LangfuseSpan(Span):
         `langfuse.get_client().start_as_current_span` or
         `langfuse.get_client().start_as_current_observation`.
         """
-        self._span = context_manager.__enter__()        
-        self._data: Dict[str, Any] = {}        
+        self._span = context_manager.__enter__()
+        self._data: Dict[str, Any] = {}
         self._context_manager = context_manager
 
     def set_tag(self, key: str, value: Any) -> None:
@@ -271,7 +271,7 @@ class DefaultSpanHandler(SpanHandler):
         # Get external tracing context for root trace creation (correlation metadata)
         tracing_ctx = tracing_context_var.get({})
         if not context.parent_span:
-            # Create a new trace when there's no parent span            
+            # Create a new trace when there's no parent span
             span_context_manager = self.tracer.start_as_current_span(
                 name=context.trace_name,
                 version=tracing_ctx.get("version"),
@@ -314,7 +314,7 @@ class DefaultSpanHandler(SpanHandler):
         at_pipeline_level = span.get_data().get(_PIPELINE_INPUT_KEY) is not None
         if at_pipeline_level:
             coerced_input = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_INPUT_KEY))
-            coerced_output = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_OUTPUT_KEY))            
+            coerced_output = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_OUTPUT_KEY))
             span.raw_span().update_trace(input=coerced_input, output=coerced_output)
         # special case for ToolInvoker (to update the span name to be: `original_component_name - [tool_names]`)
         if component_type == "ToolInvoker":
