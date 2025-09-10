@@ -160,12 +160,12 @@ class TestS3Downloader:
 
     @pytest.mark.integration
     @pytest.mark.skipif(
-        not os.environ.get("S3_BUCKET_FOR_DOWNLOADER", None),
-        reason="Export an env var called `S3_BUCKET_FOR_DOWNLOADER` containing the S3 bucket to run this test.",
+        not os.environ.get("S3_DOWNLOADER_BUCKET", None),
+        reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
     )
     def test_live_run(self, tmp_path):
         d = S3Downloader(file_root_path=str(tmp_path))
-        os.environ["S3_PREFIX_FOR_DOWNLOADER"] = ""
+        os.environ["S3_DOWNLOADER_PREFIX"] = ""
         S3Downloader.warm_up(d)
 
         docs = [
@@ -180,8 +180,8 @@ class TestS3Downloader:
 
     @pytest.mark.integration
     @pytest.mark.skipif(
-        not os.environ.get("S3_BUCKET_FOR_DOWNLOADER", None),
-        reason="Export an env var called `S3_BUCKET_FOR_DOWNLOADER` containing the S3 bucket to run this test.",
+        not os.environ.get("S3_DOWNLOADER_BUCKET", None),
+        reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
     )
     def test_run_with_no_documents(self, tmp_path):
         d = S3Downloader(file_root_path=str(tmp_path))

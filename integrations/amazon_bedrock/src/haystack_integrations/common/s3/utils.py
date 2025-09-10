@@ -18,9 +18,9 @@ class S3Storage:
     def __init__(
         self,
         s3_bucket: str,
+        session: Session,
         file_prefix: Optional[str] = None,
         endpoint_url: Optional[str] = None,
-        session: Optional[Session] = None,
         config: Optional[Config] = None,
     ) -> None:
         """
@@ -43,6 +43,12 @@ class S3Storage:
         self.session = session
         self.config = config
 
+        try:
+            self._client = self.session.client("s3", endpoint_url=self.endpoint_url, config=self.config)
+        except Exception as e:
+            msg = f"Failed to create S3 session client: {e}"
+            raise S3ConfigurationError(msg) from e
+
     def download(self, key: str, local_file_path: Path) -> None:
         """Download a file from S3.
 
@@ -54,11 +60,6 @@ class S3Storage:
         :raises S3StorageError: If the file does not exist in the S3 bucket
         or the file cannot be downloaded.
         """
-        try:
-            s3_client = self.session.client("s3", endpoint_url=self.endpoint_url, config=self.config)
-        except Exception as e:
-            msg = f"Failed to create S3 session client: {e}"
-            raise S3ConfigurationError(msg) from e
 
         if self.file_prefix:
             s3_key = f"{self.file_prefix}{key}"
@@ -66,7 +67,7 @@ class S3Storage:
             s3_key = key
 
         try:
-            s3_client.download_file(self.s3_bucket, s3_key, str(local_file_path))
+            self._client.download_file(self.s3_bucket, s3_key, str(local_file_path))
         except ClientError as e:
             error_code = int(e.response["Error"]["Code"])
 
@@ -80,14 +81,14 @@ class S3Storage:
     @classmethod
     def from_env(cls, *, session: Session, config: Config) -> "S3Storage":
         """Create a S3Storage object from environment variables."""
-        s3_bucket = os.getenv("S3_BUCKET_FOR_DOWNLOADER")
+        s3_bucket = os.getenv("S3_DOWNLOADER_BUCKET")
         if not s3_bucket:
             msg = (
-                "Missing environment variable S3_BUCKET_FOR_DOWNLOADER."
+                "Missing environment variable S3_DOWNLOADER_BUCKET."
                 "Please set it to the name of the S3 bucket to download files from."
             )
             raise ValueError(msg)
-        s3_prefix = os.getenv("S3_PREFIX_FOR_DOWNLOADER") or None
+        s3_prefix = os.getenv("S3_DOWNLOADER_PREFIX") or None
         endpoint_url = os.getenv("AWS_ENDPOINT_URL") or None
         return cls(
             s3_bucket=s3_bucket,

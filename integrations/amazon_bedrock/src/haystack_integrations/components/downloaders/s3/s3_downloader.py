@@ -14,7 +14,6 @@ from haystack.dataclasses import Document
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
-from haystack_integrations.common.s3.errors import S3ConfigurationError
 from haystack_integrations.common.s3.utils import S3Storage
 
 logger = logging.getLogger(__name__)
@@ -95,24 +94,16 @@ class S3Downloader:
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
 
-        try:
-            self._session = get_aws_session(
-                aws_access_key_id=resolve_secret(aws_access_key_id),
-                aws_secret_access_key=resolve_secret(aws_secret_access_key),
-                aws_session_token=resolve_secret(aws_session_token),
-                aws_region_name=resolve_secret(aws_region_name),
-                aws_profile_name=resolve_secret(aws_profile_name),
-            )
-            self._config = Config(
-                user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
-            )
-
-        except Exception as exception:
-            msg = (
-                "Could not connect to Amazon S3. Make sure the AWS environment is configured correctly. "
-                "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
-            )
-            raise S3ConfigurationError(msg) from exception
+        self._session = get_aws_session(
+            aws_access_key_id=resolve_secret(aws_access_key_id),
+            aws_secret_access_key=resolve_secret(aws_secret_access_key),
+            aws_session_token=resolve_secret(aws_session_token),
+            aws_region_name=resolve_secret(aws_region_name),
+            aws_profile_name=resolve_secret(aws_profile_name),
+        )
+        self._config = Config(
+            user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
+        )
 
     def warm_up(self) -> None:
         """Warm up the component by initializing the settings and storage."""
@@ -171,15 +162,15 @@ class S3Downloader:
                 f" Call 'warm_up()' before calling 'download_file()'."
             )
             raise RuntimeError(msg)
+        file_name = document.meta.get(self.input_file_meta_key)
+        extension = Path(file_name).suffix
 
         try:
             file_id = UUID(document.meta["file_id"])
         except KeyError:
             logger.warning(f"Document with ID {document.id!r} does not have a file_id in the meta field", exc_info=True)
-            return None
+            file_id = file_name
 
-        file_name = document.meta.get(self.input_file_meta_key, "")
-        extension = Path(file_name).suffix
         file_path = self.file_root_path / f"{file_id!s}{extension}"
 
         if file_path.is_file():
