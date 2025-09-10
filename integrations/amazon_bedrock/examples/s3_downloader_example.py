@@ -3,7 +3,6 @@
 # 2) enabled access to the selected S3 bucket
 # 3) `S3_DOWNLOADER_BUCKET` environment variable should be set to the name of the S3 bucket.
 
-
 # The example shows how to use the S3Downloader component in a query pipeline to download files from an S3 bucket.
 # The files are then converted to images and used to answer a question.
 

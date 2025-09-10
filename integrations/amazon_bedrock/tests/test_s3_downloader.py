@@ -8,6 +8,7 @@ import pytest
 from haystack.dataclasses import Document
 from haystack.utils import Secret
 
+from haystack_integrations.common.s3.errors import S3StorageError
 from haystack_integrations.common.s3.utils import S3Storage
 from haystack_integrations.components.downloaders.s3.s3_downloader import S3Downloader
 
@@ -54,7 +55,7 @@ class TestS3Downloader:
             file_extensions=[".pdf", ".txt"],
             max_cache_size=100,
             max_workers=32,
-            input_file_meta_key="file_id",
+            download_file_meta_key="file_id",
         )
         assert d.file_extensions == [".pdf", ".txt"]
 
@@ -73,7 +74,7 @@ class TestS3Downloader:
                 "file_extensions": None,
                 "max_cache_size": 100,
                 "max_workers": 32,
-                "input_file_meta_key": "file_name",
+                "download_file_meta_key": "file_name",
             },
         }
         assert d.to_dict() == expected
@@ -100,7 +101,7 @@ class TestS3Downloader:
             file_extensions=[".txt"],
             max_cache_size=400,
             max_workers=40,
-            input_file_meta_key="new_file_key",
+            download_file_meta_key="new_file_key",
         )
         expected = {
             "type": TYPE,
@@ -114,7 +115,7 @@ class TestS3Downloader:
                 "file_extensions": [".txt"],
                 "max_cache_size": 400,
                 "max_workers": 40,
-                "input_file_meta_key": "new_file_key",
+                "download_file_meta_key": "new_file_key",
             },
         }
         assert d.to_dict() == expected
@@ -146,7 +147,7 @@ class TestS3Downloader:
         assert out["documents"][0].meta["file_name"] == "a.txt"
 
     def test_run_with_input_file_meta_key(self, tmp_path, mock_s3_storage):
-        d = S3Downloader(file_root_path=str(tmp_path), input_file_meta_key="custom_file_key")
+        d = S3Downloader(file_root_path=str(tmp_path), download_file_meta_key="custom_file_key")
         S3Downloader.warm_up(d)
         d._storage = mock_s3_storage
 
@@ -183,9 +184,51 @@ class TestS3Downloader:
         not os.environ.get("S3_DOWNLOADER_BUCKET", None),
         reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
     )
-    def test_run_with_no_documents(self, tmp_path):
+    def test_live_run_with_no_documents(self, tmp_path):
         d = S3Downloader(file_root_path=str(tmp_path))
         S3Downloader.warm_up(d)
         docs = []
         out = d.run(documents=docs)
         assert len(out["documents"]) == 0
+
+    def test_live_run_with_wrong_file_name(self, tmp_path):
+        d = S3Downloader(file_root_path=str(tmp_path))
+        S3Downloader.warm_up(d)
+        docs = [
+            Document(meta={"file_id": str(uuid4()), "file_name": "wrong_file.json"}),
+        ]
+        with pytest.raises(S3StorageError):
+            d.run(documents=docs)
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("S3_DOWNLOADER_BUCKET", None),
+        reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
+    )
+    def test_live_run_with_custom_meta_key(self, tmp_path):
+        d = S3Downloader(file_root_path=str(tmp_path), download_file_meta_key="custom_name")
+        os.environ["S3_DOWNLOADER_PREFIX"] = ""
+        S3Downloader.warm_up(d)
+        docs = [
+            Document(meta={"custom_name": "text-sample.txt"}),
+        ]
+        out = d.run(documents=docs)
+        assert len(out["documents"]) == 1
+        assert out["documents"][0].meta["custom_name"] == "text-sample.txt"
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("S3_DOWNLOADER_BUCKET", None),
+        reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
+    )
+    def test_live_run_with_prefix(self, tmp_path):
+        d = S3Downloader(file_root_path=str(tmp_path))
+        os.environ["S3_DOWNLOADER_PREFIX"] = "subfolder/"
+
+        S3Downloader.warm_up(d)
+        docs = [
+            Document(meta={"file_name": "employees.json"}),
+        ]
+        out = d.run(documents=docs)
+        assert len(out["documents"]) == 1
+        assert out["documents"][0].meta["file_name"] == "employees.json"

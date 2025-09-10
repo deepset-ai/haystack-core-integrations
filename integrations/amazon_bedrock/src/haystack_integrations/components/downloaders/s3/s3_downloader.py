@@ -6,7 +6,6 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from uuid import UUID
 
 from botocore.config import Config
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -22,15 +21,13 @@ logger = logging.getLogger(__name__)
 @component
 class S3Downloader:
     """
-    A component for downloading files from S3 to local filesystem with caching and concurrent downloads.
-    Supports filtering by file extensions and returns documents with file paths.
-
+    A component for downloading files from AWS S3 Buckets to local filesystem.
+    Supports filtering by file extensions.
     """
 
     def __init__(
         self,
         *,
-        file_extensions: Optional[List[str]] = None,
         aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
             "AWS_SECRET_ACCESS_KEY", strict=False
@@ -40,9 +37,10 @@ class S3Downloader:
         aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         boto3_config: Optional[Dict[str, Any]] = None,
         file_root_path: Optional[str] = None,
+        file_extensions: Optional[List[str]] = None,
+        download_file_meta_key: str = "file_name",
         max_workers: int = 32,
         max_cache_size: int = 100,
-        input_file_meta_key: str = "file_name",
     ) -> None:
         """
         Initializes the `S3Downloader` with the provided parameters.
@@ -61,9 +59,14 @@ class S3Downloader:
         :param boto3_config: The configuration for the boto3 client.
         :param file_root_path: The path where the file will be downloaded.
         :param file_extensions: The file extensions that are permitted to be downloaded.
+            By default, all file extensions are allowed.
         :param max_workers: The maximum number of workers to use for concurrent downloads.
         :param max_cache_size: The maximum number of files to cache.
-        :raises S3ConfigurationError: If the AWS environment is not configured correctly.
+        :param download_file_meta_key: The name of the meta key that contains the file name to download.
+            By default, the Document.meta["file_name"] is used. If you want to use a
+            different key in Document.meta, you can set it here.
+        :raises S3ConfigurationError: If the AWS environment is not configured correctly
+            to connect to the S3 bucket.
         """
 
         # Set up download directory
@@ -71,8 +74,8 @@ class S3Downloader:
 
         if file_root_path is None:
             msg = (
-                "file_root_path is not set. Please set the "
-                "`file_root_path` parameter or the `FILE_ROOT_PATH` environment variable."
+                "The path where files will be downloaded is not set. Please set the "
+                "`file_root_path` init parameter or the `FILE_ROOT_PATH` environment variable."
             )
             raise ValueError(msg)
 
@@ -87,7 +90,7 @@ class S3Downloader:
         self.file_extensions = [e.lower() for e in file_extensions] if file_extensions else None
         self.max_workers = max_workers
         self.max_cache_size = max_cache_size
-        self.input_file_meta_key = input_file_meta_key
+        self.download_file_meta_key = download_file_meta_key
 
         self._storage: S3Storage = None
 
@@ -116,18 +119,20 @@ class S3Downloader:
         self,
         documents: List[Document],
     ) -> Dict[str, List[Document]]:
-        """Download S3-linked files and return enriched `Document`s.
+        """Download files from AWS S3 Buckets to local filesystem.
 
-        :param documents: Documents to download.
+        Return enriched `Document`s with the path of the downloaded file.
+        :param documents: Document containing the name of the file to download in the meta field.
         :returns: A dictionary with:
             - `documents`: The downloaded `Document`s; each has `meta['file_path']` and may include `mime_type`.
-        :raises S3Error: If a download attempt fails.
-        :raises ValueError: If an S3 URL in inputs is invalid.
+        :raises S3Error: If a download attempt fails or the file does not exist in the S3 bucket.
+        :raises ValueError: If the path where files will be downloaded is not set.
         """
-        if self.file_extensions:
-            filtered_documents = self._filter_documents_by_extensions(documents)
-        else:
-            filtered_documents = documents
+
+        filtered_documents = self._filter_documents_by_extensions(documents) if self.file_extensions else documents
+
+        if not filtered_documents:
+            return {"documents": []}
 
         try:
             max_workers = min(self.max_workers, len(filtered_documents) if filtered_documents else self.max_workers)
@@ -140,21 +145,22 @@ class S3Downloader:
         return {"documents": downloaded_documents}
 
     def _filter_documents_by_extensions(self, documents: List[Document]) -> List[Document]:
+        """Filter documents by file extensions."""
         return [
             doc
             for doc in documents
-            if Path(doc.meta.get(self.input_file_meta_key, "")).suffix.lower() in self.file_extensions
+            if Path(doc.meta.get(self.download_file_meta_key, "")).suffix.lower() in self.file_extensions
         ]
 
     def download_file(self, document: Document) -> Optional[Document]:
         """
-        Download a single S3 object into the local file system and enrich the `Document`.
+        Download a single file from AWS S3 Bucket to local filesystem.
 
-        :param document: `Document` with file_id in the meta field.
+        :param document: `Document` with the name of the file to download in the meta field.
         :returns:
-            The same `Document` with `meta` containing the path of the
-            downloaded file and the mime type or `None` if skipped.
-        :raises S3Error: If the download or head request fails.
+            The same `Document` with `meta` containing the `file_path` of the
+            downloaded file.
+        :raises S3Error: If the download or head request fails or the file does not exist in the S3 bucket.
         """
         if self._storage is None:
             msg = (
@@ -162,16 +168,9 @@ class S3Downloader:
                 f" Call 'warm_up()' before calling 'download_file()'."
             )
             raise RuntimeError(msg)
-        file_name = document.meta.get(self.input_file_meta_key)
-        extension = Path(file_name).suffix
+        file_name = document.meta.get(self.download_file_meta_key)
 
-        try:
-            file_id = UUID(document.meta["file_id"])
-        except KeyError:
-            logger.warning(f"Document with ID {document.id!r} does not have a file_id in the meta field", exc_info=True)
-            file_id = file_name
-
-        file_path = self.file_root_path / f"{file_id!s}{extension}"
+        file_path = self.file_root_path / Path(file_name)
 
         if file_path.is_file():
             # set access and modification time to now without redownloading the file
@@ -217,7 +216,7 @@ class S3Downloader:
             max_workers=self.max_workers,
             max_cache_size=self.max_cache_size,
             file_extensions=self.file_extensions,
-            input_file_meta_key=self.input_file_meta_key,
+            download_file_meta_key=self.download_file_meta_key,
         )
 
     @classmethod
