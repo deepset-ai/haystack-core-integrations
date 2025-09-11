@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 import os
 import time
 from typing import Any, Dict, List
 from urllib.parse import urlparse
-import json
 
 import pytest
 import requests
@@ -36,7 +36,7 @@ def poll_langfuse(url: str):
 
     res = None
     while attempts > 0:
-        res = requests.get(url, auth=auth)
+        res = requests.get(url, auth=auth, timeout=60.0)
         if res.status_code == 200:
             return res
 
@@ -71,7 +71,7 @@ def basic_pipeline(llm_class, expected_trace):
         (CohereChatGenerator, "COHERE_API_KEY", "Cohere"),
     ],
 )
-def test_tracing_integration(llm_class, env_var, expected_trace, basic_pipeline):
+def test_tracing_integration(env_var, expected_trace, basic_pipeline):
     if not all([os.environ.get("LANGFUSE_SECRET_KEY"), os.environ.get("LANGFUSE_PUBLIC_KEY"), os.environ.get(env_var)]):
         pytest.skip(f"Missing required environment variable: {env_var}")
 
@@ -119,7 +119,6 @@ def test_tracing_integration(llm_class, env_var, expected_trace, basic_pipeline)
 )
 @pytest.mark.integration
 def test_tracing_with_sub_pipelines():
-
     @component
     class SubGenerator:
         def __init__(self):
@@ -191,6 +190,7 @@ def test_tracing_with_sub_pipelines():
     assert "prompt_builder" in component_names
     assert "llm" in component_names
 
+
 @pytest.mark.skipif(
     not all(
         [
@@ -243,7 +243,7 @@ def test_context_cleanup_after_nested_failures():
     # Test 1: First run will fail and should clean up context
     try:
         main_pipeline.run({"nested_component": {"input_data": "invalid json"}})
-    except Exception:
+    except Exception:  # noqa: S110
         pass  # Expected to fail
 
     # Critical assertion: context should be empty after failed operation
@@ -251,6 +251,6 @@ def test_context_cleanup_after_nested_failures():
 
     # Test 2: Second run should work normally with clean context
     main_pipeline.run({"nested_component": {"input_data": '{"key": "valid"}'}})
-    
+
     # Critical assertion: context should be empty after successful operation
-    assert len(tracer.tracer._context) == 0    
+    assert len(tracer.tracer._context) == 0

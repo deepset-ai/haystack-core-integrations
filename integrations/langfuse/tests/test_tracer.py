@@ -6,12 +6,11 @@ import asyncio
 import datetime
 import logging
 import sys
-import json
+from datetime import timezone
 from typing import Optional
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from haystack import Pipeline, component
 from haystack.dataclasses import ChatMessage, ToolCall
 
 from haystack_integrations.tracing.langfuse.tracer import (
@@ -21,7 +20,6 @@ from haystack_integrations.tracing.langfuse.tracer import (
     LangfuseTracer,
     SpanContext,
 )
-from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 
 
 class MockSpan:
@@ -50,7 +48,7 @@ class MockSpan:
 
 
 class MockTracer:
-    def trace(self, name, **kwargs):
+    def trace(self, name, **kwargs):  # noqa: ARG002
         # Return a unique mock span for each trace call
         return MockSpan(name=name)
 
@@ -178,7 +176,7 @@ class TestDefaultSpanHandler:
         assert mock_span.update.call_args_list[0][1] == {
             "usage": None,
             "model": "test_model",
-            "completion_start_time": datetime.datetime(2021, 7, 27, 16, 2, 8, 12345),
+            "completion_start_time": datetime.datetime(2021, 7, 27, 16, 2, 8, 12345, tzinfo=timezone.utc),
         }
 
     def test_handle_bad_completion_start_time(self, caplog):
@@ -250,8 +248,8 @@ class TestLangfuseTracer:
         mock_raw_span.operation_name = "operation_name"
         mock_raw_span.metadata = {"tag1": "value1", "tag2": "value2"}
 
-        with patch("haystack_integrations.tracing.langfuse.tracer.LangfuseSpan") as MockLangfuseSpan:
-            mock_span_instance = MockLangfuseSpan.return_value
+        with patch("haystack_integrations.tracing.langfuse.tracer.LangfuseSpan") as mock_langfuse_span:
+            mock_span_instance = mock_langfuse_span.return_value
             mock_span_instance.raw_span.return_value = mock_raw_span
 
             mock_context_manager = MagicMock()
@@ -298,7 +296,9 @@ class TestLangfuseTracer:
             ...
         assert span.raw_span()._data["usage"] is None
         assert span.raw_span()._data["model"] == "test_model"
-        assert span.raw_span()._data["completion_start_time"] == datetime.datetime(2021, 7, 27, 16, 2, 8, 12345)
+        assert span.raw_span()._data["completion_start_time"] == datetime.datetime(
+            2021, 7, 27, 16, 2, 8, 12345, tzinfo=timezone.utc
+        )
 
     def test_handle_tool_invoker(self):
         """
@@ -342,7 +342,7 @@ class TestLangfuseTracer:
         updated_name = name_update_call[1]["name"]
 
         # verify the format of the updated span name to be: `original_component_name - [list_of_tool_names]`
-        assert updated_name != "tool_invoker", f"Expected 'tool_invoker` to be upddated with tool names"
+        assert updated_name != "tool_invoker", "Expected 'tool_invoker` to be upddated with tool names"
         assert " - " in updated_name, f"Expected ' - ' in {updated_name}"
         assert "[" in updated_name, f"Expected '[' in {updated_name}"
         assert "]" in updated_name, f"Expected ']' in {updated_name}"
@@ -370,7 +370,7 @@ class TestLangfuseTracer:
         tracer_mock = Mock()
 
         tracer = LangfuseTracer(tracer=tracer_mock, name="Haystack", public=False)
-        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
+        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}):
             pass
 
         tracer_mock.flush.assert_called_once()
@@ -379,10 +379,11 @@ class TestLangfuseTracer:
         monkeypatch.setenv("HAYSTACK_LANGFUSE_ENFORCE_FLUSH", "false")
         tracer_mock = Mock()
 
-        from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer
+        # Re-import LangfuseTracer to ensure it picks up the new environment variable
+        from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer  # noqa: PLC0415
 
         tracer = LangfuseTracer(tracer=tracer_mock, name="Haystack", public=False)
-        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
+        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}):
             pass
 
         tracer_mock.flush.assert_not_called()
@@ -391,7 +392,7 @@ class TestLangfuseTracer:
         tracer_mock = Mock()
 
         tracer = LangfuseTracer(tracer=tracer_mock, name="Haystack", public=False)
-        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
+        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}):
             pass
 
         # Check behavioral state instead of internal _context list
@@ -406,11 +407,11 @@ class TestLangfuseTracer:
         # Re-import LangfuseTracer and instantiate it with tracing disabled
         with caplog.at_level(logging.WARNING):
             monkeypatch.setenv("HAYSTACK_CONTENT_TRACING_ENABLED", "false")
-            from haystack_integrations.tracing.langfuse import LangfuseTracer
+            from haystack_integrations.tracing.langfuse import LangfuseTracer  # noqa: PLC0415
 
             LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
             assert "tracing is disabled" in caplog.text
-            
+
     def test_async_concurrency_span_isolation(self):
         """
         Test that concurrent async traces maintain isolated span contexts.
@@ -482,4 +483,3 @@ class TestLangfuseTracer:
         assert task2_spans[1][2] == task2_inner  # current_span during inner
         assert task2_spans[2][2] == task2_outer  # current_span after inner
         assert task2_spans[3][2] is None  # current_span after outer
-  
