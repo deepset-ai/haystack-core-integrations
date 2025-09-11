@@ -191,6 +191,11 @@ class TestS3Downloader:
         out = d.run(documents=docs)
         assert len(out["documents"]) == 0
 
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("S3_DOWNLOADER_BUCKET", None),
+        reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
+    )
     def test_live_run_with_wrong_file_name(self, tmp_path):
         d = S3Downloader(file_root_path=str(tmp_path))
         S3Downloader.warm_up(d)
