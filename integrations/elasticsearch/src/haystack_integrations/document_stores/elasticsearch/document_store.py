@@ -10,6 +10,7 @@ from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.version import __version__ as haystack_version
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
@@ -63,6 +64,12 @@ class ElasticsearchDocumentStore:
         hosts: Optional[Hosts] = None,
         custom_mapping: Optional[Dict[str, Any]] = None,
         index: str = "default",
+        api_key: Secret = Secret.from_env_var(
+            "DOCUMENT_STORE_PARAMS_API_KEY", strict=True
+        ),
+        api_key_id: Secret = Secret.from_env_var(
+            "DOCUMENT_STORE_PARAMS_API_KEY_ID", strict=True
+        ),
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
         **kwargs: Any,
     ):
@@ -96,6 +103,8 @@ class ElasticsearchDocumentStore:
         self._index = index
         self._embedding_similarity_function = embedding_similarity_function
         self._custom_mapping = custom_mapping
+        self.api_key = api_key
+        self.api_key_id = api_key_id
         self._kwargs = kwargs
         self._initialized = False
 
@@ -114,11 +123,13 @@ class ElasticsearchDocumentStore:
             # Initialize both sync and async clients
             self._client = Elasticsearch(
                 self._hosts,
+                api_key=(self.api_key_id.resolve_value(), self.api_key.resolve_value()),
                 headers=headers,
                 **self._kwargs,
             )
             self._async_client = AsyncElasticsearch(
                 self._hosts,
+                api_key=(self.api_key_id.resolve_value(), self.api_key.resolve_value()),
                 headers=headers,
                 **self._kwargs,
             )
@@ -188,6 +199,8 @@ class ElasticsearchDocumentStore:
         # type explicitly to handle this properly.
         return default_to_dict(
             self,
+            api_key=self.api_key.to_dict() if self.api_key else None,
+            api_key_id=self.api_key_id.to_dict() if self.api_key_id else None,
             hosts=self._hosts,
             custom_mapping=self._custom_mapping,
             index=self._index,
@@ -205,6 +218,7 @@ class ElasticsearchDocumentStore:
         :returns:
             Deserialized component.
         """
+        deserialize_secrets_inplace(data, keys=["api_key", "api_key_id"])
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:
