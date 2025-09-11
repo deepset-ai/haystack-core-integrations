@@ -1,4 +1,5 @@
 import os
+import re
 
 import anthropic
 import pytest
@@ -20,7 +21,7 @@ class TestAnthropicGenerator:
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             AnthropicGenerator()
 
     def test_init_with_parameters(self):
@@ -113,7 +114,7 @@ class TestAnthropicGenerator:
                 "max_retries": None,
             },
         }
-        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             AnthropicGenerator.from_dict(data)
 
     def test_run(self, mock_chat_completion):
