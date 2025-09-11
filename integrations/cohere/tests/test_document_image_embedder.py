@@ -178,7 +178,7 @@ class TestCohereDocumentImageEmbedder:
             Document(content="Image 1", meta={"file_path": "image_1.jpg"}),
         ]
 
-        with pytest.raises(RuntimeError, match=r"Conversion failed for some documents."):
+        with pytest.raises(RuntimeError, match=r"Conversion failed for some documents\."):
             embedder._extract_images_to_embed(documents)
 
     @patch(f"{IMPORT_PATH}._extract_image_sources_info")
