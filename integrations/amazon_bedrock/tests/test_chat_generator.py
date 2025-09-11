@@ -283,7 +283,7 @@ class TestAmazonBedrockChatGenerator:
 
     def test_prepare_request_params_tool_config(self, top_song_tool_config, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
-        request_params, callback = generator._prepare_request_params(
+        request_params, _ = generator._prepare_request_params(
             messages=[ChatMessage.from_user("What's the capital of France?")],
             generation_kwargs={"toolConfig": top_song_tool_config},
             tools=None,
