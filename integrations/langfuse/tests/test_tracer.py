@@ -6,7 +6,6 @@ import asyncio
 import datetime
 import logging
 import sys
-from datetime import timezone
 from typing import Optional
 from unittest.mock import MagicMock, Mock, patch
 
@@ -176,7 +175,9 @@ class TestDefaultSpanHandler:
         assert mock_span.update.call_args_list[0][1] == {
             "usage": None,
             "model": "test_model",
-            "completion_start_time": datetime.datetime(2021, 7, 27, 16, 2, 8, 12345, tzinfo=timezone.utc),
+            "completion_start_time": datetime.datetime(  # noqa: DTZ001
+                2021, 7, 27, 16, 2, 8, 12345
+            ),
         }
 
     def test_handle_bad_completion_start_time(self, caplog):
@@ -296,8 +297,8 @@ class TestLangfuseTracer:
             ...
         assert span.raw_span()._data["usage"] is None
         assert span.raw_span()._data["model"] == "test_model"
-        assert span.raw_span()._data["completion_start_time"] == datetime.datetime(
-            2021, 7, 27, 16, 2, 8, 12345, tzinfo=timezone.utc
+        assert span.raw_span()._data["completion_start_time"] == datetime.datetime(  # noqa: DTZ001
+            2021, 7, 27, 16, 2, 8, 12345
         )
 
     def test_handle_tool_invoker(self):
