@@ -170,7 +170,7 @@ class TestOpenSearchHybridRetriever:
         mock_store._bm25_retrieval.return_value = [Document(content="Test doc BM25")]
         mock_store._embedding_retrieval.return_value = [Document(content="Test doc Embedding")]
 
-        with pytest.raises(ValueError, match="valid extra args are only: 'bm25_retriever' and 'embedding_retriever'."):
+        with pytest.raises(ValueError, match=r"valid extra args are only: 'bm25_retriever' and 'embedding_retriever'."):
             _ = OpenSearchHybridRetriever(
                 document_store=mock_store,
                 embedder=mock_embedder,
