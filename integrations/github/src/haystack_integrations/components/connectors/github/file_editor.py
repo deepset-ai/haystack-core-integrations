@@ -225,7 +225,7 @@ class GitHubFileEditor:
     def _delete_file(self, owner: str, repo: str, payload: Dict[str, str], branch: str) -> str:
         """Handle file deletion."""
         try:
-            content, sha = self._get_file_content(owner, repo, payload["path"], branch)
+            _, sha = self._get_file_content(owner, repo, payload["path"], branch)
             url = f"https://api.github.com/repos/{owner}/{repo}/contents/{payload['path']}"
 
             data = {"message": payload["message"], "sha": sha, "branch": branch}
