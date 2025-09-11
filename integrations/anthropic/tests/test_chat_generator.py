@@ -1171,7 +1171,7 @@ class TestAnthropicChatGenerator:
         image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
         message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
 
-        system_messages, non_system_messages = _convert_messages_to_anthropic_format([message])
+        _, non_system_messages = _convert_messages_to_anthropic_format([message])
 
         assert len(non_system_messages) == 1
         anthropic_message = non_system_messages[0]
