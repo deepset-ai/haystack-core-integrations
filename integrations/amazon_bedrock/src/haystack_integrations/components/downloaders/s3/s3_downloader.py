@@ -38,7 +38,7 @@ class S3Downloader:
         boto3_config: Optional[Dict[str, Any]] = None,
         file_root_path: Optional[str] = None,
         file_extensions: Optional[List[str]] = None,
-        download_file_meta_key: str = "file_name",
+        file_name_meta_key: str = "file_name",
         max_workers: int = 32,
         max_cache_size: int = 100,
     ) -> None:
@@ -58,15 +58,18 @@ class S3Downloader:
         :param aws_profile_name: AWS profile name.
         :param boto3_config: The configuration for the boto3 client.
         :param file_root_path: The path where the file will be downloaded.
+            Can be set through this parameter or the `FILE_ROOT_PATH` environment variable.
+            If none of them is set, a `ValueError` is raised.
         :param file_extensions: The file extensions that are permitted to be downloaded.
             By default, all file extensions are allowed.
         :param max_workers: The maximum number of workers to use for concurrent downloads.
         :param max_cache_size: The maximum number of files to cache.
-        :param download_file_meta_key: The name of the meta key that contains the file name to download.
-            By default, the Document.meta["file_name"] is used. If you want to use a
-            different key in Document.meta, you can set it here.
-        :raises S3ConfigurationError: If the AWS environment is not configured correctly
-            to connect to the S3 bucket.
+        :param file_name_meta_key: The name of the meta key that contains the file name to download.
+            By default, the `Document.meta["file_name"]` is used. If you want to use a
+            different key in `Document.meta`, you can set it here.
+        :raises ValueError: If the `file_root_path` is not set through
+            the constructor or the `FILE_ROOT_PATH` environment variable.
+
         """
 
         # Set up download directory
@@ -90,7 +93,7 @@ class S3Downloader:
         self.file_extensions = [e.lower() for e in file_extensions] if file_extensions else None
         self.max_workers = max_workers
         self.max_cache_size = max_cache_size
-        self.download_file_meta_key = download_file_meta_key
+        self.file_name_meta_key = file_name_meta_key
 
         self._storage: S3Storage = None
 
@@ -124,7 +127,7 @@ class S3Downloader:
         Return enriched `Document`s with the path of the downloaded file.
         :param documents: Document containing the name of the file to download in the meta field.
         :returns: A dictionary with:
-            - `documents`: The downloaded `Document`s; each has `meta['file_path']` and may include `mime_type`.
+            - `documents`: The downloaded `Document`s; each has `meta['file_path']`.
         :raises S3Error: If a download attempt fails or the file does not exist in the S3 bucket.
         :raises ValueError: If the path where files will be downloaded is not set.
         """
@@ -137,9 +140,9 @@ class S3Downloader:
         try:
             max_workers = min(self.max_workers, len(filtered_documents) if filtered_documents else self.max_workers)
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                iterable = executor.map(self.download_file, filtered_documents)
+                iterable = executor.map(self._download_file, filtered_documents)
         finally:
-            self.cleanup_cache(filtered_documents)
+            self._cleanup_cache(filtered_documents)
 
         downloaded_documents = [d for d in iterable if d is not None]
         return {"documents": downloaded_documents}
@@ -149,10 +152,10 @@ class S3Downloader:
         return [
             doc
             for doc in documents
-            if Path(doc.meta.get(self.download_file_meta_key, "")).suffix.lower() in self.file_extensions
+            if Path(doc.meta.get(self.file_name_meta_key, "")).suffix.lower() in self.file_extensions
         ]
 
-    def download_file(self, document: Document) -> Optional[Document]:
+    def _download_file(self, document: Document) -> Optional[Document]:
         """
         Download a single file from AWS S3 Bucket to local filesystem.
 
@@ -168,7 +171,7 @@ class S3Downloader:
                 f" Call 'warm_up()' before calling 'download_file()'."
             )
             raise RuntimeError(msg)
-        file_name = document.meta.get(self.download_file_meta_key)
+        file_name = document.meta.get(self.file_name_meta_key)
 
         file_path = self.file_root_path / Path(file_name)
 
@@ -182,9 +185,11 @@ class S3Downloader:
         document.meta["file_path"] = str(file_path)
         return document
 
-    def cleanup_cache(self, documents: List[Document]) -> None:
+    def _cleanup_cache(self, documents: List[Document]) -> None:
         """
-        Remove least-recently-accessed cache files when cache exceeds max_cache_size.
+        Remove least-recently-accessed cache files when cache exceeds `max_cache_size`.
+
+        :param documents: List of Document objects being used containing `cache_id` metadata.
         """
         requested_ids = {
             str(abs(hash(str(doc.meta.get("cache_id", ""))))) for doc in documents if doc.meta.get("cache_id")
@@ -193,7 +198,6 @@ class S3Downloader:
         all_files = [p for p in self.file_root_path.iterdir() if p.is_file()]
         misses = [p for p in all_files if p.stem not in requested_ids]
 
-        # cache budget = requested + misses; trim oldest misses if overflow
         overflow = len(misses) + len(requested_ids) - self.max_cache_size
         if overflow > 0:
             misses.sort(key=lambda p: p.stat().st_atime)
@@ -201,7 +205,7 @@ class S3Downloader:
                 try:
                     p.unlink()
                 except Exception:
-                    logger.warning(f"Failed to remove cache file {p}")
+                    logger.warning("Failed to remove cache file {path}", path=p)
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize the component to a dictionary."""
@@ -216,7 +220,7 @@ class S3Downloader:
             max_workers=self.max_workers,
             max_cache_size=self.max_cache_size,
             file_extensions=self.file_extensions,
-            download_file_meta_key=self.download_file_meta_key,
+            file_name_meta_key=self.file_name_meta_key,
         )
 
     @classmethod

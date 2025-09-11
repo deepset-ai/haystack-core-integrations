@@ -1,3 +1,8 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+
 class S3Error(Exception):
     """Exception for issues that occur in the S3 based components"""
 

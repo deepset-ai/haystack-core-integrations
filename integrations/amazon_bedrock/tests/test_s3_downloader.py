@@ -55,7 +55,7 @@ class TestS3Downloader:
             file_extensions=[".pdf", ".txt"],
             max_cache_size=100,
             max_workers=32,
-            download_file_meta_key="file_id",
+            file_name_meta_key="file_id",
         )
         assert d.file_extensions == [".pdf", ".txt"]
 
@@ -74,7 +74,7 @@ class TestS3Downloader:
                 "file_extensions": None,
                 "max_cache_size": 100,
                 "max_workers": 32,
-                "download_file_meta_key": "file_name",
+                "file_name_meta_key": "file_name",
             },
         }
         assert d.to_dict() == expected
@@ -101,7 +101,7 @@ class TestS3Downloader:
             file_extensions=[".txt"],
             max_cache_size=400,
             max_workers=40,
-            download_file_meta_key="new_file_key",
+            file_name_meta_key="new_file_key",
         )
         expected = {
             "type": TYPE,
@@ -115,7 +115,7 @@ class TestS3Downloader:
                 "file_extensions": [".txt"],
                 "max_cache_size": 400,
                 "max_workers": 40,
-                "download_file_meta_key": "new_file_key",
+                "file_name_meta_key": "new_file_key",
             },
         }
         assert d.to_dict() == expected
@@ -147,7 +147,7 @@ class TestS3Downloader:
         assert out["documents"][0].meta["file_name"] == "a.txt"
 
     def test_run_with_input_file_meta_key(self, tmp_path, mock_s3_storage):
-        d = S3Downloader(file_root_path=str(tmp_path), download_file_meta_key="custom_file_key")
+        d = S3Downloader(file_root_path=str(tmp_path), file_name_meta_key="custom_file_key")
         S3Downloader.warm_up(d)
         d._storage = mock_s3_storage
 
@@ -211,7 +211,7 @@ class TestS3Downloader:
         reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
     )
     def test_live_run_with_custom_meta_key(self, tmp_path):
-        d = S3Downloader(file_root_path=str(tmp_path), download_file_meta_key="custom_name")
+        d = S3Downloader(file_root_path=str(tmp_path), file_name_meta_key="custom_name")
         os.environ["S3_DOWNLOADER_PREFIX"] = ""
         S3Downloader.warm_up(d)
         docs = [
