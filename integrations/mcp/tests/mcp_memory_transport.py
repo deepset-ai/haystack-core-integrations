@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Any
 
-from haystack.tools import Tool
+from mcp import types
 from mcp.server import Server
 from mcp.shared.memory import create_connected_server_and_client_session
 
@@ -17,7 +17,7 @@ class InMemoryClient(MCPClient):
         super().__init__()
         self.server: Server = server
 
-    async def connect(self) -> list[Tool]:
+    async def connect(self) -> list[types.Tool]:
         """
         Connect to an MCP server using stdio transport.
 
