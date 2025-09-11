@@ -133,7 +133,7 @@ class TestSnowflakeTableRetriever:
         if should_raise:
             with pytest.raises(
                 ValueError,
-                match="Missing required Snowflake connection parameters: user and account.",
+                match=r"Missing required Snowflake connection parameters: user and account.",
             ):
                 retriever._snowflake_uri_constructor()
         else:
