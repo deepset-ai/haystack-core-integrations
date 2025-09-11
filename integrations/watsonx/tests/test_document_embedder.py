@@ -92,14 +92,14 @@ class TestWatsonXDocumentEmbedder:
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("WATSONX_API_KEY", raising=False)
-        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             WatsonxDocumentEmbedder(project_id=Secret.from_token("fake-project-id"))
 
     def test_init_fail_wo_project_id(self, monkeypatch):
         monkeypatch.setenv("WATSONX_API_KEY", "fake-api-key")
         monkeypatch.delenv("WATSONX_PROJECT_ID", raising=False)
 
-        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             WatsonxDocumentEmbedder()
 
     def test_to_dict(self, mock_watsonx):
@@ -165,7 +165,7 @@ class TestWatsonXDocumentEmbedder:
 
     def test_run_wrong_input_format(self, mock_watsonx):
         embedder = WatsonxDocumentEmbedder(project_id=Secret.from_token("fake-project-id"))
-        with pytest.raises(TypeError, match="WatsonxDocumentEmbedder expects a list of Documents as input."):
+        with pytest.raises(TypeError, match=r"WatsonxDocumentEmbedder expects a list of Documents as input\."):
             embedder.run(documents="not a list")  # type: ignore
 
     def test_run_empty_documents(self, mock_watsonx):

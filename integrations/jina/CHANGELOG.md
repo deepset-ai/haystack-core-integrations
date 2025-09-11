@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/jina-v0.8.0] - 2025-09-04
+
+### 🚀 Features
+
+- Add `JinaDocumentImageEmbedder` (#2234)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+
 ## [integrations/jina-v0.7.0] - 2025-06-30
 
 ### 🐛 Bug Fixes

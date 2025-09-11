@@ -50,7 +50,7 @@ class TestCohereRanker:
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("CO_API_KEY", raising=False)
         monkeypatch.delenv("COHERE_API_KEY", raising=False)
-        with pytest.raises(ValueError, match="None of the following authentication environment variables are set: *"):
+        with pytest.raises(ValueError, match=r"None of the following authentication environment variables are set: *"):
             CohereRanker()
 
     def test_init_with_parameters(self, monkeypatch):
@@ -149,7 +149,7 @@ class TestCohereRanker:
                 "max_tokens_per_doc": 100,
             },
         }
-        with pytest.raises(ValueError, match="None of the following authentication environment variables are set: *"):
+        with pytest.raises(ValueError, match=r"None of the following authentication environment variables are set: *"):
             CohereRanker.from_dict(data)
 
     def test_prepare_cohere_input_docs_default_separator(self, monkeypatch):
@@ -231,7 +231,7 @@ class TestCohereRanker:
         ranker = CohereRanker(top_k=-2)
         query = "test"
         documents = [Document(content="doc1"), Document(content="doc2"), Document(content="doc3")]
-        with pytest.raises(ValueError, match="top_k must be > 0, but got *"):
+        with pytest.raises(ValueError, match=r"top_k must be > 0, but got *"):
             ranker.run(query, documents)
 
     def test_run_zero_topk_in_init(self, monkeypatch):
@@ -239,7 +239,7 @@ class TestCohereRanker:
         ranker = CohereRanker(top_k=0)
         query = "test"
         documents = [Document(content="doc1"), Document(content="doc2"), Document(content="doc3")]
-        with pytest.raises(ValueError, match="top_k must be > 0, but got *"):
+        with pytest.raises(ValueError, match=r"top_k must be > 0, but got *"):
             ranker.run(query, documents)
 
     def test_run_negative_topk_in_run(self, monkeypatch):
@@ -247,7 +247,7 @@ class TestCohereRanker:
         ranker = CohereRanker()
         query = "test"
         documents = [Document(content="doc1"), Document(content="doc2"), Document(content="doc3")]
-        with pytest.raises(ValueError, match="top_k must be > 0, but got *"):
+        with pytest.raises(ValueError, match=r"top_k must be > 0, but got *"):
             ranker.run(query, documents, -3)
 
     def test_run_zero_topk_in_run_and_init(self, monkeypatch):
@@ -255,7 +255,7 @@ class TestCohereRanker:
         ranker = CohereRanker(top_k=0)
         query = "test"
         documents = [Document(content="doc1"), Document(content="doc2"), Document(content="doc3")]
-        with pytest.raises(ValueError, match="top_k must be > 0, but got *"):
+        with pytest.raises(ValueError, match=r"top_k must be > 0, but got *"):
             ranker.run(query, documents, 0)
 
     def test_run_documents_provided(self, monkeypatch, mock_ranker_response):  # noqa: ARG002

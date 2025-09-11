@@ -61,9 +61,13 @@ _COMPONENT_TYPE_KEY = "haystack.component.type"
 _COMPONENT_OUTPUT_KEY = "haystack.component.output"
 _COMPONENT_INPUT_KEY = "haystack.component.input"
 
-# Context var used to keep track of tracing related info.
-# This mainly useful for parents spans.
+# External session metadata for trace correlation (Haystack system)
+# Stores trace_id, user_id, session_id, tags, version for root trace creation
 tracing_context_var: ContextVar[Dict[Any, Any]] = ContextVar("tracing_context")
+
+# Internal span execution hierarchy for our tracer
+# Manages parent-child relationships and prevents cross-request span interleaving
+span_stack_var: ContextVar[Optional[List["LangfuseSpan"]]] = ContextVar("span_stack", default=None)
 
 
 class LangfuseSpan(Span):
@@ -265,6 +269,7 @@ class DefaultSpanHandler(SpanHandler):
             )
             raise RuntimeError(message)
 
+        # Get external tracing context for root trace creation (correlation metadata)
         tracing_ctx = tracing_context_var.get({})
         if not context.parent_span:
             # Create a new trace when there's no parent span
@@ -360,6 +365,7 @@ class LangfuseTracer(Tracer):
                 "before importing Haystack."
             )
         self._tracer = tracer
+        # Keep _context as deprecated shim to avoid AttributeError if anyone uses it
         self._context: List[LangfuseSpan] = []
         self._name = name
         self._public = public
@@ -391,7 +397,12 @@ class LangfuseTracer(Tracer):
         # Create span using the handler
         span = self._span_handler.create_span(span_context)
 
-        self._context.append(span)
+        # Build new span hierarchy: copy existing stack, add new span, save for restoration
+        prev_stack = span_stack_var.get()
+        new_stack = (prev_stack or []).copy()
+        new_stack.append(span)
+        token = span_stack_var.set(new_stack)
+
         span.set_tags(tags)
 
         try:
@@ -414,10 +425,8 @@ class LangfuseTracer(Tracer):
                     cleanup_error=cleanup_error,
                 )
             finally:
-                # CRITICAL: Always pop context to prevent corruption
-                # This is especially important for nested pipeline scenarios
-                if self._context and self._context[-1] == span:
-                    self._context.pop()
+                # Restore previous span stack using saved token - ensures proper cleanup
+                span_stack_var.reset(token)
 
             if self.enforce_flush:
                 self.flush()
@@ -431,7 +440,9 @@ class LangfuseTracer(Tracer):
 
         :return: The current span if available, else None.
         """
-        return self._context[-1] if self._context else None
+        # Get top of span stack (most recent span) from context-local storage
+        stack = span_stack_var.get()
+        return stack[-1] if stack else None
 
     def get_trace_url(self) -> str:
         """

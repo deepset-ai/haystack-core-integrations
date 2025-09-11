@@ -3,48 +3,13 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/mongodb-atlas-haystack.svg)](https://pypi.org/project/mongodb-atlas-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/mongodb-atlas-haystack.svg)](https://pypi.org/project/mongodb-atlas-haystack)
 
------
+- [Integration page](https://haystack.deepset.ai/integrations/mongodb-atlas)
+- [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/mongodb_atlas/CHANGELOG.md)
 
-**Table of Contents**
-
-- [Installation](#installation)
-- [Contributing](#contributing)
-- [License](#license)
-
-## Installation
-
-```console
-pip install mongodb-atlas-haystack
-```
+---
 
 ## Contributing
 
-`hatch` is the best way to interact with this project, to install it:
-```sh
-pip install hatch
-```
+Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
-To run all the tests:
-```
-hatch run test:all
-```
-
-> Note: you need your own MongoDB Atlas account to run the tests: you can make one here: 
-> https://www.mongodb.com/cloud/atlas/register. Once you have it, export the connection string
-> to the env var `MONGO_CONNECTION_STRING`. If you forget to do so, all the tests will be skipped.
-
-To format your code and perform linting using Ruff (with automatic fixes), run:
-```
-hatch run fmt
-```
-
-To check for static type errors, run:
-
-```console
-$ hatch run test:types
-```
-
-
-## License
-
-`mongodb-atlas-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.
+Integration tests are based on a private MongoDB instance. Reach out to a maintainer to run them.

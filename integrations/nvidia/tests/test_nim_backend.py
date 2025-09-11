@@ -86,11 +86,13 @@ class TestNimBackend:
         assert backend.session.headers["authorization"] == "Bearer fake-api-key"
         assert backend.timeout == REQUEST_TIMEOUT
 
-    def test_init_with_client_enum(self):
+    def test_init_with_client_enum(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         backend = NimBackend(model="custom-model", api_url="http://localhost:8000", client=Client.NVIDIA_TEXT_EMBEDDER)
         assert backend.client == Client.NVIDIA_TEXT_EMBEDDER
 
-    def test_init_without_client(self):
+    def test_init_without_client(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         backend = NimBackend(model="custom-model", api_url="http://localhost:8000")
         assert backend.client is None
         assert backend.model_type is None
@@ -145,7 +147,8 @@ class TestNimBackend:
                 client="NvidiaGenerator",  # chat client
             )
 
-    def test_init_with_non_hosted_model(self):
+    def test_init_with_non_hosted_model(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         backend = NimBackend(model="unknown-model", api_url="http://localhost:8000", client="NvidiaTextEmbedder")
 
         # validation is skipped for non-hosted models

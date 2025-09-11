@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/anthropic-v4.3.0] - 2025-08-18
+
+### 🚀 Features
+
+- Add multimodal support to AnthropicChatGenerator (#2186)
+
+
 ## [integrations/anthropic-v4.2.1] - 2025-08-11
 
 ### 🐛 Bug Fixes

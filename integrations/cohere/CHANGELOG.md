@@ -1,5 +1,42 @@
 # Changelog
 
+## [integrations/cohere-v5.5.0] - 2025-08-29
+
+### 🚀 Features
+
+- Add image support to Cohere Chat Generator (#2223)
+
+
+## [integrations/cohere-v5.4.0] - 2025-08-26
+
+### 🚀 Features
+
+- Add `StreamingChunk` to Cohere ChatGenerator  (#2157)
+
+### 🧪 Testing
+
+- Make tests successfully run from forks (#2203)
+
+### 🧹 Chores
+
+- Standardize readmes - part 1 (#2202)
+- Standardize readmes - part 2 (#2205)
+
+### 🌀 Miscellaneous
+
+- Docs: add Cohere document image embedder to pydocs (#2196)
+
+## [integrations/cohere-v5.3.0] - 2025-08-18
+
+### 🚀 Features
+
+- Add Cohere Image Document Embedder (#2190)
+
+### 🧹 Chores
+
+- CohereChatGenerator - make finish_reason and usage handling more robust (#2149)
+
+
 ## [integrations/cohere-v5.2.0] - 2025-07-10
 
 ### 🐛 Bug Fixes

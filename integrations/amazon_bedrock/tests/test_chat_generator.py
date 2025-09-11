@@ -283,7 +283,7 @@ class TestAmazonBedrockChatGenerator:
 
     def test_prepare_request_params_tool_config(self, top_song_tool_config, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
-        request_params, callback = generator._prepare_request_params(
+        request_params, _ = generator._prepare_request_params(
             messages=[ChatMessage.from_user("What's the capital of France?")],
             generation_kwargs={"toolConfig": top_song_tool_config},
             tools=None,
@@ -392,7 +392,7 @@ class TestAmazonBedrockChatGeneratorInference:
             assert tool_call.id, "Tool call does not contain value for 'id' key"
             assert tool_call.tool_name == "weather"
             assert tool_call.arguments["city"] in ["Paris", "Berlin"]
-            assert tool_call_message.meta["finish_reason"] == "tool_use"
+            assert tool_call_message.meta["finish_reason"] == "tool_calls"
 
         # Mock the response we'd get from ToolInvoker
         tool_result_messages = [
@@ -438,12 +438,14 @@ class TestAmazonBedrockChatGeneratorInference:
         assert isinstance(tool_call_message, ChatMessage), "Tool message is not a ChatMessage instance"
         assert ChatMessage.is_from(tool_call_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
 
+        assert tool_call_message.reasoning is not None, "Tool message does not contain reasoning"
+
         tool_calls = tool_call_message.tool_calls
         assert len(tool_calls) == 1
         assert tool_calls[0].id, "Tool call does not contain value for 'id' key"
         assert tool_calls[0].tool_name == "weather"
         assert tool_calls[0].arguments["city"] == "Paris"
-        assert tool_call_message.meta["finish_reason"] == "tool_use"
+        assert tool_call_message.meta["finish_reason"] == "tool_calls"
 
         # Mock the response we'd get from ToolInvoker
         tool_result_messages = [
@@ -489,12 +491,14 @@ class TestAmazonBedrockChatGeneratorInference:
         assert isinstance(tool_call_message, ChatMessage), "Tool message is not a ChatMessage instance"
         assert ChatMessage.is_from(tool_call_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
 
+        assert tool_call_message.reasoning is not None, "Tool message does not contain reasoning"
+
         tool_calls = tool_call_message.tool_calls
         assert len(tool_calls) == 1
         assert tool_calls[0].id, "Tool call does not contain value for 'id' key"
         assert tool_calls[0].tool_name == "weather"
         assert tool_calls[0].arguments["city"] == "Paris"
-        assert tool_call_message.meta["finish_reason"] == "tool_use"
+        assert tool_call_message.meta["finish_reason"] == "tool_calls"
 
         # Mock the response we'd get from ToolInvoker
         tool_result_messages = [
@@ -533,7 +537,8 @@ class TestAmazonBedrockChatGeneratorInference:
 
         assert len(results["replies"]) > 0, "No replies received"
         assert isinstance(
-            results["replies"][0].meta["reasoning_contents"][0]["reasoning_content"]["redacted_content"], bytes
+            results["replies"][0].reasoning.extra["reasoning_contents"][0]["reasoning_content"]["redacted_content"],
+            bytes,
         )
 
     def test_live_run_with_redacted_thinking_streaming(self, tools):
@@ -560,7 +565,8 @@ class TestAmazonBedrockChatGeneratorInference:
 
         assert len(results["replies"]) > 0, "No replies received"
         assert isinstance(
-            results["replies"][0].meta["reasoning_contents"][0]["reasoning_content"]["redacted_content"], bytes
+            results["replies"][0].reasoning.extra["reasoning_contents"][0]["reasoning_content"]["redacted_content"],
+            bytes,
         )
 
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
@@ -591,7 +597,7 @@ class TestAmazonBedrockChatGeneratorInference:
             assert tool_call.id, "Tool call does not contain value for 'id' key"
             assert tool_call.tool_name == "weather"
             assert tool_call.arguments["city"] in ["Paris", "Berlin"]
-            assert tool_call_message.meta["finish_reason"] == "tool_use"
+            assert tool_call_message.meta["finish_reason"] == "tool_calls"
 
         # Mock the response we'd get from ToolInvoker
         tool_result_messages = [
@@ -633,7 +639,7 @@ class TestAmazonBedrockChatGeneratorInference:
         assert tool_call.id is not None
         assert tool_call.tool_name == "hello_world"
         assert tool_call.arguments == {}
-        assert message.meta["finish_reason"] == "tool_use"
+        assert message.meta["finish_reason"] == "tool_calls"
 
         new_messages = [
             *initial_messages,
@@ -724,7 +730,7 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
             assert tool_call.id, "Tool call does not contain value for 'id' key"
             assert tool_call.tool_name == "weather"
             assert tool_call.arguments["city"] in ["Paris", "Berlin"]
-            assert tool_call_message.meta["finish_reason"] == "tool_use"
+            assert tool_call_message.meta["finish_reason"] == "tool_calls"
 
         # Mock the response we'd get from ToolInvoker
         tool_result_messages = [
@@ -800,7 +806,7 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
             assert tool_call.id, "Tool call does not contain value for 'id' key"
             assert tool_call.tool_name == "weather"
             assert tool_call.arguments["city"] in ["Paris", "Berlin"]
-            assert tool_call_message.meta["finish_reason"] == "tool_use"
+            assert tool_call_message.meta["finish_reason"] == "tool_calls"
 
         # Mock the response we'd get from ToolInvoker
         tool_result_messages = [

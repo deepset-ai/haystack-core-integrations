@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.16.0", "boto3>=1.28.57", "aioboto3>=14.0.0"]
+dependencies = ["haystack-ai>=2.17.1", "boto3>=1.28.57", "aioboto3>=14.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/amazon_bedrock#readme"
@@ -58,7 +58,8 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
-    "pillow", # image resizing
+    "pillow", # image resizing,
+    "pypdfium2"
 ]
 
 [tool.hatch.envs.test.scripts]

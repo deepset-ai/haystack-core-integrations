@@ -61,7 +61,7 @@ class TestSTACKITChatGenerator:
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("STACKIT_API_KEY", raising=False)
-        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8")
 
     def test_init_with_parameters(self):
@@ -165,7 +165,7 @@ class TestSTACKITChatGenerator:
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
-        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             STACKITChatGenerator.from_dict(data)
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
