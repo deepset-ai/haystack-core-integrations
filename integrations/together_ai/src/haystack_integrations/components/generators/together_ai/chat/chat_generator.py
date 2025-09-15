@@ -85,7 +85,8 @@ class TogetherAIChatGenerator(OpenAIChatGenerator):
             For more details, see Together AI [docs](https://docs.together.ai/docs/openai-api-compatibility).
         :param generation_kwargs:
             Other parameters to use for the model. These parameters are all sent directly to
-            the Together AI endpoint. See [Together AI API docs](https://docs.together.ai/reference/chat-completions-1) for more details.
+            the Together AI endpoint. See [Together AI API docs](https://docs.together.ai/reference/chat-completions-1)
+            for more details.
             Some of the supported parameters:
             - `max_tokens`: The maximum number of tokens the output text can have.
             - `temperature`: What sampling temperature to use. Higher values mean the model will take more risks.

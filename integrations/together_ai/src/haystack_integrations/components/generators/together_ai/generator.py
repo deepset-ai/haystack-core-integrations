@@ -9,7 +9,6 @@ from haystack.components.generators import OpenAIGenerator
 from haystack.dataclasses import StreamingCallbackT
 from haystack.utils import Secret, serialize_callable
 
-
 logger = logging.getLogger(__name__)
 
 
