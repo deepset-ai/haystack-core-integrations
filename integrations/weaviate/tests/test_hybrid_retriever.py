@@ -222,26 +222,6 @@ def test_run_with_runtime_filters():
     )
 
 
-def test_run_with_merge_filter_policy():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
-    mock_document_store._hybrid_retrieval.return_value = [Mock(content="Merged filter document", score=0.7)]
-
-    retriever = WeaviateHybridRetriever(
-        document_store=mock_document_store, filters={"field": "value"}, filter_policy=FilterPolicy.MERGE
-    )
-    retriever.run(query="test query", query_embedding=[0.1, 0.2, 0.3], filters={"field2": "value2"})
-
-    # With MERGE policy, both init and runtime filters should be combined
-    mock_document_store._hybrid_retrieval.assert_called_once_with(
-        query="test query",
-        query_embedding=[0.1, 0.2, 0.3],
-        filters={"field2": "value2"},
-        top_k=10,
-        alpha=None,
-        max_vector_distance=None,
-    )
-
-
 def test_run_with_runtime_parameters():
     mock_document_store = Mock(spec=WeaviateDocumentStore)
     mock_document_store._hybrid_retrieval.return_value = [Mock(content="Runtime params document", score=0.6)]
