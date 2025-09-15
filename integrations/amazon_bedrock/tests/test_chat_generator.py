@@ -133,7 +133,6 @@ class TestAmazonBedrockChatGenerator:
                 "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
                 "model": "cohere.command-r-plus-v1:0",
                 "generation_kwargs": {"temperature": 0.7},
-                "stop_words": [],
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "boto3_config": boto3_config,
                 "tools": None,
@@ -165,6 +164,7 @@ class TestAmazonBedrockChatGenerator:
                     "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                     "boto3_config": boto3_config,
                     "tools": None,
+                    "stop_words": ["stop"], # this parameter will be ignored
                 },
             }
         )
@@ -224,8 +224,7 @@ class TestAmazonBedrockChatGenerator:
 
         generator = AmazonBedrockChatGenerator(
             model="anthropic.claude-3-5-sonnet-20240620-v1:0",
-            generation_kwargs={"temperature": 0.7},
-            stop_words=["eviscerate"],
+            generation_kwargs={"temperature": 0.7, "stopSequences": ["eviscerate"]},
             streaming_callback=print_streaming_chunk,
             tools=[tool],
         )
@@ -252,8 +251,7 @@ class TestAmazonBedrockChatGenerator:
                         "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
                         "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
                         "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-                        "generation_kwargs": {"temperature": 0.7},
-                        "stop_words": ["eviscerate"],
+                        "generation_kwargs": {"temperature": 0.7, "stopSequences": ["eviscerate"]},
                         "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                         "boto3_config": None,
                         "tools": [
