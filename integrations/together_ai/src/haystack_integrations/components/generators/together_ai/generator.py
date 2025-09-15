@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Dict, Optional
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators import OpenAIGenerator
-from haystack.dataclasses import StreamingChunk
+from haystack.dataclasses import StreamingCallbackT
 from haystack.utils import Secret, serialize_callable
+
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class TogetherAIGenerator(OpenAIGenerator):
         api_key: Secret = Secret.from_env_var("TOGETHER_AI_API_KEY"),
         model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo ",
         api_base_url: Optional[str] = "https://api.together.xyz/v1",
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         system_prompt: Optional[str] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
@@ -52,7 +53,7 @@ class TogetherAIGenerator(OpenAIGenerator):
         :param system_prompt: The system prompt to use for text generation. If not provided, the system prompt is
             omitted, and the default system prompt of the model is used.
         :param generation_kwargs: Other parameters to use for the model. These parameters are all sent directly to
-            the together.ai endpoint. See together.ai
+            the Together AI endpoint. See Together AI
             [documentation](https://docs.together.ai/reference/chat-completions-1) for more details.
             Some of the supported parameters:
             - `max_tokens`: The maximum number of tokens the output text can have.
@@ -71,11 +72,11 @@ class TogetherAIGenerator(OpenAIGenerator):
             - `logit_bias`: Add a logit bias to specific tokens. The keys of the dictionary are tokens, and the
                 values are the bias to add to that token.
         :param timeout:
-            Timeout for together.ai Client calls, if not set it is inferred from the `TOGETHERAI_TIMEOUT` environment
+            Timeout for together.ai Client calls, if not set it is inferred from the `OPENAI_TIMEOUT` environment
             variable or set to 30.
         :param max_retries:
-            Maximum retries to establish contact with together.ai if it returns an internal error, if not set it is
-            inferred from the `TOGETHER_MAX_RETRIES` environment variable or set to 5.
+            Maximum retries to establish contact with Together AI if it returns an internal error, if not set it is
+            inferred from the `OPENAI_MAX_RETRIES` environment variable or set to 5.
         """
 
         self.api_key = api_key
