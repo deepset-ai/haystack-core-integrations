@@ -546,3 +546,28 @@ class WeaviateDocumentStore:
         )
 
         return [self._to_document(doc) for doc in result.objects]
+
+    def _hybrid_retrieval(
+        self,
+        query: str,
+        query_embedding: List[float],
+        filters: Optional[Dict[str, Any]] = None,
+        top_k: Optional[int] = None,
+        alpha: Optional[float] = None,
+        max_vector_distance: Optional[float] = None
+    ) -> List[Document]:
+        properties = [p.name for p in self.collection.config.get().properties]
+        result = self.collection.query.hybrid(
+            query=query,
+            vector=query_embedding,
+            alpha=alpha,
+            filters=convert_filters(filters) if filters else None,
+            limit=top_k,
+            max_vector_distance=max_vector_distance,
+            include_vector=True,
+            query_properties=["content"],
+            return_properties=properties,
+            return_metadata=["score"]
+        )
+
+        return [self._to_document(doc) for doc in result.objects]
