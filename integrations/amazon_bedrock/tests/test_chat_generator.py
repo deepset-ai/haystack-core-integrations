@@ -164,7 +164,7 @@ class TestAmazonBedrockChatGenerator:
                     "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                     "boto3_config": boto3_config,
                     "tools": None,
-                    "stop_words": ["stop"], # this parameter will be ignored
+                    "stop_words": ["stop"],  # this parameter will be ignored
                 },
             }
         )
