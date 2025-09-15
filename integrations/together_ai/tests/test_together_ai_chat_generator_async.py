@@ -125,7 +125,7 @@ class TestTogetherAIChatGeneratorAsync:
 
     @pytest.mark.skipif(
         not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called OPENROUTER_API_KEY containing the OpenAI API key to run this test.",
+        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -141,7 +141,7 @@ class TestTogetherAIChatGeneratorAsync:
 
     @pytest.mark.skipif(
         not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called OPENROUTER_API_KEY containing the OpenAI API key to run this test.",
+        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -170,7 +170,7 @@ class TestTogetherAIChatGeneratorAsync:
 
     @pytest.mark.skipif(
         not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called OPENROUTER_API_KEY containing the OpenAI API key to run this test.",
+        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -217,7 +217,7 @@ class TestTogetherAIChatGeneratorAsync:
 
     @pytest.mark.skipif(
         not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called OPENROUTER_API_KEY containing the OpenAI API key to run this test.",
+        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     @pytest.mark.asyncio

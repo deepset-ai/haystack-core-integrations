@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class TogetherAIChatGenerator(OpenAIChatGenerator):
     """
     Enables text generation using Together AI generative models.
-    For supported models, see [Together AI docs](https://docs.together.ai/reference/chat-completions-1).
+    For supported models, see [Together AI docs](https://docs.together.ai/docs).
 
     Users can pass any text generation parameters valid for the Together AI chat completion API
     directly to this component using the `generation_kwargs` parameter in `__init__` or the `generation_kwargs`
@@ -35,23 +35,23 @@ class TogetherAIChatGenerator(OpenAIChatGenerator):
     [Haystack docs](https://docs.haystack.deepset.ai/docs/chatmessage)
 
     For more details on the parameters supported by the Together AI API, refer to the
-    [OpenRouter API Docs](https://openrouter.ai/docs/quickstart).
+    [Together AI API Docs](https://docs.together.ai/reference/chat-completions-1).
 
     Usage example:
     ```python
-    from haystack_integrations.components.generators.openrouter import OpenRouterChatGenerator
+    from haystack_integrations.components.generators.together_ai import TogetherAIChatGenerator
     from haystack.dataclasses import ChatMessage
 
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
 
-    client = OpenRouterChatGenerator()
+    client = TogetherAIChatGenerator()
     response = client.run(messages)
     print(response)
 
     >>{'replies': [ChatMessage(_content='Natural Language Processing (NLP) is a branch of artificial intelligence
     >>that focuses on enabling computers to understand, interpret, and generate human language in a way that is
     >>meaningful and useful.', _role=<ChatRole.ASSISTANT: 'assistant'>, _name=None,
-    >>_meta={'model': 'openai/gpt-4o-mini', 'index': 0, 'finish_reason': 'stop',
+    >>_meta={'model': 'meta-llama/Llama-3.3-70B-Instruct-Turbo', 'index': 0, 'finish_reason': 'stop',
     >>'usage': {'prompt_tokens': 15, 'completion_tokens': 36, 'total_tokens': 51}})]}
     ```
     """
@@ -82,10 +82,10 @@ class TogetherAIChatGenerator(OpenAIChatGenerator):
             The callback function accepts StreamingChunk as an argument.
         :param api_base_url:
             The Together AI API Base url.
-            For more details, see OpenRouter [docs](https://openrouter.ai/docs/quickstart).
+            For more details, see Together AI [docs](https://docs.together.ai/docs/openai-api-compatibility).
         :param generation_kwargs:
             Other parameters to use for the model. These parameters are all sent directly to
-            the OpenRouter endpoint. See [OpenRouter API docs](https://openrouter.ai/docs/quickstart) for more details.
+            the Together AI endpoint. See [Together AI API docs](https://docs.together.ai/reference/chat-completions-1) for more details.
             Some of the supported parameters:
             - `max_tokens`: The maximum number of tokens the output text can have.
             - `temperature`: What sampling temperature to use. Higher values mean the model will take more risks.
@@ -101,9 +101,9 @@ class TogetherAIChatGenerator(OpenAIChatGenerator):
             A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
             list of `Tool` objects or a `Toolset` instance.
         :param timeout:
-            The timeout for the OpenRouter API call.
+            The timeout for the Together AI API call.
         :param max_retries:
-            Maximum number of retries to contact OpenAI after an internal error.
+            Maximum number of retries to contact Together AI after an internal error.
             If not set, it defaults to either the `OPENAI_MAX_RETRIES` environment variable, or set to 5.
         :param http_client_kwargs:
             A dictionary of keyword arguments to configure a custom `httpx.Client`or `httpx.AsyncClient`.

@@ -435,7 +435,7 @@ class TestTogetherAIChatGenerator:
 
     def test_serde_in_pipeline(self, monkeypatch):
         """
-        Test serialization/deserialization of OpenRouterChatGenerator in a Pipeline,
+        Test serialization/deserialization of TogetherAIChatGenerator in a Pipeline,
         including YAML conversion and detailed dictionary validation
         """
         # Set mock API key
@@ -533,14 +533,14 @@ class TestTogetherAIChatGenerator:
 
 class TestChatCompletionChunkConversion:
     def test_handle_stream_response(self):
-        openrouter_chunks = [
+        together_ai_chunks = [
             ChatCompletionChunk(
                 id="gen-1750162525-tc7ParBHvsqd6rYhCDtK",
                 choices=[
                     ChoiceChunk(delta=ChoiceDelta(content="", role="assistant"), index=0, native_finish_reason=None)
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -565,7 +565,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -589,7 +589,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -613,7 +613,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -831,7 +831,7 @@ class TestChatCompletionChunkConversion:
 
         collector_callback = CollectorCallback()
         llm = TogetherAIChatGenerator(api_key=Secret.from_token("test-api-key"))
-        result = llm._handle_stream_response(openrouter_chunks, callback=collector_callback)[0]  # type: ignore
+        result = llm._handle_stream_response(together_ai_chunks, callback=collector_callback)[0]  # type: ignore
 
         # Assert text is empty
         assert result.text is None
