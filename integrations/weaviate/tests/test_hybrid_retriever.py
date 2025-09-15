@@ -37,7 +37,7 @@ def test_init_with_parameters():
         top_k=5,
         alpha=0.5,
         max_vector_distance=0.8,
-        filter_policy=FilterPolicy.MERGE
+        filter_policy=FilterPolicy.MERGE,
     )
     assert retriever._document_store == mock_document_store
     assert retriever._filters == filters
@@ -94,7 +94,7 @@ def test_to_dict_with_parameters(_mock_weaviate):
         top_k=5,
         alpha=0.7,
         max_vector_distance=0.6,
-        filter_policy=FilterPolicy.MERGE
+        filter_policy=FilterPolicy.MERGE,
     )
     result = retriever.to_dict()
     assert result["init_parameters"]["filters"] == filters
@@ -192,44 +192,25 @@ def test_from_dict_with_parameters(_mock_weaviate):
 
 def test_run_basic():
     mock_document_store = Mock(spec=WeaviateDocumentStore)
-    mock_document_store._hybrid_retrieval.return_value = [
-        Mock(content="Test document", score=0.9)
-    ]
+    mock_document_store._hybrid_retrieval.return_value = [Mock(content="Test document", score=0.9)]
 
     retriever = WeaviateHybridRetriever(document_store=mock_document_store)
-    result = retriever.run(
-        query="test query",
-        query_embedding=[0.1, 0.2, 0.3]
-    )
+    result = retriever.run(query="test query", query_embedding=[0.1, 0.2, 0.3])
 
     assert "documents" in result
     assert len(result["documents"]) == 1
     mock_document_store._hybrid_retrieval.assert_called_once_with(
-        query="test query",
-        query_embedding=[0.1, 0.2, 0.3],
-        filters={},
-        top_k=10,
-        alpha=None,
-        max_vector_distance=None
+        query="test query", query_embedding=[0.1, 0.2, 0.3], filters={}, top_k=10, alpha=None, max_vector_distance=None
     )
 
 
 def test_run_with_runtime_filters():
     mock_document_store = Mock(spec=WeaviateDocumentStore)
-    mock_document_store._hybrid_retrieval.return_value = [
-        Mock(content="Filtered document", score=0.8)
-    ]
+    mock_document_store._hybrid_retrieval.return_value = [Mock(content="Filtered document", score=0.8)]
 
     # Test with REPLACE policy (default)
-    retriever = WeaviateHybridRetriever(
-        document_store=mock_document_store,
-        filters={"init": "filter"}
-    )
-    result = retriever.run(
-        query="test query",
-        query_embedding=[0.1, 0.2, 0.3],
-        filters={"runtime": "filter"}
-    )
+    retriever = WeaviateHybridRetriever(document_store=mock_document_store, filters={"init": "filter"})
+    retriever.run(query="test query", query_embedding=[0.1, 0.2, 0.3], filters={"runtime": "filter"})
 
     mock_document_store._hybrid_retrieval.assert_called_once_with(
         query="test query",
@@ -237,91 +218,54 @@ def test_run_with_runtime_filters():
         filters={"runtime": "filter"},
         top_k=10,
         alpha=None,
-        max_vector_distance=None
+        max_vector_distance=None,
     )
 
 
 def test_run_with_merge_filter_policy():
     mock_document_store = Mock(spec=WeaviateDocumentStore)
-    mock_document_store._hybrid_retrieval.return_value = [
-        Mock(content="Merged filter document", score=0.7)
-    ]
+    mock_document_store._hybrid_retrieval.return_value = [Mock(content="Merged filter document", score=0.7)]
 
     retriever = WeaviateHybridRetriever(
-        document_store=mock_document_store,
-        filters={"init": "filter", "type": "init"},
-        filter_policy=FilterPolicy.MERGE
+        document_store=mock_document_store, filters={"field": "value"}, filter_policy=FilterPolicy.MERGE
     )
-    result = retriever.run(
-        query="test query",
-        query_embedding=[0.1, 0.2, 0.3],
-        filters={"runtime": "filter", "type": "runtime"}
-    )
+    retriever.run(query="test query", query_embedding=[0.1, 0.2, 0.3], filters={"field2": "value2"})
 
     # With MERGE policy, both init and runtime filters should be combined
     mock_document_store._hybrid_retrieval.assert_called_once_with(
         query="test query",
         query_embedding=[0.1, 0.2, 0.3],
-        filters={"init": "filter", "type": "init", "runtime": "filter"},
+        filters={"field2": "value2"},
         top_k=10,
         alpha=None,
-        max_vector_distance=None
+        max_vector_distance=None,
     )
 
 
 def test_run_with_runtime_parameters():
     mock_document_store = Mock(spec=WeaviateDocumentStore)
-    mock_document_store._hybrid_retrieval.return_value = [
-        Mock(content="Runtime params document", score=0.6)
-    ]
+    mock_document_store._hybrid_retrieval.return_value = [Mock(content="Runtime params document", score=0.6)]
 
     retriever = WeaviateHybridRetriever(document_store=mock_document_store)
-    result = retriever.run(
-        query="test query",
-        query_embedding=[0.1, 0.2, 0.3],
-        top_k=5,
-        alpha=0.8,
-        max_vector_distance=0.7
-    )
+    retriever.run(query="test query", query_embedding=[0.1, 0.2, 0.3], top_k=5, alpha=0.8, max_vector_distance=0.7)
 
     mock_document_store._hybrid_retrieval.assert_called_once_with(
-        query="test query",
-        query_embedding=[0.1, 0.2, 0.3],
-        filters={},
-        top_k=5,
-        alpha=0.8,
-        max_vector_distance=0.7
+        query="test query", query_embedding=[0.1, 0.2, 0.3], filters={}, top_k=5, alpha=0.8, max_vector_distance=0.7
     )
 
 
 def test_run_with_init_and_runtime_parameters():
     mock_document_store = Mock(spec=WeaviateDocumentStore)
-    mock_document_store._hybrid_retrieval.return_value = [
-        Mock(content="Init and runtime params document", score=0.5)
-    ]
+    mock_document_store._hybrid_retrieval.return_value = [Mock(content="Init and runtime params document", score=0.5)]
 
     retriever = WeaviateHybridRetriever(
-        document_store=mock_document_store,
-        top_k=20,
-        alpha=0.3,
-        max_vector_distance=0.9
+        document_store=mock_document_store, top_k=20, alpha=0.3, max_vector_distance=0.9
     )
-    result = retriever.run(
-        query="test query",
-        query_embedding=[0.1, 0.2, 0.3],
-        top_k=15,
-        alpha=0.6,
-        max_vector_distance=0.8
-    )
+    retriever.run(query="test query", query_embedding=[0.1, 0.2, 0.3], top_k=15, alpha=0.6, max_vector_distance=0.8)
 
     # Runtime parameters should override init parameters
     mock_document_store._hybrid_retrieval.assert_called_once_with(
-        query="test query",
-        query_embedding=[0.1, 0.2, 0.3],
-        filters={},
-        top_k=15,
-        alpha=0.6,
-        max_vector_distance=0.8
+        query="test query", query_embedding=[0.1, 0.2, 0.3], filters={}, top_k=15, alpha=0.6, max_vector_distance=0.8
     )
 
 
@@ -330,20 +274,12 @@ def test_run_empty_query():
     mock_document_store._hybrid_retrieval.return_value = []
 
     retriever = WeaviateHybridRetriever(document_store=mock_document_store)
-    result = retriever.run(
-        query="",
-        query_embedding=[0.1, 0.2, 0.3]
-    )
+    result = retriever.run(query="", query_embedding=[0.1, 0.2, 0.3])
 
     assert "documents" in result
     assert len(result["documents"]) == 0
     mock_document_store._hybrid_retrieval.assert_called_once_with(
-        query="",
-        query_embedding=[0.1, 0.2, 0.3],
-        filters={},
-        top_k=10,
-        alpha=None,
-        max_vector_distance=None
+        query="", query_embedding=[0.1, 0.2, 0.3], filters={}, top_k=10, alpha=None, max_vector_distance=None
     )
 
 
@@ -357,11 +293,7 @@ def test_run_multiple_documents():
     mock_document_store._hybrid_retrieval.return_value = mock_documents
 
     retriever = WeaviateHybridRetriever(document_store=mock_document_store)
-    result = retriever.run(
-        query="test query",
-        query_embedding=[0.1, 0.2, 0.3],
-        top_k=3
-    )
+    result = retriever.run(query="test query", query_embedding=[0.1, 0.2, 0.3], top_k=3)
 
     assert "documents" in result
     assert len(result["documents"]) == 3

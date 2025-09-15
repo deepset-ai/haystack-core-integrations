@@ -554,7 +554,7 @@ class WeaviateDocumentStore:
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
         alpha: Optional[float] = None,
-        max_vector_distance: Optional[float] = None
+        max_vector_distance: Optional[float] = None,
     ) -> List[Document]:
         properties = [p.name for p in self.collection.config.get().properties]
         result = self.collection.query.hybrid(
@@ -567,7 +567,7 @@ class WeaviateDocumentStore:
             include_vector=True,
             query_properties=["content"],
             return_properties=properties,
-            return_metadata=["score"]
+            return_metadata=["score"],
         )
 
         return [self._to_document(doc) for doc in result.objects]

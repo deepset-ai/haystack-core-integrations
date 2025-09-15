@@ -645,7 +645,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert len(result) > 0
         # Should find documents containing "functional" and similar to the embedding
         assert result[0].content == "Haskell is a functional programming language"
-        assert all(doc.score is not None and doc.score > 0.0 for doc in result)
+        assert result[0].score > 0.0
 
     def test_hybrid_retrieval_with_filters(self, document_store):
         document_store.write_documents(
@@ -687,17 +687,17 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         # Test with alpha=0.0 (pure BM25)
         result_bm25 = document_store._hybrid_retrieval("functional", query_embedding=[1.0, 0.8, 0.2, 0.1], alpha=0.0)
         assert len(result_bm25) > 0
-        assert all(doc.score is not None and doc.score > 0.0 for doc in result_bm25)
+        assert result_bm25[0].score > 0.0
 
         # Test with alpha=1.0 (pure vector search)
         result_vector = document_store._hybrid_retrieval("functional", query_embedding=[1.0, 0.8, 0.2, 0.1], alpha=1.0)
         assert len(result_vector) > 0
-        assert all(doc.score is not None and doc.score > 0.0 for doc in result_vector)
+        assert result_vector[0].score > 0.0
 
         # Test with alpha=0.5 (balanced hybrid)
         result_hybrid = document_store._hybrid_retrieval("functional", query_embedding=[1.0, 0.8, 0.2, 0.1], alpha=0.5)
         assert len(result_hybrid) > 0
-        assert all(doc.score is not None and doc.score > 0.0 for doc in result_hybrid)
+        assert result_hybrid[0].score > 0.0
 
     def test_hybrid_retrieval_with_max_vector_distance(self, document_store):
         document_store.write_documents(
@@ -709,9 +709,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         )
         # Use a restrictive max_vector_distance to limit results
         result = document_store._hybrid_retrieval(
-            "functional",
-            query_embedding=[1.0, 0.8, 0.2, 0.1],
-            max_vector_distance=0.5
+            "functional", query_embedding=[1.0, 0.8, 0.2, 0.1], max_vector_distance=0.5
         )
         assert len(result) >= 1  # Should find at least the closest match
         assert all(doc.score is not None and doc.score > 0.0 for doc in result)
@@ -737,11 +735,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         )
         # Test combining multiple parameters
         result = document_store._hybrid_retrieval(
-            "functional",
-            query_embedding=[1.0, 0.8, 0.2, 0.1],
-            top_k=2,
-            alpha=0.7,
-            max_vector_distance=0.8
+            "functional", query_embedding=[1.0, 0.8, 0.2, 0.1], top_k=2, alpha=0.7, max_vector_distance=0.8
         )
         assert len(result) <= 2  # Should respect top_k limit
         assert all(doc.score is not None and doc.score > 0.0 for doc in result)

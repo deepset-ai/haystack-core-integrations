@@ -95,7 +95,7 @@ class WeaviateHybridRetriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: Optional[int] = None,
         alpha: Optional[float] = None,
-        max_vector_distance: Optional[float] = None
+        max_vector_distance: Optional[float] = None,
     ) -> Dict[str, List[Document]]:
         """
         Retrieves documents from Weaviate using the hybrid search.
@@ -117,9 +117,7 @@ class WeaviateHybridRetriever:
         filters = apply_filter_policy(self._filter_policy, self._filters, filters)
         top_k = self._top_k if top_k is None else top_k
         alpha = self._alpha if alpha is None else alpha
-        max_vector_distance = (
-            self._max_vector_distance if max_vector_distance is None else max_vector_distance
-        )
+        max_vector_distance = self._max_vector_distance if max_vector_distance is None else max_vector_distance
 
         documents = self._document_store._hybrid_retrieval(
             query=query,
@@ -127,6 +125,6 @@ class WeaviateHybridRetriever:
             filters=filters,
             top_k=top_k,
             alpha=alpha,
-            max_vector_distance=max_vector_distance
+            max_vector_distance=max_vector_distance,
         )
         return {"documents": documents}
