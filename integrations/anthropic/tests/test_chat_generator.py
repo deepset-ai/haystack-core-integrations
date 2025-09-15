@@ -4,7 +4,7 @@
 
 import json
 import os
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import anthropic
 import pytest
@@ -16,9 +16,12 @@ from anthropic.types import (
     RawContentBlockStartEvent,
     RawMessageDeltaEvent,
     RawMessageStartEvent,
+    SignatureDelta,
     TextBlock,
     TextBlockParam,
     TextDelta,
+    ThinkingBlock,
+    ThinkingDelta,
     ToolUseBlock,
     Usage,
 )
@@ -38,8 +41,12 @@ from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.anthropic.chat.chat_generator import (
-    FINISH_REASON_MAPPING,
     AnthropicChatGenerator,
+)
+from haystack_integrations.components.generators.anthropic.chat.utils import (
+    FINISH_REASON_MAPPING,
+    _convert_anthropic_chunk_to_streaming_chunk,
+    _convert_chat_completion_to_chat_message,
     _convert_messages_to_anthropic_format,
 )
 
@@ -338,7 +345,55 @@ class TestAnthropicChatGenerator:
         with pytest.raises(ValueError):
             AnthropicChatGenerator(tools=tools + tools)
 
-    def test_convert_anthropic_completion_chunks_with_multiple_tool_calls_to_streaming_chunks(self):
+    def test_convert_chat_completion_to_chat_message(self, mock_chat_completion):
+        """
+        Test converting Anthropic chat completion to ChatMessage
+        """
+        chat_completion = mock_chat_completion.return_value
+
+        chat_message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=True)
+        assert chat_message.text == "Hello, world!"
+        assert chat_message.role == "assistant"
+        assert chat_message.meta["model"] == "claude-sonnet-4-20250514"
+        assert "usage" in chat_message.meta
+        assert chat_message.meta["usage"]["prompt_tokens"] == 57
+        assert chat_message.meta["usage"]["completion_tokens"] == 40
+
+    def test_convert_chat_completion_to_chat_message_with_reasoning_and_tool_call(self):
+        """
+        Test converting Anthropic chat completion to ChatMessage
+        """
+        chat_completion = Message(
+            id="msg_01MZF",
+            content=[
+                ThinkingBlock(signature="sign1", thinking="User has asked 2 questions", type="thinking"),
+                TextBlock(citations=None, text="I'll provide the answers!", type="text"),
+                ToolUseBlock(
+                    id="toolu_01XEkx", input={"expression": "7 * (4 + 2)"}, name="calculator", type="tool_use"
+                ),
+            ],
+            model="claude-sonnet-4-20250514",
+            role="assistant",
+            stop_reason="tool_use",
+            stop_sequence=None,
+            type="message",
+            usage=Usage(input_tokens=507, output_tokens=219),
+        )
+        chat_message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=False)
+        assert chat_message.text == "I'll provide the answers!"
+        assert chat_message.reasoning.reasoning_text == "User has asked 2 questions"
+        assert chat_message.reasoning.extra == {
+            "reasoning_contents": [
+                {"reasoning_content": {"reasoning_text": {"text": "User has asked 2 questions", "signature": "sign1"}}}
+            ]
+        }
+        assert chat_message.meta["model"] == "claude-sonnet-4-20250514"
+        assert chat_message.meta["finish_reason"] == "tool_calls"
+        assert "usage" in chat_message.meta
+        assert chat_message.meta["usage"]["prompt_tokens"] == 507
+        assert chat_message.meta["usage"]["completion_tokens"] == 219
+
+    def test_convert_anthropic_completion_chunks_with_multiple_tool_calls_and_reasoning_to_streaming_chunks(self):
         """
         Test converting Anthropic stream events with tools to Haystack StreamingChunks
         """
@@ -369,7 +424,7 @@ class TestAnthropicChatGenerator:
             type="message_start",
         )
         raw_chunks.append(message_start_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             message_start_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
@@ -380,30 +435,78 @@ class TestAnthropicChatGenerator:
         assert streaming_chunk.tool_calls is None
         assert streaming_chunk.content == ""
 
-        # Test content_block_start for text
-        text_block_start_chunk = RawContentBlockStartEvent(
-            content_block=TextBlock(citations=None, text="", type="text"), index=0, type="content_block_start"
+        # Test content_block_start for reasoning
+        reasoning_block_start_chunk = RawContentBlockStartEvent(
+            content_block=ThinkingBlock(type="thinking", signature="", thinking=""), index=0, type="content_block_start"
         )
-        raw_chunks.append(text_block_start_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
-            text_block_start_chunk, component_info=component_info, tool_call_index=0
+        raw_chunks.append(reasoning_block_start_chunk)
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
+            reasoning_block_start_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
-        assert streaming_chunk.meta == text_block_start_chunk.model_dump()
+        assert streaming_chunk.meta == reasoning_block_start_chunk.model_dump()
         assert streaming_chunk.start
         assert streaming_chunk.finish_reason is None
         assert streaming_chunk.index == 0
         assert streaming_chunk.tool_calls is None
         assert streaming_chunk.content == ""
 
-        # Test content_block_delta with text_delta
-        text_delta_chunk = RawContentBlockDeltaEvent(
-            delta=TextDelta(text="I'll calculate the factorial of 5", type="text_delta"),
+        # Test content_block_delta for reasoning
+        reasoning_delta_chunk = RawContentBlockDeltaEvent(
+            delta=ThinkingDelta(thinking="The user is asking 2 questions.", type="thinking_delta"),
             index=0,
             type="content_block_delta",
         )
+        raw_chunks.append(reasoning_delta_chunk)
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
+            reasoning_delta_chunk, component_info=component_info, tool_call_index=0
+        )
+        assert streaming_chunk.component_info == component_info
+        assert streaming_chunk.meta == reasoning_delta_chunk.model_dump()
+        assert streaming_chunk.content == ""
+        assert streaming_chunk.finish_reason is None
+        assert streaming_chunk.index == 0
+        assert streaming_chunk.tool_calls is None
+        assert not streaming_chunk.start
+
+        # Test content_block_delta for reasoning signature
+        reasoning_signature_delta_chunk = RawContentBlockDeltaEvent(
+            delta=SignatureDelta(signature="1234567890", type="signature_delta"),
+            index=0,
+            type="content_block_delta",
+        )
+        raw_chunks.append(reasoning_signature_delta_chunk)
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
+            reasoning_signature_delta_chunk, component_info=component_info, tool_call_index=0
+        )
+        assert streaming_chunk.component_info == component_info
+        assert streaming_chunk.meta == reasoning_signature_delta_chunk.model_dump()
+        assert streaming_chunk.content == ""
+
+        # Test content_block_start for text
+        text_block_start_chunk = RawContentBlockStartEvent(
+            content_block=TextBlock(citations=None, text="", type="text"), index=1, type="content_block_start"
+        )
+        raw_chunks.append(text_block_start_chunk)
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
+            text_block_start_chunk, component_info=component_info, tool_call_index=0
+        )
+        assert streaming_chunk.component_info == component_info
+        assert streaming_chunk.meta == text_block_start_chunk.model_dump()
+        assert streaming_chunk.start
+        assert streaming_chunk.finish_reason is None
+        assert streaming_chunk.index == 1
+        assert streaming_chunk.tool_calls is None
+        assert streaming_chunk.content == ""
+
+        # Test content_block_delta with text_delta
+        text_delta_chunk = RawContentBlockDeltaEvent(
+            delta=TextDelta(text="I'll calculate the factorial of 5", type="text_delta"),
+            index=1,
+            type="content_block_delta",
+        )
         raw_chunks.append(text_delta_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             text_delta_chunk, component_info=component_info, tool_call_index=0
         )
 
@@ -412,7 +515,7 @@ class TestAnthropicChatGenerator:
         assert streaming_chunk.content == text_delta_chunk.delta.text
         assert not streaming_chunk.start
         assert streaming_chunk.finish_reason is None
-        assert streaming_chunk.index == 0
+        assert streaming_chunk.index == 1
         assert streaming_chunk.tool_calls is None
 
         # In response flow, here will be another content_block_stop chunk
@@ -424,18 +527,18 @@ class TestAnthropicChatGenerator:
             content_block=ToolUseBlock(
                 id="toolu_011dE5KDKxSh6hi85EnRKZT3", input={}, name="calculator", type="tool_use"
             ),
-            index=1,
+            index=2,
             type="content_block_start",
         )
         raw_chunks.append(tool_block_start_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             tool_block_start_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
         assert streaming_chunk.meta == tool_block_start_chunk.model_dump()
         assert streaming_chunk.start
         assert streaming_chunk.finish_reason is None
-        assert streaming_chunk.index == 1
+        assert streaming_chunk.index == 2
         assert streaming_chunk.tool_calls == [
             ToolCallDelta(index=0, id="toolu_011dE5KDKxSh6hi85EnRKZT3", tool_name="calculator", arguments=None)
         ]
@@ -443,10 +546,10 @@ class TestAnthropicChatGenerator:
 
         # Test content_block_delta with input_json_delta (empty)
         empty_json_delta_chunk = RawContentBlockDeltaEvent(
-            delta=InputJSONDelta(partial_json="", type="input_json_delta"), index=1, type="content_block_delta"
+            delta=InputJSONDelta(partial_json="", type="input_json_delta"), index=2, type="content_block_delta"
         )
         raw_chunks.append(empty_json_delta_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             empty_json_delta_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
@@ -456,17 +559,17 @@ class TestAnthropicChatGenerator:
         ]
         assert streaming_chunk.content == ""
         assert streaming_chunk.finish_reason is None
-        assert streaming_chunk.index == 1
+        assert streaming_chunk.index == 2
         assert not streaming_chunk.start
 
         # Test content_block_delta with input_json_delta (with content)
         json_delta_chunk = RawContentBlockDeltaEvent(
             delta=InputJSONDelta(partial_json='{"expression": 5 ', type="input_json_delta"),
-            index=1,
+            index=2,
             type="content_block_delta",
         )
         raw_chunks.append(json_delta_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             json_delta_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
@@ -474,7 +577,7 @@ class TestAnthropicChatGenerator:
         assert streaming_chunk.tool_calls == [ToolCallDelta(index=0, arguments=json_delta_chunk.delta.partial_json)]
         assert streaming_chunk.content == ""
         assert streaming_chunk.finish_reason is None
-        assert streaming_chunk.index == 1
+        assert streaming_chunk.index == 2
         assert not streaming_chunk.start
 
         # Test message_delta chunk
@@ -490,7 +593,7 @@ class TestAnthropicChatGenerator:
             ),
         )
         raw_chunks.append(message_delta_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             message_delta_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
@@ -510,18 +613,18 @@ class TestAnthropicChatGenerator:
             content_block=ToolUseBlock(
                 id="toolu_011dE5KDKxSh6hi85EnRKZT4", input={}, name="factorial", type="tool_use"
             ),
-            index=2,
+            index=3,
             type="content_block_start",
         )
         raw_chunks.append(tool_block_start_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             tool_block_start_chunk, component_info=component_info, tool_call_index=1
         )
         assert streaming_chunk.component_info == component_info
         assert streaming_chunk.meta == tool_block_start_chunk.model_dump()
         assert streaming_chunk.start
         assert streaming_chunk.finish_reason is None
-        assert streaming_chunk.index == 2
+        assert streaming_chunk.index == 3
         assert streaming_chunk.tool_calls == [
             ToolCallDelta(index=1, id="toolu_011dE5KDKxSh6hi85EnRKZT4", tool_name="factorial", arguments=None)
         ]
@@ -529,10 +632,10 @@ class TestAnthropicChatGenerator:
 
         # Test content_block_delta with input_json_delta (empty)
         empty_json_delta_chunk = RawContentBlockDeltaEvent(
-            delta=InputJSONDelta(partial_json="", type="input_json_delta"), index=1, type="content_block_delta"
+            delta=InputJSONDelta(partial_json="", type="input_json_delta"), index=3, type="content_block_delta"
         )
         raw_chunks.append(empty_json_delta_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             empty_json_delta_chunk, component_info=component_info, tool_call_index=1
         )
         assert streaming_chunk.component_info == component_info
@@ -542,17 +645,17 @@ class TestAnthropicChatGenerator:
         ]
         assert streaming_chunk.content == ""
         assert streaming_chunk.finish_reason is None
-        assert streaming_chunk.index == 1
+        assert streaming_chunk.index == 3
         assert not streaming_chunk.start
 
         # Test content_block_delta with input_json_delta (with content)
         json_delta_chunk = RawContentBlockDeltaEvent(
             delta=InputJSONDelta(partial_json='{"expression": 5 ', type="input_json_delta"),
-            index=2,
+            index=3,
             type="content_block_delta",
         )
         raw_chunks.append(json_delta_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             json_delta_chunk, component_info=component_info, tool_call_index=1
         )
         assert streaming_chunk.component_info == component_info
@@ -560,7 +663,7 @@ class TestAnthropicChatGenerator:
         assert streaming_chunk.tool_calls == [ToolCallDelta(index=1, arguments=json_delta_chunk.delta.partial_json)]
         assert streaming_chunk.content == ""
         assert streaming_chunk.finish_reason is None
-        assert streaming_chunk.index == 2
+        assert streaming_chunk.index == 3
         assert not streaming_chunk.start
 
         # Test message_delta chunk
@@ -576,7 +679,7 @@ class TestAnthropicChatGenerator:
             ),
         )
         raw_chunks.append(message_delta_chunk)
-        streaming_chunk = component._convert_anthropic_chunk_to_streaming_chunk(
+        streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
             message_delta_chunk, component_info=component_info, tool_call_index=0
         )
         assert streaming_chunk.component_info == component_info
@@ -742,6 +845,9 @@ class TestAnthropicChatGenerator:
         ]
 
         message = _convert_streaming_chunks_to_chat_message(chunks)
+
+        # Cannot test creating ReasoningContent from StreamingChunk objects
+        # because reasoning is added outside _convert_streaming_chunks_to_chat_message
 
         # Verify the message content
         assert message.text == "Let me check the weather"
@@ -1329,16 +1435,67 @@ class TestAnthropicChatGenerator:
         Integration test that the AnthropicChatGenerator component can run with tools and streaming.
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = AnthropicChatGenerator(tools=tools, streaming_callback=print_streaming_chunk)
+        component = AnthropicChatGenerator(
+            tools=tools, streaming_callback=print_streaming_chunk, generation_kwargs={"max_tokens": 11000}
+        )
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+
+        # this is Anthropic message prior to tool call
+        assert message.text is not None
+        assert "weather" in message.text.lower()
+        assert "paris" in message.text.lower()
+
+        # now we have the tool call
+        assert message.tool_calls
+        tool_call = message.tool_call
+        assert isinstance(tool_call, ToolCall)
+        assert tool_call.id is not None
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
+        assert message.meta["finish_reason"] == "tool_calls"
+        assert "output_tokens" in message.meta["usage"]
+        assert "input_tokens" in message.meta["usage"]
+
+        new_messages = [
+            *initial_messages,
+            message,
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
+        ]
+        results = component.run(new_messages)
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_calls
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_tools_streaming_and_reasoning(self, tools):
+        """
+        Integration test that the AnthropicChatGenerator component can run with tools and streaming.
+        """
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = AnthropicChatGenerator(
+            tools=tools,
+            streaming_callback=print_streaming_chunk,
+            generation_kwargs={
+                "thinking": {"type": "enabled", "budget_tokens": 10000},
+                "max_tokens": 11000,
+            },
+        )
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) == 1
         message = results["replies"][0]
 
         # this is Anthropic thinking message prior to tool call
-        assert message.text is not None
-        assert "weather" in message.text.lower()
-        assert "paris" in message.text.lower()
+        assert message.reasoning.reasoning_text
 
         # now we have the tool call
         assert message.tool_calls
@@ -1679,6 +1836,91 @@ class TestAnthropicChatGenerator:
         else:
             assert token_usage.get("cache_creation_input_tokens", 0) == 0
             assert token_usage.get("cache_read_input_tokens", 0) == 0
+
+    @pytest.mark.parametrize("streaming_callback", [None, Mock()])
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_reasoning(self, streaming_callback):
+        chat_generator = AnthropicChatGenerator(
+            model="claude-sonnet-4-20250514",
+            generation_kwargs={"thinking": {"type": "enabled", "budget_tokens": 10000}, "max_tokens": 11000},
+            streaming_callback=streaming_callback,
+        )
+
+        message = ChatMessage.from_user("2+3?")
+        response = chat_generator.run([message])["replies"][0]
+
+        assert isinstance(response, ChatMessage)
+        assert response.text and len(response.text) > 0
+        assert response.reasoning is not None
+        assert len(response.reasoning.reasoning_text) > 0
+
+        new_message = ChatMessage.from_user("Now multiply the result by 10.")
+        new_response = chat_generator.run([message, response, new_message])["replies"][0]
+        assert isinstance(new_response, ChatMessage)
+        assert new_response.text and len(new_response.text) > 0
+        assert new_response.reasoning is not None
+        assert len(new_response.reasoning.reasoning_text) > 0
+        assert "reasoning_contents" in new_response.reasoning.extra
+
+        if streaming_callback:
+            streaming_callback.assert_called()
+
+    @pytest.mark.parametrize("streaming_callback", [None, Mock()])
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_redacted_thinking(self, streaming_callback):
+        """
+        This test uses a magic string to trigger the redacted thinking
+        feature and works with claude-3-7-sonnet-20250219.
+        """
+        chat_generator = AnthropicChatGenerator(
+            model="claude-3-7-sonnet-20250219",
+            generation_kwargs={"thinking": {"type": "enabled", "budget_tokens": 10000}, "max_tokens": 11000},
+            streaming_callback=streaming_callback,
+        )
+
+        message = ChatMessage.from_user(
+            "ANTHROPIC_MAGIC_STRING_TRIGGER_REDACTED_THINKING_46C9A13E193C177646C7398A98432ECCCE4C1253D5E2D82641AC0E52CC2876CB"
+        )
+        response = chat_generator.run([message])["replies"][0]
+
+        assert isinstance(response, ChatMessage)
+        assert response.text and len(response.text) > 0
+        assert response.reasoning is not None
+        # we cannot be sure how many redacted blocks will be returned with streaming
+        assert "[REDACTED]" in response.reasoning.reasoning_text
+        assert "reasoning_contents" in response.reasoning.extra
+        assert (
+            len(response.reasoning.extra.get("reasoning_contents")[0].get("reasoning_content").get("redacted_thinking"))
+            > 0
+        )
+
+        new_message = ChatMessage.from_user("Now tell me whats the capital of France.")
+        new_response = chat_generator.run([message, response, new_message])["replies"][0]
+
+        assert isinstance(new_response, ChatMessage)
+        assert new_response.text and len(new_response.text) > 0
+        assert new_response.reasoning is not None
+        assert "[REDACTED]" in new_response.reasoning.reasoning_text
+        assert "reasoning_contents" in new_response.reasoning.extra
+        assert (
+            len(
+                new_response.reasoning.extra.get("reasoning_contents")[0]
+                .get("reasoning_content")
+                .get("redacted_thinking")
+            )
+            > 0
+        )
+
+        if streaming_callback:
+            streaming_callback.assert_called()
 
 
 class TestAnthropicChatGeneratorAsync:
