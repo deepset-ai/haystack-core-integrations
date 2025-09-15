@@ -3,7 +3,6 @@ from typing import Any, Optional
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
 
 from haystack_integrations.tracing.weave import WeaveTracer
-from weave.trace.autopatch import AutopatchSettings
 
 logger = logging.getLogger(__name__)
 
@@ -100,12 +99,7 @@ class WeaveConnector:
         :returns:
             Dictionary with all the necessary information to recreate this component.
         """
-        weave_init_kwargs = self.weave_init_kwargs.copy()
-        autopatch_settings = weave_init_kwargs.get("autopatch_settings", None)
-        if isinstance(autopatch_settings, AutopatchSettings):
-            weave_init_kwargs["autopatch_settings"] = autopatch_settings.model_dump(exclude_defaults=True)
-
-        return default_to_dict(self, pipeline_name=self.pipeline_name, weave_init_kwargs=weave_init_kwargs)
+        return default_to_dict(self, pipeline_name=self.pipeline_name, weave_init_kwargs=self.weave_init_kwargs)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WeaveConnector":
@@ -116,12 +110,4 @@ class WeaveConnector:
         :returns:
             Deserialized component.
         """
-        if (
-            autopatch_settings := data.get("init_parameters", {})
-            .get("weave_init_kwargs", {})
-            .get("autopatch_settings", None)
-        ):
-            parsed_settings = AutopatchSettings.model_validate(autopatch_settings)
-            data["init_parameters"]["weave_init_kwargs"]["autopatch_settings"] = parsed_settings
-
         return default_from_dict(cls, data)
