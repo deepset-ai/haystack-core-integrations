@@ -1,8 +1,14 @@
 import json
-from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Union
+from typing import Any, AsyncIterator, Callable, Dict, Iterator, List, Literal, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
-from haystack.dataclasses import ChatMessage, ToolCall
+from haystack.dataclasses import (
+    AsyncStreamingCallbackT,
+    ChatMessage,
+    StreamingCallbackT,
+    ToolCall,
+    select_streaming_callback,
+)
 from haystack.dataclasses.streaming_chunk import ComponentInfo, FinishReason, StreamingChunk, ToolCallDelta
 from haystack.tools import (
     Tool,
@@ -14,7 +20,7 @@ from haystack.tools.toolset import Toolset
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 from pydantic.json_schema import JsonSchemaValue
 
-from ollama import ChatResponse, Client
+from ollama import AsyncClient, ChatResponse, Client
 
 FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
     "stop": "stop",
@@ -264,6 +270,7 @@ class OllamaChatGenerator:
         self.response_format = response_format
 
         self._client = Client(host=self.url, timeout=self.timeout)
+        self._async_client = AsyncClient(host=self.url, timeout=self.timeout)
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -386,6 +393,75 @@ class OllamaChatGenerator:
 
         return {"replies": [reply]}
 
+    async def _handle_streaming_response_async(
+        self,
+        response_iter: AsyncIterator[ChatResponse],
+        callback: AsyncStreamingCallbackT,
+    ) -> Dict[str, List[ChatMessage]]:
+        """
+        Merge an Ollama streaming response into a single ChatMessage, preserving
+        tool calls.  Works even when arguments arrive piecemeal as str fragments
+        or as full JSON dicts."""
+        component_info = ComponentInfo.from_component(self)
+        chunks: List[StreamingChunk] = []
+
+        # Accumulators
+        arg_by_id: Dict[str, str] = {}
+        name_by_id: Dict[str, str] = {}
+        id_order: List[str] = []
+        tool_call_index: int = 0
+
+        # Stream
+        index = 0
+        async for raw in response_iter:
+            if raw.message.tool_calls:
+                tool_call_index += 1
+            chunk = _build_chunk(
+                chunk_response=raw, component_info=component_info, index=index, tool_call_index=tool_call_index
+            )
+            chunks.append(chunk)
+
+            start = index == 0 or bool(chunk.tool_calls)
+            chunk.start = start
+
+            if chunk.tool_calls:
+                for tool_call in chunk.tool_calls:
+                    tool_call_id = tool_call.id or tool_call.tool_name or ""
+                    args = tool_call.arguments or ""
+
+                    # Remember first-seen order and tool name
+                    if tool_call_id not in id_order:
+                        id_order.append(tool_call_id)
+                        name_by_id[tool_call_id] = tool_call.tool_name or ""
+                    # Update the argument accumulator for this tool_call_id
+                    arg_by_id[tool_call_id] = args
+
+            if callback:
+                await callback(chunk)
+
+            index += 1
+
+        # Compose final reply
+        text = ""
+        reasoning = ""
+        for c in chunks:
+            text += c.content
+            reasoning += c.meta.get("reasoning", None) or ""
+
+        tool_calls = []
+        for tool_call_id in id_order:
+            arguments: str = arg_by_id.get(tool_call_id, "")
+            tool_calls.append(ToolCall(tool_name=name_by_id[tool_call_id], arguments=json.loads(arguments)))
+
+        reply = ChatMessage.from_assistant(
+            text=text or None,
+            tool_calls=tool_calls or None,
+            reasoning=reasoning or None,
+            meta=_convert_ollama_meta_to_openai_format(chunks[-1].meta) if chunks else {},
+        )
+
+        return {"replies": [reply]}
+
     @component.output_types(replies=List[ChatMessage])
     def run(
         self,
@@ -393,7 +469,7 @@ class OllamaChatGenerator:
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
         *,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
     ) -> Dict[str, List[ChatMessage]]:
         """
         Runs an Ollama Model on a given chat history.
@@ -443,6 +519,66 @@ class OllamaChatGenerator:
 
         if isinstance(response, Iterator):
             return self._handle_streaming_response(response_iter=response, callback=callback)
+
+        # non-stream path
+        return {"replies": [_convert_ollama_response_to_chatmessage(ollama_response=response)]}
+
+    @component.output_types(replies=List[ChatMessage])
+    async def run_async(
+        self,
+        messages: List[ChatMessage],
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
+        *,
+        streaming_callback: Optional[StreamingCallbackT] = None,
+    ) -> Dict[str, List[ChatMessage]]:
+        """
+        Async version of run. Runs an Ollama Model on a given chat history.
+
+        :param messages:
+            A list of ChatMessage instances representing the input messages.
+        :param generation_kwargs:
+            Per-call overrides for Ollama inference options.
+            These are merged on top of the instance-level `generation_kwargs`.
+        :param tools:
+            A list of tools or a Toolset for which the model can prepare calls.
+            If set, it will override the `tools` parameter set during component initialization.
+        :param streaming_callback:
+            A callable to receive `StreamingChunk` objects as they arrive.
+            Supplying a callback switches the component into streaming mode.
+        :returns: A dictionary with the following keys:
+            - `replies`: A list of ChatMessages containing the model's response
+        """
+        # Validate and select the streaming callback
+        streaming_callback = select_streaming_callback(self.streaming_callback, streaming_callback, requires_async=True)
+
+        generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
+        tools = tools or self.tools
+        _check_duplicate_tool_names(list(tools or []))
+
+        # Convert Toolset → list[Tool] for JSON serialization
+        if isinstance(tools, Toolset):
+            tools = list(tools)
+        ollama_tools = [{"type": "function", "function": {**tool.tool_spec}} for tool in tools] if tools else None
+
+        is_stream = streaming_callback is not None
+
+        ollama_messages = [_convert_chatmessage_to_ollama_format(m) for m in messages]
+
+        response = await self._async_client.chat(
+            model=self.model,
+            messages=ollama_messages,
+            tools=ollama_tools,
+            stream=is_stream,
+            keep_alive=self.keep_alive,
+            options=generation_kwargs,
+            format=self.response_format,
+            think=self.think,
+        )
+
+        if is_stream:
+            # response is an async iterator for streaming
+            return await self._handle_streaming_response_async(response_iter=response, callback=streaming_callback)
 
         # non-stream path
         return {"replies": [_convert_ollama_response_to_chatmessage(ollama_response=response)]}
