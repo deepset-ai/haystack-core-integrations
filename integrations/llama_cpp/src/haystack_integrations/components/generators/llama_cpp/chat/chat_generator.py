@@ -29,6 +29,8 @@ from llama_cpp import (
     ChatCompletionRequestMessage,
     ChatCompletionRequestMessageContentPart,
     ChatCompletionResponseChoice,
+    ChatCompletionStreamResponseDelta,
+    ChatCompletionStreamResponseDeltaEmpty,
     ChatCompletionTool,
     CreateChatCompletionResponse,
     CreateChatCompletionStreamResponse,
@@ -432,7 +434,9 @@ class LlamaCppChatGenerator:
 
             if chunk.get("choices") and len(chunk["choices"]) > 0:
                 choice = chunk["choices"][0]
-                delta = choice.get("delta", {})
+                delta: Union[ChatCompletionStreamResponseDelta, ChatCompletionStreamResponseDeltaEmpty, Dict] = (
+                    choice.get("delta", {})
+                )
 
                 finish_reason = choice.get("finish_reason")
                 mapped_finish_reason = FINISH_REASON_MAPPING.get(finish_reason or "")
