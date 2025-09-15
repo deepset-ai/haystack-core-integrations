@@ -189,13 +189,13 @@ class TestFastembedRanker:
 
         with pytest.raises(
             TypeError,
-            match="FastembedRanker expects a list of Documents as input.",
+            match=r"FastembedRanker expects a list of Documents as input\.",
         ):
             ranker.run(query=query, documents=string_input)
 
         with pytest.raises(
             TypeError,
-            match="FastembedRanker expects a list of Documents as input.",
+            match=r"FastembedRanker expects a list of Documents as input\.",
         ):
             ranker.run(query=query, documents=list_integers_input)
 

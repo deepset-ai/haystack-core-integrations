@@ -80,13 +80,13 @@ class TestWatsonxTextEmbedder:
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("WATSONX_API_KEY", raising=False)
-        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             WatsonxTextEmbedder(project_id=Secret.from_env_var("WATSONX_PROJECT_ID"))
 
     def test_init_fail_wo_project_id(self, monkeypatch):
         monkeypatch.setenv("WATSONX_API_KEY", "fake-api-key")
         monkeypatch.delenv("WATSONX_PROJECT_ID", raising=False)
-        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             WatsonxTextEmbedder()
 
     def test_to_dict(self, mock_watsonx):
@@ -142,8 +142,8 @@ class TestWatsonxTextEmbedder:
         embedder = WatsonxTextEmbedder(project_id=Secret.from_token("fake-project-id"))
         with pytest.raises(
             TypeError,
-            match="WatsonxTextEmbedder expects a string as an input. In case you want to embed a list of Documents, "
-            "please use the WatsonxDocumentEmbedder.",
+            match=r"WatsonxTextEmbedder expects a string as an input\. In case you want to embed a list of Documents, "
+            r"please use the WatsonxDocumentEmbedder\.",
         ):
             embedder.run(text=[1, 2, 3])
 

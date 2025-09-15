@@ -108,7 +108,7 @@ class TestFormatMessage:
         message = ChatMessage.from_assistant(text="Here's an image.")
         message._content.append(image_content)  # Add image to assistant message
 
-        with pytest.raises(ValueError, match="`ImageContent` is only supported for user messages."):
+        with pytest.raises(ValueError, match=r"`ImageContent` is only supported for user messages\."):
             _format_message(message)
 
     def test_supported_image_formats(self):

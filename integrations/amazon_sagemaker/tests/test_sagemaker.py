@@ -1,4 +1,5 @@
 import os
+import re
 from unittest.mock import Mock
 
 import pytest
@@ -86,8 +87,10 @@ def test_init_raises_boto_error(set_env_variables, mock_boto3_session):  # noqa:
     mock_boto3_session.side_effect = BotoCoreError()
     with pytest.raises(
         AWSConfigurationError,
-        match="Could not connect to SageMaker Inference Endpoint 'test-model'."
-        "Make sure the Endpoint exists and AWS environment is configured.",
+        match=re.escape(
+            "Could not connect to SageMaker Inference Endpoint 'test-model'."
+            "Make sure the Endpoint exists and AWS environment is configured."
+        ),
     ):
         SagemakerGenerator(model="test-model")
 
