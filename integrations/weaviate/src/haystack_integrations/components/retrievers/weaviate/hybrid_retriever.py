@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from typing import Any, Dict, List, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
@@ -33,9 +37,31 @@ class WeaviateHybridRetriever:
         :param top_k:
             Maximum number of documents to return.
         :param alpha:
-            The alpha value for hybrid retrieval.
+            Blending factor for hybrid retrieval in Weaviate. Must be in the range ``[0.0, 1.0]``.
+
+            Weaviate hybrid search combines keyword (BM25) and vector scores into a single ranking. ``alpha`` controls
+            how much each part contributes to the final score:
+
+            - ``alpha = 0.0``: only keyword (BM25) scoring is used.
+            - ``alpha = 1.0``: only vector similarity scoring is used.
+            - Values in between blend the two; higher values favor the vector score, lower values favor BM25.
+
+            If ``None``, the Weaviate server default is used.
+
+            See the official Weaviate docs on Hybrid Search parameters for more details:
+            `Hybrid search parameters <https://weaviate.io/developers/weaviate/search/hybrid#parameters>`_
+            `Hybrid Search <https://docs.weaviate.io/weaviate/concepts/search/hybrid-search>`_
         :param max_vector_distance:
-            The maximum vector distance for vector part of hybrid retrieval.
+            Optional threshold that restricts the vector part of the hybrid search to candidates within a maximum
+            vector distance. Candidates with a distance larger than this threshold are excluded from the vector portion
+            before blending.
+
+            Use this to prune low-quality vector matches while still benefitting from keyword recall. Leave ``None`` to
+            use Weaviate's default behavior without an explicit cutoff.
+
+            See the official Weaviate docs on Hybrid Search parameters for more details:
+            - `Hybrid search parameters <https://weaviate.io/developers/weaviate/search/hybrid#parameters>`_
+            - `Hybrid Search <https://docs.weaviate.io/weaviate/concepts/search/hybrid-search>`_
         :param filter_policy:
             Policy to determine how filters are applied.
         """
@@ -80,8 +106,6 @@ class WeaviateHybridRetriever:
             data["init_parameters"]["document_store"]
         )
 
-        # Pipelines serialized with old versions of the component might not
-        # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
 
@@ -98,7 +122,7 @@ class WeaviateHybridRetriever:
         max_vector_distance: Optional[float] = None,
     ) -> Dict[str, List[Document]]:
         """
-        Retrieves documents from Weaviate using the hybrid search.
+        Retrieves documents from Weaviate using hybrid search.
 
         :param query:
             The query text.
@@ -110,9 +134,31 @@ class WeaviateHybridRetriever:
         :param top_k:
             The maximum number of documents to return.
         :param alpha:
-            The alpha value for hybrid retrieval.
+            Blending factor for hybrid retrieval in Weaviate. Must be in the range ``[0.0, 1.0]``.
+
+            Weaviate hybrid search combines keyword (BM25) and vector scores into a single ranking. ``alpha`` controls
+            how much each part contributes to the final score:
+
+            - ``alpha = 0.0``: only keyword (BM25) scoring is used.
+            - ``alpha = 1.0``: only vector similarity scoring is used.
+            - Values in between blend the two; higher values favor the vector score, lower values favor BM25.
+
+            If ``None``, the Weaviate server default is used.
+
+            See the official Weaviate docs on Hybrid Search parameters for more details:
+            `Hybrid search parameters <https://weaviate.io/developers/weaviate/search/hybrid#parameters>`_
+            `Hybrid Search <https://docs.weaviate.io/weaviate/concepts/search/hybrid-search>`_
         :param max_vector_distance:
-            The maximum vector distance for vector part of hybrid retrieval.
+            Optional threshold that restricts the vector part of the hybrid search to candidates within a maximum
+            vector distance. Candidates with a distance larger than this threshold are excluded from the vector portion
+            before blending.
+
+            Use this to prune low-quality vector matches while still benefitting from keyword recall. Leave ``None`` to
+            use Weaviate's default behavior without an explicit cutoff.
+
+            See the official Weaviate docs on Hybrid Search parameters for more details:
+            - `Hybrid search parameters <https://weaviate.io/developers/weaviate/search/hybrid#parameters>`_
+            - `Hybrid Search <https://docs.weaviate.io/weaviate/concepts/search/hybrid-search>`_
         """
         filters = apply_filter_policy(self._filter_policy, self._filters, filters)
         top_k = self._top_k if top_k is None else top_k
