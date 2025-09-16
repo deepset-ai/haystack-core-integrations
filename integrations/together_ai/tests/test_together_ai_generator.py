@@ -86,7 +86,7 @@ class TestTogetherAIGenerator:
         assert component.api_base_url == "test-base-url"
 
     def test_to_dict_default(self, monkeypatch):
-        monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+        monkeypatch.setenv("TOGETHER_AI_API_KEY", "test-api-key")
         component = TogetherAIGenerator()
         data = component.to_dict()
         assert data == {
