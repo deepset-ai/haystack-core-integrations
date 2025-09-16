@@ -1,9 +1,12 @@
 from typing import Any, Optional
 
-from haystack import component, default_from_dict, default_to_dict, logging, tracing
+from pydantic import BaseModel
 
+from haystack import component, default_from_dict, default_to_dict, logging, tracing
 from haystack_integrations.tracing.weave import WeaveTracer
+
 from weave.trace.autopatch import AutopatchSettings
+from weave.trace.settings import UserSettings
 
 logger = logging.getLogger(__name__)
 
@@ -101,9 +104,10 @@ class WeaveConnector:
             Dictionary with all the necessary information to recreate this component.
         """
         weave_init_kwargs = self.weave_init_kwargs.copy()
-        autopatch_settings = weave_init_kwargs.get("autopatch_settings", None)
-        if isinstance(autopatch_settings, AutopatchSettings):
-            weave_init_kwargs["autopatch_settings"] = autopatch_settings.model_dump(exclude_defaults=True)
+        # Convert any BaseModel values to dicts for serialization
+        for key, value in weave_init_kwargs.items():
+            if isinstance(value, BaseModel):
+                weave_init_kwargs[key] = value.model_dump(exclude_defaults=True)
 
         return default_to_dict(self, pipeline_name=self.pipeline_name, weave_init_kwargs=weave_init_kwargs)
 
@@ -116,12 +120,12 @@ class WeaveConnector:
         :returns:
             Deserialized component.
         """
-        if (
-            autopatch_settings := data.get("init_parameters", {})
-            .get("weave_init_kwargs", {})
-            .get("autopatch_settings", None)
-        ):
-            parsed_settings = AutopatchSettings.model_validate(autopatch_settings)
-            data["init_parameters"]["weave_init_kwargs"]["autopatch_settings"] = parsed_settings
+        weave_kwargs = data.get("init_parameters", {}).get("weave_init_kwargs", {})
+
+        if "settings" in weave_kwargs and isinstance(weave_kwargs["settings"], dict):
+            weave_kwargs["settings"] = UserSettings.model_validate(weave_kwargs["settings"])
+
+        if "autopatch_settings" in weave_kwargs and isinstance(weave_kwargs["autopatch_settings"], dict):
+            weave_kwargs["autopatch_settings"] = AutopatchSettings.model_validate(weave_kwargs["autopatch_settings"])
 
         return default_from_dict(cls, data)
