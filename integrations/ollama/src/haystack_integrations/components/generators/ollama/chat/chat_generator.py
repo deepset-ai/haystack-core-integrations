@@ -436,7 +436,7 @@ class OllamaChatGenerator:
                     # Update the argument accumulator for this tool_call_id
                     arg_by_id[tool_call_id] = args
 
-            if callback:
+            if callback != None:
                 await callback(chunk)
 
             index += 1
@@ -569,7 +569,7 @@ class OllamaChatGenerator:
             model=self.model,
             messages=ollama_messages,
             tools=ollama_tools,
-            stream=is_stream,
+            stream=is_stream,  # type: ignore[call-overload]  # Ollama expects Literal[True] or Literal[False], not bool
             keep_alive=self.keep_alive,
             options=generation_kwargs,
             format=self.response_format,
