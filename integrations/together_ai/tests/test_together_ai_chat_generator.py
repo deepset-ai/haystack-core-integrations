@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import datetime
 from unittest.mock import patch
 
@@ -77,7 +78,7 @@ def mock_chat_completion():
                 )
             ],
             created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
-            usage={"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
+            usage=CompletionUsage(prompt_tokens=57, completion_tokens=40, total_tokens=97),
         )
 
         mock_chat_completion_create.return_value = completion
@@ -96,7 +97,7 @@ class TestTogetherAIChatGenerator:
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("TOGETHER_AI_API_KEY", raising=False)
-        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
+        with pytest.raises(ValueError, match=re.escape("None of the .* environment variables are set")):
             TogetherAIChatGenerator()
 
     def test_init_with_parameters(self):
@@ -217,7 +218,7 @@ class TestTogetherAIChatGenerator:
                 "max_retries": 10,
             },
         }
-        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
+        with pytest.raises(ValueError, match=re.escape("None of the .* environment variables are set")):
             TogetherAIChatGenerator.from_dict(data)
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002

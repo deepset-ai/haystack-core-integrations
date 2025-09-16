@@ -2,18 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 from haystack import component, default_to_dict, logging
-from haystack.components.generators import OpenAIGenerator
-from haystack.dataclasses import StreamingCallbackT
+from haystack.dataclasses import ChatMessage, StreamingCallbackT
 from haystack.utils import Secret, serialize_callable
+
+from .chat.chat_generator import TogetherAIChatGenerator
 
 logger = logging.getLogger(__name__)
 
 
 @component
-class TogetherAIGenerator(OpenAIGenerator):
+class TogetherAIGenerator(TogetherAIChatGenerator):
     """
     Provides an interface to generate text using an LLM running on Together AI.
 
@@ -33,7 +34,7 @@ class TogetherAIGenerator(OpenAIGenerator):
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("TOGETHER_AI_API_KEY"),
-        model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo ",
+        model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo",
         api_base_url: Optional[str] = "https://api.together.xyz/v1",
         streaming_callback: Optional[StreamingCallbackT] = None,
         system_prompt: Optional[str] = None,
@@ -96,6 +97,7 @@ class TogetherAIGenerator(OpenAIGenerator):
             timeout=timeout,
             max_retries=max_retries,
         )
+        self.system_prompt = system_prompt
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -119,4 +121,124 @@ class TogetherAIGenerator(OpenAIGenerator):
             api_key=self.api_key.to_dict(),
             timeout=self.timeout,
             max_retries=self.max_retries,
+            system_prompt=self.system_prompt,
         )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "TogetherAIGenerator":
+        """
+        Deserialize this component from a dictionary.
+
+        :param data:
+            The dictionary representation of this component.
+        :returns:
+            The deserialized component instance.
+        """
+        return cast(TogetherAIGenerator, super(TogetherAIGenerator, cls).from_dict(data))  # noqa: UP008
+
+    @component.output_types(replies=list[str], meta=list[dict[str, Any]])
+    def run(  # type: ignore[override]
+        self,
+        *,
+        prompt: str,
+        system_prompt: str | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Generate text completions synchronously.
+
+        :param prompt:
+            The input prompt string for text generation.
+        :param system_prompt:
+            An optional system prompt to provide context or instructions for the generation.
+            If not provided, the system prompt set in the `__init__` method will be used.
+        :param streaming_callback:
+            A callback function that is called when a new token is received from the stream.
+            If provided, this will override the `streaming_callback` set in the `__init__` method.
+        :param generation_kwargs:
+            Additional keyword arguments for text generation. These parameters will potentially override the parameters
+            passed in the `__init__` method. Supported parameters include temperature, max_new_tokens, top_p, etc.
+        :returns:
+            A dictionary with the following keys:
+            - `replies`: A list of generated text completions as strings.
+            - `meta`: A list of metadata dictionaries containing information about each generation,
+            including model name, finish reason, and token usage statistics.
+        """
+        resolved_system_prompt = system_prompt or self.system_prompt
+        messages = self._prepare_messages(prompt=prompt, system_prompt=resolved_system_prompt)
+        # streaming_callback is verified and selected in the parent class
+        chat_response = super(TogetherAIGenerator, self).run(  # noqa: UP008
+            messages=messages, generation_kwargs=generation_kwargs, streaming_callback=streaming_callback
+        )
+        replies = chat_response["replies"]
+        return self._convert_chat_response_to_generator_format(replies)
+
+    @component.output_types(replies=list[str], meta=list[dict[str, Any]])
+    async def run_async(  # type: ignore[override]
+        self,
+        *,
+        prompt: str,
+        system_prompt: str | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Generate text completions asynchronously.
+
+        :param prompt:
+            The input prompt string for text generation.
+        :param system_prompt:
+            An optional system prompt to provide context or instructions for the generation.
+        :param streaming_callback:
+            A callback function that is called when a new token is received from the stream.
+            If provided, this will override the `streaming_callback` set in the `__init__` method.
+        :param generation_kwargs:
+            Additional keyword arguments for text generation. These parameters will potentially override the parameters
+            passed in the `__init__` method. Supported parameters include temperature, max_new_tokens, top_p, etc.
+        :returns:
+            A dictionary with the following keys:
+            - `replies`: A list of generated text completions as strings.
+            - `meta`: A list of metadata dictionaries containing information about each generation,
+            including model name, finish reason, and token usage statistics.
+        """
+        resolved_system_prompt = system_prompt or self.system_prompt
+        messages = self._prepare_messages(prompt=prompt, system_prompt=resolved_system_prompt)
+        # streaming_callback is verified and selected in the parent class
+        chat_response = await super(TogetherAIGenerator, self).run_async(  # noqa: UP008
+            messages=messages, generation_kwargs=generation_kwargs, streaming_callback=streaming_callback
+        )
+        replies = chat_response["replies"]
+        return self._convert_chat_response_to_generator_format(replies)
+
+    def _prepare_messages(self, prompt: str, system_prompt: str | None = None) -> list[ChatMessage]:
+        """
+        Convert prompt and system_prompt to ChatMessage format.
+
+        :param prompt: The user prompt
+        :param system_prompt: Optional system prompt
+        :returns:
+            List of ChatMessage objects
+        """
+        messages = []
+        if system_prompt:
+            messages.append(ChatMessage.from_system(system_prompt))
+        messages.append(ChatMessage.from_user(prompt))
+        return messages
+
+    def _convert_chat_response_to_generator_format(
+        self, chat_messages: list[ChatMessage]
+    ) -> dict[str, list[str] | list[dict[str, Any]]]:
+        """
+        Convert ChatGenerator response format to Generator format.
+
+        :param chat_messages: Response from TogetherAIChatGenerator
+        :returns:
+            Response in Generator format with replies and meta lists
+        """
+        replies = []
+        meta = []
+        for chat_message in chat_messages:
+            replies.append(chat_message.text or "")
+            meta.append(chat_message.meta)
+        return {"replies": replies, "meta": meta}
