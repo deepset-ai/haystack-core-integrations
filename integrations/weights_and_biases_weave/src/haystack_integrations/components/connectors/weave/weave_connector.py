@@ -3,7 +3,7 @@ from typing import Any, Optional
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
 
 from haystack_integrations.tracing.weave import WeaveTracer
-from weave.trace.autopatch import AutopatchSettings
+from weave.trace.settings import UserSettings
 
 logger = logging.getLogger(__name__)
 
@@ -101,9 +101,9 @@ class WeaveConnector:
             Dictionary with all the necessary information to recreate this component.
         """
         weave_init_kwargs = self.weave_init_kwargs.copy()
-        autopatch_settings = weave_init_kwargs.get("autopatch_settings", None)
-        if isinstance(autopatch_settings, AutopatchSettings):
-            weave_init_kwargs["autopatch_settings"] = autopatch_settings.model_dump(exclude_defaults=True)
+        settings = weave_init_kwargs.get("settings", None)
+        if isinstance(settings, UserSettings):
+            weave_init_kwargs["settings"] = settings.model_dump(mode="json", exclude_defaults=True)
 
         return default_to_dict(self, pipeline_name=self.pipeline_name, weave_init_kwargs=weave_init_kwargs)
 
@@ -116,12 +116,7 @@ class WeaveConnector:
         :returns:
             Deserialized component.
         """
-        if (
-            autopatch_settings := data.get("init_parameters", {})
-            .get("weave_init_kwargs", {})
-            .get("autopatch_settings", None)
-        ):
-            parsed_settings = AutopatchSettings.model_validate(autopatch_settings)
-            data["init_parameters"]["weave_init_kwargs"]["autopatch_settings"] = parsed_settings
+        # Weave's API accepts both dict and UserSettings objects for `settings`,
+        # so we can pass the raw settings dict directly without deserializing it
 
         return default_from_dict(cls, data)
