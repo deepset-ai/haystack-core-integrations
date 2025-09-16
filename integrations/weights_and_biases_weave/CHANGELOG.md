@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/weights_and_biases_weave-v2.0.0] - 2025-09-16
+
+### 🐛 Bug Fixes
+
+- Weave - pin gql (#2198)
+
+### 🚜 Refactor
+
+- [**breaking**] Weave - update patching support and unpin gql (#2272)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+
 ## [integrations/weights_and_biases_weave-v1.0.0] - 2025-07-01
 
 ### 🐛 Bug Fixes

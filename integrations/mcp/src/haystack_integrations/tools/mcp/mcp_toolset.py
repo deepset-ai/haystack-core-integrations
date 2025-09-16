@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -155,7 +155,7 @@ class MCPToolset(Toolset):
             ) -> Callable[..., Any]:
                 """Return a closure that keeps a strong reference to *owner_toolset* alive."""
 
-                def invoke_tool(**kwargs) -> Any:
+                def invoke_tool(**kwargs: Any) -> Any:
                     _ = owner_toolset  # strong reference so GC can't collect the toolset too early
                     return AsyncExecutor.get_instance().run(
                         mcp_client.call_tool(tool_name, kwargs), timeout=tool_timeout
@@ -176,7 +176,7 @@ class MCPToolset(Toolset):
                 # Use the helper function to create the invoke_tool function
                 tool = Tool(
                     name=tool_info.name,
-                    description=tool_info.description,
+                    description=tool_info.description or "",
                     parameters=tool_info.inputSchema,
                     function=create_invoke_tool(self, client, tool_info.name, self.invocation_timeout),
                 )
@@ -273,7 +273,7 @@ class MCPToolset(Toolset):
         # Reconstruct the server_info object
         server_info_dict = inner_data.get("server_info", {})
         server_info_class = import_class_by_name(server_info_dict["type"])
-        server_info = server_info_class.from_dict(server_info_dict)
+        server_info = cast(MCPServerInfo, server_info_class).from_dict(server_info_dict)
 
         # Create a new MCPToolset instance
         return cls(
