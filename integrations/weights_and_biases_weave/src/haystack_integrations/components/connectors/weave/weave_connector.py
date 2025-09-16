@@ -1,10 +1,9 @@
 from typing import Any, Optional
 
+from haystack import component, default_from_dict, default_to_dict, logging, tracing
 from pydantic import BaseModel
 
-from haystack import component, default_from_dict, default_to_dict, logging, tracing
 from haystack_integrations.tracing.weave import WeaveTracer
-
 from weave.trace.autopatch import AutopatchSettings
 from weave.trace.settings import UserSettings
 
