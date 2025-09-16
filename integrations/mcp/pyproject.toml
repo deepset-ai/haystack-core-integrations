@@ -89,8 +89,6 @@ disallow_incomplete_defs = true
 [[tool.mypy.overrides]]
 # MCP package types
 module = [
-    "mcp.*",
-    "mcp",
     "httpx",
     "exceptiongroup",
     "anyio.*",
