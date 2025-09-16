@@ -1,5 +1,22 @@
 # Changelog
 
+## [integrations/mcp-v0.6.0] - 2025-09-16
+
+### 🐛 Bug Fixes
+
+- Temporarily disable brave search mcp integration test (#2187)
+- Fix mcp types + add py.typed
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+### 🌀 Miscellaneous
+
+- Star expression is from 3.11, use alternative
+- PR feedback
+- PR feedback
+
 ## [integrations/mcp-v0.5.0] - 2025-08-04
 
 ### 🐛 Bug Fixes
