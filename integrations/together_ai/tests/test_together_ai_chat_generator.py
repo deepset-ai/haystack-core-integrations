@@ -1,5 +1,4 @@
 import os
-import re
 from datetime import datetime
 from unittest.mock import patch
 
@@ -97,7 +96,7 @@ class TestTogetherAIChatGenerator:
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("TOGETHER_AI_API_KEY", raising=False)
-        with pytest.raises(ValueError, match=re.escape("None of the .* environment variables are set")):
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             TogetherAIChatGenerator()
 
     def test_init_with_parameters(self):
@@ -218,7 +217,7 @@ class TestTogetherAIChatGenerator:
                 "max_retries": 10,
             },
         }
-        with pytest.raises(ValueError, match=re.escape("None of the .* environment variables are set")):
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             TogetherAIChatGenerator.from_dict(data)
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002

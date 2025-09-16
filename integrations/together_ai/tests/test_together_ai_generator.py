@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-import re
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
@@ -63,7 +62,7 @@ class TestTogetherAIGenerator:
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("TOGETHER_AI_API_KEY", raising=False)
-        with pytest.raises(ValueError, match=re.escape("None of the .* environment variables are set")):
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             TogetherAIGenerator()
 
     def test_init_with_parameters(self, monkeypatch):
@@ -171,7 +170,7 @@ class TestTogetherAIGenerator:
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
-        with pytest.raises(ValueError, match=re.escape("None of the .* environment variables are set")):
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             TogetherAIGenerator.from_dict(data)
 
     def test_run(self, mock_chat_completion):
