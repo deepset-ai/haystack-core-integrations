@@ -33,7 +33,7 @@ weather_tool = Tool(
 tool_invoker = ToolInvoker(tools=[weather_tool])
 
 
-client = TogetherAIChatGenerator()
+client = TogetherAIChatGenerator(http_client_kwargs={"verify": False})
 messages = [ChatMessage.from_user("What's the weather in Tokyo?")]
 
 response = client.run(messages=messages, tools=[weather_tool])["replies"]

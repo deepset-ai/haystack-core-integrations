@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "together-ai-haystack"
 dynamic = ["version"]
-description = 'An integration between the Together AI LLM framework and Haystack'
+description = 'An integration between the Together AI framework and Haystack'
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"

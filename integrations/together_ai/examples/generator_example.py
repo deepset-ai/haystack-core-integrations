@@ -1,13 +1,11 @@
-"""
-TogetherAI Generator Example
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
 
-This example demonstrates how to use the TogetherAIGenerator component with the Haystack framework.
-It shows basic usage, advanced configuration, streaming, pipeline integration, and async operations.
+# This example demonstrates how to use the TogetherAIGenerator component
+# To run this example, you will need to
+# set `TOGETHER_AI_API_KEY` environment variable
 
-Prerequisites:
-- Set environment variables: TOGETHER_AI_API_KEY
-- Install: pip install haystack-together_ai
-"""
 
 from haystack.utils import Secret
 
