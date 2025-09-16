@@ -11,12 +11,6 @@
 
 - Standardize readmes - part 2 (#2205)
 
-### 🌀 Miscellaneous
-
-- Star expression is from 3.11, use alternative
-- PR feedback
-- PR feedback
-
 ## [integrations/mcp-v0.5.0] - 2025-08-04
 
 ### 🐛 Bug Fixes
