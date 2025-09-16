@@ -3,6 +3,7 @@ from typing import Any, Optional
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
 
 from haystack_integrations.tracing.weave import WeaveTracer
+from weave.trace.settings import UserSettings
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +100,12 @@ class WeaveConnector:
         :returns:
             Dictionary with all the necessary information to recreate this component.
         """
-        return default_to_dict(self, pipeline_name=self.pipeline_name, weave_init_kwargs=self.weave_init_kwargs)
+        weave_init_kwargs = self.weave_init_kwargs.copy()
+        settings = weave_init_kwargs.get("settings", None)
+        if isinstance(settings, UserSettings):
+            weave_init_kwargs["settings"] = settings.model_dump(mode="json", exclude_defaults=True)
+
+        return default_to_dict(self, pipeline_name=self.pipeline_name, weave_init_kwargs=weave_init_kwargs)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WeaveConnector":
@@ -110,4 +116,7 @@ class WeaveConnector:
         :returns:
             Deserialized component.
         """
+        # Weave's API accepts both dict and UserSettings objects for `settings`,
+        # so we can pass the raw settings dict directly without deserializing it
+
         return default_from_dict(cls, data)
