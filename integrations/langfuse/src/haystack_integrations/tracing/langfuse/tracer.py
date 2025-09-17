@@ -479,4 +479,4 @@ class LangfuseTracer(Tracer):
         Return the trace ID.
         :return: The trace ID.
         """
-        return self._tracer.get_current_observation_id()
+        return self._tracer.get_current_trace_id()
