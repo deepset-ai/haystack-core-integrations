@@ -436,7 +436,7 @@ class OllamaChatGenerator:
                     # Update the argument accumulator for this tool_call_id
                     arg_by_id[tool_call_id] = args
 
-            if callback != None:
+            if callback is not None:
                 await callback(chunk)
 
             index += 1
