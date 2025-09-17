@@ -137,6 +137,7 @@ class TestAmazonBedrockChatGenerator:
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "boto3_config": boto3_config,
                 "tools": None,
+                "guardrail_config": None,
             },
         }
 
@@ -166,6 +167,7 @@ class TestAmazonBedrockChatGenerator:
                     "boto3_config": boto3_config,
                     "tools": None,
                     "stop_words": ["stop"],  # this parameter will be ignored
+                    "guardrail_config": None,
                 },
             }
         )
@@ -269,6 +271,7 @@ class TestAmazonBedrockChatGenerator:
                                 },
                             }
                         ],
+                        "guardrail_config": None,
                     },
                 }
             },
@@ -654,8 +657,10 @@ class TestAmazonBedrockChatGeneratorInference:
 
     @pytest.mark.skipif(
         not os.getenv("AWS_BEDROCK_GUARDRAIL_ID") or not os.getenv("AWS_BEDROCK_GUARDRAIL_VERSION"),
-        reason=("Export AWS_BEDROCK_GUARDRAIL_ID and AWS_BEDROCK_GUARDRAIL_VERSION environment variables corresponding"
-                "to a Bedrock Guardrail to run this test."),
+        reason=(
+            "Export AWS_BEDROCK_GUARDRAIL_ID and AWS_BEDROCK_GUARDRAIL_VERSION environment variables corresponding"
+            "to a Bedrock Guardrail to run this test."
+        ),
     )
     @pytest.mark.parametrize("streaming_callback", [None, print_streaming_chunk])
     @pytest.mark.integration
@@ -663,9 +668,11 @@ class TestAmazonBedrockChatGeneratorInference:
         initial_messages = [ChatMessage.from_user("Should I invest in Tesla or Apple?")]
         component = AmazonBedrockChatGenerator(
             model="anthropic.claude-3-5-sonnet-20240620-v1:0",
-            guardrail_config={"guardrailIdentifier": os.getenv("AWS_BEDROCK_GUARDRAIL_ID"),
-            "guardrailVersion": os.getenv("AWS_BEDROCK_GUARDRAIL_VERSION"),
-            "trace": "enabled"},
+            guardrail_config={
+                "guardrailIdentifier": os.getenv("AWS_BEDROCK_GUARDRAIL_ID"),
+                "guardrailVersion": os.getenv("AWS_BEDROCK_GUARDRAIL_VERSION"),
+                "trace": "enabled",
+            },
             streaming_callback=streaming_callback,
         )
         results = component.run(messages=initial_messages)
@@ -674,7 +681,6 @@ class TestAmazonBedrockChatGeneratorInference:
         assert results["replies"][0].text == "I'm sorry, I can't answer that question."
         assert "trace" in results["replies"][0].meta
         assert "guardrail" in results["replies"][0].meta["trace"]
-
 
     @pytest.mark.parametrize("model_name", [MODELS_TO_TEST_WITH_TOOLS[0]])  # just one model is enough
     def test_pipeline_with_amazon_bedrock_chat_generator(self, model_name, tools):
