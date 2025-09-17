@@ -396,7 +396,7 @@ class OllamaChatGenerator:
     async def _handle_streaming_response_async(
         self,
         response_iter: AsyncIterator[ChatResponse],
-        callback: AsyncStreamingCallbackT,
+        callback: Optional[AsyncStreamingCallbackT],
     ) -> Dict[str, List[ChatMessage]]:
         """
         Merge an Ollama streaming response into a single ChatMessage, preserving
@@ -501,8 +501,13 @@ class OllamaChatGenerator:
             tools = list(tools)
         ollama_tools = [{"type": "function", "function": {**tool.tool_spec}} for tool in tools] if tools else None
 
-        callback = streaming_callback or self.streaming_callback
+        callback = select_streaming_callback(
+            init_callback=self.streaming_callback,
+            runtime_callback=streaming_callback,
+            requires_async=False
+        )
         is_stream = callback is not None
+
 
         ollama_messages = [_convert_chatmessage_to_ollama_format(m) for m in messages]
 
