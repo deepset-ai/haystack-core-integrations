@@ -280,7 +280,7 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
             content_blocks = message["content"]
 
             # Common meta information
-            base_meta = {
+            meta = {
                 "model": model,
                 "index": 0,
                 "finish_reason": FINISH_REASON_MAPPING.get(response_body.get("stopReason", "")),
@@ -291,6 +291,9 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
                     "total_tokens": response_body.get("usage", {}).get("totalTokens", 0),
                 },
             }
+            # guardrail trace
+            if "trace" in response_body:
+                meta["trace"] = response_body["trace"]
 
             # Process all content blocks and combine them into a single message
             text_content = []
@@ -329,7 +332,7 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
                 ChatMessage.from_assistant(
                     " ".join(text_content),
                     tool_calls=tool_calls,
-                    meta=base_meta,
+                    meta=meta,
                     reasoning=ReasoningContent(
                         reasoning_text=reasoning_text, extra={"reasoning_contents": reasoning_contents}
                     )
@@ -355,6 +358,7 @@ def _convert_event_to_streaming_chunk(
     :param component_info: ComponentInfo object
     :returns: StreamingChunk object containing the content and metadata extracted from the event.
     """
+
     # Initialize an empty StreamingChunk to return if no relevant event is found
     # (e.g. for messageStart and contentBlockStop)
     base_meta = {"model": model, "received_at": datetime.now(timezone.utc).isoformat()}
@@ -426,19 +430,23 @@ def _convert_event_to_streaming_chunk(
             meta=base_meta,
         )
 
-    elif "metadata" in event and "usage" in event["metadata"]:
-        metadata = event["metadata"]
-        streaming_chunk = StreamingChunk(
-            content="",
-            meta={
-                **base_meta,
-                "usage": {
-                    "prompt_tokens": metadata["usage"].get("inputTokens", 0),
-                    "completion_tokens": metadata["usage"].get("outputTokens", 0),
-                    "total_tokens": metadata["usage"].get("totalTokens", 0),
-                },
-            },
-        )
+    elif "metadata" in event:
+        event_meta = event["metadata"]
+        chunk_meta: Dict[str, Any] = {**base_meta}
+
+        if "usage" in event_meta:
+            usage = event_meta["usage"]
+            chunk_meta["usage"] = {
+                "prompt_tokens": usage.get("inputTokens", 0),
+                "completion_tokens": usage.get("outputTokens", 0),
+                "total_tokens": usage.get("totalTokens", 0),
+            }
+        if "trace" in event_meta:
+            chunk_meta["trace"] = event_meta["trace"]
+
+        # Only create chunk if we added usage or trace data
+        if len(chunk_meta) > len(base_meta):
+            streaming_chunk = StreamingChunk(content="", meta=chunk_meta)
 
     streaming_chunk.component_info = component_info
 

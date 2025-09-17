@@ -157,6 +157,8 @@ class AmazonBedrockChatGenerator:
         streaming_callback: Optional[StreamingCallbackT] = None,
         boto3_config: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
+        *,
+        guardrail_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
@@ -203,6 +205,7 @@ class AmazonBedrockChatGenerator:
         self.boto3_config = boto3_config
         _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
         self.tools = tools
+        self.guardrail_config = guardrail_config
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
@@ -288,6 +291,7 @@ class AmazonBedrockChatGenerator:
             streaming_callback=callback_name,
             boto3_config=self.boto3_config,
             tools=serialize_tools_or_toolset(self.tools),
+            guardrail_config=self.guardrail_config,
         )
 
     @classmethod
@@ -385,6 +389,8 @@ class AmazonBedrockChatGenerator:
             params["toolConfig"] = tool_config
         if additional_fields:
             params["additionalModelRequestFields"] = additional_fields
+        if self.guardrail_config:
+            params["guardrailConfig"] = self.guardrail_config
 
         # overloads that exhaust finite Literals(bool) not treated as exhaustive
         # see https://github.com/python/mypy/issues/14764
