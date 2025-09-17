@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/cohere-v6.0.0] - 2025-09-17
+
+### 🧹 Chores
+
+- Fix linting cohere (#2252)
+- Revert default model to `command-r-08-2024` (#2282)
+
+
 ## [integrations/cohere-v5.5.0] - 2025-08-29
 
 ### 🚀 Features
