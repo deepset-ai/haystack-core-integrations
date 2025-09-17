@@ -331,9 +331,6 @@ class TestLangfuseTracer:
     def test_update_span_with_pipeline_input_output_data(self):
         with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client") as mock_get_client:
             mock_client = mock_get_client()
-            mock_client.start_as_current_span.return_value = MockContextManager()
-            mock_client.start_as_current_observation.return_value = MockContextManager()
-            mock_client.get_current_trace_id.return_value = "mock_trace_id_123"
 
             tracer = LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
             with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
@@ -345,9 +342,6 @@ class TestLangfuseTracer:
     def test_trace_generation(self):
         with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client") as mock_get_client:
             mock_client = mock_get_client()
-            mock_client.start_as_current_span.return_value = MockContextManager()
-            mock_client.start_as_current_observation.return_value = MockContextManager()
-            mock_client.get_current_trace_id.return_value = "mock_trace_id_123"
 
             tracer = LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
             tags = {
@@ -419,9 +413,6 @@ class TestLangfuseTracer:
     def test_trace_generation_invalid_start_time(self):
         with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client") as mock_get_client:
             mock_client = mock_get_client()
-            mock_client.start_as_current_span.return_value = MockContextManager()
-            mock_client.start_as_current_observation.return_value = MockContextManager()
-            mock_client.get_current_trace_id.return_value = "mock_trace_id_123"
 
             tracer = LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
             tags = {

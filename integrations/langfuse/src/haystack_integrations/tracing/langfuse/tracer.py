@@ -303,13 +303,6 @@ class DefaultSpanHandler(SpanHandler):
             return LangfuseSpan(self.tracer.start_as_current_span(name=context.name))
 
     def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
-        # Apply trace attributes if they were stored during span creation
-        trace_attrs = span.get_data().get("_trace_attrs")
-        if trace_attrs:
-            # We need to get the actual span from the context manager
-            # For now, we'll skip this as the context manager needs to be entered
-            pass
-
         # If the span is at the pipeline level, we add input and output keys to the span
         at_pipeline_level = span.get_data().get(_PIPELINE_INPUT_KEY) is not None
         if at_pipeline_level:
