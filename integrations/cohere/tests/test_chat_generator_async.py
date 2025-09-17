@@ -74,7 +74,7 @@ class TestCohereChatGeneratorAsyncInference:
             function=stock_price,
         )
         initial_messages = [ChatMessage.from_user("What is the current price of AAPL?")]
-        client = CohereChatGenerator(model="command-r")
+        client = CohereChatGenerator(model="command-r-08-2024")
         response = await client.run_async(
             messages=initial_messages,
             tools=[stock_price_tool],
@@ -137,7 +137,7 @@ class TestCohereChatGeneratorAsyncInference:
 
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
         component = CohereChatGenerator(
-            model="command-r",  # Cohere's model that supports tools
+            model="command-r-08-2024",  # Cohere's model that supports tools
             tools=[weather_tool],
             streaming_callback=print_streaming_chunk_async,
         )
