@@ -132,6 +132,13 @@ class S3Downloader:
         :raises ValueError: If the path where files will be downloaded is not set.
         """
 
+        if self._storage is None:
+            msg = (
+                f"The component {self.__class__.__name__} was not warmed up."
+                f" Call 'warm_up()' before calling 'download_file()'."
+            )
+            raise RuntimeError(msg)
+
         filtered_documents = self._filter_documents_by_extensions(documents) if self.file_extensions else documents
 
         if not filtered_documents:
@@ -165,12 +172,7 @@ class S3Downloader:
             downloaded file.
         :raises S3Error: If the download or head request fails or the file does not exist in the S3 bucket.
         """
-        if self._storage is None:
-            msg = (
-                f"The component {self.__class__.__name__} was not warmed up."
-                f" Call 'warm_up()' before calling 'download_file()'."
-            )
-            raise RuntimeError(msg)
+
         file_name = document.meta.get(self.file_name_meta_key)
 
         file_path = self.file_root_path / Path(file_name)
@@ -204,8 +206,8 @@ class S3Downloader:
             for p in misses[:overflow]:
                 try:
                     p.unlink()
-                except Exception:
-                    logger.warning("Failed to remove cache file {path}", path=p)
+                except Exception as error:
+                    logger.warning("Failed to remove cache file at {path} with error: {e}", path=p, e=error)
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize the component to a dictionary."""

@@ -23,7 +23,7 @@ class S3Storage:
         self,
         s3_bucket: str,
         session: Session,
-        file_prefix: Optional[str] = None,
+        s3_prefix: Optional[str] = None,
         endpoint_url: Optional[str] = None,
         config: Optional[Config] = None,
     ) -> None:
@@ -31,18 +31,18 @@ class S3Storage:
         Initializes the S3Storage object with the provided parameters.
 
         :param s3_bucket: The name of the S3 bucket to download files from.
-        :param file_prefix: The optional prefix of the files in the S3 bucket.
+        :param s3_prefix: The optional prefix of the files in the S3 bucket.
         Can be used to specify folder or naming structure.
             For example, if the file is in the folder "folder/subfolder/file.txt",
-            the file_prefix should be "folder/subfolder/". If the file is in the root of the S3 bucket,
-            the file_prefix should be None.
+            the s3_prefix should be "folder/subfolder/". If the file is in the root of the S3 bucket,
+            the s3_prefix should be None.
         :param endpoint_url: The endpoint URL of the S3 bucket to download files from.
         :param session: The session to use for the S3 client.
         :param config: The configuration to use for the S3 client.
         """
 
         self.s3_bucket = s3_bucket
-        self.file_prefix = file_prefix
+        self.s3_prefix = s3_prefix
         self.endpoint_url = endpoint_url
         self.session = session
         self.config = config
@@ -65,8 +65,8 @@ class S3Storage:
         or the file cannot be downloaded.
         """
 
-        if self.file_prefix:
-            s3_key = f"{self.file_prefix}{key}"
+        if self.s3_prefix:
+            s3_key = f"{self.s3_prefix}{key}"
         else:
             s3_key = key
 
@@ -96,7 +96,7 @@ class S3Storage:
         endpoint_url = os.getenv("AWS_ENDPOINT_URL") or None
         return cls(
             s3_bucket=s3_bucket,
-            file_prefix=s3_prefix,
+            s3_prefix=s3_prefix,
             endpoint_url=endpoint_url,
             session=session,
             config=config,
