@@ -36,7 +36,6 @@ generators = {
 selected_chat_generator = generators[selected_chat_generator]()
 
 if __name__ == "__main__":
-
     pipe = Pipeline()
     pipe.add_component("tracer", LangfuseConnector("Chat example"))
     pipe.add_component("prompt_builder", ChatPromptBuilder())
@@ -60,5 +59,5 @@ if __name__ == "__main__":
             },
         }
     )
-    print(response["llm"]["replies"][0])
-    print(response["tracer"]["trace_url"])
+    print(response["llm"]["replies"][0])  # noqa: T201
+    print(response["tracer"]["trace_url"])  # noqa: T201
