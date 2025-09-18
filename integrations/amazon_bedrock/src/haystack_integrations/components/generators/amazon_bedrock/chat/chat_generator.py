@@ -188,6 +188,19 @@ class AmazonBedrockChatGenerator:
             the streaming mode on.
         :param boto3_config: The configuration for the boto3 client.
         :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
+        :param guardrail_config: Optional configuration for a guardrail that has been created in Amazon Bedrock.
+            This must be provided as a dictionary matching either
+            [GuardrailConfiguration](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_GuardrailConfiguration.html).
+            or, in streaming mode (when `streaming_callback` is set),
+            [GuardrailStreamConfiguration](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_GuardrailStreamConfiguration.html).
+            If `trace` is set to `enabled`, the guardrail trace will be included under the `trace` key in the `meta`
+            attribute of the resulting `ChatMessage`.
+            Note: Enabling guardrails in streaming mode may introduce additional latency.
+            To manage this, you can adjust the `streamProcessingMode` parameter.
+            See the
+            [Guardrails Streaming documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-streaming.html)
+            for more information.
+
 
         :raises ValueError: If the model name is empty or None.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
