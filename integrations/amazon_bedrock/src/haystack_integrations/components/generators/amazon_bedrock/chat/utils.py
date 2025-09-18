@@ -555,8 +555,15 @@ def _parse_streaming_response(
             content_block_idxs.add(content_block_idx)
         streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
+
     reply = _convert_streaming_chunks_to_chat_message(chunks=chunks)
+
+    # both the reasoning content and the trace are ignored in _convert_streaming_chunks_to_chat_message
+    # so we need to process them separately
     reasoning_content = _process_reasoning_contents(chunks=chunks)
+    if chunks[-1].meta and "trace" in chunks[-1].meta:
+        reply.meta["trace"] = chunks[-1].meta["trace"]
+
     reply = ChatMessage.from_assistant(
         text=reply.text,
         meta=reply.meta,
@@ -564,6 +571,9 @@ def _parse_streaming_response(
         tool_calls=reply.tool_calls,
         reasoning=reasoning_content,
     )
+
+
+
     return [reply]
 
 

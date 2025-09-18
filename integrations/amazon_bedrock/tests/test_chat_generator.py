@@ -663,9 +663,8 @@ class TestAmazonBedrockChatGeneratorInference:
         ),
     )
     @pytest.mark.parametrize("streaming_callback", [None, print_streaming_chunk])
-    @pytest.mark.integration
     def test_live_run_with_guardrail(self, streaming_callback):
-        initial_messages = [ChatMessage.from_user("Should I invest in Tesla or Apple?")]
+        messages = [ChatMessage.from_user("Should I invest in Tesla or Apple?")]
         component = AmazonBedrockChatGenerator(
             model="anthropic.claude-3-5-sonnet-20240620-v1:0",
             guardrail_config={
@@ -675,10 +674,10 @@ class TestAmazonBedrockChatGeneratorInference:
             },
             streaming_callback=streaming_callback,
         )
-        results = component.run(messages=initial_messages)
+        results = component.run(messages=messages)
 
         assert results["replies"][0].meta["finish_reason"] == "content_filter"
-        assert results["replies"][0].text == "I'm sorry, I can't answer that question."
+        assert results["replies"][0].text == "Sorry, the model cannot answer this question."
         assert "trace" in results["replies"][0].meta
         assert "guardrail" in results["replies"][0].meta["trace"]
 
