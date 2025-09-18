@@ -27,6 +27,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _parse_completion_response,
     _parse_streaming_response,
     _parse_streaming_response_async,
+    _validate_guardrail_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -158,7 +159,7 @@ class AmazonBedrockChatGenerator:
         boto3_config: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
         *,
-        guardrail_config: Optional[Dict[str, Any]] = None,
+        guardrail_config: Optional[Dict[str, str]] = None,
     ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
@@ -203,8 +204,11 @@ class AmazonBedrockChatGenerator:
         self.aws_profile_name = aws_profile_name
         self.streaming_callback = streaming_callback
         self.boto3_config = boto3_config
+
         _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
         self.tools = tools
+
+        _validate_guardrail_config(guardrail_config=guardrail_config, streaming = streaming_callback is not None)
         self.guardrail_config = guardrail_config
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:

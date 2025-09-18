@@ -612,3 +612,24 @@ async def _parse_streaming_response_async(
         reasoning=reasoning_content,
     )
     return [reply]
+
+
+def _validate_guardrail_config(guardrail_config: Optional[Dict[str, str]] = None, streaming: bool = False) -> None:
+    """
+    Validate the guardrail configuration.
+
+    :param guardrail_config: The guardrail configuration.
+    :param streaming: Whether the streaming is enabled.
+
+    :raises ValueError: If the guardrail configuration is invalid.
+    """
+    if guardrail_config is None:
+        return
+
+    required_fields = {"guardrailIdentifier", "guardrailVersion"}
+    if not required_fields.issubset(guardrail_config):
+        msg = "`guardrailIdentifier` and `guardrailVersion` fields are required in guardrail configuration."
+        raise ValueError(msg)
+    if not streaming and "streamProcessingMode" in guardrail_config:
+        msg = "`streamProcessingMode` field is only supported for streaming (when `streaming_callback` is not None)."
+        raise ValueError(msg)
