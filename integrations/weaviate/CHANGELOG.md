@@ -60,7 +60,7 @@
 
 ### 🌀 Miscellaneous
 
-- Weaviate - skip writing _split_overlap meta field (#1173)
+- Fix: Weaviate - skip `_split_overlap` meta field (#1173)
 
 ## [integrations/weaviate-v4.0.0] - 2024-10-18
 
@@ -110,11 +110,11 @@
 - Revert "Handle connection to WCS and add tests"
 
 This reverts commit f48802b2ce612896fd06a13cf33dffd9f77a8859.
-- Install pytest-rerunfailures; change test-cov script (#845)
-- Minor retriever pydoc fix (#884)
-- Add defensive check for filter_policy deserialization (#903)
-- Use collections.list_all instead of collections._get_all (#921)
-- Ruff update, don't ruff tests (#986)
+- Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
+- Chore: Minor retriever pydoc fix (#884)
+- Fix: `weaviate` - Fallback to default filter policy when deserializing retrievers without the init parameter  (#903)
+- Fix: Weaviate: Use collections.list_all instead of collections._get_all (#921)
+- Chore: weaviate - ruff update, don't ruff tests (#986)
 
 ## [integrations/weaviate-v2.1.0] - 2024-06-10
 
@@ -128,8 +128,8 @@ This reverts commit f48802b2ce612896fd06a13cf33dffd9f77a8859.
 
 ### 🌀 Miscellaneous
 
-- Add license classifiers (#680)
-- Change the pydoc renderer class (#718)
+- Chore: add license classifiers (#680)
+- Chore: change the pydoc renderer class (#718)
 
 ## [integrations/weaviate-v2.0.0] - 2024-03-25
 
@@ -141,51 +141,19 @@ This reverts commit f48802b2ce612896fd06a13cf33dffd9f77a8859.
 ### 🌀 Miscellaneous
 
 - Make tests show coverage (#566)
-
-* make tests show coverage
-
-* rm duplicate coverage definition
 - Migrate from weaviate python client v3  to v4 (#463)
 - Refactor tests (#574)
-
-* first refactorings
-
-* separate unit tests in pgvector
-
-* small change to weaviate
-
-* fix format
-
-* usefixtures when possible
 - Remove references to Python 3.7 (#601)
-- Make Document Stores initially skip SparseEmbedding (#606)
+- Make Document Stores initially skip `SparseEmbedding` (#606)
 - Fix Weaviate retrievers returning no score (#621)
-
-* Update testing Docker image
-
-* Fix not score being returned for embedding and bm25 retrieval
 - Update Weaviate docstrings (#622)
-
-* Update Weaviate docstrings
-
-* Fix linting
-
-* Simplify count_documents docstring
-
-Co-authored-by: Madeesh Kannan <shadeMe@users.noreply.github.com>
-
----------
-
-Co-authored-by: Madeesh Kannan <shadeMe@users.noreply.github.com>
 
 ## [integrations/weaviate-v1.0.2] - 2024-02-27
 
 ### 🐛 Bug Fixes
 
 - Fix order of API docs (#447)
-
-This PR will also push the docs to Readme
-- Fix weaviate auth tests (#488)
+- Weaviate: fix auth tests (#488)
 
 ### 📚 Documentation
 
@@ -204,104 +172,22 @@ This PR will also push the docs to Readme
 ### 🌀 Miscellaneous
 
 - WeaviateDocumentStore initialization and serialization (#187)
-
-* Update weaviate dependencies
-
-* Implement WeaviateDocumentStore initialization and serialization
-
-* Fix linting
 - Move package under haystack_integrations (#214)
-
-* Move package under haystack_integrations
-
-* Fix linting
-
-* Fix linting again?
 - Add `collection_name` parameter and creation (#215)
-
-* Add collection_name parameter
-
-* Fix linting
 - Support more collection settings when creating a new `WeaviateDocumentStore` (#260)
-
-* Add docker-compose.yml
-
-* Accept more collection settings when initializing WeaviateDocumentStore
-
-* Linting
 - Implement `count_document` for WeaviateDocumentStore (#267)
-
-* Implement count_document for WeaviateDocumentStore
-
-* Start container in test workflow
-
-* Ditch Windows and Mac on Weaviate CI as Docker images are not provided
 - Add methods to convert from Document to Weaviate data object and viceversa (#269)
-
-* Add methods to convert from Document to Weaviate data object and viceversa
-
-* Add tests
 - Add filter, write and delete documents in Weaviate (#270)
-
-* Add filter, write and delete documents in Weaviate
-
-* Fix linting
-
-* Fix typo
 - Implement filtering for `WeaviateDocumentStore` (#278)
-
-* Add filters logic
-
-* Set null values as indexable by default so filters work as expected
-
-* Save flattened Documents to properly support filters
-
-* Add filters support in filter_documents
-
-* Add filter_documents tests
-
-* Handle inversion of NOT filters
-
-* Update tests and skip one
-
-* Add some documentation
-
-* Fix linting
-
-* Remove override decorator
-
-* Replace datetime.fromisoformat with python-dateutil function
-
-* Move field check when parsing comparisons
-
-* Add utility function that returns filter that matches no documents
-- Add WeaviateBM25Retriever (#410)
-- Add WeaviateEmbeddingRetriever (#412)
-- Update Weaviate docs (#414)
+- Add `WeaviateBM25Retriever` (#410)
+- Add `WeaviateEmbeddingRetriever` (#412)
+- Update Weaviate docs configs (#414)
 - Update WeaviateDocumentStore authentication to use new Secret class (#425)
-
-* Update WeaviateDocumentStore authentication to use new Secret class
-
-* Fix linting
-
-* Update docs config
-
-* Export auth classes
-
-* Change expires_in to non secret
-
-* Use enum for serialization types
-
-* Freeze dataclasses
-
-* Fix linting
-
-* Fix failing tests
 
 ## [integrations/weaviate-v0.0.0] - 2024-01-10
 
 ### 🌀 Miscellaneous
 
-- Scaffolding for Weaviate integration (#186)
+- Setup everything to start working on the Weaviate integration (#186)
 
 <!-- generated by git-cliff -->
