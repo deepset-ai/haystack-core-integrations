@@ -123,6 +123,7 @@ class TestAmazonBedrockChatGenerator:
             generation_kwargs={"temperature": 0.7},
             streaming_callback=print_streaming_chunk,
             boto3_config=boto3_config,
+            guardrail_config={"guardrailIdentifier": "test", "guardrailVersion": "test"},
         )
         expected_dict = {
             "type": CLASS_TYPE,
@@ -137,7 +138,7 @@ class TestAmazonBedrockChatGenerator:
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "boto3_config": boto3_config,
                 "tools": None,
-                "guardrail_config": None,
+                "guardrail_config": {"guardrailIdentifier": "test", "guardrailVersion": "test"},
             },
         }
 
@@ -292,6 +293,17 @@ class TestAmazonBedrockChatGenerator:
         )
         assert request_params["messages"] == [{"content": [{"text": "What's the capital of France?"}], "role": "user"}]
         assert request_params["toolConfig"] == top_song_tool_config
+
+    def test_prepare_request_params_guardrail_config(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(
+            model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+            guardrail_config={"guardrailIdentifier": "test", "guardrailVersion": "test"},
+        )
+        request_params, _ = generator._prepare_request_params(
+            messages=[ChatMessage.from_user("What's the capital of France?")],
+        )
+        assert request_params["messages"] == [{"content": [{"text": "What's the capital of France?"}], "role": "user"}]
+        assert request_params["guardrailConfig"] == {"guardrailIdentifier": "test", "guardrailVersion": "test"}
 
 
 # In the CI, those tests are skipped if AWS Authentication fails

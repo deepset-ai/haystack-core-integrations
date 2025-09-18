@@ -208,7 +208,7 @@ class AmazonBedrockChatGenerator:
         _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
         self.tools = tools
 
-        _validate_guardrail_config(guardrail_config=guardrail_config, streaming = streaming_callback is not None)
+        _validate_guardrail_config(guardrail_config=guardrail_config, streaming=streaming_callback is not None)
         self.guardrail_config = guardrail_config
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
