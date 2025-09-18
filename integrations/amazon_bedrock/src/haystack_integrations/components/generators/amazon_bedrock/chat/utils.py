@@ -273,10 +273,6 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
     :param model: The model ID used for generation, included in message metadata.
     :returns: List of ChatMessage objects containing the assistant's response(s) with appropriate metadata.
     """
-    print("response_body")
-    print(response_body)
-
-    print("---")
 
     replies = []
     if "output" in response_body and "message" in response_body["output"]:

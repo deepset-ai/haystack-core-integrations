@@ -1100,6 +1100,82 @@ class TestAmazonBedrockChatGeneratorUtils:
         ]
         assert replies == expected_messages
 
+    def test_parse_streaming_response_with_guardrail(self, mock_boto3_session):
+        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        type_ = (
+            "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+        )
+        streaming_chunks = []
+
+        trace = {
+            "guardrail": {
+                "inputAssessment": {
+                    "vodp82dpe5xv": {
+                        "test_guardrail_id": {
+                            "topicPolicy": {
+                                "topics": [
+                                    {"name": "Investments topic", "type": "DENY", "action": "BLOCKED", "detected": True}
+                                ]
+                            },
+                            "invocationMetrics": {
+                                "guardrailProcessingLatency": 299,
+                                "usage": {
+                                    "topicPolicyUnits": 1,
+                                    "contentPolicyUnits": 0,
+                                    "wordPolicyUnits": 0,
+                                    "sensitiveInformationPolicyUnits": 0,
+                                    "sensitiveInformationPolicyFreeUnits": 0,
+                                    "contextualGroundingPolicyUnits": 0,
+                                    "contentPolicyImageUnits": 0,
+                                },
+                                "guardrailCoverage": {"textCharacters": {"guarded": 48, "total": 48}},
+                            },
+                        }
+                    },
+                    "actionReason": "Guardrail blocked.",
+                }
+            }
+        }
+
+        events = [
+            {"messageStart": {"role": "assistant"}},
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": "Sorry, the model cannot answer this question."},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {"contentBlockStop": {"contentBlockIndex": 0}},
+            {"messageStop": {"stopReason": "guardrail_intervened"}},
+            {
+                "metadata": {
+                    "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
+                    "metrics": {"latencyMs": 334},
+                    "trace": trace,
+                }
+            },
+        ]
+
+        def test_callback(chunk: StreamingChunk):
+            streaming_chunks.append(chunk)
+
+        replies = _parse_streaming_response(events, test_callback, model, ComponentInfo(type=type_))
+
+        expected_messages = [
+            ChatMessage.from_assistant(
+                text="Sorry, the model cannot answer this question.",
+                meta={
+                    "completion_start_time": ANY,
+                    "model": model,
+                    "index": 0,
+                    "finish_reason": "content_filter",
+                    "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                    "trace": trace,
+                },
+            )
+        ]
+        assert replies == expected_messages
+
     def test_convert_streaming_chunks_to_chat_message_tool_call_with_empty_arguments(self):
         chunks = [
             StreamingChunk(
