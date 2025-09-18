@@ -4,5 +4,6 @@
 
 from .bm25_retriever import WeaviateBM25Retriever
 from .embedding_retriever import WeaviateEmbeddingRetriever
+from .hybrid_retriever import WeaviateHybridRetriever
 
-__all__ = ["WeaviateBM25Retriever", "WeaviateEmbeddingRetriever"]
+__all__ = ["WeaviateBM25Retriever", "WeaviateEmbeddingRetriever", "WeaviateHybridRetriever"]
