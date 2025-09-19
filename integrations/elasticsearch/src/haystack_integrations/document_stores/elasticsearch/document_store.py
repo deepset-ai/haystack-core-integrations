@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Mapping
-from typing import Any, Dict, List, Literal, Optional, Union, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import numpy as np
 from elastic_transport import NodeConfig
