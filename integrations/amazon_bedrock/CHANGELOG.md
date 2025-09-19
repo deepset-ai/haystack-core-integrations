@@ -1,10 +1,11 @@
 # Changelog
 
-## [integrations/amazon_bedrock-v4.1.0] - 2025-09-19
+## [integrations/amazon_bedrock-v4.2.0] - 2025-09-19
 
 ### 🚀 Features
 
 - Support AWS Bedrock Guardrails in `AmazonBedrockChatGenerator` (#2284)
+
 
 ### 🧹 Chores
 
@@ -13,6 +14,18 @@
 ### 🌀 Miscellaneous
 
 - Chore: Fix linting aws bedrock (#2249)
+- Merge branch 'main' into s3-downloader
+- Update tests
+- PR comments
+- Add py.types
+- PR comments
+- Add a fix for credentials error
+- Fix typing errors
+- Fix typing errors
+- Fix all errors
+- Update tests
+- Merge branch 'main' into s3-downloader
+- More errors fix
 
 ## [integrations/amazon_bedrock-v4.0.0] - 2025-08-29
 
@@ -37,6 +50,33 @@
 - Add framework name into UserAgent header for bedrock integration (#2168)
 - Standardize readmes - part 1 (#2202)
 
+### 🌀 Miscellaneous
+
+- Add s3downloader component
+- Small updates
+- Add test files
+- Update tests
+- Update component
+- Restructure
+- Update methods
+- Use download_file instead of get_object
+- Update the component
+- Fix linting
+- Add an example
+- Add an example
+- Remove ssl param
+- Remove sources
+- Add storage and settings
+- Remove s3_key
+- Add utils file
+- PR comments
+- Update S3Storage
+- Add tests
+- Update dependency
+- Update tests
+- Add errors file
+- Add a pipeline example
+- Fix docstrings
 
 ## [integrations/amazon_bedrock-v3.10.0] - 2025-08-06
 
