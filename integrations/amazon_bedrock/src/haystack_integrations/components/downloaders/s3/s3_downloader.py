@@ -96,7 +96,7 @@ class S3Downloader:
         self.max_cache_size = max_cache_size
         self.file_name_meta_key = file_name_meta_key
 
-        self._storage: S3Storage
+        self._storage: Optional[S3Storage] = None
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
@@ -154,10 +154,7 @@ class S3Downloader:
         """
 
         if self._storage is None:
-            msg = (
-                f"The component {self.__class__.__name__} was not warmed up."
-                f" Call 'warm_up()' before calling 'download_file()'."
-            )
+            msg = f"The component {self.__class__.__name__} was not warmed up. Call 'warm_up()' before calling run()."
             raise RuntimeError(msg)
 
         filtered_documents = self._filter_documents_by_extensions(documents) if self.file_extensions else documents
@@ -210,7 +207,8 @@ class S3Downloader:
             file_path.touch()
 
         else:
-            self._storage.download(key=file_name, local_file_path=file_path)
+            # we know that _storage is not None after warm_up() is called, but mypy does not know that
+            self._storage.download(key=file_name, local_file_path=file_path)  # type: ignore[union-attr]
 
         document.meta["file_path"] = str(file_path)
         return document
