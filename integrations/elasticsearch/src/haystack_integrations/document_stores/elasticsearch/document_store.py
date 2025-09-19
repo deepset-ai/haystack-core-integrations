@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Mapping
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union, Tuple
 
 import numpy as np
 from elastic_transport import NodeConfig
@@ -121,15 +121,20 @@ class ElasticsearchDocumentStore:
             headers = self._kwargs.pop("headers", {})
             headers["user-agent"] = f"haystack-py-ds/{haystack_version}"
 
-            api_key = None
+            api_key: Optional[Union[str, Tuple[str, str]]] = None
 
             # supply both the id of the key and the secret.
             if self.api_key_id and self.api_key:
-                api_key = (self.api_key_id.resolve_value(), self.api_key.resolve_value())
+                api_key_id_resolved = self.api_key_id.resolve_value()
+                api_key_resolved = self.api_key.resolve_value()
+                if not api_key_id_resolved or not api_key_resolved:
+                    msg = "api_key_id and api_key must be non-empty strings."
+                    raise ValueError(msg)
+                api_key = (api_key_id_resolved, api_key_resolved)
 
             # a base64-encoded string that encodes both id and secret (separated by “:”)
-            if self.api_key is not None:
-                api_key = self.api_key
+            if self.api_key and not self.api_key_id:
+                api_key = self.api_key.resolve_value()
 
             # only the id is not enough, raise an error
             if self.api_key_id and not self.api_key:
