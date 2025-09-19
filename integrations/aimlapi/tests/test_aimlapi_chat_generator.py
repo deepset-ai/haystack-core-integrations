@@ -96,7 +96,7 @@ class TestAIMLAPIChatGenerator:
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("AIMLAPI_API_KEY", raising=False)
-        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             AIMLAPIChatGenerator()
 
     def test_init_with_parameters(self):
@@ -178,9 +178,7 @@ class TestAIMLAPIChatGenerator:
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("AIMLAPI_API_KEY", "fake-api-key")
         data = {
-            "type": (
-                "haystack_integrations.components.generators.aimlapi.chat.chat_generator.AIMLAPIChatGenerator"
-            ),
+            "type": ("haystack_integrations.components.generators.aimlapi.chat.chat_generator.AIMLAPIChatGenerator"),
             "init_parameters": {
                 "api_key": {"env_vars": ["AIMLAPI_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "openai/gpt-5-chat-latest",
@@ -209,9 +207,7 @@ class TestAIMLAPIChatGenerator:
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
         monkeypatch.delenv("AIMLAPI_API_KEY", raising=False)
         data = {
-            "type": (
-                "haystack_integrations.components.generators.aimlapi.chat.chat_generator.AIMLAPIChatGenerator"
-            ),
+            "type": ("haystack_integrations.components.generators.aimlapi.chat.chat_generator.AIMLAPIChatGenerator"),
             "init_parameters": {
                 "api_key": {"env_vars": ["AIMLAPI_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "openai/gpt-5-chat-latest",
@@ -223,7 +219,7 @@ class TestAIMLAPIChatGenerator:
                 "max_retries": 10,
             },
         }
-        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             AIMLAPIChatGenerator.from_dict(data)
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002

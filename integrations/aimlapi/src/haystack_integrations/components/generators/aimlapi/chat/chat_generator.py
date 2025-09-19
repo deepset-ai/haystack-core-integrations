@@ -13,10 +13,8 @@ from haystack.utils.auth import Secret
 
 logger = logging.getLogger(__name__)
 
-AIMLAPI_HEADERS = {
-    'HTTP-Referer': 'https://github.com/deepset-ai/haystack-core-integrations',
-    'X-Title': 'Haystack'
-}
+AIMLAPI_HEADERS = {"HTTP-Referer": "https://github.com/deepset-ai/haystack-core-integrations", "X-Title": "Haystack"}
+
 
 @component
 class AIMLAPIChatGenerator(OpenAIChatGenerator):
@@ -167,9 +165,7 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         extra_headers = {**AIMLAPI_HEADERS, **(self.extra_headers or {})}
 
         # adapt ChatMessage(s) to the format expected by the OpenAI API (AIMLAPI uses the same format)
-        aimlapi_formatted_messages: List[Dict[str, Any]] = [
-            message.to_openai_dict_format() for message in messages
-        ]
+        aimlapi_formatted_messages: List[Dict[str, Any]] = [message.to_openai_dict_format() for message in messages]
 
         tools = tools or self.tools
         if isinstance(tools, Toolset):
