@@ -20,7 +20,7 @@ pip install aimlapi-haystack
 from haystack_integrations.components.generators.aimlapi import AIMLAPIChatGenerator
 from haystack.dataclasses import ChatMessage
 
-generator = AIMLAPIChatGenerator(model="gpt-4o")
+generator = AIMLAPIChatGenerator(model="openai/gpt-5-chat-latest")
 result = generator.run([ChatMessage.from_user("What's the capital of France?")])
 print(result["replies"][0].content)
 ```

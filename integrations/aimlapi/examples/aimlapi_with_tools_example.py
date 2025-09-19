@@ -32,12 +32,12 @@ weather_tool = Tool(
 # Create a tool invoker with the weather tool
 tool_invoker = ToolInvoker(tools=[weather_tool])
 
-# Setup model routing by setting the `model` parameter to `openai/gpt-4o`
-# and providing a list of models to route to.
+# Setup model routing by setting the `model` parameter to `openai/gpt-5-chat-latest`
+# and providing a list of recent models to route to.
 client = AIMLAPIChatGenerator(
-    model="openai/gpt-4o",
+    model="openai/gpt-5-chat-latest",
     generation_kwargs={
-        "models": ["openai/gpt-4o", "openai/claude-3-haiku-20240307"],
+        "models": ["openai/gpt-5-chat-latest", "openai/gpt-4.1"],
     },
 )
 messages = [ChatMessage.from_user("What's the weather in Tokyo?")]

@@ -66,7 +66,7 @@ def mock_chat_completion():
     with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
         completion = ChatCompletion(
             id="foo",
-            model="gpt-4o",
+            model="openai/gpt-5-chat-latest",
             object="chat.completion",
             choices=[
                 Choice(
@@ -89,7 +89,7 @@ class TestAIMLAPIChatGenerator:
         monkeypatch.setenv("AIMLAPI_API_KEY", "test-api-key")
         component = AIMLAPIChatGenerator()
         assert component.client.api_key == "test-api-key"
-        assert component.model == "gpt-4o"
+        assert component.model == "openai/gpt-5-chat-latest"
         assert component.api_base_url == "https://api.aimlapi.com/v1"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
@@ -102,13 +102,13 @@ class TestAIMLAPIChatGenerator:
     def test_init_with_parameters(self):
         component = AIMLAPIChatGenerator(
             api_key=Secret.from_token("test-api-key"),
-            model="gpt-4o",
+            model="openai/gpt-5-chat-latest",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
         assert component.client.api_key == "test-api-key"
-        assert component.model == "gpt-4o"
+        assert component.model == "openai/gpt-5-chat-latest"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
@@ -124,7 +124,7 @@ class TestAIMLAPIChatGenerator:
 
         expected_params = {
             "api_key": {"env_vars": ["AIMLAPI_API_KEY"], "strict": True, "type": "env_var"},
-            "model": "gpt-4o",
+            "model": "openai/gpt-5-chat-latest",
             "streaming_callback": None,
             "api_base_url": "https://api.aimlapi.com/v1",
             "generation_kwargs": {},
@@ -142,7 +142,7 @@ class TestAIMLAPIChatGenerator:
         monkeypatch.setenv("ENV_VAR", "test-api-key")
         component = AIMLAPIChatGenerator(
             api_key=Secret.from_env_var("ENV_VAR"),
-            model="gpt-4o",
+            model="openai/gpt-5-chat-latest",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
@@ -161,7 +161,7 @@ class TestAIMLAPIChatGenerator:
 
         expected_params = {
             "api_key": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
-            "model": "gpt-4o",
+            "model": "openai/gpt-5-chat-latest",
             "api_base_url": "test-base-url",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -183,7 +183,7 @@ class TestAIMLAPIChatGenerator:
             ),
             "init_parameters": {
                 "api_key": {"env_vars": ["AIMLAPI_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "gpt-4o",
+                "model": "openai/gpt-5-chat-latest",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -195,7 +195,7 @@ class TestAIMLAPIChatGenerator:
             },
         }
         component = AIMLAPIChatGenerator.from_dict(data)
-        assert component.model == "gpt-4o"
+        assert component.model == "openai/gpt-5-chat-latest"
         assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -214,7 +214,7 @@ class TestAIMLAPIChatGenerator:
             ),
             "init_parameters": {
                 "api_key": {"env_vars": ["AIMLAPI_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "gpt-4o",
+                "model": "openai/gpt-5-chat-latest",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -267,7 +267,7 @@ class TestAIMLAPIChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "gpt-4o" in message.meta["model"]
+        assert "openai/gpt-5-chat-latest" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -303,7 +303,7 @@ class TestAIMLAPIChatGenerator:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "gpt-4o" in message.meta["model"]
+        assert "openai/gpt-5-chat-latest" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
@@ -421,7 +421,7 @@ class TestAIMLAPIChatGenerator:
         Test that the AIMLAPIChatGenerator component can be used in a pipeline
         """
         pipeline = Pipeline()
-        pipeline.add_component("generator", AIMLAPIChatGenerator(tools=tools, model="gpt-4o"))
+        pipeline.add_component("generator", AIMLAPIChatGenerator(tools=tools, model="openai/gpt-5-chat-latest"))
         pipeline.add_component("tool_invoker", ToolInvoker(tools=tools))
 
         pipeline.connect("generator", "tool_invoker")
@@ -458,7 +458,7 @@ class TestAIMLAPIChatGenerator:
 
         # Create generator with specific configuration
         generator = AIMLAPIChatGenerator(
-            model="gpt-4o",
+            model="openai/gpt-5-chat-latest",
             generation_kwargs={"temperature": 0.7},
             streaming_callback=print_streaming_chunk,
             tools=[tool],
@@ -479,7 +479,7 @@ class TestAIMLAPIChatGenerator:
                     "type": "haystack_integrations.components.generators.aimlapi.chat.chat_generator.AIMLAPIChatGenerator",  # noqa: E501
                     "init_parameters": {
                         "api_key": {"type": "env_var", "env_vars": ["AIMLAPI_API_KEY"], "strict": True},
-                        "model": "gpt-4o",
+                        "model": "openai/gpt-5-chat-latest",
                         "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                         "api_base_url": "https://api.aimlapi.com/v1",
                         "generation_kwargs": {"temperature": 0.7},
@@ -549,7 +549,7 @@ class TestChatCompletionChunkConversion:
                     ChoiceChunk(delta=ChoiceDelta(content="", role="assistant"), index=0, native_finish_reason=None)
                 ],
                 created=1750162525,
-                model="gpt-4o",
+                model="openai/gpt-5-chat-latest",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -574,7 +574,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="gpt-4o",
+                model="openai/gpt-5-chat-latest",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -598,7 +598,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="gpt-4o",
+                model="openai/gpt-5-chat-latest",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -622,7 +622,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="gpt-4o",
+                model="openai/gpt-5-chat-latest",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -646,7 +646,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="gpt-4o",
+                model="openai/gpt-5-chat-latest",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -670,7 +670,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="gpt-4o",
+                model="openai/gpt-5-chat-latest",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -695,7 +695,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="gpt-4o",
+                model="openai/gpt-5-chat-latest",
                 object="chat.completion.chunk",
                 service_tier=None,
                 system_fingerprint="fp_34a54ae93c",
@@ -722,7 +722,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="gpt-4o",
+                model="openai/gpt-5-chat-latest",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -746,7 +746,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="gpt-4o",
+                model="openai/gpt-5-chat-latest",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -770,7 +770,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="gpt-4o",
+                model="openai/gpt-5-chat-latest",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -794,7 +794,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="gpt-4o",
+                model="openai/gpt-5-chat-latest",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -810,7 +810,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="gpt-4o",
+                model="openai/gpt-5-chat-latest",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -825,7 +825,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="gpt-4o",
+                model="openai/gpt-5-chat-latest",
                 object="chat.completion.chunk",
                 usage=CompletionUsage(
                     completion_tokens=42,
@@ -855,7 +855,7 @@ class TestChatCompletionChunkConversion:
         assert result.tool_calls[1].arguments == {"city": "Berlin"}
 
         # Verify meta information
-        assert result.meta["model"] == "gpt-4o"
+        assert result.meta["model"] == "openai/gpt-5-chat-latest"
         assert result.meta["finish_reason"] == "tool_calls"
         assert result.meta["index"] == 0
         assert result.meta["completion_start_time"] is not None

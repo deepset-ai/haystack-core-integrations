@@ -60,7 +60,7 @@ def mock_async_chat_completion():
     ) as mock_chat_completion_create:
         completion = ChatCompletion(
             id="foo",
-            model="gpt-4o",
+            model="openai/gpt-5-chat-latest",
             object="chat.completion",
             choices=[
                 Choice(
@@ -131,12 +131,12 @@ class TestAIMLAPIChatGeneratorAsync:
     @pytest.mark.asyncio
     async def test_live_run_async(self):
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = AIMLAPIChatGenerator(model="gpt-4o")
+        component = AIMLAPIChatGenerator(model="openai/gpt-5-chat-latest")
         results = await component.run_async(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "gpt-4o" in message.meta["model"]
+        assert "openai/gpt-5-chat-latest" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -162,7 +162,7 @@ class TestAIMLAPIChatGeneratorAsync:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "gpt-4o" in message.meta["model"]
+        assert "openai/gpt-5-chat-latest" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert counter > 1

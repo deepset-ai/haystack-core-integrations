@@ -48,14 +48,14 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
 
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
 
-    client = AIMLAPIChatGenerator(model="gpt-4o")
+    client = AIMLAPIChatGenerator(model="openai/gpt-5-chat-latest")
     response = client.run(messages)
     print(response)
 
     >>{'replies': [ChatMessage(_content='Natural Language Processing (NLP) is a branch of artificial intelligence
     >>that focuses on enabling computers to understand, interpret, and generate human language in a way that is
     >>meaningful and useful.', _role=<ChatRole.ASSISTANT: 'assistant'>, _name=None,
-    >>_meta={'model': 'gpt-4o', 'index': 0, 'finish_reason': 'stop',
+    >>_meta={'model': 'openai/gpt-5-chat-latest', 'index': 0, 'finish_reason': 'stop',
     >>'usage': {'prompt_tokens': 15, 'completion_tokens': 36, 'total_tokens': 51}})]}
     ```
     """
@@ -64,7 +64,7 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         self,
         *,
         api_key: Secret = Secret.from_env_var("AIMLAPI_API_KEY"),
-        model: str = "gpt-4o",
+        model: str = "openai/gpt-5-chat-latest",
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = "https://api.aimlapi.com/v1",
         generation_kwargs: Optional[Dict[str, Any]] = None,
@@ -76,7 +76,7 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
     ):
         """
         Creates an instance of AIMLAPIChatGenerator. Unless specified otherwise,
-        the default model is `gpt-4o`.
+        the default model is `openai/gpt-5-chat-latest`.
 
         :param api_key:
             The AIMLAPI API key.
@@ -167,7 +167,9 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         extra_headers = {**AIMLAPI_HEADERS, **(self.extra_headers or {})}
 
         # adapt ChatMessage(s) to the format expected by the OpenAI API (AIMLAPI uses the same format)
-        aimlapi_formatted_messages = [message.to_openai_dict_format() for message in messages]
+        aimlapi_formatted_messages: List[Dict[str, Any]] = [
+            message.to_openai_dict_format() for message in messages
+        ]
 
         tools = tools or self.tools
         if isinstance(tools, Toolset):
@@ -191,7 +193,7 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
 
         return {
             "model": self.model,
-            "messages": aimlapi_formatted_messages,  # type: ignore[arg-type]
+            "messages": aimlapi_formatted_messages,
             "stream": streaming_callback is not None,
             "n": num_responses,
             **aimlapi_tools,
