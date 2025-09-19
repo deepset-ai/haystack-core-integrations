@@ -31,13 +31,13 @@ class S3Storage:
         Initializes the S3Storage object with the provided parameters.
 
         :param s3_bucket: The name of the S3 bucket to download files from.
+        :param session: The session to use for the S3 client.
         :param s3_prefix: The optional prefix of the files in the S3 bucket.
         Can be used to specify folder or naming structure.
             For example, if the file is in the folder "folder/subfolder/file.txt",
             the s3_prefix should be "folder/subfolder/". If the file is in the root of the S3 bucket,
             the s3_prefix should be None.
         :param endpoint_url: The endpoint URL of the S3 bucket to download files from.
-        :param session: The session to use for the S3 client.
         :param config: The configuration to use for the S3 client.
         """
 
@@ -72,14 +72,23 @@ class S3Storage:
 
         try:
             self._client.download_file(self.s3_bucket, s3_key, str(local_file_path))
+
         except ClientError as e:
             error_code = int(e.response["Error"]["Code"])
 
             if error_code == HTTPStatus.NOT_FOUND:
-                msg = f"The object {s3_key!r} does not exist in the S3 bucket {self.s3_bucket!r}."
+                msg = f"The object {s3_key!r} does not exist in the S3 bucket {self.s3_bucket!r}. \n Error: {e}"
                 raise S3StorageError(msg) from e
+            elif error_code == HTTPStatus.FORBIDDEN:
+                msg = (
+                    f"Failed to access S3 bucket {self.s3_bucket!r}. "
+                    f"Please check your AWS credentials (access key, secret key, region) and ensure "
+                    f"they have the necessary S3 permissions. "
+                    f"Error: {e}"
+                )
+                raise S3ConfigurationError(msg) from e
 
-            msg = f"Failed to download file {s3_key!r} from S3: {e}"
+            msg = f"Failed to download file {s3_key!r} from S3. Error: {e}"
             raise S3StorageError(msg) from e
 
     @classmethod

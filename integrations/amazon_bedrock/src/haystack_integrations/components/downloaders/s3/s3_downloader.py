@@ -13,6 +13,7 @@ from haystack.dataclasses import Document
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
+from haystack_integrations.common.s3.errors import S3ConfigurationError
 from haystack_integrations.common.s3.utils import S3Storage
 
 logger = logging.getLogger(__name__)
@@ -116,6 +117,26 @@ class S3Downloader:
         if self._storage is None:
             self.file_root_path.mkdir(parents=True, exist_ok=True)
             self._storage = S3Storage.from_env(session=self._session, config=self._config)
+
+            # Validate AWS credentials early to provide clear error messages
+            self._validate_aws_credentials()
+
+    def _validate_aws_credentials(self) -> None:
+        """
+        Validate AWS credentials by attempting to get caller identity.
+
+        :raises S3ConfigurationError: If AWS credentials are invalid or missing.
+        """
+        try:
+            # Use STS to validate credentials
+            sts_client = self._session.client("sts", config=self._config)
+            sts_client.get_caller_identity()
+        except Exception as e:
+            msg = (
+                "Invalid or missing AWS credentials. Please ensure you have configured your AWS credentials. "
+                f"Error: {e}"
+            )
+            raise S3ConfigurationError(msg) from e
 
     @component.output_types(documents=List[Document])
     def run(
