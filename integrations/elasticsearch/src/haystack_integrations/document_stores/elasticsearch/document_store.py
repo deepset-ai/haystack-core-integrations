@@ -65,8 +65,8 @@ class ElasticsearchDocumentStore:
         hosts: Optional[Hosts] = None,
         custom_mapping: Optional[Dict[str, Any]] = None,
         index: str = "default",
-        api_key: Secret = Secret.from_env_var("ELASTICSEARCH_API_KEY"), # noqa: B008
-        api_key_id: Secret = Secret.from_env_var("ELASTICSEARCH_API_KEY_ID"),   # noqa: B008
+        api_key: Secret = Secret.from_env_var("ELASTICSEARCH_API_KEY"),  # noqa: B008
+        api_key_id: Secret = Secret.from_env_var("ELASTICSEARCH_API_KEY_ID"),  # noqa: B008
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
         **kwargs: Any,
     ):
