@@ -195,7 +195,6 @@ class TestS3Downloader:
         not os.environ.get("S3_DOWNLOADER_BUCKET", None),
         reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
     )
-
     @pytest.mark.integration
     @pytest.mark.skipif(
         not os.environ.get("S3_DOWNLOADER_BUCKET", None),
