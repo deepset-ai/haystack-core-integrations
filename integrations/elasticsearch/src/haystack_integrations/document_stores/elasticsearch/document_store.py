@@ -127,11 +127,9 @@ class ElasticsearchDocumentStore:
             if self.api_key_id and self.api_key:
                 api_key_id_resolved = self.api_key_id.resolve_value()
                 api_key_resolved = self.api_key.resolve_value()
-                """
                 if not api_key_id_resolved or not api_key_resolved:
                     msg = "api_key_id and api_key must be non-empty strings."
                     raise ValueError(msg)
-                """
                 api_key = (api_key_id_resolved, api_key_resolved)
 
             # a base64-encoded string that encodes both id and secret (separated by “:”)
