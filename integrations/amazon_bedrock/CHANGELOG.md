@@ -1,5 +1,19 @@
 # Changelog
 
+## [unreleased]
+
+### 🚀 Features
+
+- Support AWS Bedrock Guardrails in `AmazonBedrockChatGenerator` (#2284)
+
+### 🧹 Chores
+
+- Bedrock - remove unused `stop_words` init parameter (#2275)
+
+### 🌀 Miscellaneous
+
+- Chore: Fix linting aws bedrock (#2249)
+
 ## [integrations/amazon_bedrock-v4.0.0] - 2025-08-29
 
 ### 🚀 Features
