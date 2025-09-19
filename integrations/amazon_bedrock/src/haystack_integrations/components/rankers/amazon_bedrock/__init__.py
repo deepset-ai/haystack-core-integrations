@@ -1,3 +1,3 @@
-from .ranker import AmazonBedrockRanker, BedrockRanker
+from .ranker import AmazonBedrockRanker
 
-__all__ = ["AmazonBedrockRanker", "BedrockRanker"]
+__all__ = ["AmazonBedrockRanker"]

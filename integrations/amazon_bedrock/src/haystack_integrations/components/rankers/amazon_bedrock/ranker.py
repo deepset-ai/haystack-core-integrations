@@ -1,4 +1,3 @@
-import warnings
 from typing import Any, Dict, List, Optional
 
 from botocore.exceptions import ClientError
@@ -265,20 +264,3 @@ class AmazonBedrockRanker:
         except Exception as exception:
             msg = f"Error during Amazon Bedrock API call: {exception}"
             raise AmazonBedrockInferenceError(msg) from exception
-
-
-class BedrockRanker(AmazonBedrockRanker):
-    """
-    Deprecated alias for AmazonBedrockRanker.
-    This class will be removed in a future version.
-    Please use AmazonBedrockRanker instead.
-    """
-
-    def __init__(self, *args, **kwargs):
-        warnings.warn(
-            "BedrockRanker is deprecated and will be removed in a future version. "
-            "Please use AmazonBedrockRanker instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__init__(*args, **kwargs)
