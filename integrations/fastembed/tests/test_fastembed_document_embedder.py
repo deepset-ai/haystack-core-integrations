@@ -237,13 +237,13 @@ class TestFastembedDocumentEmbedder:
 
         with pytest.raises(
             TypeError,
-            match="FastembedDocumentEmbedder expects a list of Documents as input.",
+            match=r"FastembedDocumentEmbedder expects a list of Documents as input\.",
         ):
             embedder.run(documents=string_input)
 
         with pytest.raises(
             TypeError,
-            match="FastembedDocumentEmbedder expects a list of Documents as input.",
+            match=r"FastembedDocumentEmbedder expects a list of Documents as input\.",
         ):
             embedder.run(documents=list_integers_input)
 

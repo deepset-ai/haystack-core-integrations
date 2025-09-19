@@ -120,7 +120,7 @@ class TestNvidiaChatGenerator:
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
-        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             NvidiaChatGenerator()
 
     def test_init_with_parameters(self):

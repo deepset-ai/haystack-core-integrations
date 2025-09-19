@@ -195,7 +195,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
             # Process images directly
             for doc in docs:
                 image_byte_stream = ByteStream.from_file_path(filepath=doc.meta["file_path"], mime_type="image/jpeg")
-                mime_type, base64_image = _encode_image_to_base64(image_byte_stream)
+                _, base64_image = _encode_image_to_base64(image_byte_stream)
                 base64_images.append(base64_image)
 
             result = embedder._embed_titan(images=base64_images)

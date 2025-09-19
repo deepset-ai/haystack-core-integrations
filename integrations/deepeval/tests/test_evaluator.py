@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 import pytest
-from deepeval.metrics import BaseMetric
 from deepeval.evaluate.types import EvaluationResult, TestResult
+from deepeval.metrics import BaseMetric
 from haystack import DeserializationError
 
 from haystack_integrations.components.evaluators.deepeval import DeepEvalEvaluator
@@ -17,10 +17,15 @@ DEFAULT_QUESTIONS = [
 ]
 DEFAULT_CONTEXTS = [
     [
-        "The popularity of sports can be measured in various ways, including TV viewership, social media presence, number of participants, and economic impact. Football is undoubtedly the world's most popular sport with major events like the FIFA World Cup and sports personalities like Ronaldo and Messi, drawing a followership of more than 4 billion people."
+        "The popularity of sports can be measured in various ways, including TV viewership, social media presence, "
+        "number of participants, and economic impact. Football is undoubtedly the world's most popular sport with "
+        "major events like the FIFA World Cup and sports personalities like Ronaldo and Messi, drawing a followership "
+        "of more than 4 billion people."
     ],
     [
-        "Python, created by Guido van Rossum in the late 1980s, is a high-level general-purpose programming language. Its design philosophy emphasizes code readability, and its language constructs aim to help programmers write clear, logical code for both small and large-scale software projects."
+        "Python, created by Guido van Rossum in the late 1980s, is a high-level general-purpose programming language. "
+        "Its design philosophy emphasizes code readability, and its language constructs aim to help programmers write "
+        "clear, logical code for both small and large-scale software projects."
     ],
 ]
 DEFAULT_RESPONSES = [
@@ -72,7 +77,7 @@ class MockBackend:
                 actual_output=x.actual_output,
                 expected_output=x.expected_output,
                 context=x.context,
-                retrieval_context=x.retrieval_context
+                retrieval_context=x.retrieval_context,
             )
             out.append(r)
         return EvaluationResult(test_results=out, confident_link=None)
@@ -104,7 +109,7 @@ def test_evaluator_serde(monkeypatch):
 
     assert evaluator.metric == new_eval.metric
     assert evaluator.metric_params == new_eval.metric_params
-    assert type(new_eval._backend_metric) == type(evaluator._backend_metric)
+    assert isinstance(new_eval._backend_metric, type(evaluator._backend_metric))
 
     with pytest.raises(DeserializationError, match=r"cannot serialize the metric parameters"):
         evaluator.metric_params["model"] = Unserializable("")
@@ -265,7 +270,7 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params, monk
     evaluator._backend_callable = lambda testcases, metrics: MockBackend(metric).eval(testcases, metrics)
     results = evaluator.run(**inputs)["results"]
 
-    assert type(results) == type(expected_outputs)
+    assert isinstance(results, type(expected_outputs))
     assert len(results) == len(expected_outputs)
 
     for r, o in zip(results, expected_outputs):
@@ -329,7 +334,7 @@ def test_integration_run(metric, inputs, metric_params):
     evaluator = DeepEvalEvaluator(**init_params)
     output = evaluator.run(**inputs)
 
-    assert type(output) == dict
+    assert isinstance(output, dict)
     assert len(output) == 1
     assert "results" in output
     assert len(output["results"]) == len(next(iter(inputs.values())))
