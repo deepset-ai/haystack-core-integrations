@@ -169,6 +169,11 @@ integration:stackit:
       - any-glob-to-any-file: "integrations/stackit/**/*"
       - any-glob-to-any-file: ".github/workflows/stackit.yml"
 
+integration:together-ai:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/together_ai/**/*"
+      - any-glob-to-any-file: ".github/workflows/together_ai.yml"
+
 integration:unstructured-fileconverter:
   - changed-files:
       - any-glob-to-any-file: "integrations/unstructured/**/*"
