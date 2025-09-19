@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v4.2.0] - 2025-09-19
+
+### 🚀 Features
+
+- Add a new `S3Downloader` component (#2192)
+
 ## [integrations/amazon_bedrock-v4.1.0] - 2025-09-19
 
 ### 🚀 Features
