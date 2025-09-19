@@ -44,12 +44,12 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install --upgrade hatch
+        run: pip install --upgrade hatch "click<8.3.0"
 
       - name: Set up Docker
         if: runner.os == 'Linux'
@@ -65,7 +65,7 @@ jobs:
 
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
-        run: hatch run fmt-check && hatch run lint:typing
+        run: hatch run fmt-check && hatch run test:types
 
       - name: Generate docs
         if: matrix.python-version == '3.10' && runner.os == 'Linux'

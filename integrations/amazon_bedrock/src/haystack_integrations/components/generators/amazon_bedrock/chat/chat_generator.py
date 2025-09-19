@@ -27,6 +27,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _parse_completion_response,
     _parse_streaming_response,
     _parse_streaming_response_async,
+    _validate_guardrail_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -154,10 +155,11 @@ class AmazonBedrockChatGenerator:
         aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        stop_words: Optional[List[str]] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
         boto3_config: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
+        *,
+        guardrail_config: Optional[Dict[str, str]] = None,
     ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
@@ -179,10 +181,6 @@ class AmazonBedrockChatGenerator:
         :param generation_kwargs: Keyword arguments sent to the model. These parameters are specific to a model.
             You can find the model specific arguments in the AWS Bedrock API
             [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html).
-        :param stop_words: A list of stop words that stop the model from generating more text
-            when encountered. You can provide them using this parameter or using the model's `generation_kwargs`
-            under a model's specific key for stop words.
-            For example, you can provide stop words for Anthropic Claude in the `stop_sequences` key.
         :param streaming_callback: A callback function called when a new token is received from the stream.
             By default, the model is not set up for streaming. To enable streaming, set this parameter to a callback
             function that handles the streaming chunks. The callback function receives a
@@ -190,6 +188,19 @@ class AmazonBedrockChatGenerator:
             the streaming mode on.
         :param boto3_config: The configuration for the boto3 client.
         :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
+        :param guardrail_config: Optional configuration for a guardrail that has been created in Amazon Bedrock.
+            This must be provided as a dictionary matching either
+            [GuardrailConfiguration](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_GuardrailConfiguration.html).
+            or, in streaming mode (when `streaming_callback` is set),
+            [GuardrailStreamConfiguration](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_GuardrailStreamConfiguration.html).
+            If `trace` is set to `enabled`, the guardrail trace will be included under the `trace` key in the `meta`
+            attribute of the resulting `ChatMessage`.
+            Note: Enabling guardrails in streaming mode may introduce additional latency.
+            To manage this, you can adjust the `streamProcessingMode` parameter.
+            See the
+            [Guardrails Streaming documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-streaming.html)
+            for more information.
+
 
         :raises ValueError: If the model name is empty or None.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
@@ -204,11 +215,14 @@ class AmazonBedrockChatGenerator:
         self.aws_session_token = aws_session_token
         self.aws_region_name = aws_region_name
         self.aws_profile_name = aws_profile_name
-        self.stop_words = stop_words or []
         self.streaming_callback = streaming_callback
         self.boto3_config = boto3_config
+
         _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
         self.tools = tools
+
+        _validate_guardrail_config(guardrail_config=guardrail_config, streaming=streaming_callback is not None)
+        self.guardrail_config = guardrail_config
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
@@ -237,7 +251,6 @@ class AmazonBedrockChatGenerator:
             raise AmazonBedrockConfigurationError(msg) from exception
 
         self.generation_kwargs = generation_kwargs or {}
-        self.stop_words = stop_words or []
         self.async_session: Optional[aioboto3.Session] = None
 
     def _get_async_session(self) -> aioboto3.Session:
@@ -291,11 +304,11 @@ class AmazonBedrockChatGenerator:
             aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
             aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
             model=self.model,
-            stop_words=self.stop_words,
             generation_kwargs=self.generation_kwargs,
             streaming_callback=callback_name,
             boto3_config=self.boto3_config,
             tools=serialize_tools_or_toolset(self.tools),
+            guardrail_config=self.guardrail_config,
         )
 
     @classmethod
@@ -308,6 +321,12 @@ class AmazonBedrockChatGenerator:
             Instance of `AmazonBedrockChatGenerator`.
         """
         init_params = data.get("init_parameters", {})
+
+        stop_words = init_params.pop("stop_words", None)
+        msg = "stop_words parameter will be ignored. Use the `stopSequences` key in `generation_kwargs` instead."
+        if stop_words:
+            logger.warning(msg)
+
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
@@ -387,6 +406,8 @@ class AmazonBedrockChatGenerator:
             params["toolConfig"] = tool_config
         if additional_fields:
             params["additionalModelRequestFields"] = additional_fields
+        if self.guardrail_config:
+            params["guardrailConfig"] = self.guardrail_config
 
         # overloads that exhaust finite Literals(bool) not treated as exhaustive
         # see https://github.com/python/mypy/issues/14764

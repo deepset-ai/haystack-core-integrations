@@ -963,6 +963,10 @@ class TestGoogleGenAIChatGenerator:
         # The model should maintain context from previous turns
         assert "22" in second_response.text or "sunny" in second_response.text.lower()
 
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
     @pytest.mark.integration
     def test_live_run_with_thinking_unsupported_model_fails_fast(self):
         """
