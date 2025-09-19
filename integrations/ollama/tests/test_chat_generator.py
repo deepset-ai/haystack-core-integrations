@@ -1092,3 +1092,79 @@ class TestOllamaChatGeneratorLiveInference:
         assert "population" in response_data
         assert isinstance(response_data["population"], (int, float))
         assert response_data["capital"].lower() == "paris"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+class TestOllamaChatGeneratorAsync:
+    async def test_run_async_basic(self):
+        """Test basic async functionality."""
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b")
+        messages = [ChatMessage.from_user("What's 2+2?")]
+
+        response = await chat_generator.run_async(messages)
+
+        assert "replies" in response
+        assert len(response["replies"]) == 1
+        assert response["replies"][0].role == ChatRole.ASSISTANT
+        assert response["replies"][0].text  # Has some text
+
+    async def test_run_async_with_streaming(self):
+        """Test async with streaming callback."""
+        collected_chunks = []
+
+        async def async_callback(chunk: StreamingChunk) -> None:
+            collected_chunks.append(chunk)
+
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b", streaming_callback=async_callback)
+        messages = [ChatMessage.from_user("What's 2+2?")]
+
+        response = await chat_generator.run_async(messages)
+
+        assert len(collected_chunks) > 0
+        assert "replies" in response
+        assert response["replies"][0].text
+
+    async def test_run_async_with_tools(self, tools):
+        """Test async with tool calls."""
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b", tools=tools)
+        messages = [ChatMessage.from_user("What's the weather in Paris?")]
+
+        response = await chat_generator.run_async(messages)
+
+        assert "replies" in response
+        reply = response["replies"][0]
+        assert reply.tool_calls
+        assert reply.tool_call.tool_name == "weather"
+        assert reply.tool_call.arguments == {"city": "Paris"}
+
+    async def test_run_async_with_conversation_history(self):
+        """Test async with past conversation."""
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b")
+        messages = [
+            ChatMessage.from_user("Remember the number 42"),
+            ChatMessage.from_assistant("I'll remember the number 42"),
+            ChatMessage.from_user("What number did I ask you to remember?"),
+        ]
+
+        response = await chat_generator.run_async(messages)
+
+        assert "replies" in response
+        assert "42" in response["replies"][0].text
+
+    async def test_run_async_streaming_with_tools(self, tools):
+        """Test async streaming with tool calls."""
+        chunks_received = False
+
+        async def callback(_chunk: StreamingChunk) -> None:
+            nonlocal chunks_received
+            chunks_received = True
+
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b", tools=tools, streaming_callback=callback)
+        messages = [ChatMessage.from_user("What's the weather in Berlin?")]
+
+        response = await chat_generator.run_async(messages)
+
+        assert chunks_received
+        assert response["replies"][0].tool_calls
+        assert response["replies"][0].tool_call.tool_name == "weather"
