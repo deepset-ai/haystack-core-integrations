@@ -10,7 +10,7 @@ from typing import Optional
 
 from boto3.session import Session
 from botocore.config import Config
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, NoCredentialsError, PartialCredentialsError
 
 from haystack_integrations.common.s3.errors import S3ConfigurationError, S3StorageError
 
@@ -73,13 +73,17 @@ class S3Storage:
         try:
             self._client.download_file(self.s3_bucket, s3_key, str(local_file_path))
 
+        except (NoCredentialsError, PartialCredentialsError) as e:
+            msg = (
+                f"Missing AWS credentials. Please check your AWS credentials (access key, secret key, region)."
+                f"Error: {e}"
+            )
+            raise S3ConfigurationError(msg) from e
+
         except ClientError as e:
             error_code = int(e.response["Error"]["Code"])
 
-            if error_code == HTTPStatus.NOT_FOUND:
-                msg = f"The object {s3_key!r} does not exist in the S3 bucket {self.s3_bucket!r}. \n Error: {e}"
-                raise S3StorageError(msg) from e
-            elif error_code == HTTPStatus.FORBIDDEN:
+            if error_code == HTTPStatus.FORBIDDEN:
                 msg = (
                     f"Failed to access S3 bucket {self.s3_bucket!r}. "
                     f"Please check your AWS credentials (access key, secret key, region) and ensure "
@@ -88,8 +92,12 @@ class S3Storage:
                 )
                 raise S3ConfigurationError(msg) from e
 
-            msg = f"Failed to download file {s3_key!r} from S3. Error: {e}"
-            raise S3StorageError(msg) from e
+            elif error_code == HTTPStatus.NOT_FOUND:
+                msg = f"The object {s3_key!r} does not exist in the S3 bucket {self.s3_bucket!r}. \n Error: {e}"
+                raise S3StorageError(msg) from e
+            else:
+                msg = f"Failed to download file {s3_key!r} from S3. Error: {e}"
+                raise S3StorageError(msg) from e
 
     @classmethod
     def from_env(cls, *, session: Session, config: Config) -> "S3Storage":

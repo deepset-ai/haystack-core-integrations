@@ -120,7 +120,7 @@ class TestS3Downloader:
         }
         assert d.to_dict() == expected
 
-    def test_run(self, tmp_path, mock_s3_storage):
+    def test_run(self, tmp_path, mock_s3_storage, mock_boto3_session):
         d = S3Downloader(file_root_path=str(tmp_path))
         S3Downloader.warm_up(d)
         d._storage = mock_s3_storage
@@ -132,7 +132,7 @@ class TestS3Downloader:
         out = d.run(documents=docs)
         assert len(out["documents"]) == 2
 
-    def test_run_with_extensions(self, tmp_path, mock_s3_storage):
+    def test_run_with_extensions(self, tmp_path, mock_s3_storage, mock_boto3_session):
         d = S3Downloader(file_root_path=str(tmp_path), file_extensions=[".txt"])
         S3Downloader.warm_up(d)
         d._storage = mock_s3_storage
@@ -146,7 +146,7 @@ class TestS3Downloader:
         assert len(out["documents"]) == 1
         assert out["documents"][0].meta["file_name"] == "a.txt"
 
-    def test_run_with_input_file_meta_key(self, tmp_path, mock_s3_storage):
+    def test_run_with_input_file_meta_key(self, tmp_path, mock_s3_storage, mock_boto3_session):
         d = S3Downloader(file_root_path=str(tmp_path), file_name_meta_key="custom_file_key")
         S3Downloader.warm_up(d)
         d._storage = mock_s3_storage
