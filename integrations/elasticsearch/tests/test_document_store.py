@@ -46,6 +46,8 @@ def test_to_dict(_mock_elasticsearch_client):
     assert res == {
         "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
         "init_parameters": {
+            "api_key": None,
+            "api_key_id": None,
             "hosts": "some hosts",
             "custom_mapping": None,
             "index": "default",

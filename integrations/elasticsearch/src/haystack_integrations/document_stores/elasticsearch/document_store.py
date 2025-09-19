@@ -65,8 +65,8 @@ class ElasticsearchDocumentStore:
         hosts: Optional[Hosts] = None,
         custom_mapping: Optional[Dict[str, Any]] = None,
         index: str = "default",
-        api_key: Secret = Secret.from_env_var("ELASTICSEARCH_API_KEY"),  # noqa: B008
-        api_key_id: Secret = Secret.from_env_var("ELASTICSEARCH_API_KEY_ID"),  # noqa: B008
+        api_key: Optional[Secret] = None,
+        api_key_id: Optional[Secret] = None,
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
         **kwargs: Any,
     ):
@@ -127,9 +127,11 @@ class ElasticsearchDocumentStore:
             if self.api_key_id and self.api_key:
                 api_key_id_resolved = self.api_key_id.resolve_value()
                 api_key_resolved = self.api_key.resolve_value()
+                """
                 if not api_key_id_resolved or not api_key_resolved:
                     msg = "api_key_id and api_key must be non-empty strings."
                     raise ValueError(msg)
+                """
                 api_key = (api_key_id_resolved, api_key_resolved)
 
             # a base64-encoded string that encodes both id and secret (separated by “:”)

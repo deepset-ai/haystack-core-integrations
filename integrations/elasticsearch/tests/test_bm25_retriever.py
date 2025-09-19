@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from unittest.mock import Mock, patch
 
 import pytest
@@ -38,6 +39,8 @@ def test_to_dict(_mock_elasticsearch_client):
             "document_store": {
                 "init_parameters": {
                     "hosts": "some fake host",
+                    'api_key': None,
+                    'api_key_id': None,
                     "custom_mapping": None,
                     "index": "default",
                     "embedding_similarity_function": "cosine",
