@@ -53,7 +53,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -U haystack-pydoc-tools hatch
+          pip install -U haystack-pydoc-tools hatch "click<8.3.0"
 
       - name: Get project folder
         id: pathfinder
