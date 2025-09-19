@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from collections.abc import Mapping
 from typing import Any, Dict, List, Literal, Optional, Union
 
@@ -63,6 +64,8 @@ class ElasticsearchDocumentStore:
         hosts: Optional[Hosts] = None,
         custom_mapping: Optional[Dict[str, Any]] = None,
         index: str = "default",
+        api_key: Secret = Secret.from_env_var("ELASTICSEARCH_API_KEY", strict=True),
+        api_key_id: Secret = Secret.from_env_var("ELASTICSEARCH_API_KEY_ID", strict=True),
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
         **kwargs: Any,
     ):
@@ -83,6 +86,10 @@ class ElasticsearchDocumentStore:
         :param hosts: List of hosts running the Elasticsearch client.
         :param custom_mapping: Custom mapping for the index. If not provided, a default mapping will be used.
         :param index: Name of index in Elasticsearch.
+        :param api_key: API key for authenticating with Elasticsearch. If not provided, the client will attempt to
+                        connect without authentication.
+        :param api_key_id: API key ID for authenticating with Elasticsearch. If not provided, the client will attempt to
+                        connect without authentication.
         :param embedding_similarity_function: The similarity function used to compare Documents embeddings.
             This parameter only takes effect if the index does not yet exist and is created.
             To choose the most appropriate function, look for information about your embedding model.
@@ -94,6 +101,8 @@ class ElasticsearchDocumentStore:
         self._client: Optional[Elasticsearch] = None
         self._async_client: Optional[AsyncElasticsearch] = None
         self._index = index
+        self.api_key = api_key
+        self.api_key_id = api_key_id
         self._embedding_similarity_function = embedding_similarity_function
         self._custom_mapping = custom_mapping
         self._kwargs = kwargs
@@ -111,14 +120,32 @@ class ElasticsearchDocumentStore:
             headers = self._kwargs.pop("headers", {})
             headers["user-agent"] = f"haystack-py-ds/{haystack_version}"
 
+            api_key = None
+
+            # supply both the id of the key and the secret.
+            if self.api_key_id and self.api_key:
+                api_key = (self.api_key_id.resolve_value(), self.api_key.resolve_value())
+
+            # a base64-encoded string that encodes both id and secret (separated by “:”)
+            if self.api_key:
+                api_key = self.api_key.resolve_value()
+
+            # only the id is not enough, raise an error
+            if self.api_key_id and not self.api_key:
+                raise ValueError("api_key_id is provided but api_key is missing.")
+
             # Initialize both sync and async clients
             self._client = Elasticsearch(
                 self._hosts,
+                api_key=api_key,
+                api_key_id=api_key_id,
                 headers=headers,
                 **self._kwargs,
             )
             self._async_client = AsyncElasticsearch(
                 self._hosts,
+                api_key=api_key,
+                api_key_id=api_key_id,
                 headers=headers,
                 **self._kwargs,
             )
@@ -191,6 +218,8 @@ class ElasticsearchDocumentStore:
             hosts=self._hosts,
             custom_mapping=self._custom_mapping,
             index=self._index,
+            api_key=self.api_key.to_dict() if self.api_key else None,
+            api_key_id=self.api_key_id.to_dict() if self.api_key_id else None,
             embedding_similarity_function=self._embedding_similarity_function,
             **self._kwargs,
         )
@@ -205,6 +234,7 @@ class ElasticsearchDocumentStore:
         :returns:
             Deserialized component.
         """
+        deserialize_secrets_inplace(data, keys=["api_key", "api_key_id"])
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:
