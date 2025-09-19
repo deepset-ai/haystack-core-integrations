@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/weaviate-v6.2.0] - 2025-09-18
+
+### 🚀 Features
+
+- Weaviate Hybrid Retrieval (#2276)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+- Standardize readmes - part 2 (#2205)
+
+
 ## [integrations/weaviate-v6.1.0] - 2025-06-20
 
 ### 🐛 Bug Fixes
@@ -26,7 +38,7 @@
 
 ### 🌀 Miscellaneous
 
-- Docs: Update document store descriptions for deepset Pipeline Builder (#1447)
+- Update document store descriptions (#1447)
 
 ## [integrations/weaviate-v5.0.0] - 2025-02-17
 

@@ -21,6 +21,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _format_tools,
     _parse_completion_response,
     _parse_streaming_response,
+    _validate_guardrail_config,
 )
 
 
@@ -603,6 +604,71 @@ class TestAmazonBedrockChatGeneratorUtils:
         )
         assert replies[0] == expected_message
 
+    def test_extract_replies_with_guardrail(self, mock_boto3_session):
+        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+
+        trace = {
+            "guardrail": {
+                "inputAssessment": {
+                    "test_guardrail_id": {
+                        "topicPolicy": {
+                            "topics": [
+                                {"name": "Investments topic", "type": "DENY", "action": "BLOCKED", "detected": True}
+                            ]
+                        },
+                        "invocationMetrics": {
+                            "guardrailProcessingLatency": 273,
+                            "usage": {
+                                "topicPolicyUnits": 1,
+                                "contentPolicyUnits": 0,
+                                "wordPolicyUnits": 0,
+                                "sensitiveInformationPolicyUnits": 0,
+                                "sensitiveInformationPolicyFreeUnits": 0,
+                                "contextualGroundingPolicyUnits": 0,
+                                "contentPolicyImageUnits": 0,
+                            },
+                            "guardrailCoverage": {"textCharacters": {"guarded": 48, "total": 48}},
+                        },
+                    }
+                },
+                "actionReason": "Guardrail blocked.",
+            }
+        }
+
+        response_body = {
+            "ResponseMetadata": {
+                "RequestId": "7f2b43ef-fb52-40e4-ab14-8cc1edaf5013",
+                "HTTPStatusCode": 200,
+                "HTTPHeaders": {
+                    "date": "Thu, 18 Sep 2025 09:14:48 GMT",
+                    "content-type": "application/json",
+                    "content-length": "835",
+                    "connection": "keep-alive",
+                    "x-amzn-requestid": "7f2b43ef-fb52-40e4-ab14-8cc1edaf5013",
+                },
+                "RetryAttempts": 0,
+            },
+            "output": {
+                "message": {"role": "assistant", "content": [{"text": "Sorry, the model cannot answer this question."}]}
+            },
+            "stopReason": "guardrail_intervened",
+            "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
+            "metrics": {"latencyMs": 316},
+            "trace": trace,
+        }
+
+        replies = _parse_completion_response(response_body, model)
+        assert len(replies) == 1
+        assert replies[0].text == "Sorry, the model cannot answer this question."
+        assert replies[0].role == ChatRole.ASSISTANT
+        assert replies[0].meta == {
+            "model": model,
+            "finish_reason": "content_filter",
+            "index": 0,
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            "trace": trace,
+        }
+
     def test_process_streaming_response_one_tool_call(self, mock_boto3_session):
         """
         Test that process_streaming_response correctly handles streaming events and accumulates responses
@@ -1034,6 +1100,82 @@ class TestAmazonBedrockChatGeneratorUtils:
         ]
         assert replies == expected_messages
 
+    def test_parse_streaming_response_with_guardrail(self, mock_boto3_session):
+        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        type_ = (
+            "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+        )
+        streaming_chunks = []
+
+        trace = {
+            "guardrail": {
+                "inputAssessment": {
+                    "vodp82dpe5xv": {
+                        "test_guardrail_id": {
+                            "topicPolicy": {
+                                "topics": [
+                                    {"name": "Investments topic", "type": "DENY", "action": "BLOCKED", "detected": True}
+                                ]
+                            },
+                            "invocationMetrics": {
+                                "guardrailProcessingLatency": 299,
+                                "usage": {
+                                    "topicPolicyUnits": 1,
+                                    "contentPolicyUnits": 0,
+                                    "wordPolicyUnits": 0,
+                                    "sensitiveInformationPolicyUnits": 0,
+                                    "sensitiveInformationPolicyFreeUnits": 0,
+                                    "contextualGroundingPolicyUnits": 0,
+                                    "contentPolicyImageUnits": 0,
+                                },
+                                "guardrailCoverage": {"textCharacters": {"guarded": 48, "total": 48}},
+                            },
+                        }
+                    },
+                    "actionReason": "Guardrail blocked.",
+                }
+            }
+        }
+
+        events = [
+            {"messageStart": {"role": "assistant"}},
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": "Sorry, the model cannot answer this question."},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {"contentBlockStop": {"contentBlockIndex": 0}},
+            {"messageStop": {"stopReason": "guardrail_intervened"}},
+            {
+                "metadata": {
+                    "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
+                    "metrics": {"latencyMs": 334},
+                    "trace": trace,
+                }
+            },
+        ]
+
+        def test_callback(chunk: StreamingChunk):
+            streaming_chunks.append(chunk)
+
+        replies = _parse_streaming_response(events, test_callback, model, ComponentInfo(type=type_))
+
+        expected_messages = [
+            ChatMessage.from_assistant(
+                text="Sorry, the model cannot answer this question.",
+                meta={
+                    "completion_start_time": ANY,
+                    "model": model,
+                    "index": 0,
+                    "finish_reason": "content_filter",
+                    "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                    "trace": trace,
+                },
+            )
+        ]
+        assert replies == expected_messages
+
     def test_convert_streaming_chunks_to_chat_message_tool_call_with_empty_arguments(self):
         chunks = [
             StreamingChunk(
@@ -1229,3 +1371,35 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert message._meta["index"] == 0
         assert message._meta["finish_reason"] == "tool_calls"
         assert message._meta["usage"] == {"completion_tokens": 84, "prompt_tokens": 349, "total_tokens": 433}
+
+    def test_validate_guardrail_config_with_valid_configs(self):
+        _validate_guardrail_config(guardrail_config=None, streaming=False)
+        _validate_guardrail_config(
+            guardrail_config={"guardrailIdentifier": "test", "guardrailVersion": "test"}, streaming=False
+        )
+        _validate_guardrail_config(
+            guardrail_config={"guardrailIdentifier": "test", "guardrailVersion": "test"}, streaming=True
+        )
+        _validate_guardrail_config(
+            guardrail_config={
+                "guardrailIdentifier": "test",
+                "guardrailVersion": "test",
+                "streamProcessingMode": "enabled",
+            },
+            streaming=True,
+        )
+
+    def test_validate_guardrail_config_with_invalid_configs(self):
+        with pytest.raises(ValueError, match="`guardrailIdentifier` and `guardrailVersion` fields are required"):
+            _validate_guardrail_config(guardrail_config={"guardrailIdentifier": "test"}, streaming=False)
+        with pytest.raises(ValueError, match="`guardrailIdentifier` and `guardrailVersion` fields are required"):
+            _validate_guardrail_config(guardrail_config={"guardrailVersion": "test"}, streaming=False)
+        with pytest.raises(ValueError, match="`streamProcessingMode` field is only supported for streaming"):
+            _validate_guardrail_config(
+                guardrail_config={
+                    "guardrailIdentifier": "test",
+                    "guardrailVersion": "test",
+                    "streamProcessingMode": "test",
+                },
+                streaming=False,
+            )

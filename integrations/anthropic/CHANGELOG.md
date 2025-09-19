@@ -1,5 +1,9 @@
 # Changelog
+## [integrations/anthropic-v4.4.0] - 2025-09-15
 
+### 🚀 Features
+
+- Enable reasoning support in AnthropicChatGenerator (#2230)
 ## [integrations/anthropic-v4.3.0] - 2025-08-18
 
 ### 🚀 Features

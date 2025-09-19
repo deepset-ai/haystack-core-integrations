@@ -1,8 +1,6 @@
 import logging
 from unittest.mock import patch
 
-from weave.trace.autopatch import AutopatchSettings
-
 from haystack_integrations.tracing.weave.tracer import WeaveSpan, WeaveTracer
 
 
@@ -40,13 +38,11 @@ class TestWeaveTracer:
             mock_init.return_value = MockWeaveClient()
             tracer = WeaveTracer(
                 project_name="test_project",
-                autopatch_settings=AutopatchSettings(disable_autopatch=True),
+                settings={"implicitly_patch_integrations": False},
             )
             assert tracer._client is not None
             assert tracer._current_span is None
-            mock_init.assert_called_once_with(
-                "test_project", autopatch_settings=AutopatchSettings(disable_autopatch=True)
-            )
+            mock_init.assert_called_once_with("test_project", settings={"implicitly_patch_integrations": False})
 
     def test_create_new_span(self):
         with patch("weave.init") as mock_init:
