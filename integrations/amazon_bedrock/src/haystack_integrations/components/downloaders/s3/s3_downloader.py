@@ -96,7 +96,7 @@ class S3Downloader:
         self.max_cache_size = max_cache_size
         self.file_name_meta_key = file_name_meta_key
 
-        self._storage: S3Storage = None
+        self._storage: S3Storage
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
@@ -177,6 +177,8 @@ class S3Downloader:
 
     def _filter_documents_by_extensions(self, documents: List[Document]) -> List[Document]:
         """Filter documents by file extensions."""
+        if not self.file_extensions:
+            return documents
         return [
             doc
             for doc in documents
@@ -195,6 +197,11 @@ class S3Downloader:
         """
 
         file_name = document.meta.get(self.file_name_meta_key)
+        if not file_name:
+            logger.warning(
+                f"Document missing required file name metadata key '{self.file_name_meta_key}'. Skipping download."
+            )
+            return None
 
         file_path = self.file_root_path / Path(file_name)
 
