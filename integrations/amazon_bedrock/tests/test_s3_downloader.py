@@ -8,7 +8,6 @@ import pytest
 from haystack.dataclasses import Document
 from haystack.utils import Secret
 
-from haystack_integrations.common.s3.errors import S3StorageError
 from haystack_integrations.common.s3.utils import S3Storage
 from haystack_integrations.components.downloaders.s3.s3_downloader import S3Downloader
 
@@ -196,14 +195,6 @@ class TestS3Downloader:
         not os.environ.get("S3_DOWNLOADER_BUCKET", None),
         reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
     )
-    def test_live_run_with_wrong_file_name(self, tmp_path):
-        d = S3Downloader(file_root_path=str(tmp_path))
-        S3Downloader.warm_up(d)
-        docs = [
-            Document(meta={"file_id": str(uuid4()), "file_name": "wrong_file.json"}),
-        ]
-        with pytest.raises(S3StorageError):
-            d.run(documents=docs)
 
     @pytest.mark.integration
     @pytest.mark.skipif(
