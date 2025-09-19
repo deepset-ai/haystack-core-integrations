@@ -11,6 +11,7 @@ from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.version import __version__ as haystack_version
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
@@ -64,8 +65,8 @@ class ElasticsearchDocumentStore:
         hosts: Optional[Hosts] = None,
         custom_mapping: Optional[Dict[str, Any]] = None,
         index: str = "default",
-        api_key: Secret = Secret.from_env_var("ELASTICSEARCH_API_KEY", strict=True),
-        api_key_id: Secret = Secret.from_env_var("ELASTICSEARCH_API_KEY_ID", strict=True),
+        api_key: Secret = Secret.from_env_var("ELASTICSEARCH_API_KEY"), # noqa: B008
+        api_key_id: Secret = Secret.from_env_var("ELASTICSEARCH_API_KEY_ID"),   # noqa: B008
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
         **kwargs: Any,
     ):
@@ -127,25 +128,24 @@ class ElasticsearchDocumentStore:
                 api_key = (self.api_key_id.resolve_value(), self.api_key.resolve_value())
 
             # a base64-encoded string that encodes both id and secret (separated by “:”)
-            if self.api_key:
-                api_key = self.api_key.resolve_value()
+            if self.api_key is not None:
+                api_key = self.api_key
 
             # only the id is not enough, raise an error
             if self.api_key_id and not self.api_key:
-                raise ValueError("api_key_id is provided but api_key is missing.")
+                msg = "api_key_id is provided but api_key is missing."
+                raise ValueError(msg)
 
             # Initialize both sync and async clients
             self._client = Elasticsearch(
                 self._hosts,
                 api_key=api_key,
-                api_key_id=api_key_id,
                 headers=headers,
                 **self._kwargs,
             )
             self._async_client = AsyncElasticsearch(
                 self._hosts,
                 api_key=api_key,
-                api_key_id=api_key_id,
                 headers=headers,
                 **self._kwargs,
             )
