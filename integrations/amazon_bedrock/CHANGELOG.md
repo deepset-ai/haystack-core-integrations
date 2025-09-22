@@ -2,18 +2,25 @@
 
 ## [integrations/amazon_bedrock-v5.0.0] - 2025-09-22
 
+### 🧹 Chores
+
+- [**breaking**] Remove deprecated `BedrockRanker` (use `AmazonBedrockRanker` instead) (#2287)
+
+## [integrations/amazon_bedrock-v4.2.0] - 2025-09-19
+
+### 🚀 Features
+
+- Add a new `S3Downloader` component (#2192)
+
+## [integrations/amazon_bedrock-v4.1.0] - 2025-09-19
+
 ### 🚀 Features
 
 - Support AWS Bedrock Guardrails in `AmazonBedrockChatGenerator` (#2284)
-- Add a new `S3Downloader` component (#2192)
-
-### 📚 Documentation
-
 
 ### 🧹 Chores
 
 - Bedrock - remove unused `stop_words` init parameter (#2275)
-- [**breaking**] Remove deprecated `BedrockRanker` (use `AmazonBedrockRanker` instead) (#2287)
 
 ### 🌀 Miscellaneous
 
