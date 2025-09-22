@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v5.0.0] - 2025-09-22
+
+### 🧹 Chores
+
+- [**breaking**] Remove deprecated `BedrockRanker` (use `AmazonBedrockRanker` instead) (#2287)
+
 ## [integrations/amazon_bedrock-v4.2.0] - 2025-09-19
 
 ### 🚀 Features
