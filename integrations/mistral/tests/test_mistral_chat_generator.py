@@ -1,8 +1,8 @@
+import json
 import os
 from datetime import datetime
 from unittest.mock import ANY, patch
 
-import json
 import pytest
 import pytz
 from haystack import Pipeline
