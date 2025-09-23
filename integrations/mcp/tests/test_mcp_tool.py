@@ -124,3 +124,29 @@ class TestMCPTool:
         }
 
         assert isinstance(new_tool._server_info, InMemoryServerInfo)
+
+    def test_mcp_tool_lazy_connect_updates_schema(self, mcp_tool_cleanup):
+        """
+        When eager_connect=False, constructor should not discover schema.
+        First use should connect and then tighten parameters to strict schema.
+        """
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+
+        tool = MCPTool(name="add", server_info=server_info, eager_connect=False)
+        mcp_tool_cleanup(tool)
+
+        # Initially permissive schema (no discovery on __init__)
+        assert tool.parameters == {"type": "object", "properties": {}, "additionalProperties": True}
+
+        # First invocation connects lazily and should succeed
+        result_json = tool.invoke(a=2, b=5)
+        result = json.loads(result_json)
+        assert result["content"][0]["text"] == "7"
+
+        # After first use, parameters should be tightened to the strict schema from the server
+        assert tool.parameters == {
+            "properties": {"a": {"title": "A", "type": "integer"}, "b": {"title": "B", "type": "integer"}},
+            "required": ["a", "b"],
+            "title": "addArguments",
+            "type": "object",
+        }
