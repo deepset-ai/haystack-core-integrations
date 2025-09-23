@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/mcp-v0.7.0] - 2025-09-23
+
+### 🐛 Bug Fixes
+
+- Make MCPInvocationError compatible with haystack-ai>=2.18.0 (#2297)
+
+
 ## [integrations/mcp-v0.6.0] - 2025-09-16
 
 ### 🐛 Bug Fixes
@@ -7,9 +14,11 @@
 - Temporarily disable brave search mcp integration test (#2187)
 - Fix mcp types + add py.typed
 
+
 ### 🧹 Chores
 
 - Standardize readmes - part 2 (#2205)
+
 
 ## [integrations/mcp-v0.5.0] - 2025-08-04
 
