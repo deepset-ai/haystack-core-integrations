@@ -6,8 +6,6 @@
 - [Integration page](https://haystack.deepset.ai/integrations/cohere)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/cohere/CHANGELOG.md)
 
----
-
 
 ---
 

@@ -35,7 +35,7 @@ def test_init(monkeypatch):
 
 
 def test_init_fails_with_tools():
-    with pytest.raises(TypeError, match="GoogleAIGeminiGenerator does not support the `tools` parameter."):
+    with pytest.raises(TypeError, match=r"GoogleAIGeminiGenerator does not support the `tools` parameter\."):
         GoogleAIGeminiGenerator(tools=["tool1", "tool2"])
 
 
