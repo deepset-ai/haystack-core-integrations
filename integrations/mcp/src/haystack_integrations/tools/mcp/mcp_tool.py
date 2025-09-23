@@ -798,6 +798,7 @@ class MCPTool(Tool):
         description: str | None = None,
         connection_timeout: int = 30,
         invocation_timeout: int = 30,
+        eager_connect: bool = True,
     ):
         """
         Initialize the MCP tool.
@@ -816,6 +817,20 @@ class MCPTool(Tool):
         self._server_info = server_info
         self._connection_timeout = connection_timeout
         self._invocation_timeout = invocation_timeout
+        self.eager_connect = eager_connect
+
+        # If lazy mode is requested, don't connect now; initialize permissively
+        if not eager_connect:
+            # Permissive placeholder JSON Schema so the Tool is valid
+            # without discovering the remote schema during validation.
+            # Replaced with the strict schema on first use.
+            params = {"type": "object", "properties": {}, "additionalProperties": True}
+            super().__init__(name=name, description=description or "", parameters=params, function=self._invoke_tool)
+            self._client = None
+            self._worker = None
+            self._lock = threading.RLock()
+            logger.debug(f"TOOL: Initialization (lazy) complete for '{name}'")
+            return
 
         logger.debug(f"TOOL: Initializing MCPTool '{name}'")
 
@@ -890,12 +905,14 @@ class MCPTool(Tool):
         """
         logger.debug(f"TOOL: Invoking tool '{self.name}' with args: {kwargs}")
         try:
+            # Connect on first use if in lazy mode
+            if not self.eager_connect:
+                self._ensure_connected()
 
             async def invoke():
                 logger.debug(f"TOOL: Inside invoke coroutine for '{self.name}'")
-                result = await asyncio.wait_for(
-                    self._client.call_tool(self.name, kwargs), timeout=self._invocation_timeout
-                )
+                client = cast(MCPClient, self._client)
+                result = await asyncio.wait_for(client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
                 logger.debug(f"TOOL: Invoke successful for '{self.name}'")
                 return result
 
@@ -923,7 +940,10 @@ class MCPTool(Tool):
         :raises TimeoutError: If the operation times out
         """
         try:
-            return await asyncio.wait_for(self._client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
+            if not self.eager_connect:
+                self._ensure_connected()
+            client = cast(MCPClient, self._client)
+            return await asyncio.wait_for(client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
         except asyncio.TimeoutError as e:
             message = f"Tool invocation timed out after {self._invocation_timeout} seconds"
             raise TimeoutError(message) from e
@@ -932,6 +952,34 @@ class MCPTool(Tool):
                 raise
             message = f"Failed to invoke tool '{self.name}' with args: {kwargs} , got error: {e!s}"
             raise MCPInvocationError(message, self.name, kwargs) from e
+
+    def _ensure_connected(self) -> None:
+        """Establish connection if not connected (lazy mode)."""
+        if getattr(self, "_client", None) is not None:
+            return
+        # Only applicable to lazy mode; eager connects in __init__
+        lock = getattr(self, "_lock", None)
+        if lock is None:
+            self._lock = threading.RLock()
+            lock = self._lock
+        with lock:
+            if getattr(self, "_client", None) is not None:
+                return
+            client = self._server_info.create_client()
+            worker = _MCPClientSessionManager(client, timeout=self._connection_timeout)
+            tools = worker.tools()
+            tool = next((t for t in tools if t.name == self.name), None)
+            if tool is None:
+                available = [t.name for t in tools]
+                msg = f"Tool '{self.name}' not found on server. Available tools: {', '.join(available)}"
+                raise MCPToolNotFoundError(msg, tool_name=self.name, available_tools=available)
+            # Publish connection and tighten parameters for better prompting
+            self._client = client
+            self._worker = worker
+            try:
+                self.parameters = tool.inputSchema
+            except Exception as e:
+                logger.debug(f"TOOL: Could not update strict parameters after lazy connect: {e!s}")
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -950,6 +998,7 @@ class MCPTool(Tool):
             "server_info": self._server_info.to_dict(),
             "connection_timeout": self._connection_timeout,
             "invocation_timeout": self._invocation_timeout,
+            "eager_connect": self.eager_connect,
         }
         return {
             "type": generate_qualified_class_name(type(self)),
@@ -982,6 +1031,7 @@ class MCPTool(Tool):
         # Handle backward compatibility for timeout parameters
         connection_timeout = inner_data.get("connection_timeout", 30)
         invocation_timeout = inner_data.get("invocation_timeout", 30)
+        eager_connect = inner_data.get("eager_connect", True)
 
         # Create a new MCPTool instance with the deserialized parameters
         # This will establish a new connection to the MCP server
@@ -991,6 +1041,7 @@ class MCPTool(Tool):
             server_info=server_info,
             connection_timeout=connection_timeout,
             invocation_timeout=invocation_timeout,
+            eager_connect=eager_connect,
         )
 
     def close(self):

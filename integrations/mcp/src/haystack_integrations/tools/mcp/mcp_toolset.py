@@ -107,6 +107,7 @@ class MCPToolset(Toolset):
         tool_names: list[str] | None = None,
         connection_timeout: float = 30.0,
         invocation_timeout: float = 30.0,
+        eager_connect: bool = True,
     ):
         """
         Initialize the MCP toolset.
@@ -123,6 +124,12 @@ class MCPToolset(Toolset):
         self.tool_names = tool_names
         self.connection_timeout = connection_timeout
         self.invocation_timeout = invocation_timeout
+        self.eager_connect = eager_connect
+
+        if not eager_connect:
+            # Do not connect during validation; expose an empty toolset
+            super().__init__(tools=[])
+            return
 
         # Connect and load tools
         try:
@@ -257,6 +264,7 @@ class MCPToolset(Toolset):
                 "tool_names": self.tool_names,
                 "connection_timeout": self.connection_timeout,
                 "invocation_timeout": self.invocation_timeout,
+                "eager_connect": self.eager_connect,
             },
         }
 
@@ -281,6 +289,7 @@ class MCPToolset(Toolset):
             tool_names=inner_data.get("tool_names"),
             connection_timeout=inner_data.get("connection_timeout", 30.0),
             invocation_timeout=inner_data.get("invocation_timeout", 30.0),
+            eager_connect=inner_data.get("eager_connect", True),
         )
 
     def close(self):
