@@ -133,7 +133,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
         tools: Optional[Union[list[Tool], Toolset]] = None,
         tools_strict: Optional[bool] = None,
     ) -> dict[str, Any]:
-        api_args = super(MistralChatGenerator, self)._prepare_api_call(
+        api_args = super(MistralChatGenerator, self)._prepare_api_call(  # noqa: UP008
             messages=messages,
             streaming_callback=streaming_callback,
             generation_kwargs=generation_kwargs,
