@@ -142,7 +142,8 @@ class MistralChatGenerator(OpenAIChatGenerator):
         )
         # Mistral does not support response_format and in Haystack 2.18 we always include response_format even if
         # it's None
-        api_args.pop("response_format", None)
+        if "response_format" in api_args and api_args["response_format"] is None:
+            api_args.pop("response_format")
         return api_args
 
     def to_dict(self) -> Dict[str, Any]:
