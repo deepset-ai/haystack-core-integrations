@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 from unittest.mock import ANY, patch
 
+import json
 import pytest
 import pytz
 from haystack import Pipeline
@@ -416,7 +417,8 @@ class TestMistralChatGenerator:
     def test_live_run_response_format(self):
         chat_messages = [
             ChatMessage.from_user(
-                "Provide the answer in JSON format with a key 'answer'. What's the capital of France?"
+                'Provide the answer in JSON format with a key "answer". What\'s the capital of France?'
+                'For example, respond with {"answer": "Paris"}.'
             )
         ]
         component = MistralChatGenerator(generation_kwargs={"response_format": {"type": "json_object"}})
@@ -428,7 +430,9 @@ class TestMistralChatGenerator:
         assert isinstance(results["replies"][0], ChatMessage)
         message = results["replies"][0]
         assert isinstance(message.text, str)
-        assert "Paris" in message.text
+        assert "paris" in message.text.lower()
+        msg = json.loads(message.text)
+        assert "answer" in msg
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),
