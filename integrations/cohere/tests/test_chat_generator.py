@@ -153,7 +153,7 @@ class TestCohereChatGenerator:
 
         component = CohereChatGenerator()
         assert component.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
-        assert component.model == "command-r-plus"
+        assert component.model == "command-r-08-2024"
         assert component.streaming_callback is None
         assert component.api_base_url == "https://api.cohere.com"
         assert not component.generation_kwargs
@@ -191,7 +191,7 @@ class TestCohereChatGenerator:
         assert data == {
             "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model": "command-r-plus",
+                "model": "command-r-08-2024",
                 "streaming_callback": None,
                 "api_key": {
                     "env_vars": ["COHERE_API_KEY", "CO_API_KEY"],
@@ -243,7 +243,7 @@ class TestCohereChatGenerator:
         data = {
             "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model": "command-r-plus",
+                "model": "command-r-08-2024",
                 "api_base_url": "test-base-url",
                 "api_key": {
                     "env_vars": ["ENV_VAR"],
@@ -258,7 +258,7 @@ class TestCohereChatGenerator:
             },
         }
         component = CohereChatGenerator.from_dict(data)
-        assert component.model == "command-r-plus"
+        assert component.model == "command-r-08-2024"
         assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {
@@ -272,7 +272,7 @@ class TestCohereChatGenerator:
         data = {
             "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
             "init_parameters": {
-                "model": "command-r-plus",
+                "model": "command-r-08-2024",
                 "api_base_url": "test-base-url",
                 "api_key": {
                     "env_vars": ["COHERE_API_KEY", "CO_API_KEY"],
@@ -304,7 +304,7 @@ class TestCohereChatGenerator:
         )
 
         generator = CohereChatGenerator(
-            model="command-r-plus",
+            model="command-r-08-2024",
             generation_kwargs={"temperature": 0.7},
             streaming_callback=print_streaming_chunk,
             tools=[tool],
@@ -323,7 +323,7 @@ class TestCohereChatGenerator:
                 "generator": {
                     "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",  # noqa: E501
                     "init_parameters": {
-                        "model": "command-r-plus",
+                        "model": "command-r-08-2024",
                         "api_key": {"type": "env_var", "env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True},
                         "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                         "api_base_url": "https://api.cohere.com",

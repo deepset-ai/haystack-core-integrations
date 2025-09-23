@@ -24,12 +24,39 @@ from haystack_integrations.tracing.langfuse.tracer import (
 from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 
 
+# Mock functions for Langfuse v3 API
+def mock_get_client():
+    mock_client = Mock()
+    mock_client.start_as_current_span = Mock(return_value=MockContextManager())
+    mock_client.start_as_current_observation = Mock(return_value=MockContextManager())
+    mock_client.get_current_trace_id = Mock(return_value="mock_trace_id_123")
+    return mock_client
+
+
+class MockContextManager:
+    """Mock context manager that simulates Langfuse v3 context managers"""
+
+    def __init__(self, name="mock_span"):
+        self._span = MockSpan(name)
+
+    def __enter__(self):
+        return self._span
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
 class MockSpan:
     def __init__(self, name="mock_span"):
         self._data = {}
-        self._span = self
         self.operation_name = name
         self._name = name
+        # Make update a Mock so we can assert on it, but also make it actually work
+        self.update = Mock(side_effect=self._update_data)
+
+    def _update_data(self, **kwargs):
+        """Helper method to actually update _data when update is called"""
+        self._data.update(kwargs)
 
     def raw_span(self):
         return self
@@ -38,7 +65,8 @@ class MockSpan:
         # Return a new mock span for child spans
         return MockSpan(name=name or "child_span")
 
-    def update(self, **kwargs):
+    def update_trace(self, **kwargs):
+        # v3 API method for updating trace-level data
         self._data.update(kwargs)
 
     def generation(self, name=None):
@@ -58,6 +86,28 @@ class MockTracer:
         pass
 
 
+class MockLangfuseClient:
+    """Mock Langfuse client that has all the required methods"""
+
+    def __init__(self):
+        self._mock_context_manager = MockContextManager()
+
+    def start_as_current_span(self, name=None, **kwargs):
+        return self._mock_context_manager
+
+    def start_as_current_observation(self, name=None, as_type=None, **kwargs):
+        return self._mock_context_manager
+
+    def get_current_trace_id(self):
+        return "mock_trace_id_123"
+
+    def get_current_observation_id(self):
+        return "mock_observation_id_123"
+
+    def flush(self):
+        pass
+
+
 class CustomSpanHandler(DefaultSpanHandler):
     def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
         if component_type == "OpenAIChatGenerator":
@@ -70,58 +120,60 @@ class CustomSpanHandler(DefaultSpanHandler):
 class TestLangfuseSpan:
     #  LangfuseSpan can be initialized with a span object
     def test_initialized_with_span_object(self):
-        mock_span = Mock()
-        span = LangfuseSpan(mock_span)
-        assert span.raw_span() == mock_span
+        mock_context_manager = MockContextManager()
+        span = LangfuseSpan(mock_context_manager)
+        assert span.raw_span() == mock_context_manager._span
 
     #  set_tag method can update metadata of the span object
     def test_set_tag_updates_metadata(self):
-        mock_span = Mock()
-        span = LangfuseSpan(mock_span)
+        mock_context_manager = MockContextManager()
+        span = LangfuseSpan(mock_context_manager)
 
         span.set_tag("key", "value")
-        mock_span.update.assert_called_once_with(metadata={"key": "value"})
+        mock_context_manager._span.update.assert_called_once_with(metadata={"key": "value"})
         assert span._data["key"] == "value"
 
     #  set_content_tag method can update input and output of the span object
     def test_set_content_tag_updates_input_and_output(self):
-        mock_span = Mock()
+        mock_context_manager = MockContextManager()
 
-        span = LangfuseSpan(mock_span)
-        span.set_content_tag("input_key", "input_value")
-        assert span._data["input_key"] == "input_value"
+        span = LangfuseSpan(mock_context_manager)
+        span.set_content_tag("test.input", "input_value")
+        # Check that the span.update method was called with input parameter
+        mock_context_manager._span.update.assert_called_with(input="input_value")
 
-        mock_span.reset_mock()
-        span.set_content_tag("output_key", "output_value")
-        assert span._data["output_key"] == "output_value"
+        mock_context_manager._span.update.reset_mock()
+        span.set_content_tag("test.output", "output_value")
+        # Check that the span.update method was called with output parameter
+        mock_context_manager._span.update.assert_called_with(output="output_value")
 
     # set_content_tag method can update input and output of the span object with messages/replies
     def test_set_content_tag_updates_input_and_output_with_messages(self):
-        mock_span = Mock()
+        mock_context_manager = MockContextManager()
 
         # test message input
-        span = LangfuseSpan(mock_span)
+        span = LangfuseSpan(mock_context_manager)
         span.set_content_tag("key.input", {"messages": [ChatMessage.from_user("message")]})
-        assert mock_span.update.call_count == 1
+        assert mock_context_manager._span.update.call_count == 1
         # check we converted ChatMessage to OpenAI format
-        assert mock_span.update.call_args_list[0][1] == {"input": [{"role": "user", "content": "message"}]}
-        assert span._data["key.input"] == {"messages": [ChatMessage.from_user("message")]}
-
+        assert mock_context_manager._span.update.call_args_list[0][1] == {
+            "input": [{"role": "user", "content": "message"}]
+        }
         # test replies ChatMessage list
-        mock_span.reset_mock()
+        mock_context_manager._span.update.reset_mock()
         span.set_content_tag("key.output", {"replies": [ChatMessage.from_system("reply")]})
-        assert mock_span.update.call_count == 1
+        assert mock_context_manager._span.update.call_count == 1
         # check we converted ChatMessage to OpenAI format
-        assert mock_span.update.call_args_list[0][1] == {"output": [{"role": "system", "content": "reply"}]}
-        assert span._data["key.output"] == {"replies": [ChatMessage.from_system("reply")]}
+        assert mock_context_manager._span.update.call_args_list[0][1] == {
+            "output": [{"role": "system", "content": "reply"}]
+        }
 
         # test replies string list
-        mock_span.reset_mock()
+        mock_context_manager._span.update.reset_mock()
         span.set_content_tag("key.output", {"replies": ["reply1", "reply2"]})
-        assert mock_span.update.call_count == 1
+        assert mock_context_manager._span.update.call_count == 1
         # check we handle properly string list replies
-        assert mock_span.update.call_args_list[0][1] == {"output": ["reply1", "reply2"]}
-        assert span._data["key.output"] == {"replies": ["reply1", "reply2"]}
+        assert mock_context_manager._span.update.call_args_list[0][1] == {"output": ["reply1", "reply2"]}
 
 
 class TestSpanContext:
@@ -250,16 +302,18 @@ class TestLangfuseTracer:
         mock_raw_span.operation_name = "operation_name"
         mock_raw_span.metadata = {"tag1": "value1", "tag2": "value2"}
 
-        with patch("haystack_integrations.tracing.langfuse.tracer.LangfuseSpan") as MockLangfuseSpan:
+        with patch("haystack_integrations.tracing.langfuse.tracer.LangfuseSpan") as MockLangfuseSpan, patch(
+            "haystack_integrations.tracing.langfuse.tracer.langfuse.get_client"
+        ) as mock_get_client:
             mock_span_instance = MockLangfuseSpan.return_value
             mock_span_instance.raw_span.return_value = mock_raw_span
 
-            mock_context_manager = MagicMock()
-            mock_context_manager.__enter__.return_value = mock_span_instance
+            mock_client = mock_get_client()
+            mock_context_manager = MockContextManager()
+            mock_context_manager._span = mock_raw_span
+            mock_client.start_as_current_span.return_value = mock_context_manager
 
             mock_tracer = MagicMock()
-            mock_tracer.trace.return_value = mock_context_manager
-
             tracer = LangfuseTracer(tracer=mock_tracer, name="Haystack", public=False)
 
             # check that the trace method is called on the tracer instance with the provided operation name and tags
@@ -275,30 +329,36 @@ class TestLangfuseTracer:
 
     # check that update method is called on the span instance with the provided key value pairs
     def test_update_span_with_pipeline_input_output_data(self):
-        tracer = LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
-        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
-            assert span.raw_span()._data["metadata"] == {"haystack.pipeline.input_data": "hello"}
+        with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client") as mock_get_client:
+            mock_client = mock_get_client()
 
-        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.output_data": "bye"}) as span:
-            assert span.raw_span()._data["metadata"] == {"haystack.pipeline.output_data": "bye"}
+            tracer = LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
+            with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
+                assert span.raw_span()._data["metadata"] == {"haystack.pipeline.input_data": "hello"}
+
+            with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.output_data": "bye"}) as span:
+                assert span.raw_span()._data["metadata"] == {"haystack.pipeline.output_data": "bye"}
 
     def test_trace_generation(self):
-        tracer = LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
-        tags = {
-            "haystack.component.type": "OpenAIChatGenerator",
-            "haystack.component.output": {
-                "replies": [
-                    ChatMessage.from_assistant(
-                        "", meta={"completion_start_time": "2021-07-27T16:02:08.012345", "model": "test_model"}
-                    )
-                ]
-            },
-        }
-        with tracer.trace(operation_name="operation_name", tags=tags) as span:
-            ...
-        assert span.raw_span()._data["usage"] is None
-        assert span.raw_span()._data["model"] == "test_model"
-        assert span.raw_span()._data["completion_start_time"] == datetime.datetime(2021, 7, 27, 16, 2, 8, 12345)
+        with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client") as mock_get_client:
+            mock_client = mock_get_client()
+
+            tracer = LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
+            tags = {
+                "haystack.component.type": "OpenAIChatGenerator",
+                "haystack.component.output": {
+                    "replies": [
+                        ChatMessage.from_assistant(
+                            "", meta={"completion_start_time": "2021-07-27T16:02:08.012345", "model": "test_model"}
+                        )
+                    ]
+                },
+            }
+            with tracer.trace(operation_name="operation_name", tags=tags) as span:
+                ...
+            assert span.raw_span()._data["usage"] is None
+            assert span.raw_span()._data["model"] == "test_model"
+            assert span.raw_span()._data["completion_start_time"] == datetime.datetime(2021, 7, 27, 16, 2, 8, 12345)
 
     def test_handle_tool_invoker(self):
         """
@@ -351,23 +411,27 @@ class TestLangfuseTracer:
         assert "weather_tool" in updated_name, f"Expected 'weather_tool' in {updated_name}"
 
     def test_trace_generation_invalid_start_time(self):
-        tracer = LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
-        tags = {
-            "haystack.component.type": "OpenAIChatGenerator",
-            "haystack.component.output": {
-                "replies": [
-                    ChatMessage.from_assistant("", meta={"completion_start_time": "foobar", "model": "test_model"}),
-                ]
-            },
-        }
-        with tracer.trace(operation_name="operation_name", tags=tags) as span:
-            ...
-        assert span.raw_span()._data["usage"] is None
-        assert span.raw_span()._data["model"] == "test_model"
-        assert span.raw_span()._data["completion_start_time"] is None
+        with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client") as mock_get_client:
+            mock_client = mock_get_client()
+
+            tracer = LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
+            tags = {
+                "haystack.component.type": "OpenAIChatGenerator",
+                "haystack.component.output": {
+                    "replies": [
+                        ChatMessage.from_assistant("", meta={"completion_start_time": "foobar", "model": "test_model"}),
+                    ]
+                },
+            }
+            with tracer.trace(operation_name="operation_name", tags=tags) as span:
+                ...
+            assert span.raw_span()._data["usage"] is None
+            assert span.raw_span()._data["model"] == "test_model"
+            assert span.raw_span()._data["completion_start_time"] is None
 
     def test_update_span_gets_flushed_by_default(self):
-        tracer_mock = Mock()
+        tracer_mock = MockLangfuseClient()
+        tracer_mock.flush = Mock()  # Make flush a mock for assertions
 
         tracer = LangfuseTracer(tracer=tracer_mock, name="Haystack", public=False)
         with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
@@ -377,7 +441,8 @@ class TestLangfuseTracer:
 
     def test_update_span_flush_disable(self, monkeypatch):
         monkeypatch.setenv("HAYSTACK_LANGFUSE_ENFORCE_FLUSH", "false")
-        tracer_mock = Mock()
+        tracer_mock = MockLangfuseClient()
+        tracer_mock.flush = Mock()  # Make flush a mock for assertions
 
         from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer
 
@@ -388,7 +453,7 @@ class TestLangfuseTracer:
         tracer_mock.flush.assert_not_called()
 
     def test_context_is_empty_after_tracing(self):
-        tracer_mock = Mock()
+        tracer_mock = MockLangfuseClient()
 
         tracer = LangfuseTracer(tracer=tracer_mock, name="Haystack", public=False)
         with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
@@ -408,9 +473,9 @@ class TestLangfuseTracer:
             monkeypatch.setenv("HAYSTACK_CONTENT_TRACING_ENABLED", "false")
             from haystack_integrations.tracing.langfuse import LangfuseTracer
 
-            LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
+            LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
             assert "tracing is disabled" in caplog.text
-            
+
     def test_async_concurrency_span_isolation(self):
         """
         Test that concurrent async traces maintain isolated span contexts.
@@ -418,7 +483,7 @@ class TestLangfuseTracer:
         This test verifies that the context-local span stack prevents cross-request
         span interleaving in concurrent environments like FastAPI servers.
         """
-        tracer = LangfuseTracer(tracer=MockTracer(), name="Haystack", public=False)
+        tracer = LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
 
         # Track spans from each task for verification
         task1_spans = []
@@ -482,4 +547,3 @@ class TestLangfuseTracer:
         assert task2_spans[1][2] == task2_inner  # current_span during inner
         assert task2_spans[2][2] == task2_outer  # current_span after inner
         assert task2_spans[3][2] is None  # current_span after outer
-  
