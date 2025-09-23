@@ -190,7 +190,6 @@ def test_tracing_with_sub_pipelines():
     assert "llm" in str(haystack_pipeline_run_observations[1])
 
 
-
 @pytest.mark.skipif(
     not all(
         [

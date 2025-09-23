@@ -89,10 +89,10 @@ class MockLangfuseClient:
     def __init__(self):
         self._mock_context_manager = MockContextManager()
 
-    def start_as_current_span(self, name=None, **kwargs):
+    def start_as_current_span(self, _name=None, **_kwargs):
         return self._mock_context_manager
 
-    def start_as_current_observation(self, name=None, as_type=None, **kwargs):
+    def start_as_current_observation(self, _name=None, _as_type=None, **_kwargs):
         return self._mock_context_manager
 
     def get_current_trace_id(self):
@@ -325,9 +325,7 @@ class TestLangfuseTracer:
 
     # check that update method is called on the span instance with the provided key value pairs
     def test_update_span_with_pipeline_input_output_data(self):
-        with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client") as mock_get_client:
-            mock_client = mock_get_client()
-
+        with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client"):
             tracer = LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
             with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
                 assert span.raw_span()._data["metadata"] == {"haystack.pipeline.input_data": "hello"}
@@ -336,9 +334,7 @@ class TestLangfuseTracer:
                 assert span.raw_span()._data["metadata"] == {"haystack.pipeline.output_data": "bye"}
 
     def test_trace_generation(self):
-        with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client") as mock_get_client:
-            mock_client = mock_get_client()
-
+        with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client"):
             tracer = LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
             tags = {
                 "haystack.component.type": "OpenAIChatGenerator",
@@ -354,7 +350,7 @@ class TestLangfuseTracer:
                 ...
             assert span.raw_span()._data["usage"] is None
             assert span.raw_span()._data["model"] == "test_model"
-            assert span.raw_span()._data["completion_start_time"] == datetime.datetime(2021, 7, 27, 16, 2, 8, 12345)
+            assert span.raw_span()._data["completion_start_time"] == datetime.datetime(2021, 7, 27, 16, 2, 8, 12345)  # noqa: DTZ001
 
     def test_handle_tool_invoker(self):
         """
@@ -407,9 +403,7 @@ class TestLangfuseTracer:
         assert "weather_tool" in updated_name, f"Expected 'weather_tool' in {updated_name}"
 
     def test_trace_generation_invalid_start_time(self):
-        with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client") as mock_get_client:
-            mock_client = mock_get_client()
-
+        with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client"):
             tracer = LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
             tags = {
                 "haystack.component.type": "OpenAIChatGenerator",
