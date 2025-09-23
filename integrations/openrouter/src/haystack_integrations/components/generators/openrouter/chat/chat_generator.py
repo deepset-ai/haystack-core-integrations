@@ -199,5 +199,5 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             **openai_tools,
             "extra_body": {**generation_kwargs},
             "extra_headers": {**extra_headers},
-            "openai_endpoint": "create"
+            "openai_endpoint": "create",
         }
