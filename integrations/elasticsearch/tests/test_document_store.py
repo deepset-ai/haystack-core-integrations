@@ -75,8 +75,8 @@ def test_from_dict(_mock_elasticsearch_client):
     assert document_store._hosts == "some hosts"
     assert document_store._index == "default"
     assert document_store._custom_mapping is None
-    assert document_store.api_key is None
-    assert document_store.api_key_id is None
+    assert document_store._api_key is None
+    assert document_store._api_key_id is None
     assert document_store._embedding_similarity_function == "cosine"
 
 
@@ -125,8 +125,8 @@ def test_from_dict_with_api_keys_env_vars(_mock_elasticsearch_client):
     }
 
     document_store = ElasticsearchDocumentStore.from_dict(data)
-    assert document_store.api_key == {"type": "env_var", "env_vars": ["ELASTIC_API_KEY"], "strict": False}
-    assert document_store.api_key_id == {"type": "env_var", "env_vars": ["ELASTIC_API_KEY_ID"], "strict": False}
+    assert document_store._api_key == {"type": "env_var", "env_vars": ["ELASTIC_API_KEY"], "strict": False}
+    assert document_store._api_key_id == {"type": "env_var", "env_vars": ["ELASTIC_API_KEY_ID"], "strict": False}
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
@@ -135,8 +135,8 @@ def test_api_key_validation_only_api_key(_mock_elasticsearch_client):
 
     document_store = ElasticsearchDocumentStore(hosts="https://localhost:9200", api_key=api_key)
     document_store.client()
-    assert document_store.api_key == api_key
-    assert document_store.api_key_id is None
+    assert document_store._api_key == api_key
+    assert document_store._api_key_id is None
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
@@ -179,7 +179,6 @@ def test_client_initialization_with_api_key_tuple(_mock_async_es, _mock_es):
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
 def test_client_initialization_with_api_key_string(_mock_async_es, _mock_es):
-    """Test that api_key is passed as string when only api_key is provided."""
     api_key = Secret.from_token("test_api_key")
 
     # Mock the client.info() call to avoid actual connection

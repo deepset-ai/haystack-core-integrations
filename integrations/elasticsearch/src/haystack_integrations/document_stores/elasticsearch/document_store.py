@@ -110,8 +110,8 @@ class ElasticsearchDocumentStore:
         self._client: Optional[Elasticsearch] = None
         self._async_client: Optional[AsyncElasticsearch] = None
         self._index = index
-        self.api_key = api_key
-        self.api_key_id = api_key_id
+        self._api_key = api_key
+        self._api_key_id = api_key_id
         self._embedding_similarity_function = embedding_similarity_function
         self._custom_mapping = custom_mapping
         self._kwargs = kwargs
@@ -204,7 +204,7 @@ class ElasticsearchDocumentStore:
         api_key: Optional[Union[str, Tuple[str, str]]] = None
 
         # if neither api_key nor api_key_id are provided, try to read both from environment variables
-        if not self.api_key and not self.api_key_id:
+        if not self._api_key and not self._api_key_id:
             api_key_resolved = Secret.from_env_var("ELASTIC_API_KEY", strict=False).resolve_value()
             api_key_id_resolved = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False).resolve_value()
 
@@ -212,18 +212,18 @@ class ElasticsearchDocumentStore:
             if api_key_id_resolved and api_key_resolved:
                 api_key = (api_key_id_resolved, api_key_resolved)
                 # add to self in case of serialization later
-                self.api_key_id = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False)
-                self.api_key = Secret.from_env_var("ELASTIC_API_KEY", strict=False)
+                self._api_key_id = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False)
+                self._api_key = Secret.from_env_var("ELASTIC_API_KEY", strict=False)
                 return api_key
 
             # Scenario 1: only one of api_key is found use it, assume it's base64-encoded string that encodes
             # both secret and id (separated by “:”)
-            elif self.api_key and not self.api_key_id:
-                api_key = self.api_key.resolve_value()
+            elif self._api_key and not self._api_key_id:
+                api_key = self._api_key.resolve_value()
                 return api_key
 
             # Scenario 4: only api_key_id is found, raise an error
-            elif self.api_key_id and not self.api_key:
+            elif self._api_key_id and not self._api_key:
                 msg = "api_key_id is provided but api_key is missing."
                 raise ValueError(msg)
 
@@ -232,21 +232,21 @@ class ElasticsearchDocumentStore:
                 return None
 
         # Token provided as a Secret
-        if self.api_key and not self.api_key_id:
+        if self._api_key and not self._api_key_id:
             # Scenario 3: only api_key is provided as a Secret, assume it's base64-encoded string that encodes
-            api_key = self.api_key.resolve_value()
+            api_key = self._api_key.resolve_value()
             return api_key
 
         # Token provided as a Secret
-        elif self.api_key and self.api_key_id:
+        elif self._api_key and self._api_key_id:
             # Scenario 1: both are found, use them
-            api_key_resolved = self.api_key.resolve_value()
-            api_key_id_resolved = self.api_key_id.resolve_value()
+            api_key_resolved = self._api_key.resolve_value()
+            api_key_id_resolved = self._api_key_id.resolve_value()
             if api_key_resolved and api_key_id_resolved:
                 api_key = (api_key_id_resolved, api_key_resolved)
                 return api_key
 
-        elif self.api_key_id and not self.api_key:
+        elif self._api_key_id and not self._api_key:
             # Scenario 4: only the id is not enough, raise an error
             msg = "api_key_id is provided but api_key is missing."
             raise ValueError(msg)
@@ -286,9 +286,9 @@ class ElasticsearchDocumentStore:
             hosts=self._hosts,
             custom_mapping=self._custom_mapping,
             index=self._index,
-            api_key=self.api_key.to_dict() if self.api_key and not isinstance(self.api_key, TokenSecret) else None,
-            api_key_id=self.api_key_id.to_dict()
-            if self.api_key_id and not isinstance(self.api_key, TokenSecret)
+            api_key=self._api_key.to_dict() if self._api_key and not isinstance(self._api_key, TokenSecret) else None,
+            api_key_id=self._api_key_id.to_dict()
+            if self._api_key_id and not isinstance(self._api_key, TokenSecret)
             else None,
             embedding_similarity_function=self._embedding_similarity_function,
             **self._kwargs,
