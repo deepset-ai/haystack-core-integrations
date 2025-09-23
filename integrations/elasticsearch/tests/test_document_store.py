@@ -167,13 +167,13 @@ def test_client_initialization_with_api_key_tuple(_mock_async_es, _mock_es):
     _mock_es.assert_called_once()
     call_args = _mock_es.call_args
     assert call_args[0][0] == "https://localhost:9200"  # hosts
-    assert call_args[1]["api_key"] == ("test_api_key", "test_api_key_id")
+    assert call_args[1]["api_key"] == ("test_api_key_id", "test_api_key")
 
     # Check that AsyncElasticsearch was called with the same api_key tuple
     _mock_async_es.assert_called_once()
     async_call_args = _mock_async_es.call_args
     assert async_call_args[0][0] == "https://localhost:9200"  # hosts
-    assert async_call_args[1]["api_key"] == ("test_api_key", "test_api_key_id")
+    assert async_call_args[1]["api_key"] == ("test_api_key_id", "test_api_key")
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")

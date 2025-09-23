@@ -41,13 +41,13 @@ class ElasticsearchDocumentStore:
 
     Usage example (Elastic Cloud):
     ```python
-    from haystack.document_store.elasticsearch import ElasticsearchDocumentStore
+    from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
     document_store = ElasticsearchDocumentStore(cloud_id="YOUR_CLOUD_ID", api_key="YOUR_API_KEY")
     ```
 
     Usage example (self-hosted Elasticsearch instance):
     ```python
-    from haystack.document_store.elasticsearch import ElasticsearchDocumentStore
+    from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
     document_store = ElasticsearchDocumentStore(hosts="http://localhost:9200")
     ```
     In the above example we connect with security disabled just to show the basic usage.
@@ -96,11 +96,9 @@ class ElasticsearchDocumentStore:
         :param hosts: List of hosts running the Elasticsearch client.
         :param custom_mapping: Custom mapping for the index. If not provided, a default mapping will be used.
         :param index: Name of index in Elasticsearch.
-
         :param api_key: A Secret object containing the API key for authenticating or base64-encoded with the
                         concatenated secret and id for authenticating with Elasticsearch (separated by “:”).
         :param api_key_id: A Secret object containing the API key ID for authenticating with Elasticsearch.
-
         :param embedding_similarity_function: The similarity function used to compare Documents embeddings.
             This parameter only takes effect if the index does not yet exist and is created.
             To choose the most appropriate function, look for information about your embedding model.
@@ -189,7 +187,7 @@ class ElasticsearchDocumentStore:
         There are three possible scenarios.
 
         1) As an environment variables. Both ELASTIC_API_KEY_ID and ELASTIC_API_KEY must be defined, alternatively
-         only ELASTIC_API_KEY can be defined, which is a base64-encoded string that encodes both the secret and id
+         only ELASTIC_API_KEY can be defined, which is a base64-encoded string that encodes both the id and secret
 
         2) There's no authentication, neither api_key nor api_key_id are provided as a Secret nor defined as
         environment variables. In this case, the client will connect without authentication.
@@ -216,11 +214,13 @@ class ElasticsearchDocumentStore:
                 # add to self in case of serialization later
                 self.api_key_id = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False)
                 self.api_key = Secret.from_env_var("ELASTIC_API_KEY", strict=False)
+                return api_key
 
             # Scenario 1: only one of api_key is found use it, assume it's base64-encoded string that encodes
             # both secret and id (separated by “:”)
             elif self.api_key and not self.api_key_id:
                 api_key = self.api_key.resolve_value()
+                return api_key
 
             # Scenario 4: only api_key_id is found, raise an error
             elif self.api_key_id and not self.api_key:
@@ -229,27 +229,29 @@ class ElasticsearchDocumentStore:
 
             else:
                 # Scenario 2: neither found, no authentication
-                api_key = None
+                return None
 
         # Token provided as a Secret
         if self.api_key and not self.api_key_id:
             # Scenario 3: only api_key is provided as a Secret, assume it's base64-encoded string that encodes
             api_key = self.api_key.resolve_value()
+            return api_key
 
         # Token provided as a Secret
         elif self.api_key and self.api_key_id:
             # Scenario 1: both are found, use them
-            api_key_resolved = self.api_key_id.resolve_value()
-            api_key_id_resolved = self.api_key.resolve_value()
+            api_key_resolved = self.api_key.resolve_value()
+            api_key_id_resolved = self.api_key_id.resolve_value()
             if api_key_resolved and api_key_id_resolved:
                 api_key = (api_key_id_resolved, api_key_resolved)
+                return api_key
 
         elif self.api_key_id and not self.api_key:
             # Scenario 4: only the id is not enough, raise an error
             msg = "api_key_id is provided but api_key is missing."
             raise ValueError(msg)
 
-        return api_key
+        return None
 
     @property
     def client(self) -> Elasticsearch:
