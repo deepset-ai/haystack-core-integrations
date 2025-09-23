@@ -66,8 +66,8 @@ class ElasticsearchDocumentStore:
         hosts: Optional[Hosts] = None,
         custom_mapping: Optional[Dict[str, Any]] = None,
         index: str = "default",
-        api_key: Optional[Secret] = None,
-        api_key_id: Optional[Secret] = None,
+        api_key: Secret = Secret.from_env_var("ELASTIC_API_KEY", strict=False),  # noqa: B008
+        api_key_id: Secret = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),  # noqa: B008
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
         **kwargs: Any,
     ):
@@ -187,71 +187,43 @@ class ElasticsearchDocumentStore:
         There are three possible scenarios.
 
         1) As an environment variables. Both ELASTIC_API_KEY_ID and ELASTIC_API_KEY must be defined, alternatively
-         only ELASTIC_API_KEY can be defined, which is a base64-encoded string that encodes both the id and secret
+         only ELASTIC_API_KEY can be defined, which is a base64-encoded string that encodes both the id and secret.
+         They can be provided as Secret, the api_key_id and api_key parameters are provided as a Secret.
 
-        2) There's no authentication, neither api_key nor api_key_id are provided as a Secret nor defined as
-        environment variables. In this case, the client will connect without authentication.
-
-        3) As a Secret. The api_key_id and api_key parameters are provided as a Secret.
-
-        4) If only api_key_id is provided, either as a Secret or as an environment variable, fail since api_key_id
+        2) If only api_key_id is provided, either as a Secret or as an environment variable, fail since api_key_id
            alone is not enough for authentication.
+
+        3) There's no authentication, neither api_key nor api_key_id are provided as a Secret nor defined as
+           environment variables. In this case, the client will connect without authentication.
 
         returns:
             api_key: Optional[Union[str, Tuple[str, str]]]
 
         """
-        api_key: Optional[Union[str, Tuple[str, str]]] = None
 
-        # if neither api_key nor api_key_id are provided, try to read both from environment variables
-        if not self._api_key and not self._api_key_id:
-            api_key_resolved = Secret.from_env_var("ELASTIC_API_KEY", strict=False).resolve_value()
-            api_key_id_resolved = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False).resolve_value()
+        api_key: Optional[Union[str, Tuple[str, str]]] = None  # make the type checker happy
 
-            # Scenario 1: both are found, use them
-            if api_key_id_resolved and api_key_resolved:
-                api_key = (api_key_id_resolved, api_key_resolved)
-                # add to self in case of serialization later
-                self._api_key_id = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False)
-                self._api_key = Secret.from_env_var("ELASTIC_API_KEY", strict=False)
-                return api_key
+        api_key_resolved = self._api_key.resolve_value()
+        api_key_id_resolved = self._api_key_id.resolve_value()
 
-            # Scenario 1: only one of api_key is found use it, assume it's base64-encoded string that encodes
-            # both secret and id (separated by “:”)
-            elif self._api_key and not self._api_key_id:
-                api_key = self._api_key.resolve_value()
-                return api_key
+        # Scenario 1: both are found, use them
+        if api_key_id_resolved and api_key_resolved:
+            api_key = (api_key_id_resolved, api_key_resolved)
+            return api_key
 
-            # Scenario 4: only api_key_id is found, raise an error
-            elif self._api_key_id and not self._api_key:
-                msg = "api_key_id is provided but api_key is missing."
-                raise ValueError(msg)
-
-            else:
-                # Scenario 2: neither found, no authentication
-                return None
-
-        # Token provided as a Secret
-        if self._api_key and not self._api_key_id:
-            # Scenario 3: only api_key is provided as a Secret, assume it's base64-encoded string that encodes
+        # Scenario 2: only api_key is set, must be a base64-encoded string that encodes id and secret (separated by “:”)
+        elif api_key_resolved and not api_key_id_resolved:
             api_key = self._api_key.resolve_value()
             return api_key
 
-        # Token provided as a Secret
-        elif self._api_key and self._api_key_id:
-            # Scenario 1: both are found, use them
-            api_key_resolved = self._api_key.resolve_value()
-            api_key_id_resolved = self._api_key_id.resolve_value()
-            if api_key_resolved and api_key_id_resolved:
-                api_key = (api_key_id_resolved, api_key_resolved)
-                return api_key
-
-        elif self._api_key_id and not self._api_key:
-            # Scenario 4: only the id is not enough, raise an error
+        # Error: only api_key_id is found, raise an error
+        elif api_key_id_resolved and not api_key_resolved:
             msg = "api_key_id is provided but api_key is missing."
             raise ValueError(msg)
 
-        return None
+        else:
+            # Scenario 3: neither found, no authentication
+            return None
 
     @property
     def client(self) -> Elasticsearch:

@@ -48,8 +48,20 @@ def test_to_dict(_mock_elasticsearch_client):
     assert res == {
         "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
         "init_parameters": {
-            "api_key": None,
-            "api_key_id": None,
+            "api_key": {
+                "env_vars": [
+                    "ELASTIC_API_KEY",
+                ],
+                "strict": False,
+                "type": "env_var",
+            },
+            "api_key_id": {
+                "env_vars": [
+                    "ELASTIC_API_KEY_ID",
+                ],
+                "strict": False,
+                "type": "env_var",
+            },
             "hosts": "some hosts",
             "custom_mapping": None,
             "index": "default",
@@ -136,7 +148,8 @@ def test_api_key_validation_only_api_key(_mock_elasticsearch_client):
     document_store = ElasticsearchDocumentStore(hosts="https://localhost:9200", api_key=api_key)
     document_store.client()
     assert document_store._api_key == api_key
-    assert document_store._api_key_id is None
+    # not passing the api_key_id makes it default to reading from env var
+    assert document_store._api_key_id == Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False)
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
