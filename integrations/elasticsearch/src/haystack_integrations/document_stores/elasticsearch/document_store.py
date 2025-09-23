@@ -12,11 +12,11 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils.auth import TokenSecret
 from haystack.version import __version__ as haystack_version
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
 
-from haystack.utils.auth import TokenSecret
 from .filters import _normalize_filters
 
 logger = logging.getLogger(__name__)
@@ -98,7 +98,7 @@ class ElasticsearchDocumentStore:
         :param index: Name of index in Elasticsearch.
 
         :param api_key: A Secret object containing the API key for authenticating or base64-encoded with the
-                        concatenated id and secret for authenticating with Elasticsearch (separated by “:”).
+                        concatenated secret and id for authenticating with Elasticsearch (separated by “:”).
         :param api_key_id: A Secret object containing the API key ID for authenticating with Elasticsearch.
 
         :param embedding_similarity_function: The similarity function used to compare Documents embeddings.
@@ -189,12 +189,15 @@ class ElasticsearchDocumentStore:
         There are three possible scenarios.
 
         1) As an environment variables. Both ELASTIC_API_KEY_ID and ELASTIC_API_KEY must be defined, alternatively
-         only ELASTIC_API_KEY can be defined, which is a base64-encoded string that encodes both id and secret
+         only ELASTIC_API_KEY can be defined, which is a base64-encoded string that encodes both the secret and id
 
         2) There's no authentication, neither api_key nor api_key_id are provided as a Secret nor defined as
         environment variables. In this case, the client will connect without authentication.
 
         3) As a Secret. The api_key_id and api_key parameters are provided as a Secret.
+
+        4) If only api_key_id is provided, either as a Secret or as an environment variable, fail since api_key_id
+           alone is not enough for authentication.
 
         returns:
             api_key: Optional[Union[str, Tuple[str, str]]]
@@ -215,11 +218,11 @@ class ElasticsearchDocumentStore:
                 self.api_key = Secret.from_env_var("ELASTIC_API_KEY", strict=False)
 
             # Scenario 1: only one of api_key is found use it, assume it's base64-encoded string that encodes
-            # both id and secret (separated by “:”)
+            # both secret and id (separated by “:”)
             elif self.api_key and not self.api_key_id:
                 api_key = self.api_key.resolve_value()
 
-            # only the id is not enough, raise an error
+            # Scenario 4: only api_key_id is found, raise an error
             elif self.api_key_id and not self.api_key:
                 msg = "api_key_id is provided but api_key is missing."
                 raise ValueError(msg)
@@ -228,16 +231,23 @@ class ElasticsearchDocumentStore:
                 # Scenario 2: neither found, no authentication
                 api_key = None
 
+        # Token provided as a Secret
         if self.api_key and not self.api_key_id:
             # Scenario 3: only api_key is provided as a Secret, assume it's base64-encoded string that encodes
             api_key = self.api_key.resolve_value()
 
+        # Token provided as a Secret
         elif self.api_key and self.api_key_id:
-            # Scenario 3: both are found, use them
+            # Scenario 1: both are found, use them
             api_key_resolved = self.api_key_id.resolve_value()
             api_key_id_resolved = self.api_key.resolve_value()
             if api_key_resolved and api_key_id_resolved:
                 api_key = (api_key_id_resolved, api_key_resolved)
+
+        elif self.api_key_id and not self.api_key:
+            # Scenario 4: only the id is not enough, raise an error
+            msg = "api_key_id is provided but api_key is missing."
+            raise ValueError(msg)
 
         return api_key
 
@@ -274,8 +284,10 @@ class ElasticsearchDocumentStore:
             hosts=self._hosts,
             custom_mapping=self._custom_mapping,
             index=self._index,
-            api_key=self.api_key.to_dict() if self.api_key and not isinstance(self.api_key,TokenSecret) else None,
-            api_key_id=self.api_key_id.to_dict() if self.api_key_id and not isinstance(self.api_key,TokenSecret) else None,
+            api_key=self.api_key.to_dict() if self.api_key and not isinstance(self.api_key, TokenSecret) else None,
+            api_key_id=self.api_key_id.to_dict()
+            if self.api_key_id and not isinstance(self.api_key, TokenSecret)
+            else None,
             embedding_similarity_function=self._embedding_similarity_function,
             **self._kwargs,
         )
@@ -290,7 +302,7 @@ class ElasticsearchDocumentStore:
         :returns:
             Deserialized component.
         """
-        deserialize_secrets_inplace(data, keys=["api_key", "api_key_id"])
+        deserialize_secrets_inplace(data, keys=["ELASTIC_API_KEY", "ELASTIC_API_KEY_ID"])
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:

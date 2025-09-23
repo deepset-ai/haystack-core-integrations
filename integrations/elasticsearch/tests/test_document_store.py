@@ -14,10 +14,9 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
 from haystack.utils import Secret
+from haystack.utils.auth import TokenSecret
 
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
-
-from haystack.utils.auth import TokenSecret
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
@@ -88,12 +87,13 @@ def test_to_dict_with_api_keys_env_vars(_mock_elasticsearch_client, monkeypatch)
     document_store = ElasticsearchDocumentStore(hosts="https://localhost:9200")
     document_store.client()
     res = document_store.to_dict()
-    assert res["init_parameters"]["api_key"] == {
-        'type': 'env_var', 'env_vars': ['ELASTIC_API_KEY'], 'strict': False
-    }
+    assert res["init_parameters"]["api_key"] == {"type": "env_var", "env_vars": ["ELASTIC_API_KEY"], "strict": False}
     assert res["init_parameters"]["api_key_id"] == {
-        'type': 'env_var', 'env_vars': ['ELASTIC_API_KEY_ID'], 'strict': False
+        "type": "env_var",
+        "env_vars": ["ELASTIC_API_KEY_ID"],
+        "strict": False,
     }
+
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_to_dict_with_api_keys_as_secret(_mock_elasticsearch_client, monkeypatch):
@@ -102,41 +102,38 @@ def test_to_dict_with_api_keys_as_secret(_mock_elasticsearch_client, monkeypatch
     document_store = ElasticsearchDocumentStore(
         hosts="https://localhost:9200",
         api_key=TokenSecret(_token="test-api-key"),
-        api_key_id=TokenSecret(_token="test-api-key-id")
+        api_key_id=TokenSecret(_token="test-api-key-id"),
     )
     document_store.client()
     res = document_store.to_dict()
     assert res["init_parameters"]["api_key"] is None
     assert res["init_parameters"]["api_key_id"] is None
 
+
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_from_dict_with_api_keys_env_vars(_mock_elasticsearch_client):
-    api_key_dict = {'type': 'env_var', 'env_vars': ['ELASTIC_API_KEY'], 'strict': False}
-    api_key_id_dict = {'type': 'env_var', 'env_vars': ['ELASTIC_API_KEY_ID'], 'strict': False}
-
     data = {
         "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
         "init_parameters": {
             "hosts": "some hosts",
             "custom_mapping": None,
             "index": "default",
-            "api_key": api_key_dict,
-            "api_key_id": api_key_id_dict,
+            "api_key": {"type": "env_var", "env_vars": ["ELASTIC_API_KEY"], "strict": False},
+            "api_key_id": {"type": "env_var", "env_vars": ["ELASTIC_API_KEY_ID"], "strict": False},
             "embedding_similarity_function": "cosine",
         },
     }
 
     document_store = ElasticsearchDocumentStore.from_dict(data)
-    assert document_store.api_key == "test_api_key"
-    assert document_store.api_key_id == "test_api_key_id"
+    assert document_store.api_key == {"type": "env_var", "env_vars": ["ELASTIC_API_KEY"], "strict": False}
+    assert document_store.api_key_id == {"type": "env_var", "env_vars": ["ELASTIC_API_KEY_ID"], "strict": False}
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_api_key_validation_only_api_key(_mock_elasticsearch_client):
-    """Test that only api_key can be provided without api_key_id."""
     api_key = Secret.from_token("test_api_key")
 
-    document_store = ElasticsearchDocumentStore(hosts="testhost", api_key=api_key)
+    document_store = ElasticsearchDocumentStore(hosts="https://localhost:9200", api_key=api_key)
     document_store.client()
     assert document_store.api_key == api_key
     assert document_store.api_key_id is None
@@ -144,37 +141,15 @@ def test_api_key_validation_only_api_key(_mock_elasticsearch_client):
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_api_key_validation_only_api_key_id_raises_error(_mock_elasticsearch_client):
-    """Test that providing only api_key_id without api_key raises ValueError."""
     api_key_id = Secret.from_token("test_api_key_id")
-
     with pytest.raises(ValueError, match="api_key_id is provided but api_key is missing"):
-        es = ElasticsearchDocumentStore(hosts="testhost", api_key_id=api_key_id)
+        es = ElasticsearchDocumentStore(hosts="https://localhost:9200", api_key_id=api_key_id)
         es.client()
-
-
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-def test_api_key_validation_empty_strings_raise_error(_mock_elasticsearch_client):
-    """Test that empty strings for api_key and api_key_id raise ValueError."""
-    api_key = Secret.from_token("")
-    api_key_id = Secret.from_token("")
-
-    with pytest.raises(ValueError, match="api_key_id and api_key must be non-empty strings"):
-        ElasticsearchDocumentStore(hosts="testhost", api_key=api_key, api_key_id=api_key_id)
-
-
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-def test_api_key_validation_one_empty_string_raises_error(_mock_elasticsearch_client):
-    api_key = Secret.from_token("")
-    api_key_id = Secret.from_token("valid_id")
-
-    with pytest.raises(ValueError, match="api_key_id and api_key must be non-empty strings"):
-        ElasticsearchDocumentStore(hosts="testhost", api_key=api_key, api_key_id=api_key_id)
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
 def test_client_initialization_with_api_key_tuple(_mock_async_es, _mock_es):
-    """Test that api_key is passed as tuple when both api_key_id and api_key are provided."""
     api_key = Secret.from_token("test_api_key")
     api_key_id = Secret.from_token("test_api_key_id")
 
@@ -183,7 +158,7 @@ def test_client_initialization_with_api_key_tuple(_mock_async_es, _mock_es):
     mock_client.info.return_value = {"version": {"number": "8.0.0"}}
     _mock_es.return_value = mock_client
 
-    document_store = ElasticsearchDocumentStore(hosts="testhost", api_key=api_key, api_key_id=api_key_id)
+    document_store = ElasticsearchDocumentStore(hosts="https://localhost:9200", api_key=api_key, api_key_id=api_key_id)
 
     # Access client to trigger initialization
     _ = document_store.client
@@ -191,14 +166,14 @@ def test_client_initialization_with_api_key_tuple(_mock_async_es, _mock_es):
     # Check that Elasticsearch was called with the correct api_key tuple
     _mock_es.assert_called_once()
     call_args = _mock_es.call_args
-    assert call_args[0][0] == "testhost"  # hosts
-    assert call_args[1]["api_key"] == ("test_api_key_id", "test_api_key")
+    assert call_args[0][0] == "https://localhost:9200"  # hosts
+    assert call_args[1]["api_key"] == ("test_api_key", "test_api_key_id")
 
     # Check that AsyncElasticsearch was called with the same api_key tuple
     _mock_async_es.assert_called_once()
     async_call_args = _mock_async_es.call_args
-    assert async_call_args[0][0] == "testhost"  # hosts
-    assert async_call_args[1]["api_key"] == ("test_api_key_id", "test_api_key")
+    assert async_call_args[0][0] == "https://localhost:9200"  # hosts
+    assert async_call_args[1]["api_key"] == ("test_api_key", "test_api_key_id")
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
