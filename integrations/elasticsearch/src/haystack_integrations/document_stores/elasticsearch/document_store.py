@@ -193,7 +193,7 @@ class ElasticsearchDocumentStore:
         3) There's no authentication, neither api_key nor api_key_id are provided as a Secret nor defined as
            environment variables. In this case, the client will connect without authentication.
 
-        returns:
+        :returns:
             api_key: Optional[Union[str, Tuple[str, str]]]
 
         """
