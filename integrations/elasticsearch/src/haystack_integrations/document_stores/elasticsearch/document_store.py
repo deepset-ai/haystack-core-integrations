@@ -215,8 +215,7 @@ class ElasticsearchDocumentStore:
 
         # Scenario 2: only api_key is set, must be a base64-encoded string that encodes id and secret (separated by “:”)
         elif api_key_resolved and not api_key_id_resolved:
-            api_key = self._api_key.resolve_value()
-            return api_key
+            return api_key_resolved
 
         # Error: only api_key_id is found, raise an error
         elif api_key_id_resolved and not api_key_resolved:
