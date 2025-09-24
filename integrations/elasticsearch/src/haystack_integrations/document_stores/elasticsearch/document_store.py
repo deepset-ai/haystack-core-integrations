@@ -87,13 +87,8 @@ class ElasticsearchDocumentStore:
         For the full list of supported kwargs, see the official Elasticsearch
         [reference](https://elasticsearch-py.readthedocs.io/en/stable/api.html#module-elasticsearch)
 
-        Authentication can be provided in 2 ways. As environment variables, both ELASTIC_API_KEY_ID and ELASTIC_API_KEY
-        must be defined or alternatively, only ELASTIC_API_KEY needs to be defined, containing a base64-encoded string
-        that encodes both id and secret (separated by “:”).
-
-        Alternatively, authentication can be provided as a Secret. The api_key_id and api_key parameters are
-        provided as a Secret, or only api_key is provided as a Secret, which is a base64-encoded string that encodes
-        both id and secret (separated by “:”).
+        Authentication is provided via Secret objects, which by default are loaded from environment variables. 
+        You can either provide both `api_key_id` and `api_key`, or just `api_key` containing a base64-encoded string of `id:secret`. Secret instances can also be loaded from a token using the `Secret.from_token()` method.
 
         :param hosts: List of hosts running the Elasticsearch client.
         :param custom_mapping: Custom mapping for the index. If not provided, a default mapping will be used.
