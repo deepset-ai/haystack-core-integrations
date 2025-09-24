@@ -818,6 +818,9 @@ class MCPTool(Tool):
         self._connection_timeout = connection_timeout
         self._invocation_timeout = invocation_timeout
         self.eager_connect = eager_connect
+        self._client: MCPClient | None = None
+        self._worker: _MCPClientSessionManager | None = None
+        self._lock = threading.RLock()
 
         # If lazy mode is requested, don't connect now; initialize permissively
         if not eager_connect:
@@ -826,9 +829,6 @@ class MCPTool(Tool):
             # Replaced with the strict schema on first use.
             params = {"type": "object", "properties": {}, "additionalProperties": True}
             super().__init__(name=name, description=description or "", parameters=params, function=self._invoke_tool)
-            self._client = None
-            self._worker = None
-            self._lock = threading.RLock()
             logger.debug(f"TOOL: Initialization (lazy) complete for '{name}'")
             return
 
@@ -911,8 +911,12 @@ class MCPTool(Tool):
 
             async def invoke():
                 logger.debug(f"TOOL: Inside invoke coroutine for '{self.name}'")
-                client = cast(MCPClient, self._client)
-                result = await asyncio.wait_for(client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
+                # This should never happen, and mypy doesn't know that
+                if self._client is None:
+                    raise MCPConnectionError(message="Not connected to an MCP server", operation="call_tool")                
+                result = await asyncio.wait_for(
+                    self._client.call_tool(self.name, kwargs), timeout=self._invocation_timeout
+                )
                 logger.debug(f"TOOL: Invoke successful for '{self.name}'")
                 return result
 
@@ -955,15 +959,8 @@ class MCPTool(Tool):
 
     def _ensure_connected(self) -> None:
         """Establish connection if not connected (lazy mode)."""
-        if getattr(self, "_client", None) is not None:
-            return
-        # Only applicable to lazy mode; eager connects in __init__
-        lock = getattr(self, "_lock", None)
-        if lock is None:
-            self._lock = threading.RLock()
-            lock = self._lock
-        with lock:
-            if getattr(self, "_client", None) is not None:
+        with self._lock:
+            if self._client is not None:
                 return
             client = self._server_info.create_client()
             worker = _MCPClientSessionManager(client, timeout=self._connection_timeout)
