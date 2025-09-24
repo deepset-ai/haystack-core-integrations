@@ -184,12 +184,11 @@ class ElasticsearchDocumentStore:
 
         There are three possible scenarios.
 
-        1) As an environment variables. Both ELASTIC_API_KEY_ID and ELASTIC_API_KEY must be defined, alternatively
-         only ELASTIC_API_KEY can be defined, which is a base64-encoded string that encodes both the id and secret.
-         They can be provided as Secret, the api_key_id and api_key parameters are provided as a Secret.
+        1) Authentication with both api_key and api_key_id, either as Secrets or as environment variables. In this case,
+           use both for authentication.
 
-        2) If only api_key_id is provided, either as a Secret or as an environment variable, fail since api_key_id
-           alone is not enough for authentication.
+        2) Authentication with only api_key, either as a Secret or as an environment variable. In this case, the api_key
+           must be a base64-encoded string that encodes both id and secret <id:secret>.
 
         3) There's no authentication, neither api_key nor api_key_id are provided as a Secret nor defined as
            environment variables. In this case, the client will connect without authentication.
