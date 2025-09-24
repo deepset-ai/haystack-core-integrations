@@ -193,8 +193,7 @@ class MCPInvocationError(ToolInvocationError):
         :param tool_name: Name of the tool that was being invoked
         :param tool_args: Arguments that were passed to the tool
         """
-        super().__init__(message)
-        self.tool_name = tool_name
+        super().__init__(message=message, tool_name=tool_name)
         self.tool_args = tool_args or {}
 
 
