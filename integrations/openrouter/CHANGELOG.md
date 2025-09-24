@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/openrouter-v0.2.2] - 2025-09-23
+
+### 🐛 Bug Fixes
+
+- Chore: Fix linting in tests for Openrouter integration (#2261)
+- Update OpenRouterChatGenerator to work with `haystack-ai>=2.18.0` (#2295)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+
 ## [integrations/openrouter-v0.2.1] - 2025-08-07
 
 ### 🚀 Features
