@@ -1,8 +1,9 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from collections.abc import Mapping
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import numpy as np
 from elastic_transport import NodeConfig
@@ -10,6 +11,7 @@ from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.version import __version__ as haystack_version
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
@@ -38,13 +40,16 @@ class ElasticsearchDocumentStore:
 
     Usage example (Elastic Cloud):
     ```python
-    from haystack.document_store.elasticsearch import ElasticsearchDocumentStore
-    document_store = ElasticsearchDocumentStore(cloud_id="YOUR_CLOUD_ID", api_key="YOUR_API_KEY")
+    from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
+    document_store = ElasticsearchDocumentStore(
+        api_key_id=Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),
+        api_key=Secret.from_env_var("ELASTIC_API_KEY", strict=False),
+    )
     ```
 
     Usage example (self-hosted Elasticsearch instance):
     ```python
-    from haystack.document_store.elasticsearch import ElasticsearchDocumentStore
+    from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
     document_store = ElasticsearchDocumentStore(hosts="http://localhost:9200")
     ```
     In the above example we connect with security disabled just to show the basic usage.
@@ -63,6 +68,8 @@ class ElasticsearchDocumentStore:
         hosts: Optional[Hosts] = None,
         custom_mapping: Optional[Dict[str, Any]] = None,
         index: str = "default",
+        api_key: Secret = Secret.from_env_var("ELASTIC_API_KEY", strict=False),  # noqa: B008
+        api_key_id: Secret = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),  # noqa: B008
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
         **kwargs: Any,
     ):
@@ -80,9 +87,16 @@ class ElasticsearchDocumentStore:
         For the full list of supported kwargs, see the official Elasticsearch
         [reference](https://elasticsearch-py.readthedocs.io/en/stable/api.html#module-elasticsearch)
 
+        Authentication is provided via Secret objects, which by default are loaded from environment variables.
+        You can either provide both `api_key_id` and `api_key`, or just `api_key` containing a base64-encoded string
+        of `id:secret`. Secret instances can also be loaded from a token using the `Secret.from_token()` method.
+
         :param hosts: List of hosts running the Elasticsearch client.
         :param custom_mapping: Custom mapping for the index. If not provided, a default mapping will be used.
         :param index: Name of index in Elasticsearch.
+        :param api_key: A Secret object containing the API key for authenticating or base64-encoded with the
+                        concatenated secret and id for authenticating with Elasticsearch (separated by “:”).
+        :param api_key_id: A Secret object containing the API key ID for authenticating with Elasticsearch.
         :param embedding_similarity_function: The similarity function used to compare Documents embeddings.
             This parameter only takes effect if the index does not yet exist and is created.
             To choose the most appropriate function, look for information about your embedding model.
@@ -94,6 +108,8 @@ class ElasticsearchDocumentStore:
         self._client: Optional[Elasticsearch] = None
         self._async_client: Optional[AsyncElasticsearch] = None
         self._index = index
+        self._api_key = api_key
+        self._api_key_id = api_key_id
         self._embedding_similarity_function = embedding_similarity_function
         self._custom_mapping = custom_mapping
         self._kwargs = kwargs
@@ -111,14 +127,18 @@ class ElasticsearchDocumentStore:
             headers = self._kwargs.pop("headers", {})
             headers["user-agent"] = f"haystack-py-ds/{haystack_version}"
 
+            api_key = self._handle_auth()
+
             # Initialize both sync and async clients
             self._client = Elasticsearch(
                 self._hosts,
+                api_key=api_key,
                 headers=headers,
                 **self._kwargs,
             )
             self._async_client = AsyncElasticsearch(
                 self._hosts,
+                api_key=api_key,
                 headers=headers,
                 **self._kwargs,
             )
@@ -158,6 +178,49 @@ class ElasticsearchDocumentStore:
 
             self._initialized = True
 
+    def _handle_auth(self) -> Optional[Union[str, Tuple[str, str]]]:
+        """
+        Handles authentication for the Elasticsearch client.
+
+        There are three possible scenarios.
+
+        1) Authentication with both api_key and api_key_id, either as Secrets or as environment variables. In this case,
+           use both for authentication.
+
+        2) Authentication with only api_key, either as a Secret or as an environment variable. In this case, the api_key
+           must be a base64-encoded string that encodes both id and secret <id:secret>.
+
+        3) There's no authentication, neither api_key nor api_key_id are provided as a Secret nor defined as
+           environment variables. In this case, the client will connect without authentication.
+
+        :returns:
+            api_key: Optional[Union[str, Tuple[str, str]]]
+
+        """
+
+        api_key: Optional[Union[str, Tuple[str, str]]]  # make the type checker happy
+
+        api_key_resolved = self._api_key.resolve_value()
+        api_key_id_resolved = self._api_key_id.resolve_value()
+
+        # Scenario 1: both are found, use them
+        if api_key_id_resolved and api_key_resolved:
+            api_key = (api_key_id_resolved, api_key_resolved)
+            return api_key
+
+        # Scenario 2: only api_key is set, must be a base64-encoded string that encodes id and secret (separated by “:”)
+        elif api_key_resolved and not api_key_id_resolved:
+            return api_key_resolved
+
+        # Error: only api_key_id is found, raise an error
+        elif api_key_id_resolved and not api_key_resolved:
+            msg = "api_key_id is provided but api_key is missing."
+            raise ValueError(msg)
+
+        else:
+            # Scenario 3: neither found, no authentication
+            return None
+
     @property
     def client(self) -> Elasticsearch:
         """
@@ -191,6 +254,8 @@ class ElasticsearchDocumentStore:
             hosts=self._hosts,
             custom_mapping=self._custom_mapping,
             index=self._index,
+            api_key=self._api_key.to_dict(),
+            api_key_id=self._api_key_id.to_dict(),
             embedding_similarity_function=self._embedding_similarity_function,
             **self._kwargs,
         )
@@ -205,6 +270,7 @@ class ElasticsearchDocumentStore:
         :returns:
             Deserialized component.
         """
+        deserialize_secrets_inplace(data, keys=["api_key", "api_key_id"])
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:
