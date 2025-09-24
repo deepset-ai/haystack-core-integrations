@@ -913,7 +913,7 @@ class MCPTool(Tool):
                 logger.debug(f"TOOL: Inside invoke coroutine for '{self.name}'")
                 # This should never happen, and mypy doesn't know that
                 if self._client is None:
-                    raise MCPConnectionError(message="Not connected to an MCP server", operation="call_tool")                
+                    raise MCPConnectionError(message="Not connected to an MCP server", operation="call_tool")
                 result = await asyncio.wait_for(
                     self._client.call_tool(self.name, kwargs), timeout=self._invocation_timeout
                 )
