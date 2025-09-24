@@ -131,7 +131,7 @@ class ElasticsearchDocumentStore:
             headers = self._kwargs.pop("headers", {})
             headers["user-agent"] = f"haystack-py-ds/{haystack_version}"
 
-            api_key = self.handle_auth()
+            api_key = self._handle_auth()
 
             # Initialize both sync and async clients
             self._client = Elasticsearch(
@@ -182,7 +182,7 @@ class ElasticsearchDocumentStore:
 
             self._initialized = True
 
-    def handle_auth(self) -> Optional[Union[str, Tuple[str, str]]]:
+    def _handle_auth(self) -> Optional[Union[str, Tuple[str, str]]]:
         """
         Handles authentication for the Elasticsearch client.
 
