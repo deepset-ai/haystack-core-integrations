@@ -12,7 +12,6 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack.utils.auth import TokenSecret
 from haystack.version import __version__ as haystack_version
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
@@ -42,7 +41,7 @@ class ElasticsearchDocumentStore:
     Usage example (Elastic Cloud):
     ```python
     from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
-    document_store = ElasticsearchDocumentStore(cloud_id="YOUR_CLOUD_ID", api_key="YOUR_API_KEY")
+    document_store = ElasticsearchDocumentStore(api_key_id="YOUR_CLOUD_ID", api_key="YOUR_API_KEY")
     ```
 
     Usage example (self-hosted Elasticsearch instance):
@@ -258,10 +257,8 @@ class ElasticsearchDocumentStore:
             hosts=self._hosts,
             custom_mapping=self._custom_mapping,
             index=self._index,
-            api_key=self._api_key.to_dict() if self._api_key and not isinstance(self._api_key, TokenSecret) else None,
-            api_key_id=self._api_key_id.to_dict()
-            if self._api_key_id and not isinstance(self._api_key, TokenSecret)
-            else None,
+            api_key=self._api_key.to_dict(),
+            api_key_id=self._api_key_id.to_dict(),
             embedding_similarity_function=self._embedding_similarity_function,
             **self._kwargs,
         )
@@ -276,7 +273,7 @@ class ElasticsearchDocumentStore:
         :returns:
             Deserialized component.
         """
-        deserialize_secrets_inplace(data, keys=["ELASTIC_API_KEY", "ELASTIC_API_KEY_ID"])
+        deserialize_secrets_inplace(data, keys=["api_key", "api_key_id"])
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:

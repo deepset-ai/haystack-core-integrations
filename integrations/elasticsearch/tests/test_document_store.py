@@ -111,15 +111,14 @@ def test_to_dict_with_api_keys_env_vars(_mock_elasticsearch_client, monkeypatch)
 def test_to_dict_with_api_keys_as_secret(_mock_elasticsearch_client, monkeypatch):
     monkeypatch.setenv("ELASTIC_API_KEY", "test-api-key")
     monkeypatch.setenv("ELASTIC_API_KEY_ID", "test-api-key-id")
-    document_store = ElasticsearchDocumentStore(
-        hosts="https://localhost:9200",
-        api_key=TokenSecret(_token="test-api-key"),
-        api_key_id=TokenSecret(_token="test-api-key-id"),
-    )
-    document_store.client()
-    res = document_store.to_dict()
-    assert res["init_parameters"]["api_key"] is None
-    assert res["init_parameters"]["api_key_id"] is None
+    with pytest.raises(ValueError):
+        document_store = ElasticsearchDocumentStore(
+            hosts="https://localhost:9200",
+            api_key=TokenSecret(_token="test-api-key"),
+            api_key_id=TokenSecret(_token="test-api-key-id"),
+        )
+        document_store.client()
+        _ = document_store.to_dict()
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
