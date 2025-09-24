@@ -203,7 +203,7 @@ class ElasticsearchDocumentStore:
 
         """
 
-        api_key: Optional[Union[str, Tuple[str, str]]] = None  # make the type checker happy
+        api_key: Optional[Union[str, Tuple[str, str]]]  # make the type checker happy
 
         api_key_resolved = self._api_key.resolve_value()
         api_key_id_resolved = self._api_key_id.resolve_value()
