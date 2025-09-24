@@ -817,7 +817,7 @@ class MCPTool(Tool):
         self._server_info = server_info
         self._connection_timeout = connection_timeout
         self._invocation_timeout = invocation_timeout
-        self.eager_connect = eager_connect
+        self._eager_connect = eager_connect
         self._client: MCPClient | None = None
         self._worker: _MCPClientSessionManager | None = None
         self._lock = threading.RLock()
@@ -906,7 +906,7 @@ class MCPTool(Tool):
         logger.debug(f"TOOL: Invoking tool '{self.name}' with args: {kwargs}")
         try:
             # Connect on first use if in lazy mode
-            if not self.eager_connect:
+            if not self._eager_connect:
                 self._ensure_connected()
 
             async def invoke():
@@ -944,7 +944,7 @@ class MCPTool(Tool):
         :raises TimeoutError: If the operation times out
         """
         try:
-            if not self.eager_connect:
+            if not self._eager_connect:
                 self._ensure_connected()
             client = cast(MCPClient, self._client)
             return await asyncio.wait_for(client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
@@ -995,7 +995,7 @@ class MCPTool(Tool):
             "server_info": self._server_info.to_dict(),
             "connection_timeout": self._connection_timeout,
             "invocation_timeout": self._invocation_timeout,
-            "eager_connect": self.eager_connect,
+            "eager_connect": self._eager_connect,
         }
         return {
             "type": generate_qualified_class_name(type(self)),
