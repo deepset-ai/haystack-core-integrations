@@ -4,7 +4,7 @@
 
 ### 🚀 Features
 
-- [**breaking**] Adding `api_token` and `apit_token_id` support to `ElasticSearchDocumentStore` (#2292)
+- [**breaking**] Adding `api_token` and `apit_token_id` authentication support to `ElasticSearchDocumentStore` (#2292)
 
 ### 🧹 Chores
 
