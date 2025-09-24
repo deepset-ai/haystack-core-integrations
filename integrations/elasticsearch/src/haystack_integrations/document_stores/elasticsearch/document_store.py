@@ -41,7 +41,10 @@ class ElasticsearchDocumentStore:
     Usage example (Elastic Cloud):
     ```python
     from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
-    document_store = ElasticsearchDocumentStore(api_key_id="YOUR_CLOUD_ID", api_key="YOUR_API_KEY")
+    document_store = ElasticsearchDocumentStore(
+        api_key_id=Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),
+        api_key=Secret.from_env_var("ELASTIC_API_KEY", strict=False),
+    )
     ```
 
     Usage example (self-hosted Elasticsearch instance):
