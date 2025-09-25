@@ -49,7 +49,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install --upgrade hatch "click<8.3.0"
+        run: pip install --upgrade hatch
 
       - name: Set up Docker
         if: runner.os == 'Linux'
