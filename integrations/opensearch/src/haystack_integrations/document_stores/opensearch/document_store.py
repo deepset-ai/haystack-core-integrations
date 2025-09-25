@@ -87,7 +87,7 @@ class OpenSearchDocumentStore:
         Creates a new OpenSearchDocumentStore instance.
 
         The ``embeddings_dim``, ``method``, ``mappings``, and ``settings`` arguments are only used if the index does not
-        exists and needs to be created. If the index already exists, its current configurations will be used.
+        exist and needs to be created. If the index already exists, its current configurations will be used.
 
         For more information on connection parameters, see the [official OpenSearch documentation](https://opensearch.org/docs/latest/clients/python-low-level/#connecting-to-opensearch)
 
@@ -107,7 +107,7 @@ class OpenSearchDocumentStore:
         :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
             for more information. Defaults to {"index.knn": True}
         :param create_index: Whether to create the index if it doesn't exist. Defaults to True
-        :param http_auth: http_auth param passed to the underying connection class.
+        :param http_auth: http_auth param passed to the underlying connection class.
             For basic authentication with default connection class `Urllib3HttpConnection` this can be
             - a tuple of (username, password)
             - a list of [username, password]
@@ -319,7 +319,8 @@ class OpenSearchDocumentStore:
         assert self._async_client is not None
         return (await self._async_client.count(index=self._index))["count"]
 
-    def _deserialize_search_hits(self, hits: List[Dict[str, Any]]) -> List[Document]:
+    @staticmethod
+    def _deserialize_search_hits(hits: List[Dict[str, Any]]) -> List[Document]:
         out = []
         for hit in hits:
             data = hit["_source"]
@@ -344,12 +345,12 @@ class OpenSearchDocumentStore:
     def _search_documents(self, request_body: Dict[str, Any]) -> List[Document]:
         assert self._client is not None
         search_results = self._client.search(index=self._index, body=request_body)
-        return self._deserialize_search_hits(search_results["hits"]["hits"])
+        return OpenSearchDocumentStore._deserialize_search_hits(search_results["hits"]["hits"])
 
     async def _search_documents_async(self, request_body: Dict[str, Any]) -> List[Document]:
         assert self._async_client is not None
         search_results = await self._async_client.search(index=self._index, body=request_body)
-        return self._deserialize_search_hits(search_results["hits"]["hits"])
+        return OpenSearchDocumentStore._deserialize_search_hits(search_results["hits"]["hits"])
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
@@ -418,7 +419,8 @@ class OpenSearchDocumentStore:
             "stats_only": False,
         }
 
-    def _process_bulk_write_errors(self, errors: List[Dict[str, Any]], policy: DuplicatePolicy) -> None:
+    @staticmethod
+    def _process_bulk_write_errors(errors: List[Dict[str, Any]], policy: DuplicatePolicy) -> None:
         if len(errors) == 0:
             return
 
@@ -461,7 +463,7 @@ class OpenSearchDocumentStore:
 
         bulk_params = self._prepare_bulk_write_request(documents=documents, policy=policy, is_async=False)
         documents_written, errors = bulk(**bulk_params)
-        self._process_bulk_write_errors(errors, policy)
+        OpenSearchDocumentStore._process_bulk_write_errors(errors, policy)
         return documents_written
 
     async def write_documents_async(
@@ -478,10 +480,11 @@ class OpenSearchDocumentStore:
         bulk_params = self._prepare_bulk_write_request(documents=documents, policy=policy, is_async=True)
         documents_written, errors = await async_bulk(**bulk_params)
         # since we call async_bulk with stats_only=False, errors is guaranteed to be a list (not int)
-        self._process_bulk_write_errors(errors=errors, policy=policy)  # type: ignore[arg-type]
+        OpenSearchDocumentStore._process_bulk_write_errors(errors=errors, policy=policy)  # type: ignore[arg-type]
         return documents_written
 
-    def _deserialize_document(self, hit: Dict[str, Any]) -> Document:
+    @staticmethod
+    def _deserialize_document(hit: Dict[str, Any]) -> Document:
         """
         Creates a Document from the search hit provided.
         This is mostly useful in self.filter_documents().
