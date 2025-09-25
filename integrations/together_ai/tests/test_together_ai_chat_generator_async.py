@@ -84,7 +84,7 @@ def mock_async_chat_completion():
 
 class TestTogetherAIChatGeneratorAsync:
     def test_init_default_async(self, monkeypatch):
-        monkeypatch.setenv("TOGETHER_AI_API_KEY", "test-api-key")
+        monkeypatch.setenv("TOGETHER_API_KEY", "test-api-key")
         component = TogetherAIChatGenerator()
 
         assert isinstance(component.async_client, AsyncOpenAI)
@@ -94,7 +94,7 @@ class TestTogetherAIChatGeneratorAsync:
 
     @pytest.mark.asyncio
     async def test_run_async(self, chat_messages, mock_async_chat_completion, monkeypatch):  # noqa: ARG002
-        monkeypatch.setenv("TOGETHER_AI_API_KEY", "fake-api-key")
+        monkeypatch.setenv("TOGETHER_API_KEY", "fake-api-key")
         component = TogetherAIChatGenerator()
         response = await component.run_async(chat_messages)
 
@@ -107,7 +107,7 @@ class TestTogetherAIChatGeneratorAsync:
 
     @pytest.mark.asyncio
     async def test_run_async_with_params(self, chat_messages, mock_async_chat_completion, monkeypatch):
-        monkeypatch.setenv("TOGETHER_AI_API_KEY", "fake-api-key")
+        monkeypatch.setenv("TOGETHER_API_KEY", "fake-api-key")
         component = TogetherAIChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
         response = await component.run_async(chat_messages)
 
@@ -124,8 +124,8 @@ class TestTogetherAIChatGeneratorAsync:
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
     @pytest.mark.skipif(
-        not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
+        not os.environ.get("TOGETHER_API_KEY", None),
+        reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -140,8 +140,8 @@ class TestTogetherAIChatGeneratorAsync:
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
-        not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
+        not os.environ.get("TOGETHER_API_KEY", None),
+        reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -169,8 +169,8 @@ class TestTogetherAIChatGeneratorAsync:
         assert "Paris" in responses
 
     @pytest.mark.skipif(
-        not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
+        not os.environ.get("TOGETHER_API_KEY", None),
+        reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -216,8 +216,8 @@ class TestTogetherAIChatGeneratorAsync:
         assert "paris" in final_message.text.lower()
 
     @pytest.mark.skipif(
-        not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
+        not os.environ.get("TOGETHER_API_KEY", None),
+        reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     @pytest.mark.asyncio

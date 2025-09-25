@@ -51,7 +51,7 @@ def mock_chat_completion():
 
 class TestTogetherAIGenerator:
     def test_init_default(self, monkeypatch):
-        monkeypatch.setenv("TOGETHER_AI_API_KEY", "test-api-key")
+        monkeypatch.setenv("TOGETHER_API_KEY", "test-api-key")
         component = TogetherAIGenerator()
         assert component.client.api_key == "test-api-key"
         assert component.model == "meta-llama/Llama-3.3-70B-Instruct-Turbo"
@@ -61,7 +61,7 @@ class TestTogetherAIGenerator:
         assert component.client.max_retries == 5
 
     def test_init_fail_wo_api_key(self, monkeypatch):
-        monkeypatch.delenv("TOGETHER_AI_API_KEY", raising=False)
+        monkeypatch.delenv("TOGETHER_API_KEY", raising=False)
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             TogetherAIGenerator()
 
@@ -206,8 +206,8 @@ class TestTogetherAIGenerator:
         assert [isinstance(reply, str) for reply in response["replies"]]
 
     @pytest.mark.skipif(
-        not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
+        not os.environ.get("TOGETHER_API_KEY", None),
+        reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run(self):
@@ -239,8 +239,8 @@ class TestTogetherAIGenerator:
             generator.run(prompt="Whatever")
 
     @pytest.mark.skipif(
-        not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
+        not os.environ.get("TOGETHER_API_KEY", None),
+        reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     def test_run_with_system_prompt(self):
@@ -251,8 +251,8 @@ class TestTogetherAIGenerator:
         assert "roma" in result["replies"][0].lower()
 
     @pytest.mark.skipif(
-        not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
+        not os.environ.get("TOGETHER_API_KEY", None),
+        reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run_streaming_with_include_usage(self):
