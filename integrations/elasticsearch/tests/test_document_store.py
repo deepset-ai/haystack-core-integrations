@@ -484,30 +484,23 @@ class TestDocumentStore(DocumentStoreBaseTests):
         )
 
     def test_delete_all_documents(self, document_store: ElasticsearchDocumentStore):
-        """Test delete_all_documents removes all documents and preserves index structure"""
-        # Write some test documents
         docs = [
             Document(id="1", content="First document", meta={"category": "test"}),
             Document(id="2", content="Second document", meta={"category": "test"}),
             Document(id="3", content="Third document", meta={"category": "other"}),
         ]
         document_store.write_documents(docs)
-
-        # Verify documents are written
         assert document_store.count_documents() == 3
 
-        # Delete all documents
+        # delete all documents
         document_store.delete_all_documents()
-
-        # Verify all documents are deleted
         assert document_store.count_documents() == 0
 
-        # Verify index still exists and can accept new documents
+        # verify index still exists and can accept new documents and retrieve
         new_doc = Document(id="4", content="New document after delete all")
         document_store.write_documents([new_doc])
         assert document_store.count_documents() == 1
 
-        # Verify the new document can be retrieved
         results = document_store.filter_documents()
         assert len(results) == 1
         assert results[0].id == "4"
@@ -664,30 +657,23 @@ class TestElasticsearchDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_delete_all_documents_async(self, document_store):
-        """Test delete_all_documents_async removes all documents and preserves index structure"""
-        # Write some test documents
         docs = [
             Document(id="1", content="First document", meta={"category": "test"}),
             Document(id="2", content="Second document", meta={"category": "test"}),
             Document(id="3", content="Third document", meta={"category": "other"}),
         ]
         await document_store.write_documents_async(docs)
-
-        # Verify documents are written
         assert await document_store.count_documents_async() == 3
 
-        # Delete all documents
+        # delete all documents
         await document_store.delete_all_documents_async()
-
-        # Verify all documents are deleted
         assert await document_store.count_documents_async() == 0
 
-        # Verify index still exists and can accept new documents
+        # verify index still exists and can accept new documents and retrieve
         new_doc = Document(id="4", content="New document after delete all")
         await document_store.write_documents_async([new_doc])
         assert await document_store.count_documents_async() == 1
 
-        # Verify the new document can be retrieved
         results = await document_store.filter_documents_async()
         assert len(results) == 1
         assert results[0].id == "4"
