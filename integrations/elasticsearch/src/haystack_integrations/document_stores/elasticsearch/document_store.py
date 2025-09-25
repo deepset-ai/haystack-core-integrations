@@ -119,6 +119,29 @@ class ElasticsearchDocumentStore:
             msg = "custom_mapping must be a dictionary"
             raise ValueError(msg)
 
+        if not self._custom_mapping:
+            self.default_mappings = {
+                "properties": {
+                    "embedding": {
+                        "type": "dense_vector",
+                        "index": True,
+                        "similarity": self._embedding_similarity_function,
+                    },
+                    "content": {"type": "text"},
+                },
+                "dynamic_templates": [
+                    {
+                        "strings": {
+                            "path_match": "*",
+                            "match_mapping_type": "string",
+                            "mapping": {
+                                "type": "keyword",
+                            },
+                        }
+                    }
+                ],
+            }
+
     def _ensure_initialized(self):
         """
         Ensures both sync and async clients are initialized and the index exists.
@@ -150,27 +173,7 @@ class ElasticsearchDocumentStore:
                 mappings = self._custom_mapping
             else:
                 # Configure mapping for the embedding field if none is provided
-                mappings = {
-                    "properties": {
-                        "embedding": {
-                            "type": "dense_vector",
-                            "index": True,
-                            "similarity": self._embedding_similarity_function,
-                        },
-                        "content": {"type": "text"},
-                    },
-                    "dynamic_templates": [
-                        {
-                            "strings": {
-                                "path_match": "*",
-                                "match_mapping_type": "string",
-                                "mapping": {
-                                    "type": "keyword",
-                                },
-                            }
-                        }
-                    ],
-                }
+                mappings = self.default_mappings
 
             # Create the index if it doesn't exist
             if not self._client.indices.exists(index=self._index):
@@ -573,6 +576,40 @@ class ElasticsearchDocumentStore:
             )
         except Exception as e:
             msg = f"Failed to delete documents from Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def delete_all_documents(self) -> None:
+        """
+        Deletes all documents in the document store by deleting and recreating the index.
+
+        A fast way to clear all documents from the document store while preserving any index settings and mappings.
+        """
+        self._ensure_initialized()  # _ensure_initialized ensures _client is not None
+
+        # delete index
+        self._client.indices.delete(index=self._index)  # type: ignore
+
+        # recreate with mappings
+        mappings = self._custom_mapping if self._custom_mapping else self.default_mappings
+        self._client.indices.create(index=self._index, mappings=mappings)  # type: ignore
+
+    async def delete_all_documents_async(self) -> None:
+        """
+        Asynchronously deletes all documents in the document store by deleting and recreating the index.
+
+        A fast way to clear all documents from the document store while preserving any index settings and mappings.
+        """
+        self._ensure_initialized()  # ensures _async_client is not None
+
+        try:
+            # delete index
+            await self._async_client.indices.delete(index=self._index)  # type: ignore
+
+            # recreate with mappings
+            mappings = self._custom_mapping if self._custom_mapping else self.default_mappings
+            await self._async_client.indices.create(index=self._index, mappings=mappings)  # type: ignore
+        except Exception as e:
+            msg = f"Failed to delete all documents from Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
     def _bm25_retrieval(
