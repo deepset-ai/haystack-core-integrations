@@ -86,8 +86,8 @@ def mock_chat_completion():
 
 class TestTogetherAIChatGenerator:
     def test_init_default(self, monkeypatch):
-        monkeypatch.setenv("TOGETHER_AI_API_KEY", "test-api-key")
-        component = TogetherAIChatGenerator()
+        monkeypatch.setenv("ENV_VAR", "test-api-key")
+        component = TogetherAIChatGenerator(api_key=Secret.from_env_var("ENV_VAR"))
         assert component.client.api_key == "test-api-key"
         assert component.model == "meta-llama/Llama-3.3-70B-Instruct-Turbo"
         assert component.api_base_url == "https://api.together.xyz/v1"
@@ -95,7 +95,7 @@ class TestTogetherAIChatGenerator:
         assert not component.generation_kwargs
 
     def test_init_fail_wo_api_key(self, monkeypatch):
-        monkeypatch.delenv("TOGETHER_AI_API_KEY", raising=False)
+        monkeypatch.delenv("TOGETHER_API_KEY", raising=False)
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             TogetherAIChatGenerator()
 
@@ -113,7 +113,7 @@ class TestTogetherAIChatGenerator:
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
     def test_to_dict_default(self, monkeypatch):
-        monkeypatch.setenv("TOGETHER_AI_API_KEY", "test-api-key")
+        monkeypatch.setenv("ENV_VAR", "test-api-key")
         component = TogetherAIChatGenerator()
         data = component.to_dict()
 
@@ -123,7 +123,7 @@ class TestTogetherAIChatGenerator:
         )
 
         expected_params = {
-            "api_key": {"env_vars": ["TOGETHER_AI_API_KEY"], "strict": True, "type": "env_var"},
+            "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
             "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
             "streaming_callback": None,
             "api_base_url": "https://api.together.xyz/v1",
@@ -173,13 +173,13 @@ class TestTogetherAIChatGenerator:
             assert data["init_parameters"][key] == value
 
     def test_from_dict(self, monkeypatch):
-        monkeypatch.setenv("TOGETHER_AI_API_KEY", "fake-api-key")
+        monkeypatch.setenv("TOGETHER_API_KEY", "fake-api-key")
         data = {
             "type": (
                 "haystack_integrations.components.generators.together_ai.chat.chat_generator.TogetherAIChatGenerator"
             ),
             "init_parameters": {
-                "api_key": {"env_vars": ["TOGETHER_AI_API_KEY"], "strict": True, "type": "env_var"},
+                "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
@@ -195,20 +195,20 @@ class TestTogetherAIChatGenerator:
         assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
-        assert component.api_key == Secret.from_env_var("TOGETHER_AI_API_KEY")
+        assert component.api_key == Secret.from_env_var("TOGETHER_API_KEY")
         assert component.http_client_kwargs == {"proxy": "http://localhost:8080"}
         assert component.tools is None
         assert component.timeout == 10
         assert component.max_retries == 10
 
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
-        monkeypatch.delenv("TOGETHER_AI_API_KEY", raising=False)
+        monkeypatch.delenv("TOGETHER_API_KEY", raising=False)
         data = {
             "type": (
                 "haystack_integrations.components.generators.together_ai.chat.chat_generator.TogetherAIChatGenerator"
             ),
             "init_parameters": {
-                "api_key": {"env_vars": ["TOGETHER_AI_API_KEY"], "strict": True, "type": "env_var"},
+                "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo ",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
@@ -221,7 +221,7 @@ class TestTogetherAIChatGenerator:
             TogetherAIChatGenerator.from_dict(data)
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
-        monkeypatch.setenv("TOGETHER_AI_API_KEY", "fake-api-key")
+        monkeypatch.setenv("TOGETHER_API_KEY", "fake-api-key")
         component = TogetherAIChatGenerator()
         response = component.run(chat_messages)
 
@@ -233,7 +233,7 @@ class TestTogetherAIChatGenerator:
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
     def test_run_with_params(self, chat_messages, mock_chat_completion, monkeypatch):
-        monkeypatch.setenv("TOGETHER_AI_API_KEY", "fake-api-key")
+        monkeypatch.setenv("TOGETHER_API_KEY", "fake-api-key")
         component = TogetherAIChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
         response = component.run(chat_messages)
 
@@ -249,8 +249,8 @@ class TestTogetherAIChatGenerator:
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
     @pytest.mark.skipif(
-        not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
+        not os.environ.get("TOGETHER_API_KEY", None),
+        reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run(self):
@@ -264,8 +264,8 @@ class TestTogetherAIChatGenerator:
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
-        not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
+        not os.environ.get("TOGETHER_API_KEY", None),
+        reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run_wrong_model(self, chat_messages):
@@ -274,8 +274,8 @@ class TestTogetherAIChatGenerator:
             component.run(chat_messages)
 
     @pytest.mark.skipif(
-        not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
+        not os.environ.get("TOGETHER_API_KEY", None),
+        reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run_streaming(self):
@@ -303,8 +303,8 @@ class TestTogetherAIChatGenerator:
         assert "Paris" in callback.responses
 
     @pytest.mark.skipif(
-        not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
+        not os.environ.get("TOGETHER_API_KEY", None),
+        reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run_with_tools(self, tools):
@@ -323,8 +323,8 @@ class TestTogetherAIChatGenerator:
         assert message.meta["finish_reason"] == "tool_calls"
 
     @pytest.mark.skipif(
-        not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
+        not os.environ.get("TOGETHER_API_KEY", None),
+        reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run_with_tools_and_response(self, tools):
@@ -371,8 +371,8 @@ class TestTogetherAIChatGenerator:
         assert "berlin" in final_message.text.lower()
 
     @pytest.mark.skipif(
-        not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
+        not os.environ.get("TOGETHER_API_KEY", None),
+        reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run_with_tools_streaming(self, tools):
@@ -405,8 +405,8 @@ class TestTogetherAIChatGenerator:
         assert tool_message.meta["finish_reason"] == "tool_calls"
 
     @pytest.mark.skipif(
-        not os.environ.get("TOGETHER_AI_API_KEY", None),
-        reason="Export an env var called TOGETHER_AI_API_KEY containing the Together AI API key to run this test.",
+        not os.environ.get("TOGETHER_API_KEY", None),
+        reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
     def test_pipeline_with_together_ai_chat_generator(self, tools):
@@ -439,7 +439,7 @@ class TestTogetherAIChatGenerator:
         including YAML conversion and detailed dictionary validation
         """
         # Set mock API key
-        monkeypatch.setenv("TOGETHER_AI_API_KEY", "test-key")
+        monkeypatch.setenv("ENV_VAR", "test-key")
 
         # Create a test tool
         tool = Tool(
@@ -451,6 +451,7 @@ class TestTogetherAIChatGenerator:
 
         # Create generator with specific configuration
         generator = TogetherAIChatGenerator(
+            api_key=Secret.from_env_var("ENV_VAR"),
             generation_kwargs={"temperature": 0.7},
             streaming_callback=print_streaming_chunk,
             tools=[tool],
@@ -470,7 +471,7 @@ class TestTogetherAIChatGenerator:
                 "generator": {
                     "type": "haystack_integrations.components.generators.together_ai.chat.chat_generator.TogetherAIChatGenerator",  # noqa: E501
                     "init_parameters": {
-                        "api_key": {"type": "env_var", "env_vars": ["TOGETHER_AI_API_KEY"], "strict": True},
+                        "api_key": {"type": "env_var", "env_vars": ["ENV_VAR"], "strict": True},
                         "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
                         "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                         "api_base_url": "https://api.together.xyz/v1",

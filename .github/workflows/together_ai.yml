@@ -22,7 +22,7 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  TOGETHER_AI_API_KEY: ${{ secrets.TOGETHER_AI_API_KEY }}
+  TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
 
 jobs:
   run:

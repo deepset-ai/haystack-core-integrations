@@ -45,7 +45,7 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
         """
         Initialize the TogetherAIGenerator.
 
-        :param api_key: The Together AI API key.
+        :param api_key: The Together API key.
         :param model: The name of the model to use.
         :param api_base_url: The base URL of the Together AI API.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.

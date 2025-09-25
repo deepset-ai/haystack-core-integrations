@@ -86,13 +86,13 @@ class TestTogetherAIGenerator:
         assert component.api_base_url == "test-base-url"
 
     def test_to_dict_default(self, monkeypatch):
-        monkeypatch.setenv("TOGETHER_AI_API_KEY", "test-api-key")
+        monkeypatch.setenv("TOGETHER_API_KEY", "test-api-key")
         component = TogetherAIGenerator()
         data = component.to_dict()
         assert data == {
             "type": "haystack_integrations.components.generators.together_ai.generator.TogetherAIGenerator",
             "init_parameters": {
-                "api_key": {"env_vars": ["TOGETHER_AI_API_KEY"], "strict": True, "type": "env_var"},
+                "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
                 "streaming_callback": None,
                 "system_prompt": None,
@@ -104,9 +104,9 @@ class TestTogetherAIGenerator:
         }
 
     def test_to_dict_with_parameters(self, monkeypatch):
-        monkeypatch.setenv("ENV_VAR", "test-api-key")
+        monkeypatch.setenv("TOGETHER_API_KEY", "test-api-key")
         component = TogetherAIGenerator(
-            api_key=Secret.from_env_var("ENV_VAR"),
+            api_key=Secret.from_env_var("TOGETHER_API_KEY"),
             model="gpt-4o-mini",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
@@ -119,7 +119,7 @@ class TestTogetherAIGenerator:
         assert data == {
             "type": "haystack_integrations.components.generators.together_ai.generator.TogetherAIGenerator",
             "init_parameters": {
-                "api_key": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
+                "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "gpt-4o-mini",
                 "system_prompt": "test-system-prompt",
                 "api_base_url": "test-base-url",
@@ -131,11 +131,11 @@ class TestTogetherAIGenerator:
         }
 
     def test_from_dict(self, monkeypatch):
-        monkeypatch.setenv("TOGETHER_AI_API_KEY", "fake-api-key")
+        monkeypatch.setenv("TOGETHER_API_KEY", "fake-api-key")
         data = {
             "type": "haystack_integrations.components.generators.together_ai.generator.TogetherAIGenerator",
             "init_parameters": {
-                "api_key": {"env_vars": ["TOGETHER_AI_API_KEY"], "strict": True, "type": "env_var"},
+                "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "gpt-4o-mini",
                 "system_prompt": None,
                 "api_base_url": "test-base-url",
@@ -150,17 +150,17 @@ class TestTogetherAIGenerator:
         assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
-        assert component.api_key == Secret.from_env_var("TOGETHER_AI_API_KEY")
+        assert component.api_key == Secret.from_env_var("TOGETHER_API_KEY")
         assert component.system_prompt is None
         assert component.timeout is None
         assert component.max_retries is None
 
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
-        monkeypatch.delenv("TOGETHER_AI_API_KEY", raising=False)
+        monkeypatch.delenv("TOGETHER_API_KEY", raising=False)
         data = {
             "type": "haystack_integrations.components.generators.together_ai.generator.TogetherAIGenerator",
             "init_parameters": {
-                "api_key": {"env_vars": ["TOGETHER_AI_API_KEY"], "strict": True, "type": "env_var"},
+                "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "gpt-4o-mini",
                 "api_base_url": "test-base-url",
                 "system_prompt": None,

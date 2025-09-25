@@ -59,7 +59,7 @@ class TogetherAIChatGenerator(OpenAIChatGenerator):
     def __init__(
         self,
         *,
-        api_key: Secret = Secret.from_env_var("TOGETHER_AI_API_KEY"),
+        api_key: Secret = Secret.from_env_var("TOGETHER_API_KEY"),
         model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo",
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = "https://api.together.xyz/v1",
@@ -74,7 +74,7 @@ class TogetherAIChatGenerator(OpenAIChatGenerator):
         the default model is `meta-llama/Llama-3.3-70B-Instruct-Turbo`.
 
         :param api_key:
-            The Together AI API key.
+            The Together API key.
         :param model:
             The name of the Together AI chat completion model to use.
         :param streaming_callback:
