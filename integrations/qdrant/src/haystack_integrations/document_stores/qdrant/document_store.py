@@ -135,6 +135,8 @@ class QdrantDocumentStore:
         payload_fields_to_index: Optional[List[dict]] = None,
     ) -> None:
         """
+        Initialize a QdrantDocumentStore.
+
         :param location:
             If `":memory:"` - use in-memory Qdrant instance.
             If `str` - use it as a URL parameter.
@@ -345,12 +347,13 @@ class QdrantDocumentStore:
         [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering)
 
         :param filters: The filters to apply to the document list.
-        :returns: A list of documents that match the given filters.
+        :returns:
+            A list of documents that match the given filters.
         """
         # No need to initialize client here as _get_documents_generator
         # will handle client initialization internally
 
-        self._validate_filters(filters)
+        QdrantDocumentStore._validate_filters(filters)
         return list(
             self._get_documents_generator(
                 filters,
@@ -367,7 +370,7 @@ class QdrantDocumentStore:
         # No need to initialize client here as _get_documents_generator_async
         # will handle client initialization internally
 
-        self._validate_filters(filters)
+        QdrantDocumentStore._validate_filters(filters)
         return [doc async for doc in self._get_documents_generator_async(filters)]
 
     def write_documents(
@@ -430,6 +433,7 @@ class QdrantDocumentStore:
     ) -> int:
         """
         Asynchronously writes documents to Qdrant using the specified policy.
+
         The QdrantDocumentStore can handle duplicate documents based on the given policy.
         The available policies are:
         - `FAIL`: The operation will raise an error if any document already exists.
@@ -559,7 +563,8 @@ class QdrantDocumentStore:
         Returns a generator that yields documents from Qdrant based on the provided filters.
 
         :param filters: Filters applied to the retrieved documents.
-        :returns: A generator that yields documents retrieved from Qdrant.
+        :returns: 
+            A generator that yields documents retrieved from Qdrant.
         """
 
         self._initialize_client()
@@ -596,7 +601,8 @@ class QdrantDocumentStore:
         Returns an asynchronous generator that yields documents from Qdrant based on the provided filters.
 
         :param filters: Filters applied to the retrieved documents.
-        :returns: An asynchronous generator that yields documents retrieved from Qdrant.
+        :returns: 
+            An asynchronous generator that yields documents retrieved from Qdrant.
         """
 
         await self._initialize_async_client()
@@ -632,8 +638,7 @@ class QdrantDocumentStore:
         """
         Retrieves documents from Qdrant by their IDs.
 
-        :param ids:
-            A list of document IDs to retrieve.
+        :param ids: A list of document IDs to retrieve.
         :returns:
             A list of documents.
         """
@@ -663,8 +668,7 @@ class QdrantDocumentStore:
         """
         Retrieves documents from Qdrant by their IDs.
 
-        :param ids:
-            A list of document IDs to retrieve.
+        :param ids: A list of document IDs to retrieve.
         :returns:
             A list of documents.
         """
@@ -715,7 +719,8 @@ class QdrantDocumentStore:
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
 
-        :returns: List of documents that are most similar to `query_sparse_embedding`.
+        :returns: 
+            List of documents that are most similar to `query_sparse_embedding`.
 
         :raises QdrantStoreError:
             If the Document Store was initialized with `use_sparse_embeddings=False`.
@@ -792,7 +797,8 @@ class QdrantDocumentStore:
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
 
-        :returns: List of documents that are most similar to `query_embedding`.
+        :returns: 
+            List of documents that are most similar to `query_embedding`.
         """
         self._initialize_client()
         assert self._client is not None
@@ -855,7 +861,8 @@ class QdrantDocumentStore:
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
 
-        :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
+        :returns: 
+            A list of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
 
         :raises QdrantStoreError:
             If the Document Store was initialized with `use_sparse_embeddings=False`.
@@ -965,7 +972,8 @@ class QdrantDocumentStore:
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
 
-        :returns: List of documents that are most similar to `query_sparse_embedding`.
+        :returns: 
+            A list of documents that are most similar to `query_sparse_embedding`.
 
         :raises QdrantStoreError:
             If the Document Store was initialized with `use_sparse_embeddings=False`.
@@ -1045,7 +1053,8 @@ class QdrantDocumentStore:
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
 
-        :returns: List of documents that are most similar to `query_embedding`.
+        :returns: 
+            A list of documents that are most similar to `query_embedding`.
         """
         await self._initialize_async_client()
         assert self._async_client is not None
@@ -1110,7 +1119,8 @@ class QdrantDocumentStore:
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
 
-        :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
+        :returns: 
+            A list of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
 
         :raises QdrantStoreError:
             If the Document Store was initialized with `use_sparse_embeddings=False`.
@@ -1214,7 +1224,8 @@ class QdrantDocumentStore:
 
     def _create_payload_index(self, collection_name: str, payload_fields_to_index: Optional[List[dict]] = None) -> None:
         """
-        Create payload index for the collection if payload_fields_to_index is provided
+        Create payload index for the collection if payload_fields_to_index is provided.
+
         See: https://qdrant.tech/documentation/concepts/indexing/#payload-index
         """
         if payload_fields_to_index is not None:
@@ -1233,7 +1244,8 @@ class QdrantDocumentStore:
         self, collection_name: str, payload_fields_to_index: Optional[List[dict]] = None
     ) -> None:
         """
-        Asynchronously create payload index for the collection if payload_fields_to_index is provided
+        Asynchronously create payload index for the collection if payload_fields_to_index is provided.
+
         See: https://qdrant.tech/documentation/concepts/indexing/#payload-index
         """
         if payload_fields_to_index is not None:
@@ -1261,6 +1273,7 @@ class QdrantDocumentStore:
     ) -> None:
         """
         Sets up the Qdrant collection with the specified parameters.
+
         :param collection_name:
             The name of the collection to set up.
         :param embedding_dim:
@@ -1317,6 +1330,7 @@ class QdrantDocumentStore:
     ) -> None:
         """
         Asynchronously sets up the Qdrant collection with the specified parameters.
+
         :param collection_name:
             The name of the collection to set up.
         :param embedding_dim:
@@ -1479,13 +1493,13 @@ class QdrantDocumentStore:
         policy: Optional[DuplicatePolicy] = None,
     ) -> List[Document]:
         """
-        Asynchronously checks whether any of the passed documents is already existing
-        in the chosen index and returns a list of
-        documents that are not in the index yet.
+        Asynchronously checks whether any of the passed documents is already existing in the chosen index and returns a
+        list of documents that are not in the index yet.
 
         :param documents: A list of Haystack Document objects.
         :param policy: The duplicate policy to use when writing documents.
-        :returns: A list of Haystack Document objects.
+        :returns: 
+            A list of Haystack Document objects.
         """
 
         if policy in (DuplicatePolicy.SKIP, DuplicatePolicy.FAIL):
@@ -1505,6 +1519,10 @@ class QdrantDocumentStore:
         """
         Drop duplicate documents based on same hash ID.
 
+        :param documents: A list of Haystack Document objects.
+
+        :returns:
+            A list of Haystack Document objects with unique IDs.
         """
         _hash_ids: Set = set()
         _documents: List[Document] = []
@@ -1541,7 +1559,6 @@ class QdrantDocumentStore:
     def _prepare_client_params(self) -> Dict[str, Any]:
         """
         Prepares the common parameters for client initialization.
-
         """
         return {
             "location": self.location,
@@ -1601,7 +1618,8 @@ class QdrantDocumentStore:
 
         return vectors_config, sparse_vectors_config
 
-    def _validate_filters(self, filters: Optional[Union[Dict[str, Any], rest.Filter]] = None) -> None:
+    @staticmethod
+    def _validate_filters(filters: Optional[Union[Dict[str, Any], rest.Filter]] = None) -> None:
         """
         Validates the filters provided for querying.
 
@@ -1643,7 +1661,6 @@ class QdrantDocumentStore:
     def _process_group_results(self, groups: List[rest.PointGroup]) -> List[Document]:
         """
         Processes grouped query results from Qdrant.
-
         """
         if not groups:
             return []
