@@ -528,6 +528,42 @@ class OpenSearchDocumentStore:
 
         await async_bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=True))
 
+    def delete_all_documents(self) -> None:
+        """
+        Deletes all documents in the document store by deleting and recreating the index.
+
+        A fast way to clear all documents from the document store while preserving any index settings and mappings.
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        # Delete index
+        self._client.indices.delete(index=self._index)
+
+        # Recreate with mappings and settings
+        body = {"mappings": self._mappings, "settings": self._settings}
+        self._client.indices.create(index=self._index, body=body)
+
+    async def delete_all_documents_async(self) -> None:
+        """
+        Asynchronously deletes all documents in the document store by deleting and recreating the index.
+
+        A fast way to clear all documents from the document store while preserving any index settings and mappings.
+        """
+        self._ensure_initialized()
+        assert self._async_client is not None
+
+        try:
+            # Delete index
+            await self._async_client.indices.delete(index=self._index)
+
+            # Recreate with mappings and settings
+            body = {"mappings": self._mappings, "settings": self._settings}
+            await self._async_client.indices.create(index=self._index, body=body)
+        except Exception as e:
+            msg = f"Failed to delete all documents from OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
     def _prepare_bm25_search_request(
         self,
         *,
