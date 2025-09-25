@@ -87,7 +87,9 @@ class TestTogetherAIGenerator:
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("TOGETHER_API_KEY", "test-api-key")
-        component = TogetherAIGenerator(api_key=Secret.from_env_var("TOGETHER_API_KEY"),)
+        component = TogetherAIGenerator(
+            api_key=Secret.from_env_var("TOGETHER_API_KEY"),
+        )
         data = component.to_dict()
         assert data == {
             "type": "haystack_integrations.components.generators.together_ai.generator.TogetherAIGenerator",

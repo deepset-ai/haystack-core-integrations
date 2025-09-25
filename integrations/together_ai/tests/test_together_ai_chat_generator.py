@@ -379,7 +379,9 @@ class TestTogetherAIChatGenerator:
         """
         Integration test that the TogetherAIChatGenerator component can run with tools and streaming.
         """
-        component = TogetherAIChatGenerator(model="openai/gpt-oss-20b", tools=tools, streaming_callback=print_streaming_chunk)
+        component = TogetherAIChatGenerator(
+            model="openai/gpt-oss-20b", tools=tools, streaming_callback=print_streaming_chunk
+        )
         results = component.run(
             [ChatMessage.from_user("What's the weather like in Paris and Berlin?")],
             generation_kwargs={"tool_choice": "auto"},
@@ -399,7 +401,6 @@ class TestTogetherAIChatGenerator:
             assert tool_call.id is not None
             assert isinstance(tool_call, ToolCall)
             assert tool_call.tool_name == "weather"
-
 
     @pytest.mark.skipif(
         not os.environ.get("TOGETHER_API_KEY", None),
