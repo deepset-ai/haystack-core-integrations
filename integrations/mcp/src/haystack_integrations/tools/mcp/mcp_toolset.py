@@ -117,6 +117,8 @@ class MCPToolset(Toolset):
                           matching names will be added to the toolset.
         :param connection_timeout: Timeout in seconds for server connection
         :param invocation_timeout: Default timeout in seconds for tool invocations
+        :param eager_connect: If True (default), connect to server and load tools during initialization.
+                             If False, defer connection until first tool use (lazy mode).
         :raises MCPToolNotFoundError: If any of the specified tool names are not found on the server
         """
         # Store configuration
@@ -125,13 +127,36 @@ class MCPToolset(Toolset):
         self.connection_timeout = connection_timeout
         self.invocation_timeout = invocation_timeout
         self.eager_connect = eager_connect
+        self.warmup_called = False
 
         if not eager_connect:
-            # Do not connect during validation; expose an empty toolset
-            super().__init__(tools=[])
+            # Do not connect during validation; expose a toolset with one fake tool to pass validation
+            placeholder_tool = Tool(
+                name=f"placeholder_{id(self)}",
+                description="Placeholder tool initialised in lazy mode",
+                parameters={"type": "object", "properties": {}, "additionalProperties": True},
+                function=lambda: None,
+            )
+            super().__init__(tools=[placeholder_tool])
+        else:
+            tools = self._connect_and_load_tools()
+            super().__init__(tools=tools)
+
+    def warm_up(self) -> None:
+        """Connect and load tools when running in lazy mode.
+
+        Call this before handing the toolset to components like ``ToolInvoker`` so that
+        each tool's schema is available without performing a real invocation.
+        """
+        if self.eager_connect or self.warmup_called:
             return
 
-        # Connect and load tools
+        # connect and load tools never adds duplicate tools, set the tools attribute directly
+        self.tools = self._connect_and_load_tools()
+        self.warmup_called = True
+
+    def _connect_and_load_tools(self) -> list[Tool]:
+        """Connect and load tools."""
         try:
             # Create the client and spin up a worker so open/close happen in the
             # same coroutine, avoiding AnyIO cancel-scope issues.
@@ -189,9 +214,7 @@ class MCPToolset(Toolset):
                 )
                 haystack_tools.append(tool)
 
-            # Initialize parent class with complete tools list
-            super().__init__(tools=haystack_tools)
-
+            return haystack_tools
         except Exception as e:
             # We need to close because we could connect properly, retrieve tools yet
             # fail because of an MCPToolNotFoundError

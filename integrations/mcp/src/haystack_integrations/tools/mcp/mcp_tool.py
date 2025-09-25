@@ -808,6 +808,8 @@ class MCPTool(Tool):
         :param description: Custom description (if None, server description will be used)
         :param connection_timeout: Timeout in seconds for server connection
         :param invocation_timeout: Default timeout in seconds for tool invocations
+        :param eager_connect: If True (default), connect to server during initialization.
+                             If False, defer connection until first tool use (lazy mode).
         :raises MCPConnectionError: If connection to the server fails
         :raises MCPToolNotFoundError: If no tools are available or the requested tool is not found
         :raises TimeoutError: If connection times out
@@ -956,6 +958,18 @@ class MCPTool(Tool):
                 raise
             message = f"Failed to invoke tool '{self.name}' with args: {kwargs} , got error: {e!s}"
             raise MCPInvocationError(message, self.name, kwargs) from e
+
+    def warm_up(self) -> None:
+        """Connect and fetch the tool schema when running in lazy mode.
+
+        This should be called before registering the tool with components such as
+        ``ToolInvoker`` so the strict input schema is available without issuing an
+        actual tool invocation. This lets you lazily instantiate the tool
+        and still provide complete metadata to downstream components.
+        """
+        if self._eager_connect:
+            return
+        self._ensure_connected()
 
     def _ensure_connected(self) -> None:
         """Establish connection if not connected (lazy mode)."""
