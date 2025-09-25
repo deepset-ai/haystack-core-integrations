@@ -91,7 +91,7 @@ jobs:
           echo "Llama Stack Server started successfully."
 
       - name: Install Hatch
-        run: pip install --upgrade hatch "click<8.3.0"
+        run: pip install --upgrade hatch
 
       - name: Lint
         if: matrix.python-version == '3.12' && runner.os == 'Linux'
