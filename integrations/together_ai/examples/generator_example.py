@@ -4,7 +4,7 @@
 
 # This example demonstrates how to use the TogetherAIGenerator component
 # To run this example, you will need to
-# set `TOGETHER_AI_API_KEY` environment variable
+# set `TOGETHER_API_KEY` environment variable
 
 
 from haystack.utils import Secret
@@ -13,7 +13,7 @@ from haystack_integrations.components.generators.together_ai.generator import To
 
 generator = TogetherAIGenerator(
     model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
-    api_key=Secret.from_env_var("TOGETHER_AI_API_KEY"),
+    api_key=Secret.from_env_var("TOGETHER_API_KEY"),
     generation_kwargs={"max_tokens": 100, "temperature": 0.7, "top_p": 0.9},
 )
 

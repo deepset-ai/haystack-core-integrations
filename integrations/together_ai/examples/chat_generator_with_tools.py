@@ -5,7 +5,7 @@
 # This example demonstrates how to use the TogetherAIChatGenerator component
 # with tools.
 # To run this example, you will need to
-# set `TOGETHER_AI_API_KEY` environment variable
+# set `TOGETHER_API_KEY` environment variable
 
 from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage
