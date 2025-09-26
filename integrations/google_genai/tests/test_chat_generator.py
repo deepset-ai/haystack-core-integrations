@@ -983,7 +983,7 @@ class TestGoogleGenAIChatGenerator:
         # Verify the error message is helpful and mentions thinking configuration
         error_message = str(exc_info.value)
         assert "Thinking configuration error" in error_message
-        assert "gemini-1.5" in error_message
+        assert "gemini-2.0" in error_message
         assert "thinking_budget" in error_message or "thinking features" in error_message
         assert "Try removing" in error_message or "use a different model" in error_message
 
