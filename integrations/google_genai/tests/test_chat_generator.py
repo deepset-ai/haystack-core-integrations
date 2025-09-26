@@ -974,7 +974,7 @@ class TestGoogleGenAIChatGenerator:
         """
         # gemini-1.5-pro-latest is known to not support thinking
         chat_messages = [ChatMessage.from_user("Why is the sky blue?")]
-        component = GoogleGenAIChatGenerator(model="gemini-1.5-pro-latest", generation_kwargs={"thinking_budget": 1024})
+        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash", generation_kwargs={"thinking_budget": 1024})
 
         # The call should raise a RuntimeError with a helpful message
         with pytest.raises(RuntimeError) as exc_info:
