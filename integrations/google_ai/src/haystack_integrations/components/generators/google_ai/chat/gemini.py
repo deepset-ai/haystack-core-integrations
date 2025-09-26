@@ -87,7 +87,7 @@ class GoogleAIGeminiChatGenerator:
     from haystack_integrations.components.generators.google_ai import GoogleAIGeminiChatGenerator
 
 
-    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-1.5-flash", api_key=Secret.from_token("<MY_API_KEY>"))
+    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-2.0-flash", api_key=Secret.from_token("<MY_API_KEY>"))
 
     messages = [ChatMessage.from_user("What is the most interesting thing you know?")]
     res = gemini_chat.run(messages=messages)
@@ -145,7 +145,7 @@ class GoogleAIGeminiChatGenerator:
         self,
         *,
         api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),  # noqa: B008
-        model: str = "gemini-1.5-flash",
+        model: str = "gemini-2.0-flash",
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
