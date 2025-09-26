@@ -6,6 +6,7 @@ from haystack.dataclasses import (
     AsyncStreamingCallbackT,
     ChatMessage,
     StreamingCallbackT,
+    SyncStreamingCallbackT,
     ToolCall,
     select_streaming_callback,
 )
@@ -312,7 +313,7 @@ class OllamaChatGenerator:
     def _handle_streaming_response(
         self,
         response_iter: Iterator[ChatResponse],
-        callback: Optional[Callable[[StreamingChunk], None]],
+        callback: Optional[SyncStreamingCallbackT],
     ) -> Dict[str, List[ChatMessage]]:
         """
         Merge an Ollama streaming response into a single ChatMessage, preserving
@@ -399,7 +400,7 @@ class OllamaChatGenerator:
         callback: Optional[AsyncStreamingCallbackT],
     ) -> Dict[str, List[ChatMessage]]:
         """
-        Merge an Ollama streaming response into a single ChatMessage, preserving
+        Merge an Ollama async streaming response into a single ChatMessage, preserving
         tool calls.  Works even when arguments arrive piecemeal as str fragments
         or as full JSON dicts."""
         component_info = ComponentInfo.from_component(self)
@@ -453,6 +454,8 @@ class OllamaChatGenerator:
             arguments: str = arg_by_id.get(tool_call_id, "")
             tool_calls.append(ToolCall(tool_name=name_by_id[tool_call_id], arguments=json.loads(arguments)))
 
+        # We can't use _convert_streaming_chunks_to_chat_message because
+        # we need to map tool_call name and args by order.
         reply = ChatMessage.from_assistant(
             text=text or None,
             tool_calls=tool_calls or None,
@@ -492,6 +495,11 @@ class OllamaChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: A list of ChatMessages containing the model's response
         """
+
+        # Validate and select the streaming callback
+        callback = select_streaming_callback(
+            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
+        )
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         tools = tools or self.tools
         _check_duplicate_tool_names(list(tools or []))
@@ -501,9 +509,6 @@ class OllamaChatGenerator:
             tools = list(tools)
         ollama_tools = [{"type": "function", "function": {**tool.tool_spec}} for tool in tools] if tools else None
 
-        callback = select_streaming_callback(
-            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
-        )
         is_stream = callback is not None
 
         ollama_messages = [_convert_chatmessage_to_ollama_format(m) for m in messages]
@@ -552,7 +557,7 @@ class OllamaChatGenerator:
             - `replies`: A list of ChatMessages containing the model's response
         """
         # Validate and select the streaming callback
-        streaming_callback = select_streaming_callback(self.streaming_callback, streaming_callback, requires_async=True)
+        callback = select_streaming_callback(self.streaming_callback, streaming_callback, requires_async=True)
 
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         tools = tools or self.tools
@@ -563,7 +568,7 @@ class OllamaChatGenerator:
             tools = list(tools)
         ollama_tools = [{"type": "function", "function": {**tool.tool_spec}} for tool in tools] if tools else None
 
-        is_stream = streaming_callback is not None
+        is_stream = callback is not None
 
         ollama_messages = [_convert_chatmessage_to_ollama_format(m) for m in messages]
 
@@ -578,9 +583,9 @@ class OllamaChatGenerator:
             think=self.think,
         )
 
-        if is_stream:
+        if isinstance(response, AsyncIterator):
             # response is an async iterator for streaming
-            return await self._handle_streaming_response_async(response_iter=response, callback=streaming_callback)
+            return await self._handle_streaming_response_async(response_iter=response, callback=callback)
 
         # non-stream path
         return {"replies": [_convert_ollama_response_to_chatmessage(ollama_response=response)]}
