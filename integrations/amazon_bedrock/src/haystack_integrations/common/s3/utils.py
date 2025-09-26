@@ -24,6 +24,7 @@ class S3Storage:
         s3_bucket: str,
         session: Session,
         s3_prefix: Optional[str] = None,
+        s3_suffix: Optional[str] = None,
         endpoint_url: Optional[str] = None,
         config: Optional[Config] = None,
     ) -> None:
@@ -33,16 +34,18 @@ class S3Storage:
         :param s3_bucket: The name of the S3 bucket to download files from.
         :param session: The session to use for the S3 client.
         :param s3_prefix: The optional prefix of the files in the S3 bucket.
-        Can be used to specify folder or naming structure.
+            Can be used to specify folder or naming structure.
             For example, if the file is in the folder "folder/subfolder/file.txt",
             the s3_prefix should be "folder/subfolder/". If the file is in the root of the S3 bucket,
             the s3_prefix should be None.
+        :param s3_suffix: The optional suffix of the files in the S3 bucket.
         :param endpoint_url: The endpoint URL of the S3 bucket to download files from.
         :param config: The configuration to use for the S3 client.
         """
 
         self.s3_bucket = s3_bucket
         self.s3_prefix = s3_prefix
+        self.s3_suffix = s3_suffix
         self.endpoint_url = endpoint_url
         self.session = session
         self.config = config
@@ -65,10 +68,7 @@ class S3Storage:
         or the file cannot be downloaded.
         """
 
-        if self.s3_prefix:
-            s3_key = f"{self.s3_prefix}{key}"
-        else:
-            s3_key = key
+        s3_key = f"{self.s3_prefix or ''}{key}{self.s3_suffix or ''}"
 
         try:
             self._client.download_file(self.s3_bucket, s3_key, str(local_file_path))
@@ -110,10 +110,12 @@ class S3Storage:
             )
             raise ValueError(msg)
         s3_prefix = os.getenv("S3_DOWNLOADER_PREFIX") or None
+        s3_suffix = os.getenv("S3_DOWNLOADER_SUFFIX") or None
         endpoint_url = os.getenv("AWS_ENDPOINT_URL") or None
         return cls(
             s3_bucket=s3_bucket,
             s3_prefix=s3_prefix,
+            s3_suffix=s3_suffix,
             endpoint_url=endpoint_url,
             session=session,
             config=config,

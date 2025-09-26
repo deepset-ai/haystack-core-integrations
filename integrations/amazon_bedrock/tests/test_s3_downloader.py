@@ -163,9 +163,9 @@ class TestS3Downloader:
         not os.environ.get("S3_DOWNLOADER_BUCKET", None),
         reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
     )
-    def test_live_run(self, tmp_path):
+    def test_live_run(self, tmp_path, monkeypatch):
         d = S3Downloader(file_root_path=str(tmp_path))
-        os.environ["S3_DOWNLOADER_PREFIX"] = ""
+        monkeypatch.setenv("S3_DOWNLOADER_PREFIX", "")
         S3Downloader.warm_up(d)
 
         docs = [
@@ -200,9 +200,9 @@ class TestS3Downloader:
         not os.environ.get("S3_DOWNLOADER_BUCKET", None),
         reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
     )
-    def test_live_run_with_custom_meta_key(self, tmp_path):
+    def test_live_run_with_custom_meta_key(self, tmp_path, monkeypatch):
         d = S3Downloader(file_root_path=str(tmp_path), file_name_meta_key="custom_name")
-        os.environ["S3_DOWNLOADER_PREFIX"] = ""
+        monkeypatch.setenv("S3_DOWNLOADER_PREFIX", "")
         S3Downloader.warm_up(d)
         docs = [
             Document(meta={"custom_name": "text-sample.txt"}),
@@ -216,9 +216,9 @@ class TestS3Downloader:
         not os.environ.get("S3_DOWNLOADER_BUCKET", None),
         reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
     )
-    def test_live_run_with_prefix(self, tmp_path):
+    def test_live_run_with_prefix(self, tmp_path, monkeypatch):
         d = S3Downloader(file_root_path=str(tmp_path))
-        os.environ["S3_DOWNLOADER_PREFIX"] = "subfolder/"
+        monkeypatch.setenv("S3_DOWNLOADER_PREFIX", "subfolder/")
 
         S3Downloader.warm_up(d)
         docs = [
@@ -227,3 +227,19 @@ class TestS3Downloader:
         out = d.run(documents=docs)
         assert len(out["documents"]) == 1
         assert out["documents"][0].meta["file_name"] == "employees.json"
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("S3_DOWNLOADER_BUCKET", None),
+        reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
+    )
+    def test_live_run_with_suffix(self, tmp_path, monkeypatch):
+        d = S3Downloader(file_root_path=str(tmp_path))
+        monkeypatch.setenv("S3_DOWNLOADER_SUFFIX", ".txt")
+        S3Downloader.warm_up(d)
+        docs = [
+            Document(meta={"file_name": "text-sample"}),
+        ]
+        out = d.run(documents=docs)
+        assert len(out["documents"]) == 1
+        assert out["documents"][0].meta["file_name"] == "text-sample"
