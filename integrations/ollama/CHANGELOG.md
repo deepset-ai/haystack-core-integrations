@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/ollama-v5.2.0] - 2025-09-26
+
+### 🚀 Features
+
+- Add run_async support for OllamaChatGenerator (#2279)
+
+
 ## [integrations/ollama-v5.1.0] - 2025-08-28
 
 ### 🚀 Features
