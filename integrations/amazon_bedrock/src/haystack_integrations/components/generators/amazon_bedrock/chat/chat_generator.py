@@ -27,6 +27,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _parse_completion_response,
     _parse_streaming_response,
     _parse_streaming_response_async,
+    _validate_guardrail_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -157,6 +158,8 @@ class AmazonBedrockChatGenerator:
         streaming_callback: Optional[StreamingCallbackT] = None,
         boto3_config: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
+        *,
+        guardrail_config: Optional[Dict[str, str]] = None,
     ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
@@ -185,6 +188,19 @@ class AmazonBedrockChatGenerator:
             the streaming mode on.
         :param boto3_config: The configuration for the boto3 client.
         :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
+        :param guardrail_config: Optional configuration for a guardrail that has been created in Amazon Bedrock.
+            This must be provided as a dictionary matching either
+            [GuardrailConfiguration](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_GuardrailConfiguration.html).
+            or, in streaming mode (when `streaming_callback` is set),
+            [GuardrailStreamConfiguration](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_GuardrailStreamConfiguration.html).
+            If `trace` is set to `enabled`, the guardrail trace will be included under the `trace` key in the `meta`
+            attribute of the resulting `ChatMessage`.
+            Note: Enabling guardrails in streaming mode may introduce additional latency.
+            To manage this, you can adjust the `streamProcessingMode` parameter.
+            See the
+            [Guardrails Streaming documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-streaming.html)
+            for more information.
+
 
         :raises ValueError: If the model name is empty or None.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
@@ -201,8 +217,12 @@ class AmazonBedrockChatGenerator:
         self.aws_profile_name = aws_profile_name
         self.streaming_callback = streaming_callback
         self.boto3_config = boto3_config
+
         _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
         self.tools = tools
+
+        _validate_guardrail_config(guardrail_config=guardrail_config, streaming=streaming_callback is not None)
+        self.guardrail_config = guardrail_config
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
@@ -288,6 +308,7 @@ class AmazonBedrockChatGenerator:
             streaming_callback=callback_name,
             boto3_config=self.boto3_config,
             tools=serialize_tools_or_toolset(self.tools),
+            guardrail_config=self.guardrail_config,
         )
 
     @classmethod
@@ -385,6 +406,8 @@ class AmazonBedrockChatGenerator:
             params["toolConfig"] = tool_config
         if additional_fields:
             params["additionalModelRequestFields"] = additional_fields
+        if self.guardrail_config:
+            params["guardrailConfig"] = self.guardrail_config
 
         # overloads that exhaust finite Literals(bool) not treated as exhaustive
         # see https://github.com/python/mypy/issues/14764

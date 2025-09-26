@@ -625,6 +625,121 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         with pytest.raises(ValueError):
             document_store._embedding_retrieval(query_embedding=[], distance=0.1, certainty=0.1)
 
+    def test_hybrid_retrieval(self, document_store):
+        document_store.write_documents(
+            [
+                Document(content="Haskell is a functional programming language", embedding=[1.0, 0.8, 0.2, 0.1]),
+                Document(content="Lisp is a functional programming language", embedding=[0.9, 0.7, 0.3, 0.2]),
+                Document(content="Exilir is a functional programming language", embedding=[0.8, 0.6, 0.4, 0.3]),
+                Document(content="F# is a functional programming language", embedding=[0.7, 0.5, 0.5, 0.4]),
+                Document(content="C# is a functional programming language", embedding=[0.6, 0.4, 0.6, 0.5]),
+                Document(content="C++ is an object oriented programming language", embedding=[0.1, 0.2, 0.8, 0.9]),
+                Document(content="Dart is an object oriented programming language", embedding=[0.2, 0.3, 0.7, 0.8]),
+                Document(content="Go is an object oriented programming language", embedding=[0.3, 0.4, 0.6, 0.7]),
+                Document(content="Python is a object oriented programming language", embedding=[0.4, 0.5, 0.5, 0.6]),
+                Document(content="Ruby is a object oriented programming language", embedding=[0.5, 0.6, 0.4, 0.5]),
+                Document(content="PHP is a object oriented programming language", embedding=[0.6, 0.7, 0.3, 0.4]),
+            ]
+        )
+        result = document_store._hybrid_retrieval("functional Haskell", query_embedding=[1.0, 0.8, 0.2, 0.1])
+        assert len(result) > 0
+        # Should find documents containing "functional" and similar to the embedding
+        assert result[0].content == "Haskell is a functional programming language"
+        assert result[0].score > 0.0
+
+    def test_hybrid_retrieval_with_filters(self, document_store):
+        document_store.write_documents(
+            [
+                Document(content="Haskell is a functional programming language", embedding=[1.0, 0.8, 0.2, 0.1]),
+                Document(content="Lisp is a functional programming language", embedding=[0.9, 0.7, 0.3, 0.2]),
+                Document(content="C++ is an object oriented programming language", embedding=[0.1, 0.2, 0.8, 0.9]),
+            ]
+        )
+        filters = {"field": "content", "operator": "==", "value": "Haskell is a functional programming language"}
+        result = document_store._hybrid_retrieval("functional", query_embedding=[1.0, 0.8, 0.2, 0.1], filters=filters)
+        assert len(result) == 1
+        assert result[0].content == "Haskell is a functional programming language"
+        assert result[0].score > 0.0
+
+    def test_hybrid_retrieval_with_topk(self, document_store):
+        document_store.write_documents(
+            [
+                Document(content="Haskell is a functional programming language", embedding=[1.0, 0.8, 0.2, 0.1]),
+                Document(content="Lisp is a functional programming language", embedding=[0.9, 0.7, 0.3, 0.2]),
+                Document(content="Exilir is a functional programming language", embedding=[0.8, 0.6, 0.4, 0.3]),
+                Document(content="F# is a functional programming language", embedding=[0.7, 0.5, 0.5, 0.4]),
+                Document(content="C# is a functional programming language", embedding=[0.6, 0.4, 0.6, 0.5]),
+            ]
+        )
+        result = document_store._hybrid_retrieval("functional", query_embedding=[1.0, 0.8, 0.2, 0.1], top_k=3)
+        assert len(result) == 3
+        assert all("functional" in doc.content for doc in result)
+        assert all(doc.score is not None and doc.score > 0.0 for doc in result)
+
+    def test_hybrid_retrieval_with_alpha(self, document_store):
+        document_store.write_documents(
+            [
+                Document(content="Haskell is a functional programming language", embedding=[1.0, 0.8, 0.2, 0.1]),
+                Document(content="Lisp is a functional programming language", embedding=[0.9, 0.7, 0.3, 0.2]),
+                Document(content="C++ is an object oriented programming language", embedding=[0.1, 0.2, 0.8, 0.9]),
+            ]
+        )
+        # Test with alpha=0.0 (pure BM25)
+        result_bm25 = document_store._hybrid_retrieval("functional", query_embedding=[1.0, 0.8, 0.2, 0.1], alpha=0.0)
+        assert len(result_bm25) > 0
+        assert result_bm25[0].score > 0.0
+
+        # Test with alpha=1.0 (pure vector search)
+        result_vector = document_store._hybrid_retrieval("functional", query_embedding=[1.0, 0.8, 0.2, 0.1], alpha=1.0)
+        assert len(result_vector) > 0
+        assert result_vector[0].score > 0.0
+
+        # Test with alpha=0.5 (balanced hybrid)
+        result_hybrid = document_store._hybrid_retrieval("functional", query_embedding=[1.0, 0.8, 0.2, 0.1], alpha=0.5)
+        assert len(result_hybrid) > 0
+        assert result_hybrid[0].score > 0.0
+
+    def test_hybrid_retrieval_with_max_vector_distance(self, document_store):
+        document_store.write_documents(
+            [
+                Document(content="Haskell is a functional programming language", embedding=[1.0, 0.8, 0.2, 0.1]),
+                Document(content="Lisp is a functional programming language", embedding=[0.9, 0.7, 0.3, 0.2]),
+                Document(content="C++ is an object oriented programming language", embedding=[0.1, 0.2, 0.8, 0.9]),
+            ]
+        )
+        # Use a restrictive max_vector_distance to limit results
+        result = document_store._hybrid_retrieval(
+            "functional", query_embedding=[1.0, 0.8, 0.2, 0.1], max_vector_distance=0.5
+        )
+        assert len(result) >= 1  # Should find at least the closest match
+        assert all(doc.score is not None and doc.score > 0.0 for doc in result)
+
+    def test_hybrid_retrieval_empty_query(self, document_store):
+        document_store.write_documents(
+            [
+                Document(content="Test document", embedding=[1.0, 0.8, 0.2, 0.1]),
+            ]
+        )
+        # Test with empty query string
+        result = document_store._hybrid_retrieval("", query_embedding=[1.0, 0.8, 0.2, 0.1])
+        assert len(result) >= 0  # Should handle empty query gracefully
+
+    def test_hybrid_retrieval_combined_parameters(self, document_store):
+        document_store.write_documents(
+            [
+                Document(content="Haskell is a functional programming language", embedding=[1.0, 0.8, 0.2, 0.1]),
+                Document(content="Lisp is a functional programming language", embedding=[0.9, 0.7, 0.3, 0.2]),
+                Document(content="Exilir is a functional programming language", embedding=[0.8, 0.6, 0.4, 0.3]),
+                Document(content="C++ is an object oriented programming language", embedding=[0.1, 0.2, 0.8, 0.9]),
+            ]
+        )
+        # Test combining multiple parameters
+        result = document_store._hybrid_retrieval(
+            "functional", query_embedding=[1.0, 0.8, 0.2, 0.1], top_k=2, alpha=0.7, max_vector_distance=0.8
+        )
+        assert len(result) <= 2  # Should respect top_k limit
+        assert all(doc.score is not None and doc.score > 0.0 for doc in result)
+
     def test_filter_documents_below_default_limit(self, document_store):
         docs = []
         for index in range(9998):

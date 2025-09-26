@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, Optional
 
 import pytest
@@ -122,6 +123,7 @@ class TestAmazonBedrockChatGenerator:
             generation_kwargs={"temperature": 0.7},
             streaming_callback=print_streaming_chunk,
             boto3_config=boto3_config,
+            guardrail_config={"guardrailIdentifier": "test", "guardrailVersion": "test"},
         )
         expected_dict = {
             "type": CLASS_TYPE,
@@ -136,6 +138,7 @@ class TestAmazonBedrockChatGenerator:
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "boto3_config": boto3_config,
                 "tools": None,
+                "guardrail_config": {"guardrailIdentifier": "test", "guardrailVersion": "test"},
             },
         }
 
@@ -165,6 +168,7 @@ class TestAmazonBedrockChatGenerator:
                     "boto3_config": boto3_config,
                     "tools": None,
                     "stop_words": ["stop"],  # this parameter will be ignored
+                    "guardrail_config": None,
                 },
             }
         )
@@ -268,6 +272,7 @@ class TestAmazonBedrockChatGenerator:
                                 },
                             }
                         ],
+                        "guardrail_config": None,
                     },
                 }
             },
@@ -288,6 +293,17 @@ class TestAmazonBedrockChatGenerator:
         )
         assert request_params["messages"] == [{"content": [{"text": "What's the capital of France?"}], "role": "user"}]
         assert request_params["toolConfig"] == top_song_tool_config
+
+    def test_prepare_request_params_guardrail_config(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(
+            model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+            guardrail_config={"guardrailIdentifier": "test", "guardrailVersion": "test"},
+        )
+        request_params, _ = generator._prepare_request_params(
+            messages=[ChatMessage.from_user("What's the capital of France?")],
+        )
+        assert request_params["messages"] == [{"content": [{"text": "What's the capital of France?"}], "role": "user"}]
+        assert request_params["guardrailConfig"] == {"guardrailIdentifier": "test", "guardrailVersion": "test"}
 
 
 # In the CI, those tests are skipped if AWS Authentication fails
@@ -650,6 +666,32 @@ class TestAmazonBedrockChatGeneratorInference:
         assert not final_message.tool_calls
         assert len(final_message.text) > 0
         assert "hello" in final_message.text.lower()
+
+    @pytest.mark.skipif(
+        not os.getenv("AWS_BEDROCK_GUARDRAIL_ID") or not os.getenv("AWS_BEDROCK_GUARDRAIL_VERSION"),
+        reason=(
+            "Export AWS_BEDROCK_GUARDRAIL_ID and AWS_BEDROCK_GUARDRAIL_VERSION environment variables corresponding"
+            "to a Bedrock Guardrail to run this test."
+        ),
+    )
+    @pytest.mark.parametrize("streaming_callback", [None, print_streaming_chunk])
+    def test_live_run_with_guardrail(self, streaming_callback):
+        messages = [ChatMessage.from_user("Should I invest in Tesla or Apple?")]
+        component = AmazonBedrockChatGenerator(
+            model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+            guardrail_config={
+                "guardrailIdentifier": os.getenv("AWS_BEDROCK_GUARDRAIL_ID"),
+                "guardrailVersion": os.getenv("AWS_BEDROCK_GUARDRAIL_VERSION"),
+                "trace": "enabled",
+            },
+            streaming_callback=streaming_callback,
+        )
+        results = component.run(messages=messages)
+
+        assert results["replies"][0].meta["finish_reason"] == "content_filter"
+        assert results["replies"][0].text == "Sorry, the model cannot answer this question."
+        assert "trace" in results["replies"][0].meta
+        assert "guardrail" in results["replies"][0].meta["trace"]
 
     @pytest.mark.parametrize("model_name", [MODELS_TO_TEST_WITH_TOOLS[0]])  # just one model is enough
     def test_pipeline_with_amazon_bedrock_chat_generator(self, model_name, tools):

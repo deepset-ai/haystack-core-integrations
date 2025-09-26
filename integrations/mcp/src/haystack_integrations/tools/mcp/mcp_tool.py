@@ -29,6 +29,7 @@ from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamablehttp_client
+from mcp.shared.message import SessionMessage
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,7 @@ class AsyncExecutor:
         # use it to control the coroutine.
         return future, stop_event_promise.result(timeout)
 
-    def shutdown(self, timeout: float = 2):
+    def shutdown(self, timeout: float = 2) -> None:
         """
         Shut down the background event loop and thread.
 
@@ -192,8 +193,7 @@ class MCPInvocationError(ToolInvocationError):
         :param tool_name: Name of the tool that was being invoked
         :param tool_args: Arguments that were passed to the tool
         """
-        super().__init__(message)
-        self.tool_name = tool_name
+        super().__init__(message=message, tool_name=tool_name)
         self.tool_args = tool_args or {}
 
 
@@ -208,14 +208,14 @@ class MCPClient(ABC):
     def __init__(self, max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 30.0) -> None:
         self.session: ClientSession | None = None
         self.exit_stack: AsyncExitStack = AsyncExitStack()
-        self.stdio: MemoryObjectReceiveStream[types.JSONRPCMessage | Exception] | None = None
-        self.write: MemoryObjectSendStream[types.JSONRPCMessage] | None = None
+        self.stdio: MemoryObjectReceiveStream[SessionMessage | Exception] | None = None
+        self.write: MemoryObjectSendStream[SessionMessage] | None = None
         self.max_retries = max_retries
         self.base_delay = base_delay
         self.max_delay = max_delay
 
     @abstractmethod
-    async def connect(self) -> list[Tool]:
+    async def connect(self) -> list[types.Tool]:
         """
         Connect to an MCP server.
 
@@ -329,10 +329,16 @@ class MCPClient(ABC):
     async def _initialize_session_with_transport(
         self,
         transport_tuple: tuple[
-            MemoryObjectReceiveStream[types.JSONRPCMessage | Exception], MemoryObjectSendStream[types.JSONRPCMessage]
+            MemoryObjectReceiveStream[SessionMessage | Exception],
+            MemoryObjectSendStream[SessionMessage],
+        ]
+        | tuple[
+            MemoryObjectReceiveStream[SessionMessage | Exception],
+            MemoryObjectSendStream[SessionMessage],
+            Any,
         ],
         connection_type: str,
-    ) -> list[Tool]:
+    ) -> list[types.Tool]:
         """
         Common session initialization logic for all transports.
 
@@ -390,11 +396,11 @@ class StdioClient(MCPClient):
         self.env: dict[str, str] | None = None
         if env:
             self.env = {
-                key: value.resolve_value() if isinstance(value, Secret) else value for key, value in env.items()
+                key: (value.resolve_value() if isinstance(value, Secret) else value) or "" for key, value in env.items()
             }
         logger.debug(f"PROCESS: Created StdioClient for command: {command} {' '.join(self.args or [])}")
 
-    async def connect(self) -> list[Tool]:
+    async def connect(self) -> list[types.Tool]:
         """
         Connect to an MCP server using stdio transport.
 
@@ -433,7 +439,7 @@ class SSEClient(MCPClient):
         )
         self.timeout: int = server_info.timeout
 
-    async def connect(self) -> list[Tool]:
+    async def connect(self) -> list[types.Tool]:
         """
         Connect to an MCP server using SSE transport.
 
@@ -481,7 +487,7 @@ class StreamableHttpClient(MCPClient):
         )
         self.timeout: int = server_info.timeout
 
-    async def connect(self) -> list[Tool]:
+    async def connect(self) -> list[types.Tool]:
         """
         Connect to an MCP server using streamable HTTP transport.
 
@@ -526,7 +532,7 @@ class MCPServerInfo(ABC):
         :returns: Dictionary representation of this server info
         """
         # Store the fully qualified class name for deserialization
-        result = {"type": generate_qualified_class_name(type(self))}
+        result: dict[str, Any] = {"type": generate_qualified_class_name(type(self))}
 
         # Add all fields from the dataclass
         for dataclass_field in fields(self):
@@ -629,7 +635,7 @@ class SSEServerInfo(MCPServerInfo):
             # from now on only use url for the lifetime of the SSEServerInfo instance, never base_url
             self.url = f"{self.base_url.rstrip('/')}/sse"
 
-        elif not is_valid_http_url(self.url):
+        elif self.url and not is_valid_http_url(self.url):
             message = f"Invalid url: {self.url}"
             raise ValueError(message)
 
@@ -834,7 +840,7 @@ class MCPTool(Tool):
             tool_dict = {t.name: t for t in tools}
             logger.debug(f"TOOL: Available tools: {list(tool_dict.keys())}")
 
-            tool_info = tool_dict.get(name)
+            tool_info: types.Tool | None = tool_dict.get(name)
 
             if not tool_info:
                 available = list(tool_dict.keys())
@@ -846,7 +852,7 @@ class MCPTool(Tool):
             # Initialize the parent class
             super().__init__(
                 name=name,
-                description=description or tool_info.description,
+                description=description or tool_info.description or "",
                 parameters=tool_info.inputSchema,
                 function=self._invoke_tool,
             )
@@ -971,7 +977,7 @@ class MCPTool(Tool):
         # First get the appropriate class by name
         server_info_class = import_class_by_name(server_info_dict["type"])
         # Then deserialize using that class's from_dict method
-        server_info = server_info_class.from_dict(server_info_dict)
+        server_info = cast(MCPServerInfo, server_info_class).from_dict(server_info_dict)
 
         # Handle backward compatibility for timeout parameters
         connection_timeout = inner_data.get("connection_timeout", 30)
@@ -1027,7 +1033,7 @@ class _MCPClientSessionManager:
         self.executor = AsyncExecutor.get_instance()
 
         # Where the tool list (or an exception) will be delivered.
-        self._tools_promise: Future[list[Tool]] = Future()
+        self._tools_promise: Future[list[types.Tool]] = Future()
 
         # Kick off the worker coroutine in the background loop
         self._worker_future, self._stop_event = self.executor.run_background(self._run, timeout=None)
@@ -1040,7 +1046,7 @@ class _MCPClientSessionManager:
             self.stop()
             raise
 
-    def tools(self) -> list[Tool]:
+    def tools(self) -> list[types.Tool]:
         """Return the tool list already collected during startup."""
 
         return self._tools_promise.result()
@@ -1048,7 +1054,7 @@ class _MCPClientSessionManager:
     def stop(self) -> None:
         """Request the worker to shut down and block until done."""
 
-        def _set(ev: asyncio.Event):
+        def _set(ev: asyncio.Event) -> None:
             if not ev.is_set():
                 ev.set()
 
@@ -1067,7 +1073,7 @@ class _MCPClientSessionManager:
             logger.debug(f"Error during worker future result: {e}")
             pass
 
-    async def _run(self, stop_event: asyncio.Event):
+    async def _run(self, stop_event: asyncio.Event) -> None:
         """Background coroutine living in AsyncExecutor's loop."""
 
         try:

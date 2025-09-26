@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/langfuse-v3.0.0] - 2025-09-19
+
+### 🌀 Miscellaneous
+
+- Migrate langfuse to v3 (#2247)
+
 ## [integrations/langfuse-v2.3.0] - 2025-08-25
 
 ### 🐛 Bug Fixes
