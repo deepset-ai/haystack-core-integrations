@@ -39,6 +39,7 @@ class S3Downloader:
         file_root_path: Optional[str] = None,
         file_extensions: Optional[List[str]] = None,
         file_name_meta_key: str = "file_name",
+        s3_key_meta_key: str = "file_name",
         max_workers: int = 32,
         max_cache_size: int = 100,
     ) -> None:
@@ -94,6 +95,7 @@ class S3Downloader:
         self.max_workers = max_workers
         self.max_cache_size = max_cache_size
         self.file_name_meta_key = file_name_meta_key
+        self.s3_key_meta_key = s3_key_meta_key
 
         self._storage: Optional[S3Storage] = None
 
@@ -178,8 +180,16 @@ class S3Downloader:
                 f"Document missing required file name metadata key '{self.file_name_meta_key}'. Skipping download."
             )
             return None
+               
+        s3_key = document.meta.get(self.s3_key_meta_key, file_name)
+        if not s3_key:
+            logger.warning(
+                f"Document missing required S3 key metadata key '{self.s3_key_meta_key}'. Skipping download."
+            )
+            return None
 
         file_path = self.file_root_path / Path(file_name)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
 
         if file_path.is_file():
             # set access and modification time to now without redownloading the file
@@ -187,7 +197,7 @@ class S3Downloader:
 
         else:
             # we know that _storage is not None after warm_up() is called, but mypy does not know that
-            self._storage.download(key=file_name, local_file_path=file_path)  # type: ignore[union-attr]
+            self._storage.download(key=s3_key, local_file_path=file_path)  # type: ignore[union-attr]
 
         document.meta["file_path"] = str(file_path)
         return document
