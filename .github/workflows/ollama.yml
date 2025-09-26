@@ -46,7 +46,7 @@ jobs:
           max_attempts: 3
           command: |
             curl -fsSL https://ollama.com/install.sh | sh
-            ollama serve &
+            nohup ollama serve > ollama.log 2>&1 &
 
             # Check if the service is up and running with a timeout of 60 seconds
             timeout=60
