@@ -5,12 +5,13 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from botocore.config import Config
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 from haystack_integrations.common.s3.utils import S3Storage
@@ -41,6 +42,7 @@ class S3Downloader:
         file_name_meta_key: str = "file_name",
         max_workers: int = 32,
         max_cache_size: int = 100,
+        s3_key_generation_function: Optional[Callable[[Document], str]] = None,
     ) -> None:
         """
         Initializes the `S3Downloader` with the provided parameters.
@@ -67,6 +69,11 @@ class S3Downloader:
         :param file_name_meta_key: The name of the meta key that contains the file name to download.
             By default, the `Document.meta["file_name"]` is used. If you want to use a
             different key in `Document.meta`, you can set it here.
+        :param s3_key_generation_function: An optional function that generates the S3 key for the file to download.
+            If not provided, the default behavior is to use `Document.meta["file_name"]`.
+            The function must accept a `Document` object and return a string.
+            If the environment variable `S3_DOWNLOADER_PREFIX` is set, its value will be automatically
+            prefixed to the generated S3 key.
         :raises ValueError: If the `file_root_path` is not set through
             the constructor or the `FILE_ROOT_PATH` environment variable.
 
@@ -94,6 +101,7 @@ class S3Downloader:
         self.max_workers = max_workers
         self.max_cache_size = max_cache_size
         self.file_name_meta_key = file_name_meta_key
+        self.s3_key_generation_function = s3_key_generation_function
 
         self._storage: Optional[S3Storage] = None
 
@@ -186,8 +194,9 @@ class S3Downloader:
             file_path.touch()
 
         else:
+            s3_key = self.s3_key_generation_function(document) if self.s3_key_generation_function else file_name
             # we know that _storage is not None after warm_up() is called, but mypy does not know that
-            self._storage.download(key=file_name, local_file_path=file_path)  # type: ignore[union-attr]
+            self._storage.download(key=s3_key, local_file_path=file_path)  # type: ignore[union-attr]
 
         document.meta["file_path"] = str(file_path)
         return document
@@ -216,6 +225,11 @@ class S3Downloader:
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize the component to a dictionary."""
+
+        s3_key_generation_function_name = (
+            serialize_callable(self.s3_key_generation_function) if self.s3_key_generation_function else None
+        )
+
         return default_to_dict(
             self,
             aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
@@ -228,6 +242,7 @@ class S3Downloader:
             max_cache_size=self.max_cache_size,
             file_extensions=self.file_extensions,
             file_name_meta_key=self.file_name_meta_key,
+            s3_key_generation_function=s3_key_generation_function_name,
         )
 
     @classmethod
@@ -239,6 +254,11 @@ class S3Downloader:
         :returns:
             Deserialized component.
         """
+        s3_key_generation_function_name = data["init_parameters"].get("s3_key_generation_function")
+        if s3_key_generation_function_name:
+            data["init_parameters"]["s3_key_generation_function"] = deserialize_callable(
+                s3_key_generation_function_name
+            )
         deserialize_secrets_inplace(
             data["init_parameters"],
             ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
