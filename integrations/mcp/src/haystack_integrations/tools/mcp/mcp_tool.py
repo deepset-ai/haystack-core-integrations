@@ -758,7 +758,23 @@ class MCPTool(Tool):
     - The JSON contains the structured response from the MCP server
     - Use json.loads() to parse the response into a dictionary
 
-    Example using HTTP:
+    Example using Streamable HTTP:
+    ```python
+    import json
+    from haystack_integrations.tools.mcp import MCPTool, StreamableHttpServerInfo
+    
+    # Create tool instance
+    tool = MCPTool(
+        name="multiply",
+        server_info=StreamableHttpServerInfo(url="http://localhost:8000/mcp")
+    )
+    
+    # Use the tool and parse result
+    result_json = tool.invoke(a=5, b=3)
+    result = json.loads(result_json)
+    ```
+
+    Example using SSE (deprecated):
     ```python
     import json
     from haystack.tools import MCPTool, SSEServerInfo
