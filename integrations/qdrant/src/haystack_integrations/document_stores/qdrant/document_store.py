@@ -380,6 +380,7 @@ class QdrantDocumentStore:
     ) -> int:
         """
         Writes documents to Qdrant using the specified policy.
+
         The QdrantDocumentStore can handle duplicate documents based on the given policy.
         The available policies are:
         - `FAIL`: The operation will raise an error if any document already exists.
@@ -389,7 +390,8 @@ class QdrantDocumentStore:
         :param documents: A list of Document objects to write to Qdrant.
         :param policy: The policy for handling duplicate documents.
 
-        :returns: The number of documents written to the document store.
+        :returns:
+            The number of documents written to the document store.
         """
 
         self._initialize_client()
@@ -525,6 +527,40 @@ class QdrantDocumentStore:
                 "Called QdrantDocumentStore.delete_documents_async() on a non-existing ID",
             )
 
+    def delete_all_documents(self, recreate_index: bool = False) -> None:
+        """
+        Deletes all documents in the document store.
+
+        :param recreate_index: If `True`, the index will be recreated after deletion.
+
+        It deletes the collection and recreates it to ensure all documents are removed.
+        """
+
+        if recreate_index:
+            self.recreate_collection(
+                self.index,
+                self.get_distance(self.similarity),
+                self.embedding_dim,
+                self.on_disk,
+                self.use_sparse_embeddings,
+                self.sparse_idf,
+            )
+        else:
+            self._initialize_client()  # _initialize_client assures the client is initialized
+            self._client.delete(  # type: ignore
+                collection_name=self.index,
+                points_selector=rest.PointsSelectorAll(),
+                wait=self.wait_result_from_api,
+            )
+
+    async def del_all_documents_async(self) -> None:
+        """
+        Asynchronously deletes all documents in the document store.
+
+        It deletes the collection and recreates it to ensure all documents are removed.
+        """
+        # ToDo
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "QdrantDocumentStore":
         """
@@ -563,8 +599,7 @@ class QdrantDocumentStore:
         Returns a generator that yields documents from Qdrant based on the provided filters.
 
         :param filters: Filters applied to the retrieved documents.
-        :returns: 
-            A generator that yields documents retrieved from Qdrant.
+        :returns: A generator that yields documents retrieved from Qdrant.
         """
 
         self._initialize_client()
@@ -601,8 +636,7 @@ class QdrantDocumentStore:
         Returns an asynchronous generator that yields documents from Qdrant based on the provided filters.
 
         :param filters: Filters applied to the retrieved documents.
-        :returns: 
-            An asynchronous generator that yields documents retrieved from Qdrant.
+        :returns: An asynchronous generator that yields documents retrieved from Qdrant.
         """
 
         await self._initialize_async_client()
@@ -639,8 +673,7 @@ class QdrantDocumentStore:
         Retrieves documents from Qdrant by their IDs.
 
         :param ids: A list of document IDs to retrieve.
-        :returns:
-            A list of documents.
+        :returns: A list of documents.
         """
         documents: List[Document] = []
 
@@ -719,8 +752,7 @@ class QdrantDocumentStore:
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
 
-        :returns: 
-            List of documents that are most similar to `query_sparse_embedding`.
+        :returns: List of documents that are most similar to `query_sparse_embedding`.
 
         :raises QdrantStoreError:
             If the Document Store was initialized with `use_sparse_embeddings=False`.
@@ -797,8 +829,7 @@ class QdrantDocumentStore:
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
 
-        :returns: 
-            List of documents that are most similar to `query_embedding`.
+        :returns: List of documents that are most similar to `query_embedding`.
         """
         self._initialize_client()
         assert self._client is not None
@@ -861,8 +892,7 @@ class QdrantDocumentStore:
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
 
-        :returns: 
-            A list of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
+        :returns: A list of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
 
         :raises QdrantStoreError:
             If the Document Store was initialized with `use_sparse_embeddings=False`.
@@ -972,8 +1002,7 @@ class QdrantDocumentStore:
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
 
-        :returns: 
-            A list of documents that are most similar to `query_sparse_embedding`.
+        :returns: A list of documents that are most similar to `query_sparse_embedding`.
 
         :raises QdrantStoreError:
             If the Document Store was initialized with `use_sparse_embeddings=False`.
@@ -1053,8 +1082,7 @@ class QdrantDocumentStore:
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
 
-        :returns: 
-            A list of documents that are most similar to `query_embedding`.
+        :returns: A list of documents that are most similar to `query_embedding`.
         """
         await self._initialize_async_client()
         assert self._async_client is not None
@@ -1119,8 +1147,7 @@ class QdrantDocumentStore:
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
 
-        :returns: 
-            A list of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
+        :returns: A list of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
 
         :raises QdrantStoreError:
             If the Document Store was initialized with `use_sparse_embeddings=False`.
@@ -1295,7 +1322,6 @@ class QdrantDocumentStore:
             If the collection exists with incompatible settings.
         :raises ValueError:
             If the collection exists with a different similarity measure or embedding dimension.
-
         """
 
         self._initialize_client()
@@ -1498,8 +1524,7 @@ class QdrantDocumentStore:
 
         :param documents: A list of Haystack Document objects.
         :param policy: The duplicate policy to use when writing documents.
-        :returns: 
-            A list of Haystack Document objects.
+        :returns: A list of Haystack Document objects.
         """
 
         if policy in (DuplicatePolicy.SKIP, DuplicatePolicy.FAIL):
@@ -1521,8 +1546,7 @@ class QdrantDocumentStore:
 
         :param documents: A list of Haystack Document objects.
 
-        :returns:
-            A list of Haystack Document objects with unique IDs.
+        :returns: A list of Haystack Document objects with unique IDs.
         """
         _hash_ids: Set = set()
         _documents: List[Document] = []
