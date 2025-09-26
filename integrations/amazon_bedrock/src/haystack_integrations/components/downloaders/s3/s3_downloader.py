@@ -70,7 +70,7 @@ class S3Downloader:
             By default, the `Document.meta["file_name"]` is used. If you want to use a
             different key in `Document.meta`, you can set it here.
         :param s3_key_generation_function: An optional function that generates the S3 key for the file to download.
-            If not provided, the default behavior is to use `Document.meta["file_name"]`.
+            If not provided, the default behavior is to use `Document.meta[file_name_meta_key]`.
             The function must accept a `Document` object and return a string.
             If the environment variable `S3_DOWNLOADER_PREFIX` is set, its value will be automatically
             prefixed to the generated S3 key.
