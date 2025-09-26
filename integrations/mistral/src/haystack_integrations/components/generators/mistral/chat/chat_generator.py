@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import StreamingCallbackT
+from haystack.dataclasses import ChatMessage, StreamingCallbackT
 from haystack.tools import Tool, Toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
@@ -123,6 +123,28 @@ class MistralChatGenerator(OpenAIChatGenerator):
             max_retries=max_retries,
             http_client_kwargs=http_client_kwargs,
         )
+
+    def _prepare_api_call(
+        self,
+        *,
+        messages: list[ChatMessage],
+        streaming_callback: Optional[StreamingCallbackT] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
+        tools: Optional[Union[list[Tool], Toolset]] = None,
+        tools_strict: Optional[bool] = None,
+    ) -> dict[str, Any]:
+        api_args = super(MistralChatGenerator, self)._prepare_api_call(  # noqa: UP008
+            messages=messages,
+            streaming_callback=streaming_callback,
+            generation_kwargs=generation_kwargs,
+            tools=tools,
+            tools_strict=tools_strict,
+        )
+        # Mistral does not support response_format and in Haystack 2.18 we always include response_format even if
+        # it's None
+        if "response_format" in api_args and api_args["response_format"] is None:
+            api_args.pop("response_format")
+        return api_args
 
     def to_dict(self) -> Dict[str, Any]:
         """

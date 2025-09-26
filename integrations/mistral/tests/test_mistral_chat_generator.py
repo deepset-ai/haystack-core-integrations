@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime
 from unittest.mock import ANY, patch
@@ -407,6 +408,31 @@ class TestMistralChatGenerator:
 
         assert callback.counter > 1
         assert "Paris" in callback.responses
+
+    @pytest.mark.skipif(
+        not os.environ.get("MISTRAL_API_KEY", None),
+        reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_response_format(self):
+        chat_messages = [
+            ChatMessage.from_user(
+                'Provide the answer in JSON format with a key "answer". What\'s the capital of France?'
+                'For example, respond with {"answer": "Paris"}.'
+            )
+        ]
+        component = MistralChatGenerator(generation_kwargs={"response_format": {"type": "json_object"}})
+        results = component.run(chat_messages)
+        assert isinstance(results, dict)
+        assert "replies" in results
+        assert isinstance(results["replies"], list)
+        assert len(results["replies"]) == 1
+        assert isinstance(results["replies"][0], ChatMessage)
+        message = results["replies"][0]
+        assert isinstance(message.text, str)
+        assert "paris" in message.text.lower()
+        msg = json.loads(message.text)
+        assert "answer" in msg
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),

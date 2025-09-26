@@ -32,7 +32,7 @@ class CohereGenerator(CohereChatGenerator):
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
-        model: str = "command-r",
+        model: str = "command-r-08-2024",
         streaming_callback: Optional[Callable] = None,
         api_base_url: Optional[str] = None,
         **kwargs: Any,

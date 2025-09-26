@@ -62,5 +62,5 @@ if __name__ == "__main__":
     question = "What does Rhodes Statue look like?"
     response = pipeline.run({"text_embedder": {"text": question}, "prompt_builder": {"question": question}})
 
-    print(response["llm"]["replies"][0])
-    print(response["tracer"]["trace_url"])
+    print(response["llm"]["replies"][0])  # noqa: T201
+    print(response["tracer"]["trace_url"])  # noqa: T201

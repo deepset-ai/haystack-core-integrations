@@ -273,6 +273,7 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
     :param model: The model ID used for generation, included in message metadata.
     :returns: List of ChatMessage objects containing the assistant's response(s) with appropriate metadata.
     """
+
     replies = []
     if "output" in response_body and "message" in response_body["output"]:
         message = response_body["output"]["message"]
@@ -280,7 +281,7 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
             content_blocks = message["content"]
 
             # Common meta information
-            base_meta = {
+            meta = {
                 "model": model,
                 "index": 0,
                 "finish_reason": FINISH_REASON_MAPPING.get(response_body.get("stopReason", "")),
@@ -291,6 +292,9 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
                     "total_tokens": response_body.get("usage", {}).get("totalTokens", 0),
                 },
             }
+            # guardrail trace
+            if "trace" in response_body:
+                meta["trace"] = response_body["trace"]
 
             # Process all content blocks and combine them into a single message
             text_content = []
@@ -329,7 +333,7 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
                 ChatMessage.from_assistant(
                     " ".join(text_content),
                     tool_calls=tool_calls,
-                    meta=base_meta,
+                    meta=meta,
                     reasoning=ReasoningContent(
                         reasoning_text=reasoning_text, extra={"reasoning_contents": reasoning_contents}
                     )
@@ -355,6 +359,7 @@ def _convert_event_to_streaming_chunk(
     :param component_info: ComponentInfo object
     :returns: StreamingChunk object containing the content and metadata extracted from the event.
     """
+
     # Initialize an empty StreamingChunk to return if no relevant event is found
     # (e.g. for messageStart and contentBlockStop)
     base_meta = {"model": model, "received_at": datetime.now(timezone.utc).isoformat()}
@@ -426,19 +431,23 @@ def _convert_event_to_streaming_chunk(
             meta=base_meta,
         )
 
-    elif "metadata" in event and "usage" in event["metadata"]:
-        metadata = event["metadata"]
-        streaming_chunk = StreamingChunk(
-            content="",
-            meta={
-                **base_meta,
-                "usage": {
-                    "prompt_tokens": metadata["usage"].get("inputTokens", 0),
-                    "completion_tokens": metadata["usage"].get("outputTokens", 0),
-                    "total_tokens": metadata["usage"].get("totalTokens", 0),
-                },
-            },
-        )
+    elif "metadata" in event:
+        event_meta = event["metadata"]
+        chunk_meta: Dict[str, Any] = {**base_meta}
+
+        if "usage" in event_meta:
+            usage = event_meta["usage"]
+            chunk_meta["usage"] = {
+                "prompt_tokens": usage.get("inputTokens", 0),
+                "completion_tokens": usage.get("outputTokens", 0),
+                "total_tokens": usage.get("totalTokens", 0),
+            }
+        if "trace" in event_meta:
+            chunk_meta["trace"] = event_meta["trace"]
+
+        # Only create chunk if we added usage or trace data
+        if len(chunk_meta) > len(base_meta):
+            streaming_chunk = StreamingChunk(content="", meta=chunk_meta)
 
     streaming_chunk.component_info = component_info
 
@@ -547,8 +556,15 @@ def _parse_streaming_response(
             content_block_idxs.add(content_block_idx)
         streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
+
     reply = _convert_streaming_chunks_to_chat_message(chunks=chunks)
+
+    # both the reasoning content and the trace are ignored in _convert_streaming_chunks_to_chat_message
+    # so we need to process them separately
     reasoning_content = _process_reasoning_contents(chunks=chunks)
+    if chunks[-1].meta and "trace" in chunks[-1].meta:
+        reply.meta["trace"] = chunks[-1].meta["trace"]
+
     reply = ChatMessage.from_assistant(
         text=reply.text,
         meta=reply.meta,
@@ -556,6 +572,7 @@ def _parse_streaming_response(
         tool_calls=reply.tool_calls,
         reasoning=reasoning_content,
     )
+
     return [reply]
 
 
@@ -594,3 +611,24 @@ async def _parse_streaming_response_async(
         reasoning=reasoning_content,
     )
     return [reply]
+
+
+def _validate_guardrail_config(guardrail_config: Optional[Dict[str, str]] = None, streaming: bool = False) -> None:
+    """
+    Validate the guardrail configuration.
+
+    :param guardrail_config: The guardrail configuration.
+    :param streaming: Whether the streaming is enabled.
+
+    :raises ValueError: If the guardrail configuration is invalid.
+    """
+    if guardrail_config is None:
+        return
+
+    required_fields = {"guardrailIdentifier", "guardrailVersion"}
+    if not required_fields.issubset(guardrail_config):
+        msg = "`guardrailIdentifier` and `guardrailVersion` fields are required in guardrail configuration."
+        raise ValueError(msg)
+    if not streaming and "streamProcessingMode" in guardrail_config:
+        msg = "`streamProcessingMode` field is only supported for streaming (when `streaming_callback` is not None)."
+        raise ValueError(msg)
