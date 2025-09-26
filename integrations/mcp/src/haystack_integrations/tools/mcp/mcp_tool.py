@@ -762,13 +762,13 @@ class MCPTool(Tool):
     ```python
     import json
     from haystack_integrations.tools.mcp import MCPTool, StreamableHttpServerInfo
-    
+
     # Create tool instance
     tool = MCPTool(
         name="multiply",
         server_info=StreamableHttpServerInfo(url="http://localhost:8000/mcp")
     )
-    
+
     # Use the tool and parse result
     result_json = tool.invoke(a=5, b=3)
     result = json.loads(result_json)

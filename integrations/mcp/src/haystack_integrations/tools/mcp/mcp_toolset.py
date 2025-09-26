@@ -33,7 +33,8 @@ class MCPToolset(Toolset):
     access to its tools.
 
     MCPToolset dynamically discovers and loads all tools from any MCP-compliant server,
-    supporting both network-based streaming connections (Streamable HTTP, SSE) and local process-based stdio connections.
+    supporting both network-based streaming connections (Streamable HTTP, SSE) and local
+    process-based stdio connections.
     This dual connectivity allows for integrating with both remote and local MCP servers.
 
     Example using MCPToolset in a Haystack Pipeline:
@@ -97,7 +98,7 @@ class MCPToolset(Toolset):
     )
     # Use the toolset as shown in the pipeline example above
     ```
-    
+
     Example using SSE (deprecated):
     ```python
     from haystack_integrations.tools.mcp import MCPToolset, SSEServerInfo
