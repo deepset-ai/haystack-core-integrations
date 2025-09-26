@@ -22,7 +22,7 @@ from haystack_integrations.components.generators.together_ai.generator import To
 @pytest.fixture
 def mock_chat_completion():
     """
-    Mock the OpenAI API completion response and reuse it for tests
+    Mock the Together AI API completion response and reuse it for tests
     """
     with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
         completion = ChatCompletion(
@@ -195,7 +195,7 @@ class TestTogetherAIGenerator:
         )
         response = component.run(prompt="What's Natural Language Processing?")
 
-        # check that the component calls the OpenAI API with the correct parameters
+        # check that the component calls the Together AI API with the correct parameters
         _, kwargs = mock_chat_completion.call_args
         assert kwargs["max_tokens"] == 10
         assert kwargs["temperature"] == 0.5

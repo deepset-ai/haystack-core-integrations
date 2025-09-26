@@ -111,7 +111,7 @@ class TestTogetherAIChatGeneratorAsync:
         component = TogetherAIChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
         response = await component.run_async(chat_messages)
 
-        # check that the component calls the OpenAI API with the correct parameters
+        # check that the component calls the TOGETHER AI API with the correct parameters
         _, kwargs = mock_async_chat_completion.call_args
         assert kwargs["max_tokens"] == 10
         assert kwargs["temperature"] == 0.5
@@ -175,9 +175,6 @@ class TestTogetherAIChatGeneratorAsync:
     @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_live_run_with_tools_and_response_async(self, tools):
-        """
-        Integration test that the TogetherAIChatGenerator component can run with tools and get a response.
-        """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
         component = TogetherAIChatGenerator(tools=tools)
         results = await component.run_async(messages=initial_messages, generation_kwargs={"tool_choice": "auto"})
@@ -222,10 +219,6 @@ class TestTogetherAIChatGeneratorAsync:
     @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_live_run_with_tools_streaming_async(self, tools):
-        """
-        Integration test that the TogetherAIChatGenerator component can run with tools and streaming.
-        """
-
         counter = 0
         tool_calls = []
 
