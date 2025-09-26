@@ -243,3 +243,21 @@ class TestS3Downloader:
         out = d.run(documents=docs)
         assert len(out["documents"]) == 1
         assert out["documents"][0].meta["file_name"] == "text-sample"
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("S3_DOWNLOADER_BUCKET", None),
+        reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
+    )
+    def test_live_run_with_suffix_and_extensions(self, tmp_path, monkeypatch):
+        # the file in the s3 bucket has this key: dog.jpg_suffix
+
+        d = S3Downloader(file_root_path=str(tmp_path), file_extensions=[".jpg"], file_name_meta_key="file_name")
+        monkeypatch.setenv("S3_DOWNLOADER_SUFFIX", "_suffix")
+        S3Downloader.warm_up(d)
+        docs = [
+            Document(meta={"file_name": "dog.jpg"}),
+        ]
+        out = d.run(documents=docs)
+        assert len(out["documents"]) == 1
+        assert out["documents"][0].meta["file_name"] == "dog.jpg"
