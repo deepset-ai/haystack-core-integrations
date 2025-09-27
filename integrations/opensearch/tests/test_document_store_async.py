@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from typing import List
 
 import pytest
@@ -241,3 +245,28 @@ class TestDocumentStoreAsync:
 
         await document_store.delete_documents_async([doc.id])
         assert await document_store.count_documents_async() == 0
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_async(self, document_store):
+        """Test delete_all_documents_async removes all documents and preserves index structure"""
+        docs = [
+            Document(id="1", content="First document", meta={"category": "test"}),
+            Document(id="2", content="Second document", meta={"category": "test"}),
+            Document(id="3", content="Third document", meta={"category": "other"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+        # delete all documents
+        await document_store.delete_all_documents_async()
+        assert await document_store.count_documents_async() == 0
+
+        # verify index still exists and can accept new documents and retrieve
+        new_doc = Document(id="4", content="New document after delete all")
+        await document_store.write_documents_async([new_doc])
+        assert await document_store.count_documents_async() == 1
+
+        results = await document_store.filter_documents_async()
+        assert len(results) == 1
+        assert results[0].id == "4"
+        assert results[0].content == "New document after delete all"

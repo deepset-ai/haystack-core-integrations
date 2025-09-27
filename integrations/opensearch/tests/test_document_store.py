@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import random
 from typing import List
 from unittest.mock import patch
@@ -468,3 +469,27 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert results[0].embedding is None
         assert results[1].embedding is None
         assert results[2].embedding is None
+
+    def test_delete_all_documents(self, document_store: OpenSearchDocumentStore):
+        """Test delete_all_documents removes all documents and preserves index structure"""
+        docs = [
+            Document(id="1", content="First document", meta={"category": "test"}),
+            Document(id="2", content="Second document", meta={"category": "test"}),
+            Document(id="3", content="Third document", meta={"category": "other"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 3
+
+        # delete all documents
+        document_store.delete_all_documents()
+        assert document_store.count_documents() == 0
+
+        # verify index still exists and can accept new documents and retrieve
+        new_doc = Document(id="4", content="New document after delete all")
+        document_store.write_documents([new_doc])
+        assert document_store.count_documents() == 1
+
+        results = document_store.filter_documents()
+        assert len(results) == 1
+        assert results[0].id == "4"
+        assert results[0].content == "New document after delete all"
