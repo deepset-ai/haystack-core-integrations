@@ -113,7 +113,7 @@ class TestVertexAIGeminiChatGenerator:
             tool_config=tool_config,
         )
         mock_vertexai_init.assert_called()
-        assert gemini._model_name == "gemini-1.5-flash"
+        assert gemini._model_name == "gemini-2.5-flash"
         assert gemini._generation_config == generation_config
         assert gemini._safety_settings == safety_settings
         assert gemini._tools == tools
@@ -126,7 +126,7 @@ class TestVertexAIGeminiChatGenerator:
         assert gemini.to_dict() == {
             "type": "haystack_integrations.components.generators.google_vertex.chat.gemini.VertexAIGeminiChatGenerator",
             "init_parameters": {
-                "model": "gemini-1.5-flash",
+                "model": "gemini-2.5-flash",
                 "project_id": None,
                 "location": None,
                 "generation_config": None,
@@ -171,7 +171,7 @@ class TestVertexAIGeminiChatGenerator:
         expected_dict = {
             "type": "haystack_integrations.components.generators.google_vertex.chat.gemini.VertexAIGeminiChatGenerator",
             "init_parameters": {
-                "model": "gemini-1.5-flash",
+                "model": "gemini-2.5-flash",
                 "project_id": "TestID123",
                 "location": "TestLocation",
                 "generation_config": {
@@ -225,7 +225,7 @@ class TestVertexAIGeminiChatGenerator:
                 ),
                 "init_parameters": {
                     "project_id": None,
-                    "model": "gemini-1.5-flash",
+                    "model": "gemini-2.5-flash",
                     "generation_config": None,
                     "safety_settings": None,
                     "tools": None,
@@ -234,7 +234,7 @@ class TestVertexAIGeminiChatGenerator:
             }
         )
 
-        assert gemini._model_name == "gemini-1.5-flash"
+        assert gemini._model_name == "gemini-2.5-flash"
         assert gemini._project_id is None
         assert gemini._safety_settings is None
         assert gemini._tools is None
@@ -254,7 +254,7 @@ class TestVertexAIGeminiChatGenerator:
                 "init_parameters": {
                     "project_id": "TestID123",
                     "location": "TestLocation",
-                    "model": "gemini-1.5-flash",
+                    "model": "gemini-2.5-flash",
                     "generation_config": {
                         "temperature": 0.5,
                         "top_p": 0.5,
@@ -288,7 +288,7 @@ class TestVertexAIGeminiChatGenerator:
             }
         )
 
-        assert gemini._model_name == "gemini-1.5-flash"
+        assert gemini._model_name == "gemini-2.5-flash"
         assert gemini._project_id == "TestID123"
         assert gemini._location == "TestLocation"
         assert gemini._safety_settings == {
@@ -666,7 +666,7 @@ class TestVertexAIGeminiChatGenerator:
 
         generator = VertexAIGeminiChatGenerator(
             project_id="TestID123",
-            model="gemini-1.5-flash",
+            model="gemini-2.5-flash",
             generation_config=GenerationConfig(
                 temperature=0.6,
                 stop_sequences=["stop", "words"],
@@ -690,7 +690,7 @@ class TestVertexAIGeminiChatGenerator:
                     ),
                     "init_parameters": {
                         "project_id": "TestID123",
-                        "model": "gemini-1.5-flash",
+                        "model": "gemini-2.5-flash",
                         "generation_config": {
                             "temperature": 0.6,
                             "stop_sequences": ["stop", "words"],
