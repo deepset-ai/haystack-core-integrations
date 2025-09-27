@@ -141,13 +141,15 @@ class TestGitHubFileEditorTool:
 
         pipeline_dict = pipeline.to_dict()
 
-        # Remove http_client_kwargs from both dictionaries if it exists
-        # We don't want to test the http_client_kwargs because Haystack 2.12.0 doesn't have it
-        # Only Haystack 2.13.0+ has it
-        if "components" in pipeline_dict:
-            agent_params = pipeline_dict["components"]["agent"]["init_parameters"]["chat_generator"]["init_parameters"]
-            if "http_client_kwargs" in agent_params:
-                del agent_params["http_client_kwargs"]
+        # Remove parameters introduced after haystack-ai==2.12.0 (the minimum supported version)
+        # to maintain compatibility
+        try:
+            pipeline_dict["components"]["agent"]["init_parameters"]["chat_generator"]["init_parameters"].pop(
+                "http_client_kwargs", None
+            )
+            pipeline_dict["components"]["agent"]["init_parameters"].pop("tool_invoker_kwargs", None)
+        except KeyError:
+            pass
 
         expected_dict = {
             "metadata": {},

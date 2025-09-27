@@ -1,6 +1,42 @@
 # Changelog
 
-## [unreleased]
+## [integrations/langfuse-v3.0.0] - 2025-09-19
+
+### 🌀 Miscellaneous
+
+- Migrate langfuse to v3 (#2247)
+
+## [integrations/langfuse-v2.3.0] - 2025-08-25
+
+### 🐛 Bug Fixes
+
+- Avoid mixed Langfuse traces in async envs (#2207)
+
+### 🧪 Testing
+
+- Make tests successfully run from forks (#2203)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+
+## [integrations/langfuse-v2.2.1] - 2025-08-07
+
+### 🚀 Features
+
+- Add AmazonBedrockChatGenerator to supported chat generators in Langfuse (#2164)
+
+
+## [integrations/langfuse-v2.2.0] - 2025-07-03
+
+### 🚀 Features
+
+- Simpler generation spans, use Haystack's to_openai_dict_format (#2044)
+
+### 🐛 Bug Fixes
+
+- Properly cleanup Langfuse tracing context after pipeline run failures (#1999)
 
 
 ### 🧹 Chores
@@ -8,6 +44,8 @@
 - Pin langfuse<3.0.0 (#1904)
 - Align core-integrations Hatch scripts (#1898)
 - Update md files for new hatch scripts (#1911)
+- Remove black (#1985)
+
 
 ## [integrations/langfuse-v2.0.1] - 2025-06-02
 

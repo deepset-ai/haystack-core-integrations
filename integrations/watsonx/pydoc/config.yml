@@ -1,0 +1,32 @@
+loaders:
+  - type: haystack_pydoc_tools.loaders.CustomPythonLoader
+    search_path: [../src]
+    modules: [
+      "haystack_integrations.components.generators.watsonx.generator",
+      "haystack_integrations.components.generators.watsonx.chat.chat_generator",
+      "haystack_integrations.components.embedders.watsonx.document_embedder",
+      "haystack_integrations.components.embedders.watsonx.text_embedder",
+    ]
+    ignore_when_discovered: ["__init__"]
+processors:
+  - type: filter
+    expression:
+    documented_only: true
+    do_not_filter_modules: false
+    skip_empty_modules: true
+  - type: smart
+  - type: crossref
+renderer:
+  type: haystack_pydoc_tools.renderers.ReadmeIntegrationRenderer
+  excerpt: IBM watsonx.ai integration for Haystack
+  category_slug: integrations-api
+  title: IBM watsonx.ai
+  slug: integrations-watsonx
+  order: 240  
+  markdown:
+    descriptive_class_title: false
+    classdef_code_block: false
+    descriptive_module_title: true
+    add_method_class_prefix: true
+    add_member_class_prefix: false
+    filename: _readme_watsonx.md

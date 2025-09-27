@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any
+from collections.abc import Callable
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -13,6 +14,7 @@ from haystack.tools import Tool, Toolset
 
 from .mcp_tool import (
     AsyncExecutor,
+    MCPClient,
     MCPConnectionError,
     MCPServerInfo,
     MCPToolNotFoundError,
@@ -31,7 +33,8 @@ class MCPToolset(Toolset):
     access to its tools.
 
     MCPToolset dynamically discovers and loads all tools from any MCP-compliant server,
-    supporting both network-based SSE connections and local process-based stdio connections.
+    supporting both network-based streaming connections (Streamable HTTP, SSE) and local
+    process-based stdio connections.
     This dual connectivity allows for integrating with both remote and local MCP servers.
 
     Example using MCPToolset in a Haystack Pipeline:
@@ -84,7 +87,19 @@ class MCPToolset(Toolset):
     print(result["response_llm"]["replies"][0].text)
     ```
 
-    You can also use the toolset via MCP SSE to talk to remote servers:
+    You can also use the toolset via Streamable HTTP to talk to remote servers:
+    ```python
+    from haystack_integrations.tools.mcp import MCPToolset, StreamableHttpServerInfo
+
+    # Create the toolset with streamable HTTP connection
+    toolset = MCPToolset(
+        server_info=StreamableHttpServerInfo(url="http://localhost:8000/mcp"),
+        tool_names=["multiply"]  # Optional: only include specific tools
+    )
+    # Use the toolset as shown in the pipeline example above
+    ```
+
+    Example using SSE (deprecated):
     ```python
     from haystack_integrations.tools.mcp import MCPToolset, SSEServerInfo
     from haystack.components.tools import ToolInvoker
@@ -145,13 +160,19 @@ class MCPToolset(Toolset):
                     )
 
             # This is a factory that creates the invocation function for the Tool
-            def create_invoke_tool(mcp_client, tool_name, tool_timeout):
-                def invoke_tool(**kwargs) -> Any:
-                    """Invoke a tool using the existing client and AsyncExecutor."""
-                    result = AsyncExecutor.get_instance().run(
+            def create_invoke_tool(
+                owner_toolset: "MCPToolset",
+                mcp_client: MCPClient,
+                tool_name: str,
+                tool_timeout: float,
+            ) -> Callable[..., Any]:
+                """Return a closure that keeps a strong reference to *owner_toolset* alive."""
+
+                def invoke_tool(**kwargs: Any) -> Any:
+                    _ = owner_toolset  # strong reference so GC can't collect the toolset too early
+                    return AsyncExecutor.get_instance().run(
                         mcp_client.call_tool(tool_name, kwargs), timeout=tool_timeout
                     )
-                    return result
 
                 return invoke_tool
 
@@ -168,9 +189,9 @@ class MCPToolset(Toolset):
                 # Use the helper function to create the invoke_tool function
                 tool = Tool(
                     name=tool_info.name,
-                    description=tool_info.description,
+                    description=tool_info.description or "",
                     parameters=tool_info.inputSchema,
-                    function=create_invoke_tool(client, tool_info.name, self.invocation_timeout),
+                    function=create_invoke_tool(self, client, tool_info.name, self.invocation_timeout),
                 )
                 haystack_tools.append(tool)
 
@@ -265,7 +286,7 @@ class MCPToolset(Toolset):
         # Reconstruct the server_info object
         server_info_dict = inner_data.get("server_info", {})
         server_info_class = import_class_by_name(server_info_dict["type"])
-        server_info = server_info_class.from_dict(server_info_dict)
+        server_info = cast(MCPServerInfo, server_info_class).from_dict(server_info_dict)
 
         # Create a new MCPToolset instance
         return cls(

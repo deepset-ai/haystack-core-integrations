@@ -2,14 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
-from google import genai
 from google.genai import types
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 from more_itertools import batched
 from tqdm import tqdm
+
+from haystack_integrations.components.common.google_genai.utils import _get_client
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,39 @@ logger = logging.getLogger(__name__)
 class GoogleGenAIDocumentEmbedder:
     """
     Computes document embeddings using Google AI models.
+
+    ### Authentication examples
+
+    **1. Gemini Developer API (API Key Authentication)**
+    ```python
+    from haystack_integrations.components.embedders.google_genai import GoogleGenAIDocumentEmbedder
+
+    # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
+    document_embedder = GoogleGenAIDocumentEmbedder(model="text-embedding-004")
+
+    **2. Vertex AI (Application Default Credentials)**
+    ```python
+    from haystack_integrations.components.embedders.google_genai import GoogleGenAIDocumentEmbedder
+
+    # Using Application Default Credentials (requires gcloud auth setup)
+    document_embedder = GoogleGenAIDocumentEmbedder(
+        api="vertex",
+        vertex_ai_project="my-project",
+        vertex_ai_location="us-central1",
+        model="text-embedding-004"
+    )
+    ```
+
+    **3. Vertex AI (API Key Authentication)**
+    ```python
+    from haystack_integrations.components.embedders.google_genai import GoogleGenAIDocumentEmbedder
+
+    # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
+    document_embedder = GoogleGenAIDocumentEmbedder(
+        api="vertex",
+        model="text-embedding-004"
+    )
+    ```
 
     ### Usage example
 
@@ -39,7 +73,10 @@ class GoogleGenAIDocumentEmbedder:
     def __init__(
         self,
         *,
-        api_key: Secret = Secret.from_env_var(["GOOGLE_API_KEY", "GEMINI_API_KEY"]),
+        api_key: Secret = Secret.from_env_var(["GOOGLE_API_KEY", "GEMINI_API_KEY"], strict=False),
+        api: Literal["gemini", "vertex"] = "gemini",
+        vertex_ai_project: Optional[str] = None,
+        vertex_ai_location: Optional[str] = None,
         model: str = "text-embedding-004",
         prefix: str = "",
         suffix: str = "",
@@ -52,10 +89,15 @@ class GoogleGenAIDocumentEmbedder:
         """
         Creates an GoogleGenAIDocumentEmbedder component.
 
-        :param api_key:
-            The Google API key.
-            You can set it with the environment variable `GOOGLE_API_KEY` or `GEMINI_API_KEY`, or pass it via
-            this parameter during initialization.
+        :param api_key: Google API key, defaults to the `GOOGLE_API_KEY` and `GEMINI_API_KEY` environment variables.
+            Not needed if using Vertex AI with Application Default Credentials.
+            Go to https://aistudio.google.com/app/apikey for a Gemini API key.
+            Go to https://cloud.google.com/vertex-ai/generative-ai/docs/start/api-keys for a Vertex AI API key.
+        :param api: Which API to use. Either "gemini" for the Gemini Developer API or "vertex" for Vertex AI.
+        :param vertex_ai_project: Google Cloud project ID for Vertex AI. Required when using Vertex AI with
+            Application Default Credentials.
+        :param vertex_ai_location: Google Cloud location for Vertex AI (e.g., "us-central1", "europe-west1").
+            Required when using Vertex AI with Application Default Credentials.
         :param model:
             The name of the model to use for calculating embeddings.
             The default model is `text-embedding-ada-002`.
@@ -77,6 +119,9 @@ class GoogleGenAIDocumentEmbedder:
             For more information, see the [Google AI Task types](https://ai.google.dev/gemini-api/docs/embeddings#task-types).
         """
         self._api_key = api_key
+        self._api = api
+        self._vertex_ai_project = vertex_ai_project
+        self._vertex_ai_location = vertex_ai_location
         self._model = model
         self._prefix = prefix
         self._suffix = suffix
@@ -84,8 +129,14 @@ class GoogleGenAIDocumentEmbedder:
         self._progress_bar = progress_bar
         self._meta_fields_to_embed = meta_fields_to_embed or []
         self._embedding_separator = embedding_separator
-        self._client = genai.Client(api_key=api_key.resolve_value())
         self._config = config if config is not None else {"task_type": "SEMANTIC_SIMILARITY"}
+
+        self._client = _get_client(
+            api_key=api_key,
+            api=api,
+            vertex_ai_project=vertex_ai_project,
+            vertex_ai_location=vertex_ai_location,
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -104,6 +155,9 @@ class GoogleGenAIDocumentEmbedder:
             meta_fields_to_embed=self._meta_fields_to_embed,
             embedding_separator=self._embedding_separator,
             api_key=self._api_key.to_dict(),
+            api=self._api,
+            vertex_ai_project=self._vertex_ai_project,
+            vertex_ai_location=self._vertex_ai_location,
             config=self._config,
         )
 

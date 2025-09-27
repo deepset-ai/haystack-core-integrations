@@ -87,7 +87,7 @@ class GoogleAIGeminiChatGenerator:
     from haystack_integrations.components.generators.google_ai import GoogleAIGeminiChatGenerator
 
 
-    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-1.5-flash", api_key=Secret.from_token("<MY_API_KEY>"))
+    gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-2.0-flash", api_key=Secret.from_token("<MY_API_KEY>"))
 
     messages = [ChatMessage.from_user("What is the most interesting thing you know?")]
     res = gemini_chat.run(messages=messages)
@@ -145,7 +145,7 @@ class GoogleAIGeminiChatGenerator:
         self,
         *,
         api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),  # noqa: B008
-        model: str = "gemini-1.5-flash",
+        model: str = "gemini-2.0-flash",
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
         safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
         tools: Optional[List[Tool]] = None,
@@ -174,6 +174,11 @@ class GoogleAIGeminiChatGenerator:
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         """
+        soft_deprecation_msg = (
+            "This component uses a deprecated SDK. We recommend using the GoogleGenAIChatGenerator instead. "
+            "Documentation is available at https://docs.haystack.deepset.ai/docs/googlegenaichatgenerator."
+        )
+        logger.warning(soft_deprecation_msg)
 
         genai.configure(api_key=api_key.resolve_value())
         _check_duplicate_tool_names(tools)

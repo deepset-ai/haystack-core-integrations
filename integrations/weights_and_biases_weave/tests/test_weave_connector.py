@@ -8,9 +8,9 @@ from haystack import Pipeline, component
 from haystack.components.builders import PromptBuilder
 from haystack.core.errors import PipelineRuntimeError
 from haystack.tracing import tracer as haystack_configured_tracer
-from weave.trace.autopatch import AutopatchSettings
+from weave.trace.settings import UserSettings
 
-from haystack_integrations.components.connectors import WeaveConnector
+from haystack_integrations.components.connectors.weave import WeaveConnector
 from haystack_integrations.tracing.weave import WeaveTracer
 
 
@@ -53,7 +53,7 @@ class TestWeaveConnector:
 
         assert serialized["init_parameters"]["pipeline_name"] == "test_pipeline"
         assert "type" in serialized
-        assert serialized["type"] == "haystack_integrations.components.connectors.weave_connector.WeaveConnector"
+        assert serialized["type"] == "haystack_integrations.components.connectors.weave.weave_connector.WeaveConnector"
 
         deserialized = WeaveConnector.from_dict(serialized)
 
@@ -66,21 +66,45 @@ class TestWeaveConnector:
         """Test that WeaveConnector can be serialized and deserialized correctly"""
         connector = WeaveConnector(
             pipeline_name="test_pipeline",
-            weave_init_kwargs={"autopatch_settings": AutopatchSettings(disable_autopatch=True)},
+            weave_init_kwargs={"settings": {"implicitly_patch_integrations": False}},
         )
         serialized: dict[str, Any] = connector.to_dict()
 
         assert serialized["init_parameters"]["pipeline_name"] == "test_pipeline"
-        assert serialized["init_parameters"]["weave_init_kwargs"] == {"autopatch_settings": {"disable_autopatch": True}}
+        assert serialized["init_parameters"]["weave_init_kwargs"] == {
+            "settings": {"implicitly_patch_integrations": False}
+        }
         assert "type" in serialized
-        assert serialized["type"] == "haystack_integrations.components.connectors.weave_connector.WeaveConnector"
+        assert serialized["type"] == "haystack_integrations.components.connectors.weave.weave_connector.WeaveConnector"
 
         deserialized = WeaveConnector.from_dict(serialized)
 
         assert isinstance(deserialized, WeaveConnector)
         assert deserialized.pipeline_name == "test_pipeline"
         assert deserialized.tracer is None  # tracer is only initialized with warm_up
-        assert deserialized.weave_init_kwargs == {"autopatch_settings": AutopatchSettings(disable_autopatch=True)}
+        assert deserialized.weave_init_kwargs == {"settings": {"implicitly_patch_integrations": False}}
+
+    def test_serialization_of_weave_init_kwargs_with_user_settings(self) -> None:
+        """Test that WeaveConnector can be serialized and deserialized correctly with UserSettings"""
+        connector = WeaveConnector(
+            pipeline_name="test_pipeline",
+            weave_init_kwargs={"settings": UserSettings(implicitly_patch_integrations=False)},
+        )
+        serialized: dict[str, Any] = connector.to_dict()
+
+        assert serialized["init_parameters"]["pipeline_name"] == "test_pipeline"
+        assert serialized["init_parameters"]["weave_init_kwargs"] == {
+            "settings": {"implicitly_patch_integrations": False}
+        }
+        assert "type" in serialized
+        assert serialized["type"] == "haystack_integrations.components.connectors.weave.weave_connector.WeaveConnector"
+
+        deserialized = WeaveConnector.from_dict(serialized)
+
+        assert isinstance(deserialized, WeaveConnector)
+        assert deserialized.pipeline_name == "test_pipeline"
+        assert deserialized.tracer is None  # tracer is only initialized with warm_up
+        assert deserialized.weave_init_kwargs == {"settings": {"implicitly_patch_integrations": False}}
 
     def test_pipeline_tracing(self, mock_weave_client: Mock, sample_pipeline: Pipeline) -> None:
         """Test that pipeline operations are correctly traced"""
@@ -155,7 +179,7 @@ class TestWeaveConnector:
         monkeypatch.setenv("HAYSTACK_CONTENT_TRACING_ENABLED", "true")
         connector = WeaveConnector(
             pipeline_name="test_pipeline",
-            weave_init_kwargs={"autopatch_settings": AutopatchSettings(disable_autopatch=True)},
+            weave_init_kwargs={"settings": {"implicitly_patch_integrations": False}},
         )
         assert connector.tracer is None
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## [integrations/ragas-v2.2.0] - 2025-06-26
+
+### 🐛 Bug Fixes
+
+- Fix ragas types + add py.typed (#2000)
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Update md files for new hatch scripts (#1911)
+- Remove black (#1985)
+
+
 ## [integrations/ragas-v2.1.1] - 2025-05-28
 
 ### ⚙️ CI

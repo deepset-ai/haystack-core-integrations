@@ -1,5 +1,35 @@
 # Changelog
 
+## [integrations/mistral-v0.3.1] - 2025-09-23
+
+### 🐛 Bug Fixes
+
+- Fix MistralChatGenerator to work with `haystack-ai>=2.18` (#2296)
+
+### 🧪 Testing
+
+- Check that `_convert_chat_completion_chunk_to_streaming_chunk` works for `MistralChatGenerator` (#1953)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+### 🌀 Miscellaneous
+
+- Chore: Fix linting in tests in mistral integration (#2262)
+
+## [integrations/mistral-v0.3.0] - 2025-06-27
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Remove black (#1985)
+- Mistral - improve type checking + add py.typed (#2009)
+
+### 🌀 Miscellaneous
+
+- Test: Remove `test_check_abnormal_completions` - already tested in Haystack (#1842)
+
 ## [integrations/mistral-v0.2.0] - 2025-05-23
 
 ### 🐛 Bug Fixes

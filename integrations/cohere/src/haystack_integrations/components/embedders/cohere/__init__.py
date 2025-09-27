@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from .document_embedder import CohereDocumentEmbedder
+from .document_image_embedder import CohereDocumentImageEmbedder
 from .text_embedder import CohereTextEmbedder
 
-__all__ = ["CohereDocumentEmbedder", "CohereTextEmbedder"]
+__all__ = ["CohereDocumentEmbedder", "CohereDocumentImageEmbedder", "CohereTextEmbedder"]

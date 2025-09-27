@@ -1,5 +1,75 @@
 # Changelog
 
+## [integrations/cohere-v6.0.0] - 2025-09-17
+
+### 🧹 Chores
+
+- Fix linting cohere (#2252)
+- Revert default model to `command-r-08-2024` (#2282)
+
+
+## [integrations/cohere-v5.5.0] - 2025-08-29
+
+### 🚀 Features
+
+- Add image support to Cohere Chat Generator (#2223)
+
+
+## [integrations/cohere-v5.4.0] - 2025-08-26
+
+### 🚀 Features
+
+- Add `StreamingChunk` to Cohere ChatGenerator  (#2157)
+
+### 🧪 Testing
+
+- Make tests successfully run from forks (#2203)
+
+### 🧹 Chores
+
+- Standardize readmes - part 1 (#2202)
+- Standardize readmes - part 2 (#2205)
+
+### 🌀 Miscellaneous
+
+- Docs: add Cohere document image embedder to pydocs (#2196)
+
+## [integrations/cohere-v5.3.0] - 2025-08-18
+
+### 🚀 Features
+
+- Add Cohere Image Document Embedder (#2190)
+
+### 🧹 Chores
+
+- CohereChatGenerator - make finish_reason and usage handling more robust (#2149)
+
+
+## [integrations/cohere-v5.2.0] - 2025-07-10
+
+### 🐛 Bug Fixes
+
+- Update Cohere to client 5.16.0 (#2086)
+
+
+## [integrations/cohere-v5.1.1] - 2025-07-10
+
+### 🌀 Miscellaneous
+
+- Fix: Pin cohere to less than 5.16 (#2081)
+
+## [integrations/cohere-v5.1.0] - 2025-07-02
+
+### 🚀 Features
+
+- Cohere - add support for ComponentInfo + refactor streaming (#2043)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+- Improve typing for select_streaming_callback (#2008)
+
+
 ## [integrations/cohere-v5.0.0] - 2025-06-17
 
 ### 🚀 Features

@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "amazon-bedrock-haystack"
 dynamic = ["version"]
-description = 'An integration of Amazon Bedrock as an AmazonBedrockGenerator component.'
+description = 'An integration of AWS S3 and Bedrock as a Downloader and Generator components.'
 readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"
@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.13.1", "boto3>=1.28.57", "aioboto3>=14.0.0"]
+dependencies = ["haystack-ai>=2.17.1", "boto3>=1.28.57", "aioboto3>=14.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/amazon_bedrock#readme"
@@ -58,6 +58,8 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
+    "pillow", # image resizing,
+    "pypdfium2"
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -69,7 +71,10 @@ cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
 types = """mypy -p haystack_integrations.common.amazon_bedrock \
 -p haystack_integrations.components.embedders.amazon_bedrock \
 -p haystack_integrations.components.generators.amazon_bedrock \
--p haystack_integrations.components.rankers.amazon_bedrock {args}"""
+-p haystack_integrations.components.rankers.amazon_bedrock \
+-p haystack_integrations.components.downloaders.s3 \
+-p haystack_integrations.common.s3 {args}"""
+
 
 [tool.mypy]
 install_types = true
@@ -85,11 +90,6 @@ module = [
 "boto3.*",
 ]
 ignore_missing_imports = true
-
-[tool.black]
-target-version = ["py38"]
-line-length = 120
-skip-string-normalization = true
 
 [tool.ruff]
 target-version = "py38"
@@ -168,9 +168,6 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
 markers = [
-  "unit: unit tests",
   "integration: integration tests",
-  "embedders: embedders tests",
-  "generators: generators tests",
 ]
 log_cli = true

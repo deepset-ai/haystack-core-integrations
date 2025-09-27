@@ -5,11 +5,15 @@ loaders:
       "haystack_integrations.common.amazon_bedrock.errors",
       "haystack_integrations.components.embedders.amazon_bedrock.document_embedder",
       "haystack_integrations.components.embedders.amazon_bedrock.text_embedder",
+      "haystack_integrations.components.embedders.amazon_bedrock.document_image_embedder",
       "haystack_integrations.components.generators.amazon_bedrock.generator",
       "haystack_integrations.components.generators.amazon_bedrock.adapters",
       "haystack_integrations.common.amazon_bedrock.errors",
       "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator",
       "haystack_integrations.components.rankers.amazon_bedrock.ranker",
+      "haystack_integrations.components.downloaders.s3.s3_downloader",
+      "haystack_integrations.common.s3.utils",
+      "haystack_integrations.common.s3.errors",
     ]
     ignore_when_discovered: ["__init__"]
 processors:

@@ -1,5 +1,56 @@
 # Changelog
 
+## [integrations/ollama-v5.2.0] - 2025-09-26
+
+### 🚀 Features
+
+- Add run_async support for OllamaChatGenerator (#2279)
+
+
+## [integrations/ollama-v5.1.0] - 2025-08-28
+
+### 🚀 Features
+
+- Adding optional keepalive parameter to Ollama embedders (#2228)
+
+
+## [integrations/ollama-v5.0.0] - 2025-08-25
+
+### 🚜 Refactor
+
+- [**breaking**] `OllamaChatGenerator` - refine reasoning support + refactoring (#2200)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+
+## [integrations/ollama-v4.1.0] - 2025-08-06
+
+### 🚀 Features
+
+- `OllamaChatGenerator` - image support (#2147)
+
+
+## [integrations/ollama-v4.0.0] - 2025-08-05
+
+### 🚀 Features
+
+- Adopt new `StreamingChunk` in Ollama (#2109)
+
+
+## [integrations/ollama-v3.4.0] - 2025-07-04
+
+### 🚀 Features
+
+- Pass `component_info` to `StreamingChunk` in `OllamaChatGenerator` (#2039)
+- Add "think" parameter for Ollama (#1948)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+
+
 ## [integrations/ollama-v3.3.0] - 2025-06-12
 
 ### 🐛 Bug Fixes

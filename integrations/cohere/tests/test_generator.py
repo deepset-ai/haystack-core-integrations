@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import os
 
 import pytest
@@ -18,7 +19,7 @@ class TestCohereGenerator:
         monkeypatch.setenv("COHERE_API_KEY", "foo")
         component = CohereGenerator()
         assert component.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
-        assert component.model == "command-r"
+        assert component.model == "command-r-08-2024"
         assert component.streaming_callback is None
         assert component.api_base_url == COHERE_API_URL
         assert component.model_parameters == {}
@@ -46,7 +47,7 @@ class TestCohereGenerator:
         assert data == {
             "type": "haystack_integrations.components.generators.cohere.generator.CohereGenerator",
             "init_parameters": {
-                "model": "command-r",
+                "model": "command-r-08-2024",
                 "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
                 "streaming_callback": None,
                 "api_base_url": COHERE_API_URL,
@@ -85,7 +86,7 @@ class TestCohereGenerator:
         data = {
             "type": "haystack_integrations.components.generators.cohere.generator.CohereGenerator",
             "init_parameters": {
-                "model": "command-r",
+                "model": "command-r-08-2024",
                 "max_tokens": 10,
                 "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
                 "some_test_param": "test-params",
@@ -96,7 +97,7 @@ class TestCohereGenerator:
         }
         component: CohereGenerator = CohereGenerator.from_dict(data)
         assert component.api_key == Secret.from_env_var("ENV_VAR", strict=False)
-        assert component.model == "command-r"
+        assert component.model == "command-r-08-2024"
         assert component.streaming_callback == print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.model_parameters == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -145,5 +146,5 @@ class TestCohereGenerator:
         assert len(results["replies"]) == 1
         assert "Paris" in results["replies"][0]
         assert len(results["meta"]) == 1
-        assert results["meta"][0]["finish_reason"] == "COMPLETE"
+        assert results["meta"][0]["finish_reason"] == "stop"
         assert callback.responses == results["replies"][0]

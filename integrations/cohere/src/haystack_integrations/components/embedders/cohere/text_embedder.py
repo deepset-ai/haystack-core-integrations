@@ -19,7 +19,7 @@ class CohereTextEmbedder:
 
     Usage example:
     ```python
-    from haystack_integrations.components.embedders.cohere import CohereDocumentEmbedder
+    from haystack_integrations.components.embedders.cohere import CohereTextEmbedder
 
     text_to_embed = "I love pizza!"
 
@@ -39,7 +39,7 @@ class CohereTextEmbedder:
         input_type: str = "search_query",
         api_base_url: str = "https://api.cohere.com",
         truncate: str = "END",
-        timeout: int = 120,
+        timeout: float = 120.0,
         embedding_type: Optional[EmbeddingTypes] = None,
     ):
         """

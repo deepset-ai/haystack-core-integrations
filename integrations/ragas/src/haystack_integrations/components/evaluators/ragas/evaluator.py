@@ -1,11 +1,11 @@
 import re
-from typing import Any, Dict, List, Optional, Union, get_args, get_origin
+from typing import Any, Dict, List, Optional, Union, cast, get_args, get_origin
 
 from haystack import Document, component
 from haystack.dataclasses import ChatMessage
-from pydantic import ValidationError  # type: ignore
+from pydantic import ValidationError
 
-from ragas import evaluate  # type: ignore
+from ragas import evaluate
 from ragas.dataset_schema import (
     EvaluationDataset,
     EvaluationResult,
@@ -135,7 +135,7 @@ class RagasEvaluator:
             )
 
         except (ValueError, ValidationError) as e:
-            raise self._handle_conversion_error(e) from None
+            self._handle_conversion_error(e)
 
         dataset = EvaluationDataset([sample])
 
@@ -147,7 +147,7 @@ class RagasEvaluator:
                 embeddings=self.embedding,
             )
         except (ValueError, ValidationError) as e:
-            raise self._handle_evaluation_error(e) from None
+            self._handle_evaluation_error(e)
 
         return {"result": result}
 
@@ -157,22 +157,19 @@ class RagasEvaluator:
         :param documents: List of Documents or strings to process
         :return: List of document contents as strings or None
         """
-        if documents:
-            first_type = type(documents[0])
-            if first_type is Document:
-                if not all(isinstance(doc, Document) for doc in documents):
-                    error_message = "All elements in documents list must be of type Document."
-                    raise ValueError(error_message)
-                return [doc.content for doc in documents]  # type: ignore[union-attr]
+        if documents is None:
+            return None
 
-            if first_type is str:
-                if not all(isinstance(doc, str) for doc in documents):
-                    error_message = "All elements in documents list must be strings."
-                    raise ValueError(error_message)
-                return documents
-            error_message = "Unsupported type in documents list."
-            raise ValueError(error_message)
-        return documents
+        if isinstance(documents, list) and all(isinstance(doc, str) for doc in documents):
+            # we need to check types again in the list comprehension to make mypy happy
+            return [doc for doc in documents if isinstance(doc, str)]
+
+        if isinstance(documents, list) and all(isinstance(doc, Document) for doc in documents):
+            # we need to check types again in the list comprehension to make mypy happy
+            return [doc.content for doc in documents if isinstance(doc, Document) and doc.content]
+
+        error_message = "'documents' must be a list of either Documents or strings."
+        raise ValueError(error_message)
 
     def _process_response(self, response: Optional[Union[List[ChatMessage], str]]) -> Union[str, None]:
         """Process response into expected format.
@@ -181,14 +178,14 @@ class RagasEvaluator:
         :return: None or Processed response string
         """
         if isinstance(response, list):  # Check if response is a list
-            if all(isinstance(item, ChatMessage) for item in response):
-                return response[0]._content[0].text
+            if all(isinstance(item, ChatMessage) and item.text for item in response):
+                return response[0].text
             return None
         elif isinstance(response, str):
             return response
         return response
 
-    def _handle_conversion_error(self, error: Exception):
+    def _handle_conversion_error(self, error: Exception) -> None:
         """Handle evaluation errors with improved messages.
 
         :params error: Original error
@@ -199,7 +196,9 @@ class RagasEvaluator:
                 "retrieved_contexts": "documents",
             }
             for err in error.errors():
-                field = err["loc"][0]
+                # loc is a tuple of strings and ints but according to pydantic docs, the first element is a string
+                # https://docs.pydantic.dev/latest/errors/errors/
+                field = cast(str, err["loc"][0])
                 haystack_field = field_mapping.get(field, field)
                 expected_type = self.run.__annotations__.get(haystack_field)
                 type_desc = self._get_expected_type_description(expected_type)
@@ -213,7 +212,7 @@ class RagasEvaluator:
                 )
                 raise ValueError(error_message)
 
-    def _handle_evaluation_error(self, error: Exception):
+    def _handle_evaluation_error(self, error: Exception) -> None:
         error_message = str(error)
         columns_match = re.search(r"additional columns \[(.*?)\]", error_message)
         field_mapping = {
@@ -233,7 +232,7 @@ class RagasEvaluator:
             )
             raise ValueError(updated_error_message)
 
-    def _get_expected_type_description(self, expected_type) -> str:
+    def _get_expected_type_description(self, expected_type: Any) -> str:
         """Helper method to get a description of the expected type."""
         if get_origin(expected_type) is Union:
             expected_types = [getattr(t, "__name__", str(t)) for t in get_args(expected_type)]

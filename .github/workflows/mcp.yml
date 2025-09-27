@@ -41,10 +41,10 @@ jobs:
         working-directory: .
         run: git config --system core.longpaths true
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -65,7 +65,7 @@ jobs:
 
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
-        run: hatch run fmt-check && hatch run lint:typing
+        run: hatch run fmt-check && hatch run test:types
 
       - name: Generate docs
         if: matrix.python-version == '3.10' && runner.os == 'Linux'

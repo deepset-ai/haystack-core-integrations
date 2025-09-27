@@ -1,24 +1,16 @@
 import json
-from typing import (
-    Any,
-    AsyncIterator,
-    Dict,
-    Iterator,
-    List,
-    Optional,
-    Union,
-)
+from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Union, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.dataclasses import (
-    ChatMessage,
-    ToolCall,
-)
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
+from haystack.dataclasses import ChatMessage, ComponentInfo, ImageContent, TextContent, ToolCall
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
+    FinishReason,
     StreamingCallbackT,
     StreamingChunk,
     SyncStreamingCallbackT,
+    ToolCallDelta,
     select_streaming_callback,
 )
 from haystack.tools import (
@@ -29,28 +21,36 @@ from haystack.tools import (
     serialize_tools_or_toolset,
 )
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack.utils.callable_serialization import (
-    deserialize_callable,
-    serialize_callable,
-)
+from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
 from cohere import (
     AssistantChatMessageV2,
     AsyncClientV2,
     ChatResponse,
     ClientV2,
+    ImageUrl,
+    ImageUrlContent,
     StreamedChatResponseV2,
     SystemChatMessageV2,
-    TextAssistantMessageContentItem,
-    TextContent,
-    TextSystemMessageContentItem,
+    TextAssistantMessageV2ContentItem,
+    TextSystemMessageV2ContentItem,
     ToolCallV2,
     ToolCallV2Function,
     ToolChatMessageV2,
+    Usage,
     UserChatMessageV2,
+)
+from cohere import (
+    TextContent as CohereTextContent,
 )
 
 logger = logging.getLogger(__name__)
+
+
+# Supported image formats based on Cohere's documentation
+# See: https://docs.cohere.com/docs/image-inputs
+ImageFormat = Literal["image/png", "image/jpeg", "image/webp", "image/gif"]
+IMAGE_SUPPORTED_FORMATS: list[ImageFormat] = list(get_args(ImageFormat))
 
 
 def _format_tool(tool: Tool) -> Dict[str, Any]:
@@ -81,14 +81,21 @@ def _format_message(
 
     The function handles message components including:
     - Text content
+    - Image content (multimodal)
     - Tool calls
     - Tool call results
 
     :param message: Haystack ChatMessage to format.
     :return: A Cohere message object.
     """
-    if not message.texts and not message.tool_calls and not message.tool_call_results:
-        msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
+    if not message.texts and not message.tool_calls and not message.tool_call_results and not message.images:
+        msg = (
+            "A `ChatMessage` must contain at least one `TextContent`, `ImageContent`, `ToolCall`, or `ToolCallResult`."
+        )
+        raise ValueError(msg)
+
+    if message.images and not message.role.value == "user":
+        msg = "`ImageContent` is only supported for user messages."
         raise ValueError(msg)
 
     # Format the message based on its content type
@@ -98,7 +105,8 @@ def _format_message(
             msg = "`ToolCall` must have a non-null `id` attribute to be used with Cohere."
             raise ValueError(msg)
         return ToolChatMessageV2(tool_call_id=result.origin.id, content=json.dumps({"result": result.result}))
-    elif message.tool_calls:
+
+    if message.tool_calls:
         tool_calls = []
         for tool_call in message.tool_calls:
             if tool_call.id is None:
@@ -118,20 +126,53 @@ def _format_message(
             tool_calls=tool_calls,
             tool_plan=message.text if message.text else "",
         )
-    else:
-        if not message.texts or not message.texts[0]:
-            msg = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
+
+    if message.role.value == "user":
+        if not message.images and not message.text:
+            msg = "A `ChatMessage` from user must contain at least one non-empty `TextContent` or `ImageContent`."
             raise ValueError(msg)
 
-        if message.role.value == "user":
-            return UserChatMessageV2(content=[TextContent(text=message.texts[0])])
-        elif message.role.value == "assistant":
-            return AssistantChatMessageV2(content=[TextAssistantMessageContentItem(text=message.texts[0])])
-        elif message.role.value == "system":
-            return SystemChatMessageV2(content=[TextSystemMessageContentItem(text=message.texts[0])])
-        else:
-            msg = f"Unsupported message role: {message.role.value}"
+        # Handle multimodal content (text + images)
+        if message.images:
+            # Validate image formats
+            for image in message.images:
+                if image.mime_type not in IMAGE_SUPPORTED_FORMATS:
+                    supported_formats = ", ".join(IMAGE_SUPPORTED_FORMATS)
+                    msg = (
+                        f"Unsupported image format: {image.mime_type}. "
+                        f"Cohere supports the following formats: {supported_formats}"
+                    )
+                    raise ValueError(msg)
+
+        # Build multimodal content following Cohere's API specification
+        content_parts: List[Union[CohereTextContent, ImageUrlContent]] = []
+        for part in message._content:
+            if isinstance(part, TextContent) and part.text:
+                text_content = CohereTextContent(text=part.text)
+                content_parts.append(text_content)
+            elif isinstance(part, ImageContent):
+                # Cohere expects base64 data URI format
+                # See: https://docs.cohere.com/docs/image-inputs
+                image_url = f"data:{part.mime_type};base64,{part.base64_image}"
+                image_content = ImageUrlContent(image_url=ImageUrl(url=image_url))
+                content_parts.append(image_content)
+
+        return UserChatMessageV2(content=content_parts)
+
+    if message.role.value == "assistant":
+        if not message.text:
+            msg = "A `ChatMessage` from assistant without tool calls must contain a non-empty `TextContent`."
             raise ValueError(msg)
+        return AssistantChatMessageV2(content=[TextAssistantMessageV2ContentItem(text=message.text)])
+
+    if message.role.value == "system":
+        if not message.text:
+            msg = "A `ChatMessage` from system calls must contain a non-empty `TextContent`."
+            raise ValueError(msg)
+        return SystemChatMessageV2(content=[TextSystemMessageV2ContentItem(text=message.text)])
+
+    msg = f"Unsupported message role: {message.role.value}"
+    raise ValueError(msg)
 
 
 def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
@@ -164,7 +205,7 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
         # Create message with tool plan as text and tool calls in the format Haystack expects
         tool_plan = chat_response.message.tool_plan or ""
         message = ChatMessage.from_assistant(text=tool_plan, tool_calls=tool_calls)
-    elif chat_response.message.content:
+    elif chat_response.message.content and hasattr(chat_response.message.content[0], "text"):
         message = ChatMessage.from_assistant(chat_response.message.content[0].text)
     else:
         # Handle the case where neither tool_calls nor content exists
@@ -188,129 +229,199 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
     return message
 
 
-def _initialize_streaming_state():
-    """Initialize the state variables for streaming response parsing."""
-    return {
-        "response_text": "",
-        "tool_plan": "",
-        "tool_calls": [],
-        "current_tool_call": None,
-        "current_tool_arguments": "",
-        "captured_meta": {},
+def _convert_cohere_chunk_to_streaming_chunk(
+    chunk: StreamedChatResponseV2,
+    model: str,
+    component_info: Optional[ComponentInfo] = None,
+    global_index: int = 0,
+) -> StreamingChunk:
+    """
+    Converts a Cohere streaming response chunk to a StreamingChunk.
+
+    References the Cohere API documentation for the structure of the chunk.
+
+    https://docs.cohere.com/reference/chat-stream
+    https://docs.cohere.com/reference/chat#response.body.finish_reason
+
+    :param chunk: The chunk returned by the Cohere API.
+    :param component_info: An optional `ComponentInfo` object containing information about the component that
+        generated the chunk, such as the component name and type.
+    :param model: The model name for metadata.
+    :param global_index: The index of the current block in the sequence of chunks.
+
+    :returns:
+        A StreamingChunk object representing the content of the chunk from the Cohere API.
+    """
+    finish_reason_mapping: Dict[str, FinishReason] = {
+        "COMPLETE": "stop",
+        "MAX_TOKENS": "length",
+        "TOOL_CALLS": "tool_calls",
     }
 
+    # Initialize default values
+    content = ""
+    index = global_index
+    start = False
+    finish_reason = None
+    tool_calls = None
+    meta: Dict[str, Any] = {"model": model}
 
-def _process_streaming_chunk(chunk, state, model):
-    """
-    Process a single streaming chunk and update the parsing state.
+    if chunk.type == "content-delta" and chunk.delta and chunk.delta.message:
+        if chunk.delta.message and chunk.delta.message.content and chunk.delta.message.content.text is not None:
+            content = chunk.delta.message.content.text
 
-    :param chunk: The streaming chunk from Cohere's API
-    :param state: Dictionary containing the current parsing state
-    :param model: Model name for metadata
-    :return: Content to stream (if any), None otherwise
-    """
-    if not chunk:
-        return None
+    elif chunk.type == "tool-plan-delta" and chunk.delta and chunk.delta.message:
+        if chunk.delta.message and chunk.delta.message.tool_plan is not None:
+            content = chunk.delta.message.tool_plan
 
-    if chunk.type == "content-delta":
-        content = chunk.delta.message.content.text
-        state["response_text"] += content
-        return content
-    elif chunk.type == "tool-plan-delta":
-        content = chunk.delta.message.tool_plan
-        state["tool_plan"] += content
-        return content
-    elif chunk.type == "tool-call-start":
-        tool_call = chunk.delta.message.tool_calls
-        state["current_tool_call"] = ToolCall(
-            id=tool_call.id,
-            tool_name=tool_call.function.name,
-            arguments={},
-        )
-    elif chunk.type == "tool-call-delta":
-        state["current_tool_arguments"] += chunk.delta.message.tool_calls.function.arguments
+    elif chunk.type == "tool-call-start" and chunk.delta and chunk.delta.message:
+        if chunk.delta.message and chunk.delta.message.tool_calls:
+            tool_call = chunk.delta.message.tool_calls
+            function = tool_call.function
+            if function is not None and function.name is not None:
+                tool_calls = [
+                    ToolCallDelta(
+                        index=global_index,
+                        id=tool_call.id,
+                        tool_name=function.name,
+                        arguments=None,
+                    )
+                ]
+                start = True  # This starts a tool call
+                if tool_call.id is not None:
+                    meta["tool_call_id"] = tool_call.id
+
+    elif chunk.type == "tool-call-delta" and chunk.delta and chunk.delta.message:
+        if (
+            chunk.delta.message
+            and chunk.delta.message.tool_calls
+            and chunk.delta.message.tool_calls.function
+            and chunk.delta.message.tool_calls.function.arguments is not None
+        ):
+            arguments = chunk.delta.message.tool_calls.function.arguments
+            tool_calls = [
+                ToolCallDelta(
+                    index=global_index,
+                    tool_name=None,
+                    arguments=arguments,
+                )
+            ]
+
     elif chunk.type == "tool-call-end":
-        if state["current_tool_call"]:
-            state["current_tool_call"].arguments = json.loads(state["current_tool_arguments"])
-            state["tool_calls"].append(state["current_tool_call"])
-            state["current_tool_call"] = None
-            state["current_tool_arguments"] = ""
+        # Tool call end doesn't have content, just signals completion
+        start = True
+
     elif chunk.type == "message-end":
-        state["captured_meta"].update(
-            {
-                "model": model,
-                "index": 0,
-                "finish_reason": chunk.delta.finish_reason,
-                "usage": {
-                    "prompt_tokens": chunk.delta.usage.billed_units.input_tokens,
-                    "completion_tokens": chunk.delta.usage.billed_units.output_tokens,
-                },
-            }
-        )
+        finish_reason_raw = getattr(chunk.delta, "finish_reason", None)
+        finish_reason = finish_reason_mapping.get(finish_reason_raw) if finish_reason_raw else None
 
-    return None
+        # The Cohere API is subject to changes in how usage data is returned. We try to support both dict and objects.
+        usage_data = getattr(chunk.delta, "usage", None)
+        prompt_tokens, completion_tokens = 0.0, 0.0
+        if isinstance(usage_data, dict):
+            try:
+                prompt_tokens = usage_data["billed_units"]["input_tokens"]
+                completion_tokens = usage_data["billed_units"]["output_tokens"]
+            except KeyError:
+                pass
+        elif (
+            usage_data is not None
+            and isinstance(usage_data, Usage)
+            and usage_data.billed_units
+            and usage_data.billed_units.input_tokens is not None
+            and usage_data.billed_units.output_tokens is not None
+        ):
+            prompt_tokens = usage_data.billed_units.input_tokens
+            completion_tokens = usage_data.billed_units.output_tokens
 
+        usage = {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens}
 
-def _finalize_streaming_message(state):
-    """
-    Create a ChatMessage from the final parsing state.
+        meta["finish_reason"] = finish_reason_raw
+        meta["usage"] = usage
 
-    :param state: Dictionary containing the parsed state
-    :return: ChatMessage with metadata
-    """
-    # Create the appropriate ChatMessage based on what we received
-    if state["tool_calls"]:
-        chat_message = ChatMessage.from_assistant(text=state["tool_plan"], tool_calls=state["tool_calls"])
-    else:
-        chat_message = ChatMessage.from_assistant(text=state["response_text"])
-
-    # Add metadata
-    chat_message._meta.update(state["captured_meta"])
-    return chat_message
+    return StreamingChunk(
+        content=content,
+        component_info=component_info,
+        index=index,
+        tool_calls=tool_calls,
+        start=start,
+        finish_reason=finish_reason,
+        meta=meta,
+    )
 
 
 def _parse_streaming_response(
     response: Iterator[StreamedChatResponseV2],
     model: str,
     streaming_callback: SyncStreamingCallbackT,
+    component_info: ComponentInfo,
 ) -> ChatMessage:
     """
-    Parses Cohere's streaming chat response into a Haystack ChatMessage.
+    Parses Cohere's streaming chat response.
+
+    Loops through each stream object from Cohere and converts it into a StreamingChunk.
     """
-    state = _initialize_streaming_state()
+    chunks: List[StreamingChunk] = []
+    global_index = 0
 
     for chunk in response:
-        stream_content = _process_streaming_chunk(chunk, state, model)
-        if stream_content:
-            stream_chunk = StreamingChunk(content=stream_content)
-            streaming_callback(stream_chunk)
+        if chunk.type in ["tool-call-start", "content-start", "citation-start"]:
+            global_index += 1
 
-    return _finalize_streaming_message(state)
+        streaming_chunk = _convert_cohere_chunk_to_streaming_chunk(
+            chunk=chunk,
+            component_info=component_info,
+            model=model,
+            global_index=global_index,
+        )
+
+        if not streaming_chunk:
+            continue
+
+        chunks.append(streaming_chunk)
+        streaming_callback(streaming_chunk)
+
+    return _convert_streaming_chunks_to_chat_message(chunks=chunks)
 
 
 async def _parse_async_streaming_response(
     response: AsyncIterator[StreamedChatResponseV2],
     model: str,
     streaming_callback: AsyncStreamingCallbackT,
+    component_info: ComponentInfo,
 ) -> ChatMessage:
     """
     Parses Cohere's async streaming chat response into a Haystack ChatMessage.
     """
-    state = _initialize_streaming_state()
+    chunks: List[StreamingChunk] = []
+    global_index = 0
 
     async for chunk in response:
-        stream_content = _process_streaming_chunk(chunk, state, model)
-        if stream_content:
-            stream_chunk = StreamingChunk(content=stream_content)
-            await streaming_callback(stream_chunk)
+        if chunk.type in ["tool-call-start", "content-start", "citation-start"]:
+            global_index += 1
 
-    return _finalize_streaming_message(state)
+        streaming_chunk = _convert_cohere_chunk_to_streaming_chunk(
+            chunk=chunk, component_info=component_info, model=model, global_index=global_index
+        )
+        if not streaming_chunk:
+            continue
+
+        chunks.append(streaming_chunk)
+        await streaming_callback(streaming_chunk)
+
+    return _convert_streaming_chunks_to_chat_message(chunks=chunks)
 
 
 @component
 class CohereChatGenerator:
     """
-    Completes chats using Cohere's models using Cohere cohere.ClientV2 `chat` endpoint.
+    Completes chats using Cohere's models using cohere.ClientV2 `chat` endpoint.
+
+    This component supports both text-only and multimodal (text + image) conversations
+    using Cohere's vision models like Command A Vision.
+
+    Supported image formats: PNG, JPEG, WEBP, GIF (non-animated).
+    Maximum 20 images per request with 20MB total limit.
 
     You can customize how the chat response is generated by passing parameters to the
     Cohere API through the `**generation_kwargs` parameter. You can do this when
@@ -332,6 +443,24 @@ class CohereChatGenerator:
 
     # Output: {'replies': [ChatMessage(_role=<ChatRole.ASSISTANT: 'assistant'>,
     # _content=[TextContent(text='Natural Language Processing (NLP) is an interdisciplinary...
+    ```
+
+    ### Multimodal example
+    ```python
+    from haystack.dataclasses import ChatMessage, ImageContent
+    from haystack.utils import Secret
+    from haystack_integrations.components.generators.cohere import CohereChatGenerator
+
+    # Create an image from file path or base64
+    image_content = ImageContent.from_file_path("path/to/your/image.jpg")
+
+    # Create a multimodal message with both text and image
+    messages = [ChatMessage.from_user(content_parts=["What's in this image?", image_content])]
+
+    # Use a multimodal model like Command A Vision
+    client = CohereChatGenerator(model="command-a-vision-07-2025", api_key=Secret.from_env_var("COHERE_API_KEY"))
+    response = client.run(messages)
+    print(response)
     ```
 
     ### Advanced example
@@ -488,6 +617,7 @@ class CohereChatGenerator:
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
     ) -> Dict[str, List[ChatMessage]]:
         """
         Invoke the chat endpoint based on the provided messages and generation parameters.
@@ -499,9 +629,13 @@ class CohereChatGenerator:
             Cohere [documentation](https://docs.cohere.com/reference/chat).
         :param tools: A list of tools or a Toolset for which the model can prepare calls. If set, it will override
             the `tools` parameter set during component initialization.
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
+            The callback function accepts StreamingChunk as an argument.
+
         :returns: A dictionary with the following keys:
             - `replies`: a list of `ChatMessage` instances representing the generated responses.
         """
+
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {
             **self.generation_kwargs,
@@ -519,20 +653,21 @@ class CohereChatGenerator:
         formatted_messages = [_format_message(message) for message in messages]
 
         streaming_callback = select_streaming_callback(
-            init_callback=self.streaming_callback, runtime_callback=None, requires_async=False
+            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
         )
 
         if streaming_callback:
+            component_info = ComponentInfo.from_component(self)
             streamed_response = self.client.chat_stream(
                 model=self.model,
                 messages=formatted_messages,
                 **generation_kwargs,
             )
-            # we know that streaming_callback is sync but mypy doesn't
             chat_message = _parse_streaming_response(
                 response=streamed_response,
                 model=self.model,
-                streaming_callback=streaming_callback,  # type: ignore[arg-type]
+                streaming_callback=streaming_callback,
+                component_info=component_info,
             )
         else:
             response = self.client.chat(
@@ -550,6 +685,7 @@ class CohereChatGenerator:
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
         tools: Optional[Union[List[Tool], Toolset]] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
     ) -> Dict[str, List[ChatMessage]]:
         """
         Asynchronously invoke the chat endpoint based on the provided messages and generation parameters.
@@ -561,9 +697,11 @@ class CohereChatGenerator:
             Cohere [documentation](https://docs.cohere.com/reference/chat).
         :param tools: A list of tools for which the model can prepare calls. If set, it will override
             the `tools` parameter set during component initialization.
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :returns: A dictionary with the following keys:
             - `replies`: a list of `ChatMessage` instances representing the generated responses.
         """
+
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {
             **self.generation_kwargs,
@@ -581,20 +719,21 @@ class CohereChatGenerator:
         formatted_messages = [_format_message(message) for message in messages]
 
         streaming_callback = select_streaming_callback(
-            init_callback=self.streaming_callback, runtime_callback=None, requires_async=True
+            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=True
         )
 
         if streaming_callback:
+            component_info = ComponentInfo.from_component(self)
             streamed_response = self.async_client.chat_stream(
                 model=self.model,
                 messages=formatted_messages,
                 **generation_kwargs,
             )
-            # we know that streaming_callback is async but mypy doesn't
             chat_message = await _parse_async_streaming_response(
                 response=streamed_response,
                 model=self.model,
-                streaming_callback=streaming_callback,  # type: ignore[arg-type]
+                streaming_callback=streaming_callback,
+                component_info=component_info,
             )
         else:
             response = await self.async_client.chat(

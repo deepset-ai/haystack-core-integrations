@@ -9,8 +9,6 @@ from haystack.utils import Secret
 
 from haystack_integrations.components.embedders.mistral.document_embedder import MistralDocumentEmbedder
 
-pytestmark = pytest.mark.embedders
-
 
 class TestMistralDocumentEmbedder:
     def test_init_default(self, monkeypatch):

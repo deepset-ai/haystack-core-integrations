@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Checkout base commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.base_ref }}
 
@@ -22,7 +22,7 @@ jobs:
         run: cp .github/utils/docstrings_checksum.py "${{ runner.temp }}/docstrings_checksum.py"
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -33,7 +33,7 @@ jobs:
           echo "checksum=$CHECKSUM" >> "$GITHUB_OUTPUT"
 
       - name: Checkout HEAD commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           # This must be set to correctly checkout a fork

@@ -3,7 +3,8 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 from haystack import DeserializationError, component, default_from_dict, default_to_dict
 
-from deepeval.evaluate import TestResult, evaluate
+from deepeval.evaluate import evaluate
+from deepeval.evaluate.types import EvaluationResult
 from deepeval.metrics import BaseMetric
 from deepeval.test_case import LLMTestCase
 
@@ -46,7 +47,7 @@ class DeepEvalEvaluator:
 
     _backend_metric: BaseMetric
     # Wrapped for easy mocking.
-    _backend_callable: Callable[[List[LLMTestCase], BaseMetric], List[TestResult]]
+    _backend_callable: Callable[[List[LLMTestCase], BaseMetric], EvaluationResult]
 
     def __init__(
         self,
@@ -72,7 +73,7 @@ class DeepEvalEvaluator:
         component.set_input_types(self, **expected_inputs)
 
     @component.output_types(results=List[List[Dict[str, Any]]])
-    def run(self, **inputs) -> Dict[str, Any]:
+    def run(self, **inputs: Any) -> Dict[str, Any]:
         """
         Run the DeepEval evaluator on the provided inputs.
 
@@ -93,7 +94,9 @@ class DeepEvalEvaluator:
         converted_inputs: List[LLMTestCase] = list(self.descriptor.input_converter(**inputs))  # type: ignore
 
         results = self._backend_callable(converted_inputs, self._backend_metric)
-        converted_results = [[result.to_dict() for result in self.descriptor.output_converter(x)] for x in results]
+        converted_results = [
+            [result.to_dict() for result in self.descriptor.output_converter(x)] for x in results.test_results
+        ]
 
         return {"results": converted_results}
 
@@ -107,7 +110,7 @@ class DeepEvalEvaluator:
             If the component cannot be serialized.
         """
 
-        def check_serializable(obj: Any):
+        def check_serializable(obj: Any) -> bool:
             try:
                 json.dumps(obj)
                 return True
@@ -137,8 +140,8 @@ class DeepEvalEvaluator:
         return default_from_dict(cls, data)
 
     @staticmethod
-    def _invoke_deepeval(test_cases: List[LLMTestCase], metric: BaseMetric) -> List[TestResult]:
-        return evaluate(test_cases, [metric])
+    def _invoke_deepeval(test_cases: List[LLMTestCase], metric: BaseMetric) -> EvaluationResult:
+        return evaluate(test_cases=test_cases, metrics=[metric])
 
     def _init_backend(self):
         """

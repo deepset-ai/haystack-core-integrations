@@ -1,24 +1,14 @@
-# optimum
+# optimum-haystack
 
 [![PyPI - Version](https://img.shields.io/pypi/v/optimum-haystack.svg)](https://pypi.org/project/optimum-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/optimum-haystack.svg)](https://pypi.org/project/optimum-haystack)
 
+- [Integration page](https://haystack.deepset.ai/integrations/optimum)
+- [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/optimum/CHANGELOG.md)
+
 ---
 
-Component to embed strings and Documents using models loaded with the HuggingFace Optimum library. This component is designed to seamlessly inference models using the high speed ONNX runtime.
+Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
-**Table of Contents**
 
-- [optimum](#optimum)
-  - [Installation](#installation)
-  - [License](#license)
 
-## Installation
-
-```console
-pip install optimum-haystack
-```
-
-## License
-
-`optimum-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license.

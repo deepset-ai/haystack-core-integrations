@@ -167,9 +167,9 @@ class AmazonBedrockGenerator:
                 aws_region_name=resolve_secret(aws_region_name),
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
-            config: Optional[Config] = None
-            if self.boto3_config:
-                config = Config(**self.boto3_config)
+            config = Config(
+                user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
+            )
             self.client = session.client("bedrock-runtime", config=config)
         except Exception as exception:
             msg = (

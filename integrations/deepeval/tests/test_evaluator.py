@@ -2,13 +2,14 @@ import copy
 import os
 from dataclasses import dataclass
 from typing import Dict, Optional
-from unittest.mock import patch
 
 import pytest
-from deepeval.evaluate import BaseMetric, TestResult
+from deepeval.evaluate.types import EvaluationResult, TestResult
+from deepeval.metrics import BaseMetric
 from haystack import DeserializationError
 
-from haystack_integrations.components.evaluators.deepeval import DeepEvalEvaluator, DeepEvalMetric
+from haystack_integrations.components.evaluators.deepeval import DeepEvalEvaluator
+from haystack_integrations.components.evaluators.deepeval.metrics import DeepEvalMetric, InputConverters
 
 DEFAULT_QUESTIONS = [
     "Which is the most popular global sport?",
@@ -16,10 +17,15 @@ DEFAULT_QUESTIONS = [
 ]
 DEFAULT_CONTEXTS = [
     [
-        "The popularity of sports can be measured in various ways, including TV viewership, social media presence, number of participants, and economic impact. Football is undoubtedly the world's most popular sport with major events like the FIFA World Cup and sports personalities like Ronaldo and Messi, drawing a followership of more than 4 billion people."
+        "The popularity of sports can be measured in various ways, including TV viewership, social media presence, "
+        "number of participants, and economic impact. Football is undoubtedly the world's most popular sport with "
+        "major events like the FIFA World Cup and sports personalities like Ronaldo and Messi, drawing a followership "
+        "of more than 4 billion people."
     ],
     [
-        "Python, created by Guido van Rossum in the late 1980s, is a high-level general-purpose programming language. Its design philosophy emphasizes code readability, and its language constructs aim to help programmers write clear, logical code for both small and large-scale software projects."
+        "Python, created by Guido van Rossum in the late 1980s, is a high-level general-purpose programming language. "
+        "Its design philosophy emphasizes code readability, and its language constructs aim to help programmers write "
+        "clear, logical code for both small and large-scale software projects."
     ],
 ]
 DEFAULT_RESPONSES = [
@@ -49,7 +55,7 @@ class MockBackend:
     def __init__(self, metric: DeepEvalMetric) -> None:
         self.metric = metric
 
-    def eval(self, test_cases, metric):
+    def eval(self, test_cases, metric) -> EvaluationResult:
         assert isinstance(metric, BaseMetric)
 
         output_map = {
@@ -62,17 +68,26 @@ class MockBackend:
 
         out = []
         for x in test_cases:
-            r = TestResult(False, [], x.input, x.actual_output, x.expected_output, x.context, x.retrieval_context)
-            r.metrics = copy.deepcopy(output_map[self.metric])
+            r = TestResult(
+                name=x.name or "",
+                success=False,
+                metrics_data=copy.deepcopy(output_map[self.metric]),  # type: ignore
+                conversational=False,
+                input=x.input,
+                actual_output=x.actual_output,
+                expected_output=x.expected_output,
+                context=x.context,
+                retrieval_context=x.retrieval_context,
+            )
             out.append(r)
-        return out
+        return EvaluationResult(test_results=out, confident_link=None)
 
 
 def test_evaluator_metric_init_params(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
 
-    eval = DeepEvalEvaluator(DeepEvalMetric.ANSWER_RELEVANCY, metric_params={"model": "gpt-4-32k"})
-    assert eval._backend_metric.evaluation_model == "gpt-4-32k"
+    evaluator = DeepEvalEvaluator(DeepEvalMetric.ANSWER_RELEVANCY, metric_params={"model": "gpt-4o"})
+    assert evaluator._backend_metric.evaluation_model == "gpt-4o"
 
     with pytest.raises(ValueError, match="Invalid init parameters"):
         DeepEvalEvaluator(DeepEvalMetric.FAITHFULNESS, metric_params={"role": "village idiot"})
@@ -86,19 +101,19 @@ def test_evaluator_serde(monkeypatch):
 
     init_params = {
         "metric": DeepEvalMetric.ANSWER_RELEVANCY,
-        "metric_params": {"model": "gpt-4-32k"},
+        "metric_params": {"model": "gpt-4o"},
     }
-    eval = DeepEvalEvaluator(**init_params)
-    serde_data = eval.to_dict()
+    evaluator = DeepEvalEvaluator(**init_params)
+    serde_data = evaluator.to_dict()
     new_eval = DeepEvalEvaluator.from_dict(serde_data)
 
-    assert eval.metric == new_eval.metric
-    assert eval.metric_params == new_eval.metric_params
-    assert type(new_eval._backend_metric) == type(eval._backend_metric)
+    assert evaluator.metric == new_eval.metric
+    assert evaluator.metric_params == new_eval.metric_params
+    assert isinstance(new_eval._backend_metric, type(evaluator._backend_metric))
 
     with pytest.raises(DeserializationError, match=r"cannot serialize the metric parameters"):
-        eval.metric_params["model"] = Unserializable("")
-        eval.to_dict()
+        evaluator.metric_params["model"] = Unserializable("")
+        evaluator.to_dict()
 
 
 @pytest.mark.parametrize(
@@ -106,28 +121,28 @@ def test_evaluator_serde(monkeypatch):
     [
         (
             DeepEvalMetric.ANSWER_RELEVANCY,
-            {"questions": [], "contexts": [], "responses": []},
-            {"model": "gpt-4"},
+            {"questions": [""], "contexts": [[""]], "responses": [""]},
+            {"model": "gpt-4o"},
         ),
         (
             DeepEvalMetric.FAITHFULNESS,
-            {"questions": [], "contexts": [], "responses": []},
-            {"model": "gpt-4"},
+            {"questions": [""], "contexts": [[""]], "responses": [""]},
+            {"model": "gpt-4o"},
         ),
         (
             DeepEvalMetric.CONTEXTUAL_PRECISION,
-            {"questions": [], "contexts": [], "responses": [], "ground_truths": []},
-            {"model": "gpt-4"},
+            {"questions": [""], "contexts": [[""]], "responses": [""], "ground_truths": [""]},
+            {"model": "gpt-4o"},
         ),
         (
             DeepEvalMetric.CONTEXTUAL_RECALL,
-            {"questions": [], "contexts": [], "responses": [], "ground_truths": []},
-            {"model": "gpt-4"},
+            {"questions": [""], "contexts": [[""]], "responses": [""], "ground_truths": [""]},
+            {"model": "gpt-4o"},
         ),
         (
             DeepEvalMetric.CONTEXTUAL_RELEVANCE,
-            {"questions": [], "contexts": [], "responses": []},
-            {"model": "gpt-4"},
+            {"questions": [""], "contexts": [[""]], "responses": [""]},
+            {"model": "gpt-4o"},
         ),
     ],
 )
@@ -138,8 +153,8 @@ def test_evaluator_valid_inputs(metric, inputs, params, monkeypatch):
         "metric": metric,
         "metric_params": params,
     }
-    eval = DeepEvalEvaluator(**init_params)
-    output = eval.run(**inputs)
+    evaluator = DeepEvalEvaluator(**init_params)
+    InputConverters.validate_input_parameters(evaluator.metric, evaluator.descriptor.input_parameters, inputs)
 
 
 @pytest.mark.parametrize(
@@ -155,7 +170,7 @@ def test_evaluator_valid_inputs(metric, inputs, params, monkeypatch):
             DeepEvalMetric.ANSWER_RELEVANCY,
             {"questions": {}, "contexts": [], "responses": []},
             "to be a collection of type 'list'",
-            {"model": "gpt-4"},
+            {"model": "gpt-4o"},
         ),
         (
             DeepEvalMetric.ANSWER_RELEVANCY,
@@ -167,19 +182,19 @@ def test_evaluator_valid_inputs(metric, inputs, params, monkeypatch):
             DeepEvalMetric.FAITHFULNESS,
             {"questions": [1], "contexts": [2], "responses": [3]},
             "expects inputs to be of type 'str'",
-            {"model": "gpt-4"},
+            {"model": "gpt-4o"},
         ),
         (
             DeepEvalMetric.FAITHFULNESS,
             {"questions": [], "contexts": [[]], "responses": []},
             "Mismatching counts ",
-            {"model": "gpt-4"},
+            {"model": "gpt-4o"},
         ),
         (
             DeepEvalMetric.CONTEXTUAL_RECALL,
             {"questions": [], "contexts": [], "responses": []},
             "expected input parameter ",
-            {"model": "gpt-4"},
+            {"model": "gpt-4o"},
         ),
     ],
 )
@@ -191,8 +206,8 @@ def test_evaluator_invalid_inputs(metric, inputs, error_string, params, monkeypa
             "metric": metric,
             "metric_params": params,
         }
-        eval = DeepEvalEvaluator(**init_params)
-        output = eval.run(**inputs)
+        evaluator = DeepEvalEvaluator(**init_params)
+        _ = evaluator.run(**inputs)
 
 
 # This test validates the expected outputs of the evaluator.
@@ -206,13 +221,13 @@ def test_evaluator_invalid_inputs(metric, inputs, error_string, params, monkeypa
             DeepEvalMetric.ANSWER_RELEVANCY,
             {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
             [[(None, 0.5, "1")]] * 2,
-            {"model": "gpt-4"},
+            {"model": "gpt-4o"},
         ),
         (
             DeepEvalMetric.FAITHFULNESS,
             {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
             [[(None, 0.1, "2")]] * 2,
-            {"model": "gpt-4"},
+            {"model": "gpt-4o"},
         ),
         (
             DeepEvalMetric.CONTEXTUAL_PRECISION,
@@ -223,7 +238,7 @@ def test_evaluator_invalid_inputs(metric, inputs, error_string, params, monkeypa
                 "ground_truths": DEFAULT_GROUND_TRUTHS,
             },
             [[(None, 0.2, "3")]] * 2,
-            {"model": "gpt-4"},
+            {"model": "gpt-4o"},
         ),
         (
             DeepEvalMetric.CONTEXTUAL_RECALL,
@@ -234,13 +249,13 @@ def test_evaluator_invalid_inputs(metric, inputs, error_string, params, monkeypa
                 "ground_truths": DEFAULT_GROUND_TRUTHS,
             },
             [[(None, 35, "4")]] * 2,
-            {"model": "gpt-4"},
+            {"model": "gpt-4o"},
         ),
         (
             DeepEvalMetric.CONTEXTUAL_RELEVANCE,
             {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
             [[(None, 1.5, "5")]] * 2,
-            {"model": "gpt-4"},
+            {"model": "gpt-4o"},
         ),
     ],
 )
@@ -251,11 +266,11 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params, monk
         "metric": metric,
         "metric_params": metric_params,
     }
-    eval = DeepEvalEvaluator(**init_params)
-    eval._backend_callable = lambda testcases, metrics: MockBackend(metric).eval(testcases, metrics)
-    results = eval.run(**inputs)["results"]
+    evaluator = DeepEvalEvaluator(**init_params)
+    evaluator._backend_callable = lambda testcases, metrics: MockBackend(metric).eval(testcases, metrics)
+    results = evaluator.run(**inputs)["results"]
 
-    assert type(results) == type(expected_outputs)
+    assert isinstance(results, type(expected_outputs))
     assert len(results) == len(expected_outputs)
 
     for r, o in zip(results, expected_outputs):
@@ -277,12 +292,12 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params, monk
         (
             DeepEvalMetric.ANSWER_RELEVANCY,
             {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
-            {"model": "gpt-4"},
+            {"model": "gpt-4o"},
         ),
         (
             DeepEvalMetric.FAITHFULNESS,
             {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
-            {"model": "gpt-4"},
+            {"model": "gpt-4o"},
         ),
         (
             DeepEvalMetric.CONTEXTUAL_PRECISION,
@@ -292,7 +307,7 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params, monk
                 "responses": DEFAULT_RESPONSES,
                 "ground_truths": DEFAULT_GROUND_TRUTHS,
             },
-            {"model": "gpt-4"},
+            {"model": "gpt-4o"},
         ),
         (
             DeepEvalMetric.CONTEXTUAL_RECALL,
@@ -302,12 +317,12 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params, monk
                 "responses": DEFAULT_RESPONSES,
                 "ground_truths": DEFAULT_GROUND_TRUTHS,
             },
-            {"model": "gpt-4"},
+            {"model": "gpt-4o"},
         ),
         (
             DeepEvalMetric.CONTEXTUAL_RELEVANCE,
             {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
-            {"model": "gpt-4"},
+            {"model": "gpt-4o"},
         ),
     ],
 )
@@ -316,10 +331,10 @@ def test_integration_run(metric, inputs, metric_params):
         "metric": metric,
         "metric_params": metric_params,
     }
-    eval = DeepEvalEvaluator(**init_params)
-    output = eval.run(**inputs)
+    evaluator = DeepEvalEvaluator(**init_params)
+    output = evaluator.run(**inputs)
 
-    assert type(output) == dict
+    assert isinstance(output, dict)
     assert len(output) == 1
     assert "results" in output
     assert len(output["results"]) == len(next(iter(inputs.values())))

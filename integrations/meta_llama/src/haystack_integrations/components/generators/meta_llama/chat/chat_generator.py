@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import StreamingCallbackT
+from haystack.dataclasses import ChatMessage, StreamingCallbackT
 from haystack.tools import Tool, Toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
@@ -103,6 +103,27 @@ class MetaLlamaChatGenerator(OpenAIChatGenerator):
             generation_kwargs=generation_kwargs,
             tools=tools,
         )
+
+    def _prepare_api_call(
+        self,
+        *,
+        messages: list[ChatMessage],
+        streaming_callback: Optional[StreamingCallbackT] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
+        tools: Optional[Union[list[Tool], Toolset]] = None,
+        tools_strict: Optional[bool] = None,
+    ) -> dict[str, Any]:
+        api_args = super(MetaLlamaChatGenerator, self)._prepare_api_call(  # noqa: UP008
+            messages=messages,
+            streaming_callback=streaming_callback,
+            generation_kwargs=generation_kwargs,
+            tools=tools,
+            tools_strict=tools_strict,
+        )
+        # Meta Llama API does not support None as a value for response_format
+        if "response_format" in api_args and api_args["response_format"] is None:
+            api_args.pop("response_format")
+        return api_args
 
     def to_dict(self) -> Dict[str, Any]:
         """

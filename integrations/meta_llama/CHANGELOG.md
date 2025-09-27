@@ -1,5 +1,29 @@
 # Changelog
 
+## [integrations/meta_llama-v1.1.1] - 2025-09-23
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+### 🌀 Miscellaneous
+
+- Fix: Fix meta-llama integration test (#2137)
+- Chore: Fix linting in tests for meta-llama integration (#2264)
+- Fix: Fix MetaLlamaChatGenerator to work with `haystack-ai>=2.18` (#2298)
+
+## [integrations/meta_llama-v1.1.0] - 2025-06-30
+
+### 🧹 Chores
+
+- Align core-integrations Hatch scripts (#1898)
+- Remove black (#1985)
+- Meta llama - improve type checking + add py.typed (#2033)
+
+### 🌀 Miscellaneous
+
+- Test: Remove `test_check_abnormal_completions` - already tested in Haystack (#1842)
+
 ## [integrations/meta_llama-v1.0.0] - 2025-05-15
 
 ### 🚀 Features

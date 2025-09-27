@@ -88,7 +88,7 @@ class TestLlamaChatGenerator:
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("LLAMA_API_KEY", raising=False)
-        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             MetaLlamaChatGenerator()
 
     def test_init_with_parameters(self):
@@ -207,7 +207,7 @@ class TestLlamaChatGenerator:
                 },
             },
         }
-        with pytest.raises(ValueError, match="None of the .* environment variables are set"):
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             MetaLlamaChatGenerator.from_dict(data)
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
@@ -304,7 +304,7 @@ class TestLlamaChatGenerator:
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message = results["replies"][0]
-        assert message.text == ""
+        assert message.text is None
 
         assert message.tool_calls
         tool_call = message.tool_call

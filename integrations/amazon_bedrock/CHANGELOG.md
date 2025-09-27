@@ -1,5 +1,91 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v5.0.0] - 2025-09-22
+
+### 🧹 Chores
+
+- [**breaking**] Remove deprecated `BedrockRanker` (use `AmazonBedrockRanker` instead) (#2287)
+
+## [integrations/amazon_bedrock-v4.2.0] - 2025-09-19
+
+### 🚀 Features
+
+- Add a new `S3Downloader` component (#2192)
+
+## [integrations/amazon_bedrock-v4.1.0] - 2025-09-19
+
+### 🚀 Features
+
+- Support AWS Bedrock Guardrails in `AmazonBedrockChatGenerator` (#2284)
+
+### 🧹 Chores
+
+- Bedrock - remove unused `stop_words` init parameter (#2275)
+
+### 🌀 Miscellaneous
+
+- Chore: Fix linting aws bedrock (#2249)
+
+## [integrations/amazon_bedrock-v4.0.0] - 2025-08-29
+
+### 🚀 Features
+
+- [**breaking**] Update AmazonBedrockChatGenerator to use the new fields in `StreamingChunk` (#2216)
+- [**breaking**] Use `ReasoningContent` to store reasoning content in `ChatMessage` instead of `ChatMessage.meta` (#2226)
+
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+## [integrations/amazon_bedrock-v3.11.0] - 2025-08-21
+
+### 🚀 Features
+
+- Add `AmazonBedrockDocumentImageEmbedder` component (#2185)
+
+### 🧹 Chores
+
+- Add framework name into UserAgent header for bedrock integration (#2168)
+- Standardize readmes - part 1 (#2202)
+
+
+## [integrations/amazon_bedrock-v3.10.0] - 2025-08-06
+
+### 🚀 Features
+
+- Add `reasoning_contents` to meta of BedrockChatGenerator to support normal thinking and redacted thinking (#2153)
+
+### 🌀 Miscellaneous
+
+- Adds support for thinking when using Claude with BedrockChatGenerator in multi-turn conversations (#2094)
+
+## [integrations/amazon_bedrock-v3.9.1] - 2025-07-31
+
+### 🐛 Bug Fixes
+
+- `AmazonBedrockChatGenerator` - fix bug with streaming + tool calls with no arguments (#2121)
+
+
+## [integrations/amazon_bedrock-v3.9.0] - 2025-07-29
+
+### 🚀 Features
+
+- Amazon Bedrock - multimodal support (#2114)
+
+
+## [integrations/amazon_bedrock-v3.8.0] - 2025-07-04
+
+### 🚀 Features
+
+- Pass component_info to StreamingChunk in AmazonBedrockChatGenerator (#2042)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+- Improve typing for select_streaming_callback (#2008)
+
+
 ## [integrations/amazon_bedrock-v3.7.0] - 2025-06-11
 
 ### 🐛 Bug Fixes

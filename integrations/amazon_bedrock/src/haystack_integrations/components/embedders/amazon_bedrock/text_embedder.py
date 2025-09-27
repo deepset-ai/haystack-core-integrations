@@ -19,6 +19,7 @@ SUPPORTED_EMBEDDING_MODELS = [
     "cohere.embed-english-v3",
     "cohere.embed-multilingual-v3",
     "amazon.titan-embed-text-v2:0",
+    "amazon.titan-embed-image-v1",
 ]
 
 
@@ -34,7 +35,7 @@ class AmazonBedrockTextEmbedder:
 
     os.environ["AWS_ACCESS_KEY_ID"] = "..."
     os.environ["AWS_SECRET_ACCESS_KEY_ID"] = "..."
-    os.environ["AWS_REGION_NAME"] = "..."
+    os.environ["AWS_DEFAULT_REGION"] = "..."
 
     embedder = AmazonBedrockTextEmbedder(
         model="cohere.embed-english-v3",
@@ -54,6 +55,7 @@ class AmazonBedrockTextEmbedder:
             "cohere.embed-english-v3",
             "cohere.embed-multilingual-v3",
             "amazon.titan-embed-text-v2:0",
+            "amazon.titan-embed-image-v1",
         ],
         aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
@@ -114,9 +116,9 @@ class AmazonBedrockTextEmbedder:
                 aws_region_name=resolve_secret(aws_region_name),
                 aws_profile_name=resolve_secret(aws_profile_name),
             )
-            config: Optional[Config] = None
-            if self.boto3_config:
-                config = Config(**self.boto3_config)
+            config = Config(
+                user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
+            )
             self._client = session.client("bedrock-runtime", config=config)
         except Exception as exception:
             msg = (

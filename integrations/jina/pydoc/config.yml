@@ -4,6 +4,7 @@ loaders:
     modules:
       [
         "haystack_integrations.components.embedders.jina.document_embedder",
+        "haystack_integrations.components.embedders.jina.document_image_embedder",
         "haystack_integrations.components.embedders.jina.text_embedder",
         "haystack_integrations.components.rankers.jina.ranker",
         "haystack_integrations.components.connectors.jina.reader",

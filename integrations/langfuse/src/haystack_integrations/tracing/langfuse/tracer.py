@@ -3,28 +3,24 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import contextlib
-import json
 import os
 from abc import ABC, abstractmethod
 from collections import Counter
+from contextlib import AbstractContextManager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage
 from haystack.tracing import Span, Tracer
 from haystack.tracing import tracer as proxy_tracer
 from haystack.tracing import utils as tracing_utils
-from typing_extensions import TypeAlias
 
 import langfuse
-from langfuse.client import StatefulGenerationClient, StatefulSpanClient, StatefulTraceClient
-
-# Type alias for Langfuse stateful clients
-LangfuseStatefulClient: TypeAlias = Union[StatefulTraceClient, StatefulSpanClient, StatefulGenerationClient]
-
+from langfuse import LangfuseSpan as LangfuseClientSpan
+from langfuse.types import TraceMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +35,7 @@ _SUPPORTED_GENERATORS = [
     "OllamaGenerator",
 ]
 _SUPPORTED_CHAT_GENERATORS = [
+    "AmazonBedrockChatGenerator",
     "AzureOpenAIChatGenerator",
     "OpenAIChatGenerator",
     "AnthropicChatGenerator",
@@ -61,64 +58,13 @@ _COMPONENT_TYPE_KEY = "haystack.component.type"
 _COMPONENT_OUTPUT_KEY = "haystack.component.output"
 _COMPONENT_INPUT_KEY = "haystack.component.input"
 
-# Context var used to keep track of tracing related info.
-# This mainly useful for parents spans.
+# External session metadata for trace correlation (Haystack system)
+# Stores trace_id, user_id, session_id, tags, version for root trace creation
 tracing_context_var: ContextVar[Dict[Any, Any]] = ContextVar("tracing_context")
 
-
-def _to_openai_dict_format(chat_message: ChatMessage) -> Dict[str, Any]:
-    """
-    Convert a ChatMessage to the dictionary format expected by OpenAI's chat completion API.
-
-    Note: We already have such a method in Haystack's ChatMessage class.
-    However, the original method doesn't tolerate None values for ids of ToolCall and ToolCallResult.
-    Some generators, like GoogleGenAIChatGenerator, return None values for ids of ToolCall and ToolCallResult.
-    To seamlessly support these generators, we use this, Langfuse local, version of the method.
-
-    :param chat_message: The ChatMessage instance to convert.
-    :return: Dictionary in OpenAI Chat API format.
-    """
-    text_contents = chat_message.texts
-    tool_calls = chat_message.tool_calls
-    tool_call_results = chat_message.tool_call_results
-
-    if not text_contents and not tool_calls and not tool_call_results:
-        message = "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, or `ToolCallResult`."
-        logger.error(message)
-        raise ValueError(message)
-    if len(text_contents) + len(tool_call_results) > 1:
-        message = "A `ChatMessage` can only contain one `TextContent` or one `ToolCallResult`."
-        logger.error(message)
-        raise ValueError(message)
-
-    openai_msg: Dict[str, Any] = {"role": chat_message._role.value}
-
-    # Add name field if present
-    if chat_message._name is not None:
-        openai_msg["name"] = chat_message._name
-
-    if tool_call_results:
-        result = tool_call_results[0]
-        openai_msg["content"] = result.result
-        openai_msg["tool_call_id"] = result.origin.id
-        # OpenAI does not provide a way to communicate errors in tool invocations, so we ignore the error field
-        return openai_msg
-
-    if text_contents:
-        openai_msg["content"] = text_contents[0]
-    if tool_calls:
-        openai_tool_calls = []
-        for tc in tool_calls:
-            openai_tool_calls.append(
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    # We disable ensure_ascii so special chars like emojis are not converted
-                    "function": {"name": tc.tool_name, "arguments": json.dumps(tc.arguments, ensure_ascii=False)},
-                }
-            )
-        openai_msg["tool_calls"] = openai_tool_calls
-    return openai_msg
+# Internal span execution hierarchy for our tracer
+# Manages parent-child relationships and prevents cross-request span interleaving
+span_stack_var: ContextVar[Optional[List["LangfuseSpan"]]] = ContextVar("span_stack", default=None)
 
 
 class LangfuseSpan(Span):
@@ -126,15 +72,17 @@ class LangfuseSpan(Span):
     Internal class representing a bridge between the Haystack span tracing API and Langfuse.
     """
 
-    def __init__(self, span: LangfuseStatefulClient) -> None:
+    def __init__(self, context_manager: AbstractContextManager) -> None:
         """
         Initialize a LangfuseSpan instance.
 
-        :param span: The span instance managed by Langfuse.
+        :param context_manager: The context manager from Langfuse created with
+        `langfuse.get_client().start_as_current_span` or
+        `langfuse.get_client().start_as_current_observation`.
         """
-        self._span = span
-        # locally cache tags
+        self._span = context_manager.__enter__()
         self._data: Dict[str, Any] = {}
+        self._context_manager = context_manager
 
     def set_tag(self, key: str, value: Any) -> None:
         """
@@ -158,7 +106,7 @@ class LangfuseSpan(Span):
             return
         if key.endswith(".input"):
             if "messages" in value:
-                messages = [_to_openai_dict_format(m) for m in value["messages"]]
+                messages = [m.to_openai_dict_format(require_tool_call_ids=False) for m in value["messages"]]
                 self._span.update(input=messages)
             else:
                 coerced_value = tracing_utils.coerce_tag_value(value)
@@ -166,7 +114,7 @@ class LangfuseSpan(Span):
         elif key.endswith(".output"):
             if "replies" in value:
                 if all(isinstance(r, ChatMessage) for r in value["replies"]):
-                    replies = [_to_openai_dict_format(m) for m in value["replies"]]
+                    replies = [m.to_openai_dict_format(require_tool_call_ids=False) for m in value["replies"]]
                 else:
                     replies = value["replies"]
                 self._span.update(output=replies)
@@ -176,7 +124,7 @@ class LangfuseSpan(Span):
 
         self._data[key] = value
 
-    def raw_span(self) -> LangfuseStatefulClient:
+    def raw_span(self) -> LangfuseClientSpan:
         """
         Return the underlying span instance.
 
@@ -320,24 +268,39 @@ class DefaultSpanHandler(SpanHandler):
             )
             raise RuntimeError(message)
 
+        # Get external tracing context for root trace creation (correlation metadata)
         tracing_ctx = tracing_context_var.get({})
         if not context.parent_span:
             # Create a new trace when there's no parent span
-            return LangfuseSpan(
-                self.tracer.trace(
-                    name=context.trace_name,
-                    public=context.public,
-                    id=tracing_ctx.get("trace_id"),
-                    user_id=tracing_ctx.get("user_id"),
-                    session_id=tracing_ctx.get("session_id"),
-                    tags=tracing_ctx.get("tags"),
-                    version=tracing_ctx.get("version"),
-                )
+            span_context_manager = self.tracer.start_as_current_span(
+                name=context.trace_name,
+                version=tracing_ctx.get("version"),
             )
+
+            # Create LangfuseSpan which will handle entering the context manager
+            span = LangfuseSpan(span_context_manager)
+
+            # Build trace metadata from context
+            trace_metadata: TraceMetadata = {
+                "name": context.trace_name,
+                "user_id": tracing_ctx.get("user_id"),
+                "session_id": tracing_ctx.get("session_id"),
+                "version": tracing_ctx.get("version"),
+                "metadata": None,
+                "tags": tracing_ctx.get("tags"),
+                "public": context.public,
+            }
+
+            # Filter out None values and apply trace attributes
+            trace_attrs = {k: v for k, v in trace_metadata.items() if v is not None}
+            if trace_attrs:
+                span._span.update_trace(**trace_attrs)
+
+            return span
         elif context.component_type in _ALL_SUPPORTED_GENERATORS:
-            return LangfuseSpan(context.parent_span.raw_span().generation(name=context.name))
+            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type="generation"))
         else:
-            return LangfuseSpan(context.parent_span.raw_span().span(name=context.name))
+            return LangfuseSpan(self.tracer.start_as_current_span(name=context.name))
 
     def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
         # If the span is at the pipeline level, we add input and output keys to the span
@@ -345,8 +308,7 @@ class DefaultSpanHandler(SpanHandler):
         if at_pipeline_level:
             coerced_input = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_INPUT_KEY))
             coerced_output = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_OUTPUT_KEY))
-            span.raw_span().update(input=coerced_input, output=coerced_output)
-
+            span.raw_span().update_trace(input=coerced_input, output=coerced_output)
         # special case for ToolInvoker (to update the span name to be: `original_component_name - [tool_names]`)
         if component_type == "ToolInvoker":
             tool_names: List[str] = []
@@ -415,6 +377,7 @@ class LangfuseTracer(Tracer):
                 "before importing Haystack."
             )
         self._tracer = tracer
+        # Keep _context as deprecated shim to avoid AttributeError if anyone uses it
         self._context: List[LangfuseSpan] = []
         self._name = name
         self._public = public
@@ -446,25 +409,43 @@ class LangfuseTracer(Tracer):
         # Create span using the handler
         span = self._span_handler.create_span(span_context)
 
-        self._context.append(span)
+        # Build new span hierarchy: copy existing stack, add new span, save for restoration
+        prev_stack = span_stack_var.get()
+        new_stack = (prev_stack or []).copy()
+        new_stack.append(span)
+        token = span_stack_var.set(new_stack)
+
         span.set_tags(tags)
 
-        yield span
+        try:
+            yield span
+        finally:
+            # Always clean up context, even if nested operations fail
+            try:
+                # Process span data (may fail with nested pipeline exceptions)
+                self._span_handler.handle(span, component_type)
 
-        # Let the span handler process the span
-        self._span_handler.handle(span, component_type)
+                # End span (may fail if span data is corrupted)
+                raw_span = span.raw_span()
+                # In v3, we need to properly exit context managers
+                if span._context_manager is not None:
+                    span._context_manager.__exit__(None, None, None)
+                elif hasattr(raw_span, "end"):
+                    # Only call end() if it's not a context manager
+                    raw_span.end()
+            except Exception as cleanup_error:
+                # Log cleanup errors but don't let them corrupt context
+                logger.warning(
+                    "Error during span cleanup for {operation_name}: {cleanup_error}",
+                    operation_name=operation_name,
+                    cleanup_error=cleanup_error,
+                )
+            finally:
+                # Restore previous span stack using saved token - ensures proper cleanup
+                span_stack_var.reset(token)
 
-        # In this section, we finalize both regular spans and generation spans created using the LangfuseSpan class.
-        # It's important to end() these spans to ensure they are properly closed and all relevant data is recorded.
-        # Note that we do not call end() on the main trace span itself (StatefulTraceClient), as its lifecycle is
-        # managed differently.
-        raw_span = span.raw_span()
-        if isinstance(raw_span, (StatefulSpanClient, StatefulGenerationClient)):
-            raw_span.end()
-        self._context.pop()
-
-        if self.enforce_flush:
-            self.flush()
+            if self.enforce_flush:
+                self.flush()
 
     def flush(self) -> None:
         self._tracer.flush()
@@ -475,7 +456,9 @@ class LangfuseTracer(Tracer):
 
         :return: The current span if available, else None.
         """
-        return self._context[-1] if self._context else None
+        # Get top of span stack (most recent span) from context-local storage
+        stack = span_stack_var.get()
+        return stack[-1] if stack else None
 
     def get_trace_url(self) -> str:
         """
@@ -489,4 +472,4 @@ class LangfuseTracer(Tracer):
         Return the trace ID.
         :return: The trace ID.
         """
-        return self._tracer.get_trace_id()
+        return self._tracer.get_current_trace_id()

@@ -7,7 +7,7 @@ from haystack.utils import Secret
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockInferenceError,
 )
-from haystack_integrations.components.rankers.amazon_bedrock import AmazonBedrockRanker, BedrockRanker
+from haystack_integrations.components.rankers.amazon_bedrock import AmazonBedrockRanker
 
 
 @pytest.fixture
@@ -31,7 +31,7 @@ def test_amazon_bedrock_ranker_initialization(mock_aws_session):
 
 
 def test_bedrock_ranker_run(mock_aws_session):
-    ranker = BedrockRanker(
+    ranker = AmazonBedrockRanker(
         model="cohere.rerank-v3-5:0",
         top_k=2,
         aws_access_key_id=Secret.from_token("test_access_key"),
