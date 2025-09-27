@@ -143,7 +143,7 @@ class VertexAIGeminiChatGenerator:
     def __init__(
         self,
         *,
-        model: str = "gemini-1.5-flash",
+        model: str = "gemini-2.5-flash",
         project_id: Optional[str] = None,
         location: Optional[str] = None,
         generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
