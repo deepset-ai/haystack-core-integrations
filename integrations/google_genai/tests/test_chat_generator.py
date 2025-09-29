@@ -972,9 +972,9 @@ class TestGoogleGenAIChatGenerator:
         """
         Integration test to verify that thinking configuration fails fast with unsupported models.
         """
-        # gemini-1.5-pro-latest is known to not support thinking
+        # gemini-2.0-flash is known to not support thinking
         chat_messages = [ChatMessage.from_user("Why is the sky blue?")]
-        component = GoogleGenAIChatGenerator(model="gemini-1.5-pro-latest", generation_kwargs={"thinking_budget": 1024})
+        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash", generation_kwargs={"thinking_budget": 1024})
 
         # The call should raise a RuntimeError with a helpful message
         with pytest.raises(RuntimeError) as exc_info:
@@ -983,7 +983,7 @@ class TestGoogleGenAIChatGenerator:
         # Verify the error message is helpful and mentions thinking configuration
         error_message = str(exc_info.value)
         assert "Thinking configuration error" in error_message
-        assert "gemini-1.5" in error_message
+        assert "gemini-2.0" in error_message
         assert "thinking_budget" in error_message or "thinking features" in error_message
         assert "Try removing" in error_message or "use a different model" in error_message
 
@@ -1080,7 +1080,7 @@ class TestAsyncGoogleGenAIChatGenerator:
         """
         # Use a model that does NOT support thinking features
         chat_messages = [ChatMessage.from_user("Why is the sky blue?")]
-        component = GoogleGenAIChatGenerator(model="gemini-1.5-pro-latest", generation_kwargs={"thinking_budget": 1024})
+        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash", generation_kwargs={"thinking_budget": 1024})
 
         # The call should raise a RuntimeError with a helpful message
         with pytest.raises(RuntimeError) as exc_info:
@@ -1089,7 +1089,7 @@ class TestAsyncGoogleGenAIChatGenerator:
         # Verify the error message is helpful and mentions thinking configuration
         error_message = str(exc_info.value)
         assert "Thinking configuration error" in error_message
-        assert "gemini-1.5-pro" in error_message
+        assert "gemini-2.0" in error_message
         assert "thinking_budget" in error_message or "thinking features" in error_message
         assert "Try removing" in error_message or "use a different model" in error_message
 
