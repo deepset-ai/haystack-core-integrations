@@ -528,38 +528,71 @@ class OpenSearchDocumentStore:
 
         await async_bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=True))
 
-    def delete_all_documents(self) -> None:
-        """
-        Deletes all documents in the document store by deleting and recreating the index.
+    def _prepare_delete_all_request(self, *, is_async: bool) -> Dict[str, Any]:
+        return {
+            "index": self._index,
+            "body": {"query": {"match_all": {}}},  # Delete all documents
+            "wait_for_completion": False if is_async else True,  # block until done (set False for async)
+        }
 
-        A fast way to clear all documents from the document store while preserving any index settings and mappings.
+    def delete_all_documents(self, recreate_index: bool = False) -> None:  # noqa: FBT002, FBT001
+        """
+        Deletes all documents in the document store.
+
+        :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
+            settings. If False, all documents will be deleted using the `delete_by_query` API.
         """
         self._ensure_initialized()
         assert self._client is not None
 
-        # Delete index
-        self._client.indices.delete(index=self._index)
+        if recreate_index:
+            # get the current index mappings and settings
+            index_name = self._index
+            body = {
+                "mappings": self._client.indices.get(self._index)[index_name]["mappings"],
+                "settings": self._client.indices.get(self._index)[index_name]["settings"],
+            }
+            body["settings"]["index"].pop("uuid", None)
+            body["settings"]["index"].pop("creation_date", None)
+            body["settings"]["index"].pop("provided_name", None)
+            body["settings"]["index"].pop("version", None)
+            self._client.indices.delete(index=self._index)
+            self._client.indices.create(index=self._index, body=body)
+            logger.debug(
+                "The index '{index}' recreated with the original mappings and settings.",
+                index=self._index,
+            )
 
-        # Recreate with mappings and settings
-        body = {"mappings": self._mappings, "settings": self._settings}
-        self._client.indices.create(index=self._index, body=body)
+        else:
+            result = self._client.delete_by_query(**self._prepare_delete_all_request(is_async=False))
+            logger.debug(
+                "Deleted all the {n_docs} documents from the index '{index}'.",
+                index=self._index,
+                n_docs=result["deleted"],
+            )
 
-    async def delete_all_documents_async(self) -> None:
+    async def delete_all_documents_async(self, recreate_index: bool = False) -> None:  # noqa: FBT002, FBT001
         """
-        Asynchronously deletes all documents in the document store by deleting and recreating the index.
+        Asynchronously deletes all documents in the document store.
 
-        A fast way to clear all documents from the document store while preserving any index settings and mappings.
+        :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
+            settings. If False, all documents will be deleted using the `delete_by_query` API.
         """
         self._ensure_initialized()
         assert self._async_client is not None
 
         try:
-            # Delete index
-            await self._async_client.indices.delete(index=self._index)
+            if recreate_index:
+                # delete index
+                await self._async_client.indices.delete(index=self._index)
+                # recreate with mappings and settings
+                body = {"mappings": self._mappings, "settings": self._settings}
+                await self._async_client.indices.create(index=self._index, body=body)
+            else:
+                await self._async_client.indices.close(index=self._index)  # close the index
+                await self._async_client.delete_by_query(**self._prepare_delete_all_request(is_async=True))
+                await self._async_client.indices.open(index=self._index)  # reopen
 
-            # Recreate with mappings and settings
-            body = {"mappings": self._mappings, "settings": self._settings}
-            await self._async_client.indices.create(index=self._index, body=body)
         except Exception as e:
             msg = f"Failed to delete all documents from OpenSearch: {e!s}"
             raise DocumentStoreError(msg) from e
