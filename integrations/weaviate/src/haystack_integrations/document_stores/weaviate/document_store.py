@@ -505,6 +505,14 @@ class WeaviateDocumentStore:
         weaviate_ids = [generate_uuid5(doc_id) for doc_id in document_ids]
         self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(weaviate_ids))
 
+    def delete_all_documents(self) -> None:
+        """ Deletes all documents in the document store.
+        """
+        self.collection.data.delete_many(
+            where={},  
+            output="minimal"
+        )
+
     def _bm25_retrieval(
         self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
     ) -> List[Document]:
