@@ -545,31 +545,35 @@ class OpenSearchDocumentStore:
         self._ensure_initialized()
         assert self._client is not None
 
-        if recreate_index:
-            # get the current index mappings and settings
-            index_name = self._index
-            body = {
-                "mappings": self._client.indices.get(self._index)[index_name]["mappings"],
-                "settings": self._client.indices.get(self._index)[index_name]["settings"],
-            }
-            body["settings"]["index"].pop("uuid", None)
-            body["settings"]["index"].pop("creation_date", None)
-            body["settings"]["index"].pop("provided_name", None)
-            body["settings"]["index"].pop("version", None)
-            self._client.indices.delete(index=self._index)
-            self._client.indices.create(index=self._index, body=body)
-            logger.info(
-                "The index '{index}' recreated with the original mappings and settings.",
-                index=self._index,
-            )
+        try:
+            if recreate_index:
+                # get the current index mappings and settings
+                index_name = self._index
+                body = {
+                    "mappings": self._client.indices.get(self._index)[index_name]["mappings"],
+                    "settings": self._client.indices.get(self._index)[index_name]["settings"],
+                }
+                body["settings"]["index"].pop("uuid", None)
+                body["settings"]["index"].pop("creation_date", None)
+                body["settings"]["index"].pop("provided_name", None)
+                body["settings"]["index"].pop("version", None)
+                self._client.indices.delete(index=self._index)
+                self._client.indices.create(index=self._index, body=body)
+                logger.info(
+                    "The index '{index}' recreated with the original mappings and settings.",
+                    index=self._index,
+                )
 
-        else:
-            result = self._client.delete_by_query(**self._prepare_delete_all_request(is_async=False))
-            logger.info(
-                "Deleted all the {n_docs} documents from the index '{index}'.",
-                index=self._index,
-                n_docs=result["deleted"],
-            )
+            else:
+                result = self._client.delete_by_query(**self._prepare_delete_all_request(is_async=False))
+                logger.info(
+                    "Deleted all the {n_docs} documents from the index '{index}'.",
+                    index=self._index,
+                    n_docs=result["deleted"],
+                )
+        except Exception as e:
+            msg = f"Failed to delete all documents from OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e
 
     async def delete_all_documents_async(self, recreate_index: bool = False) -> None:  # noqa: FBT002, FBT001
         """
@@ -594,9 +598,7 @@ class OpenSearchDocumentStore:
                 body["settings"]["index"].pop("provided_name", None)
                 body["settings"]["index"].pop("version", None)
 
-                # delete index
                 await self._async_client.indices.delete(index=self._index)
-                # recreate with mappings and settings
                 await self._async_client.indices.create(index=self._index, body=body)
             else:
                 await self._async_client.delete_by_query(**self._prepare_delete_all_request(is_async=True))
