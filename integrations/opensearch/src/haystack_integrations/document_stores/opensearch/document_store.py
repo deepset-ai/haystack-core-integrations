@@ -583,7 +583,6 @@ class OpenSearchDocumentStore:
 
         try:
             if recreate_index:
-
                 # get the current index mappings and settings
                 index_name = self._index
                 body = {
