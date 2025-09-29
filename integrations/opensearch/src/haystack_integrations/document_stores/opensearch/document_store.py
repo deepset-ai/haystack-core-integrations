@@ -589,9 +589,10 @@ class OpenSearchDocumentStore:
             if recreate_index:
                 # get the current index mappings and settings
                 index_name = self._index
+                index_info = await self._async_client.indices.get(self._index)
                 body = {
-                    "mappings": self._async_client.indices.get(self._index)[index_name]["mappings"],
-                    "settings": self._async_client.indices.get(self._index)[index_name]["settings"],
+                    "mappings": index_info[index_name]["mappings"],
+                    "settings": index_info[index_name]["settings"],
                 }
                 body["settings"]["index"].pop("uuid", None)
                 body["settings"]["index"].pop("creation_date", None)
