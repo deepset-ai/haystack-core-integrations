@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v5.1.0] - 2025-09-29
+
+### 🚀 Features
+
+- S3Downloader - add `s3_key_generation_function` param to customize S3 key generation (#2343)
+
 ## [integrations/amazon_bedrock-v5.0.0] - 2025-09-22
 
 ### 🧹 Chores
