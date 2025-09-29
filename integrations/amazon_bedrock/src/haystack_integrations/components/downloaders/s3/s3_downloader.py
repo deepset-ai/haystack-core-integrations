@@ -66,7 +66,7 @@ class S3Downloader:
             By default, all file extensions are allowed.
         :param max_workers: The maximum number of workers to use for concurrent downloads.
         :param max_cache_size: The maximum number of files to cache.
-        :param file_name_meta_key: The name of the meta key that contains the file name to download.
+        :param file_name_meta_key: The name of the meta key that contains the file name to download. The file name will also be used to create local file path for download.
             By default, the `Document.meta["file_name"]` is used. If you want to use a
             different key in `Document.meta`, you can set it here.
         :param s3_key_generation_function: An optional function that generates the S3 key for the file to download.
