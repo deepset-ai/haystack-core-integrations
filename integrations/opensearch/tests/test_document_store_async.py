@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import time
 from typing import List
 
 import pytest
@@ -247,26 +248,57 @@ class TestDocumentStoreAsync:
         assert await document_store.count_documents_async() == 0
 
     @pytest.mark.asyncio
-    async def test_delete_all_documents_async(self, document_store):
-        """Test delete_all_documents_async removes all documents and preserves index structure"""
-        docs = [
-            Document(id="1", content="First document", meta={"category": "test"}),
-            Document(id="2", content="Second document", meta={"category": "test"}),
-            Document(id="3", content="Third document", meta={"category": "other"}),
-        ]
+    async def test_delete_all_documents_index_recreation(self, document_store: OpenSearchDocumentStore):
+        # populate the index with some documents
+        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
         await document_store.write_documents_async(docs)
-        assert await document_store.count_documents_async() == 3
+
+        # capture index structure before deletion
+        assert document_store._client is not None
+        index_info_before = document_store._client.indices.get(index=document_store._index)
+        mappings_before = index_info_before[document_store._index]["mappings"]
+        settings_before = index_info_before[document_store._index]["settings"]
 
         # delete all documents
-        await document_store.delete_all_documents_async()
+        await document_store.delete_all_documents_async(recreate_index=True)
         assert await document_store.count_documents_async() == 0
 
-        # verify index still exists and can accept new documents and retrieve
+        # verify index structure is preserved
+        index_info_after = document_store._client.indices.get(index=document_store._index)
+        mappings_after = index_info_after[document_store._index]["mappings"]
+        settings_after = index_info_after[document_store._index]["settings"]
+
+        assert mappings_after == mappings_before, "delete_all_documents should preserve index mappings"
+
+        settings_after["index"].pop("uuid", None)
+        settings_after["index"].pop("creation_date", None)
+        settings_before["index"].pop("uuid", None)
+        settings_before["index"].pop("creation_date", None)
+        assert settings_after == settings_before, "delete_all_documents should preserve index settings"
+
         new_doc = Document(id="4", content="New document after delete all")
         await document_store.write_documents_async([new_doc])
         assert await document_store.count_documents_async() == 1
 
         results = await document_store.filter_documents_async()
         assert len(results) == 1
-        assert results[0].id == "4"
+        assert results[0].content == "New document after delete all"
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_no_index_recreation(self, document_store: OpenSearchDocumentStore):
+        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 2
+
+        await document_store.delete_all_documents_async(recreate_index=False)
+        # need to wait for the deletion to be reflected in count_documents
+        time.sleep(2)
+        assert await document_store.count_documents_async() == 0
+
+        new_doc = Document(id="3", content="New document after delete all")
+        await document_store.write_documents_async([new_doc])
+        assert await document_store.count_documents_async() == 1
+
+        results = await document_store.filter_documents_async()
+        assert len(results) == 1
         assert results[0].content == "New document after delete all"

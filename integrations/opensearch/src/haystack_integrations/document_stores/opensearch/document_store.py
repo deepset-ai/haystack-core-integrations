@@ -558,14 +558,14 @@ class OpenSearchDocumentStore:
             body["settings"]["index"].pop("version", None)
             self._client.indices.delete(index=self._index)
             self._client.indices.create(index=self._index, body=body)
-            logger.debug(
+            logger.info(
                 "The index '{index}' recreated with the original mappings and settings.",
                 index=self._index,
             )
 
         else:
             result = self._client.delete_by_query(**self._prepare_delete_all_request(is_async=False))
-            logger.debug(
+            logger.info(
                 "Deleted all the {n_docs} documents from the index '{index}'.",
                 index=self._index,
                 n_docs=result["deleted"],
@@ -583,15 +583,24 @@ class OpenSearchDocumentStore:
 
         try:
             if recreate_index:
+
+                # get the current index mappings and settings
+                index_name = self._index
+                body = {
+                    "mappings": self._client.indices.get(self._index)[index_name]["mappings"],
+                    "settings": self._client.indices.get(self._index)[index_name]["settings"],
+                }
+                body["settings"]["index"].pop("uuid", None)
+                body["settings"]["index"].pop("creation_date", None)
+                body["settings"]["index"].pop("provided_name", None)
+                body["settings"]["index"].pop("version", None)
+
                 # delete index
                 await self._async_client.indices.delete(index=self._index)
                 # recreate with mappings and settings
-                body = {"mappings": self._mappings, "settings": self._settings}
                 await self._async_client.indices.create(index=self._index, body=body)
             else:
-                await self._async_client.indices.close(index=self._index)  # close the index
                 await self._async_client.delete_by_query(**self._prepare_delete_all_request(is_async=True))
-                await self._async_client.indices.open(index=self._index)  # reopen
 
         except Exception as e:
             msg = f"Failed to delete all documents from OpenSearch: {e!s}"
@@ -652,7 +661,8 @@ class OpenSearchDocumentStore:
 
         return body
 
-    def _postprocess_bm25_search_results(self, *, results: List[Document], scale_score: bool) -> None:
+    @staticmethod
+    def _postprocess_bm25_search_results(*, results: List[Document], scale_score: bool) -> None:
         if not scale_score:
             return
 
@@ -696,7 +706,7 @@ class OpenSearchDocumentStore:
             custom_query=custom_query,
         )
         documents = self._search_documents(search_params)
-        self._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
+        OpenSearchDocumentStore._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
         return documents
 
     async def _bm25_retrieval_async(
@@ -735,7 +745,7 @@ class OpenSearchDocumentStore:
             custom_query=custom_query,
         )
         documents = await self._search_documents_async(search_params)
-        self._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
+        OpenSearchDocumentStore._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
         return documents
 
     def _prepare_embedding_search_request(

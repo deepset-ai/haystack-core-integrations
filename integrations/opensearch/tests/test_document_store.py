@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import random
+import time
 from typing import List
 from unittest.mock import patch
 
@@ -454,7 +455,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert len(results) == 2
         assert results[0].embedding is None
 
-    def filter_documents_no_embedding_returned(
+    def test_filter_documents_no_embedding_returned(
         self, document_store_embedding_dim_4_no_emb_returned: OpenSearchDocumentStore
     ):
         docs = [
@@ -506,12 +507,13 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert len(results) == 1
         assert results[0].content == "New document after delete all"
 
-    def test_delete_all_documents(self, document_store: OpenSearchDocumentStore):
+    def test_delete_all_documents_no_index_recreation(self, document_store: OpenSearchDocumentStore):
         docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
         document_store.write_documents(docs)
         assert document_store.count_documents() == 2
 
         document_store.delete_all_documents(recreate_index=False)
+        time.sleep(2)  # need to wait for the deletion to be reflected in count_documents
         assert document_store.count_documents() == 0
 
         new_doc = Document(id="3", content="New document after delete all")
