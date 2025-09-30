@@ -505,13 +505,41 @@ class WeaviateDocumentStore:
         weaviate_ids = [generate_uuid5(doc_id) for doc_id in document_ids]
         self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(weaviate_ids))
 
-    def delete_all_documents(self) -> None:
-        """ Deletes all documents in the document store.
+    def delete_all_documents(self, recreate_index: bool = False,deletion_batch_size=1000) -> None:
         """
-        self.collection.data.delete_many(
-            where={},  
-            output="minimal"
-        )
+        Deletes all documents in a collection. If recreate_index is False, it keeps the collection but deletes documents iteratively.
+        If recreate_index is True, the collection is dropped and faithfully recreated. This is recommended for performance reasons.
+        This guarantees a clean slate without changing any settings.
+
+        :param recreate_index: Use drop and recreate strategy. (recommended for performance)
+        :param deletion_batch_size: Only relevant if recreate_index is false. Defines the deletion batch size.
+        """
+
+        if recreate_index:
+            #get current up-to-date config from server, so we can recreate the collection faithfully
+            cfg = self.client.collections.get(self._collection_settings["class"]).config.get().to_dict()
+            class_name = cfg.get("class", self._collection_settings["class"])
+            
+            self.client.collections.delete(class_name)
+            self.client.collections.create_from_dict(cfg)
+            self._collection_settings = cfg
+            self._collection = self.client.collections.get(class_name)
+            return
+
+        
+        
+        uuids = []
+        for obj in self.collection.iterator(return_properties=[], include_vector=False):
+            uuids.append(obj.uuid)
+            if len(uuids) >= deletion_batch_size:
+                self.collection.data.delete_many(
+                    where=weaviate.classes.query.Filter.by_id().contains_any(uuids)
+                )
+                uuids.clear()
+        if uuids:
+            self.collection.data.delete_many(
+                where=weaviate.classes.query.Filter.by_id().contains_any(uuids)
+            )
 
     def _bm25_retrieval(
         self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
