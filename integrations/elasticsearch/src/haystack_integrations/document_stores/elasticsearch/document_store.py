@@ -564,6 +564,7 @@ class ElasticsearchDocumentStore:
             "index": self._index,
             "body": {"query": {"match_all": {}}},  # Delete all documents
             "wait_for_completion": False if is_async else True,  # block until done (set False for async)
+            "refresh": True,  # Ensure changes are visible immediately
         }
 
     async def delete_documents_async(self, document_ids: List[str]) -> None:
@@ -622,7 +623,7 @@ class ElasticsearchDocumentStore:
                 n_docs=result["deleted"],
             )
 
-    async def delete_all_documents_async(self) -> None:
+    async def delete_all_documents_async(self, recreate_index: bool = False) -> None:  # noqa: FBT002, FBT001
         """
         Asynchronously deletes all documents in the document store by deleting and recreating the index.
 
@@ -631,12 +632,37 @@ class ElasticsearchDocumentStore:
         self._ensure_initialized()  # ensures _async_client is not None
 
         try:
-            # delete the index
-            await self._async_client.indices.delete(index=self._index)  # type: ignore
+            if recreate_index:
+                # get the current index mappings and settings
+                index_name = self._index
+                index_info = await self._async_client.indices.get(index=self._index)  # type: ignore
+                mappings = index_info[index_name]["mappings"]
+                settings = index_info[index_name]["settings"]
 
-            # recreate with mappings
-            mappings = self._custom_mapping if self._custom_mapping else self.default_mappings
-            await self._async_client.indices.create(index=self._index, mappings=mappings)  # type: ignore
+                # remove settings that cannot be set during index creation
+                settings["index"].pop("uuid", None)
+                settings["index"].pop("creation_date", None)
+                settings["index"].pop("provided_name", None)
+                settings["index"].pop("version", None)
+
+                # delete index
+                await self._async_client.indices.delete(index=self._index)  # type: ignore
+
+                # recreate with settings and mappings
+                await self._async_client.indices.create(index=self._index, settings=settings, mappings=mappings)  # type: ignore
+
+            else:
+                # use delete_by_query for more efficient deletion without index recreation
+                # For async, we need to wait for completion to get the deleted count
+                delete_request = self._prepare_delete_all_request(is_async=True)
+                delete_request["wait_for_completion"] = True  # Override to wait for completion in async
+                result = await self._async_client.delete_by_query(**delete_request)  # type: ignore
+                logger.info(
+                    "Deleted all the {n_docs} documents from the index '{index}'.",
+                    index=self._index,
+                    n_docs=result["deleted"],
+                )
+
         except Exception as e:
             msg = f"Failed to delete all documents from Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e

@@ -697,7 +697,7 @@ class TestElasticsearchDocumentStoreAsync:
         assert await document_store.count_documents_async() == 3
 
         # delete all documents
-        await document_store.delete_all_documents_async()
+        await document_store.delete_all_documents_async(recreate_index=False)
         assert await document_store.count_documents_async() == 0
 
         # verify index still exists and can accept new documents and retrieve
@@ -709,3 +709,55 @@ class TestElasticsearchDocumentStoreAsync:
         assert len(results) == 1
         assert results[0].id == "4"
         assert results[0].content == "New document after delete all"
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_async_index_recreation(self, document_store):
+        # populate the index with some documents
+        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
+        await document_store.write_documents_async(docs)
+
+        # capture index structure before deletion
+        assert document_store._async_client is not None
+        index_info_before = await document_store._async_client.indices.get(index=document_store._index)
+        mappings_before = index_info_before[document_store._index]["mappings"]
+        settings_before = index_info_before[document_store._index]["settings"]
+
+        # delete all documents with index recreation
+        await document_store.delete_all_documents_async(recreate_index=True)
+        assert await document_store.count_documents_async() == 0
+
+        # verify index structure is preserved
+        index_info_after = await document_store._async_client.indices.get(index=document_store._index)
+        mappings_after = index_info_after[document_store._index]["mappings"]
+        assert mappings_after == mappings_before, "delete_all_documents_async should preserve index mappings"
+
+        settings_after = index_info_after[document_store._index]["settings"]
+        settings_after["index"].pop("uuid", None)
+        settings_after["index"].pop("creation_date", None)
+        settings_before["index"].pop("uuid", None)
+        settings_before["index"].pop("creation_date", None)
+        assert settings_after == settings_before, "delete_all_documents_async should preserve index settings"
+
+        # verify index can accept new documents and retrieve
+        new_doc = Document(id="4", content="New document after delete all")
+        await document_store.write_documents_async([new_doc])
+        assert await document_store.count_documents_async() == 1
+
+        results = await document_store.filter_documents_async()
+        assert len(results) == 1
+        assert results[0].content == "New document after delete all"
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_async_no_index_recreation(self, document_store):
+        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 2
+
+        await document_store.delete_all_documents_async(recreate_index=False)
+        # Need to wait for the deletion to be reflected in count_documents
+        time.sleep(2)
+        assert await document_store.count_documents_async() == 0
+
+        new_doc = Document(id="3", content="New document after delete all")
+        await document_store.write_documents_async([new_doc])
+        assert await document_store.count_documents_async() == 1
