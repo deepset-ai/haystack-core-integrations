@@ -1,7 +1,9 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import random
+import time
 from typing import List
 from unittest.mock import patch
 
@@ -453,7 +455,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert len(results) == 2
         assert results[0].embedding is None
 
-    def filter_documents_no_embedding_returned(
+    def test_filter_documents_no_embedding_returned(
         self, document_store_embedding_dim_4_no_emb_returned: OpenSearchDocumentStore
     ):
         docs = [
@@ -468,3 +470,56 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert results[0].embedding is None
         assert results[1].embedding is None
         assert results[2].embedding is None
+
+    def test_delete_all_documents_index_recreation(self, document_store: OpenSearchDocumentStore):
+        # populate the index with some documents
+        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
+        document_store.write_documents(docs)
+
+        # capture index structure before deletion
+        assert document_store._client is not None
+        index_info_before = document_store._client.indices.get(index=document_store._index)
+        mappings_before = index_info_before[document_store._index]["mappings"]
+        settings_before = index_info_before[document_store._index]["settings"]
+
+        # delete all documents
+        document_store.delete_all_documents(recreate_index=True)
+        assert document_store.count_documents() == 0
+
+        # verify index structure is preserved
+        index_info_after = document_store._client.indices.get(index=document_store._index)
+        mappings_after = index_info_after[document_store._index]["mappings"]
+        settings_after = index_info_after[document_store._index]["settings"]
+
+        assert mappings_after == mappings_before, "delete_all_documents should preserve index mappings"
+
+        settings_after["index"].pop("uuid", None)
+        settings_after["index"].pop("creation_date", None)
+        settings_before["index"].pop("uuid", None)
+        settings_before["index"].pop("creation_date", None)
+        assert settings_after == settings_before, "delete_all_documents should preserve index settings"
+
+        new_doc = Document(id="4", content="New document after delete all")
+        document_store.write_documents([new_doc])
+        assert document_store.count_documents() == 1
+
+        results = document_store.filter_documents()
+        assert len(results) == 1
+        assert results[0].content == "New document after delete all"
+
+    def test_delete_all_documents_no_index_recreation(self, document_store: OpenSearchDocumentStore):
+        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 2
+
+        document_store.delete_all_documents(recreate_index=False)
+        time.sleep(2)  # need to wait for the deletion to be reflected in count_documents
+        assert document_store.count_documents() == 0
+
+        new_doc = Document(id="3", content="New document after delete all")
+        document_store.write_documents([new_doc])
+        assert document_store.count_documents() == 1
+
+        results = document_store.filter_documents()
+        assert len(results) == 1
+        assert results[0].content == "New document after delete all"
