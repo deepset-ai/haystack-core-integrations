@@ -530,7 +530,7 @@ class WeaviateDocumentStore:
             return
 
         # small helper function because we currently cant access the QUERY_MAXIMUM_RESULTS env variable at runtime.
-        def _delete_with_replay(ids, batch_size: int) -> int:
+        def _delete_with_replay(ids: List[str], batch_size: int) -> int:
             res = self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(ids))
             # if deletion_batch_size was bigger than the max allowed -> shrink it
             if getattr(res, "successful", None) is not None and res.successful < len(ids):
