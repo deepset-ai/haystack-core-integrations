@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional, Union, cast
 
 from haystack import component, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, StreamingCallbackT
@@ -141,9 +141,9 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
         self,
         *,
         prompt: str,
-        system_prompt: str | None = None,
-        streaming_callback: StreamingCallbackT | None = None,
-        generation_kwargs: dict[str, Any] | None = None,
+        system_prompt: Optional[str] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
         """
         Generate text completions synchronously.
@@ -179,9 +179,9 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
         self,
         *,
         prompt: str,
-        system_prompt: str | None = None,
-        streaming_callback: StreamingCallbackT | None = None,
-        generation_kwargs: dict[str, Any] | None = None,
+        system_prompt: Optional[str] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
         """
         Generate text completions asynchronously.
@@ -211,7 +211,7 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
         replies = chat_response["replies"]
         return self._convert_chat_response_to_generator_format(replies)
 
-    def _prepare_messages(self, prompt: str, system_prompt: str | None = None) -> list[ChatMessage]:
+    def _prepare_messages(self, prompt: str, system_prompt: Optional[str] = None) -> list[ChatMessage]:
         """
         Convert prompt and system_prompt to ChatMessage format.
 
@@ -228,7 +228,7 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
 
     def _convert_chat_response_to_generator_format(
         self, chat_messages: list[ChatMessage]
-    ) -> dict[str, list[str] | list[dict[str, Any]]]:
+    ) -> dict[str, Union[list[str], list[dict[str, Any]]]]:
         """
         Convert ChatGenerator response format to Generator format.
 
