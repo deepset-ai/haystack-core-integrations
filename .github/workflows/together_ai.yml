@@ -1,28 +1,28 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / openrouter
+name: Test / together_ai
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/openrouter/**"
-      - "!integrations/openrouter/*.md"
-      - ".github/workflows/openrouter.yml"
+      - "integrations/together_ai/**"
+      - "!integrations/together_ai/*.md"
+      - ".github/workflows/together_ai.yml"
 
 defaults:
   run:
-    working-directory: integrations/openrouter
+    working-directory: integrations/together_ai
 
 concurrency:
-  group: openrouter-${{ github.head_ref }}
+  group: together_ai-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+  TOGETHER_API_KEY: ${{ secrets.TOGETHER_AI_API_KEY }}
 
 jobs:
   run:
@@ -32,7 +32,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.9", "3.13"]
+        python-version: ["3.10", "3.13"]
 
     steps:
       - name: Support longpaths
@@ -50,11 +50,11 @@ jobs:
       - name: Install Hatch
         run: pip install --upgrade hatch
       - name: Lint
-        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
       - name: Generate docs
-        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run docs
 
       - name: Run tests
