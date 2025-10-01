@@ -508,6 +508,7 @@ class WeaviateDocumentStore:
     def delete_all_documents(self, *, recreate_index: bool = False, deletion_batch_size: int = 1000) -> None:
         """
         Deletes all documents in a collection.
+        
         If recreate_index is False, it keeps the collection but deletes documents iteratively.
         If recreate_index is True, the collection is dropped and faithfully recreated.
         This is recommended for performance reasons.
@@ -528,14 +529,28 @@ class WeaviateDocumentStore:
             self._collection = self.client.collections.get(class_name)
             return
 
+        # small helper function because we currently cant access the QUERY_MAXIMUM_RESULTS env variable at runtime.
+        def _delete_with_replay(ids, batch_size: int) -> int:
+            res = self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(ids))
+            # if deletion_batch_size was bigger than the max allowed -> shrink it
+            if getattr(res, "successful", None) is not None and res.successful < len(ids):
+                batch_size = max(res.successful, 1)
+                for i in range(0, len(ids), batch_size):
+                    chunk = ids[i : i + batch_size]
+                    self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(chunk))
+            return batch_size
+
         uuids = []
+        deletion_batch_size = max(1, int(deletion_batch_size))
+
         for obj in self.collection.iterator(return_properties=[], include_vector=False):
             uuids.append(obj.uuid)
             if len(uuids) >= deletion_batch_size:
-                self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(uuids))
+                deletion_batch_size = _delete_with_replay(uuids, deletion_batch_size)
                 uuids.clear()
+
         if uuids:
-            self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(uuids))
+            deletion_batch_size = _delete_with_replay(uuids, deletion_batch_size)
 
     def _bm25_retrieval(
         self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None

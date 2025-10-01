@@ -806,5 +806,26 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         docs = [Document(content="test doc 1"), Document(content="test doc 2")]
         assert document_store.write_documents(docs) == 2
         assert document_store.count_documents() == 2
+
+        cls = document_store._collection_settings["class"]
+        collection = document_store.client.collections.get(cls)
+        previous_config = collection.config.get().to_dict()
+
         document_store.delete_all_documents(recreate_index=True)
+        assert document_store.count_documents() == 0
+
+        new_config = document_store.client.collections.get(cls).config.get().to_dict()
+        assert previous_config == new_config
+
+    def test_delete_all_documents_batch_size_large(self, document_store):
+        # assume QUERY_MAXIMUM_RESULTS == 10000 with standard deployment
+        docs = [Document(content=str(i)) for i in range(0, 10005)]
+        assert document_store.write_documents(docs) == 10005
+        document_store.delete_all_documents(deletion_batch_size=20000)
+        assert document_store.count_documents() == 0
+
+    def test_delete_all_documents_batch_size_small(self, document_store):
+        docs = [Document(content=str(i)) for i in range(0, 5)]
+        assert document_store.write_documents(docs) == 5
+        document_store.delete_all_documents(deletion_batch_size=2)
         assert document_store.count_documents() == 0
