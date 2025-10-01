@@ -508,7 +508,7 @@ class WeaviateDocumentStore:
     def delete_all_documents(self, *, recreate_index: bool = False, deletion_batch_size: int = 1000) -> None:
         """
         Deletes all documents in a collection.
-        
+
         If recreate_index is False, it keeps the collection but deletes documents iteratively.
         If recreate_index is True, the collection is dropped and faithfully recreated.
         This is recommended for performance reasons.
