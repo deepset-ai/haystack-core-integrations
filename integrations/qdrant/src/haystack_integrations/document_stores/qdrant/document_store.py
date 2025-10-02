@@ -53,9 +53,8 @@ def get_batches_from_generator(iterable: List, n: int) -> Generator:
 
 class QdrantDocumentStore:
     """
-    A QdrantDocumentStore implementation that you
-    can use with any Qdrant instance: in-memory, disk-persisted, Docker-based,
-    and Qdrant Cloud Cluster deployments.
+    A QdrantDocumentStore implementation that you can use with any Qdrant instance: in-memory, disk-persisted,
+    Docker-based, and Qdrant Cloud Cluster deployments.
 
     Usage example by creating an in-memory instance:
 
@@ -65,7 +64,8 @@ class QdrantDocumentStore:
 
     document_store = QdrantDocumentStore(
         ":memory:",
-        recreate_index=True
+        recreate_index=True,
+        embedding_dim=5
     )
     document_store.write_documents([
         Document(content="This is first", embedding=[0.0]*5),
@@ -135,7 +135,7 @@ class QdrantDocumentStore:
         payload_fields_to_index: Optional[List[dict]] = None,
     ) -> None:
         """
-        Initialize a QdrantDocumentStore.
+        Initializes a QdrantDocumentStore.
 
         :param location:
             If `":memory:"` - use in-memory Qdrant instance.
@@ -347,8 +347,7 @@ class QdrantDocumentStore:
         [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering)
 
         :param filters: The filters to apply to the document list.
-        :returns:
-            A list of documents that match the given filters.
+        :returns: A list of documents that match the given filters.
         """
         # No need to initialize client here as _get_documents_generator
         # will handle client initialization internally
@@ -380,7 +379,6 @@ class QdrantDocumentStore:
     ) -> int:
         """
         Writes documents to Qdrant using the specified policy.
-
         The QdrantDocumentStore can handle duplicate documents based on the given policy.
         The available policies are:
         - `FAIL`: The operation will raise an error if any document already exists.
@@ -390,8 +388,7 @@ class QdrantDocumentStore:
         :param documents: A list of Document objects to write to Qdrant.
         :param policy: The policy for handling duplicate documents.
 
-        :returns:
-            The number of documents written to the document store.
+        :returns: The number of documents written to the document store.
         """
 
         self._initialize_client()
@@ -435,7 +432,6 @@ class QdrantDocumentStore:
     ) -> int:
         """
         Asynchronously writes documents to Qdrant using the specified policy.
-
         The QdrantDocumentStore can handle duplicate documents based on the given policy.
         The available policies are:
         - `FAIL`: The operation will raise an error if any document already exists.
@@ -527,39 +523,69 @@ class QdrantDocumentStore:
                 "Called QdrantDocumentStore.delete_documents_async() on a non-existing ID",
             )
 
-    def delete_all_documents(self, recreate_index: bool = False) -> None:
+    def delete_all_documents(self, recreate_index: bool = False):
         """
-        Deletes all documents in the document store.
+        Deletes all documents from the document store.
 
-        :param recreate_index: If `True`, the index will be recreated after deletion.
-
-        It deletes the collection and recreates it to ensure all documents are removed.
+        :param recreate_index: Whether to recreate the index after deleting all documents.
         """
+
+        self._initialize_client()
+        assert self._client is not None
 
         if recreate_index:
-            self.recreate_collection(
-                self.index,
-                self.get_distance(self.similarity),
-                self.embedding_dim,
-                self.on_disk,
-                self.use_sparse_embeddings,
-                self.sparse_idf,
-            )
-        else:
-            self._initialize_client()  # _initialize_client assures the client is initialized
-            self._client.delete(  # type: ignore
+
+            # get current collection config
+            collection_info = self._client.get_collection(collection_name=self.index)
+
+            """
+            x = CollectionInfo(
+                status= < CollectionStatus.GREEN: 'green' >,
+                optimizer_status = < OptimizersStatusOneOf.OK: 'ok' >, vectors_count = None, indexed_vectors_count = 0, points_count = 5, segments_count = 1, config = CollectionConfig(
+                params=CollectionParams(vectors=VectorParams(size=768, distance= < Distance.COSINE: 'Cosine' >, hnsw_config = None, quantization_config = None, on_disk = False, datatype = None, multivector_config = None), shard_number = None, sharding_method = None, replication_factor = None, write_consistency_factor = None, read_fan_out_factor = None, on_disk_payload = None, sparse_vectors = None), hnsw_config = HnswConfig(
+                m=16, ef_construct=100, full_scan_threshold=10000, max_indexing_threads=0, on_disk=None,
+                payload_m=None), optimizer_config = OptimizersConfig(deleted_threshold=0.2,
+                                                                     vacuum_min_vector_number=1000,
+                                                                     default_segment_number=0, max_segment_size=None,
+                                                                     memmap_threshold=None, indexing_threshold=20000,
+                                                                     flush_interval_sec=5,
+                                                                     max_optimization_threads=1), wal_config = WalConfig(
+                wal_capacity_mb=32,
+                wal_segments_ahead=0), quantization_config = None, strict_mode_config = None), payload_schema = {})
+            """
+
+            # recreate collection
+            self._set_up_collection(
                 collection_name=self.index,
-                points_selector=rest.PointsSelectorAll(),
+                embedding_dim=collection_info.config.params.vectors.size,
+                recreate_collection=True,
+                similarity=collection_info.config.params.vectors.distance.value,
+                use_sparse_embeddings=collection_info.config.params.sparse_vectors == SPARSE_VECTORS_NAME,
+                sparse_idf=(collection_info.config.params.vectors.name == SPARSE_VECTORS_NAME) and
+                           collection_info.config.params.vectors.config.hnsw_config is not None,
+                on_disk=collection_info.config.params.vectors.config.on_disk,
+                # ToDo: investigate
+                #   - CollectionInfo has payload_schema as Optional[Dict[str, PayloadSchemaType]],
+                #   - self._set_up_collection expects Optional[List[dict]]
+                payload_fields_to_index=None
+            )
+
+        try:
+            self._client.delete(
+                collection_name=self.index,
+                points_selector=rest.FilterSelector(
+                    filter=rest.Filter(
+                        must=[],
+                    )
+                ),
                 wait=self.wait_result_from_api,
             )
+        except Exception as e:
+            logger.warning(
+                f"Error {e} when calling QdrantDocumentStore.delete_all_documents()",
+            )
 
-    async def del_all_documents_async(self) -> None:
-        """
-        Asynchronously deletes all documents in the document store.
 
-        It deletes the collection and recreates it to ensure all documents are removed.
-        """
-        # ToDo
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "QdrantDocumentStore":
@@ -672,8 +698,10 @@ class QdrantDocumentStore:
         """
         Retrieves documents from Qdrant by their IDs.
 
-        :param ids: A list of document IDs to retrieve.
-        :returns: A list of documents.
+        :param ids:
+            A list of document IDs to retrieve.
+        :returns:
+            A list of documents.
         """
         documents: List[Document] = []
 
@@ -701,7 +729,8 @@ class QdrantDocumentStore:
         """
         Retrieves documents from Qdrant by their IDs.
 
-        :param ids: A list of document IDs to retrieve.
+        :param ids:
+            A list of document IDs to retrieve.
         :returns:
             A list of documents.
         """
@@ -892,7 +921,7 @@ class QdrantDocumentStore:
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
 
-        :returns: A list of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
+        :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
 
         :raises QdrantStoreError:
             If the Document Store was initialized with `use_sparse_embeddings=False`.
@@ -1002,7 +1031,7 @@ class QdrantDocumentStore:
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
 
-        :returns: A list of documents that are most similar to `query_sparse_embedding`.
+        :returns: List of documents that are most similar to `query_sparse_embedding`.
 
         :raises QdrantStoreError:
             If the Document Store was initialized with `use_sparse_embeddings=False`.
@@ -1082,7 +1111,7 @@ class QdrantDocumentStore:
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
 
-        :returns: A list of documents that are most similar to `query_embedding`.
+        :returns: List of documents that are most similar to `query_embedding`.
         """
         await self._initialize_async_client()
         assert self._async_client is not None
@@ -1147,7 +1176,7 @@ class QdrantDocumentStore:
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
 
-        :returns: A list of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
+        :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
 
         :raises QdrantStoreError:
             If the Document Store was initialized with `use_sparse_embeddings=False`.
@@ -1322,6 +1351,7 @@ class QdrantDocumentStore:
             If the collection exists with incompatible settings.
         :raises ValueError:
             If the collection exists with a different similarity measure or embedding dimension.
+
         """
 
         self._initialize_client()
@@ -1519,8 +1549,9 @@ class QdrantDocumentStore:
         policy: Optional[DuplicatePolicy] = None,
     ) -> List[Document]:
         """
-        Asynchronously checks whether any of the passed documents is already existing in the chosen index and returns a
-        list of documents that are not in the index yet.
+        Asynchronously checks whether any of the passed documents is already existing
+        in the chosen index and returns a list of
+        documents that are not in the index yet.
 
         :param documents: A list of Haystack Document objects.
         :param policy: The duplicate policy to use when writing documents.
@@ -1544,9 +1575,6 @@ class QdrantDocumentStore:
         """
         Drop duplicate documents based on same hash ID.
 
-        :param documents: A list of Haystack Document objects.
-
-        :returns: A list of Haystack Document objects with unique IDs.
         """
         _hash_ids: Set = set()
         _documents: List[Document] = []
@@ -1583,6 +1611,7 @@ class QdrantDocumentStore:
     def _prepare_client_params(self) -> Dict[str, Any]:
         """
         Prepares the common parameters for client initialization.
+
         """
         return {
             "location": self.location,
@@ -1685,6 +1714,7 @@ class QdrantDocumentStore:
     def _process_group_results(self, groups: List[rest.PointGroup]) -> List[Document]:
         """
         Processes grouped query results from Qdrant.
+
         """
         if not groups:
             return []
