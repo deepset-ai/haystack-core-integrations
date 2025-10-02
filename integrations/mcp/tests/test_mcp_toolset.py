@@ -8,12 +8,11 @@ import time
 from unittest.mock import patch
 
 import haystack
-from haystack.dataclasses import ChatMessage
 import pytest
 import pytest_asyncio
 from haystack import logging
-from haystack.core.errors import DeserializationError
 from haystack.core.pipeline import Pipeline
+from haystack.dataclasses import ChatMessage
 from haystack.tools import Tool
 
 from haystack_integrations.tools.mcp import MCPToolset
@@ -420,7 +419,8 @@ if __name__ == "__main__":
 
     def test_pipeline_deserialization_fails_without_github_token(self, monkeypatch):
         """
-        Test that pipeline deserialization + MCPToolset initialization fails when GitHub token is not resolved during deserialization.
+        Test that pipeline deserialization + MCPToolset initialization fails when GitHub
+        token is not resolved during deserialization.
 
         The issue:
         - Setup: Agent pipeline template with MCPToolset with a token from env var (PERSONAL_ACCESS_TOKEN_GITHUB)
@@ -459,7 +459,10 @@ components:
       state_schema: {}
       streaming_callback:
       system_prompt: |-
-        You are an assistant that summarizes latest issues and PRs on a github repository that happened within a certain time frame (e.g. last day or last week). Make sure that you always use the current date as a basis for the time frame. Iterate over issues and PRs where necessary to get a comprehensive overview.
+        You are an assistant that summarizes latest issues and PRs on a github repository
+        that happened within a certain time frame (e.g. last day or last week). Make sure
+        that you always use the current date as a basis for the time frame. Iterate over
+        issues and PRs where necessary to get a comprehensive overview.
       tools:
         data:
           server_info:
@@ -471,7 +474,11 @@ components:
               strict: true
               type: env_var
             timeout: 10
-          tool_names: [get_issue, get_issue_comments, get_latest_release, get_pull_request, get_pull_request_review_comments, get_pull_request_reviews, list_issues, list_pull_requests, list_releases, search_issues, search_pull_requests]
+          tool_names: [
+            get_issue, get_issue_comments, get_latest_release, get_pull_request,
+            get_pull_request_review_comments, get_pull_request_reviews, list_issues,
+            list_pull_requests, list_releases, search_issues, search_pull_requests
+          ]
         type: haystack_integrations.tools.mcp.MCPToolset
     type: haystack.components.agents.agent.Agent
 
