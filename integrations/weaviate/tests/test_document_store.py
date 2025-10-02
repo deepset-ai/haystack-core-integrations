@@ -821,11 +821,11 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         # assume QUERY_MAXIMUM_RESULTS == 10000 with standard deployment
         docs = [Document(content=str(i)) for i in range(0, 10005)]
         assert document_store.write_documents(docs) == 10005
-        document_store.delete_all_documents(deletion_batch_size=20000)
-        assert document_store.count_documents() == 0
+        with pytest.warns(Warning):
+            document_store.delete_all_documents(batch_size=20000)
 
     def test_delete_all_documents_batch_size_small(self, document_store):
         docs = [Document(content=str(i)) for i in range(0, 5)]
         assert document_store.write_documents(docs) == 5
-        document_store.delete_all_documents(deletion_batch_size=2)
+        document_store.delete_all_documents(batch_size=2)
         assert document_store.count_documents() == 0

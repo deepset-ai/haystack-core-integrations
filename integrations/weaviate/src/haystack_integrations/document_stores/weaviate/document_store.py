@@ -4,6 +4,7 @@
 import base64
 import datetime
 import json
+import warnings
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
@@ -505,7 +506,7 @@ class WeaviateDocumentStore:
         weaviate_ids = [generate_uuid5(doc_id) for doc_id in document_ids]
         self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(weaviate_ids))
 
-    def delete_all_documents(self, *, recreate_index: bool = False, deletion_batch_size: int = 1000) -> None:
+    def delete_all_documents(self, *, recreate_index: bool = False, batch_size: int = 1000) -> None:
         """
         Deletes all documents in a collection.
 
@@ -514,7 +515,10 @@ class WeaviateDocumentStore:
         This is recommended for performance reasons.
 
         :param recreate_index: Use drop and recreate strategy. (recommended for performance)
-        :param deletion_batch_size: Only relevant if recreate_index is false. Defines the deletion batch size.
+        :param batch_size: Only relevant if recreate_index is false. Defines the deletion batch size.
+        Note that this parameter needs to be less or equal to the set QUERY_MAXIMUM_RESULTS variable
+        set for the weaviate deployment (default is 10000).
+        Reference: https://docs.weaviate.io/weaviate/manage-objects/delete#delete-all-objects
         """
 
         if recreate_index:
@@ -529,28 +533,29 @@ class WeaviateDocumentStore:
             self._collection = self.client.collections.get(class_name)
             return
 
-        # small helper function because we currently cant access the QUERY_MAXIMUM_RESULTS env variable at runtime.
-        def _delete_with_replay(ids: List[str], batch_size: int) -> int:
-            res = self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(ids))
-            # if deletion_batch_size was bigger than the max allowed -> shrink it
-            if getattr(res, "successful", None) is not None and res.successful < len(ids):
-                batch_size = max(res.successful, 1)
-                for i in range(0, len(ids), batch_size):
-                    chunk = ids[i : i + batch_size]
-                    self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(chunk))
-            return batch_size
-
         uuids = []
-        deletion_batch_size = max(1, int(deletion_batch_size))
+        batch_size = max(1, int(batch_size))
 
         for obj in self.collection.iterator(return_properties=[], include_vector=False):
             uuids.append(obj.uuid)
-            if len(uuids) >= deletion_batch_size:
-                deletion_batch_size = _delete_with_replay(uuids, deletion_batch_size)
+            if len(uuids) >= batch_size:
+                res = self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(uuids))
+                if res.successful < batch_size:
+                    warnings.warn(
+                        "Not all documents have been deleted. "
+                        "Make sure to specify a deletion_batch_size which is less than QUERY_MAXIMUM_RESULTS.",
+                        stacklevel=2,
+                    )
                 uuids.clear()
 
         if uuids:
-            deletion_batch_size = _delete_with_replay(uuids, deletion_batch_size)
+            res = self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(uuids))
+            if res.successful < batch_size:
+                warnings.warn(
+                    "Not all documents have been deleted. "
+                    "Make sure to specify a deletion_batch_size which is less than QUERY_MAXIMUM_RESULTS.",
+                    stacklevel=2,
+                )
 
     def _bm25_retrieval(
         self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
