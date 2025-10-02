@@ -2,6 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# ruff: noqa: FBT002, FBT001    boolean-type-hint-positional-argument and boolean-default-value-positional-argument
+# ruff: noqa: B008              function-call-in-default-argument
+# ruff: noqa: S101              disable checks for uses of the assert keyword
+
+
 from collections.abc import Mapping
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
@@ -68,8 +73,8 @@ class ElasticsearchDocumentStore:
         hosts: Optional[Hosts] = None,
         custom_mapping: Optional[Dict[str, Any]] = None,
         index: str = "default",
-        api_key: Secret = Secret.from_env_var("ELASTIC_API_KEY", strict=False),  # noqa: B008
-        api_key_id: Secret = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),  # noqa: B008
+        api_key: Secret = Secret.from_env_var("ELASTIC_API_KEY", strict=False),
+        api_key_id: Secret = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
         **kwargs: Any,
     ):
@@ -230,7 +235,7 @@ class ElasticsearchDocumentStore:
         Returns the synchronous Elasticsearch client, initializing it if necessary.
         """
         self._ensure_initialized()
-        assert self._client is not None  # noqa: S101
+        assert self._client is not None
         return self._client
 
     @property
@@ -239,7 +244,7 @@ class ElasticsearchDocumentStore:
         Returns the asynchronous Elasticsearch client, initializing it if necessary.
         """
         self._ensure_initialized()
-        assert self._async_client is not None  # noqa: S101
+        assert self._async_client is not None
         return self._async_client
 
     def to_dict(self) -> Dict[str, Any]:
@@ -453,7 +458,7 @@ class ElasticsearchDocumentStore:
 
         if errors:
             # with stats_only=False, errors is guaranteed to be a list of dicts
-            assert isinstance(errors, list)  # noqa: S101
+            assert isinstance(errors, list)
             duplicate_errors_ids = []
             other_errors = []
             for e in errors:
@@ -532,7 +537,7 @@ class ElasticsearchDocumentStore:
             )
             if failed:
                 # with stats_only=False, failed is guaranteed to be a list of dicts
-                assert isinstance(failed, list)  # noqa: S101
+                assert isinstance(failed, list)
                 if policy == DuplicatePolicy.FAIL:
                     for error in failed:
                         if "create" in error and error["create"]["status"] == DOC_ALREADY_EXISTS:
@@ -586,7 +591,7 @@ class ElasticsearchDocumentStore:
             msg = f"Failed to delete documents from Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    def delete_all_documents(self, recreate_index: bool = False) -> None:  # noqa: FBT002, FBT001
+    def delete_all_documents(self, recreate_index: bool = False) -> None:
         """
         Deletes all documents in the document store by deleting and recreating the index.
 
@@ -623,7 +628,7 @@ class ElasticsearchDocumentStore:
                 n_docs=result["deleted"],
             )
 
-    async def delete_all_documents_async(self, recreate_index: bool = False) -> None:  # noqa: FBT002, FBT001
+    async def delete_all_documents_async(self, recreate_index: bool = False) -> None:
         """
         Asynchronously deletes all documents in the document store by deleting and recreating the index.
 
