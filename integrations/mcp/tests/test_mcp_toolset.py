@@ -474,11 +474,7 @@ components:
               strict: true
               type: env_var
             timeout: 10
-          tool_names: [
-            get_issue, get_issue_comments, get_latest_release, get_pull_request,
-            get_pull_request_review_comments, get_pull_request_reviews, list_issues,
-            list_pull_requests, list_releases, search_issues, search_pull_requests
-          ]
+          tool_names: [get_issue, get_issue_comments]
         type: haystack_integrations.tools.mcp.MCPToolset
     type: haystack.components.agents.agent.Agent
 
