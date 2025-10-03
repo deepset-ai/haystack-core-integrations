@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/weaviate-v6.3.0] - 2025-10-03
+
+### 🚀 Features
+
+- Implement `delete_all_documents` for weaviate integration (#2354)
+
+
+### 🌀 Miscellaneous
+
+- Fix: Update version of weaviate in docker-compose file (#2347)
+
 ## [integrations/weaviate-v6.2.0] - 2025-09-18
 
 ### 🚀 Features
@@ -38,7 +49,7 @@
 
 ### 🌀 Miscellaneous
 
-- Update document store descriptions (#1447)
+- Docs: Update document store descriptions for deepset Pipeline Builder (#1447)
 
 ## [integrations/weaviate-v5.0.0] - 2025-02-17
 
