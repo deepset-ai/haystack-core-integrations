@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import base64
+import logging
 import os
 from typing import List
 from unittest.mock import MagicMock, patch
@@ -817,15 +818,18 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         new_config = document_store.client.collections.get(cls).config.get().to_dict()
         assert previous_config == new_config
 
-    def test_delete_all_documents_batch_size_large(self, document_store):
-        # assume QUERY_MAXIMUM_RESULTS == 10000 with standard deployment
-        docs = [Document(content=str(i)) for i in range(0, 10005)]
-        assert document_store.write_documents(docs) == 10005
-        with pytest.warns(Warning):
-            document_store.delete_all_documents(batch_size=20000)
-
-    def test_delete_all_documents_batch_size_small(self, document_store):
+    def test_delete_all_documents_batch_size(self, document_store):
         docs = [Document(content=str(i)) for i in range(0, 5)]
         assert document_store.write_documents(docs) == 5
         document_store.delete_all_documents(batch_size=2)
         assert document_store.count_documents() == 0
+
+    def test_delete_all_documents_excessive_batch_size(self, document_store, caplog):
+        """Test that the deletion is not complete if the batch size exceeds the QUERY_MAXIMUM_RESULTS."""
+        # assume QUERY_MAXIMUM_RESULTS == 10000 with standard deployment
+        docs = [Document(content=str(i)) for i in range(0, 10005)]
+        assert document_store.write_documents(docs) == 10005
+        with caplog.at_level(logging.WARNING):
+            document_store.delete_all_documents(batch_size=20000)
+        assert document_store.count_documents() == 5
+        assert "Not all documents have been deleted." in caplog.text

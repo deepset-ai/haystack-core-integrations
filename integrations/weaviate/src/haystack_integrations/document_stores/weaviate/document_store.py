@@ -4,7 +4,6 @@
 import base64
 import datetime
 import json
-import warnings
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
@@ -516,9 +515,9 @@ class WeaviateDocumentStore:
 
         :param recreate_index: Use drop and recreate strategy. (recommended for performance)
         :param batch_size: Only relevant if recreate_index is false. Defines the deletion batch size.
-        Note that this parameter needs to be less or equal to the set QUERY_MAXIMUM_RESULTS variable
-        set for the weaviate deployment (default is 10000).
-        Reference: https://docs.weaviate.io/weaviate/manage-objects/delete#delete-all-objects
+            Note that this parameter needs to be less or equal to the set `QUERY_MAXIMUM_RESULTS` variable
+            set for the weaviate deployment (default is 10000).
+            Reference: https://docs.weaviate.io/weaviate/manage-objects/delete#delete-all-objects
         """
 
         if recreate_index:
@@ -540,20 +539,20 @@ class WeaviateDocumentStore:
             uuids.append(obj.uuid)
             if len(uuids) >= batch_size:
                 res = self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(uuids))
-                if res.successful < batch_size:
-                    warnings.warn(
-                        "Not all documents have been deleted. "
-                        "Make sure to specify a deletion_batch_size which is less than QUERY_MAXIMUM_RESULTS.",
+                if res.successful < len(uuids):
+                    logger.warning(
+                        "Not all documents in the batch have been deleted. "
+                        "Make sure to specify a deletion `batch_size` which is less than `QUERY_MAXIMUM_RESULTS`.",
                         stacklevel=2,
                     )
                 uuids.clear()
 
         if uuids:
             res = self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(uuids))
-            if res.successful < batch_size:
-                warnings.warn(
+            if res.successful < len(uuids):
+                logger.warning(
                     "Not all documents have been deleted. "
-                    "Make sure to specify a deletion_batch_size which is less than QUERY_MAXIMUM_RESULTS.",
+                    "Make sure to specify a deletion `batch_size` which is less than `QUERY_MAXIMUM_RESULTS`.",
                     stacklevel=2,
                 )
 
