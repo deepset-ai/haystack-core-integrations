@@ -543,7 +543,6 @@ class WeaviateDocumentStore:
                     logger.warning(
                         "Not all documents in the batch have been deleted. "
                         "Make sure to specify a deletion `batch_size` which is less than `QUERY_MAXIMUM_RESULTS`.",
-                        stacklevel=2,
                     )
                 uuids.clear()
 
@@ -553,7 +552,6 @@ class WeaviateDocumentStore:
                 logger.warning(
                     "Not all documents have been deleted. "
                     "Make sure to specify a deletion `batch_size` which is less than `QUERY_MAXIMUM_RESULTS`.",
-                    stacklevel=2,
                 )
 
     def _bm25_retrieval(
