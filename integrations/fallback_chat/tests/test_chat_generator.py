@@ -7,6 +7,8 @@ import time
 from typing import Any, Optional
 
 import pytest
+from urllib.error import HTTPError as URLLibHTTPError
+
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, StreamingCallbackT
 from haystack.tools import Tool, Toolset
@@ -100,6 +102,7 @@ class _DummyFailGen:
 
 
 def test_init_validation():
+    """Test that FallbackChatGenerator validates input parameters."""
     with pytest.raises(ValueError):
         FallbackChatGenerator(generators=[], timeout=1.0)
 
@@ -115,6 +118,7 @@ def test_init_validation():
 
 
 def test_sequential_first_success():
+    """Test that the first generator succeeds when it works correctly."""
     gen = FallbackChatGenerator(generators=[_DummySuccessGen(text="A")], timeout=1.0)
     res = gen.run([ChatMessage.from_user("hi")])
     assert res["replies"][0].text == "A"
@@ -123,6 +127,7 @@ def test_sequential_first_success():
 
 
 def test_sequential_second_success_after_failure():
+    """Test that the second generator is used when the first fails."""
     gen = FallbackChatGenerator(generators=[_DummyFailGen(), _DummySuccessGen(text="B")], timeout=1.0)
     res = gen.run([ChatMessage.from_user("hi")])
     assert res["replies"][0].text == "B"
@@ -131,12 +136,14 @@ def test_sequential_second_success_after_failure():
 
 
 def test_all_fail_raises():
+    """Test that RuntimeError is raised when all generators fail."""
     gen = FallbackChatGenerator(generators=[_DummyFailGen(), _DummyFailGen()], timeout=0.2)
     with pytest.raises(RuntimeError):
         gen.run([ChatMessage.from_user("hi")])
 
 
 def test_timeout_handling_sync():
+    """Test that timeout handling works correctly in synchronous mode."""
     # First generator sleeps longer than timeout, second succeeds
     slow = _DummySuccessGen(text="slow", delay=0.5)
     fast = _DummySuccessGen(text="fast", delay=0.0)
@@ -155,6 +162,7 @@ async def test_timeout_handling_async():
 
 
 def test_streaming_callback_forwarding_sync():
+    """Test that streaming callbacks are properly forwarded in synchronous mode."""
     calls: list[Any] = []
 
     def cb(x: Any) -> None:
@@ -178,11 +186,28 @@ async def test_streaming_callback_forwarding_async():
 
 
 def test_serialization_roundtrip():
+    """Test that FallbackChatGenerator can be serialized and deserialized correctly."""
+    # Test with one generator
     original = FallbackChatGenerator(generators=[_DummySuccessGen(text="hello")], timeout=2.5)
     data = original.to_dict()
     restored = FallbackChatGenerator.from_dict(data)
     assert isinstance(restored, FallbackChatGenerator)
     assert len(restored.generators) == 1
+    res = restored.run([ChatMessage.from_user("hi")])
+    assert res["replies"][0].text == "hello"
+    
+    # Test with two generators
+    original = FallbackChatGenerator(
+        generators=[
+            _DummySuccessGen(text="hello"),
+            _DummySuccessGen(text="world")
+        ], 
+        timeout=2.5
+    )
+    data = original.to_dict()
+    restored = FallbackChatGenerator.from_dict(data)
+    assert isinstance(restored, FallbackChatGenerator)
+    assert len(restored.generators) == 2
     res = restored.run([ChatMessage.from_user("hi")])
     assert res["replies"][0].text == "hello"
 
@@ -332,41 +357,10 @@ async def test_respects_fallback_timeout_when_generator_has_longer_timeout_async
     assert res["meta"]["timeout_used"] == 0.5  # Should use the shorter FallbackChatGenerator timeout
 
 
-# HTTP Error Classes for Testing Failover Triggers
-class HTTPError(Exception):
-    """Base HTTP error class for testing."""
-
-    def __init__(self, status_code: int, message: str = ""):
-        self.status_code = status_code
-        super().__init__(f"HTTP {status_code}: {message}")
-
-
-class RateLimitError(HTTPError):
-    """429 Rate Limit Error."""
-
-    def __init__(self, message: str = "Rate limit exceeded"):
-        super().__init__(429, message)
-
-
-class AuthenticationError(HTTPError):
-    """401 Authentication Error."""
-
-    def __init__(self, message: str = "Authentication failed"):
-        super().__init__(401, message)
-
-
-class BadRequestError(HTTPError):
-    """400 Bad Request Error (e.g., context length exceeded)."""
-
-    def __init__(self, message: str = "Bad request"):
-        super().__init__(400, message)
-
-
-class ServerError(HTTPError):
-    """500+ Server Error."""
-
-    def __init__(self, message: str = "Internal server error"):
-        super().__init__(500, message)
+# Create helper functions for common HTTP errors
+def create_http_error(status_code: int, message: str) -> URLLibHTTPError:
+    """Create a URLLibHTTPError with the given status code and message."""
+    return URLLibHTTPError("", status_code, message, {}, None)
 
 
 @component
@@ -405,7 +399,7 @@ class _DummyHTTPErrorGen:
 
 def test_failover_trigger_429_rate_limit():
     """Test that 429 rate limit errors trigger failover."""
-    rate_limit_gen = _DummyHTTPErrorGen(text="rate_limited", error=RateLimitError())
+    rate_limit_gen = _DummyHTTPErrorGen(text="rate_limited", error=create_http_error(429, "Rate limit exceeded"))
     success_gen = _DummySuccessGen(text="success_after_rate_limit")
 
     fallback = FallbackChatGenerator(generators=[rate_limit_gen, success_gen], timeout=1.0)
@@ -418,7 +412,7 @@ def test_failover_trigger_429_rate_limit():
 
 def test_failover_trigger_401_authentication():
     """Test that 401 authentication errors trigger failover."""
-    auth_error_gen = _DummyHTTPErrorGen(text="auth_failed", error=AuthenticationError())
+    auth_error_gen = _DummyHTTPErrorGen(text="auth_failed", error=create_http_error(401, "Authentication failed"))
     success_gen = _DummySuccessGen(text="success_after_auth")
 
     fallback = FallbackChatGenerator(generators=[auth_error_gen, success_gen], timeout=1.0)
@@ -431,7 +425,7 @@ def test_failover_trigger_401_authentication():
 
 def test_failover_trigger_400_bad_request():
     """Test that 400 bad request errors (e.g., context length exceeded) trigger failover."""
-    bad_request_gen = _DummyHTTPErrorGen(text="bad_request", error=BadRequestError("Context length exceeded"))
+    bad_request_gen = _DummyHTTPErrorGen(text="bad_request", error=create_http_error(400, "Context length exceeded"))
     success_gen = _DummySuccessGen(text="success_after_bad_request")
 
     fallback = FallbackChatGenerator(generators=[bad_request_gen, success_gen], timeout=1.0)
@@ -444,7 +438,7 @@ def test_failover_trigger_400_bad_request():
 
 def test_failover_trigger_500_server_error():
     """Test that 500+ server errors trigger failover."""
-    server_error_gen = _DummyHTTPErrorGen(text="server_error", error=ServerError())
+    server_error_gen = _DummyHTTPErrorGen(text="server_error", error=create_http_error(500, "Internal server error"))
     success_gen = _DummySuccessGen(text="success_after_server_error")
 
     fallback = FallbackChatGenerator(generators=[server_error_gen, success_gen], timeout=1.0)
@@ -471,9 +465,9 @@ def test_failover_trigger_408_timeout():
 
 def test_failover_trigger_multiple_errors():
     """Test that multiple different error types all trigger failover."""
-    rate_limit_gen = _DummyHTTPErrorGen(text="rate_limited", error=RateLimitError())
-    auth_error_gen = _DummyHTTPErrorGen(text="auth_failed", error=AuthenticationError())
-    server_error_gen = _DummyHTTPErrorGen(text="server_error", error=ServerError())
+    rate_limit_gen = _DummyHTTPErrorGen(text="rate_limited", error=create_http_error(429, "Rate limit exceeded"))
+    auth_error_gen = _DummyHTTPErrorGen(text="auth_failed", error=create_http_error(401, "Authentication failed"))
+    server_error_gen = _DummyHTTPErrorGen(text="server_error", error=create_http_error(500, "Internal server error"))
     success_gen = _DummySuccessGen(text="success_after_all_errors")
 
     fallback = FallbackChatGenerator(
@@ -488,9 +482,9 @@ def test_failover_trigger_multiple_errors():
 
 def test_failover_trigger_all_generators_fail():
     """Test that when all generators fail with different error types, a RuntimeError is raised."""
-    rate_limit_gen = _DummyHTTPErrorGen(text="rate_limited", error=RateLimitError())
-    auth_error_gen = _DummyHTTPErrorGen(text="auth_failed", error=AuthenticationError())
-    server_error_gen = _DummyHTTPErrorGen(text="server_error", error=ServerError())
+    rate_limit_gen = _DummyHTTPErrorGen(text="rate_limited", error=create_http_error(429, "Rate limit exceeded"))
+    auth_error_gen = _DummyHTTPErrorGen(text="auth_failed", error=create_http_error(401, "Authentication failed"))
+    server_error_gen = _DummyHTTPErrorGen(text="server_error", error=create_http_error(500, "Internal server error"))
 
     fallback = FallbackChatGenerator(generators=[rate_limit_gen, auth_error_gen, server_error_gen], timeout=1.0)
 
@@ -505,7 +499,7 @@ def test_failover_trigger_all_generators_fail():
 @pytest.mark.asyncio
 async def test_failover_trigger_429_rate_limit_async():
     """Test that 429 rate limit errors trigger failover in async mode."""
-    rate_limit_gen = _DummyHTTPErrorGen(text="rate_limited", error=RateLimitError())
+    rate_limit_gen = _DummyHTTPErrorGen(text="rate_limited", error=create_http_error(429, "Rate limit exceeded"))
     success_gen = _DummySuccessGen(text="success_after_rate_limit")
 
     fallback = FallbackChatGenerator(generators=[rate_limit_gen, success_gen], timeout=1.0)
@@ -519,7 +513,7 @@ async def test_failover_trigger_429_rate_limit_async():
 @pytest.mark.asyncio
 async def test_failover_trigger_401_authentication_async():
     """Test that 401 authentication errors trigger failover in async mode."""
-    auth_error_gen = _DummyHTTPErrorGen(text="auth_failed", error=AuthenticationError())
+    auth_error_gen = _DummyHTTPErrorGen(text="auth_failed", error=create_http_error(401, "Authentication failed"))
     success_gen = _DummySuccessGen(text="success_after_auth")
 
     fallback = FallbackChatGenerator(generators=[auth_error_gen, success_gen], timeout=1.0)
