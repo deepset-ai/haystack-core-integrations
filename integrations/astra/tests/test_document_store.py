@@ -54,7 +54,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
     you can add more to this class.
     """
 
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def document_store(self) -> AstraDocumentStore:
         return AstraDocumentStore(
             collection_name="haystack_integration",
