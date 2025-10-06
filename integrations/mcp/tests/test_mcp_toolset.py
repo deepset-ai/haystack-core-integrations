@@ -484,15 +484,4 @@ connections: []
         # Attempt to deserialize the pipeline - this will fail because MCPToolset
         # tries to connect immediately and the token isn't available
         with pytest.raises(haystack.core.errors.DeserializationError):
-            pipe = Pipeline.loads(pipeline_yaml)
-            pipe.run(
-                data={
-                    "agent": {
-                        "messages": [
-                            ChatMessage.from_user(
-                                text="Get comments on https://github.com/deepset-ai/haystack/pull/9849"
-                            )
-                        ]
-                    }
-                }
-            )
+            Pipeline.loads(pipeline_yaml)            
