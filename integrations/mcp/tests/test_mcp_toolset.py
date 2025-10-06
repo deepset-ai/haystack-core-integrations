@@ -12,7 +12,6 @@ import pytest
 import pytest_asyncio
 from haystack import logging
 from haystack.core.pipeline import Pipeline
-from haystack.dataclasses import ChatMessage
 from haystack.tools import Tool
 
 from haystack_integrations.tools.mcp import MCPToolset
@@ -484,4 +483,4 @@ connections: []
         # Attempt to deserialize the pipeline - this will fail because MCPToolset
         # tries to connect immediately and the token isn't available
         with pytest.raises(haystack.core.errors.DeserializationError):
-            Pipeline.loads(pipeline_yaml)            
+            Pipeline.loads(pipeline_yaml)
