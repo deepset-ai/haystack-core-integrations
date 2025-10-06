@@ -398,8 +398,6 @@ class AstraDocumentStore:
     def delete_documents(
         self,
         document_ids: Optional[List[str]] = None,
-        *,
-        delete_all: Optional[bool] = None,
     ) -> None:
         """
         Deletes documents from the document store.
@@ -413,8 +411,6 @@ class AstraDocumentStore:
             if document_ids is not None:
                 for batch in _batches(document_ids, MAX_BATCH_SIZE):
                     deletion_counter += self.index.delete(ids=batch)
-            else:
-                deletion_counter = self.index.delete(delete_all=delete_all)
             logger.info(f"{deletion_counter} documents deleted")
 
             if document_ids is not None and deletion_counter == 0:
@@ -422,3 +418,15 @@ class AstraDocumentStore:
                 raise MissingDocumentError(msg)
         else:
             logger.info("No documents in document store")
+
+    def delete_all_documents(self) -> None:
+        """
+        Deletes all documents from the document store.
+        """
+        deletion_counter = 0
+        deletion_counter = self.index.delete_all_documents()
+
+        if deletion_counter == -1:
+            logger.info("All documents deleted")
+        else:
+            logger.info("Could not delete all documents")

@@ -22,11 +22,11 @@ class TestEmbeddingRetrieval:
         )
 
     @pytest.fixture(autouse=True)
-    def run_before_and_after_tests(self, document_store: AstraDocumentStore):
+    def run_before_tests(self, document_store: AstraDocumentStore):
         """
         Cleaning up document store
         """
-        document_store.delete_documents(delete_all=True)
+        document_store.delete_all_documents()
         assert document_store.count_documents() == 0
 
     def test_search_with_top_k(self, document_store):
@@ -45,3 +45,6 @@ class TestEmbeddingRetrieval:
 
         for document in result:
             assert document.score is not None
+
+        document_store.delete_all_documents()
+        assert document_store.count_documents() == 0
