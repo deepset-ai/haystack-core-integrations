@@ -87,7 +87,7 @@ class OpenSearchDocumentStore:
         Creates a new OpenSearchDocumentStore instance.
 
         The ``embeddings_dim``, ``method``, ``mappings``, and ``settings`` arguments are only used if the index does not
-        exists and needs to be created. If the index already exists, its current configurations will be used.
+        exist and needs to be created. If the index already exists, its current configurations will be used.
 
         For more information on connection parameters, see the [official OpenSearch documentation](https://opensearch.org/docs/latest/clients/python-low-level/#connecting-to-opensearch)
 

@@ -319,3 +319,64 @@ def test_run_ignore_errors(caplog):
     assert len(res) == 1
     assert res["documents"] == []
     assert "Some error" in caplog.text
+
+
+def test_run_with_runtime_document_store():
+    # initial document store
+    initial_store = Mock(spec=OpenSearchDocumentStore)
+    initial_store._bm25_retrieval.return_value = [Document(content="Initial store doc")]
+    
+    # runtime document store
+    runtime_store = Mock(spec=OpenSearchDocumentStore)
+    runtime_store._bm25_retrieval.return_value = [Document(content="Runtime store doc")]
+    
+    retriever = OpenSearchBM25Retriever(document_store=initial_store)
+
+    res = retriever.run(query="some query", document_store=runtime_store)
+    
+    # verify runtime store was called, not initial store
+    runtime_store._bm25_retrieval.assert_called_once_with(
+        query="some query",
+        filters={},
+        fuzziness="AUTO",
+        top_k=10,
+        scale_score=False,
+        all_terms_must_match=False,
+        custom_query=None,
+    )
+    initial_store._bm25_retrieval.assert_not_called()
+
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Runtime store doc"
+
+
+@pytest.mark.asyncio
+async def test_run_async_with_runtime_document_store():
+    # initial document store
+    initial_store = Mock(spec=OpenSearchDocumentStore)
+    initial_store._bm25_retrieval_async.return_value = [Document(content="Initial store doc")]
+    
+    # runtime document store
+    runtime_store = Mock(spec=OpenSearchDocumentStore)
+    runtime_store._bm25_retrieval_async.return_value = [Document(content="Runtime store doc")]
+    
+    retriever = OpenSearchBM25Retriever(document_store=initial_store)
+
+    res = await retriever.run_async(query="some query", document_store=runtime_store)
+    
+    # verify runtime store was called, not initial store
+    runtime_store._bm25_retrieval_async.assert_called_once_with(
+        query="some query",
+        filters={},
+        fuzziness="AUTO",
+        top_k=10,
+        scale_score=False,
+        all_terms_must_match=False,
+        custom_query=None,
+    )
+    initial_store._bm25_retrieval_async.assert_not_called()
+
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Runtime store doc"

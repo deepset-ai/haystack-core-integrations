@@ -263,3 +263,213 @@ def test_run_ignore_errors(caplog):
     assert len(res) == 1
     assert res["documents"] == []
     assert "Some error" in caplog.text
+
+
+def test_run_with_runtime_document_store():
+    """Test that runtime document store switching works correctly."""
+    # Setup initial document store
+    initial_store = Mock(spec=OpenSearchDocumentStore)
+    initial_store._embedding_retrieval.return_value = [Document(content="Initial store doc", embedding=[0.1, 0.2])]
+    
+    # Setup runtime document store
+    runtime_store = Mock(spec=OpenSearchDocumentStore)
+    runtime_store._embedding_retrieval.return_value = [Document(content="Runtime store doc", embedding=[0.3, 0.4])]
+    
+    retriever = OpenSearchEmbeddingRetriever(document_store=initial_store)
+    
+    # Test with runtime document store
+    res = retriever.run(query_embedding=[0.5, 0.7], document_store=runtime_store)
+    
+    # Verify runtime store was called, not initial store
+    runtime_store._embedding_retrieval.assert_called_once_with(
+        query_embedding=[0.5, 0.7],
+        filters={},
+        top_k=10,
+        custom_query=None,
+        efficient_filtering=False,
+    )
+    initial_store._embedding_retrieval.assert_not_called()
+    
+    # Verify results
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Runtime store doc"
+    assert res["documents"][0].embedding == [0.3, 0.4]
+
+
+@pytest.mark.asyncio
+async def test_run_async_with_runtime_document_store():
+    """Test that runtime document store switching works correctly in async mode."""
+    # Setup initial document store
+    initial_store = Mock(spec=OpenSearchDocumentStore)
+    initial_store._embedding_retrieval_async.return_value = [Document(content="Initial store doc", embedding=[0.1, 0.2])]
+    
+    # Setup runtime document store
+    runtime_store = Mock(spec=OpenSearchDocumentStore)
+    runtime_store._embedding_retrieval_async.return_value = [Document(content="Runtime store doc", embedding=[0.3, 0.4])]
+    
+    retriever = OpenSearchEmbeddingRetriever(document_store=initial_store)
+    
+    # Test with runtime document store
+    res = await retriever.run_async(query_embedding=[0.5, 0.7], document_store=runtime_store)
+    
+    # Verify runtime store was called, not initial store
+    runtime_store._embedding_retrieval_async.assert_called_once_with(
+        query_embedding=[0.5, 0.7],
+        filters={},
+        top_k=10,
+        custom_query=None,
+        efficient_filtering=False,
+    )
+    initial_store._embedding_retrieval_async.assert_not_called()
+    
+    # Verify results
+    assert len(res) == 1
+    assert len(res["documents"]) == 1
+    assert res["documents"][0].content == "Runtime store doc"
+    assert res["documents"][0].embedding == [0.3, 0.4]
+
+
+def test_run_with_runtime_document_store_and_params():
+    """Test runtime document store switching with additional parameters."""
+    initial_store = Mock(spec=OpenSearchDocumentStore)
+    runtime_store = Mock(spec=OpenSearchDocumentStore)
+    runtime_store._embedding_retrieval.return_value = [Document(content="Runtime store doc", embedding=[0.3, 0.4])]
+    
+    retriever = OpenSearchEmbeddingRetriever(
+        document_store=initial_store,
+        filters={"init": "filter"},
+        top_k=5,
+        efficient_filtering=True,
+    )
+    
+    # Test with runtime document store and runtime parameters
+    res = retriever.run(
+        query_embedding=[0.5, 0.7],
+        document_store=runtime_store,
+        filters={"runtime": "filter"},
+        top_k=3,
+        efficient_filtering=False,
+    )
+    
+    # Verify runtime store was called with correct parameters
+    runtime_store._embedding_retrieval.assert_called_once_with(
+        query_embedding=[0.5, 0.7],
+        filters={"runtime": "filter"},  # Runtime filters should override init filters
+        top_k=3,  # Runtime top_k should override init top_k
+        custom_query=None,
+        efficient_filtering=False,  # Runtime efficient_filtering should override init
+    )
+    
+    assert len(res) == 1
+    assert res["documents"][0].content == "Runtime store doc"
+    assert res["documents"][0].embedding == [0.3, 0.4]
+
+
+@pytest.mark.asyncio
+async def test_run_async_with_runtime_document_store_and_params():
+    """Test runtime document store switching with additional parameters in async mode."""
+    initial_store = Mock(spec=OpenSearchDocumentStore)
+    runtime_store = Mock(spec=OpenSearchDocumentStore)
+    runtime_store._embedding_retrieval_async.return_value = [Document(content="Runtime store doc", embedding=[0.3, 0.4])]
+    
+    retriever = OpenSearchEmbeddingRetriever(
+        document_store=initial_store,
+        filters={"init": "filter"},
+        top_k=5,
+        efficient_filtering=True,
+    )
+    
+    # Test with runtime document store and runtime parameters
+    res = await retriever.run_async(
+        query_embedding=[0.5, 0.7],
+        document_store=runtime_store,
+        filters={"runtime": "filter"},
+        top_k=3,
+        efficient_filtering=False,
+    )
+    
+    # Verify runtime store was called with correct parameters
+    runtime_store._embedding_retrieval_async.assert_called_once_with(
+        query_embedding=[0.5, 0.7],
+        filters={"runtime": "filter"},  # Runtime filters should override init filters
+        top_k=3,  # Runtime top_k should override init top_k
+        custom_query=None,
+        efficient_filtering=False,  # Runtime efficient_filtering should override init
+    )
+    
+    assert len(res) == 1
+    assert res["documents"][0].content == "Runtime store doc"
+    assert res["documents"][0].embedding == [0.3, 0.4]
+
+
+def test_run_with_invalid_runtime_document_store():
+    """Test that invalid runtime document store raises ValueError."""
+    initial_store = Mock(spec=OpenSearchDocumentStore)
+    invalid_store = Mock()  # Not an OpenSearchDocumentStore
+    
+    retriever = OpenSearchEmbeddingRetriever(document_store=initial_store)
+    
+    with pytest.raises(ValueError, match="document_store must be an instance of OpenSearchDocumentStore"):
+        retriever.run(query_embedding=[0.5, 0.7], document_store=invalid_store)
+
+
+@pytest.mark.asyncio
+async def test_run_async_with_invalid_runtime_document_store():
+    """Test that invalid runtime document store raises ValueError in async mode."""
+    initial_store = Mock(spec=OpenSearchDocumentStore)
+    invalid_store = Mock()  # Not an OpenSearchDocumentStore
+    
+    retriever = OpenSearchEmbeddingRetriever(document_store=initial_store)
+    
+    with pytest.raises(ValueError, match="document_store must be an instance of OpenSearchDocumentStore"):
+        await retriever.run_async(query_embedding=[0.5, 0.7], document_store=invalid_store)
+
+
+def test_run_without_runtime_document_store_uses_initial():
+    """Test that when no runtime document store is provided, initial store is used."""
+    initial_store = Mock(spec=OpenSearchDocumentStore)
+    initial_store._embedding_retrieval.return_value = [Document(content="Initial store doc", embedding=[0.1, 0.2])]
+    
+    retriever = OpenSearchEmbeddingRetriever(document_store=initial_store)
+    
+    # Test without runtime document store (should use initial)
+    res = retriever.run(query_embedding=[0.5, 0.7])
+    
+    # Verify initial store was called
+    initial_store._embedding_retrieval.assert_called_once_with(
+        query_embedding=[0.5, 0.7],
+        filters={},
+        top_k=10,
+        custom_query=None,
+        efficient_filtering=False,
+    )
+    
+    assert len(res) == 1
+    assert res["documents"][0].content == "Initial store doc"
+    assert res["documents"][0].embedding == [0.1, 0.2]
+
+
+@pytest.mark.asyncio
+async def test_run_async_without_runtime_document_store_uses_initial():
+    """Test that when no runtime document store is provided, initial store is used in async mode."""
+    initial_store = Mock(spec=OpenSearchDocumentStore)
+    initial_store._embedding_retrieval_async.return_value = [Document(content="Initial store doc", embedding=[0.1, 0.2])]
+    
+    retriever = OpenSearchEmbeddingRetriever(document_store=initial_store)
+    
+    # Test without runtime document store (should use initial)
+    res = await retriever.run_async(query_embedding=[0.5, 0.7])
+    
+    # Verify initial store was called
+    initial_store._embedding_retrieval_async.assert_called_once_with(
+        query_embedding=[0.5, 0.7],
+        filters={},
+        top_k=10,
+        custom_query=None,
+        efficient_filtering=False,
+    )
+    
+    assert len(res) == 1
+    assert res["documents"][0].content == "Initial store doc"
+    assert res["documents"][0].embedding == [0.1, 0.2]
