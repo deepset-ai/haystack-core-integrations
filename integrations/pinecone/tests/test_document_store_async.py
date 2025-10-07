@@ -70,7 +70,7 @@ class TestDocumentStoreAsync:
         query_embedding = [0.1] * 768
         most_similar_embedding = [0.8] * 768
         second_best_embedding = [0.8] * 700 + [0.1] * 3 + [0.2] * 65
-        another_embedding = np.random.rand(768).tolist()
+        another_embedding = [-0.1] * 384 + [0.1] * 384
 
         docs = [
             Document(content="Most similar document", embedding=most_similar_embedding),
@@ -83,9 +83,12 @@ class TestDocumentStoreAsync:
         results = await document_store_async._embedding_retrieval_async(
             query_embedding=query_embedding, top_k=2, filters={}
         )
+
         assert len(results) == 2
-        assert results[0].content == "Most similar document"
-        assert results[1].content == "2nd best document"
+
+        # Pinecone does not seem to guarantee the order of the results
+        assert "Most similar document" in [result.content for result in results]
+        assert "2nd best document" in [result.content for result in results]
 
     async def test_close(self, document_store_async: PineconeDocumentStore):
         await document_store_async._initialize_async_index()
