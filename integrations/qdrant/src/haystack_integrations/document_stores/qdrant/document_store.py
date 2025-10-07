@@ -523,7 +523,7 @@ class QdrantDocumentStore:
                 "Called QdrantDocumentStore.delete_documents_async() on a non-existing ID",
             )
 
-    def delete_all_documents(self, recreate_index: bool = False):
+    def delete_all_documents(self, recreate_index: bool = False) -> None:
         """
         Deletes all documents from the document store.
 
@@ -534,25 +534,8 @@ class QdrantDocumentStore:
         assert self._client is not None
 
         if recreate_index:
-
             # get current collection config
             collection_info = self._client.get_collection(collection_name=self.index)
-
-            """
-            x = CollectionInfo(
-                status= < CollectionStatus.GREEN: 'green' >,
-                optimizer_status = < OptimizersStatusOneOf.OK: 'ok' >, vectors_count = None, indexed_vectors_count = 0, points_count = 5, segments_count = 1, config = CollectionConfig(
-                params=CollectionParams(vectors=VectorParams(size=768, distance= < Distance.COSINE: 'Cosine' >, hnsw_config = None, quantization_config = None, on_disk = False, datatype = None, multivector_config = None), shard_number = None, sharding_method = None, replication_factor = None, write_consistency_factor = None, read_fan_out_factor = None, on_disk_payload = None, sparse_vectors = None), hnsw_config = HnswConfig(
-                m=16, ef_construct=100, full_scan_threshold=10000, max_indexing_threads=0, on_disk=None,
-                payload_m=None), optimizer_config = OptimizersConfig(deleted_threshold=0.2,
-                                                                     vacuum_min_vector_number=1000,
-                                                                     default_segment_number=0, max_segment_size=None,
-                                                                     memmap_threshold=None, indexing_threshold=20000,
-                                                                     flush_interval_sec=5,
-                                                                     max_optimization_threads=1), wal_config = WalConfig(
-                wal_capacity_mb=32,
-                wal_segments_ahead=0), quantization_config = None, strict_mode_config = None), payload_schema = {})
-            """
 
             # recreate collection
             self._set_up_collection(
@@ -561,13 +544,13 @@ class QdrantDocumentStore:
                 recreate_collection=True,
                 similarity=collection_info.config.params.vectors.distance.value,
                 use_sparse_embeddings=collection_info.config.params.sparse_vectors == SPARSE_VECTORS_NAME,
-                sparse_idf=(collection_info.config.params.vectors.name == SPARSE_VECTORS_NAME) and
-                           collection_info.config.params.vectors.config.hnsw_config is not None,
+                sparse_idf=(collection_info.config.params.vectors.name == SPARSE_VECTORS_NAME)
+                and collection_info.config.params.vectors.config.hnsw_config is not None,
                 on_disk=collection_info.config.params.vectors.config.on_disk,
                 # ToDo: investigate
                 #   - CollectionInfo has payload_schema as Optional[Dict[str, PayloadSchemaType]],
                 #   - self._set_up_collection expects Optional[List[dict]]
-                payload_fields_to_index=None
+                payload_fields_to_index=None,
             )
 
         try:
@@ -584,8 +567,6 @@ class QdrantDocumentStore:
             logger.warning(
                 f"Error {e} when calling QdrantDocumentStore.delete_all_documents()",
             )
-
-
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "QdrantDocumentStore":
