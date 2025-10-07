@@ -534,19 +534,26 @@ class QdrantDocumentStore:
         assert self._client is not None
 
         if recreate_index:
-            # get current collection config
+            # get current collection config as json
             collection_info = self._client.get_collection(collection_name=self.index)
+            info_json = collection_info.model_dump()
+
+            # deal with the Optional use_sparse_embeddings
+            sparse_vectors = info_json["config"]["params"]["sparse_vectors"]
+            use_sparse_embeddings = sparse_vectors if sparse_vectors else False
+
+            hnsw_config = info_json["config"]["params"]["vectors"].get("config", {}).get("hnsw_config", None)
+            sparse_idf = hnsw_config if use_sparse_embeddings and hnsw_config else False
 
             # recreate collection
             self._set_up_collection(
                 collection_name=self.index,
-                embedding_dim=collection_info.config.params.vectors.size,
+                embedding_dim=info_json["config"]["params"]["vectors"]["size"],
                 recreate_collection=True,
-                similarity=collection_info.config.params.vectors.distance.value,
-                use_sparse_embeddings=collection_info.config.params.sparse_vectors == SPARSE_VECTORS_NAME,
-                sparse_idf=(collection_info.config.params.vectors.name == SPARSE_VECTORS_NAME)
-                and collection_info.config.params.vectors.config.hnsw_config is not None,
-                on_disk=collection_info.config.params.vectors.config.on_disk,
+                similarity=info_json["config"]["params"]["vectors"]["distance"],
+                use_sparse_embeddings=use_sparse_embeddings,
+                sparse_idf=sparse_idf,
+                on_disk=info_json["config"]["hnsw_config"]["on_disk"],
                 # ToDo: investigate
                 #   - CollectionInfo has payload_schema as Optional[Dict[str, PayloadSchemaType]],
                 #   - self._set_up_collection expects Optional[List[dict]]
