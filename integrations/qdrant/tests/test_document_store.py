@@ -5,7 +5,7 @@ import pytest
 from haystack import Document
 from haystack.dataclasses import SparseEmbedding
 from haystack.document_stores.errors import DuplicateDocumentError
-from haystack.document_stores.types import DuplicatePolicy, DocumentStore
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
