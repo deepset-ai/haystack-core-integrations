@@ -234,7 +234,6 @@ class OpenSearchEmbeddingRetriever:
         else:
             doc_store = self._document_store
 
-
         try:
             docs = doc_store._embedding_retrieval(
                 query_embedding=query_embedding,

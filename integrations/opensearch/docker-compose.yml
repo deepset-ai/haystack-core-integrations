@@ -1,15 +1,46 @@
+version: '3.8'
+
 services:
-  opensearch:
+  opensearch1:
     image: "opensearchproject/opensearch:2.11.0"
+    container_name: opensearch1
     ports:
-      - 9200:9200
-      - 9600:9600
-    restart: on-failure
+      - "9200:9200"  # HTTP
+      - "9600:9600"  # Performance Analyzer
     environment:
       - discovery.type=single-node
+      - cluster.name=opensearch-cluster-1
+      - node.name=opensearch-node-1
       - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
+      - bootstrap.memory_lock=true
     healthcheck:
-        test: curl --fail https://localhost:9200/_cat/health -ku admin:admin || exit 1
-        interval: 10s
-        timeout: 1s
-        retries: 10
+      test: curl --fail https://localhost:9200/_cat/health -ku admin:admin || exit 1
+      interval: 10s
+      timeout: 1s
+      retries: 10
+    networks:
+      - opensearch-net
+
+  opensearch2:
+    image: "opensearchproject/opensearch:2.11.0"
+    container_name: opensearch2
+    ports:
+      - "9201:9200"  # HTTP on host port 9201
+      - "9601:9600"  # Performance Analyzer
+    environment:
+      - discovery.type=single-node
+      - cluster.name=opensearch-cluster-2
+      - node.name=opensearch-node-2
+      - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
+      - bootstrap.memory_lock=true
+    healthcheck:
+      test: curl --fail https://localhost:9200/_cat/health -ku admin:admin || exit 1
+      interval: 10s
+      timeout: 1s
+      retries: 10
+    networks:
+      - opensearch-net
+
+networks:
+  opensearch-net:
+    driver: bridge
