@@ -125,7 +125,7 @@ class ElasticsearchDocumentStore:
             raise ValueError(msg)
 
         if not self._custom_mapping:
-            self.default_mappings = {
+            self._default_mappings = {
                 "properties": {
                     "embedding": {
                         "type": "dense_vector",
@@ -178,7 +178,7 @@ class ElasticsearchDocumentStore:
                 mappings = self._custom_mapping
             else:
                 # Configure mapping for the embedding field if none is provided
-                mappings = self.default_mappings
+                mappings = self._default_mappings
 
             # Create the index if it doesn't exist
             if not self._client.indices.exists(index=self._index):
