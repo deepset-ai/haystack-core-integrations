@@ -636,7 +636,6 @@ class ElasticsearchDocumentStore:
         Asynchronously deletes all documents in the document store by deleting and recreating the index.
 
         A fast way to clear all documents from the document store while preserving any index settings and mappings.
-        
         :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
             settings. If False, all documents will be deleted using the `delete_by_query` API.
         """
