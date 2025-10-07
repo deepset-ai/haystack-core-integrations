@@ -7,9 +7,11 @@ import tempfile
 import time
 from unittest.mock import patch
 
+import haystack
 import pytest
 import pytest_asyncio
 from haystack import logging
+from haystack.core.pipeline import Pipeline
 from haystack.tools import Tool
 
 from haystack_integrations.tools.mcp import MCPToolset
@@ -413,3 +415,72 @@ if __name__ == "__main__":
             # Remove the temporary file
             if os.path.exists(server_script_path):
                 os.remove(server_script_path)
+
+    def test_pipeline_deserialization_fails_without_github_token(self, monkeypatch):
+        """
+        Test that pipeline deserialization + MCPToolset initialization fails when GitHub
+        token is not resolved during deserialization.
+
+        The issue:
+        - Setup: Agent pipeline template with MCPToolset with a token from env var (PERSONAL_ACCESS_TOKEN_GITHUB)
+        - MCPToolset tries to connect immediately during __init__ after validation
+        - Secrets get resolved during validation, after MCPToolset is initialized
+        - Connection fails because token can't be resolved in __init__
+        - Pipeline deserialization fails with DeserializationError
+
+        This test demonstrates why we need warmup for MCPToolset on first use rather than during deserialization.
+        """
+        pipeline_yaml = """
+components:
+  agent:
+    init_parameters:
+      chat_generator:
+        init_parameters:
+          api_base_url:
+          api_key:
+            env_vars:
+            - OPENAI_API_KEY
+            strict: false
+            type: env_var
+          generation_kwargs: {}
+          max_retries:
+          model: gpt-4o
+          organization:
+          streaming_callback:
+          timeout:
+          tools:
+          tools_strict: false
+        type: haystack.components.generators.chat.openai.OpenAIChatGenerator
+      exit_conditions:
+      - text
+      max_agent_steps: 100
+      raise_on_tool_invocation_failure: false
+      state_schema: {}
+      streaming_callback:
+      system_prompt: |-
+        You are an assistant that summarizes latest issues and PRs on a github repository
+        that happened within a certain time frame (e.g. last day or last week). Make sure
+        that you always use the current date as a basis for the time frame. Iterate over
+        issues and PRs where necessary to get a comprehensive overview.
+      tools:
+        data:
+          server_info:
+            type: haystack_integrations.tools.mcp.mcp_tool.StreamableHttpServerInfo
+            url: https://api.githubcopilot.com/mcp/
+            token:
+              env_vars:
+              - PERSONAL_ACCESS_TOKEN_GITHUB
+              strict: true
+              type: env_var
+            timeout: 10
+          tool_names: [get_issue, get_issue_comments]
+        type: haystack_integrations.tools.mcp.MCPToolset
+    type: haystack.components.agents.agent.Agent
+
+connections: []
+"""
+        monkeypatch.setenv("PERSONAL_ACCESS_TOKEN_GITHUB", "SOME_OBVIOUSLY_INVALID_TOKEN")
+        # Attempt to deserialize the pipeline - this will fail because MCPToolset
+        # tries to connect immediately and the token isn't available
+        with pytest.raises(haystack.core.errors.DeserializationError):
+            Pipeline.loads(pipeline_yaml)
