@@ -218,3 +218,43 @@ class TestQdrantDocumentStore:
         ):
             with pytest.raises(ValueError, match="different similarity"):
                 await document_store._set_up_collection_async("test_collection", 768, False, "cosine", False, False)
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_async_no_index_recreation(self, document_store):
+        await document_store._initialize_async_client()
+
+        # write some documents
+        docs = [Document(id=str(i)) for i in range(5)]
+        await document_store.write_documents_async(docs)
+
+        # delete all documents without recreating the index
+        await document_store.delete_all_documents_async(recreate_index=False)
+        assert await document_store.count_documents_async() == 0
+
+        # ensure the collection still exists by writing documents again
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 5
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_async_index_recreation(self, document_store):
+        await document_store._initialize_async_client()
+
+        # write some documents
+        docs = [Document(id=str(i)) for i in range(5)]
+        await document_store.write_documents_async(docs)
+
+        # get the current document_store config
+        config_before = await document_store._async_client.get_collection(document_store.index)
+
+        # delete all documents with recreating the index
+        await document_store.delete_all_documents_async(recreate_index=True)
+        assert await document_store.count_documents_async() == 0
+
+        # assure that with the same config
+        config_after = await document_store._async_client.get_collection(document_store.index)
+
+        assert config_before.config == config_after.config
+
+        # ensure the collection still exists by writing documents again
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 5

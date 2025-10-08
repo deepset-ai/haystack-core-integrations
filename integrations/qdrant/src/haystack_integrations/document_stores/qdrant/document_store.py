@@ -574,6 +574,57 @@ class QdrantDocumentStore:
                     f"Error {e} when calling QdrantDocumentStore.delete_all_documents()",
                 )
 
+    async def delete_all_documents_async(self, recreate_index: bool = False) -> None:
+        """
+        Asynchronously deletes all documents from the document store.
+
+        :param recreate_index: Whether to recreate the index after deleting all documents.
+        """
+
+        await self._initialize_async_client()
+        assert self._async_client is not None
+
+        if recreate_index:
+            # get current collection config as json
+            collection_info = await self._async_client.get_collection(collection_name=self.index)
+            info_json = collection_info.model_dump()
+
+            # deal with the Optional use_sparse_embeddings
+            sparse_vectors = info_json["config"]["params"]["sparse_vectors"]
+            use_sparse_embeddings = sparse_vectors if sparse_vectors else False
+
+            # deal with the Optional sparse_idf
+            hnsw_config = info_json["config"]["params"]["vectors"].get("config", {}).get("hnsw_config", None)
+            sparse_idf = hnsw_config if use_sparse_embeddings and hnsw_config else False
+
+            # recreate collection
+            await self._set_up_collection_async(
+                collection_name=self.index,
+                embedding_dim=info_json["config"]["params"]["vectors"]["size"],
+                recreate_collection=True,
+                similarity=info_json["config"]["params"]["vectors"]["distance"].lower(),
+                use_sparse_embeddings=use_sparse_embeddings,
+                sparse_idf=sparse_idf,
+                on_disk=info_json["config"]["hnsw_config"]["on_disk"],
+                payload_fields_to_index=info_json["payload_schema"],
+            )
+
+        else:
+            try:
+                await self._async_client.delete(
+                    collection_name=self.index,
+                    points_selector=rest.FilterSelector(
+                        filter=rest.Filter(
+                            must=[],
+                        )
+                    ),
+                    wait=self.wait_result_from_api,
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Error {e} when calling QdrantDocumentStore.delete_all_documents_async()",
+                )
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "QdrantDocumentStore":
         """
