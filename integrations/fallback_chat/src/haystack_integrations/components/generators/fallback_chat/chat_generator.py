@@ -182,11 +182,16 @@ class FallbackChatGenerator:
                 # Wait a short tick for first token; breaks early when token arrives
                 ttft.wait(timeout=min(remaining, tick))
                 if ttft.is_set():
-                    # Commit to this generator: now wait for completion
-                    try:
-                        return fut.result()
-                    except FuturesTimeoutError as e:
-                        raise asyncio.TimeoutError(str(e)) from e
+                    # Commit to this generator: now wait for completion with remaining time
+                    remaining = deadline - time.monotonic()
+                    if remaining > 0:
+                        try:
+                            return fut.result(timeout=remaining)
+                        except FuturesTimeoutError as e:
+                            raise asyncio.TimeoutError(str(e)) from e
+                    else:
+                        # Already at/past deadline after TTFT
+                        break
         finally:
             # If we time out on TTFT, stop forwarding tokens and detach the worker
             if not ttft.is_set():
@@ -231,10 +236,11 @@ class FallbackChatGenerator:
                 timeout=effective_timeout,
             )
 
-        # TTFT mode: treat timeout as TTFT deadline
+        # TTFT mode: treat timeout as shared deadline for entire operation
         loop = asyncio.get_running_loop()
         ttft = asyncio.Event()
         active = {"value": True}
+        start_time = time.time()
 
         def wrapped_cb(chunk: Any) -> None:
             if not ttft.is_set():
@@ -283,18 +289,28 @@ class FallbackChatGenerator:
             return await task
 
         if ttft_task in done:
-            # Commit to this generator; await completion with optional cap
+            # Commit to this generator; await completion with remaining time from shared deadline
             ttft_task.cancel()
             try:
                 _ = await ttft_task
             except Exception:  # noqa: S110
                 # Intentionally ignore TTFT task exceptions - we only care about the main task
                 pass
-            try:
-                return await task
-            except asyncio.TimeoutError as e:
-                # Completion took too long after first token
-                raise e
+            # Calculate remaining time from original deadline
+            elapsed = time.time() - start_time
+            remaining = effective_timeout - elapsed
+            if remaining > 0:
+                try:
+                    return await asyncio.wait_for(task, timeout=remaining)
+                except asyncio.TimeoutError as e:
+                    # Completion took too long after first token
+                    active["value"] = False
+                    raise e
+            else:
+                # Already at/past deadline after TTFT
+                active["value"] = False
+                msg = "Deadline exceeded after TTFT (async)"
+                raise asyncio.TimeoutError(msg)
 
         # Neither completed nor produced a first token within deadline
         active["value"] = False
