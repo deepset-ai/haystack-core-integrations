@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/opensearch-v4.4.0] - 2025-10-09
+
+### 🚀 Features
+
+- Allow `OpenSearch` embedders to query a different `DocumentStore` at runtime (#2361)
+
+
 ## [integrations/opensearch-v4.3.0] - 2025-10-07
 
 ### 🚀 Features
