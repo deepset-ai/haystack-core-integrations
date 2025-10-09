@@ -35,8 +35,7 @@ def document_store(request):
 
 @pytest.fixture
 def document_store_2(request):
-    """OpenSearch instance running on localhost:9300 (opensearch-2)"""
-    hosts = ["https://localhost:9201"]
+    hosts = ["https://localhost:9200"]
     index = f"test_index_2_{request.node.name}"
 
     store = OpenSearchDocumentStore(
