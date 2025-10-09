@@ -1,10 +1,17 @@
 # Changelog
 
+## [integrations/elasticsearch-v4.1.0] - 2025-10-09
+
+### 🚀 Features
+
+- Adding the operation `delete_all_documents` to the `ElasticSearchDocumentStore` (#2320)
+
+
 ## [integrations/elasticsearch-v4.0.0] - 2025-09-24
 
 ### 🚀 Features
 
-- [**breaking**] Adding `api_token` and `apit_token_id` authentication support to `ElasticSearchDocumentStore` (#2292)
+- [**breaking**] Adding `api_token` and `apit_token_id` support to `ElasticSearchDocumentStore` (#2292)
 
 ### 🧹 Chores
 
