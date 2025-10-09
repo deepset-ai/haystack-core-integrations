@@ -107,7 +107,7 @@ class OpenSearchDocumentStore:
         :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
             for more information. Defaults to {"index.knn": True}
         :param create_index: Whether to create the index if it doesn't exist. Defaults to True
-        :param http_auth: http_auth param passed to the underying connection class.
+        :param http_auth: http_auth param passed to the underlying connection class.
             For basic authentication with default connection class `Urllib3HttpConnection` this can be
             - a tuple of (username, password)
             - a list of [username, password]
@@ -319,7 +319,8 @@ class OpenSearchDocumentStore:
         assert self._async_client is not None
         return (await self._async_client.count(index=self._index))["count"]
 
-    def _deserialize_search_hits(self, hits: List[Dict[str, Any]]) -> List[Document]:
+    @staticmethod
+    def _deserialize_search_hits(hits: List[Dict[str, Any]]) -> List[Document]:
         out = []
         for hit in hits:
             data = hit["_source"]
@@ -344,12 +345,12 @@ class OpenSearchDocumentStore:
     def _search_documents(self, request_body: Dict[str, Any]) -> List[Document]:
         assert self._client is not None
         search_results = self._client.search(index=self._index, body=request_body)
-        return self._deserialize_search_hits(search_results["hits"]["hits"])
+        return OpenSearchDocumentStore._deserialize_search_hits(search_results["hits"]["hits"])
 
     async def _search_documents_async(self, request_body: Dict[str, Any]) -> List[Document]:
         assert self._async_client is not None
         search_results = await self._async_client.search(index=self._index, body=request_body)
-        return self._deserialize_search_hits(search_results["hits"]["hits"])
+        return OpenSearchDocumentStore._deserialize_search_hits(search_results["hits"]["hits"])
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
@@ -418,7 +419,8 @@ class OpenSearchDocumentStore:
             "stats_only": False,
         }
 
-    def _process_bulk_write_errors(self, errors: List[Dict[str, Any]], policy: DuplicatePolicy) -> None:
+    @staticmethod
+    def _process_bulk_write_errors(errors: List[Dict[str, Any]], policy: DuplicatePolicy) -> None:
         if len(errors) == 0:
             return
 
@@ -461,7 +463,7 @@ class OpenSearchDocumentStore:
 
         bulk_params = self._prepare_bulk_write_request(documents=documents, policy=policy, is_async=False)
         documents_written, errors = bulk(**bulk_params)
-        self._process_bulk_write_errors(errors, policy)
+        OpenSearchDocumentStore._process_bulk_write_errors(errors, policy)
         return documents_written
 
     async def write_documents_async(
@@ -478,10 +480,11 @@ class OpenSearchDocumentStore:
         bulk_params = self._prepare_bulk_write_request(documents=documents, policy=policy, is_async=True)
         documents_written, errors = await async_bulk(**bulk_params)
         # since we call async_bulk with stats_only=False, errors is guaranteed to be a list (not int)
-        self._process_bulk_write_errors(errors=errors, policy=policy)  # type: ignore[arg-type]
+        OpenSearchDocumentStore._process_bulk_write_errors(errors=errors, policy=policy)  # type: ignore[arg-type]
         return documents_written
 
-    def _deserialize_document(self, hit: Dict[str, Any]) -> Document:
+    @staticmethod
+    def _deserialize_document(hit: Dict[str, Any]) -> Document:
         """
         Creates a Document from the search hit provided.
         This is mostly useful in self.filter_documents().
@@ -524,6 +527,86 @@ class OpenSearchDocumentStore:
         self._ensure_initialized()
 
         await async_bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=True))
+
+    def _prepare_delete_all_request(self, *, is_async: bool) -> Dict[str, Any]:
+        return {
+            "index": self._index,
+            "body": {"query": {"match_all": {}}},  # Delete all documents
+            "wait_for_completion": False if is_async else True,  # block until done (set False for async)
+        }
+
+    def delete_all_documents(self, recreate_index: bool = False) -> None:  # noqa: FBT002, FBT001
+        """
+        Deletes all documents in the document store.
+
+        :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
+            settings. If False, all documents will be deleted using the `delete_by_query` API.
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        try:
+            if recreate_index:
+                # get the current index mappings and settings
+                index_name = self._index
+                body = {
+                    "mappings": self._client.indices.get(self._index)[index_name]["mappings"],
+                    "settings": self._client.indices.get(self._index)[index_name]["settings"],
+                }
+                body["settings"]["index"].pop("uuid", None)
+                body["settings"]["index"].pop("creation_date", None)
+                body["settings"]["index"].pop("provided_name", None)
+                body["settings"]["index"].pop("version", None)
+                self._client.indices.delete(index=self._index)
+                self._client.indices.create(index=self._index, body=body)
+                logger.info(
+                    "The index '{index}' recreated with the original mappings and settings.",
+                    index=self._index,
+                )
+
+            else:
+                result = self._client.delete_by_query(**self._prepare_delete_all_request(is_async=False))
+                logger.info(
+                    "Deleted all the {n_docs} documents from the index '{index}'.",
+                    index=self._index,
+                    n_docs=result["deleted"],
+                )
+        except Exception as e:
+            msg = f"Failed to delete all documents from OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def delete_all_documents_async(self, recreate_index: bool = False) -> None:  # noqa: FBT002, FBT001
+        """
+        Asynchronously deletes all documents in the document store.
+
+        :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
+            settings. If False, all documents will be deleted using the `delete_by_query` API.
+        """
+        self._ensure_initialized()
+        assert self._async_client is not None
+
+        try:
+            if recreate_index:
+                # get the current index mappings and settings
+                index_name = self._index
+                index_info = await self._async_client.indices.get(self._index)
+                body = {
+                    "mappings": index_info[index_name]["mappings"],
+                    "settings": index_info[index_name]["settings"],
+                }
+                body["settings"]["index"].pop("uuid", None)
+                body["settings"]["index"].pop("creation_date", None)
+                body["settings"]["index"].pop("provided_name", None)
+                body["settings"]["index"].pop("version", None)
+
+                await self._async_client.indices.delete(index=self._index)
+                await self._async_client.indices.create(index=self._index, body=body)
+            else:
+                await self._async_client.delete_by_query(**self._prepare_delete_all_request(is_async=True))
+
+        except Exception as e:
+            msg = f"Failed to delete all documents from OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e
 
     def _prepare_bm25_search_request(
         self,
@@ -580,7 +663,8 @@ class OpenSearchDocumentStore:
 
         return body
 
-    def _postprocess_bm25_search_results(self, *, results: List[Document], scale_score: bool) -> None:
+    @staticmethod
+    def _postprocess_bm25_search_results(*, results: List[Document], scale_score: bool) -> None:
         if not scale_score:
             return
 
@@ -624,7 +708,7 @@ class OpenSearchDocumentStore:
             custom_query=custom_query,
         )
         documents = self._search_documents(search_params)
-        self._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
+        OpenSearchDocumentStore._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
         return documents
 
     async def _bm25_retrieval_async(
@@ -663,7 +747,7 @@ class OpenSearchDocumentStore:
             custom_query=custom_query,
         )
         documents = await self._search_documents_async(search_params)
-        self._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
+        OpenSearchDocumentStore._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
         return documents
 
     def _prepare_embedding_search_request(
