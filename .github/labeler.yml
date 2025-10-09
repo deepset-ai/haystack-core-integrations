@@ -1,4 +1,9 @@
 # Integrations
+integration:aimlapi:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/aimlapi/**/*"
+      - any-glob-to-any-file: ".github/workflows/aimlapi.yml"
+
 integration:amazon-bedrock:
   - changed-files:
       - any-glob-to-any-file: "integrations/amazon_bedrock/**/*"
