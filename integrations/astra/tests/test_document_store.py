@@ -204,7 +204,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         self.assert_documents_are_equal([result[0]], [docs[0]])
         self.assert_documents_are_equal([result[1]], [docs[1]])
 
-    def test_delete_all_documents_empty_store(self, document_store: AstraDocumentStore):
+    def test_delete_all_documents(self, document_store: AstraDocumentStore):
         """
         Test delete_all_documents() on an Astra.
         """

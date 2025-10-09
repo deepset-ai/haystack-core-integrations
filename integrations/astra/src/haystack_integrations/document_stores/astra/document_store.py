@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
-from haystack.document_stores.errors import DuplicateDocumentError, MissingDocumentError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError, MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
@@ -395,10 +395,7 @@ class AstraDocumentStore:
 
         return result
 
-    def delete_documents(
-        self,
-        document_ids: Optional[List[str]] = None,
-    ) -> None:
+    def delete_documents(self, document_ids: List[str]) -> None:
         """
         Deletes documents from the document store.
 
@@ -424,7 +421,12 @@ class AstraDocumentStore:
         Deletes all documents from the document store.
         """
         deletion_counter = 0
-        deletion_counter = self.index.delete_all_documents()
+
+        try:
+            deletion_counter = self.index.delete_all_documents()
+        except Exception as e:
+            msg = f"Failed to delete all documents from Astra: {e!s}"
+            raise DocumentStoreError(msg) from e
 
         if deletion_counter == -1:
             logger.info("All documents deleted")
