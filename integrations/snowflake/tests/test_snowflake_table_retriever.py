@@ -49,6 +49,44 @@ def expected_markdown() -> str:
     return "shape: (3, 2)\n| col1 | col2 |\n|------|------|\n| 1    | A    |\n| 2    | B    |\n| 3    | C    |"
 
 
+@pytest.fixture
+def jwt_retriever(mocker: Mock) -> SnowflakeTableRetriever:
+    mocker.patch.dict(
+        os.environ, {"SNOWFLAKE_PRIVATE_KEY_FILE": "/path/to/key.pem", "SNOWFLAKE_PRIVATE_KEY_PWD": "test_password"}
+    )
+    return SnowflakeTableRetriever(
+        user="test_user",
+        account="test_account",
+        authenticator="SNOWFLAKE_JWT",
+        private_key_file=Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_FILE"),
+        private_key_file_pwd=Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_PWD"),
+        database="test_db",
+        db_schema="test_schema",
+        warehouse="test_warehouse",
+        return_markdown=True,
+    )
+
+
+@pytest.fixture
+def oauth_retriever(mocker: Mock) -> SnowflakeTableRetriever:
+    mocker.patch.dict(
+        os.environ,
+        {"SNOWFLAKE_OAUTH_CLIENT_ID": "test_client_id", "SNOWFLAKE_OAUTH_CLIENT_SECRET": "test_client_secret"},
+    )
+    return SnowflakeTableRetriever(
+        user="test_user",
+        account="test_account",
+        authenticator="OAUTH",
+        oauth_client_id=Secret.from_env_var("SNOWFLAKE_OAUTH_CLIENT_ID"),
+        oauth_client_secret=Secret.from_env_var("SNOWFLAKE_OAUTH_CLIENT_SECRET"),
+        oauth_token_request_url="https://test.snowflakecomputing.com/oauth/token-request",
+        database="test_db",
+        db_schema="test_schema",
+        warehouse="test_warehouse",
+        return_markdown=True,
+    )
+
+
 class TestSnowflakeTableRetriever:
     def test_init_and_serialization(self, retriever: SnowflakeTableRetriever) -> None:
         serialized = retriever.to_dict()
@@ -345,3 +383,140 @@ class TestSnowflakeTableRetriever:
         uri = retriever._snowflake_uri_constructor()
         expected_uri = f"snowflake://test_user:test_api_key@test_account/test_db?login_timeout={custom_timeout}"
         assert uri == expected_uri
+
+    def test_jwt_authentication_serialization(self, jwt_retriever: SnowflakeTableRetriever) -> None:
+        serialized = jwt_retriever.to_dict()
+        init_params = serialized["init_parameters"]
+
+        assert init_params["authenticator"] == "SNOWFLAKE_JWT"
+        assert "private_key_file" in init_params
+        assert "private_key_file_pwd" in init_params
+
+        deserialized = SnowflakeTableRetriever.from_dict(serialized)
+        assert isinstance(deserialized, SnowflakeTableRetriever)
+        assert deserialized.authenticator == "SNOWFLAKE_JWT"
+
+    def test_oauth_authentication_serialization(self, oauth_retriever: SnowflakeTableRetriever) -> None:
+        serialized = oauth_retriever.to_dict()
+        init_params = serialized["init_parameters"]
+
+        assert init_params["authenticator"] == "OAUTH"
+        assert "oauth_client_id" in init_params
+        assert "oauth_client_secret" in init_params
+        assert init_params["oauth_token_request_url"] == "https://test.snowflakecomputing.com/oauth/token-request"
+
+        deserialized = SnowflakeTableRetriever.from_dict(serialized)
+        assert isinstance(deserialized, SnowflakeTableRetriever)
+        assert deserialized.authenticator == "OAUTH"
+
+    def test_jwt_uri_construction(self, jwt_retriever: SnowflakeTableRetriever) -> None:
+        uri = jwt_retriever._snowflake_uri_constructor()
+        expected_uri = "snowflake://test_user@test_account/test_db/test_schema?warehouse=test_warehouse&login_timeout=60&authenticator=SNOWFLAKE_JWT&private_key_file=/path/to/key.pem&private_key_file_pwd=test_password"
+        assert uri == expected_uri
+
+    def test_oauth_uri_construction(self, oauth_retriever: SnowflakeTableRetriever) -> None:
+        uri = oauth_retriever._snowflake_uri_constructor()
+        expected_uri = "snowflake://test_user@test_account/test_db/test_schema?warehouse=test_warehouse&login_timeout=60&authenticator=OAUTH&oauth_client_id=test_client_id&oauth_client_secret=test_client_secret&oauth_token_request_url=https://test.snowflakecomputing.com/oauth/token-request"
+        assert uri == expected_uri
+
+    def test_masked_uri_logging_jwt(self, jwt_retriever: SnowflakeTableRetriever) -> None:
+        uri = jwt_retriever._snowflake_uri_constructor()
+        masked_uri = jwt_retriever._create_masked_uri(uri)
+
+        assert "test_password" not in masked_uri
+        assert "***REDACTED***" in masked_uri
+
+    def test_masked_uri_logging_oauth(self, oauth_retriever: SnowflakeTableRetriever) -> None:
+        uri = oauth_retriever._snowflake_uri_constructor()
+        masked_uri = oauth_retriever._create_masked_uri(uri)
+
+        assert "test_client_secret" not in masked_uri
+        assert "***REDACTED***" in masked_uri
+
+    @pytest.mark.parametrize(
+        "authenticator, missing_param, expected_error",
+        [
+            ("SNOWFLAKE_JWT", "private_key_file", "private_key_file is required for SNOWFLAKE_JWT authentication"),
+            (
+                "SNOWFLAKE_JWT",
+                "private_key_file_pwd",
+                "private_key_file_pwd is required for SNOWFLAKE_JWT authentication",
+            ),
+            ("OAUTH", "oauth_client_id", "oauth_client_id is required for OAUTH authentication"),
+            ("OAUTH", "oauth_client_secret", "oauth_client_secret is required for OAUTH authentication"),
+            ("SNOWFLAKE", "api_key", "api_key is required for SNOWFLAKE \\(password\\) authentication"),
+        ],
+    )
+    def test_authentication_validation_errors(
+        self, mocker: Mock, authenticator: str, missing_param: str, expected_error: str
+    ) -> None:
+        # Set up environment variables, excluding the one being tested as missing
+        env_vars = {
+            "SNOWFLAKE_PRIVATE_KEY_FILE": "/path/to/key.pem",
+            "SNOWFLAKE_PRIVATE_KEY_PWD": "test_password",
+            "SNOWFLAKE_OAUTH_CLIENT_ID": "test_client_id",
+            "SNOWFLAKE_OAUTH_CLIENT_SECRET": "test_client_secret",
+        }
+
+        # Only set SNOWFLAKE_API_KEY if we're not testing its absence
+        if not (authenticator == "SNOWFLAKE" and missing_param == "api_key"):
+            env_vars["SNOWFLAKE_API_KEY"] = "test_api_key"
+
+        mocker.patch.dict(os.environ, env_vars, clear=True)
+
+        kwargs = {
+            "user": "test_user",
+            "account": "test_account",
+            "authenticator": authenticator,
+        }
+
+        if authenticator == "SNOWFLAKE_JWT":
+            if missing_param != "private_key_file":
+                kwargs["private_key_file"] = Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_FILE")
+            if missing_param != "private_key_file_pwd":
+                kwargs["private_key_file_pwd"] = Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_PWD")
+        elif authenticator == "OAUTH":
+            if missing_param != "oauth_client_id":
+                kwargs["oauth_client_id"] = Secret.from_env_var("SNOWFLAKE_OAUTH_CLIENT_ID")
+            if missing_param != "oauth_client_secret":
+                kwargs["oauth_client_secret"] = Secret.from_env_var("SNOWFLAKE_OAUTH_CLIENT_SECRET")
+        elif authenticator == "SNOWFLAKE":
+            if missing_param != "api_key":
+                kwargs["api_key"] = Secret.from_env_var("SNOWFLAKE_API_KEY")
+
+        with pytest.raises(ValueError, match=expected_error):
+            SnowflakeTableRetriever(**kwargs)
+
+    def test_jwt_authentication_happy_path(
+        self,
+        jwt_retriever: SnowflakeTableRetriever,
+        mocker: Mock,
+        toy_polars_df: pl.DataFrame,
+        toy_pandas_df: pd.DataFrame,
+        expected_markdown: str,
+    ) -> None:
+        mocker.patch("polars.read_database_uri", return_value=toy_polars_df)
+        mocker.patch.object(toy_polars_df, "to_pandas", return_value=toy_pandas_df)
+        mocker.patch.object(SnowflakeTableRetriever, "_polars_to_md", return_value=expected_markdown)
+
+        result = jwt_retriever.run(query="SELECT * FROM table_name")
+
+        assert result["dataframe"].equals(toy_pandas_df)
+        assert result["table"] == expected_markdown
+
+    def test_oauth_authentication_happy_path(
+        self,
+        oauth_retriever: SnowflakeTableRetriever,
+        mocker: Mock,
+        toy_polars_df: pl.DataFrame,
+        toy_pandas_df: pd.DataFrame,
+        expected_markdown: str,
+    ) -> None:
+        mocker.patch("polars.read_database_uri", return_value=toy_polars_df)
+        mocker.patch.object(toy_polars_df, "to_pandas", return_value=toy_pandas_df)
+        mocker.patch.object(SnowflakeTableRetriever, "_polars_to_md", return_value=expected_markdown)
+
+        result = oauth_retriever.run(query="SELECT * FROM table_name")
+
+        assert result["dataframe"].equals(toy_pandas_df)
+        assert result["table"] == expected_markdown
