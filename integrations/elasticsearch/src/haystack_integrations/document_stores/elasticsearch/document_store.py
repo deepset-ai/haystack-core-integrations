@@ -593,7 +593,7 @@ class ElasticsearchDocumentStore:
 
     def delete_all_documents(self, recreate_index: bool = False) -> None:
         """
-        Deletes all documents in the document store by deleting and recreating the index.
+        Deletes all documents in the document store.
 
         A fast way to clear all documents from the document store while preserving any index settings and mappings.
 
@@ -633,7 +633,7 @@ class ElasticsearchDocumentStore:
 
     async def delete_all_documents_async(self, recreate_index: bool = False) -> None:
         """
-        Asynchronously deletes all documents in the document store by deleting and recreating the index.
+        Asynchronously deletes all documents in the document store.
 
         A fast way to clear all documents from the document store while preserving any index settings and mappings.
         :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
