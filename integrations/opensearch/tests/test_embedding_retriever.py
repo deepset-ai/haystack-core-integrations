@@ -336,10 +336,10 @@ async def test_run_async_with_runtime_document_store():
 
 @pytest.mark.integration
 def test_embedding_retriever_runtime_document_store_switching(
-    document_store, document_store_2, test_documents, test_documents_2
+    document_store, document_store_2, test_documents_with_embeddings_1, test_documents_with_embeddings_2
 ):
-    document_store.write_documents(test_documents)
-    document_store_2.write_documents(test_documents_2)
+    document_store.write_documents(test_documents_with_embeddings_1)
+    document_store_2.write_documents(test_documents_with_embeddings_2)
     retriever = OpenSearchEmbeddingRetriever(document_store=document_store)
 
     # query embedding to match functional programming languages
