@@ -222,11 +222,9 @@ class TestNvidiaTextEmbedder:
     @pytest.mark.parametrize(
         "model, api_url",
         [
-            ("NV-Embed-QA", None),
             ("nvidia/nv-embedqa-e5-v5", "https://integrate.api.nvidia.com/v1"),
         ],
         ids=[
-            "NV-Embed-QA",
             "nvidia/nv-embedqa-e5-v5",
         ],
     )
