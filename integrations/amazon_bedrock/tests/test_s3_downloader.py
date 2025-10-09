@@ -30,6 +30,10 @@ def mock_s3_storage():
         yield mock
 
 
+def s3_key_generation_function(document: Document) -> str:
+    return document.meta["file_name"] + "_suffix"
+
+
 class TestS3Downloader:
     def test_init(self, mock_boto3_session, set_env_variables, tmp_path):
         S3Downloader(file_root_path=str(tmp_path))
@@ -74,6 +78,7 @@ class TestS3Downloader:
                 "max_cache_size": 100,
                 "max_workers": 32,
                 "file_name_meta_key": "file_name",
+                "s3_key_generation_function": None,
             },
         }
         assert d.to_dict() == expected
@@ -89,6 +94,7 @@ class TestS3Downloader:
                 "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
                 "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
                 "file_root_path": str(tmp_path),
+                "s3_key_generation_function": None,
             },
         }
         d = S3Downloader.from_dict(data)
@@ -101,6 +107,7 @@ class TestS3Downloader:
             max_cache_size=400,
             max_workers=40,
             file_name_meta_key="new_file_key",
+            s3_key_generation_function=s3_key_generation_function,
         )
         expected = {
             "type": TYPE,
@@ -115,6 +122,7 @@ class TestS3Downloader:
                 "max_cache_size": 400,
                 "max_workers": 40,
                 "file_name_meta_key": "new_file_key",
+                "s3_key_generation_function": "tests.test_s3_downloader.s3_key_generation_function",
             },
         }
         assert d.to_dict() == expected
@@ -158,14 +166,50 @@ class TestS3Downloader:
         assert len(out["documents"]) == 1
         assert out["documents"][0].meta["custom_file_key"] == "a.txt"
 
+    def test_run_with_s3_key_generation_function(self, tmp_path, mock_s3_storage, mock_boto3_session):
+        d = S3Downloader(file_root_path=str(tmp_path), s3_key_generation_function=s3_key_generation_function)
+        S3Downloader.warm_up(d)
+        d._storage = mock_s3_storage
+
+        docs = [
+            Document(meta={"file_id": str(uuid4()), "file_name": "a.txt"}),
+        ]
+        out = d.run(documents=docs)
+        assert len(out["documents"]) == 1
+        assert out["documents"][0].meta["file_name"] == "a.txt"
+
+        mock_s3_storage.download.assert_called_once()
+        assert mock_s3_storage.download.call_args.kwargs["key"] == "a.txt_suffix"
+
+    def test_run_with_s3_key_generation_function_and_file_extensions(
+        self, tmp_path, mock_s3_storage, mock_boto3_session
+    ):
+        d = S3Downloader(
+            file_root_path=str(tmp_path),
+            s3_key_generation_function=s3_key_generation_function,
+            file_extensions=[".txt"],
+        )
+        S3Downloader.warm_up(d)
+        d._storage = mock_s3_storage
+
+        docs = [
+            Document(meta={"file_id": str(uuid4()), "file_name": "a.txt"}),
+            Document(meta={"file_id": str(uuid4()), "file_name": "b.pdf"}),
+        ]
+        out = d.run(documents=docs)
+        assert len(out["documents"]) == 1
+        assert out["documents"][0].meta["file_name"] == "a.txt"
+        mock_s3_storage.download.assert_called_once()
+        assert mock_s3_storage.download.call_args.kwargs["key"] == "a.txt_suffix"
+
     @pytest.mark.integration
     @pytest.mark.skipif(
         not os.environ.get("S3_DOWNLOADER_BUCKET", None),
         reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
     )
-    def test_live_run(self, tmp_path):
+    def test_live_run(self, tmp_path, monkeypatch):
         d = S3Downloader(file_root_path=str(tmp_path))
-        os.environ["S3_DOWNLOADER_PREFIX"] = ""
+        monkeypatch.setenv("S3_DOWNLOADER_PREFIX", "")
         S3Downloader.warm_up(d)
 
         docs = [
@@ -200,9 +244,9 @@ class TestS3Downloader:
         not os.environ.get("S3_DOWNLOADER_BUCKET", None),
         reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
     )
-    def test_live_run_with_custom_meta_key(self, tmp_path):
+    def test_live_run_with_custom_meta_key(self, tmp_path, monkeypatch):
         d = S3Downloader(file_root_path=str(tmp_path), file_name_meta_key="custom_name")
-        os.environ["S3_DOWNLOADER_PREFIX"] = ""
+        monkeypatch.setenv("S3_DOWNLOADER_PREFIX", "")
         S3Downloader.warm_up(d)
         docs = [
             Document(meta={"custom_name": "text-sample.txt"}),
@@ -216,9 +260,9 @@ class TestS3Downloader:
         not os.environ.get("S3_DOWNLOADER_BUCKET", None),
         reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
     )
-    def test_live_run_with_prefix(self, tmp_path):
+    def test_live_run_with_prefix(self, tmp_path, monkeypatch):
         d = S3Downloader(file_root_path=str(tmp_path))
-        os.environ["S3_DOWNLOADER_PREFIX"] = "subfolder/"
+        monkeypatch.setenv("S3_DOWNLOADER_PREFIX", "subfolder/")
 
         S3Downloader.warm_up(d)
         docs = [
@@ -227,3 +271,25 @@ class TestS3Downloader:
         out = d.run(documents=docs)
         assert len(out["documents"]) == 1
         assert out["documents"][0].meta["file_name"] == "employees.json"
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("S3_DOWNLOADER_BUCKET", None),
+        reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
+    )
+    def test_live_run_with_s3_key_generation_function_and_file_extensions(self, tmp_path):
+        # the file in the s3 bucket has this key: "dog.jpg_suffix"
+
+        d = S3Downloader(
+            file_root_path=str(tmp_path),
+            file_extensions=[".jpg"],
+            file_name_meta_key="file_name",
+            s3_key_generation_function=s3_key_generation_function,
+        )
+        S3Downloader.warm_up(d)
+        docs = [
+            Document(meta={"file_name": "dog.jpg"}),
+        ]
+        out = d.run(documents=docs)
+        assert len(out["documents"]) == 1
+        assert out["documents"][0].meta["file_name"] == "dog.jpg"
