@@ -140,6 +140,89 @@ def test_documents():
             content="Haskell is a functional programming language",
             meta={"likes": 100000, "language_type": "functional"},
             id="1",
+        ),
+        Document(
+            content="Lisp is a functional programming language",
+            meta={"likes": 10000, "language_type": "functional"},
+            id="2",
+        ),
+        Document(
+            content="Exilir is a functional programming language",
+            meta={"likes": 1000, "language_type": "functional"},
+            id="3",
+        ),
+        Document(
+            content="F# is a functional programming language",
+            meta={"likes": 100, "language_type": "functional"},
+            id="4",
+        ),
+        Document(
+            content="C# is a functional programming language", meta={"likes": 10, "language_type": "functional"}, id="5"
+        ),
+        Document(
+            content="C++ is an object oriented programming language",
+            meta={"likes": 100000, "language_type": "object_oriented"},
+            id="6",
+        ),
+        Document(
+            content="Dart is an object oriented programming language",
+            meta={"likes": 10000, "language_type": "object_oriented"},
+            id="7",
+        ),
+        Document(
+            content="Go is an object oriented programming language",
+            meta={"likes": 1000, "language_type": "object_oriented"},
+            id="8",
+        ),
+        Document(
+            content="Python is a object oriented programming language",
+            meta={"likes": 100, "language_type": "object_oriented"},
+            id="9",
+        ),
+        Document(
+            content="Ruby is a object oriented programming language",
+            meta={"likes": 10, "language_type": "object_oriented"},
+            id="10",
+        ),
+        Document(
+            content="PHP is a object oriented programming language",
+            meta={"likes": 1, "language_type": "object_oriented"},
+            id="11",
+        ),
+    ]
+
+
+@pytest.fixture
+def test_documents_with_embeddings_2():
+    return [
+        Document(
+            content="OpenSearch provides powerful search and analytics capabilities for large datasets",
+            meta={"category": "search", "popularity": "high"},
+            id="opensearch_doc",
+            embedding=[0.9, 0.8, 0.7] + [0.0] * 765,
+        ),
+        Document(
+            content="Elasticsearch is a distributed search and analytics engine built on Apache Lucene",
+            meta={"category": "search", "popularity": "high"},
+            id="elasticsearch_doc",
+            embedding=[0.8, 0.7, 0.6] + [0.0] * 765,
+        ),
+        Document(
+            content="Vector databases enable semantic search and similarity matching",
+            meta={"category": "database", "popularity": "medium"},
+            id="vector_db_doc",
+            embedding=[0.7, 0.6, 0.7] + [0.0] * 765,
+        ),
+    ]
+
+
+@pytest.fixture
+def test_documents_with_embeddings_1():
+    return [
+        Document(
+            content="Haskell is a functional programming language",
+            meta={"likes": 100000, "language_type": "functional"},
+            id="1",
             embedding=[0.1, 0.2, 0.3] + [0.0] * 765,
         ),
         Document(
@@ -201,29 +284,5 @@ def test_documents():
             meta={"likes": 1, "language_type": "object_oriented"},
             id="11",
             embedding=[0.1, 0.2, 0.3] + [0.1] * 765,
-        ),
-    ]
-
-
-@pytest.fixture
-def test_documents_2():
-    return [
-        Document(
-            content="OpenSearch provides powerful search and analytics capabilities for large datasets",
-            meta={"category": "search", "popularity": "high"},
-            id="opensearch_doc",
-            embedding=[0.9, 0.8, 0.7] + [0.0] * 765,
-        ),
-        Document(
-            content="Elasticsearch is a distributed search and analytics engine built on Apache Lucene",
-            meta={"category": "search", "popularity": "high"},
-            id="elasticsearch_doc",
-            embedding=[0.8, 0.7, 0.6] + [0.0] * 765,
-        ),
-        Document(
-            content="Vector databases enable semantic search and similarity matching",
-            meta={"category": "database", "popularity": "medium"},
-            id="vector_db_doc",
-            embedding=[0.7, 0.6, 0.7] + [0.0] * 765,
         ),
     ]
