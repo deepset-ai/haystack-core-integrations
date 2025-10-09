@@ -19,11 +19,12 @@ async def print_streaming_chunk_async(chunk: StreamingChunk) -> None:
 async def main() -> None:
     # This example uses OpenAI and Anthropic chat generators. You can replace
     # these with any other chat generators from haystack or haystack integrations.
+    # Timeout enforcement is delegated to the underlying generators.
 
-    primary = OpenAIChatGenerator(model="gpt-4.1-mini")
-    backup = AnthropicChatGenerator(model="claude-sonnet-4-20250514")
+    primary = OpenAIChatGenerator(model="gpt-4.1-mini", timeout=20.0)
+    backup = AnthropicChatGenerator(model="claude-sonnet-4-20250514", timeout=20.0)
 
-    fallback = FallbackChatGenerator(generators=[backup, primary], timeout=10.0)
+    fallback = FallbackChatGenerator(generators=[primary, backup])
 
     messages = [ChatMessage.from_user("Write a short poem about artificial intelligence.")]
 
@@ -34,8 +35,7 @@ async def main() -> None:
 
     print("\n\n--- Streaming complete ---")
     print(f"Successful generator: {result['meta']['successful_generator_class']}")
-    print(f"Total attempts: {result['meta']['total_attempts']}")
-    print(f"Execution time: {result['meta']['execution_time']:.2f}s")
+    print(f"Total attempts: {result['meta']['total_attempts']}")    
 
 
 if __name__ == "__main__":

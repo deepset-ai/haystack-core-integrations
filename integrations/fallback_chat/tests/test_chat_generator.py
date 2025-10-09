@@ -104,22 +104,19 @@ class _DummyFailGen:
 def test_init_validation():
     """Test that FallbackChatGenerator validates input parameters."""
     with pytest.raises(ValueError):
-        FallbackChatGenerator(generators=[], timeout=1.0)
-
-    with pytest.raises(ValueError):
-        FallbackChatGenerator(generators=[_DummySuccessGen()], timeout=0)
+        FallbackChatGenerator(generators=[])
 
     # Duck typing: object without run
     class _NoRun:
         pass
 
     with pytest.raises(TypeError):
-        FallbackChatGenerator(generators=[_NoRun()], timeout=1.0)  # type: ignore[arg-type]
+        FallbackChatGenerator(generators=[_NoRun()])  # type: ignore[arg-type]
 
 
 def test_sequential_first_success():
     """Test that the first generator succeeds when it works correctly."""
-    gen = FallbackChatGenerator(generators=[_DummySuccessGen(text="A")], timeout=1.0)
+    gen = FallbackChatGenerator(generators=[_DummySuccessGen(text="A")])
     res = gen.run([ChatMessage.from_user("hi")])
     assert res["replies"][0].text == "A"
     assert res["meta"]["successful_generator_index"] == 0
@@ -128,7 +125,7 @@ def test_sequential_first_success():
 
 def test_sequential_second_success_after_failure():
     """Test that the second generator is used when the first fails."""
-    gen = FallbackChatGenerator(generators=[_DummyFailGen(), _DummySuccessGen(text="B")], timeout=1.0)
+    gen = FallbackChatGenerator(generators=[_DummyFailGen(), _DummySuccessGen(text="B")])
     res = gen.run([ChatMessage.from_user("hi")])
     assert res["replies"][0].text == "B"
     assert res["meta"]["successful_generator_index"] == 1
@@ -137,28 +134,31 @@ def test_sequential_second_success_after_failure():
 
 def test_all_fail_raises():
     """Test that RuntimeError is raised when all generators fail."""
-    gen = FallbackChatGenerator(generators=[_DummyFailGen(), _DummyFailGen()], timeout=0.2)
+    gen = FallbackChatGenerator(generators=[_DummyFailGen(), _DummyFailGen()])
     with pytest.raises(RuntimeError):
         gen.run([ChatMessage.from_user("hi")])
 
 
 def test_timeout_handling_sync():
-    """Test that timeout handling works correctly in synchronous mode."""
-    # First generator sleeps longer than timeout, second succeeds
-    slow = _DummySuccessGen(text="slow", delay=0.5)
+    """Test that timeout handling is delegated to generators."""
+    # Both generators succeed, first one is used
+    slow = _DummySuccessGen(text="slow", delay=0.01)
     fast = _DummySuccessGen(text="fast", delay=0.0)
-    gen = FallbackChatGenerator(generators=[slow, fast], timeout=0.1)
+    gen = FallbackChatGenerator(generators=[slow, fast])
     res = gen.run([ChatMessage.from_user("hi")])
-    assert res["replies"][0].text == "fast"
+    # First generator succeeds (no timeout enforced by FallbackChatGenerator)
+    assert res["replies"][0].text == "slow"
 
 
 @pytest.mark.asyncio
 async def test_timeout_handling_async():
-    slow = _DummySuccessGen(text="slow", delay=0.5)
+    """Test that timeout handling is delegated to generators in async mode."""
+    slow = _DummySuccessGen(text="slow", delay=0.01)
     fast = _DummySuccessGen(text="fast", delay=0.0)
-    gen = FallbackChatGenerator(generators=[slow, fast], timeout=0.1)
+    gen = FallbackChatGenerator(generators=[slow, fast])
     res = await gen.run_async([ChatMessage.from_user("hi")])
-    assert res["replies"][0].text == "fast"
+    # First generator succeeds (no timeout enforced by FallbackChatGenerator)
+    assert res["replies"][0].text == "slow"
 
 
 def test_streaming_callback_forwarding_sync():
@@ -168,7 +168,7 @@ def test_streaming_callback_forwarding_sync():
     def cb(x: Any) -> None:
         calls.append(x)
 
-    gen = FallbackChatGenerator(generators=[_DummySuccessGen(text="A")], timeout=1.0)
+    gen = FallbackChatGenerator(generators=[_DummySuccessGen(text="A")])
     _ = gen.run([ChatMessage.from_user("hi")], streaming_callback=cb)
     assert calls, "Expected streaming callback to be invoked"
 
@@ -180,7 +180,7 @@ async def test_streaming_callback_forwarding_async():
     def cb(x: Any) -> None:
         calls.append(x)
 
-    gen = FallbackChatGenerator(generators=[_DummySuccessGen(text="A")], timeout=1.0)
+    gen = FallbackChatGenerator(generators=[_DummySuccessGen(text="A")])
     _ = await gen.run_async([ChatMessage.from_user("hi")], streaming_callback=cb)
     assert calls, "Expected streaming callback to be invoked"
 
@@ -188,7 +188,7 @@ async def test_streaming_callback_forwarding_async():
 def test_serialization_roundtrip():
     """Test that FallbackChatGenerator can be serialized and deserialized correctly."""
     # Test with one generator
-    original = FallbackChatGenerator(generators=[_DummySuccessGen(text="hello")], timeout=2.5)
+    original = FallbackChatGenerator(generators=[_DummySuccessGen(text="hello")])
     data = original.to_dict()
     restored = FallbackChatGenerator.from_dict(data)
     assert isinstance(restored, FallbackChatGenerator)
@@ -201,8 +201,7 @@ def test_serialization_roundtrip():
         generators=[
             _DummySuccessGen(text="hello"),
             _DummySuccessGen(text="world")
-        ], 
-        timeout=2.5
+        ]
     )
     data = original.to_dict()
     restored = FallbackChatGenerator.from_dict(data)
@@ -214,147 +213,38 @@ def test_serialization_roundtrip():
 
 def test_automatic_completion_mode_without_streaming():
     """Test that completion mode is used when no streaming callback is provided."""
-    gen = FallbackChatGenerator(generators=[_DummySuccessGen(text="completion")], timeout=1.0)
+    gen = FallbackChatGenerator(generators=[_DummySuccessGen(text="completion")])
     res = gen.run([ChatMessage.from_user("hi")])
     assert res["replies"][0].text == "completion"
     assert res["meta"]["successful_generator_index"] == 0
 
 
 def test_automatic_ttft_mode_with_streaming():
-    """Test that TTFT mode is used when streaming callback is provided."""
+    """Test that streaming callback works correctly."""
     calls: list[Any] = []
 
     def cb(x: Any) -> None:
         calls.append(x)
 
-    gen = FallbackChatGenerator(generators=[_DummySuccessGen(text="ttft")], timeout=1.0)
+    gen = FallbackChatGenerator(generators=[_DummySuccessGen(text="streaming")])
     res = gen.run([ChatMessage.from_user("hi")], streaming_callback=cb)
-    assert res["replies"][0].text == "ttft"
-    assert calls, "Expected streaming callback to be invoked in TTFT mode"
+    assert res["replies"][0].text == "streaming"
+    assert calls, "Expected streaming callback to be invoked"
 
 
 @pytest.mark.asyncio
 async def test_automatic_ttft_mode_with_streaming_async():
-    """Test that TTFT mode is used when streaming callback is provided in async."""
+    """Test that streaming callback works correctly in async mode."""
     calls: list[Any] = []
 
     def cb(x: Any) -> None:
         calls.append(x)
 
-    gen = FallbackChatGenerator(generators=[_DummySuccessGen(text="ttft_async")], timeout=1.0)
+    gen = FallbackChatGenerator(generators=[_DummySuccessGen(text="streaming_async")])
     res = await gen.run_async([ChatMessage.from_user("hi")], streaming_callback=cb)
-    assert res["replies"][0].text == "ttft_async"
-    assert calls, "Expected streaming callback to be invoked in TTFT mode"
+    assert res["replies"][0].text == "streaming_async"
+    assert calls, "Expected streaming callback to be invoked"
 
-
-@component
-class _DummyTimeoutGen:
-    """A dummy generator that has its own timeout setting."""
-
-    def __init__(self, text: str = "ok", timeout: float | None = None, delay: float = 0.0):
-        self.text = text
-        self.timeout = timeout
-        self.delay = delay
-
-    def to_dict(self) -> dict[str, Any]:
-        return default_to_dict(self, text=self.text, timeout=self.timeout, delay=self.delay)
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "_DummyTimeoutGen":
-        return default_from_dict(cls, data)
-
-    def run(
-        self,
-        messages: list[ChatMessage],
-        generation_kwargs: dict[str, Any] | None = None,
-        tools: (list[Tool] | Toolset) | None = None,
-        streaming_callback: StreamingCallbackT | None = None,
-    ) -> dict[str, Any]:
-        if self.delay:
-            time.sleep(self.delay)
-        return {"replies": [ChatMessage.from_assistant(self.text)], "meta": {"dummy_timeout": self.timeout}}
-
-
-def test_respects_individual_generator_timeout():
-    """Test that individual generator timeouts are respected."""
-    # Generator with its own timeout that's shorter than FallbackChatGenerator timeout
-    short_timeout_gen = _DummyTimeoutGen(text="short", timeout=0.1)
-    gen = FallbackChatGenerator(generators=[short_timeout_gen], timeout=1.0)
-    res = gen.run([ChatMessage.from_user("hi")])
-    assert res["replies"][0].text == "short"
-    assert res["meta"]["timeout_used"] == 0.1  # Should use the shorter generator timeout
-
-
-def test_respects_fallback_timeout_when_generator_has_longer_timeout():
-    """Test that FallbackChatGenerator timeout is used when it's shorter than generator timeout."""
-    # Generator with its own timeout that's longer than FallbackChatGenerator timeout
-    long_timeout_gen = _DummyTimeoutGen(text="long", timeout=2.0)
-    gen = FallbackChatGenerator(generators=[long_timeout_gen], timeout=0.5)
-    res = gen.run([ChatMessage.from_user("hi")])
-    assert res["replies"][0].text == "long"
-    assert res["meta"]["timeout_used"] == 0.5  # Should use the shorter FallbackChatGenerator timeout
-
-
-def test_uses_fallback_timeout_when_generator_has_no_timeout():
-    """Test that FallbackChatGenerator timeout is used when generator has no timeout."""
-    # Generator without timeout
-    no_timeout_gen = _DummyTimeoutGen(text="no_timeout", timeout=None)
-    gen = FallbackChatGenerator(generators=[no_timeout_gen], timeout=1.5)
-    res = gen.run([ChatMessage.from_user("hi")])
-    assert res["replies"][0].text == "no_timeout"
-    assert res["meta"]["timeout_used"] == 1.5  # Should use FallbackChatGenerator timeout
-
-
-def test_timeout_precedence_with_multiple_generators():
-    """Test timeout precedence with multiple generators having different timeout settings."""
-    gen1 = _DummyTimeoutGen(text="gen1", timeout=0.2)  # Short timeout
-    gen2 = _DummyTimeoutGen(text="gen2", timeout=2.0)  # Long timeout
-    gen3 = _DummyTimeoutGen(text="gen3", timeout=None)  # No timeout
-
-    fallback = FallbackChatGenerator(generators=[gen1, gen2, gen3], timeout=1.0)
-    res = fallback.run([ChatMessage.from_user("hi")])
-
-    # Should succeed with first generator
-    assert res["replies"][0].text == "gen1"
-    assert res["meta"]["timeout_used"] == 0.2  # Should use the shortest timeout
-
-
-def test_timeout_precedence_with_failing_generators():
-    """Test timeout precedence when some generators fail."""
-    # First generator fails, second has longer timeout, third has shorter timeout
-    fail_gen = _DummyFailGen()
-    long_timeout_gen = _DummyTimeoutGen(text="long", timeout=2.0)
-    short_timeout_gen = _DummyTimeoutGen(text="short", timeout=0.3)
-
-    fallback = FallbackChatGenerator(generators=[fail_gen, long_timeout_gen, short_timeout_gen], timeout=1.0)
-    res = fallback.run([ChatMessage.from_user("hi")])
-
-    # Should succeed with second generator (first failed)
-    assert res["replies"][0].text == "long"
-    assert res["meta"]["timeout_used"] == 1.0  # Should use FallbackChatGenerator timeout (minimum of 1.0 and 2.0)
-    assert res["meta"]["successful_generator_index"] == 1
-
-
-@pytest.mark.asyncio
-async def test_respects_individual_generator_timeout_async():
-    """Test that individual generator timeouts are respected in async mode."""
-    # Generator with its own timeout that's shorter than FallbackChatGenerator timeout
-    short_timeout_gen = _DummyTimeoutGen(text="short_async", timeout=0.1)
-    gen = FallbackChatGenerator(generators=[short_timeout_gen], timeout=1.0)
-    res = await gen.run_async([ChatMessage.from_user("hi")])
-    assert res["replies"][0].text == "short_async"
-    assert res["meta"]["timeout_used"] == 0.1  # Should use the shorter generator timeout
-
-
-@pytest.mark.asyncio
-async def test_respects_fallback_timeout_when_generator_has_longer_timeout_async():
-    """Test that FallbackChatGenerator timeout is used when it's shorter than generator timeout in async mode."""
-    # Generator with its own timeout that's longer than FallbackChatGenerator timeout
-    long_timeout_gen = _DummyTimeoutGen(text="long_async", timeout=2.0)
-    gen = FallbackChatGenerator(generators=[long_timeout_gen], timeout=0.5)
-    res = await gen.run_async([ChatMessage.from_user("hi")])
-    assert res["replies"][0].text == "long_async"
-    assert res["meta"]["timeout_used"] == 0.5  # Should use the shorter FallbackChatGenerator timeout
 
 
 # Create helper functions for common HTTP errors
@@ -402,7 +292,7 @@ def test_failover_trigger_429_rate_limit():
     rate_limit_gen = _DummyHTTPErrorGen(text="rate_limited", error=create_http_error(429, "Rate limit exceeded"))
     success_gen = _DummySuccessGen(text="success_after_rate_limit")
 
-    fallback = FallbackChatGenerator(generators=[rate_limit_gen, success_gen], timeout=1.0)
+    fallback = FallbackChatGenerator(generators=[rate_limit_gen, success_gen])
     result = fallback.run([ChatMessage.from_user("test")])
 
     assert result["replies"][0].text == "success_after_rate_limit"
@@ -415,7 +305,7 @@ def test_failover_trigger_401_authentication():
     auth_error_gen = _DummyHTTPErrorGen(text="auth_failed", error=create_http_error(401, "Authentication failed"))
     success_gen = _DummySuccessGen(text="success_after_auth")
 
-    fallback = FallbackChatGenerator(generators=[auth_error_gen, success_gen], timeout=1.0)
+    fallback = FallbackChatGenerator(generators=[auth_error_gen, success_gen])
     result = fallback.run([ChatMessage.from_user("test")])
 
     assert result["replies"][0].text == "success_after_auth"
@@ -428,7 +318,7 @@ def test_failover_trigger_400_bad_request():
     bad_request_gen = _DummyHTTPErrorGen(text="bad_request", error=create_http_error(400, "Context length exceeded"))
     success_gen = _DummySuccessGen(text="success_after_bad_request")
 
-    fallback = FallbackChatGenerator(generators=[bad_request_gen, success_gen], timeout=1.0)
+    fallback = FallbackChatGenerator(generators=[bad_request_gen, success_gen])
     result = fallback.run([ChatMessage.from_user("test")])
 
     assert result["replies"][0].text == "success_after_bad_request"
@@ -441,26 +331,12 @@ def test_failover_trigger_500_server_error():
     server_error_gen = _DummyHTTPErrorGen(text="server_error", error=create_http_error(500, "Internal server error"))
     success_gen = _DummySuccessGen(text="success_after_server_error")
 
-    fallback = FallbackChatGenerator(generators=[server_error_gen, success_gen], timeout=1.0)
+    fallback = FallbackChatGenerator(generators=[server_error_gen, success_gen])
     result = fallback.run([ChatMessage.from_user("test")])
 
     assert result["replies"][0].text == "success_after_server_error"
     assert result["meta"]["successful_generator_index"] == 1
     assert result["meta"]["failed_generators"] == ["_DummyHTTPErrorGen"]
-
-
-def test_failover_trigger_408_timeout():
-    """Test that 408 timeout errors trigger failover (already covered by asyncio.TimeoutError)."""
-    # This is already tested in the existing timeout tests, but let's be explicit
-    slow_gen = _DummySuccessGen(text="slow", delay=0.5)  # Will timeout
-    fast_gen = _DummySuccessGen(text="fast", delay=0.0)
-
-    fallback = FallbackChatGenerator(generators=[slow_gen, fast_gen], timeout=0.1)
-    result = fallback.run([ChatMessage.from_user("test")])
-
-    assert result["replies"][0].text == "fast"
-    assert result["meta"]["successful_generator_index"] == 1
-    assert result["meta"]["failed_generators"] == ["_DummySuccessGen"]
 
 
 def test_failover_trigger_multiple_errors():
@@ -471,7 +347,7 @@ def test_failover_trigger_multiple_errors():
     success_gen = _DummySuccessGen(text="success_after_all_errors")
 
     fallback = FallbackChatGenerator(
-        generators=[rate_limit_gen, auth_error_gen, server_error_gen, success_gen], timeout=1.0
+        generators=[rate_limit_gen, auth_error_gen, server_error_gen, success_gen]
     )
     result = fallback.run([ChatMessage.from_user("test")])
 
@@ -486,7 +362,7 @@ def test_failover_trigger_all_generators_fail():
     auth_error_gen = _DummyHTTPErrorGen(text="auth_failed", error=create_http_error(401, "Authentication failed"))
     server_error_gen = _DummyHTTPErrorGen(text="server_error", error=create_http_error(500, "Internal server error"))
 
-    fallback = FallbackChatGenerator(generators=[rate_limit_gen, auth_error_gen, server_error_gen], timeout=1.0)
+    fallback = FallbackChatGenerator(generators=[rate_limit_gen, auth_error_gen, server_error_gen])
 
     with pytest.raises(RuntimeError) as exc_info:
         fallback.run([ChatMessage.from_user("test")])
@@ -502,7 +378,7 @@ async def test_failover_trigger_429_rate_limit_async():
     rate_limit_gen = _DummyHTTPErrorGen(text="rate_limited", error=create_http_error(429, "Rate limit exceeded"))
     success_gen = _DummySuccessGen(text="success_after_rate_limit")
 
-    fallback = FallbackChatGenerator(generators=[rate_limit_gen, success_gen], timeout=1.0)
+    fallback = FallbackChatGenerator(generators=[rate_limit_gen, success_gen])
     result = await fallback.run_async([ChatMessage.from_user("test")])
 
     assert result["replies"][0].text == "success_after_rate_limit"
@@ -516,7 +392,7 @@ async def test_failover_trigger_401_authentication_async():
     auth_error_gen = _DummyHTTPErrorGen(text="auth_failed", error=create_http_error(401, "Authentication failed"))
     success_gen = _DummySuccessGen(text="success_after_auth")
 
-    fallback = FallbackChatGenerator(generators=[auth_error_gen, success_gen], timeout=1.0)
+    fallback = FallbackChatGenerator(generators=[auth_error_gen, success_gen])
     result = await fallback.run_async([ChatMessage.from_user("test")])
 
     assert result["replies"][0].text == "success_after_auth"
