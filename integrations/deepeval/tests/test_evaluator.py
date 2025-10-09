@@ -80,7 +80,7 @@ class MockBackend:
                 retrieval_context=x.retrieval_context,
             )
             out.append(r)
-        return EvaluationResult(test_results=out, confident_link=None)
+        return EvaluationResult(test_results=out, confident_link=None, test_run_id=None)
 
 
 def test_evaluator_metric_init_params(monkeypatch):
