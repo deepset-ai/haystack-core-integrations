@@ -15,7 +15,6 @@ from azure.core.pipeline.policies import UserAgentPolicy
 from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
-from azure.search.documents.indexes._generated._serialization import Model
 from azure.search.documents.indexes.models import (
     CharFilter,
     CorsOptions,
@@ -57,7 +56,7 @@ type_mapping = {
 }
 
 # Map of expected field names to their corresponding classes
-AZURE_CLASS_MAPPING: Dict[str, Type[Model]] = {
+AZURE_CLASS_MAPPING: Dict[str, Type] = {
     "suggesters": SearchSuggester,
     "analyzers": LexicalAnalyzer,
     "tokenizers": LexicalTokenizer,
@@ -287,25 +286,6 @@ class AzureAISearchDocumentStore:
                 result[key] = value
         return result
 
-    @classmethod
-    def _deserialize_index_creation_kwargs(cls, data: Dict[str, Any]) -> Any:
-        """
-        Deserializes the index creation kwargs to the original classes.
-        """
-        result: Dict[str, Union[List[Model], Model]] = {}
-        for key, value in data.items():
-            if key in AZURE_CLASS_MAPPING:
-                if isinstance(value, list):
-                    result[key] = [AZURE_CLASS_MAPPING[key].from_dict(item) for item in value]
-                else:
-                    result[key] = AZURE_CLASS_MAPPING[key].from_dict(value)
-            elif isinstance(value, dict) and hasattr(value, "from_dict"):
-                result[key] = value.from_dict(value)
-            else:
-                result[key] = value
-
-        return result[key]
-
     def to_dict(self) -> Dict[str, Any]:
         """
         Serializes the component to a dictionary.
@@ -342,10 +322,13 @@ class AzureAISearchDocumentStore:
         else:
             data["init_parameters"]["metadata_fields"] = {}
 
-        for key in AZURE_CLASS_MAPPING:
+        for key, model_class in AZURE_CLASS_MAPPING.items():
             if key in data["init_parameters"]:
-                param_value = data["init_parameters"].get(key)
-                data["init_parameters"][key] = cls._deserialize_index_creation_kwargs({key: param_value})
+                value = data["init_parameters"][key]
+                if isinstance(value, list):
+                    data["init_parameters"][key] = [model_class.from_dict(item) for item in value]
+                else:
+                    data["init_parameters"][key] = model_class.from_dict(value)
 
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "azure_endpoint"])
         if (vector_search_configuration := data["init_parameters"].get("vector_search_configuration")) is not None:
