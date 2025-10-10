@@ -1,4 +1,4 @@
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import StreamingCallbackT
