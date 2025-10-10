@@ -31,8 +31,8 @@ class CometAPIChatGenerator(OpenAIChatGenerator):
 
     def __init__(
         self,
-        api_key: Secret=Secret.from_env_var("COMET_API_KEY"),
-        model: str="gpt-4o-mini",
+        api_key: Secret = Secret.from_env_var("COMET_API_KEY"),
+        model: str = "gpt-4o-mini",
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: Optional[int] = None,
