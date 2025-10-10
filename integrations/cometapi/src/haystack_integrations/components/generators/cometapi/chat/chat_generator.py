@@ -1,7 +1,8 @@
-from typing import Optional, List, Dict, Any, Callable
+from typing import Any, Callable, Dict, List, Optional
 
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.utils import Secret
+
 
 class CometAPIChatGenerator(OpenAIChatGenerator):
 
@@ -28,29 +29,30 @@ class CometAPIChatGenerator(OpenAIChatGenerator):
     """
 
     def __init__(
-            self, 
-            api_key = Secret.from_env_var("COMET_API_KEY"), 
-            model = "gpt-4o-mini", 
-            streaming_callback: Optional[Callable[[str], None]] = None,  
-            generation_kwargs: Optional[Dict[str, Any]] = None, 
-            timeout: Optional[int] = None, 
-            max_retries: Optional[int] = None, 
-            tools: Optional[List[Dict[str, Any]]] = None, 
-            tools_strict: bool = False, 
+            self,
+            api_key = Secret.from_env_var("COMET_API_KEY"),
+            model = "gpt-4o-mini",
+            streaming_callback: Optional[Callable[[str], None]] = None,
+            generation_kwargs: Optional[Dict[str, Any]] = None,
+            timeout: Optional[int] = None,
+            max_retries: Optional[int] = None,
+            tools: Optional[List[Dict[str, Any]]] = None,
+            *,
+            tools_strict: bool = False,
             http_client_kwargs: Optional[Dict[str, Any]] = None
         ):
 
         api_base_url = "https://api.cometapi.com/v1"
-        
+
         super().__init__(
-            api_key=api_key, 
-            model=model, 
-            api_base_url=api_base_url, 
-            streaming_callback=streaming_callback, 
-            generation_kwargs=generation_kwargs, 
-            timeout=timeout, 
-            max_retries=max_retries, 
-            tools=tools, 
-            tools_strict=tools_strict, 
+            api_key=api_key,
+            model=model,
+            api_base_url=api_base_url,
+            streaming_callback=streaming_callback,
+            generation_kwargs=generation_kwargs,
+            timeout=timeout,
+            max_retries=max_retries,
+            tools=tools,
+            tools_strict=tools_strict,
             http_client_kwargs=http_client_kwargs
         )

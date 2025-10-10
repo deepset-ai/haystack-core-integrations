@@ -94,7 +94,7 @@ class TestCometAPIChatGeneratorAsync:
         assert not component.generation_kwargs
 
     @pytest.mark.asyncio
-    async def test_run_async(self, chat_messages, mock_async_chat_completion, monkeypatch):  # noqa: ARG002
+    async def test_run_async(self, chat_messages, mock_async_chat_completion, monkeypatch):
         monkeypatch.setenv("COMET_API_KEY", "fake-api-key")
         component = CometAPIChatGenerator()
         response = await component.run_async(chat_messages)
