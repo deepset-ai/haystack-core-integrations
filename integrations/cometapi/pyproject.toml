@@ -55,13 +55,13 @@ fmt-check = "ruff check {args} && ruff format --check {args}"
 
 [tool.hatch.envs.test]
 dependencies = [
-    "pytz",
     "pytest",
     "pytest-asyncio",
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
-    "pip"
+    "pip",
+    "pytz"
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -70,23 +70,13 @@ integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
 
-types = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
+types = "mypy -p haystack_integrations.components.generators.cometapi {args}"
 
-# TODO: remove lint environment once this integration is properly typed
-# test environment should be used instead
-# https://github.com/deepset-ai/haystack-core-integrations/issues/1771
-[tool.hatch.envs.lint]
-installer = "uv"
-detached = true
-dependencies = ["pip", "black>=23.1.0", "mypy>=1.0.0", "ruff>=0.0.243", "more-itertools"]
-
-[tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive --explicit-package-bases {args:src/ tests}"
-
-[tool.black]
-target-version = ["py38"]
-line-length = 120
-skip-string-normalization = true
+[tool.mypy]
+install_types = true
+non_interactive = true
+check_untyped_defs = true
+disallow_incomplete_defs = true
 
 [tool.ruff]
 target-version = "py38"
@@ -102,7 +92,6 @@ select = [
   "E",
   "EM",
   "F",
-  "FBT",
   "I",
   "ICN",
   "ISC",
@@ -123,8 +112,6 @@ select = [
 ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
-  # Allow boolean positional values in function calls, like `dict.get(... True)`
-  "FBT003",
   # Ignore checks for possible passwords
   "S105",
   "S106",
@@ -135,12 +122,9 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
-  # Ignore unused params
-  "ARG001",
-  "ARG002",
-  "ARG005",
-  # Allow function call argument defaults e.g. `Secret.from_env_var`
+  # Misc
   "B008",
+  "S101",
 ]
 unfixable = [
   # Don't touch unused imports
@@ -156,35 +140,20 @@ ban-relative-imports = "parents"
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
-# Examples can use print statements
-"examples/**/*" = ["T201"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
 branch = true
-parallel = true
+parallel = false
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
 show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
-[[tool.mypy.overrides]]
-module = [
-  "haystack.*",
-  "haystack_integrations.*",
-  "pytest.*",
-  "numpy.*",
-  "jsonref.*",
-]
-ignore_missing_imports = true
-
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
 markers = [
-  "unit: unit tests",
   "integration: integration tests",
-  "generators: generators tests",
 ]
 log_cli = true
-asyncio_mode = "auto" 
