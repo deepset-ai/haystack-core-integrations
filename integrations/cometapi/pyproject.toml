@@ -55,6 +55,7 @@ fmt-check = "ruff check {args} && ruff format --check {args}"
 
 [tool.hatch.envs.test]
 dependencies = [
+    "pytz",
     "pytest",
     "pytest-asyncio",
     "pytest-cov",
