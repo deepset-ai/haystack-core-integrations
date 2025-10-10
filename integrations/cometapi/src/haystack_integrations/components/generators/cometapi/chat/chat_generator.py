@@ -5,7 +5,6 @@ from haystack.utils import Secret
 
 
 class CometAPIChatGenerator(OpenAIChatGenerator):
-
     """
     A chat generator that uses the CometAPI for generating chat responses.
 
@@ -29,19 +28,18 @@ class CometAPIChatGenerator(OpenAIChatGenerator):
     """
 
     def __init__(
-            self,
-            api_key = Secret.from_env_var("COMET_API_KEY"),
-            model = "gpt-4o-mini",
-            streaming_callback: Optional[Callable[[str], None]] = None,
-            generation_kwargs: Optional[Dict[str, Any]] = None,
-            timeout: Optional[int] = None,
-            max_retries: Optional[int] = None,
-            tools: Optional[List[Dict[str, Any]]] = None,
-            *,
-            tools_strict: bool = False,
-            http_client_kwargs: Optional[Dict[str, Any]] = None
-        ):
-
+        self,
+        api_key=Secret.from_env_var("COMET_API_KEY"),
+        model="gpt-4o-mini",
+        streaming_callback: Optional[Callable[[str], None]] = None,
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        timeout: Optional[int] = None,
+        max_retries: Optional[int] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        *,
+        tools_strict: bool = False,
+        http_client_kwargs: Optional[Dict[str, Any]] = None,
+    ):
         api_base_url = "https://api.cometapi.com/v1"
 
         super().__init__(
@@ -54,5 +52,5 @@ class CometAPIChatGenerator(OpenAIChatGenerator):
             max_retries=max_retries,
             tools=tools,
             tools_strict=tools_strict,
-            http_client_kwargs=http_client_kwargs
+            http_client_kwargs=http_client_kwargs,
         )
