@@ -78,6 +78,12 @@ non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
 
+[[tool.mypy.overrides]]
+module = [
+  "jsonref.*", # jsonref does not provide types
+]
+ignore_missing_imports = true
+
 [tool.ruff]
 target-version = "py38"
 line-length = 120
@@ -92,6 +98,7 @@ select = [
   "E",
   "EM",
   "F",
+  "FBT",
   "I",
   "ICN",
   "ISC",
@@ -112,6 +119,8 @@ select = [
 ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
+  # Allow boolean positional values in function calls, like `dict.get(... True)`
+  "FBT003",
   # Ignore checks for possible passwords
   "S105",
   "S106",
@@ -122,9 +131,12 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
-  # Misc
+  # Ignore unused params
+  "ARG001",
+  "ARG002",
+  "ARG005",
+  # Allow function call argument defaults e.g. `Secret.from_env_var`
   "B008",
-  "S101",
 ]
 unfixable = [
   # Don't touch unused imports
@@ -140,11 +152,13 @@ ban-relative-imports = "parents"
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
+# Examples can use print statements
+"examples/**/*" = ["T201"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
 branch = true
-parallel = false
+parallel = true
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
@@ -157,3 +171,4 @@ markers = [
   "integration: integration tests",
 ]
 log_cli = true
+asyncio_mode = "auto" 
