@@ -1,8 +1,8 @@
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
 
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.nodes import Tool, Toolset
-from haystack.schema import StreamingChunk
+from haystack.dataclasses import StreamingCallbackT
+from haystack.tools import Tool, Toolset
 from haystack.utils import Secret
 
 
@@ -33,12 +33,7 @@ class CometAPIChatGenerator(OpenAIChatGenerator):
         self,
         api_key=Secret.from_env_var("COMET_API_KEY"),
         model="gpt-4o-mini",
-        streaming_callback: Optional[
-            Union[
-                Callable[[StreamingChunk], None],
-                Callable[[StreamingChunk], Awaitable[None]],
-            ]
-        ] = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: Optional[int] = None,
         max_retries: Optional[int] = None,
