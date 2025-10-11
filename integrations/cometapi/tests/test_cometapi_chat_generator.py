@@ -173,9 +173,7 @@ class TestCometAPIChatGenerator:
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("COMET_API_KEY", "fake-api-key")
         data = {
-            "type": (
-                "haystack_integrations.components.generators.cometapi.chat.chat_generator.CometAPIChatGenerator"
-            ),
+            "type": ("haystack_integrations.components.generators.cometapi.chat.chat_generator.CometAPIChatGenerator"),
             "init_parameters": {
                 "api_key": {"env_vars": ["COMET_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "gpt-4o-mini",
@@ -201,9 +199,7 @@ class TestCometAPIChatGenerator:
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
         monkeypatch.delenv("COMET_API_KEY", raising=False)
         data = {
-            "type": (
-                "haystack_integrations.components.generators.cometapi.chat.chat_generator.CometAPIChatGenerator"
-            ),
+            "type": ("haystack_integrations.components.generators.cometapi.chat.chat_generator.CometAPIChatGenerator"),
             "init_parameters": {
                 "api_key": {"env_vars": ["COMET_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "gpt-4o-mini",
@@ -466,8 +462,7 @@ class TestCometAPIChatGenerator:
             "components": {
                 "generator": {
                     "type": (
-                        "haystack_integrations.components.generators.cometapi.chat.chat_generator."
-                        "CometAPIChatGenerator"
+                        "haystack_integrations.components.generators.cometapi.chat.chat_generator.CometAPIChatGenerator"
                     ),
                     "init_parameters": {
                         "model": "gpt-4o-mini",
@@ -486,16 +481,16 @@ class TestCometAPIChatGenerator:
                                     "description": "useful to determine the weather in a given location",
                                     "parameters": {"city": {"type": "string"}},
                                     "function": "test.test_cometapi_chat_generator.weather",
-                                }
+                                },
                             }
                         ],
                         "tools_strict": False,
-                        "http_client_kwargs": None
-                    }
+                        "http_client_kwargs": None,
+                    },
                 }
             },
             "connections": [],
-            "connection_type_validation": True
+            "connection_type_validation": True,
         }
 
         if not hasattr(pipeline, "_connection_type_validation"):
