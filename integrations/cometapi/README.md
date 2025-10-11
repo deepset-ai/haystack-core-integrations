@@ -25,7 +25,7 @@ pip install cometapi-haystack
 
 ## Usage
 
-This integration provides components to use models via the new Comet APIs.
+This integration offers a set of pre-built components that allow developers to interact seamlessly with AI models using the new Comet APIs.
 
 ### Chat Generator
 
