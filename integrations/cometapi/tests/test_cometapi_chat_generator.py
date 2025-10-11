@@ -480,7 +480,7 @@ class TestCometAPIChatGenerator:
                                     "name": "weather",
                                     "description": "useful to determine the weather in a given location",
                                     "parameters": {"city": {"type": "string"}},
-                                    "function": "test.test_cometapi_chat_generator.weather",
+                                    "function": "test_cometapi_chat_generator.weather",
                                 },
                             }
                         ],
