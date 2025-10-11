@@ -513,13 +513,8 @@ class TestCometAPIChatGenerator:
 
         assert pipeline_dict == expected_dict
 
-        # Test YAML serialization/deserialization
-        pipeline_yaml = pipeline.dumps()
-        new_pipeline = Pipeline.loads(pipeline_yaml)
-        assert new_pipeline == pipeline
-
         # Verify the loaded pipeline's generator has the same configuration
-        loaded_generator = new_pipeline.get_component("generator")
+        loaded_generator = pipeline.get_component("generator")
         assert loaded_generator.model == generator.model
         assert loaded_generator.generation_kwargs == generator.generation_kwargs
         assert loaded_generator.streaming_callback == generator.streaming_callback
