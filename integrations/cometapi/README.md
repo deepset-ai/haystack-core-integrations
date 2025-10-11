@@ -5,6 +5,12 @@
 
 -----
 
+**CometAPI Resources**
+- [Website](https://www.cometapi.com/?utm_source=haystack&utm_campaign=integration&utm_medium=integration&utm_content=integration)
+- [Documentation](https://api.cometapi.com/doc)
+- [Get an API Key](https://api.cometapi.com/console/token)
+- [Pricing](https://api.cometapi.com/pricing)
+
 **Table of Contents**
 
 - [Installation](#installation)
