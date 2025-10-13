@@ -130,14 +130,10 @@ class MistralOCRDocumentConverter:
 
         # Automatically convert provided Pydantic models into Mistral ResponseFormat schemas
         self.bbox_annotation_format = (
-            response_format_from_pydantic_model(bbox_annotation_schema)
-            if bbox_annotation_schema
-            else None
+            response_format_from_pydantic_model(bbox_annotation_schema) if bbox_annotation_schema else None
         )
         self.document_annotation_format = (
-            response_format_from_pydantic_model(document_annotation_schema)
-            if document_annotation_schema
-            else None
+            response_format_from_pydantic_model(document_annotation_schema) if document_annotation_schema else None
         )
 
         # Initialize Mistral client
