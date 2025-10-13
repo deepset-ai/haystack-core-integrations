@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/github-v1.2.0] - 2025-10-13
 
 ### 🚀 Features
 
