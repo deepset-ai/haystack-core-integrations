@@ -10,8 +10,8 @@ https://docs.mistral.ai/capabilities/document_ai/annotations/
 Usage Example:
     ```python
     from haystack.utils import Secret
+    from haystack_integrations.mistral import MistralOCRDocumentConverter
     from mistralai.models import DocumentURLChunk, ImageURLChunk, FileChunk
-    from src.components.MistralOCRDocumentConverter import MistralOCRDocumentConverter
 
     converter = MistralOCRDocumentConverter(
         api_key=Secret.from_env_var("MISTRAL_API_KEY"),
@@ -37,7 +37,7 @@ Usage Example:
 Structured Output Example:
     ```python
     from pydantic import BaseModel, Field
-    from src.components.MistralOCRDocumentConverter import MistralOCRDocumentConverter
+    from haystack_integrations.mistral import MistralOCRDocumentConverter
 
     # Define schema for structured image annotations
     class ImageAnnotation(BaseModel):
@@ -65,9 +65,9 @@ Structured Output Example:
 
 import json
 import re
-from typing import Any, Dict, Type
+from typing import Type
 
-from haystack import Document, component, default_to_dict
+from haystack import Document, component
 from haystack.utils import Secret
 from mistralai import Mistral
 from mistralai.extra import response_format_from_pydantic_model
