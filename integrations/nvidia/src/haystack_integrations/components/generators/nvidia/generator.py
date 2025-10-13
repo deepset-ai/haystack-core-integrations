@@ -24,7 +24,7 @@ class NvidiaGenerator:
     from haystack_integrations.components.generators.nvidia import NvidiaGenerator
 
     generator = NvidiaGenerator(
-        model="meta/llama3-70b-instruct",
+        model="meta/llama3-8b-instruct",
         model_arguments={
             "temperature": 0.2,
             "top_p": 0.7,
