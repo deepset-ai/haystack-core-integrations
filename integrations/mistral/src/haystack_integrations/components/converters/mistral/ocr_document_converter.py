@@ -1,13 +1,42 @@
-"""Mistral OCR Document Converter for Haystack.
+import json
+import re
+from typing import List, Optional, Type, Union
 
-A custom Haystack component that uses Mistral's OCR API to extract text from documents.
-Takes a signed/public URL to a document and returns extracted text as Haystack Documents.
+from haystack import Document, component
+from haystack.utils import Secret
+from mistralai import Mistral
+from mistralai.extra import response_format_from_pydantic_model
+from mistralai.models import (
+    DocumentURLChunk,
+    FileChunk,
+    ImageURLChunk,
+    OCRResponse,
+)
+from pydantic import BaseModel
 
-API Reference:
-https://docs.mistral.ai/capabilities/document_ai/basic_ocr/
-https://docs.mistral.ai/capabilities/document_ai/annotations/
 
-Usage Example:
+@component
+class MistralOCRDocumentConverter:
+    """
+    This component extracts text from documents using Mistral's OCR API, with optional structured
+    annotations for both individual image regions (bounding boxes) and full documents.
+
+    Accepts document sources (DocumentURLChunk for document URLs, ImageURLChunk for image URLs,
+    or FileChunk for Mistral file IDs) and retrieves the recognized text via Mistral's OCR service.
+    Returns a single Haystack Document containing all pages concatenated with form feed characters (\\f),
+    ensuring compatibility with Haystack's DocumentSplitter for accurate page-wise splitting and overlap handling.
+
+    **How Annotations Work:**
+    When annotation schemas (`bbox_annotation_schema` or `document_annotation_schema`) are provided,
+    the OCR model first extracts text and structure from the document. Then, a Vision LLM is called
+    to analyze the content and generate structured annotations according to your defined schemas.
+    For more details, see: https://docs.mistral.ai/capabilities/document_ai/annotations/#how-it-works
+
+    **API Reference:**
+    - Basic OCR: https://docs.mistral.ai/capabilities/document_ai/basic_ocr/
+    - Annotations: https://docs.mistral.ai/capabilities/document_ai/annotations/
+
+    **Usage Example:**
     ```python
     from haystack.utils import Secret
     from haystack_integrations.mistral import MistralOCRDocumentConverter
@@ -34,7 +63,7 @@ Usage Example:
     raw_response = result["raw_mistral_response"]
     ```
 
-Structured Output Example:
+    **Structured Output Example:**
     ```python
     from pydantic import BaseModel, Field
     from haystack_integrations.mistral import MistralOCRDocumentConverter
@@ -60,36 +89,10 @@ Structured Output Example:
 
     doc_source = DocumentURLChunk(document_url="https://example.com/report.pdf")
     result = converter.run(source=doc_source)
+
+    documents = result["documents"]
+    raw_response = result["raw_mistral_response"]
     ```
-"""
-
-import json
-import re
-from typing import List, Optional, Type, Union
-
-from haystack import Document, component
-from haystack.utils import Secret
-from mistralai import Mistral
-from mistralai.extra import response_format_from_pydantic_model
-from mistralai.models import (
-    DocumentURLChunk,
-    FileChunk,
-    ImageURLChunk,
-    OCRResponse,
-)
-from pydantic import BaseModel
-
-
-@component
-class MistralOCRDocumentConverter:
-    """
-    Extracts text from documents using Mistral's OCR API, with optional structured
-    annotations for both individual image regions (bounding boxes) and full documents.
-
-    Accepts a document URL (public or signed) and retrieves the recognized text
-    via Mistral's OCR service. Returns a single Haystack Document containing all
-    pages concatenated with form feed characters (\f), ensuring compatibility with e.g
-    Haystac's DocumentSplitter for accurate page-wise splitting and overlap handling.
     """
 
     def __init__(
@@ -130,10 +133,14 @@ class MistralOCRDocumentConverter:
 
         # Automatically convert provided Pydantic models into Mistral ResponseFormat schemas
         self.bbox_annotation_format = (
-            response_format_from_pydantic_model(bbox_annotation_schema) if bbox_annotation_schema else None
+            response_format_from_pydantic_model(bbox_annotation_schema)
+            if bbox_annotation_schema
+            else None
         )
         self.document_annotation_format = (
-            response_format_from_pydantic_model(document_annotation_schema) if document_annotation_schema else None
+            response_format_from_pydantic_model(document_annotation_schema)
+            if document_annotation_schema
+            else None
         )
 
         # Initialize Mistral client
