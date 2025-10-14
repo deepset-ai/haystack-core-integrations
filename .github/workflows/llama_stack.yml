@@ -39,7 +39,7 @@ jobs:
       - name: Install and run Ollama Server as inference provider (needed for Llama Stack Server)
         uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 2
+          timeout_minutes: 4
           max_attempts: 3
           command: |
             curl -fsSL https://ollama.com/install.sh | sh

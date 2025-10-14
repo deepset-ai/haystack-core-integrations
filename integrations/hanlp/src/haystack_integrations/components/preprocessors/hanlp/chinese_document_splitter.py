@@ -148,6 +148,7 @@ class ChineseDocumentSplitter:
             msg = f"granularity must be one of 'coarse', 'fine', but got {granularity}"
             raise ValueError(msg)
 
+    @component.output_types(documents=list[Document])
     def run(self, documents: List[Document]) -> Dict[str, List[Document]]:
         """
         Split documents into smaller chunks.
