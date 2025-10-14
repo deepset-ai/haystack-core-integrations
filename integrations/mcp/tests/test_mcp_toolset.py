@@ -8,12 +8,12 @@ import time
 from unittest.mock import patch
 
 import haystack
-from integrations.mcp.src.haystack_integrations.tools.mcp.mcp_tool import MCPToolNotFoundError
 import pytest
 import pytest_asyncio
 from haystack import logging
 from haystack.core.pipeline import Pipeline
 from haystack.tools import Tool
+from integrations.mcp.src.haystack_integrations.tools.mcp.mcp_tool import MCPToolNotFoundError
 
 from haystack_integrations.tools.mcp import MCPToolset
 from haystack_integrations.tools.mcp.mcp_tool import MCPConnectionError, SSEServerInfo, StreamableHttpServerInfo
