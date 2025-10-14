@@ -48,8 +48,8 @@ Structured Output Example:
     # Define schema for structured document annotations
     class DocumentAnnotation(BaseModel):
         language: str = Field(..., description="Primary language of the document")
-        chapter_titles: list[str] = Field(..., description="Detected chapter or section titles")
-        urls: list[str] = Field(..., description="URLs found in the text")
+        chapter_titles: List[str] = Field(..., description="Detected chapter or section titles")
+        urls: List[str] = Field(..., description="URLs found in the text")
 
     converter = MistralOCRDocumentConverter(
         api_key=Secret.from_env_var("MISTRAL_API_KEY"),
@@ -65,7 +65,7 @@ Structured Output Example:
 
 import json
 import re
-from typing import Type
+from typing import List, Optional, Type, Union
 
 from haystack import Document, component
 from haystack.utils import Secret
@@ -97,11 +97,11 @@ class MistralOCRDocumentConverter:
         api_key: Secret = Secret.from_env_var("MISTRAL_API_KEY"),
         model: str = "mistral-ocr-2505",
         include_image_base64: bool = False,
-        pages: list[int] | None = None,
-        image_limit: int | None = None,
-        image_min_size: int | None = None,
-        bbox_annotation_schema: Type[BaseModel] | None = None,
-        document_annotation_schema: Type[BaseModel] | None = None,
+        pages: Optional[List[int]] = None,
+        image_limit: Optional[int] = None,
+        image_min_size: Optional[int] = None,
+        bbox_annotation_schema: Optional[Type[BaseModel]] = None,
+        document_annotation_schema: Optional[Type[BaseModel]] = None,
     ):
         """
         Initialize the MistralOCRDocumentConverter.
@@ -139,8 +139,8 @@ class MistralOCRDocumentConverter:
         # Initialize Mistral client
         self.client = Mistral(api_key=self.api_key.resolve_value())
 
-    @component.output_types(documents=list[Document], raw_mistral_response=OCRResponse)
-    def run(self, source: DocumentURLChunk | FileChunk | ImageURLChunk) -> dict:
+    @component.output_types(documents=List[Document], raw_mistral_response=OCRResponse)
+    def run(self, source: Union[DocumentURLChunk, FileChunk, ImageURLChunk]) -> dict:
         """
         Extract text from a document using Mistral OCR.
 
