@@ -26,8 +26,10 @@ class MistralOCRDocumentConverter:
     This component extracts text from documents using Mistral's OCR API, with optional structured
     annotations for both individual image regions (bounding boxes) and full documents.
 
-    Accepts document sources (DocumentURLChunk for document URLs, ImageURLChunk for image URLs,
-    or FileChunk for Mistral file IDs) and retrieves the recognized text via Mistral's OCR service.
+    Accepts document sources in various formats (str/Path for local files, ByteStream for in-memory data,
+    DocumentURLChunk for document URLs, ImageURLChunk for image URLs, or FileChunk for Mistral file IDs)
+    and retrieves the recognized text via Mistral's OCR service. Local files are automatically uploaded
+    to Mistral's storage.
     Returns Haystack Documents (one per source) containing all pages concatenated with form feed characters (\\f),
     ensuring compatibility with Haystack's DocumentSplitter for accurate page-wise splitting and overlap handling.
 
