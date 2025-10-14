@@ -203,6 +203,9 @@ class MCPToolset(Toolset):
             # fail because of an MCPToolNotFoundError
             self.close()
 
+            if isinstance(e, MCPToolNotFoundError):
+                raise  # re-raise MCPToolNotFoundError as is to show original message
+
             # Create informative error message for SSE connection errors
             # Common error handling for HTTP-based transports
             if isinstance(self.server_info, (SSEServerInfo | StreamableHttpServerInfo)):

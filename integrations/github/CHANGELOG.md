@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/github-v1.2.0] - 2025-10-13
+
+### 🚀 Features
+
+- Add support for GitHubRepoForkerTool (#1968)
+
+### 🧪 Testing
+
+- Fix GitHub test (#2119)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+### 🌀 Miscellaneous
+
+- Chore: Fix linting github (#2255)
+
 ## [integrations/github-v1.1.0] - 2025-07-01
 
 ### 🐛 Bug Fixes
