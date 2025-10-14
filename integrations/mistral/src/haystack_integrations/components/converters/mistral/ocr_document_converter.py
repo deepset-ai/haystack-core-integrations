@@ -1,6 +1,6 @@
 import json
 import re
-from typing import List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 from haystack import Document, component
 from haystack.utils import Secret
@@ -47,20 +47,16 @@ class MistralOCRDocumentConverter:
         model="mistral-ocr-2505"
     )
 
-    # Option 1: Process a document URL
-    doc_source = DocumentURLChunk(document_url="https://example.com/document.pdf")
-    result = converter.run(source=doc_source)
+    # Process multiple sources
+    sources = [
+        DocumentURLChunk(document_url="https://example.com/document.pdf"),
+        ImageURLChunk(image_url="https://example.com/receipt.jpg"),
+        FileChunk(file_id="file-abc123"),
+    ]
+    result = converter.run(sources=sources)
 
-    # Option 2: Process an image URL
-    img_source = ImageURLChunk(image_url="https://example.com/receipt.jpg")
-    result = converter.run(source=img_source)
-
-    # Option 3: Process a Mistral file ID (See: https://docs.mistral.ai/api/#tag/files)
-    file_source = FileChunk(file_id="file-abc123")
-    result = converter.run(source=file_source)
-
-    documents = result["documents"]
-    raw_response = result["raw_mistral_response"]
+    documents = result["documents"]  # List of 3 Documents
+    raw_responses = result["raw_mistral_response"]  # List of 3 raw responses
     ```
 
     **Structured Output Example:**
@@ -85,15 +81,15 @@ class MistralOCRDocumentConverter:
         model="mistral-ocr-2505",
     )
 
-    doc_source = DocumentURLChunk(document_url="https://example.com/report.pdf")
+    sources = [DocumentURLChunk(document_url="https://example.com/report.pdf")]
     result = converter.run(
-        source=doc_source,
+        sources=sources,
         bbox_annotation_schema=ImageAnnotation,
         document_annotation_schema=DocumentAnnotation,
     )
 
     documents = result["documents"]
-    raw_response = result["raw_mistral_response"]
+    raw_responses = result["raw_mistral_response"]
     ```
     """
 
@@ -133,18 +129,18 @@ class MistralOCRDocumentConverter:
         # Initialize Mistral client
         self.client = Mistral(api_key=self.api_key.resolve_value())
 
-    @component.output_types(documents=List[Document], raw_mistral_response=OCRResponse)
+    @component.output_types(documents=List[Document], raw_mistral_response=List[Dict[str, Any]])
     def run(
         self,
-        source: Union[DocumentURLChunk, FileChunk, ImageURLChunk],
+        sources: List[Union[DocumentURLChunk, FileChunk, ImageURLChunk]],
         bbox_annotation_schema: Optional[Type[BaseModel]] = None,
         document_annotation_schema: Optional[Type[BaseModel]] = None,
-    ) -> dict:
+    ) -> Dict[str, Any]:
         """
-        Extract text from a document using Mistral OCR.
+        Extract text from documents using Mistral OCR.
 
-        :param source:
-            Document source to process. Can be one of:
+        :param sources:
+            List of document sources to process. Each source can be one of:
             - DocumentURLChunk: For document URLs (signed or public URLs to PDFs, etc.)
             - ImageURLChunk: For image URLs (signed or public URLs to images)
             - FileChunk: For Mistral file IDs (files previously uploaded to Mistral)
@@ -157,15 +153,15 @@ class MistralOCRDocumentConverter:
 
         :returns:
             A dictionary with the following keys:
-            - `documents`: List containing a single Haystack Document with the following structure:
+            - `documents`: List of Haystack Documents (one per source). Each Document has the following structure:
                 - `content`: All pages joined with form feed (\\f) separators in markdown format.
                   When using bbox_annotation_schema, image tags will be enriched with your defined descriptions.
                 - `meta`: Aggregated metadata dictionary with structure:
                   {"source_page_count": int, "source_total_images": int, "source_*": any}.
                   If document_annotation_schema was provided, all annotation fields are unpacked
                   with 'source_' prefix (e.g., source_language, source_chapter_titles, source_urls).
-            - `raw_mistral_response`: Raw OCRResponse object from Mistral API.
-              Contains complete response including per-page details, images, annotations, and usage info.
+            - `raw_mistral_response`: List of dictionaries containing raw OCR responses from Mistral API (one per source).
+              Each response includes per-page details, images, annotations, and usage info.
         """
         # Convert Pydantic models to Mistral ResponseFormat schemas
         bbox_annotation_format = (
@@ -175,18 +171,46 @@ class MistralOCRDocumentConverter:
             response_format_from_pydantic_model(document_annotation_schema) if document_annotation_schema else None
         )
 
-        # Call Mistral OCR API with the provided source
-        ocr_response: OCRResponse = self.client.ocr.process(
-            model=self.model,
-            document=source,
-            include_image_base64=self.include_image_base64,
-            pages=self.pages,
-            image_limit=self.image_limit,
-            image_min_size=self.image_min_size,
-            bbox_annotation_format=bbox_annotation_format,
-            document_annotation_format=document_annotation_format,
-        )
+        # Process each source
+        documents = []
+        raw_responses = []
 
+        for source in sources:
+            # Call Mistral OCR API with the provided source
+            ocr_response: OCRResponse = self.client.ocr.process(
+                model=self.model,
+                document=source,
+                include_image_base64=self.include_image_base64,
+                pages=self.pages,
+                image_limit=self.image_limit,
+                image_min_size=self.image_min_size,
+                bbox_annotation_format=bbox_annotation_format,
+                document_annotation_format=document_annotation_format,
+            )
+
+            # Process the OCR response into a Document
+            document = self._process_ocr_response(ocr_response, document_annotation_schema)
+            documents.append(document)
+            raw_responses.append(ocr_response.to_dict())
+
+        return {"documents": documents, "raw_mistral_response": raw_responses}
+
+    def _process_ocr_response(
+        self,
+        ocr_response: OCRResponse,
+        document_annotation_schema: Optional[Type[BaseModel]],
+    ) -> Document:
+        """
+        Convert an OCR response from Mistral API into a single Haystack Document.
+
+        :param ocr_response:
+            The OCR response object from Mistral API.
+        :param document_annotation_schema:
+            Optional Pydantic model for document-level annotations.
+
+        :returns:
+            A single Haystack Document containing the processed OCR content.
+        """
         # Convert OCR pages to a single Haystack Document
         # We add "\f" separators between pages to differentiate them and make them usable across other components
         page_contents = []
@@ -229,5 +253,4 @@ class MistralOCRDocumentConverter:
             },
         )
 
-        # Return single document and raw API response for flexibility
-        return {"documents": [document], "raw_mistral_response": ocr_response}
+        return document
