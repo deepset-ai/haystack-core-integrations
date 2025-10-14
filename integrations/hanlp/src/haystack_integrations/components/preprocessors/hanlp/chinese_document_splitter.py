@@ -5,7 +5,7 @@
 from copy import deepcopy
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 
-from haystack import Document, component, logging, component
+from haystack import Document, component, logging
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.utils import deserialize_callable, serialize_callable
 from more_itertools import windowed
