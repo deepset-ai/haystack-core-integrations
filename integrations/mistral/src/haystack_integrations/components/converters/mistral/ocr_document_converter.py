@@ -160,6 +160,8 @@ class MistralOCRDocumentConverter:
         :param document_annotation_schema:
             Optional Pydantic model for structured annotations for the full document.
             When provided, a Vision LLM analyzes the entire document and returns structured data.
+            Note: Document annotation is limited to a maximum of 8 pages. Documents exceeding
+            this limit will not be processed for document annotation.
 
         :returns:
             A dictionary with the following keys:
