@@ -431,4 +431,4 @@ class AstraDocumentStore:
         if deletion_counter == -1:
             logger.info("All documents deleted")
         else:
-            logger.info("Could not delete all documents")
+            logger.error("Could not delete all documents")
