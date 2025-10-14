@@ -47,7 +47,7 @@ indexing_pipeline = Pipeline()
 # Add components to the pipeline
 indexing_pipeline.add_component(
     "converter",
-    MistralOCRDocumentConverter(pages=[2, 3]),
+    MistralOCRDocumentConverter(pages=[0, 1]),
 )
 indexing_pipeline.add_component(
     "embedder",
@@ -65,7 +65,7 @@ indexing_pipeline.connect("embedder.documents", "writer.documents")
 # Prepare sources: URL and local file
 sources = [
     DocumentURLChunk(document_url="https://arxiv.org/pdf/1706.03762"),
-    "./sample.pdf",  # Local PDF file in the same directory
+    "./sample.pdf",  # Local PDF file
 ]
 
 # Run the pipeline with annotation schemas
@@ -79,4 +79,8 @@ result = indexing_pipeline.run(
     }
 )
 
-# Check results
+
+# Check out documents processed by ocr - optional with enriched content (from bbox annotation) and semantic meta data (from document annotation)
+documents = document_store.storage
+# Check out mistral api response for unprocessed data and with usage_info
+raw_mistral_response = result["converter"]["raw_mistral_response"]
