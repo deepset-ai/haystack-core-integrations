@@ -2,7 +2,7 @@ import json
 import re
 from typing import Any, Dict, List, Optional, Type, Union
 
-from haystack import Document, component
+from haystack import Document, component, logging
 from haystack.utils import Secret
 from mistralai import Mistral
 from mistralai.extra import response_format_from_pydantic_model
@@ -14,6 +14,8 @@ from mistralai.models import (
 )
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
+
 
 @component
 class MistralOCRDocumentConverter:
@@ -23,7 +25,7 @@ class MistralOCRDocumentConverter:
 
     Accepts document sources (DocumentURLChunk for document URLs, ImageURLChunk for image URLs,
     or FileChunk for Mistral file IDs) and retrieves the recognized text via Mistral's OCR service.
-    Returns a single Haystack Document containing all pages concatenated with form feed characters (\\f),
+    Returns Haystack Documents (one per source) containing all pages concatenated with form feed characters (\\f),
     ensuring compatibility with Haystack's DocumentSplitter for accurate page-wise splitting and overlap handling.
 
     **How Annotations Work:**
@@ -176,22 +178,26 @@ class MistralOCRDocumentConverter:
         raw_responses = []
 
         for source in sources:
-            # Call Mistral OCR API with the provided source
-            ocr_response: OCRResponse = self.client.ocr.process(
-                model=self.model,
-                document=source,
-                include_image_base64=self.include_image_base64,
-                pages=self.pages,
-                image_limit=self.image_limit,
-                image_min_size=self.image_min_size,
-                bbox_annotation_format=bbox_annotation_format,
-                document_annotation_format=document_annotation_format,
-            )
+            try:
+                # Call Mistral OCR API with the provided source
+                ocr_response: OCRResponse = self.client.ocr.process(
+                    model=self.model,
+                    document=source,
+                    include_image_base64=self.include_image_base64,
+                    pages=self.pages,
+                    image_limit=self.image_limit,
+                    image_min_size=self.image_min_size,
+                    bbox_annotation_format=bbox_annotation_format,
+                    document_annotation_format=document_annotation_format,
+                )
 
-            # Process the OCR response into a Document
-            document = self._process_ocr_response(ocr_response, document_annotation_schema)
-            documents.append(document)
-            raw_responses.append(ocr_response.to_dict())
+                # Process the OCR response into a Document
+                document = self._process_ocr_response(ocr_response, document_annotation_schema)
+                documents.append(document)
+                raw_responses.append(ocr_response.to_dict())
+            except Exception as e:
+                logger.warning("Could not process source {source}. Skipping it. Error: {error}", source=source, error=e)
+                continue
 
         return {"documents": documents, "raw_mistral_response": raw_responses}
 
