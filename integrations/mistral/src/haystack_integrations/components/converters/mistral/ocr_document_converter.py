@@ -206,7 +206,7 @@ class MistralOCRDocumentConverter:
                 # Process the OCR response into a Document
                 document = self._process_ocr_response(ocr_response, document_annotation_schema)
                 documents.append(document)
-                raw_responses.append(ocr_response.to_dict())
+                raw_responses.append(ocr_response.model_dump())
             except Exception as e:
                 logger.warning(
                     "Could not process source {source}. Skipping it. Error: {error}",
@@ -242,7 +242,8 @@ class MistralOCRDocumentConverter:
             file={
                 "file_name": bytestream.meta.get("file_path", "document"),
                 "content": bytestream.data,
-            }
+            },
+            purpose="ocr",
         )
 
         # Return FileChunk with the uploaded file ID
