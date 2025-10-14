@@ -8,6 +8,7 @@ import time
 from unittest.mock import patch
 
 import haystack
+from integrations.mcp.src.haystack_integrations.tools.mcp.mcp_tool import MCPToolNotFoundError
 import pytest
 import pytest_asyncio
 from haystack import logging
@@ -206,6 +207,18 @@ class TestMCPToolset:
                 server_info=server_info,
                 connection_timeout=1.0,
                 invocation_timeout=1.0,
+            )
+
+    async def test_toolset_tool_not_found(self):
+        """Test that requesting a non-existent tool raises a MCPToolNotFoundError."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+
+        with pytest.raises(MCPToolNotFoundError, match=r"The following tools were not found.*"):
+            MCPToolset(
+                server_info=server_info,
+                tool_names=["non_existent_tool"],
+                connection_timeout=10,
+                invocation_timeout=10,
             )
 
 
