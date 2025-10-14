@@ -1,8 +1,11 @@
 import json
 import re
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union
 
 from haystack import Document, component, logging
+from haystack.components.converters.utils import get_bytestream_from_source
+from haystack.dataclasses import ByteStream
 from haystack.utils import Secret
 from mistralai import Mistral
 from mistralai.extra import response_format_from_pydantic_model
@@ -134,7 +137,7 @@ class MistralOCRDocumentConverter:
     @component.output_types(documents=List[Document], raw_mistral_response=List[Dict[str, Any]])
     def run(
         self,
-        sources: List[Union[DocumentURLChunk, FileChunk, ImageURLChunk]],
+        sources: List[Union[str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk]],
         bbox_annotation_schema: Optional[Type[BaseModel]] = None,
         document_annotation_schema: Optional[Type[BaseModel]] = None,
     ) -> Dict[str, Any]:
@@ -143,9 +146,12 @@ class MistralOCRDocumentConverter:
 
         :param sources:
             List of document sources to process. Each source can be one of:
-            - DocumentURLChunk: For document URLs (signed or public URLs to PDFs, etc.)
-            - ImageURLChunk: For image URLs (signed or public URLs to images)
-            - FileChunk: For Mistral file IDs (files previously uploaded to Mistral)
+            - str: File path to a local document
+            - Path: Path object to a local document
+            - ByteStream: Haystack ByteStream object containing document data
+            - DocumentURLChunk: Mistral chunk for document URLs (signed or public URLs to PDFs, etc.)
+            - ImageURLChunk: Mistral chunk for image URLs (signed or public URLs to images)
+            - FileChunk: Mistral chunk for file IDs (files previously uploaded to Mistral)
         :param bbox_annotation_schema:
             Optional Pydantic model for structured annotations per bounding box.
             When provided, a Vision LLM analyzes each image region and returns structured data.
@@ -162,8 +168,9 @@ class MistralOCRDocumentConverter:
                   {"source_page_count": int, "source_total_images": int, "source_*": any}.
                   If document_annotation_schema was provided, all annotation fields are unpacked
                   with 'source_' prefix (e.g., source_language, source_chapter_titles, source_urls).
-            - `raw_mistral_response`: List of dictionaries containing raw OCR responses from Mistral API (one per source).
-              Each response includes per-page details, images, annotations, and usage info.
+            - `raw_mistral_response`:
+                List of dictionaries containing raw OCR responses from Mistral API (one per source).
+                Each response includes per-page details, images, annotations, and usage info.
         """
         # Convert Pydantic models to Mistral ResponseFormat schemas
         bbox_annotation_format = (
@@ -179,10 +186,13 @@ class MistralOCRDocumentConverter:
 
         for source in sources:
             try:
+                # Convert source to Mistral chunk format
+                chunk = self._convert_source_to_chunk(source)
+
                 # Call Mistral OCR API with the provided source
                 ocr_response: OCRResponse = self.client.ocr.process(
                     model=self.model,
-                    document=source,
+                    document=chunk,
                     include_image_base64=self.include_image_base64,
                     pages=self.pages,
                     image_limit=self.image_limit,
@@ -196,10 +206,45 @@ class MistralOCRDocumentConverter:
                 documents.append(document)
                 raw_responses.append(ocr_response.to_dict())
             except Exception as e:
-                logger.warning("Could not process source {source}. Skipping it. Error: {error}", source=source, error=e)
+                logger.warning(
+                    "Could not process source {source}. Skipping it. Error: {error}",
+                    source=source,
+                    error=e,
+                )
                 continue
 
         return {"documents": documents, "raw_mistral_response": raw_responses}
+
+    def _convert_source_to_chunk(
+        self,
+        source: Union[str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk],
+    ) -> Union[DocumentURLChunk, FileChunk, ImageURLChunk]:
+        """
+        Convert various source types to Mistral-compatible chunk format.
+
+        :param source:
+            The source to convert. Can be a file path (str/Path), ByteStream, or Mistral chunk type.
+
+        :returns:
+            A Mistral chunk type (DocumentURLChunk, FileChunk, or ImageURLChunk).
+        """
+        # If already a Mistral chunk type, return as-is
+        if isinstance(source, (DocumentURLChunk, FileChunk, ImageURLChunk)):
+            return source
+
+        # Convert str/Path/ByteStream to ByteStream
+        bytestream = get_bytestream_from_source(source=source)
+
+        # Upload file to Mistral and get file ID
+        uploaded_file = self.client.files.upload(
+            file={
+                "file_name": bytestream.meta.get("file_path", "document"),
+                "content": bytestream.data,
+            }
+        )
+
+        # Return FileChunk with the uploaded file ID
+        return FileChunk(file_id=uploaded_file.id)
 
     def _process_ocr_response(
         self,
