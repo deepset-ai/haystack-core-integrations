@@ -5,7 +5,7 @@
 from copy import deepcopy
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 
-from haystack import Document, component, logging
+from haystack import Document, component, logging, component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.utils import deserialize_callable, serialize_callable
 from more_itertools import windowed
@@ -148,6 +148,7 @@ class ChineseDocumentSplitter:
             msg = f"granularity must be one of 'coarse', 'fine', but got {granularity}"
             raise ValueError(msg)
 
+    @component.output_types(documents=list[Document])
     def run(self, documents: List[Document]) -> Dict[str, List[Document]]:
         """
         Split documents into smaller chunks.
