@@ -107,16 +107,21 @@ class MistralOCRDocumentConverter:
         image_min_size: Optional[int] = None,
     ):
         """
-        Initialize the MistralOCRDocumentConverter.
+        Creates a MistralOCRDocumentConverter component.
 
-        Args:
-            api_key: Mistral API key (defaults to MISTRAL_API_KEY env var)
-            model: OCR model to use (default: "mistral-ocr-2505")
-            include_image_base64: Include base64 encoded images in response
-                (may significantly increase response size and time)
-            pages: Specific pages to process (0-indexed), Defaults to all pages
-            image_limit: Maximum number of images to extract
-            image_min_size: Minimum height and width of images to extract
+        :param api_key:
+            The Mistral API key. Defaults to the MISTRAL_API_KEY environment variable.
+        :param model:
+            The OCR model to use. Default is "mistral-ocr-2505".
+        :param include_image_base64:
+            If True, includes base64 encoded images in the response.
+            This may significantly increase response size and processing time.
+        :param pages:
+            Specific page numbers to process (0-indexed). If None, processes all pages.
+        :param image_limit:
+            Maximum number of images to extract from the document.
+        :param image_min_size:
+            Minimum height and width (in pixels) for images to be extracted.
         """
         self.api_key = api_key
         self.model = model
@@ -138,28 +143,29 @@ class MistralOCRDocumentConverter:
         """
         Extract text from a document using Mistral OCR.
 
-        Args:
-            source: Document source to process. Can be one of:
-                - DocumentURLChunk: For document URLs (signed or public URLs to PDFs, etc.)
-                - ImageURLChunk: For image URLs (signed or public URLs to images)
-                - FileChunk: For Mistral file IDs (files previously uploaded to Mistral)
-            bbox_annotation_schema: Pydantic model for structured annotations per bounding box.
-                When provided, a Vision LLM analyzes each image region and returns structured data.
-            document_annotation_schema: Pydantic model for structured annotations for the full document.
-                When provided, a Vision LLM analyzes the entire document and returns structured data.
+        :param source:
+            Document source to process. Can be one of:
+            - DocumentURLChunk: For document URLs (signed or public URLs to PDFs, etc.)
+            - ImageURLChunk: For image URLs (signed or public URLs to images)
+            - FileChunk: For Mistral file IDs (files previously uploaded to Mistral)
+        :param bbox_annotation_schema:
+            Optional Pydantic model for structured annotations per bounding box.
+            When provided, a Vision LLM analyzes each image region and returns structured data.
+        :param document_annotation_schema:
+            Optional Pydantic model for structured annotations for the full document.
+            When provided, a Vision LLM analyzes the entire document and returns structured data.
 
-        Returns:
-            Dictionary with two keys:
-                - "documents": List containing a single Haystack Document
-                  The Document contains:
-                    - content: All pages joined with form feed (\f) separators in markdown format.
-                      When using bbox_annotation_schema, image tags will be enriched by your defined descriptions
-                    - meta: Aggregated metadata with structure:
-                      {"source_page_count": int, "source_total_images": int, "source_*": any}
-                      If document_annotation_schema was provided, all annotation fields are unpacked
-                      with 'source_' prefix (e.g., source_language, source_chapter_titles, source_urls)
-                - "raw_mistral_response": Raw OCRResponse object from Mistral API
-                  Contains complete response including per-page details, images, annotations, and usage info
+        :returns:
+            A dictionary with the following keys:
+            - `documents`: List containing a single Haystack Document with the following structure:
+                - `content`: All pages joined with form feed (\\f) separators in markdown format.
+                  When using bbox_annotation_schema, image tags will be enriched with your defined descriptions.
+                - `meta`: Aggregated metadata dictionary with structure:
+                  {"source_page_count": int, "source_total_images": int, "source_*": any}.
+                  If document_annotation_schema was provided, all annotation fields are unpacked
+                  with 'source_' prefix (e.g., source_language, source_chapter_titles, source_urls).
+            - `raw_mistral_response`: Raw OCRResponse object from Mistral API.
+              Contains complete response including per-page details, images, annotations, and usage info.
         """
         # Convert Pydantic models to Mistral ResponseFormat schemas
         bbox_annotation_format = (
