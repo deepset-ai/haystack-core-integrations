@@ -2,6 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# ruff: noqa: FBT002, FBT001    boolean-type-hint-positional-argument and boolean-default-value-positional-argument
+# ruff: noqa: B008              function-call-in-default-argument
+# ruff: noqa: S101              disable checks for uses of the assert keyword
+
+
 from collections.abc import Mapping
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
@@ -68,8 +73,8 @@ class ElasticsearchDocumentStore:
         hosts: Optional[Hosts] = None,
         custom_mapping: Optional[Dict[str, Any]] = None,
         index: str = "default",
-        api_key: Secret = Secret.from_env_var("ELASTIC_API_KEY", strict=False),  # noqa: B008
-        api_key_id: Secret = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),  # noqa: B008
+        api_key: Secret = Secret.from_env_var("ELASTIC_API_KEY", strict=False),
+        api_key_id: Secret = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
         **kwargs: Any,
     ):
@@ -119,6 +124,29 @@ class ElasticsearchDocumentStore:
             msg = "custom_mapping must be a dictionary"
             raise ValueError(msg)
 
+        if not self._custom_mapping:
+            self._default_mappings = {
+                "properties": {
+                    "embedding": {
+                        "type": "dense_vector",
+                        "index": True,
+                        "similarity": self._embedding_similarity_function,
+                    },
+                    "content": {"type": "text"},
+                },
+                "dynamic_templates": [
+                    {
+                        "strings": {
+                            "path_match": "*",
+                            "match_mapping_type": "string",
+                            "mapping": {
+                                "type": "keyword",
+                            },
+                        }
+                    }
+                ],
+            }
+
     def _ensure_initialized(self):
         """
         Ensures both sync and async clients are initialized and the index exists.
@@ -150,27 +178,7 @@ class ElasticsearchDocumentStore:
                 mappings = self._custom_mapping
             else:
                 # Configure mapping for the embedding field if none is provided
-                mappings = {
-                    "properties": {
-                        "embedding": {
-                            "type": "dense_vector",
-                            "index": True,
-                            "similarity": self._embedding_similarity_function,
-                        },
-                        "content": {"type": "text"},
-                    },
-                    "dynamic_templates": [
-                        {
-                            "strings": {
-                                "path_match": "*",
-                                "match_mapping_type": "string",
-                                "mapping": {
-                                    "type": "keyword",
-                                },
-                            }
-                        }
-                    ],
-                }
+                mappings = self._default_mappings
 
             # Create the index if it doesn't exist
             if not self._client.indices.exists(index=self._index):
@@ -227,7 +235,7 @@ class ElasticsearchDocumentStore:
         Returns the synchronous Elasticsearch client, initializing it if necessary.
         """
         self._ensure_initialized()
-        assert self._client is not None  # noqa: S101
+        assert self._client is not None
         return self._client
 
     @property
@@ -236,7 +244,7 @@ class ElasticsearchDocumentStore:
         Returns the asynchronous Elasticsearch client, initializing it if necessary.
         """
         self._ensure_initialized()
-        assert self._async_client is not None  # noqa: S101
+        assert self._async_client is not None
         return self._async_client
 
     def to_dict(self) -> Dict[str, Any]:
@@ -450,7 +458,7 @@ class ElasticsearchDocumentStore:
 
         if errors:
             # with stats_only=False, errors is guaranteed to be a list of dicts
-            assert isinstance(errors, list)  # noqa: S101
+            assert isinstance(errors, list)
             duplicate_errors_ids = []
             other_errors = []
             for e in errors:
@@ -529,7 +537,7 @@ class ElasticsearchDocumentStore:
             )
             if failed:
                 # with stats_only=False, failed is guaranteed to be a list of dicts
-                assert isinstance(failed, list)  # noqa: S101
+                assert isinstance(failed, list)
                 if policy == DuplicatePolicy.FAIL:
                     for error in failed:
                         if "create" in error and error["create"]["status"] == DOC_ALREADY_EXISTS:
@@ -556,6 +564,14 @@ class ElasticsearchDocumentStore:
             raise_on_error=False,
         )
 
+    def _prepare_delete_all_request(self, *, is_async: bool) -> Dict[str, Any]:
+        return {
+            "index": self._index,
+            "body": {"query": {"match_all": {}}},  # Delete all documents
+            "wait_for_completion": False if is_async else True,  # block until done (set False for async)
+            "refresh": True,  # Ensure changes are visible immediately
+        }
+
     async def delete_documents_async(self, document_ids: List[str]) -> None:
         """
         Asynchronously deletes all documents with a matching document_ids from the document store.
@@ -573,6 +589,92 @@ class ElasticsearchDocumentStore:
             )
         except Exception as e:
             msg = f"Failed to delete documents from Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def delete_all_documents(self, recreate_index: bool = False) -> None:
+        """
+        Deletes all documents in the document store.
+
+        A fast way to clear all documents from the document store while preserving any index settings and mappings.
+
+        :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
+            settings. If False, all documents will be deleted using the `delete_by_query` API.
+        """
+        self._ensure_initialized()  # _ensure_initialized ensures _client is not None and an index exists
+
+        if recreate_index:
+            # get the current index mappings and settings
+            index_name = self._index
+            mappings = self._client.indices.get(index=self._index)[index_name]["mappings"]  # type: ignore
+            settings = self._client.indices.get(index=self._index)[index_name]["settings"]  # type: ignore
+
+            # remove settings that cannot be set during index creation
+            settings["index"].pop("uuid", None)
+            settings["index"].pop("creation_date", None)
+            settings["index"].pop("provided_name", None)
+            settings["index"].pop("version", None)
+
+            self._client.indices.delete(index=self._index)  # type: ignore
+            self._client.indices.create(index=self._index, settings=settings, mappings=mappings)  # type: ignore
+
+            # delete index
+            self._client.indices.delete(index=self._index)  # type: ignore
+
+            # recreate with mappings
+            self._client.indices.create(index=self._index, mappings=mappings)  # type: ignore
+
+        else:
+            result = self._client.delete_by_query(**self._prepare_delete_all_request(is_async=False))  # type: ignore
+            logger.info(
+                "Deleted all the {n_docs} documents from the index '{index}'.",
+                index=self._index,
+                n_docs=result["deleted"],
+            )
+
+    async def delete_all_documents_async(self, recreate_index: bool = False) -> None:
+        """
+        Asynchronously deletes all documents in the document store.
+
+        A fast way to clear all documents from the document store while preserving any index settings and mappings.
+        :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
+            settings. If False, all documents will be deleted using the `delete_by_query` API.
+        """
+        self._ensure_initialized()  # ensures _async_client is not None
+
+        try:
+            if recreate_index:
+                # get the current index mappings and settings
+                index_name = self._index
+                index_info = await self._async_client.indices.get(index=self._index)  # type: ignore
+                mappings = index_info[index_name]["mappings"]
+                settings = index_info[index_name]["settings"]
+
+                # remove settings that cannot be set during index creation
+                settings["index"].pop("uuid", None)
+                settings["index"].pop("creation_date", None)
+                settings["index"].pop("provided_name", None)
+                settings["index"].pop("version", None)
+
+                # delete index
+                await self._async_client.indices.delete(index=self._index)  # type: ignore
+
+                # recreate with settings and mappings
+                await self._async_client.indices.create(index=self._index, settings=settings, mappings=mappings)  # type: ignore
+
+            else:
+                # use delete_by_query for more efficient deletion without index recreation
+                # For async, we need to wait for completion to get the deleted count
+                delete_request = self._prepare_delete_all_request(is_async=True)
+                delete_request["wait_for_completion"] = True  # Override to wait for completion in async
+                result = await self._async_client.delete_by_query(**delete_request)  # type: ignore
+                logger.info(
+                    "Deleted all the {n_docs} documents from the index '{index}'.",
+                    index=self._index,
+                    n_docs=result["deleted"],
+                )
+
+        except Exception as e:
+            msg = f"Failed to delete all documents from Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
     def _bm25_retrieval(
