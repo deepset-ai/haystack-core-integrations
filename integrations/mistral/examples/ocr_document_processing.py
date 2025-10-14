@@ -17,7 +17,9 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 from mistralai.models import DocumentURLChunk
 from pydantic import BaseModel, Field
 
-
+from haystack_integrations.components.converters.mistral.ocr_document_converter import (
+    MistralOCRDocumentConverter,
+)
 from haystack_integrations.components.embedders.mistral.document_embedder import (
     MistralDocumentEmbedder,
 )
