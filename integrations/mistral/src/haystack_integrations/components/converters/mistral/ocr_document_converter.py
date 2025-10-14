@@ -83,12 +83,14 @@ class MistralOCRDocumentConverter:
     converter = MistralOCRDocumentConverter(
         api_key=Secret.from_env_var("MISTRAL_API_KEY"),
         model="mistral-ocr-2505",
-        bbox_annotation_schema=ImageAnnotation,
-        document_annotation_schema=DocumentAnnotation,
     )
 
     doc_source = DocumentURLChunk(document_url="https://example.com/report.pdf")
-    result = converter.run(source=doc_source)
+    result = converter.run(
+        source=doc_source,
+        bbox_annotation_schema=ImageAnnotation,
+        document_annotation_schema=DocumentAnnotation,
+    )
 
     documents = result["documents"]
     raw_response = result["raw_mistral_response"]
@@ -103,8 +105,6 @@ class MistralOCRDocumentConverter:
         pages: Optional[List[int]] = None,
         image_limit: Optional[int] = None,
         image_min_size: Optional[int] = None,
-        bbox_annotation_schema: Optional[Type[BaseModel]] = None,
-        document_annotation_schema: Optional[Type[BaseModel]] = None,
     ):
         """
         Initialize the MistralOCRDocumentConverter.
@@ -117,8 +117,6 @@ class MistralOCRDocumentConverter:
             pages: Specific pages to process (0-indexed), Defaults to all pages
             image_limit: Maximum number of images to extract
             image_min_size: Minimum height and width of images to extract
-            bbox_annotation_schema: Pydantic model for structured annotations per bounding box
-            document_annotation_schema: Pydantic model for structured annotations for the full document
         """
         self.api_key = api_key
         self.model = model
@@ -127,27 +125,16 @@ class MistralOCRDocumentConverter:
         self.image_limit = image_limit
         self.image_min_size = image_min_size
 
-        # Keep schemas accessible for filtering downstream
-        self.bbox_annotation_schema = bbox_annotation_schema
-        self.document_annotation_schema = document_annotation_schema
-
-        # Automatically convert provided Pydantic models into Mistral ResponseFormat schemas
-        self.bbox_annotation_format = (
-            response_format_from_pydantic_model(bbox_annotation_schema)
-            if bbox_annotation_schema
-            else None
-        )
-        self.document_annotation_format = (
-            response_format_from_pydantic_model(document_annotation_schema)
-            if document_annotation_schema
-            else None
-        )
-
         # Initialize Mistral client
         self.client = Mistral(api_key=self.api_key.resolve_value())
 
     @component.output_types(documents=List[Document], raw_mistral_response=OCRResponse)
-    def run(self, source: Union[DocumentURLChunk, FileChunk, ImageURLChunk]) -> dict:
+    def run(
+        self,
+        source: Union[DocumentURLChunk, FileChunk, ImageURLChunk],
+        bbox_annotation_schema: Optional[Type[BaseModel]] = None,
+        document_annotation_schema: Optional[Type[BaseModel]] = None,
+    ) -> dict:
         """
         Extract text from a document using Mistral OCR.
 
@@ -156,20 +143,32 @@ class MistralOCRDocumentConverter:
                 - DocumentURLChunk: For document URLs (signed or public URLs to PDFs, etc.)
                 - ImageURLChunk: For image URLs (signed or public URLs to images)
                 - FileChunk: For Mistral file IDs (files previously uploaded to Mistral)
+            bbox_annotation_schema: Pydantic model for structured annotations per bounding box.
+                When provided, a Vision LLM analyzes each image region and returns structured data.
+            document_annotation_schema: Pydantic model for structured annotations for the full document.
+                When provided, a Vision LLM analyzes the entire document and returns structured data.
 
         Returns:
             Dictionary with two keys:
                 - "documents": List containing a single Haystack Document
                   The Document contains:
                     - content: All pages joined with form feed (\f) separators in markdown format.
-                      When using bbox_annotation in any format, image tags will be enriched by your defined descriptions
+                      When using bbox_annotation_schema, image tags will be enriched by your defined descriptions
                     - meta: Aggregated metadata with structure:
                       {"source_page_count": int, "source_total_images": int, "source_*": any}
-                      If document_annotation_format was provided, all annotation fields are unpacked
+                      If document_annotation_schema was provided, all annotation fields are unpacked
                       with 'source_' prefix (e.g., source_language, source_chapter_titles, source_urls)
                 - "raw_mistral_response": Raw OCRResponse object from Mistral API
                   Contains complete response including per-page details, images, annotations, and usage info
         """
+        # Convert Pydantic models to Mistral ResponseFormat schemas
+        bbox_annotation_format = (
+            response_format_from_pydantic_model(bbox_annotation_schema) if bbox_annotation_schema else None
+        )
+        document_annotation_format = (
+            response_format_from_pydantic_model(document_annotation_schema) if document_annotation_schema else None
+        )
+
         # Call Mistral OCR API with the provided source
         ocr_response: OCRResponse = self.client.ocr.process(
             model=self.model,
@@ -178,8 +177,8 @@ class MistralOCRDocumentConverter:
             pages=self.pages,
             image_limit=self.image_limit,
             image_min_size=self.image_min_size,
-            bbox_annotation_format=self.bbox_annotation_format,
-            document_annotation_format=self.document_annotation_format,
+            bbox_annotation_format=bbox_annotation_format,
+            document_annotation_format=document_annotation_format,
         )
 
         # Convert OCR pages to a single Haystack Document
@@ -206,8 +205,8 @@ class MistralOCRDocumentConverter:
         # Parse and filter document-level annotations to schema-defined fields
         try:
             parsed = json.loads(ocr_response.document_annotation or "{}")
-            if self.document_annotation_schema:
-                allowed = self.document_annotation_schema.model_fields.keys()
+            if document_annotation_schema:
+                allowed = document_annotation_schema.model_fields.keys()
                 parsed = {k: v for k, v in parsed.items() if k in allowed}
             doc_annotation_meta = {f"source_{k}": v for k, v in parsed.items()}
         except Exception:
