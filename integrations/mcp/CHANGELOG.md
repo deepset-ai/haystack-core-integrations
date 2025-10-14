@@ -1,18 +1,26 @@
 # Changelog
 
+## [integrations/mcp-v0.8.0] - 2025-10-14
+
+### 🐛 Bug Fixes
+
+- Surface MCPToolNotFoundError (#2380)
+
+### 📚 Documentation
+
+- Recommend Streamable HTTP instead of SSE (#2338)
+
+### 🧹 Chores
+
+- Add Agent pipeline with MCPToolset deserialization test (#2357)
+
 ## [integrations/mcp-v0.7.0] - 2025-09-23
 
 ### 🐛 Bug Fixes
 
-- Make MCPInvocationError compatible with haystack-ai>=2.18.0 (#2297)
-
-
-## [integrations/mcp-v0.6.0] - 2025-09-16
-
-### 🐛 Bug Fixes
-
 - Temporarily disable brave search mcp integration test (#2187)
-- Fix mcp types + add py.typed
+- Fix mcp types + add py.typed (#2248)
+- Make MCPInvocationError compatible with haystack-ai>=2.18.0 (#2297)
 
 
 ### 🧹 Chores
