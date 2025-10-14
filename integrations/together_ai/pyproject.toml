@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "together-ai-haystack"
+name = "togetherai-haystack"
 dynamic = ["version"]
 description = 'An integration between the Together AI framework and Haystack'
 readme = "README.md"
