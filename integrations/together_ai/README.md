@@ -1,4 +1,4 @@
-# together-ai-haystack
+# togetherai-haystack
 
 [![PyPI - Version](https://img.shields.io/pypi/v/togetherai-haystack.svg)](https://pypi.org/project/togetherai-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/togetherai-haystack.svg)](https://pypi.org/project/togetherai-haystack)
