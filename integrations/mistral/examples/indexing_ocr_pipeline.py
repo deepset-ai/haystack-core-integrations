@@ -80,7 +80,8 @@ result = indexing_pipeline.run(
 )
 
 
-# Check out documents processed by ocr - optional with enriched content (from bbox annotation) and semantic meta data (from document annotation)
+# Check out documents processed by OCR.
+# Optional with enriched content (from bbox annotation) and semantic meta data (from document annotation)
 documents = document_store.storage
 # Check out mistral api response for unprocessed data and with usage_info
 raw_mistral_response = result["converter"]["raw_mistral_response"]
