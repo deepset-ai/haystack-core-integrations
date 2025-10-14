@@ -13,10 +13,14 @@ import pytest_asyncio
 from haystack import logging
 from haystack.core.pipeline import Pipeline
 from haystack.tools import Tool
-from integrations.mcp.src.haystack_integrations.tools.mcp.mcp_tool import MCPToolNotFoundError
 
 from haystack_integrations.tools.mcp import MCPToolset
-from haystack_integrations.tools.mcp.mcp_tool import MCPConnectionError, SSEServerInfo, StreamableHttpServerInfo
+from haystack_integrations.tools.mcp.mcp_tool import (
+    MCPConnectionError,
+    MCPToolNotFoundError,
+    SSEServerInfo,
+    StreamableHttpServerInfo,
+)
 
 # Import in-memory transport and fixtures
 from .mcp_memory_transport import InMemoryServerInfo
