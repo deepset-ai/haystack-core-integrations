@@ -1,13 +1,25 @@
-# To run this example, you will need to set a `MISTRAL_API_KEY` environment variable.
-# This example demonstrates OCR document processing with structured annotations.
+# To run this example, you will need to:
+# 1. Set a `MISTRAL_API_KEY` environment variable
+# 2. Place a PDF file named `sample.pdf` in the same directory as this script
+#
+# This example demonstrates OCR document processing with structured annotations,
+# embedding the extracted documents using Mistral embeddings, and storing them
+# in an InMemoryDocumentStore for later retrieval.
+#
+# You can customize the ImageAnnotation and DocumentAnnotation schemas below
+# to extract different structured information from your documents.
 
 from typing import List
 
+from haystack import Pipeline
+from haystack.components.writers import DocumentWriter
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 from mistralai.models import DocumentURLChunk
 from pydantic import BaseModel, Field
 
-from haystack_integrations.components.converters.mistral.ocr_document_converter import (
-    MistralOCRDocumentConverter,
+
+from haystack_integrations.components.embedders.mistral.document_embedder import (
+    MistralDocumentEmbedder,
 )
 
 
@@ -24,21 +36,45 @@ class DocumentAnnotation(BaseModel):
     topics: List[str] = Field(..., description="Main topics covered in the document")
 
 
-# Initialize the converter
-converter = MistralOCRDocumentConverter(
-    pages=[2, 3],
+# Initialize document store
+document_store = InMemoryDocumentStore()
+
+# Create indexing pipeline
+indexing_pipeline = Pipeline()
+
+# Add components to the pipeline
+indexing_pipeline.add_component(
+    "converter",
+    MistralOCRDocumentConverter(pages=[2, 3]),
+)
+indexing_pipeline.add_component(
+    "embedder",
+    MistralDocumentEmbedder(),
+)
+indexing_pipeline.add_component(
+    "writer",
+    DocumentWriter(document_store=document_store),
 )
 
-# Process document URLs (you can use any public or signed URL to a PDF or image)
-sources = [DocumentURLChunk(document_url="https://arxiv.org/pdf/1706.03762")]
+# Connect components
+indexing_pipeline.connect("converter.documents", "embedder.documents")
+indexing_pipeline.connect("embedder.documents", "writer.documents")
 
-# Run OCR with annotation schemas
-result = converter.run(
-    sources=sources,
-    bbox_annotation_schema=ImageAnnotation,
-    document_annotation_schema=DocumentAnnotation,
+# Prepare sources: URL and local file
+sources = [
+    DocumentURLChunk(document_url="https://arxiv.org/pdf/1706.03762"),
+    "./sample.pdf",  # Local PDF file in the same directory
+]
+
+# Run the pipeline with annotation schemas
+result = indexing_pipeline.run(
+    {
+        "converter": {
+            "sources": sources,
+            "bbox_annotation_schema": ImageAnnotation,
+            "document_annotation_schema": DocumentAnnotation,
+        }
+    }
 )
 
-# Extract results
-documents = result["documents"]
-raw_mistral_response = result["raw_mistral_response"]
+# Check results
