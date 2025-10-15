@@ -2,17 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from pathlib import Path
 from typing import List
 from unittest.mock import MagicMock, patch
 
 import pytest
-from pydantic import BaseModel, Field
-
 from haystack import Document
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret
 from mistralai.models import DocumentURLChunk, FileChunk, ImageURLChunk
+from pydantic import BaseModel, Field
 
 from haystack_integrations.components.converters.mistral import (
     MistralOCRDocumentConverter,
@@ -68,7 +66,10 @@ class TestMistralOCRDocumentConverter:
         converter_dict = converter.to_dict()
 
         assert converter_dict == {
-            "type": "haystack_integrations.components.converters.mistral.ocr_document_converter.MistralOCRDocumentConverter",
+            "type": (
+                "haystack_integrations.components.converters.mistral."
+                "ocr_document_converter.MistralOCRDocumentConverter"
+            ),
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["MISTRAL_API_KEY"],
@@ -98,7 +99,10 @@ class TestMistralOCRDocumentConverter:
         converter_dict = converter.to_dict()
 
         assert converter_dict == {
-            "type": "haystack_integrations.components.converters.mistral.ocr_document_converter.MistralOCRDocumentConverter",
+            "type": (
+                "haystack_integrations.components.converters.mistral."
+                "ocr_document_converter.MistralOCRDocumentConverter"
+            ),
             "init_parameters": {
                 "api_key": {
                     "type": "env_var",
@@ -117,7 +121,10 @@ class TestMistralOCRDocumentConverter:
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
         converter_dict = {
-            "type": "haystack_integrations.components.converters.mistral.ocr_document_converter.MistralOCRDocumentConverter",
+            "type": (
+                "haystack_integrations.components.converters.mistral."
+                "ocr_document_converter.MistralOCRDocumentConverter"
+            ),
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["MISTRAL_API_KEY"],
@@ -145,7 +152,10 @@ class TestMistralOCRDocumentConverter:
     def test_from_dict_with_custom_parameters(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
         converter_dict = {
-            "type": "haystack_integrations.components.converters.mistral.ocr_document_converter.MistralOCRDocumentConverter",
+            "type": (
+                "haystack_integrations.components.converters.mistral."
+                "ocr_document_converter.MistralOCRDocumentConverter"
+            ),
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["MISTRAL_API_KEY"],
@@ -823,7 +833,7 @@ class TestMistralOCRDocumentConverter:
         reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",
     )
     @pytest.mark.integration
-    def test_integration_multiple_sources(self, tmp_path):
+    def test_integration_multiple_sources(self):
         """Integration test with real API call using multiple sources"""
         converter = MistralOCRDocumentConverter(pages=[0])  # Only first page for speed
 
