@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Any, Dict, Optional
 from unittest.mock import Mock
 
@@ -557,11 +558,9 @@ class TestSnowflakeTableRetriever:
         # Create retriever without mocking test_connection
         mocker.patch.dict(os.environ, {"SNOWFLAKE_API_KEY": "test_api_key"})
 
-        # Mock the snowflake module import
-        mock_snowflake = mocker.Mock()
+        # Mock the actual snowflake.connector.connect function
         mock_connection = mocker.Mock()
-        mock_snowflake.connector.connect.return_value = mock_connection
-        mocker.patch.dict("sys.modules", {"snowflake": mock_snowflake, "snowflake.connector": mock_snowflake.connector})
+        mock_connect = mocker.patch("snowflake.connector.connect", return_value=mock_connection)
 
         # Create retriever (test_connection will be called during init and will use the mock)
         SnowflakeTableRetriever(
@@ -572,7 +571,7 @@ class TestSnowflakeTableRetriever:
         )
 
         # Verify the connection was tested during initialization
-        assert mock_snowflake.connector.connect.call_count >= 1
+        assert mock_connect.call_count >= 1
         mock_connection.close.assert_called()
 
     def test_connection_failure(self, mocker: Mock) -> None:
@@ -592,16 +591,19 @@ class TestSnowflakeTableRetriever:
                 api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
             )
 
-    def test_connection_jwt_auth(self, mocker: Mock) -> None:
+    def test_connection_jwt_auth(self, mocker: Mock, tmp_path: Path) -> None:
+        # Create a temporary key file
+        key_file = tmp_path / "key.pem"
+        key_file.write_text("-----BEGIN PRIVATE KEY-----\ntest_key_content\n-----END PRIVATE KEY-----")
+
         # Mock the snowflake module import and environment
         mocker.patch.dict(
-            os.environ, {"SNOWFLAKE_PRIVATE_KEY_FILE": "/path/to/key.pem", "SNOWFLAKE_PRIVATE_KEY_PWD": "test_password"}
+            os.environ, {"SNOWFLAKE_PRIVATE_KEY_FILE": str(key_file), "SNOWFLAKE_PRIVATE_KEY_PWD": "test_password"}
         )
 
-        mock_snowflake = mocker.Mock()
+        # Mock the actual snowflake.connector.connect function
         mock_connection = mocker.Mock()
-        mock_snowflake.connector.connect.return_value = mock_connection
-        mocker.patch.dict("sys.modules", {"snowflake": mock_snowflake, "snowflake.connector": mock_snowflake.connector})
+        mock_connect = mocker.patch("snowflake.connector.connect", return_value=mock_connection)
 
         # Create JWT retriever (test_connection will be called during init)
         SnowflakeTableRetriever(
@@ -613,8 +615,8 @@ class TestSnowflakeTableRetriever:
         )
 
         # Verify that JWT-specific parameters were passed
-        assert mock_snowflake.connector.connect.call_count >= 1
-        call_args = mock_snowflake.connector.connect.call_args[1]
+        assert mock_connect.call_count >= 1
+        call_args = mock_connect.call_args[1]
         assert call_args["authenticator"] == "snowflake_jwt"
         assert "private_key_file" in call_args
 
@@ -625,10 +627,9 @@ class TestSnowflakeTableRetriever:
             {"SNOWFLAKE_OAUTH_CLIENT_ID": "test_client_id", "SNOWFLAKE_OAUTH_CLIENT_SECRET": "test_client_secret"},
         )
 
-        mock_snowflake = mocker.Mock()
+        # Mock the actual snowflake.connector.connect function
         mock_connection = mocker.Mock()
-        mock_snowflake.connector.connect.return_value = mock_connection
-        mocker.patch.dict("sys.modules", {"snowflake": mock_snowflake, "snowflake.connector": mock_snowflake.connector})
+        mock_connect = mocker.patch("snowflake.connector.connect", return_value=mock_connection)
 
         # Create OAuth retriever (test_connection will be called during init)
         SnowflakeTableRetriever(
@@ -640,8 +641,8 @@ class TestSnowflakeTableRetriever:
         )
 
         # Verify that OAuth-specific parameters were passed
-        assert mock_snowflake.connector.connect.call_count >= 1
-        call_args = mock_snowflake.connector.connect.call_args[1]
+        assert mock_connect.call_count >= 1
+        call_args = mock_connect.call_args[1]
         assert call_args["authenticator"] == "oauth"
         assert "oauth_client_id" in call_args
         assert "oauth_client_secret" in call_args
