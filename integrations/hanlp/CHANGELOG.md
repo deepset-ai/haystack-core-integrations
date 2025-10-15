@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/hanlp-v1.0.1] - 2025-10-14
+
+### 🐛 Bug Fixes
+
+- Missing decorator output for ChineseDocumentSplitter (#2377)
+
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
 ## [integrations/hanlp-v1.0.0] - 2025-07-22
 
 ### 🚀 Features
