@@ -5,18 +5,12 @@ from typing import Any, Dict, Literal, Optional
 from urllib.parse import quote_plus
 
 import polars as pl
+import snowflake.connector  # type: ignore[import-not-found]
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 from pandas import DataFrame
 
 from .auth import SnowflakeAuthenticator
-
-try:
-    import snowflake.connector  # type: ignore[import-not-found]
-
-    SNOWFLAKE_CONNECTOR_AVAILABLE = True
-except ImportError:
-    SNOWFLAKE_CONNECTOR_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -334,7 +328,7 @@ class SnowflakeTableRetriever:
                 "Error converting Polars DataFrame to Markdown - Error {errno}: {error_msg}",
                 errno=getattr(e, "errno", "N/A"),
                 error_msg=getattr(e, "msg", str(e)),
-                exc_info=True,
+                exc_info=False,
             )
             return ""
 
@@ -346,10 +340,6 @@ class SnowflakeTableRetriever:
         :param query: SQL query to execute.
         :returns: Polars DataFrame with results, or None if execution fails.
         """
-        if not SNOWFLAKE_CONNECTOR_AVAILABLE:
-            logger.error("snowflake-connector-python is not installed")
-            return None
-
         try:
             # Build connection parameters
             conn_params: Dict[str, Any] = {
@@ -404,7 +394,7 @@ class SnowflakeTableRetriever:
                 "Error executing query with snowflake-connector - Error {errno}: {error_msg}",
                 errno=getattr(e, "errno", "N/A"),
                 error_msg=str(e),
-                exc_info=True,
+                exc_info=False,  # Avoid displaying the whole traceback to the user
             )
             return None
 
@@ -461,7 +451,7 @@ class SnowflakeTableRetriever:
                     "Error constructing Snowflake URI - Error {errno}: {error_msg}",
                     errno=getattr(e, "errno", "N/A"),
                     error_msg=getattr(e, "msg", str(e)),
-                    exc_info=True,
+                    exc_info=False,
                 )
                 return self._empty_response()
 
@@ -483,7 +473,7 @@ class SnowflakeTableRetriever:
                         "Error executing query via ADBC - Error {errno}: {error_msg}",
                         errno=getattr(e, "errno", "N/A"),
                         error_msg=error_msg,
-                        exc_info=True,
+                        exc_info=False,
                     )
 
                 return self._empty_response()
@@ -513,7 +503,7 @@ class SnowflakeTableRetriever:
                 "Error converting Polars DataFrame to Pandas DataFrame - Error {errno}: {error_msg}",
                 errno=getattr(e, "errno", "N/A"),
                 error_msg=getattr(e, "msg", str(e)),
-                exc_info=True,
+                exc_info=False,
             )
             return self._empty_response()
 
@@ -529,7 +519,7 @@ class SnowflakeTableRetriever:
                     "Error converting Polars DataFrame to Markdown - Error {errno}: {error_msg}",
                     errno=getattr(e, "errno", "N/A"),
                     error_msg=getattr(e, "msg", str(e)),
-                    exc_info=True,
+                    exc_info=False,
                 )
 
         return {"dataframe": pandas_df, "table": markdown_str}
