@@ -3,10 +3,10 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union
 
-from haystack import Document, component, logging
+from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.utils import get_bytestream_from_source
 from haystack.dataclasses import ByteStream
-from haystack.utils import Secret
+from haystack.utils import Secret, deserialize_secrets_inplace
 from mistralai import Mistral
 from mistralai.extra import response_format_from_pydantic_model
 from mistralai.models import (
@@ -135,6 +135,36 @@ class MistralOCRDocumentConverter:
 
         # Initialize Mistral client
         self.client = Mistral(api_key=self.api_key.resolve_value())
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
+        return default_to_dict(
+            self,
+            api_key=self.api_key.to_dict(),
+            model=self.model,
+            include_image_base64=self.include_image_base64,
+            pages=self.pages,
+            image_limit=self.image_limit,
+            image_min_size=self.image_min_size,
+        )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "MistralOCRDocumentConverter":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+        return default_from_dict(cls, data)
 
     @component.output_types(documents=List[Document], raw_mistral_response=List[Dict[str, Any]])
     def run(
