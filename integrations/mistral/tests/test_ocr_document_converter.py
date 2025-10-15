@@ -80,6 +80,7 @@ class TestMistralOCRDocumentConverter:
                 "pages": None,
                 "image_limit": None,
                 "image_min_size": None,
+                "cleanup_uploaded_files": True,
             },
         }
 
@@ -92,6 +93,7 @@ class TestMistralOCRDocumentConverter:
             pages=[0, 1, 2],
             image_limit=10,
             image_min_size=100,
+            cleanup_uploaded_files=False,
         )
         converter_dict = converter.to_dict()
 
@@ -108,6 +110,7 @@ class TestMistralOCRDocumentConverter:
                 "pages": [0, 1, 2],
                 "image_limit": 10,
                 "image_min_size": 100,
+                "cleanup_uploaded_files": False,
             },
         }
 
@@ -126,6 +129,7 @@ class TestMistralOCRDocumentConverter:
                 "pages": None,
                 "image_limit": None,
                 "image_min_size": None,
+                "cleanup_uploaded_files": True,
             },
         }
 
@@ -136,6 +140,7 @@ class TestMistralOCRDocumentConverter:
         assert converter.pages is None
         assert converter.image_limit is None
         assert converter.image_min_size is None
+        assert converter.cleanup_uploaded_files is True
 
     def test_from_dict_with_custom_parameters(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
@@ -152,6 +157,7 @@ class TestMistralOCRDocumentConverter:
                 "pages": [0, 1, 2],
                 "image_limit": 10,
                 "image_min_size": 100,
+                "cleanup_uploaded_files": False,
             },
         }
 
@@ -162,6 +168,7 @@ class TestMistralOCRDocumentConverter:
         assert converter.pages == [0, 1, 2]
         assert converter.image_limit == 10
         assert converter.image_min_size == 100
+        assert converter.cleanup_uploaded_files is False
 
     @pytest.fixture
     def mock_ocr_response(self):
@@ -580,6 +587,176 @@ class TestMistralOCRDocumentConverter:
 
         assert document.meta["source_page_count"] == 1
         assert document.meta["source_total_images"] == 2
+
+    def test_run_with_file_cleanup(self, mock_ocr_response, tmp_path):
+        """Test that uploaded files are deleted after successful processing"""
+        converter = MistralOCRDocumentConverter(
+            api_key=Secret.from_token("test-api-key"), cleanup_uploaded_files=True
+        )
+
+        # Create a temporary file
+        test_file = tmp_path / "test.pdf"
+        test_file.write_bytes(b"fake pdf content")
+
+        mock_uploaded_file = MagicMock()
+        mock_uploaded_file.id = "uploaded-file-123"
+
+        with patch.object(
+            converter.client.files, "upload", return_value=mock_uploaded_file
+        ):
+            with patch.object(
+                converter.client.ocr, "process", return_value=mock_ocr_response
+            ):
+                with patch.object(converter.client.files, "delete") as mock_delete:
+                    sources = [str(test_file)]
+                    result = converter.run(sources=sources)
+
+                    # Verify file was uploaded and deleted
+                    assert len(result["documents"]) == 1
+                    converter.client.files.upload.assert_called_once()
+                    mock_delete.assert_called_once_with(file_id="uploaded-file-123")
+
+    def test_run_user_provided_filechunk_not_deleted(self, mock_ocr_response):
+        """Test that user-provided FileChunk is not deleted"""
+        converter = MistralOCRDocumentConverter(
+            api_key=Secret.from_token("test-api-key"), cleanup_uploaded_files=True
+        )
+
+        with patch.object(
+            converter.client.ocr, "process", return_value=mock_ocr_response
+        ):
+            with patch.object(converter.client.files, "delete") as mock_delete:
+                # User provides FileChunk directly
+                sources = [FileChunk(file_id="user-file-123")]
+                result = converter.run(sources=sources)
+
+                # Verify file was NOT deleted
+                assert len(result["documents"]) == 1
+                mock_delete.assert_not_called()
+
+    def test_run_with_cleanup_disabled(self, mock_ocr_response, tmp_path):
+        """Test that files are not deleted when cleanup_uploaded_files=False"""
+        converter = MistralOCRDocumentConverter(
+            api_key=Secret.from_token("test-api-key"), cleanup_uploaded_files=False
+        )
+
+        # Create a temporary file
+        test_file = tmp_path / "test.pdf"
+        test_file.write_bytes(b"fake pdf content")
+
+        mock_uploaded_file = MagicMock()
+        mock_uploaded_file.id = "uploaded-file-123"
+
+        with patch.object(
+            converter.client.files, "upload", return_value=mock_uploaded_file
+        ):
+            with patch.object(
+                converter.client.ocr, "process", return_value=mock_ocr_response
+            ):
+                with patch.object(converter.client.files, "delete") as mock_delete:
+                    sources = [str(test_file)]
+                    result = converter.run(sources=sources)
+
+                    # Verify file was uploaded but NOT deleted
+                    assert len(result["documents"]) == 1
+                    converter.client.files.upload.assert_called_once()
+                    mock_delete.assert_not_called()
+
+    def test_run_cleanup_happens_on_ocr_failure(self, tmp_path):
+        """Test that cleanup happens even when OCR processing fails"""
+        converter = MistralOCRDocumentConverter(
+            api_key=Secret.from_token("test-api-key"), cleanup_uploaded_files=True
+        )
+
+        # Create a temporary file
+        test_file = tmp_path / "test.pdf"
+        test_file.write_bytes(b"fake pdf content")
+
+        mock_uploaded_file = MagicMock()
+        mock_uploaded_file.id = "uploaded-file-123"
+
+        with patch.object(
+            converter.client.files, "upload", return_value=mock_uploaded_file
+        ):
+            with patch.object(
+                converter.client.ocr, "process", side_effect=Exception("OCR failed")
+            ):
+                with patch.object(converter.client.files, "delete") as mock_delete:
+                    sources = [str(test_file)]
+                    result = converter.run(sources=sources)
+
+                    # Verify no documents returned due to failure
+                    assert len(result["documents"]) == 0
+                    # But file should still be deleted
+                    mock_delete.assert_called_once_with(file_id="uploaded-file-123")
+
+    def test_run_cleanup_failure_does_not_break_flow(self, mock_ocr_response, tmp_path):
+        """Test that cleanup failures don't break the main flow"""
+        converter = MistralOCRDocumentConverter(
+            api_key=Secret.from_token("test-api-key"), cleanup_uploaded_files=True
+        )
+
+        # Create a temporary file
+        test_file = tmp_path / "test.pdf"
+        test_file.write_bytes(b"fake pdf content")
+
+        mock_uploaded_file = MagicMock()
+        mock_uploaded_file.id = "uploaded-file-123"
+
+        with patch.object(
+            converter.client.files, "upload", return_value=mock_uploaded_file
+        ):
+            with patch.object(
+                converter.client.ocr, "process", return_value=mock_ocr_response
+            ):
+                with patch.object(
+                    converter.client.files,
+                    "delete",
+                    side_effect=Exception("Delete failed"),
+                ):
+                    sources = [str(test_file)]
+                    # Should not raise an exception
+                    result = converter.run(sources=sources)
+
+                    # Verify document was still processed successfully
+                    assert len(result["documents"]) == 1
+                    assert isinstance(result["documents"][0], Document)
+
+    def test_run_mixed_sources_only_uploaded_files_deleted(
+        self, mock_ocr_response, tmp_path
+    ):
+        """Test that only uploaded files are deleted, not user-provided chunks"""
+        converter = MistralOCRDocumentConverter(
+            api_key=Secret.from_token("test-api-key"), cleanup_uploaded_files=True
+        )
+
+        # Create a temporary file
+        test_file = tmp_path / "test.pdf"
+        test_file.write_bytes(b"fake pdf content")
+
+        mock_uploaded_file = MagicMock()
+        mock_uploaded_file.id = "uploaded-file-123"
+
+        with patch.object(
+            converter.client.files, "upload", return_value=mock_uploaded_file
+        ):
+            with patch.object(
+                converter.client.ocr, "process", return_value=mock_ocr_response
+            ):
+                with patch.object(converter.client.files, "delete") as mock_delete:
+                    sources = [
+                        str(test_file),  # This will be uploaded
+                        FileChunk(file_id="user-file-123"),  # User-provided
+                        DocumentURLChunk(
+                            document_url="https://example.com/doc.pdf"
+                        ),  # URL
+                    ]
+                    result = converter.run(sources=sources)
+
+                    # Verify all sources processed
+                    assert len(result["documents"]) == 3
+                    # Only the uploaded file should be deleted
+                    mock_delete.assert_called_once_with(file_id="uploaded-file-123")
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY"),

@@ -108,6 +108,7 @@ class MistralOCRDocumentConverter:
         pages: Optional[List[int]] = None,
         image_limit: Optional[int] = None,
         image_min_size: Optional[int] = None,
+        cleanup_uploaded_files: bool = True,
     ):
         """
         Creates a MistralOCRDocumentConverter component.
@@ -125,6 +126,10 @@ class MistralOCRDocumentConverter:
             Maximum number of images to extract from the document.
         :param image_min_size:
             Minimum height and width (in pixels) for images to be extracted.
+        :param cleanup_uploaded_files:
+            If True, automatically deletes files uploaded to Mistral after processing.
+            Only affects files uploaded from local sources (str, Path, ByteStream).
+            Files provided as FileChunk are not deleted. Default is True.
         """
         self.api_key = api_key
         self.model = model
@@ -132,6 +137,7 @@ class MistralOCRDocumentConverter:
         self.pages = pages
         self.image_limit = image_limit
         self.image_min_size = image_min_size
+        self.cleanup_uploaded_files = cleanup_uploaded_files
 
         # Initialize Mistral client
         self.client = Mistral(api_key=self.api_key.resolve_value())
@@ -151,6 +157,7 @@ class MistralOCRDocumentConverter:
             pages=self.pages,
             image_limit=self.image_limit,
             image_min_size=self.image_min_size,
+            cleanup_uploaded_files=self.cleanup_uploaded_files,
         )
 
     @classmethod
@@ -217,35 +224,53 @@ class MistralOCRDocumentConverter:
         # Process each source
         documents = []
         raw_responses = []
+        uploaded_file_ids = []  # Track files we uploaded for cleanup
 
-        for source in sources:
-            try:
-                # Convert source to Mistral chunk format
-                chunk = self._convert_source_to_chunk(source)
+        try:
+            for source in sources:
+                try:
+                    # Convert source to Mistral chunk format
+                    chunk = self._convert_source_to_chunk(source)
 
-                # Call Mistral OCR API with the provided source
-                ocr_response: OCRResponse = self.client.ocr.process(
-                    model=self.model,
-                    document=chunk,
-                    include_image_base64=self.include_image_base64,
-                    pages=self.pages,
-                    image_limit=self.image_limit,
-                    image_min_size=self.image_min_size,
-                    bbox_annotation_format=bbox_annotation_format,
-                    document_annotation_format=document_annotation_format,
-                )
+                    # Track uploaded files (only those we created, not user-provided FileChunks)
+                    if isinstance(source, (str, Path, ByteStream)) and isinstance(chunk, FileChunk):
+                        uploaded_file_ids.append(chunk.file_id)
 
-                # Process the OCR response into a Document
-                document = self._process_ocr_response(ocr_response, document_annotation_schema)
-                documents.append(document)
-                raw_responses.append(ocr_response.model_dump())
-            except Exception as e:
-                logger.warning(
-                    "Could not process source {source}. Skipping it. Error: {error}",
-                    source=source,
-                    error=e,
-                )
-                continue
+                    # Call Mistral OCR API with the provided source
+                    ocr_response: OCRResponse = self.client.ocr.process(
+                        model=self.model,
+                        document=chunk,
+                        include_image_base64=self.include_image_base64,
+                        pages=self.pages,
+                        image_limit=self.image_limit,
+                        image_min_size=self.image_min_size,
+                        bbox_annotation_format=bbox_annotation_format,
+                        document_annotation_format=document_annotation_format,
+                    )
+
+                    # Process the OCR response into a Document
+                    document = self._process_ocr_response(ocr_response, document_annotation_schema)
+                    documents.append(document)
+                    raw_responses.append(ocr_response.model_dump())
+                except Exception as e:
+                    logger.warning(
+                        "Could not process source {source}. Skipping it. Error: {error}",
+                        source=source,
+                        error=e,
+                    )
+                    continue
+        finally:
+            # Cleanup uploaded files if enabled
+            if self.cleanup_uploaded_files and uploaded_file_ids:
+                for file_id in uploaded_file_ids:
+                    try:
+                        self.client.files.delete(file_id=file_id)
+                    except Exception as e:
+                        logger.warning(
+                            "Failed to delete uploaded file {file_id}. Error: {error}",
+                            file_id=file_id,
+                            error=e,
+                        )
 
         return {"documents": documents, "raw_mistral_response": raw_responses}
 
