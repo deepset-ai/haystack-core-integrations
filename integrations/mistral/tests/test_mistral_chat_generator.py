@@ -17,6 +17,7 @@ from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_chunk import Choice as ChoiceChunk
 from openai.types.chat.chat_completion_chunk import ChoiceDelta, ChoiceDeltaToolCall, ChoiceDeltaToolCallFunction
 from openai.types.completion_usage import CompletionUsage
+from pydantic import BaseModel
 
 from haystack_integrations.components.generators.mistral.chat.chat_generator import MistralChatGenerator
 
@@ -415,13 +416,21 @@ class TestMistralChatGenerator:
     )
     @pytest.mark.integration
     def test_live_run_response_format(self):
+        class NobelPrizeInfo(BaseModel):
+            recipient_name: str
+            award_year: int
+            category: str
+            achievement_description: str
+            nationality: str
+
         chat_messages = [
             ChatMessage.from_user(
-                'Provide the answer in JSON format with a key "answer". What\'s the capital of France?'
-                'For example, respond with {"answer": "Paris"}.'
+                "In 2021, American scientist David Julius received the Nobel Prize in"
+                " Physiology or Medicine for his groundbreaking discoveries on how the human body"
+                " senses temperature and touch."
             )
         ]
-        component = MistralChatGenerator(generation_kwargs={"response_format": {"type": "json_object"}})
+        component = MistralChatGenerator(generation_kwargs={"response_format": NobelPrizeInfo})
         results = component.run(chat_messages)
         assert isinstance(results, dict)
         assert "replies" in results
@@ -430,9 +439,12 @@ class TestMistralChatGenerator:
         assert isinstance(results["replies"][0], ChatMessage)
         message = results["replies"][0]
         assert isinstance(message.text, str)
-        assert "paris" in message.text.lower()
         msg = json.loads(message.text)
-        assert "answer" in msg
+        assert msg["recipient_name"] == "David Julius"
+        assert msg["award_year"] == 2021
+        assert "category" in msg
+        assert "achievement_description" in msg
+        assert msg["nationality"] == "American"
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),

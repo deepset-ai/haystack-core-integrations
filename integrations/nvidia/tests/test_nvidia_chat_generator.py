@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 import os
 from datetime import datetime
 from unittest.mock import AsyncMock, patch
@@ -15,6 +16,7 @@ from haystack.utils.auth import Secret
 from openai import AsyncOpenAI, OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
+from pydantic import BaseModel
 
 from haystack_integrations.components.generators.nvidia.chat.chat_generator import NvidiaChatGenerator
 from haystack_integrations.utils.nvidia.models import DEFAULT_API_URL
@@ -266,6 +268,42 @@ class TestNvidiaChatGenerator:
 
         assert callback.counter > 1
         assert "Paris" in callback.responses
+
+    @pytest.mark.skipif(
+        not os.environ.get("NVIDIA_API_KEY", None),
+        reason="Export an env var called NVIDIA_API_KEY containing the NVIDIA API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_response_format(self):
+        class NobelPrizeInfo(BaseModel):
+            recipient_name: str
+            award_year: int
+            category: str
+            achievement_description: str
+            nationality: str
+
+        chat_messages = [
+            ChatMessage.from_user(
+                "In 2021, American scientist David Julius received the Nobel Prize in"
+                " Physiology or Medicine for his groundbreaking discoveries on how the human body"
+                " senses temperature and touch."
+            )
+        ]
+        component = NvidiaChatGenerator(generation_kwargs={"response_format": NobelPrizeInfo})
+        results = component.run(chat_messages)
+        assert isinstance(results, dict)
+        assert "replies" in results
+        assert isinstance(results["replies"], list)
+        assert len(results["replies"]) == 1
+        assert isinstance(results["replies"][0], ChatMessage)
+        message = results["replies"][0]
+        assert isinstance(message.text, str)
+        msg = json.loads(message.text)
+        assert msg["recipient_name"] == "David Julius"
+        assert msg["award_year"] == 2021
+        assert "category" in msg
+        assert "achievement_description" in msg
+        assert msg["nationality"] == "American"
 
 
 class TestNvidiaChatGeneratorAsync:
