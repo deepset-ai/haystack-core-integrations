@@ -283,12 +283,13 @@ class TestMistralOCRDocumentConverter:
             with patch.object(
                 converter.client.ocr, "process", return_value=mock_ocr_response
             ):
-                sources = [str(test_file)]
-                result = converter.run(sources=sources)
+                with patch.object(converter.client.files, "delete"):
+                    sources = [str(test_file)]
+                    result = converter.run(sources=sources)
 
-                assert len(result["documents"]) == 1
-                assert isinstance(result["documents"][0], Document)
-                converter.client.files.upload.assert_called_once()
+                    assert len(result["documents"]) == 1
+                    assert isinstance(result["documents"][0], Document)
+                    converter.client.files.upload.assert_called_once()
 
     def test_run_with_path_object(self, mock_ocr_response, tmp_path):
         """Test processing with Path object"""
@@ -309,11 +310,12 @@ class TestMistralOCRDocumentConverter:
             with patch.object(
                 converter.client.ocr, "process", return_value=mock_ocr_response
             ):
-                sources = [test_file]
-                result = converter.run(sources=sources)
+                with patch.object(converter.client.files, "delete"):
+                    sources = [test_file]
+                    result = converter.run(sources=sources)
 
-                assert len(result["documents"]) == 1
-                assert isinstance(result["documents"][0], Document)
+                    assert len(result["documents"]) == 1
+                    assert isinstance(result["documents"][0], Document)
 
     def test_run_with_bytestream(self, mock_ocr_response):
         """Test processing with ByteStream"""
@@ -334,11 +336,12 @@ class TestMistralOCRDocumentConverter:
             with patch.object(
                 converter.client.ocr, "process", return_value=mock_ocr_response
             ):
-                sources = [bytestream]
-                result = converter.run(sources=sources)
+                with patch.object(converter.client.files, "delete"):
+                    sources = [bytestream]
+                    result = converter.run(sources=sources)
 
-                assert len(result["documents"]) == 1
-                assert isinstance(result["documents"][0], Document)
+                    assert len(result["documents"]) == 1
+                    assert isinstance(result["documents"][0], Document)
 
     def test_run_with_multiple_sources(self, mock_ocr_response, tmp_path):
         """Test processing with multiple mixed source types"""
@@ -359,15 +362,16 @@ class TestMistralOCRDocumentConverter:
             with patch.object(
                 converter.client.ocr, "process", return_value=mock_ocr_response
             ):
-                sources = [
-                    DocumentURLChunk(document_url="https://example.com/doc.pdf"),
-                    FileChunk(file_id="file-123"),
-                    str(test_file),
-                ]
-                result = converter.run(sources=sources)
+                with patch.object(converter.client.files, "delete"):
+                    sources = [
+                        DocumentURLChunk(document_url="https://example.com/doc.pdf"),
+                        FileChunk(file_id="file-123"),
+                        str(test_file),
+                    ]
+                    result = converter.run(sources=sources)
 
-                assert len(result["documents"]) == 3
-                assert all(isinstance(doc, Document) for doc in result["documents"])
+                    assert len(result["documents"]) == 3
+                    assert all(isinstance(doc, Document) for doc in result["documents"])
 
     def test_run_with_bbox_annotations(self):
         """Test processing with bbox annotation schema"""
