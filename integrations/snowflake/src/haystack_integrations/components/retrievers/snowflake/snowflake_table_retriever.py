@@ -1,12 +1,22 @@
 # SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, Literal, Optional
+from urllib.parse import quote_plus
 
 import polars as pl
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 from pandas import DataFrame
+
+from .auth import SnowflakeAuthenticator
+
+try:
+    import snowflake.connector  # type: ignore[import-not-found]
+
+    SNOWFLAKE_CONNECTOR_AVAILABLE = True
+except ImportError:
+    SNOWFLAKE_CONNECTOR_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -22,16 +32,21 @@ class SnowflakeTableRetriever:
 
     ### Usage examples:
 
-    #### Password Authentication (default):
+    #### Password Authentication:
     ```python
     executor = SnowflakeTableRetriever(
         user="<ACCOUNT-USER>",
         account="<ACCOUNT-IDENTIFIER>",
+        authenticator="SNOWFLAKE",
         api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
         database="<DATABASE-NAME>",
         db_schema="<SCHEMA-NAME>",
         warehouse="<WAREHOUSE-NAME>",
     )
+
+    # Test connection during initialization
+    if executor.test_connection():
+        print("Connection successful!")
     ```
 
     #### Key-pair Authentication (MFA):
@@ -91,38 +106,38 @@ class SnowflakeTableRetriever:
         self,
         user: str,
         account: str,
-        api_key: Optional[Secret] = Secret.from_env_var("SNOWFLAKE_API_KEY"),  # noqa: B008
+        authenticator: Literal["SNOWFLAKE", "SNOWFLAKE_JWT", "OAUTH"],
+        api_key: Optional[Secret] = None,
         database: Optional[str] = None,
         db_schema: Optional[str] = None,
         warehouse: Optional[str] = None,
         login_timeout: Optional[int] = 60,
         return_markdown: bool = True,
-        authenticator: Optional[Literal["SNOWFLAKE", "SNOWFLAKE_JWT", "OAUTH"]] = None,
-        private_key_file: Optional[Union[str, Secret]] = None,
-        private_key_file_pwd: Optional[Union[str, Secret]] = None,
-        oauth_client_id: Optional[Union[str, Secret]] = None,
-        oauth_client_secret: Optional[Union[str, Secret]] = None,
+        private_key_file: Optional[Secret] = None,
+        private_key_file_pwd: Optional[Secret] = None,
+        oauth_client_id: Optional[Secret] = None,
+        oauth_client_secret: Optional[Secret] = None,
         oauth_token_request_url: Optional[str] = None,
         oauth_authorization_url: Optional[str] = None,
     ) -> None:
         """
         :param user: User's login.
         :param account: Snowflake account identifier.
-        :param api_key: Snowflake account password. Required for default password authentication.
+        :param authenticator: Authentication method. Required. Options: "SNOWFLAKE" (password),
+            "SNOWFLAKE_JWT" (key-pair), or "OAUTH".
+        :param api_key: Snowflake account password. Required for SNOWFLAKE authentication.
         :param database: Name of the database to use.
         :param db_schema: Name of the schema to use.
         :param warehouse: Name of the warehouse to use.
         :param login_timeout: Timeout in seconds for login.
         :param return_markdown: Whether to return a Markdown-formatted string of the DataFrame.
-        :param authenticator: Authentication method. Options: "SNOWFLAKE" (default password),
-            "SNOWFLAKE_JWT" (key-pair), or "OAUTH".
-        :param private_key_file: Path to private key file or Secret containing the path.
+        :param private_key_file: Secret containing the path to private key file.
             Required for SNOWFLAKE_JWT authentication.
-        :param private_key_file_pwd: Passphrase for private key file or Secret containing the passphrase.
+        :param private_key_file_pwd: Secret containing the passphrase for private key file.
             Required for SNOWFLAKE_JWT authentication.
-        :param oauth_client_id: OAuth client ID or Secret containing the client ID.
+        :param oauth_client_id: Secret containing the OAuth client ID.
             Required for OAUTH authentication.
-        :param oauth_client_secret: OAuth client secret or Secret containing the client secret.
+        :param oauth_client_secret: Secret containing the OAuth client secret.
             Required for OAUTH authentication.
         :param oauth_token_request_url: OAuth token request URL for Client Credentials flow.
         :param oauth_authorization_url: OAuth authorization URL for Authorization Code flow.
@@ -137,65 +152,31 @@ class SnowflakeTableRetriever:
         self.login_timeout = login_timeout or 60
         self.return_markdown = return_markdown
 
-        # Authentication parameters
-        self.authenticator = authenticator or "SNOWFLAKE"
-        self.private_key_file = private_key_file
-        self.private_key_file_pwd = private_key_file_pwd
-        self.oauth_client_id = oauth_client_id
-        self.oauth_client_secret = oauth_client_secret
-        self.oauth_token_request_url = oauth_token_request_url
-        self.oauth_authorization_url = oauth_authorization_url
+        # Initialize authentication handler
+        self.authenticator_handler = SnowflakeAuthenticator(
+            authenticator=authenticator,
+            api_key=api_key,
+            private_key_file=private_key_file,
+            private_key_file_pwd=private_key_file_pwd,
+            oauth_client_id=oauth_client_id,
+            oauth_client_secret=oauth_client_secret,
+            oauth_token_request_url=oauth_token_request_url,
+            oauth_authorization_url=oauth_authorization_url,
+        )
+        self.authenticator = authenticator
 
-        # Validate authentication parameters
-        self._validate_auth_params()
+        # Test connection during initialization to verify credentials
+        if not self.test_connection():
+            msg = "Failed to connect to Snowflake with provided credentials"
+            raise ConnectionError(msg)
 
-    def _validate_auth_params(self) -> None:
+    def test_connection(self) -> bool:
         """
-        Validates authentication parameters based on the chosen authentication method.
+        Tests the connection with the current authentication settings.
 
-        :raises ValueError: If required parameters are missing for the selected authentication method.
+        :returns: True if connection is successful, False otherwise.
         """
-        if self.authenticator == "SNOWFLAKE_JWT":
-            if not self.private_key_file:
-                msg = "private_key_file is required for SNOWFLAKE_JWT authentication"
-                raise ValueError(msg)
-            if not self.private_key_file_pwd:
-                msg = "private_key_file_pwd is required for SNOWFLAKE_JWT authentication"
-                raise ValueError(msg)
-        elif self.authenticator == "OAUTH":
-            if not self.oauth_client_id:
-                msg = "oauth_client_id is required for OAUTH authentication"
-                raise ValueError(msg)
-            if not self.oauth_client_secret:
-                msg = "oauth_client_secret is required for OAUTH authentication"
-                raise ValueError(msg)
-        elif self.authenticator == "SNOWFLAKE":
-            if not self.api_key:
-                msg = "api_key is required for SNOWFLAKE (password) authentication"
-                raise ValueError(msg)
-            try:
-                api_key_value = self.api_key.resolve_value()
-                if not api_key_value:
-                    msg = "api_key is required for SNOWFLAKE (password) authentication"
-                    raise ValueError(msg)
-            except ValueError as e:
-                if "authentication environment variables are set" in str(e):
-                    msg = "api_key is required for SNOWFLAKE (password) authentication"
-                    raise ValueError(msg) from e
-                raise
-
-    def _resolve_secret_value(self, value: Optional[Union[str, Secret]]) -> Optional[str]:
-        """
-        Resolves a Secret value or returns the string value.
-
-        :param value: String or Secret to resolve.
-        :returns: Resolved string value or None.
-        """
-        if value is None:
-            return None
-        if isinstance(value, Secret):
-            return value.resolve_value()
-        return value
+        return self.authenticator_handler.test_connection(user=self.user, account=self.account, database=self.database)
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -213,33 +194,21 @@ class SnowflakeTableRetriever:
             "login_timeout": self.login_timeout,
             "return_markdown": self.return_markdown,
             "authenticator": self.authenticator,
-            "oauth_token_request_url": self.oauth_token_request_url,
-            "oauth_authorization_url": self.oauth_authorization_url,
+            "oauth_token_request_url": self.authenticator_handler.oauth_token_request_url,
+            "oauth_authorization_url": self.authenticator_handler.oauth_authorization_url,
         }
 
         # Handle Secret fields
-        if self.api_key:
-            data["api_key"] = self.api_key.to_dict()
-        if self.private_key_file:
-            data["private_key_file"] = (
-                self.private_key_file.to_dict() if isinstance(self.private_key_file, Secret) else self.private_key_file
-            )
-        if self.private_key_file_pwd:
-            data["private_key_file_pwd"] = (
-                self.private_key_file_pwd.to_dict()
-                if isinstance(self.private_key_file_pwd, Secret)
-                else self.private_key_file_pwd
-            )
-        if self.oauth_client_id:
-            data["oauth_client_id"] = (
-                self.oauth_client_id.to_dict() if isinstance(self.oauth_client_id, Secret) else self.oauth_client_id
-            )
-        if self.oauth_client_secret:
-            data["oauth_client_secret"] = (
-                self.oauth_client_secret.to_dict()
-                if isinstance(self.oauth_client_secret, Secret)
-                else self.oauth_client_secret
-            )
+        if self.authenticator_handler.api_key:
+            data["api_key"] = self.authenticator_handler.api_key.to_dict()
+        if self.authenticator_handler.private_key_file:
+            data["private_key_file"] = self.authenticator_handler.private_key_file.to_dict()
+        if self.authenticator_handler.private_key_file_pwd:
+            data["private_key_file_pwd"] = self.authenticator_handler.private_key_file_pwd.to_dict()
+        if self.authenticator_handler.oauth_client_id:
+            data["oauth_client_id"] = self.authenticator_handler.oauth_client_id.to_dict()
+        if self.authenticator_handler.oauth_client_secret:
+            data["oauth_client_secret"] = self.authenticator_handler.oauth_client_secret.to_dict()
 
         return default_to_dict(self, **data)
 
@@ -280,13 +249,22 @@ class SnowflakeTableRetriever:
             msg = "Missing required Snowflake connection parameters: user and account."
             raise ValueError(msg)
 
-        # Base URI construction
-        if self.authenticator == "SNOWFLAKE" and self.api_key:
-            # Traditional password authentication
-            uri = f"snowflake://{self.user}:{self.api_key.resolve_value()}@{self.account}"
+        # Base URI construction - encode user and account for URI safety
+        encoded_user = quote_plus(self.user)
+        encoded_account = quote_plus(self.account)
+
+        password = self.authenticator_handler.get_password_for_uri()
+        if password:
+            # Traditional password authentication - encode password
+            encoded_password = quote_plus(password)
+            uri = f"snowflake://{encoded_user}:{encoded_password}@{encoded_account}"
+        elif self.authenticator == "SNOWFLAKE_JWT":
+            # For JWT with ADBC, use account-only URI and pass username as parameter
+            # This avoids ADBC interpreting user@account as empty password auth
+            uri = f"snowflake://{encoded_account}"
         else:
-            # MFA authentication methods (no password in URI)
-            uri = f"snowflake://{self.user}@{self.account}"
+            # Other MFA authentication methods (OAuth, etc.)
+            uri = f"snowflake://{encoded_user}@{encoded_account}"
 
         # Add database and schema
         if self.database:
@@ -300,27 +278,9 @@ class SnowflakeTableRetriever:
             params.append(f"warehouse={self.warehouse}")
         params.append(f"login_timeout={self.login_timeout}")
 
-        # Add authentication-specific parameters
-        if self.authenticator == "SNOWFLAKE_JWT":
-            params.append(f"authenticator={self.authenticator}")
-            if self.private_key_file:
-                private_key_path = self._resolve_secret_value(self.private_key_file)
-                params.append(f"private_key_file={private_key_path}")
-            if self.private_key_file_pwd:
-                private_key_pwd = self._resolve_secret_value(self.private_key_file_pwd)
-                params.append(f"private_key_file_pwd={private_key_pwd}")
-        elif self.authenticator == "OAUTH":
-            params.append(f"authenticator={self.authenticator}")
-            if self.oauth_client_id:
-                client_id = self._resolve_secret_value(self.oauth_client_id)
-                params.append(f"oauth_client_id={client_id}")
-            if self.oauth_client_secret:
-                client_secret = self._resolve_secret_value(self.oauth_client_secret)
-                params.append(f"oauth_client_secret={client_secret}")
-            if self.oauth_token_request_url:
-                params.append(f"oauth_token_request_url={self.oauth_token_request_url}")
-            if self.oauth_authorization_url:
-                params.append(f"oauth_authorization_url={self.oauth_authorization_url}")
+        # Add authentication-specific parameters (pass user for JWT ADBC support)
+        auth_params = self.authenticator_handler.build_auth_params(user=self.user)
+        params.extend(auth_params)
 
         if params:
             uri += "?" + "&".join(params)
@@ -340,21 +300,17 @@ class SnowflakeTableRetriever:
         masked_uri = uri
 
         # Mask password if present
-        if self.api_key and self.authenticator == "SNOWFLAKE":
-            if resolved_api_key := self.api_key.resolve_value():
-                masked_uri = masked_uri.replace(resolved_api_key, "***REDACTED***")
+        if self.authenticator == "SNOWFLAKE":
+            password = self.authenticator_handler.get_password_for_uri()
+            if password:
+                masked_uri = masked_uri.replace(password, "***REDACTED***")
 
-        # Mask private key password
-        if self.private_key_file_pwd:
-            private_key_pwd = self._resolve_secret_value(self.private_key_file_pwd)
-            if private_key_pwd:
-                masked_uri = masked_uri.replace(private_key_pwd, "***REDACTED***")
-
-        # Mask OAuth client secret
-        if self.oauth_client_secret:
-            client_secret = self._resolve_secret_value(self.oauth_client_secret)
-            if client_secret:
-                masked_uri = masked_uri.replace(client_secret, "***REDACTED***")
+        # Mask authentication secrets in parameters
+        if "?" in masked_uri:
+            base_uri, query_params = masked_uri.split("?", 1)
+            param_list = query_params.split("&")
+            masked_params = self.authenticator_handler.create_masked_params(param_list)
+            masked_uri = base_uri + "?" + "&".join(masked_params)
 
         return masked_uri
 
@@ -381,6 +337,76 @@ class SnowflakeTableRetriever:
                 exc_info=True,
             )
             return ""
+
+    def _execute_query_with_connector(self, query: str) -> Optional[pl.DataFrame]:
+        """
+        Executes a query using snowflake-connector-python directly (for JWT authentication).
+        This bypasses ADBC compatibility issues.
+
+        :param query: SQL query to execute.
+        :returns: Polars DataFrame with results, or None if execution fails.
+        """
+        if not SNOWFLAKE_CONNECTOR_AVAILABLE:
+            logger.error("snowflake-connector-python is not installed")
+            return None
+
+        try:
+            # Build connection parameters
+            conn_params: Dict[str, Any] = {
+                "user": self.user,
+                "account": self.account,
+                "authenticator": self.authenticator.lower(),
+            }
+
+            if self.database:
+                conn_params["database"] = self.database
+            if self.db_schema:
+                conn_params["schema"] = self.db_schema
+            if self.warehouse:
+                conn_params["warehouse"] = self.warehouse
+
+            # Add JWT-specific parameters
+            if self.authenticator == "SNOWFLAKE_JWT":
+                private_key_file = self.authenticator_handler.resolve_secret_value(
+                    self.authenticator_handler.private_key_file
+                )
+                if private_key_file:
+                    conn_params["private_key_file"] = private_key_file
+
+                if self.authenticator_handler.private_key_file_pwd:
+                    private_key_pwd = self.authenticator_handler.resolve_secret_value(
+                        self.authenticator_handler.private_key_file_pwd
+                    )
+                    if private_key_pwd:
+                        conn_params["private_key_file_pwd"] = private_key_pwd
+
+            # Connect and execute query
+            conn = snowflake.connector.connect(**conn_params)
+            try:
+                cursor = conn.cursor()
+                cursor.execute(query)
+
+                # Fetch results and convert to Polars DataFrame
+                columns = [desc[0] for desc in cursor.description]
+                data = cursor.fetchall()
+
+                # Convert to Polars DataFrame
+                if data:
+                    data_dict = {col: [row[i] for row in data] for i, col in enumerate(columns)}
+                    return pl.DataFrame(data_dict)
+                else:
+                    return pl.DataFrame()
+            finally:
+                conn.close()
+
+        except Exception as e:
+            logger.error(
+                "Error executing query with snowflake-connector - Error {errno}: {error_msg}",
+                errno=getattr(e, "errno", "N/A"),
+                error_msg=str(e),
+                exc_info=True,
+            )
+            return None
 
     @staticmethod
     def _empty_response() -> Dict[str, Any]:
@@ -417,51 +443,61 @@ class SnowflakeTableRetriever:
         logger.info("Starting query execution")
         logger.info("Query: {query}", query=query)
 
-        try:
-            # Construct the URI using the helper method
-            uri = self._snowflake_uri_constructor()
-        except Exception as e:
-            logger.error(
-                "Error constructing Snowflake URI - Error {errno}: {error_msg}",
-                errno=getattr(e, "errno", "N/A"),
-                error_msg=getattr(e, "msg", str(e)),
-                exc_info=True,
-            )
-            return self._empty_response()
+        # Use snowflake-connector-python directly for JWT to bypass ADBC compatibility issues
+        if self.authenticator == "SNOWFLAKE_JWT":
+            logger.info("Using snowflake-connector-python for JWT authentication")
+            data = self._execute_query_with_connector(query)
 
-        try:
-            # Execute the query via Polars using the ADBC engine
-            data = pl.read_database_uri(query, uri, engine="adbc")
-
-            # Check for valid data and schema before proceeding
-            if data.is_empty() or data.schema is None:
-                logger.warning("Query returned an empty DataFrame or invalid schema")
+            if data is None:
+                logger.error("Query execution failed with snowflake-connector")
+                return self._empty_response()
+        else:
+            # Use ADBC via Polars for other authentication methods
+            try:
+                # Construct the URI using the helper method
+                uri = self._snowflake_uri_constructor()
+            except Exception as e:
+                logger.error(
+                    "Error constructing Snowflake URI - Error {errno}: {error_msg}",
+                    errno=getattr(e, "errno", "N/A"),
+                    error_msg=getattr(e, "msg", str(e)),
+                    exc_info=True,
+                )
                 return self._empty_response()
 
-            logger.info(
-                "Query execution completed. Polars DataFrame shape: {shape}, columns: {columns}",
-                shape=data.shape,
-                columns=data.columns,
-            )
-        except Exception as e:
-            error_msg = getattr(e, "msg", str(e))  # Get error message
+            try:
+                # Execute the query via Polars using the ADBC engine
+                data = pl.read_database_uri(query, uri, engine="adbc")
+            except Exception as e:
+                error_msg = getattr(e, "msg", str(e))
 
-            # Check if the error message indicates a SQL compilation issue
-            if "SQL compilation error" in error_msg or "invalid identifier" in error_msg:
-                logger.warning(
-                    "SQL compilation error encountered: {error_msg}",
-                    error_msg=error_msg,
-                    exc_info=False,  # Avoid full traceback in logs for expected warnings
-                )
-            else:
-                logger.error(
-                    "Error executing query via ADBC - Error {errno}: {error_msg}",
-                    errno=getattr(e, "errno", "N/A"),
-                    error_msg=error_msg,
-                    exc_info=True,  # Preserve traceback for debugging
-                )
+                # Check if the error message indicates a SQL compilation issue
+                if "SQL compilation error" in error_msg or "invalid identifier" in error_msg:
+                    logger.warning(
+                        "SQL compilation error encountered: {error_msg}",
+                        error_msg=error_msg,
+                        exc_info=False,
+                    )
+                else:
+                    logger.error(
+                        "Error executing query via ADBC - Error {errno}: {error_msg}",
+                        errno=getattr(e, "errno", "N/A"),
+                        error_msg=error_msg,
+                        exc_info=True,
+                    )
 
+                return self._empty_response()
+
+        # Check for valid data and schema before proceeding
+        if data.is_empty() or data.schema is None:
+            logger.warning("Query returned an empty DataFrame or invalid schema")
             return self._empty_response()
+
+        logger.info(
+            "Query execution completed. Polars DataFrame shape: {shape}, columns: {columns}",
+            shape=data.shape,
+            columns=data.columns,
+        )
 
         # Convert Polars DataFrame to Pandas DataFrame deliberately for downstream compatibility
         try:

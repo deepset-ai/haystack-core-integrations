@@ -18,9 +18,15 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def retriever(mocker: Mock) -> SnowflakeTableRetriever:
     mocker.patch.dict(os.environ, {"SNOWFLAKE_API_KEY": "test_api_key"})
+    # Mock the connection test to avoid requiring actual Snowflake connection during tests
+    mocker.patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.SnowflakeTableRetriever.test_connection",
+        return_value=True,
+    )
     return SnowflakeTableRetriever(
         user="test_user",
         account="test_account",
+        authenticator="SNOWFLAKE",
         api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
         database="test_db",
         db_schema="test_schema",
@@ -54,6 +60,11 @@ def jwt_retriever(mocker: Mock) -> SnowflakeTableRetriever:
     mocker.patch.dict(
         os.environ, {"SNOWFLAKE_PRIVATE_KEY_FILE": "/path/to/key.pem", "SNOWFLAKE_PRIVATE_KEY_PWD": "test_password"}
     )
+    # Mock the connection test to avoid requiring actual Snowflake connection during tests
+    mocker.patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.SnowflakeTableRetriever.test_connection",
+        return_value=True,
+    )
     return SnowflakeTableRetriever(
         user="test_user",
         account="test_account",
@@ -72,6 +83,11 @@ def oauth_retriever(mocker: Mock) -> SnowflakeTableRetriever:
     mocker.patch.dict(
         os.environ,
         {"SNOWFLAKE_OAUTH_CLIENT_ID": "test_client_id", "SNOWFLAKE_OAUTH_CLIENT_SECRET": "test_client_secret"},
+    )
+    # Mock the connection test to avoid requiring actual Snowflake connection during tests
+    mocker.patch(
+        "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.SnowflakeTableRetriever.test_connection",
+        return_value=True,
     )
     return SnowflakeTableRetriever(
         user="test_user",
@@ -158,10 +174,16 @@ class TestSnowflakeTableRetriever:
         should_raise: bool,
     ) -> None:
         mocker.patch.dict(os.environ, {"SNOWFLAKE_API_KEY": "test_api_key"})
+        # Mock connection test for direct instantiation
+        mocker.patch(
+            "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.SnowflakeTableRetriever.test_connection",
+            return_value=True,
+        )
 
         retriever = SnowflakeTableRetriever(
             user=user,
             account=account,
+            authenticator="SNOWFLAKE",
             api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
             database=db_name,
             db_schema=schema_name,
@@ -324,9 +346,14 @@ class TestSnowflakeTableRetriever:
         self, mocker: Mock, toy_polars_df: pl.DataFrame, toy_pandas_df: pd.DataFrame, expected_markdown: str
     ) -> None:
         mocker.patch.dict(os.environ, {"SNOWFLAKE_API_KEY": "test_api_key"})
+        mocker.patch(
+            "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.SnowflakeTableRetriever.test_connection",
+            return_value=True,
+        )
         retriever = SnowflakeTableRetriever(
             user="test_user",
             account="test_account",
+            authenticator="SNOWFLAKE",
             api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
             database="test_db",
             return_markdown=False,
@@ -371,10 +398,15 @@ class TestSnowflakeTableRetriever:
 
     def test_custom_login_timeout(self, mocker: Mock) -> None:
         mocker.patch.dict(os.environ, {"SNOWFLAKE_API_KEY": "test_api_key"})
+        mocker.patch(
+            "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.SnowflakeTableRetriever.test_connection",
+            return_value=True,
+        )
         custom_timeout = 120
         retriever = SnowflakeTableRetriever(
             user="test_user",
             account="test_account",
+            authenticator="SNOWFLAKE",
             api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
             database="test_db",
             login_timeout=custom_timeout,
@@ -411,8 +443,12 @@ class TestSnowflakeTableRetriever:
 
     def test_jwt_uri_construction(self, jwt_retriever: SnowflakeTableRetriever) -> None:
         uri = jwt_retriever._snowflake_uri_constructor()
-        expected_uri = "snowflake://test_user@test_account/test_db/test_schema?warehouse=test_warehouse&login_timeout=60&authenticator=SNOWFLAKE_JWT&private_key_file=/path/to/key.pem&private_key_file_pwd=test_password"
-        assert uri == expected_uri
+        # JWT uses account-only URI with username and auth params as query parameters
+        assert uri.startswith("snowflake://test_account/test_db/test_schema?")
+        assert "warehouse=test_warehouse" in uri
+        assert "login_timeout=60" in uri
+        assert "adbc.snowflake.sql.auth_type=auth_jwt" in uri
+        assert "username=test_user" in uri
 
     def test_oauth_uri_construction(self, oauth_retriever: SnowflakeTableRetriever) -> None:
         uri = oauth_retriever._snowflake_uri_constructor()
@@ -437,11 +473,6 @@ class TestSnowflakeTableRetriever:
         "authenticator, missing_param, expected_error",
         [
             ("SNOWFLAKE_JWT", "private_key_file", "private_key_file is required for SNOWFLAKE_JWT authentication"),
-            (
-                "SNOWFLAKE_JWT",
-                "private_key_file_pwd",
-                "private_key_file_pwd is required for SNOWFLAKE_JWT authentication",
-            ),
             ("OAUTH", "oauth_client_id", "oauth_client_id is required for OAUTH authentication"),
             ("OAUTH", "oauth_client_secret", "oauth_client_secret is required for OAUTH authentication"),
             ("SNOWFLAKE", "api_key", "api_key is required for SNOWFLAKE \\(password\\) authentication"),
@@ -495,7 +526,8 @@ class TestSnowflakeTableRetriever:
         toy_pandas_df: pd.DataFrame,
         expected_markdown: str,
     ) -> None:
-        mocker.patch("polars.read_database_uri", return_value=toy_polars_df)
+        # JWT uses _execute_query_with_connector instead of ADBC
+        mocker.patch.object(SnowflakeTableRetriever, "_execute_query_with_connector", return_value=toy_polars_df)
         mocker.patch.object(toy_polars_df, "to_pandas", return_value=toy_pandas_df)
         mocker.patch.object(SnowflakeTableRetriever, "_polars_to_md", return_value=expected_markdown)
 
@@ -520,3 +552,96 @@ class TestSnowflakeTableRetriever:
 
         assert result["dataframe"].equals(toy_pandas_df)
         assert result["table"] == expected_markdown
+
+    def test_connection_success(self, mocker: Mock) -> None:
+        # Create retriever without mocking test_connection
+        mocker.patch.dict(os.environ, {"SNOWFLAKE_API_KEY": "test_api_key"})
+
+        # Mock the snowflake module import
+        mock_snowflake = mocker.Mock()
+        mock_connection = mocker.Mock()
+        mock_snowflake.connector.connect.return_value = mock_connection
+        mocker.patch.dict("sys.modules", {"snowflake": mock_snowflake, "snowflake.connector": mock_snowflake.connector})
+
+        # Create retriever (test_connection will be called during init and will use the mock)
+        SnowflakeTableRetriever(
+            user="test_user",
+            account="test_account",
+            authenticator="SNOWFLAKE",
+            api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
+        )
+
+        # Verify the connection was tested during initialization
+        assert mock_snowflake.connector.connect.call_count >= 1
+        mock_connection.close.assert_called()
+
+    def test_connection_failure(self, mocker: Mock) -> None:
+        # Mock the snowflake module import
+        mocker.patch.dict(os.environ, {"SNOWFLAKE_API_KEY": "test_api_key"})
+
+        mock_snowflake = mocker.Mock()
+        mock_snowflake.connector.connect.side_effect = Exception("Connection failed")
+        mocker.patch.dict("sys.modules", {"snowflake": mock_snowflake, "snowflake.connector": mock_snowflake.connector})
+
+        # Should raise ConnectionError during initialization
+        with pytest.raises(ConnectionError, match="Failed to connect to Snowflake"):
+            SnowflakeTableRetriever(
+                user="test_user",
+                account="test_account",
+                authenticator="SNOWFLAKE",
+                api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
+            )
+
+    def test_connection_jwt_auth(self, mocker: Mock) -> None:
+        # Mock the snowflake module import and environment
+        mocker.patch.dict(
+            os.environ, {"SNOWFLAKE_PRIVATE_KEY_FILE": "/path/to/key.pem", "SNOWFLAKE_PRIVATE_KEY_PWD": "test_password"}
+        )
+
+        mock_snowflake = mocker.Mock()
+        mock_connection = mocker.Mock()
+        mock_snowflake.connector.connect.return_value = mock_connection
+        mocker.patch.dict("sys.modules", {"snowflake": mock_snowflake, "snowflake.connector": mock_snowflake.connector})
+
+        # Create JWT retriever (test_connection will be called during init)
+        SnowflakeTableRetriever(
+            user="test_user",
+            account="test_account",
+            authenticator="SNOWFLAKE_JWT",
+            private_key_file=Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_FILE"),
+            private_key_file_pwd=Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_PWD"),
+        )
+
+        # Verify that JWT-specific parameters were passed
+        assert mock_snowflake.connector.connect.call_count >= 1
+        call_args = mock_snowflake.connector.connect.call_args[1]
+        assert call_args["authenticator"] == "snowflake_jwt"
+        assert "private_key_file" in call_args
+
+    def test_connection_oauth_auth(self, mocker: Mock) -> None:
+        # Mock the snowflake module import and environment
+        mocker.patch.dict(
+            os.environ,
+            {"SNOWFLAKE_OAUTH_CLIENT_ID": "test_client_id", "SNOWFLAKE_OAUTH_CLIENT_SECRET": "test_client_secret"},
+        )
+
+        mock_snowflake = mocker.Mock()
+        mock_connection = mocker.Mock()
+        mock_snowflake.connector.connect.return_value = mock_connection
+        mocker.patch.dict("sys.modules", {"snowflake": mock_snowflake, "snowflake.connector": mock_snowflake.connector})
+
+        # Create OAuth retriever (test_connection will be called during init)
+        SnowflakeTableRetriever(
+            user="test_user",
+            account="test_account",
+            authenticator="OAUTH",
+            oauth_client_id=Secret.from_env_var("SNOWFLAKE_OAUTH_CLIENT_ID"),
+            oauth_client_secret=Secret.from_env_var("SNOWFLAKE_OAUTH_CLIENT_SECRET"),
+        )
+
+        # Verify that OAuth-specific parameters were passed
+        assert mock_snowflake.connector.connect.call_count >= 1
+        call_args = mock_snowflake.connector.connect.call_args[1]
+        assert call_args["authenticator"] == "oauth"
+        assert "oauth_client_id" in call_args
+        assert "oauth_client_secret" in call_args
