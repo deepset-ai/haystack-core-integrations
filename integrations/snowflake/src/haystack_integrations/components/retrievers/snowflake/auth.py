@@ -5,9 +5,10 @@ from pathlib import Path
 from typing import Any, Literal, Optional
 from urllib.parse import quote
 
-import snowflake.connector  # type: ignore[import-not-found]
 from haystack import logging
 from haystack.utils import Secret
+
+import snowflake.connector  # type: ignore[import-not-found]
 
 logger = logging.getLogger(__name__)
 

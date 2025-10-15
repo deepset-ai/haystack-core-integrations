@@ -5,10 +5,11 @@ from typing import Any, Dict, Literal, Optional
 from urllib.parse import quote_plus
 
 import polars as pl
-import snowflake.connector  # type: ignore[import-not-found]
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 from pandas import DataFrame
+
+import snowflake.connector  # type: ignore[import-not-found]
 
 from .auth import SnowflakeAuthenticator
 
