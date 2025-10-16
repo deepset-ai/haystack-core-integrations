@@ -53,6 +53,16 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
             same_connection = document_store._connection
             assert same_connection is document_store._connection
 
+    def test_delete_all_documents(self, document_store: PgvectorDocumentStore):
+        # Given some documents in the document store
+        document_store.write_documents([Document(id=str(i)) for i in range(10)])
+
+        # When I delete all documents from the document store
+        document_store.delete_all_documents()
+
+        # Then the document store should be empty
+        assert document_store.count_documents() == 0
+
 
 @pytest.mark.usefixtures("patches_for_unit_tests")
 def test_init(monkeypatch):
