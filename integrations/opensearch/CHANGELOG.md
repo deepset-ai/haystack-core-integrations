@@ -1,5 +1,26 @@
 # Changelog
 
+## [integrations/opensearch-v4.4.0] - 2025-10-09
+
+### 🚀 Features
+
+- Allow `OpenSearch` embedders to query a different `DocumentStore` at runtime (#2361)
+
+
+## [integrations/opensearch-v4.3.0] - 2025-10-07
+
+### 🚀 Features
+
+- Adding the operation `delete_all_documents` to the `OpenSearchDocumentStore` (#2321)
+
+### 🧹 Chores
+
+- Fix linting for ruff 0.12.0 (#1969)
+- Remove black (#1985)
+- Standardize readmes - part 2 (#2205)
+- Fix linting in tests for opensearch (#2259)
+
+
 ## [integrations/opensearch-v4.2.0] - 2025-06-12
 
 ### 🐛 Bug Fixes
