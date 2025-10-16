@@ -814,6 +814,7 @@ class MCPTool(Tool):
         description: str | None = None,
         connection_timeout: int = 30,
         invocation_timeout: int = 30,
+        eager_connect: bool = True,
     ):
         """
         Initialize the MCP tool.
@@ -823,6 +824,9 @@ class MCPTool(Tool):
         :param description: Custom description (if None, server description will be used)
         :param connection_timeout: Timeout in seconds for server connection
         :param invocation_timeout: Default timeout in seconds for tool invocations
+        :param eager_connect: If True (default), connect to server during initialization.
+                             If False, defer connection until warm up or first tool use
+                             whichever comes first.
         :raises MCPConnectionError: If connection to the server fails
         :raises MCPToolNotFoundError: If no tools are available or the requested tool is not found
         :raises TimeoutError: If connection times out
@@ -832,6 +836,19 @@ class MCPTool(Tool):
         self._server_info = server_info
         self._connection_timeout = connection_timeout
         self._invocation_timeout = invocation_timeout
+        self._eager_connect = eager_connect
+        self._client: MCPClient | None = None
+        self._worker: _MCPClientSessionManager | None = None
+        self._lock = threading.RLock()
+
+        # don't connect now; initialize permissively
+        if not eager_connect:
+            # Permissive placeholder JSON Schema so the Tool is valid
+            # without discovering the remote schema during validation.
+            # Replaced with the strict schema on first use.
+            params = {"type": "object", "properties": {}, "additionalProperties": True}
+            super().__init__(name=name, description=description or "", parameters=params, function=self._invoke_tool)
+            return
 
         logger.debug(f"TOOL: Initializing MCPTool '{name}'")
 
@@ -906,9 +923,15 @@ class MCPTool(Tool):
         """
         logger.debug(f"TOOL: Invoking tool '{self.name}' with args: {kwargs}")
         try:
+            # Connect on first use if eager_connect is turned off
+            if not self._eager_connect:
+                self._ensure_connected()
 
             async def invoke():
                 logger.debug(f"TOOL: Inside invoke coroutine for '{self.name}'")
+                # This should never happen, and mypy doesn't know that
+                if self._client is None:
+                    raise MCPConnectionError(message="Not connected to an MCP server", operation="call_tool")
                 result = await asyncio.wait_for(
                     self._client.call_tool(self.name, kwargs), timeout=self._invocation_timeout
                 )
@@ -939,7 +962,10 @@ class MCPTool(Tool):
         :raises TimeoutError: If the operation times out
         """
         try:
-            return await asyncio.wait_for(self._client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
+            if not self._eager_connect:
+                self._ensure_connected()
+            client = cast(MCPClient, self._client)
+            return await asyncio.wait_for(client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
         except asyncio.TimeoutError as e:
             message = f"Tool invocation timed out after {self._invocation_timeout} seconds"
             raise TimeoutError(message) from e
@@ -948,6 +974,33 @@ class MCPTool(Tool):
                 raise
             message = f"Failed to invoke tool '{self.name}' with args: {kwargs} , got error: {e!s}"
             raise MCPInvocationError(message, self.name, kwargs) from e
+
+    def warm_up(self) -> None:
+        """Connect and fetch the tool schema eager_connect is turned off."""
+        if self._eager_connect:
+            return
+        self._ensure_connected()
+
+    def _ensure_connected(self) -> None:
+        """Establish connection if not connected eager_connect is turned off."""
+        with self._lock:
+            if self._client is not None:
+                return
+            client = self._server_info.create_client()
+            worker = _MCPClientSessionManager(client, timeout=self._connection_timeout)
+            tools = worker.tools()
+            tool = next((t for t in tools if t.name == self.name), None)
+            if tool is None:
+                available = [t.name for t in tools]
+                msg = f"Tool '{self.name}' not found on server. Available tools: {', '.join(available)}"
+                raise MCPToolNotFoundError(msg, tool_name=self.name, available_tools=available)
+            # Publish connection and tighten parameters for better prompting
+            self._client = client
+            self._worker = worker
+            try:
+                self.parameters = tool.inputSchema
+            except Exception as e:
+                logger.debug(f"TOOL: Could not update strict parameters after connect: {e!s}")
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -966,6 +1019,7 @@ class MCPTool(Tool):
             "server_info": self._server_info.to_dict(),
             "connection_timeout": self._connection_timeout,
             "invocation_timeout": self._invocation_timeout,
+            "eager_connect": self._eager_connect,
         }
         return {
             "type": generate_qualified_class_name(type(self)),
@@ -998,6 +1052,7 @@ class MCPTool(Tool):
         # Handle backward compatibility for timeout parameters
         connection_timeout = inner_data.get("connection_timeout", 30)
         invocation_timeout = inner_data.get("invocation_timeout", 30)
+        eager_connect = inner_data.get("eager_connect", True)
 
         # Create a new MCPTool instance with the deserialized parameters
         # This will establish a new connection to the MCP server
@@ -1007,6 +1062,7 @@ class MCPTool(Tool):
             server_info=server_info,
             connection_timeout=connection_timeout,
             invocation_timeout=invocation_timeout,
+            eager_connect=eager_connect,
         )
 
     def close(self):
