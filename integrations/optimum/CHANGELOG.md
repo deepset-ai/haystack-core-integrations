@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/optimum-v1.2.1] - 2025-10-16
+
+### 🐛 Bug Fixes
+
+- Optimum - pin torch<2.9.0 (#2392)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+
 ## [integrations/optimum-v1.2.0] - 2025-06-30
 
 ### 🐛 Bug Fixes
