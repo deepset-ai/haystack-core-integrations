@@ -94,7 +94,7 @@ class TestDocumentStoreAsync:
             same_connection = document_store._async_connection
             assert same_connection is document_store._async_connection
 
-    async def test_delete_all_documetns_async(self, document_store: PgvectorDocumentStore):
+    async def test_delete_all_documents_async(self, document_store: PgvectorDocumentStore):
         # Given some documents in the document store
         document_store.write_documents([Document(id=str(i)) for i in range(10)])
 
