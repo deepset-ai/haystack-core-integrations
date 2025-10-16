@@ -38,10 +38,6 @@ class SnowflakeTableRetriever:
         db_schema="<SCHEMA-NAME>",
         warehouse="<WAREHOUSE-NAME>",
     )
-
-    # Test connection during initialization
-    if executor.test_connection():
-        print("Connection successful!")
     ```
 
     #### Key-pair Authentication (MFA):
@@ -129,7 +125,7 @@ class SnowflakeTableRetriever:
         :param private_key_file: Secret containing the path to private key file.
             Required for SNOWFLAKE_JWT authentication.
         :param private_key_file_pwd: Secret containing the passphrase for private key file.
-            Required for SNOWFLAKE_JWT authentication.
+            Required only when the private key file is encrypted.
         :param oauth_client_id: Secret containing the OAuth client ID.
             Required for OAUTH authentication.
         :param oauth_client_secret: Secret containing the OAuth client secret.
@@ -298,7 +294,8 @@ class SnowflakeTableRetriever:
         if self.authenticator == "SNOWFLAKE":
             password = self.authenticator_handler.get_password_for_uri()
             if password:
-                masked_uri = masked_uri.replace(password, "***REDACTED***")
+                encoded_password = quote_plus(password)
+                masked_uri = masked_uri.replace(encoded_password, "***REDACTED***")
 
         # Mask authentication secrets in parameters
         if "?" in masked_uri:

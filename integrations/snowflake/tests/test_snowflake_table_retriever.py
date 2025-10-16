@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 from unittest.mock import Mock
+from urllib.parse import quote_plus
 
 import pandas as pd
 import polars as pl
@@ -646,3 +647,137 @@ class TestSnowflakeTableRetriever:
         assert call_args["authenticator"] == "oauth"
         assert "oauth_client_id" in call_args
         assert "oauth_client_secret" in call_args
+
+    def test_polars_to_md_error_handling(self, retriever: SnowflakeTableRetriever, mocker: Mock) -> None:
+        # Test error handling in _polars_to_md
+        mock_data = mocker.Mock(spec=pl.DataFrame)
+        mock_data.is_empty.return_value = False
+        mocker.patch("polars.Config", side_effect=Exception("Config error"))
+
+        result = retriever._polars_to_md(mock_data)
+        assert result == ""
+
+    def test_execute_query_with_connector_success(
+        self, retriever: SnowflakeTableRetriever, mocker: Mock, toy_polars_df: pl.DataFrame
+    ) -> None:
+        # Mock snowflake.connector.connect
+        mock_cursor = mocker.Mock()
+        mock_cursor.description = [("VERSION",), ("USER",), ("DATABASE",)]
+        mock_cursor.fetchall.return_value = [("9.32.1", "CHINB", "SNOWFLAKE_SAMPLE_DATA")]
+
+        mock_connection = mocker.Mock()
+        mock_connection.cursor.return_value = mock_cursor
+        mocker.patch("snowflake.connector.connect", return_value=mock_connection)
+
+        # Switch to JWT auth to trigger _execute_query_with_connector
+        retriever.authenticator = "SNOWFLAKE_JWT"
+
+        result = retriever._execute_query_with_connector("SELECT VERSION(), CURRENT_USER(), CURRENT_DATABASE()")
+
+        assert result is not None
+        assert isinstance(result, pl.DataFrame)
+        assert result.shape[0] == 1
+        assert result.shape[1] == 3
+        mock_connection.close.assert_called_once()
+
+    def test_execute_query_with_connector_error(self, retriever: SnowflakeTableRetriever, mocker: Mock) -> None:
+        # Mock snowflake.connector.connect to raise an exception
+        mocker.patch("snowflake.connector.connect", side_effect=Exception("Connection failed"))
+
+        result = retriever._execute_query_with_connector("SELECT 1")
+        assert result is None
+
+    def test_execute_query_with_connector_empty_result(self, retriever: SnowflakeTableRetriever, mocker: Mock) -> None:
+        # Mock snowflake.connector.connect with empty results
+        mock_cursor = mocker.Mock()
+        mock_cursor.description = [("COUNT",)]
+        mock_cursor.fetchall.return_value = []
+
+        mock_connection = mocker.Mock()
+        mock_connection.cursor.return_value = mock_cursor
+        mocker.patch("snowflake.connector.connect", return_value=mock_connection)
+
+        result = retriever._execute_query_with_connector("SELECT COUNT(*) FROM empty_table")
+
+        assert result is not None
+        assert isinstance(result, pl.DataFrame)
+        assert result.is_empty()
+
+    def test_run_jwt_auth_flow(self, mocker: Mock, toy_polars_df: pl.DataFrame, tmp_path: Path) -> None:
+        # Create a temporary key file
+        key_file = tmp_path / "key.pem"
+        key_file.write_text("-----BEGIN PRIVATE KEY-----\ntest_key_content\n-----END PRIVATE KEY-----")
+
+        mocker.patch.dict(
+            os.environ, {"SNOWFLAKE_PRIVATE_KEY_FILE": str(key_file), "SNOWFLAKE_PRIVATE_KEY_PWD": "test_password"}
+        )
+
+        # Mock snowflake.connector.connect for test_connection
+        mock_connection = mocker.Mock()
+        mocker.patch("snowflake.connector.connect", return_value=mock_connection)
+
+        # Create JWT retriever
+        jwt_retriever = SnowflakeTableRetriever(
+            user="test_user",
+            account="test_account",
+            authenticator="SNOWFLAKE_JWT",
+            private_key_file=Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_FILE"),
+            private_key_file_pwd=Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_PWD"),
+        )
+
+        # Mock _execute_query_with_connector to return toy data
+        mocker.patch.object(jwt_retriever, "_execute_query_with_connector", return_value=toy_polars_df)
+
+        result = jwt_retriever.run(query="SELECT * FROM table")
+
+        assert "dataframe" in result
+        assert "table" in result
+        assert result["dataframe"].shape[0] == 3
+
+    def test_run_uri_construction_error(self, retriever: SnowflakeTableRetriever, mocker: Mock) -> None:
+        # Mock _snowflake_uri_constructor to raise an exception
+        mocker.patch.object(retriever, "_snowflake_uri_constructor", side_effect=ValueError("URI construction failed"))
+
+        result = retriever.run(query="SELECT 1")
+
+        assert result["dataframe"].empty
+        assert result["table"] == ""
+
+    def test_run_sql_compilation_error(self, retriever: SnowflakeTableRetriever, mocker: Mock) -> None:
+        # Mock pl.read_database_uri to raise SQL compilation error
+        error = Exception("SQL compilation error: invalid identifier 'FOO'")
+        error.msg = "SQL compilation error: invalid identifier 'FOO'"
+        mocker.patch("polars.read_database_uri", side_effect=error)
+
+        result = retriever.run(query="SELECT FOO FROM BAR")
+
+        assert result["dataframe"].empty
+        assert result["table"] == ""
+
+    def test_run_markdown_conversion_error(
+        self, retriever: SnowflakeTableRetriever, mocker: Mock, toy_polars_df: pl.DataFrame, toy_pandas_df
+    ) -> None:
+        # Mock pl.read_database_uri to return valid data
+        mocker.patch("polars.read_database_uri", return_value=toy_polars_df)
+
+        # Mock _polars_to_md to raise an exception
+        mocker.patch.object(retriever, "_polars_to_md", side_effect=Exception("Markdown conversion failed"))
+
+        # Enable markdown return
+        result = retriever.run(query="SELECT * FROM table", return_markdown=True)
+
+        # Should still return dataframe even if markdown fails
+        assert not result["dataframe"].empty
+        assert result["table"] == ""  # Markdown should be empty on error
+
+    def test_create_masked_uri_with_special_chars(self, retriever: SnowflakeTableRetriever, mocker: Mock) -> None:
+        # Test password masking with special characters
+        special_password = "p@ss!word#123"
+        mocker.patch.object(retriever.authenticator_handler, "get_password_for_uri", return_value=special_password)
+
+        uri = f"snowflake://user:{quote_plus(special_password)}@account/db?warehouse=wh"
+        masked_uri = retriever._create_masked_uri(uri)
+
+        assert special_password not in masked_uri
+        assert quote_plus(special_password) not in masked_uri
+        assert "***REDACTED***" in masked_uri
