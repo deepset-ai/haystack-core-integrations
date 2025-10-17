@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/pgvector-v5.3.0] - 2025-10-17
+
+### 🚀 Features
+
+- `PgvectorDocumentStore` now supports `delete_all_documents` and  `delete_all_documents_async` (#2394)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+
 ## [integrations/pgvector-v5.2.1] - 2025-07-03
 
 ### 🐛 Bug Fixes
