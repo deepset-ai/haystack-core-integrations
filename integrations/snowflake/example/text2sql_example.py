@@ -92,6 +92,7 @@ analyst_llm = OpenAIGenerator(
 snowflake = SnowflakeTableRetriever(
     user="<ACCOUNT-USER>",
     account="<ACCOUNT-IDENTIFIER>",
+    authenticator="SNOWFLAKE",
     api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
     warehouse="<WAREHOUSE-NAME>",
 )
