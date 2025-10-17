@@ -36,8 +36,7 @@ dependencies = [
   "sentence-transformers>=2.3",
   # tokenizers is a dependency of transformers/sentence-transformers. The following version is the first one which supports Python 3.13.
   "tokenizers>=0.20.2",
-  "torch<2.9.0",  # https://github.com/huggingface/optimum/issues/2374
-  ]
+]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/optimum#readme"
