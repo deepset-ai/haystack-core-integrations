@@ -94,15 +94,12 @@ class TestDocumentStoreAsync:
             same_connection = document_store._async_connection
             assert same_connection is document_store._async_connection
 
-    async def test_delete_all_documents_async(self, document_store: PgvectorDocumentStore):
-        # Given some documents in the document store
+    async def test_delete_all_documents_async(self, document_store: PgvectorDocumentStore) -> None:
         document_store.write_documents([Document(id=str(i)) for i in range(10)])
-
-        # When I delete all documents from the document store
         await document_store.delete_all_documents_async()
-
-        # Then the document store should be empty
         assert document_store.count_documents() == 0
+        document_store.write_documents([Document(id="1")])
+        assert document_store.count_documents() == 1
 
 
 @pytest.mark.integration
