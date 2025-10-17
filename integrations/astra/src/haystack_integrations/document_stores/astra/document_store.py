@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
-from haystack.document_stores.errors import DuplicateDocumentError, MissingDocumentError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError, MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
@@ -395,12 +395,7 @@ class AstraDocumentStore:
 
         return result
 
-    def delete_documents(
-        self,
-        document_ids: Optional[List[str]] = None,
-        *,
-        delete_all: Optional[bool] = None,
-    ) -> None:
+    def delete_documents(self, document_ids: List[str]) -> None:
         """
         Deletes documents from the document store.
 
@@ -413,8 +408,6 @@ class AstraDocumentStore:
             if document_ids is not None:
                 for batch in _batches(document_ids, MAX_BATCH_SIZE):
                     deletion_counter += self.index.delete(ids=batch)
-            else:
-                deletion_counter = self.index.delete(delete_all=delete_all)
             logger.info(f"{deletion_counter} documents deleted")
 
             if document_ids is not None and deletion_counter == 0:
@@ -422,3 +415,20 @@ class AstraDocumentStore:
                 raise MissingDocumentError(msg)
         else:
             logger.info("No documents in document store")
+
+    def delete_all_documents(self) -> None:
+        """
+        Deletes all documents from the document store.
+        """
+        deletion_counter = 0
+
+        try:
+            deletion_counter = self.index.delete_all_documents()
+        except Exception as e:
+            msg = f"Failed to delete all documents from Astra: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+        if deletion_counter == -1:
+            logger.info("All documents deleted")
+        else:
+            logger.error("Could not delete all documents")

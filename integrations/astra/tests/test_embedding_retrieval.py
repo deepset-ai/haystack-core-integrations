@@ -13,7 +13,7 @@ from haystack_integrations.document_stores.astra import AstraDocumentStore
 )
 @pytest.mark.skipif(os.environ.get("ASTRA_DB_API_ENDPOINT", "") == "", reason="ASTRA_DB_API_ENDPOINT env var not set")
 class TestEmbeddingRetrieval:
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def document_store(self) -> AstraDocumentStore:
         return AstraDocumentStore(
             collection_name="haystack_integration",
@@ -22,11 +22,11 @@ class TestEmbeddingRetrieval:
         )
 
     @pytest.fixture(autouse=True)
-    def run_before_and_after_tests(self, document_store: AstraDocumentStore):
+    def run_before_tests(self, document_store: AstraDocumentStore):
         """
         Cleaning up document store
         """
-        document_store.delete_documents(delete_all=True)
+        document_store.delete_all_documents()
         assert document_store.count_documents() == 0
 
     def test_search_with_top_k(self, document_store):
@@ -45,3 +45,6 @@ class TestEmbeddingRetrieval:
 
         for document in result:
             assert document.score is not None
+
+        document_store.delete_all_documents()
+        assert document_store.count_documents() == 0

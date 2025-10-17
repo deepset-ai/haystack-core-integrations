@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 from warnings import warn
 
 from astrapy import DataAPIClient as AstraDBClient
@@ -320,28 +320,33 @@ class AstraClient:
         self,
         *,
         ids: Optional[List[str]] = None,
-        delete_all: Optional[bool] = None,
         filters: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
     ) -> int:
         """Delete documents from the Astra index.
 
         :param ids: the ids of the documents to delete
-        :param delete_all: if `True`, delete all documents from the index
         :param filters: additional filters to apply when deleting documents
         :returns: the number of documents deleted
         """
-        if delete_all:
-            query = {"deleteMany": {}}  # type: dict
+        query: Dict[str, Dict[str, Any]] = {}
+
         if ids is not None:
             query = {"deleteMany": {"filter": {"_id": {"$in": ids}}}}
         if filters is not None:
             query = {"deleteMany": {"filter": filters}}
 
         filter_dict = {}
-        if "filter" in query["deleteMany"]:
-            filter_dict = query["deleteMany"]["filter"]
-
+        filter_dict = query.get("deleteMany", {}).get("filter", {})
         delete_result = self._astra_db_collection.delete_many(filter=filter_dict)
+
+        return delete_result.deleted_count
+
+    def delete_all_documents(self) -> int:
+        """
+        Delete all documents from the Astra index.
+        :returns: the number of documents deleted
+        """
+        delete_result = self._astra_db_collection.delete_many(filter={})
 
         return delete_result.deleted_count
 
