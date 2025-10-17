@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/snowflake-v1.2.0] - 2025-10-17
 
 ### 🚀 Features
 
