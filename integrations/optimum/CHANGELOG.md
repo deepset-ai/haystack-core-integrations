@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/optimum-v1.2.2] - 2025-10-17
+
+### 🧹 Chores
+
+- Optimum - unpin torch (#2395)
+
+
 ## [integrations/optimum-v1.2.1] - 2025-10-16
 
 ### 🐛 Bug Fixes
