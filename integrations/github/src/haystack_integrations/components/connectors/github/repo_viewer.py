@@ -109,7 +109,9 @@ class GitHubRepoViewer:
         """
         headers = self.base_headers.copy()
         if self.github_token is not None:
-            headers["Authorization"] = f"Bearer {self.github_token.resolve_value()}"
+            token_value = self.github_token.resolve_value()
+            if token_value:
+                headers["Authorization"] = f"Bearer {token_value}"
         return headers
 
     def to_dict(self) -> Dict[str, Any]:

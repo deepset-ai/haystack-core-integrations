@@ -65,7 +65,9 @@ class GitHubPRCreator:
         """
         headers = self.base_headers.copy()
         if self.github_token is not None:
-            headers["Authorization"] = f"Bearer {self.github_token.resolve_value()}"
+            token_value = self.github_token.resolve_value()
+            if token_value:
+                headers["Authorization"] = f"Bearer {token_value}"
         return headers
 
     def _parse_issue_url(self, issue_url: str) -> tuple[str, str, str]:

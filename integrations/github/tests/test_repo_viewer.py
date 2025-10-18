@@ -174,3 +174,15 @@ class TestGitHubRepoViewer:
 
         with pytest.raises(ValueError):
             viewer._parse_repo("invalid_format")
+
+    def test_get_request_headers_with_empty_token(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "")
+
+        token = Secret.from_env_var("GITHUB_TOKEN")
+        viewer = GitHubRepoViewer(github_token=token)
+
+        headers = viewer._get_request_headers()
+
+        assert "Authorization" not in headers
+        assert headers["Accept"] == "application/vnd.github.v3+json"
+        assert headers["User-Agent"] == "Haystack/GitHubRepoViewer"

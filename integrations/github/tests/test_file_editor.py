@@ -269,3 +269,14 @@ class TestGitHubFileEditor:
                 repo="owner/repo",
                 branch="main",
             )
+
+    def test_get_request_headers_with_empty_token(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "")
+
+        editor = GitHubFileEditor()
+
+        headers = editor._get_request_headers()
+
+        assert "Authorization" not in headers
+        assert headers["Accept"] == "application/vnd.github.v3+json"
+        assert headers["User-Agent"] == "Haystack/GitHubFileEditor"
