@@ -122,6 +122,32 @@ class TestDocumentStoreAsync:
         assert result == result_empty_filters
 
     @pytest.mark.asyncio
+    async def test_delete_all_documents_index_recreation(self, document_store: ChromaDocumentStore):
+        # write some documents
+        docs = [
+            Document(id="1", content="First document", meta={"category": "test"}),
+            Document(id="2", content="Second document", meta={"category": "test"}),
+            Document(id="3", content="Third document", meta={"category": "other"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        # get the current document_store config
+        config_before = await document_store._async_collection.get(document_store._collection_name)
+
+        # delete all documents with recreating the index
+        await document_store.delete_all_documents_async(recreate_index=True)
+        assert await document_store.count_documents_async() == 0
+
+        # assure that with the same config
+        config_after = await document_store._async_collection.get(document_store._collection_name)
+
+        assert config_before == config_after
+
+        # ensure the collection still exists by writing documents again
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+    @pytest.mark.asyncio
     async def test_delete_all_documents_async(self, document_store):
         docs = [
             Document(id="1", content="First document", meta={"category": "test"}),

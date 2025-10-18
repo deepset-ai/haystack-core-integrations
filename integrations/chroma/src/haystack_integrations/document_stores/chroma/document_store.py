@@ -114,6 +114,8 @@ class ChromaDocumentStore:
                 # Local persistent storage
                 client = chromadb.PersistentClient(path=self._persist_path)
 
+            self._client = client  # store client for potential future use
+
             self._metadata = self._metadata or {}
             if "hnsw:space" not in self._metadata:
                 self._metadata["hnsw:space"] = self._distance_function
@@ -149,6 +151,8 @@ class ChromaDocumentStore:
                 host=self._host,
                 port=self._port,
             )
+
+            self._async_client = client  # store client for potential future use
 
             self._metadata = self._metadata or {}
             if "hnsw:space" not in self._metadata:
@@ -409,42 +413,77 @@ class ChromaDocumentStore:
 
         await self._async_collection.delete(ids=document_ids)
 
-    def delete_all_documents(self) -> None:
+    def delete_all_documents(self, *, recreate_index: bool = False) -> None:
         """
         Deletes all documents in the document store.
 
         A fast way to clear all documents from the document store while preserving any collection settings and mappings.
+        :param recreate_index: Whether to recreate the index after deleting all documents.
         """
         self._ensure_initialized()  # _ensure_initialized ensures _client is not None and an collection exists
         assert self._collection is not None
 
-        collection = self._collection.get()
-        ids = collection.get("ids", [])
-        self._collection.delete(ids=ids)  # type: ignore
-        logger.info(
-            "Deleted all the {n_docs} documents from the collection '{name}'.",
-            name=self._collection_name,
-            n_docs=len(ids),
-        )
+        if recreate_index:
+            # Store existing collection metadata and embedding function
+            metadata = self._collection.metadata
+            embedding_function = self._collection._embedding_function
+            collection_name = self._collection_name
 
-    async def delete_all_documents_async(self) -> None:
-        """
-        Asynchronously deletes all documents in the document store.
+            # Delete the collection
+            self._client.delete_collection(name=collection_name)
 
-        A fast way to clear all documents from the document store while preserving any collection settings and mappings.
-        """
-        self._ensure_initialized_async()  # ensures _async_client is not None
-        assert self._async_collection is not None
+            # Recreate the collection with previous metadata
+            self._collection = self._client.create_collection(
+                name=collection_name,
+                metadata=metadata,
+                embedding_function=embedding_function,
+            )
 
-        try:
-            collection = await self._async_collection.get()
+        else:
+            collection = self._collection.get()
             ids = collection.get("ids", [])
-            await self._async_collection.delete(ids=ids)  # type: ignore
+            self._collection.delete(ids=ids)  # type: ignore
             logger.info(
                 "Deleted all the {n_docs} documents from the collection '{name}'.",
                 name=self._collection_name,
                 n_docs=len(ids),
             )
+
+    async def delete_all_documents_async(self, *, recreate_index: bool = False) -> None:
+        """
+        Asynchronously deletes all documents in the document store.
+
+        A fast way to clear all documents from the document store while preserving any collection settings and mappings.
+        :param recreate_index: Whether to recreate the index after deleting all documents.
+        """
+        self._ensure_initialized_async()  # ensures _async_client is not None
+        assert self._async_collection is not None
+
+        try:
+            if recreate_index:
+                # Store existing collection metadata and embedding function
+                metadata = await self._async_collection.metadata
+                embedding_function = await self._async_collection._embedding_function
+                collection_name = self._collection_name
+
+                # Delete the collection
+                await self._async_client.delete_collection(name=collection_name)
+
+                # Recreate the collection with previous metadata
+                self._collection = await self._async_client.create_collection(
+                    name=collection_name,
+                    metadata=metadata,
+                    embedding_function=embedding_function,
+                )
+            else:
+                collection = await self._async_collection.get()
+                ids = collection.get("ids", [])
+                await self._async_collection.delete(ids=ids)  # type: ignore
+                logger.info(
+                    "Deleted all the {n_docs} documents from the collection '{name}'.",
+                    name=self._collection_name,
+                    n_docs=len(ids),
+                )
 
         except Exception as e:
             msg = f"Failed to delete all documents from ChromaDB: {e!s}"
