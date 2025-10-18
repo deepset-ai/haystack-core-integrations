@@ -423,6 +423,22 @@ class MongoDBAtlasDocumentStore:
             return
         await self._collection_async.delete_many(filter={"id": {"$in": document_ids}})
 
+    def delete_all_documents(self) -> None:
+        """
+        Deletes all documents in the document store.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+        self._collection.delete_many({})
+
+    async def delete_all_documents_async(self) -> None:
+        """
+        Asynchronously deletes all documents in the document store.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+        await self._collection_async.delete_many({})
+
     def _embedding_retrieval(
         self,
         query_embedding: List[float],
