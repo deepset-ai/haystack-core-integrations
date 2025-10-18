@@ -9,6 +9,7 @@ from chromadb.api.models.AsyncCollection import AsyncCollection
 from chromadb.api.types import GetResult, QueryResult
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
+from haystack.document_stores.errors import DocumentStoreError
 from haystack.document_stores.types import DuplicatePolicy
 
 from .filters import _convert_filters
@@ -407,6 +408,47 @@ class ChromaDocumentStore:
         assert self._async_collection is not None
 
         await self._async_collection.delete(ids=document_ids)
+
+    def delete_all_documents(self) -> None:
+        """
+        Deletes all documents in the document store.
+
+        A fast way to clear all documents from the document store while preserving any collection settings and mappings.
+        """
+        self._ensure_initialized()  # _ensure_initialized ensures _client is not None and an collection exists
+        assert self._collection is not None
+
+        collection = self._collection.get()
+        ids = collection.get("ids", [])
+        self._collection.delete(ids=ids)  # type: ignore
+        logger.info(
+            "Deleted all the {n_docs} documents from the collection '{name}'.",
+            name=self._collection_name,
+            n_docs=len(ids),
+        )
+
+    async def delete_all_documents_async(self) -> None:
+        """
+        Asynchronously deletes all documents in the document store.
+
+        A fast way to clear all documents from the document store while preserving any collection settings and mappings.
+        """
+        self._ensure_initialized_async()  # ensures _async_client is not None
+        assert self._async_collection is not None
+
+        try:
+            collection = await self._async_collection.get()
+            ids = collection.get("ids", [])
+            await self._async_collection.delete(ids=ids)  # type: ignore
+            logger.info(
+                "Deleted all the {n_docs} documents from the collection '{name}'.",
+                name=self._collection_name,
+                n_docs=len(ids),
+            )
+
+        except Exception as e:
+            msg = f"Failed to delete all documents from ChromaDB: {e!s}"
+            raise DocumentStoreError(msg) from e
 
     def search(
         self,
