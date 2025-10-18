@@ -100,16 +100,14 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
                 events as they become available, with the stream terminated by a data: [DONE] message.
             - `safe_prompt`: Whether to inject a safety prompt before all conversations.
             - `random_seed`: The seed to use for random sampling.
-            - `response_format`: A JSON schema or a Pydantic model that enforces the structure of the model's response.
+            - `response_format`: A JSON schema that enforces the structure of the model's response.
                 If provided, the output will always be validated against this
                 format (unless the model returns a tool call).
-                For details, see the [OpenAI Structured Outputs documentation](https://platform.openai.com/docs/guides/structured-outputs).
+                For details, see the [OpenRouter Structured Outputs documentation](https://openrouter.ai/docs/features/structured-outputs).
                 Notes:
-                - This parameter accepts Pydantic models and JSON schemas for latest models starting from GPT-4o.
+                - Despite, OpenAI's support for Pydantic models, this parameter accepts only JSON schemas for latest models starting from GPT-4o.
                   Older models only support basic version of structured outputs through `{"type": "json_object"}`.
                   For detailed information on JSON mode, see the [OpenAI Structured Outputs documentation](https://platform.openai.com/docs/guides/structured-outputs#json-mode).
-                - For structured outputs with streaming,
-                  the `response_format` must be a JSON schema and not a Pydantic model.
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
             list of `Tool` objects or a `Toolset` instance.
