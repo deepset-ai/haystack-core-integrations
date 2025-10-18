@@ -383,6 +383,44 @@ class AzureAISearchDocumentStore:
         if documents:
             self.client.delete_documents(documents)
 
+    def delete_all_documents(self, recreate_index: bool = False) -> None:  # noqa: FBT002, FBT001
+        """
+        Deletes all documents in the document store.
+
+        :param recreate_index: If True, the index will be deleted and recreated with the original schema.
+            If False, all documents will be deleted while preserving the index.
+        """
+        try:
+            if recreate_index:
+                # Get current index definition
+                if self._index_client is None:
+                    msg = "Index client is not initialized"
+                    raise ValueError(msg)
+                current_index = self._index_client.get_index(self._index_name)
+
+                # Delete and recreate index
+                self._index_client.delete_index(self._index_name)
+                self._index_client.create_index(current_index)
+                logger.info("Index '{idx_name}' recreated with original schema.", idx_name=self._index_name)
+            else:
+                # Delete all documents without recreating index
+                if self.count_documents() == 0:
+                    return
+
+                # Search for all documents (pagination handled by Azure SDK)
+                all_docs = list(self.client.search(search_text="*", select=["id"], top=100000))
+
+                if all_docs:
+                    self.client.delete_documents(all_docs)
+                    logger.info(
+                        "Deleted {n_docs} documents from index '{idx_name}'.",
+                        n_docs=len(all_docs),
+                        idx_name=self._index_name,
+                    )
+        except Exception as e:
+            msg = f"Failed to delete all documents from Azure AI Search: {e!s}"
+            raise HttpResponseError(msg) from e
+
     def get_documents_by_id(self, document_ids: List[str]) -> List[Document]:
         return self._convert_search_result_to_documents(self._get_raw_documents_by_id(document_ids))
 
