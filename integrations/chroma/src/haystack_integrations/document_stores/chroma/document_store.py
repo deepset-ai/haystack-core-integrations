@@ -456,21 +456,21 @@ class ChromaDocumentStore:
         A fast way to clear all documents from the document store while preserving any collection settings and mappings.
         :param recreate_index: Whether to recreate the index after deleting all documents.
         """
-        self._ensure_initialized_async()  # ensures _async_client is not None
+        await self._ensure_initialized_async()  # ensures _async_client is not None
         assert self._async_collection is not None
 
         try:
             if recreate_index:
                 # Store existing collection metadata and embedding function
-                metadata = await self._async_collection.metadata
-                embedding_function = await self._async_collection._embedding_function
+                metadata = self._async_collection.metadata
+                embedding_function = self._async_collection._embedding_function
                 collection_name = self._collection_name
 
                 # Delete the collection
                 await self._async_client.delete_collection(name=collection_name)
 
                 # Recreate the collection with previous metadata
-                self._collection = await self._async_client.create_collection(
+                self._async_collection = await self._async_client.create_collection(
                     name=collection_name,
                     metadata=metadata,
                     embedding_function=embedding_function,
