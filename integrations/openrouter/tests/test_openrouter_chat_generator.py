@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime
 from unittest.mock import patch
@@ -16,6 +17,7 @@ from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_chunk import Choice as ChoiceChunk
 from openai.types.chat.chat_completion_chunk import ChoiceDelta, ChoiceDeltaToolCall, ChoiceDeltaToolCallFunction
 from openai.types.completion_usage import CompletionTokensDetails, CompletionUsage, PromptTokensDetails
+from pydantic import BaseModel
 
 from haystack_integrations.components.generators.openrouter.chat.chat_generator import OpenRouterChatGenerator
 
@@ -439,6 +441,42 @@ class TestOpenRouterChatGenerator:
             "The weather in Paris is sunny and 32°C"
             == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
         )
+
+    @pytest.mark.skipif(
+        not os.environ.get("OPENROUTER_API_KEY", None),
+        reason="Export an env var called OPENROUTER_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_response_format(self):
+        class NobelPrizeInfo(BaseModel):
+            recipient_name: str
+            award_year: int
+            category: str
+            achievement_description: str
+            nationality: str
+
+        chat_messages = [
+            ChatMessage.from_user(
+                "In 2021, American scientist David Julius received the Nobel Prize in"
+                " Physiology or Medicine for his groundbreaking discoveries on how the human body"
+                " senses temperature and touch."
+            )
+        ]
+        component = OpenRouterChatGenerator(generation_kwargs={"response_format": NobelPrizeInfo})
+        results = component.run(chat_messages)
+        assert isinstance(results, dict)
+        assert "replies" in results
+        assert isinstance(results["replies"], list)
+        assert len(results["replies"]) == 1
+        assert isinstance(results["replies"][0], ChatMessage)
+        message = results["replies"][0]
+        assert isinstance(message.text, str)
+        msg = json.loads(message.text)
+        assert msg["recipient_name"] == "David Julius"
+        assert msg["award_year"] == 2021
+        assert "category" in msg
+        assert "achievement_description" in msg
+        assert msg["nationality"] == "American"
 
     def test_serde_in_pipeline(self, monkeypatch):
         """
