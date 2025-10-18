@@ -352,6 +352,22 @@ class PineconeDocumentStore:
         assert self._async_index is not None, "Index is not initialized"
         await self._async_index.delete(ids=document_ids, namespace=self.namespace)
 
+    def delete_all_documents(self) -> None:
+        """
+        Deletes all documents in the document store.
+        """
+        self._initialize_index()
+        assert self._index is not None, "Index is not initialized"
+        self._index.delete(delete_all=True, namespace=self.namespace)
+
+    async def delete_all_documents_async(self) -> None:
+        """
+        Asynchronously deletes all documents in the document store.
+        """
+        await self._initialize_async_index()
+        assert self._async_index is not None, "Index is not initialized"
+        await self._async_index.delete(delete_all=True, namespace=self.namespace)
+
     def _embedding_retrieval(
         self,
         query_embedding: List[float],
