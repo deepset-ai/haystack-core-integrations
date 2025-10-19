@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import warnings
-from typing import Optional
 from urllib.parse import urlparse, urlunparse
 
 from .client import Client
@@ -47,7 +46,7 @@ def is_hosted(api_url: str) -> bool:
     ]
 
 
-def lookup_model(name: str) -> Optional[Model]:
+def lookup_model(name: str) -> Model | None:
     """
     Lookup a model by name, using only the table of known models.
     The name is either:
@@ -65,7 +64,7 @@ def lookup_model(name: str) -> Optional[Model]:
     return model
 
 
-def determine_model(name: str) -> Optional[Model]:
+def determine_model(name: str) -> Model | None:
     """
     Determine the model to use based on a name, using
     only the table of known models.
@@ -85,7 +84,7 @@ def determine_model(name: str) -> Optional[Model]:
 
 def validate_hosted_model(
     model_name: str,
-    client: Optional[Client] = None,
+    client: Client | None = None,
 ) -> Model:
     """
     Checks if a given model is compatible with given client.

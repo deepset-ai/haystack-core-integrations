@@ -4,7 +4,7 @@
 
 import os
 import warnings
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
@@ -44,11 +44,11 @@ class NvidiaGenerator:
 
     def __init__(
         self,
-        model: Optional[str] = None,
+        model: str | None = None,
         api_url: str = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
-        api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
-        model_arguments: Optional[Dict[str, Any]] = None,
-        timeout: Optional[float] = None,
+        api_key: Secret | None = Secret.from_env_var("NVIDIA_API_KEY"),
+        model_arguments: dict[str, Any] | None = None,
+        timeout: float | None = None,
     ):
         """
         Create a NvidiaGenerator component.
@@ -79,7 +79,7 @@ class NvidiaGenerator:
         self._api_key = api_key
         self._model_arguments = model_arguments or {}
 
-        self.backend: Optional[Any] = None
+        self.backend: Any | None = None
 
         self.is_hosted = is_hosted(api_url)
         if timeout is None:
@@ -134,7 +134,7 @@ class NvidiaGenerator:
             else:
                 self.default_model()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -150,14 +150,14 @@ class NvidiaGenerator:
         )
 
     @property
-    def available_models(self) -> List[Model]:
+    def available_models(self) -> list[Model]:
         """
         Get a list of available models that work with ChatNVIDIA.
         """
         return self.backend.models() if self.backend else []
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "NvidiaGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "NvidiaGenerator":
         """
         Deserializes the component from a dictionary.
 
@@ -170,8 +170,8 @@ class NvidiaGenerator:
         deserialize_secrets_inplace(init_params, ["api_key"])
         return default_from_dict(cls, data)
 
-    @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
-    def run(self, prompt: str) -> Dict[str, Union[List[str], List[Dict[str, Any]]]]:
+    @component.output_types(replies=list[str], meta=list[dict[str, Any]])
+    def run(self, prompt: str) -> dict[str, list[str] | list[dict[str, Any]]]:
         """
         Queries the model with the provided prompt.
 

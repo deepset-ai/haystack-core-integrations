@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -53,13 +53,13 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
         *,
         api_key: Secret = Secret.from_env_var("NVIDIA_API_KEY"),
         model: str = "meta/llama-3.1-8b-instruct",
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        api_base_url: Optional[str] = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
-        timeout: Optional[float] = None,
-        max_retries: Optional[int] = None,
-        http_client_kwargs: Optional[Dict[str, Any]] = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        api_base_url: str | None = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: list[Tool] | Toolset | None = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
+        http_client_kwargs: dict[str, Any] | None = None,
     ):
         """
         Creates an instance of NvidiaChatGenerator.
@@ -128,7 +128,7 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
             http_client_kwargs=http_client_kwargs,
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize this component to a dictionary.
 

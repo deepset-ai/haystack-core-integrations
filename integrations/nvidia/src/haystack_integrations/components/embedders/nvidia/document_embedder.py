@@ -4,7 +4,7 @@
 
 import os
 import warnings
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -38,17 +38,17 @@ class NvidiaDocumentEmbedder:
 
     def __init__(
         self,
-        model: Optional[str] = None,
-        api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
+        model: str | None = None,
+        api_key: Secret | None = Secret.from_env_var("NVIDIA_API_KEY"),
         api_url: str = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
         prefix: str = "",
         suffix: str = "",
         batch_size: int = 32,
         progress_bar: bool = True,
-        meta_fields_to_embed: Optional[List[str]] = None,
+        meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
-        truncate: Optional[Union[EmbeddingTruncateMode, str]] = None,
-        timeout: Optional[float] = None,
+        truncate: EmbeddingTruncateMode | str | None = None,
+        timeout: float | None = None,
     ):
         """
         Create a NvidiaTextEmbedder component.
@@ -97,7 +97,7 @@ class NvidiaDocumentEmbedder:
             truncate = EmbeddingTruncateMode.from_str(truncate)
         self.truncate = truncate
 
-        self.backend: Optional[Any] = None
+        self.backend: Any | None = None
         self._initialized = False
 
         if timeout is None:
@@ -156,7 +156,7 @@ class NvidiaDocumentEmbedder:
         if not self.model:
             self.default_model()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -179,14 +179,14 @@ class NvidiaDocumentEmbedder:
         )
 
     @property
-    def available_models(self) -> List[Model]:
+    def available_models(self) -> list[Model]:
         """
         Get a list of available models that work with NvidiaDocumentEmbedder.
         """
         return self.backend.models() if self.backend else []
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "NvidiaDocumentEmbedder":
+    def from_dict(cls, data: dict[str, Any]) -> "NvidiaDocumentEmbedder":
         """
         Deserializes the component from a dictionary.
 
@@ -200,7 +200,7 @@ class NvidiaDocumentEmbedder:
             deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
+    def _prepare_texts_to_embed(self, documents: list[Document]) -> list[str]:
         texts_to_embed = []
         for doc in documents:
             meta_values_to_embed = [
@@ -213,8 +213,8 @@ class NvidiaDocumentEmbedder:
 
         return texts_to_embed
 
-    def _embed_batch(self, texts_to_embed: List[str], batch_size: int) -> Tuple[List[List[float]], Dict[str, Any]]:
-        all_embeddings: List[List[float]] = []
+    def _embed_batch(self, texts_to_embed: list[str], batch_size: int) -> tuple[list[list[float]], dict[str, Any]]:
+        all_embeddings: list[list[float]] = []
         usage_prompt_tokens = 0
         usage_total_tokens = 0
 
@@ -233,8 +233,8 @@ class NvidiaDocumentEmbedder:
 
         return all_embeddings, {"usage": {"prompt_tokens": usage_prompt_tokens, "total_tokens": usage_total_tokens}}
 
-    @component.output_types(documents=List[Document], meta=Dict[str, Any])
-    def run(self, documents: List[Document]) -> Dict[str, Union[List[Document], Dict[str, Any]]]:
+    @component.output_types(documents=list[Document], meta=dict[str, Any])
+    def run(self, documents: list[Document]) -> dict[str, list[Document] | dict[str, Any]]:
         """
         Embed a list of Documents.
 
@@ -267,7 +267,7 @@ class NvidiaDocumentEmbedder:
 
         texts_to_embed = self._prepare_texts_to_embed(documents)
         embeddings, metadata = self._embed_batch(texts_to_embed, self.batch_size)
-        for doc, emb in zip(documents, embeddings):
+        for doc, emb in zip(documents, embeddings, strict=True):
             doc.embedding = emb
 
         return {"documents": documents, "meta": metadata}
