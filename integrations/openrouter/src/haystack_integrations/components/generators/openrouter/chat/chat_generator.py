@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -10,7 +10,6 @@ from haystack.dataclasses import ChatMessage, StreamingCallbackT
 from haystack.tools import Tool, Toolset, _check_duplicate_tool_names
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
-
 
 logger = logging.getLogger(__name__)
 
@@ -62,14 +61,14 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         *,
         api_key: Secret = Secret.from_env_var("OPENROUTER_API_KEY"),
         model: str = "openai/gpt-4o-mini",
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        api_base_url: Optional[str] = "https://openrouter.ai/api/v1",
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
-        timeout: Optional[float] = None,
-        extra_headers: Optional[Dict[str, Any]] = None,
-        max_retries: Optional[int] = None,
-        http_client_kwargs: Optional[Dict[str, Any]] = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        api_base_url: str | None = "https://openrouter.ai/api/v1",
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: list[Tool] | Toolset | None = None,
+        timeout: float | None = None,
+        extra_headers: dict[str, Any] | None = None,
+        max_retries: int | None = None,
+        http_client_kwargs: dict[str, Any] | None = None,
     ):
         """
         Creates an instance of OpenRouterChatGenerator. Unless specified otherwise,
@@ -136,7 +135,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         )
         self.extra_headers = extra_headers
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize this component to a dictionary.
 
@@ -166,12 +165,12 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
     def _prepare_api_call(
         self,
         *,
-        messages: List[ChatMessage],
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
-        tools_strict: Optional[bool] = None,
-    ) -> Dict[str, Any]:
+        messages: list[ChatMessage],
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: list[Tool] | Toolset | None = None,
+        tools_strict: bool | None = None,
+    ) -> dict[str, Any]:
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         extra_headers = {**(self.extra_headers or {})}

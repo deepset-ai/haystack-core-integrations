@@ -442,8 +442,8 @@ class TestOpenRouterChatGenerator:
         )
 
     @pytest.mark.skipif(
-    not os.environ.get("OPENROUTER_API_KEY", None),
-    reason="Export an env var called OPENROUTER_API_KEY containing the OpenRouter API key to run this test.",
+        not os.environ.get("OPENROUTER_API_KEY", None),
+        reason="Export an env var called OPENROUTER_API_KEY containing the OpenRouter API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run_with_response_format_json_schema(self):
