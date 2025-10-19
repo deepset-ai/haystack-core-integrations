@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from haystack.dataclasses import ChatMessage
+
 from haystack_integrations.components.generators.openrouter import OpenRouterChatGenerator
 
 response_schema = {
