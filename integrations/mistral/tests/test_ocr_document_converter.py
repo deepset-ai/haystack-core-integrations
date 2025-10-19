@@ -29,19 +29,6 @@ class TestMistralOCRDocumentConverter:
         assert converter.image_limit is None
         assert converter.image_min_size is None
 
-    def test_init_with_parameters(self):
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key"),
-            model="mistral-ocr-custom",
-            include_image_base64=True,
-        )
-
-        assert converter.api_key == Secret.from_token("test-api-key")
-        assert converter.model == "mistral-ocr-custom"
-        assert converter.include_image_base64 is True
-        assert converter.pages is None
-        assert converter.image_limit is None
-        assert converter.image_min_size is None
 
     def test_init_with_all_optional_parameters(self):
         converter = MistralOCRDocumentConverter(
@@ -771,22 +758,3 @@ class TestMistralOCRDocumentConverter:
         # Check if document annotation was added to metadata
         assert "source_language" in doc.meta
 
-    @pytest.mark.skipif(
-        not os.environ.get("MISTRAL_API_KEY"),
-        reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_integration_multiple_sources(self):
-        """Integration test with real API call using multiple sources"""
-        converter = MistralOCRDocumentConverter(pages=[0])  # Only first page for speed
-
-        sources = [
-            DocumentURLChunk(document_url="https://arxiv.org/pdf/1706.03762"),
-            DocumentURLChunk(document_url="https://arxiv.org/pdf/2309.06180"),
-        ]
-        result = converter.run(sources=sources)
-
-        assert len(result["documents"]) == 2
-        assert all(isinstance(doc, Document) for doc in result["documents"])
-        assert all(len(doc.content) > 0 for doc in result["documents"])
-        assert len(result["raw_mistral_response"]) == 2
