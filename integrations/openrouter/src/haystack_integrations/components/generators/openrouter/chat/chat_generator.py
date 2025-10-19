@@ -10,8 +10,7 @@ from haystack.dataclasses import ChatMessage, StreamingCallbackT
 from haystack.tools import Tool, Toolset, _check_duplicate_tool_names
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
-from openai.lib._pydantic import to_strict_json_schema
-from pydantic import BaseModel
+
 
 logger = logging.getLogger(__name__)
 
@@ -105,9 +104,8 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
                 format (unless the model returns a tool call).
                 For details, see the [OpenRouter Structured Outputs documentation](https://openrouter.ai/docs/features/structured-outputs).
                 Notes:
-                - Despite, OpenAI's support for Pydantic models, this parameter accepts only JSON schemas for latest models starting from GPT-4o.
-                  Older models only support basic version of structured outputs through `{"type": "json_object"}`.
-                  For detailed information on JSON mode, see the [OpenAI Structured Outputs documentation](https://platform.openai.com/docs/guides/structured-outputs#json-mode).
+                Older models only support basic version of structured outputs through `{"type": "json_object"}`.
+                For detailed information on JSON mode, see the [OpenAI Structured Outputs documentation](https://platform.openai.com/docs/guides/structured-outputs#json-mode).
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
             list of `Tool` objects or a `Toolset` instance.
@@ -146,21 +144,6 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             The serialized component as a dictionary.
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
-        generation_kwargs = self.generation_kwargs.copy()
-        response_format = generation_kwargs.get("response_format")
-
-        # If the response format is a Pydantic model, it's converted to openai's json schema format
-        # If it's already a json schema, it's left as is
-        if response_format and isinstance(response_format, type) and issubclass(response_format, BaseModel):
-            json_schema = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": response_format.__name__,
-                    "strict": True,
-                    "schema": to_strict_json_schema(response_format),
-                },
-            }
-            generation_kwargs["response_format"] = json_schema
 
         # if we didn't implement the to_dict method here then the to_dict method of the superclass would be used
         # which would serialiaze some fields that we don't want to serialize (e.g. the ones we don't have in

@@ -17,7 +17,6 @@ from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_chunk import Choice as ChoiceChunk
 from openai.types.chat.chat_completion_chunk import ChoiceDelta, ChoiceDeltaToolCall, ChoiceDeltaToolCallFunction
 from openai.types.completion_usage import CompletionTokensDetails, CompletionUsage, PromptTokensDetails
-from pydantic import BaseModel
 
 from haystack_integrations.components.generators.openrouter.chat.chat_generator import OpenRouterChatGenerator
 
