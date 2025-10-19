@@ -29,19 +29,6 @@ class TestMistralOCRDocumentConverter:
         assert converter.image_limit is None
         assert converter.image_min_size is None
 
-    def test_init_with_parameters(self):
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key"),
-            model="mistral-ocr-custom",
-            include_image_base64=True,
-        )
-
-        assert converter.api_key == Secret.from_token("test-api-key")
-        assert converter.model == "mistral-ocr-custom"
-        assert converter.include_image_base64 is True
-        assert converter.pages is None
-        assert converter.image_limit is None
-        assert converter.image_min_size is None
 
     def test_init_with_all_optional_parameters(self):
         converter = MistralOCRDocumentConverter(
