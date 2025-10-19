@@ -11,8 +11,6 @@ from haystack.dataclasses import StreamingCallbackT
 from haystack.tools import Tool, Toolset, serialize_tools_or_toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
-from openai.lib._pydantic import to_strict_json_schema
-from pydantic import BaseModel
 
 from haystack_integrations.utils.nvidia import DEFAULT_API_URL
 
@@ -88,16 +86,24 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
                 comprising the top 10% probability mass are considered.
             - `stream`: Whether to stream back partial progress. If set, tokens will be sent as data-only server-sent
                 events as they become available, with the stream terminated by a data: [DONE] message.
-            - `response_format`: A JSON schema or a Pydantic model that enforces the structure of the model's response.
-                If provided, the output will always be validated against this
-                format (unless the model returns a tool call).
-                For details, see the [OpenAI Structured Outputs documentation](https://platform.openai.com/docs/guides/structured-outputs).
-                Notes:
-                - This parameter accepts Pydantic models and JSON schemas for latest models starting from GPT-4o.
-                  Older models only support basic version of structured outputs through `{"type": "json_object"}`.
-                  For detailed information on JSON mode, see the [OpenAI Structured Outputs documentation](https://platform.openai.com/docs/guides/structured-outputs#json-mode).
-                - For structured outputs with streaming,
-                  the `response_format` must be a JSON schema and not a Pydantic model.
+            - `response_format`: For NVIDIA NIM servers, this parameter has limited support.
+                Only basic JSON mode with `{"type": "json_object"}` works with compatible models, to produce
+                any valid JSON including empty objects.
+                Recommended approach for NVIDIA NIM: Use the `guided_json` parameter in `extra_body` instead,
+                which allows to pass a JSON schema to the model.
+
+                For NVIDIA NIM structured outputs, use:
+                ```python
+                generation_kwargs={
+                    "extra_body": {
+                        "nvext": {
+                            "guided_json": {
+                                json_schema
+                        }
+                    }
+                }
+                ```
+                For more details, see the [NVIDIA NIM documentation](https://docs.nvidia.com/nim/large-language-models/latest/structured-generation.html).
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
             list of `Tool` objects or a `Toolset` instance.
@@ -130,21 +136,6 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
             The serialized component as a dictionary.
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
-        generation_kwargs = self.generation_kwargs.copy()
-        response_format = generation_kwargs.get("response_format")
-
-        # If the response format is a Pydantic model, it's converted to openai's json schema format
-        # If it's already a json schema, it's left as is
-        if response_format and isinstance(response_format, type) and issubclass(response_format, BaseModel):
-            json_schema = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": response_format.__name__,
-                    "strict": True,
-                    "schema": to_strict_json_schema(response_format),
-                },
-            }
-            generation_kwargs["response_format"] = json_schema
 
         return default_to_dict(
             self,
