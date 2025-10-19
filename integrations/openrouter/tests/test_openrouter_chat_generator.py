@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime
 from unittest.mock import patch
@@ -439,6 +440,41 @@ class TestOpenRouterChatGenerator:
             "The weather in Paris is sunny and 32°C"
             == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
         )
+
+    @pytest.mark.skipif(
+    not os.environ.get("OPENROUTER_API_KEY", None),
+    reason="Export an env var called OPENROUTER_API_KEY containing the OpenRouter API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_response_format_json_schema(self):
+        response_schema = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "CapitalCity",
+                "strict": True,
+                "schema": {
+                    "title": "CapitalCity",
+                    "type": "object",
+                    "properties": {
+                        "city": {"title": "City", "type": "string"},
+                        "country": {"title": "Country", "type": "string"},
+                    },
+                    "required": ["city", "country"],
+                    "additionalProperties": False,
+                },
+            },
+        }
+
+        chat_messages = [ChatMessage.from_user("What's the capital of France?")]
+        comp = OpenRouterChatGenerator(generation_kwargs={"response_format": response_schema})
+        results = comp.run(chat_messages)
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        msg = json.loads(message.text)
+        assert "Paris" in msg["city"]
+        assert isinstance(msg["country"], str)
+        assert "France" in msg["country"]
+        assert message.meta["finish_reason"] == "stop"
 
     def test_serde_in_pipeline(self, monkeypatch):
         """

@@ -11,6 +11,7 @@ from haystack.tools import Tool, Toolset, _check_duplicate_tool_names
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -98,6 +99,13 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
                 events as they become available, with the stream terminated by a data: [DONE] message.
             - `safe_prompt`: Whether to inject a safety prompt before all conversations.
             - `random_seed`: The seed to use for random sampling.
+            - `response_format`: A JSON schema that enforces the structure of the model's response.
+                If provided, the output will always be validated against this
+                format (unless the model returns a tool call).
+                For details, see the [OpenRouter Structured Outputs documentation](https://openrouter.ai/docs/features/structured-outputs).
+                Notes:
+                Older models only support basic version of structured outputs through `{"type": "json_object"}`.
+                For detailed information on JSON mode, see the [OpenAI Structured Outputs documentation](https://platform.openai.com/docs/guides/structured-outputs#json-mode).
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
             list of `Tool` objects or a `Toolset` instance.
