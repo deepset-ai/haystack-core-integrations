@@ -39,10 +39,6 @@ class MistralOCRDocumentConverter:
     to analyze the content and generate structured annotations according to your defined schemas.
     For more details, see: https://docs.mistral.ai/capabilities/document_ai/annotations/#how-it-works
 
-    **API Reference:**
-    - Basic OCR: https://docs.mistral.ai/capabilities/document_ai/basic_ocr/
-    - Annotations: https://docs.mistral.ai/capabilities/document_ai/annotations/
-
     **Usage Example:**
     ```python
     from haystack.utils import Secret
@@ -117,6 +113,7 @@ class MistralOCRDocumentConverter:
             The Mistral API key. Defaults to the MISTRAL_API_KEY environment variable.
         :param model:
             The OCR model to use. Default is "mistral-ocr-2505".
+            See more: https://docs.mistral.ai/getting-started/models/models_overview/
         :param include_image_base64:
             If True, includes base64 encoded images in the response.
             This may significantly increase response size and processing time.
@@ -173,10 +170,14 @@ class MistralOCRDocumentConverter:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    @component.output_types(documents=List[Document], raw_mistral_response=List[Dict[str, Any]])
+    @component.output_types(
+        documents=List[Document], raw_mistral_response=List[Dict[str, Any]]
+    )
     def run(
         self,
-        sources: List[Union[str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk]],
+        sources: List[
+            Union[str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk]
+        ],
         bbox_annotation_schema: Optional[Type[BaseModel]] = None,
         document_annotation_schema: Optional[Type[BaseModel]] = None,
     ) -> Dict[str, Any]:
@@ -215,68 +216,123 @@ class MistralOCRDocumentConverter:
         """
         # Convert Pydantic models to Mistral ResponseFormat schemas
         bbox_annotation_format = (
-            response_format_from_pydantic_model(bbox_annotation_schema) if bbox_annotation_schema else None
+            response_format_from_pydantic_model(bbox_annotation_schema)
+            if bbox_annotation_schema
+            else None
         )
         document_annotation_format = (
-            response_format_from_pydantic_model(document_annotation_schema) if document_annotation_schema else None
+            response_format_from_pydantic_model(document_annotation_schema)
+            if document_annotation_schema
+            else None
         )
 
         # Process each source
         documents = []
         raw_responses = []
-        uploaded_file_ids = []  # Track files we uploaded for cleanup
+        uploaded_file_ids = []
 
-        try:
-            for source in sources:
-                try:
-                    # Convert source to Mistral chunk format
-                    chunk = self._convert_source_to_chunk(source)
+        for source in sources:
+            result = self._process_single_source(
+                source,
+                bbox_annotation_format,
+                document_annotation_format,
+                document_annotation_schema,
+            )
 
-                    # Track uploaded files (only those we created, not user-provided FileChunks)
-                    if isinstance(source, (str, Path, ByteStream)) and isinstance(chunk, FileChunk):
-                        uploaded_file_ids.append(chunk.file_id)
+            if result is not None:
+                document, raw_response, uploaded_file_id = result
+                documents.append(document)
+                raw_responses.append(raw_response)
+                if uploaded_file_id:
+                    uploaded_file_ids.append(uploaded_file_id)
 
-                    # Call Mistral OCR API with the provided source
-                    ocr_response: OCRResponse = self.client.ocr.process(
-                        model=self.model,
-                        document=chunk,
-                        include_image_base64=self.include_image_base64,
-                        pages=self.pages,
-                        image_limit=self.image_limit,
-                        image_min_size=self.image_min_size,
-                        bbox_annotation_format=bbox_annotation_format,
-                        document_annotation_format=document_annotation_format,
-                    )
-
-                    # Process the OCR response into a Document
-                    document = self._process_ocr_response(ocr_response, document_annotation_schema)
-                    documents.append(document)
-                    raw_responses.append(ocr_response.model_dump())
-                except Exception as e:
-                    logger.warning(
-                        "Could not process source {source}. Skipping it. Error: {error}",
-                        source=source,
-                        error=e,
-                    )
-                    continue
-        finally:
-            # Cleanup uploaded files if enabled
-            if self.cleanup_uploaded_files and uploaded_file_ids:
-                for file_id in uploaded_file_ids:
-                    try:
-                        self.client.files.delete(file_id=file_id)
-                    except Exception as e:
-                        logger.warning(
-                            "Failed to delete uploaded file {file_id}. Error: {error}",
-                            file_id=file_id,
-                            error=e,
-                        )
+        # Cleanup uploaded files
+        self._cleanup_uploaded_files(uploaded_file_ids)
 
         return {"documents": documents, "raw_mistral_response": raw_responses}
 
+    def _process_single_source(
+        self,
+        source: Union[
+            str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk
+        ],
+        bbox_annotation_format: Optional[Any],
+        document_annotation_format: Optional[Any],
+        document_annotation_schema: Optional[Type[BaseModel]],
+    ) -> Optional[tuple[Document, Dict[str, Any], Optional[str]]]:
+        """
+        Process a single source and return the document, raw response, and file_id if uploaded.
+
+        :param source:
+            The source to process.
+        :param bbox_annotation_format:
+            Optional response format for bounding box annotations.
+        :param document_annotation_format:
+            Optional response format for document annotations.
+        :param document_annotation_schema:
+            Optional Pydantic model for document-level annotations.
+
+        :returns:
+            A tuple of (Document, raw_response_dict, uploaded_file_id) or None if processing fails.
+        """
+        try:
+            chunk = self._convert_source_to_chunk(source)
+
+            # Track if we uploaded this file
+            uploaded_file_id = None
+            if isinstance(source, (str, Path, ByteStream)) and isinstance(
+                chunk, FileChunk
+            ):
+                uploaded_file_id = chunk.file_id
+
+            ocr_response: OCRResponse = self.client.ocr.process(
+                model=self.model,
+                document=chunk,
+                include_image_base64=self.include_image_base64,
+                pages=self.pages,
+                image_limit=self.image_limit,
+                image_min_size=self.image_min_size,
+                bbox_annotation_format=bbox_annotation_format,
+                document_annotation_format=document_annotation_format,
+            )
+
+            document = self._process_ocr_response(
+                ocr_response, document_annotation_schema
+            )
+            return (document, ocr_response.model_dump(), uploaded_file_id)
+        except Exception as e:
+            logger.warning(
+                "Could not process source {source}. Skipping it. Error: {error}",
+                source=source,
+                error=e,
+            )
+            return None
+
+    def _cleanup_uploaded_files(self, file_ids: List[str]) -> None:
+        """
+        Delete uploaded files from Mistral storage.
+
+        :param file_ids:
+            List of file IDs to delete.
+        """
+        if not self.cleanup_uploaded_files or not file_ids:
+            return
+
+        for file_id in file_ids:
+            try:
+                self.client.files.delete(file_id=file_id)
+            except Exception as e:
+                logger.warning(
+                    "Failed to delete uploaded file {file_id}. Error: {error}",
+                    file_id=file_id,
+                    error=e,
+                )
+
     def _convert_source_to_chunk(
         self,
-        source: Union[str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk],
+        source: Union[
+            str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk
+        ],
     ) -> Union[DocumentURLChunk, FileChunk, ImageURLChunk]:
         """
         Convert various source types to Mistral-compatible chunk format.
