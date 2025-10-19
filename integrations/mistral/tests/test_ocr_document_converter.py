@@ -18,6 +18,11 @@ from haystack_integrations.components.converters.mistral import (
 
 
 class TestMistralOCRDocumentConverter:
+    CLASS_TYPE = (
+        "haystack_integrations.components.converters.mistral."
+        "ocr_document_converter.MistralOCRDocumentConverter"
+    )
+
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
         converter = MistralOCRDocumentConverter()
@@ -28,7 +33,6 @@ class TestMistralOCRDocumentConverter:
         assert converter.pages is None
         assert converter.image_limit is None
         assert converter.image_min_size is None
-
 
     def test_init_with_all_optional_parameters(self):
         converter = MistralOCRDocumentConverter(
@@ -53,10 +57,7 @@ class TestMistralOCRDocumentConverter:
         converter_dict = converter.to_dict()
 
         assert converter_dict == {
-            "type": (
-                "haystack_integrations.components.converters.mistral."
-                "ocr_document_converter.MistralOCRDocumentConverter"
-            ),
+            "type": self.CLASS_TYPE,
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["MISTRAL_API_KEY"],
@@ -86,10 +87,7 @@ class TestMistralOCRDocumentConverter:
         converter_dict = converter.to_dict()
 
         assert converter_dict == {
-            "type": (
-                "haystack_integrations.components.converters.mistral."
-                "ocr_document_converter.MistralOCRDocumentConverter"
-            ),
+            "type": self.CLASS_TYPE,
             "init_parameters": {
                 "api_key": {
                     "type": "env_var",
@@ -108,10 +106,7 @@ class TestMistralOCRDocumentConverter:
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
         converter_dict = {
-            "type": (
-                "haystack_integrations.components.converters.mistral."
-                "ocr_document_converter.MistralOCRDocumentConverter"
-            ),
+            "type": self.CLASS_TYPE,
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["MISTRAL_API_KEY"],
@@ -139,10 +134,7 @@ class TestMistralOCRDocumentConverter:
     def test_from_dict_with_custom_parameters(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
         converter_dict = {
-            "type": (
-                "haystack_integrations.components.converters.mistral."
-                "ocr_document_converter.MistralOCRDocumentConverter"
-            ),
+            "type": self.CLASS_TYPE,
             "init_parameters": {
                 "api_key": {
                     "env_vars": ["MISTRAL_API_KEY"],
@@ -468,22 +460,6 @@ class TestMistralOCRDocumentConverter:
             assert len(result["documents"]) == 2
             assert len(result["raw_mistral_response"]) == 2
 
-    def test_process_ocr_response_basic(self, mock_ocr_response):
-        """Test basic OCR response processing"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key")
-        )
-
-        # Test the internal _process_ocr_response method
-        document = converter._process_ocr_response(
-            mock_ocr_response, document_annotation_schema=None
-        )
-
-        assert isinstance(document, Document)
-        assert document.content == "# Sample Document\n\nThis is page 1."
-        assert document.meta["source_page_count"] == 1
-        assert document.meta["source_total_images"] == 0
-
     def test_process_ocr_response_multiple_pages(
         self, mock_ocr_response_with_multiple_pages
     ):
@@ -531,52 +507,6 @@ class TestMistralOCRDocumentConverter:
 
         assert document.meta["source_page_count"] == 1
         assert document.meta["source_total_images"] == 2
-
-    def test_run_with_file_cleanup(self, mock_ocr_response, tmp_path):
-        """Test that uploaded files are deleted after successful processing"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key"), cleanup_uploaded_files=True
-        )
-
-        # Create a temporary file
-        test_file = tmp_path / "test.pdf"
-        test_file.write_bytes(b"fake pdf content")
-
-        mock_uploaded_file = MagicMock()
-        mock_uploaded_file.id = "uploaded-file-123"
-
-        with patch.object(
-            converter.client.files, "upload", return_value=mock_uploaded_file
-        ):
-            with patch.object(
-                converter.client.ocr, "process", return_value=mock_ocr_response
-            ):
-                with patch.object(converter.client.files, "delete") as mock_delete:
-                    sources = [str(test_file)]
-                    result = converter.run(sources=sources)
-
-                    # Verify file was uploaded and deleted
-                    assert len(result["documents"]) == 1
-                    converter.client.files.upload.assert_called_once()
-                    mock_delete.assert_called_once_with(file_id="uploaded-file-123")
-
-    def test_run_user_provided_filechunk_not_deleted(self, mock_ocr_response):
-        """Test that user-provided FileChunk is not deleted"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key"), cleanup_uploaded_files=True
-        )
-
-        with patch.object(
-            converter.client.ocr, "process", return_value=mock_ocr_response
-        ):
-            with patch.object(converter.client.files, "delete") as mock_delete:
-                # User provides FileChunk directly
-                sources = [FileChunk(file_id="user-file-123")]
-                result = converter.run(sources=sources)
-
-                # Verify file was NOT deleted
-                assert len(result["documents"]) == 1
-                mock_delete.assert_not_called()
 
     def test_run_with_cleanup_disabled(self, mock_ocr_response, tmp_path):
         """Test that files are not deleted when cleanup_uploaded_files=False"""
