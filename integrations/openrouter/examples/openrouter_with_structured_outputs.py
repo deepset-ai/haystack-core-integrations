@@ -1,5 +1,8 @@
-from haystack.dataclasses import ChatMessage
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
 
+from haystack.dataclasses import ChatMessage
 from haystack_integrations.components.generators.openrouter import OpenRouterChatGenerator
 
 response_schema = {
