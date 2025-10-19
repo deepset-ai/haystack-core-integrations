@@ -221,8 +221,17 @@ class TestMistralOCRDocumentConverter:
         }
         return mock_response
 
-    def test_run_with_document_url_chunk(self, mock_ocr_response):
-        """Test processing with DocumentURLChunk"""
+    @pytest.mark.parametrize(
+        "source",
+        [
+            DocumentURLChunk(document_url="https://example.com/doc.pdf"),
+            FileChunk(file_id="file-123"),
+            ImageURLChunk(image_url="https://example.com/image.jpg"),
+        ],
+        ids=["document_url_chunk", "file_chunk", "image_url_chunk"],
+    )
+    def test_run_with_remote_chunk_types(self, mock_ocr_response, source):
+        """Test processing with remote chunk types (DocumentURLChunk, FileChunk, ImageURLChunk)"""
         converter = MistralOCRDocumentConverter(
             api_key=Secret.from_token("test-api-key")
         )
@@ -230,60 +239,45 @@ class TestMistralOCRDocumentConverter:
         with patch.object(
             converter.client.ocr, "process", return_value=mock_ocr_response
         ):
-            sources = [DocumentURLChunk(document_url="https://example.com/doc.pdf")]
-            result = converter.run(sources=sources)
+            result = converter.run(sources=[source])
 
             assert len(result["documents"]) == 1
             assert isinstance(result["documents"][0], Document)
             assert (
                 result["documents"][0].content == "# Sample Document\n\nThis is page 1."
             )
-            assert result["documents"][0].meta["source_page_count"] == 1
-            assert result["documents"][0].meta["source_total_images"] == 0
+            # Metadata assertions apply to all chunk types
+            if isinstance(source, DocumentURLChunk):
+                assert result["documents"][0].meta["source_page_count"] == 1
+                assert result["documents"][0].meta["source_total_images"] == 0
 
-    def test_run_with_file_chunk(self, mock_ocr_response):
-        """Test processing with FileChunk"""
+    @pytest.mark.parametrize(
+        "source_type",
+        ["file_path_str", "path_object", "bytestream"],
+    )
+    def test_run_with_local_sources(
+        self, mock_ocr_response, tmp_path, source_type
+    ):
+        """Test processing with local source types (str, Path, ByteStream)"""
         converter = MistralOCRDocumentConverter(
             api_key=Secret.from_token("test-api-key")
         )
 
-        with patch.object(
-            converter.client.ocr, "process", return_value=mock_ocr_response
-        ):
-            sources = [FileChunk(file_id="file-123")]
-            result = converter.run(sources=sources)
+        # Create temporary file if needed
+        if source_type in ["file_path_str", "path_object"]:
+            test_file = tmp_path / "test.pdf"
+            test_file.write_bytes(b"fake pdf content")
 
-            assert len(result["documents"]) == 1
-            assert isinstance(result["documents"][0], Document)
-            assert (
-                result["documents"][0].content == "# Sample Document\n\nThis is page 1."
+        # Create the source based on type
+        if source_type == "file_path_str":
+            source = str(test_file)
+        elif source_type == "path_object":
+            source = test_file
+        else:  # bytestream
+            source = ByteStream(
+                data=b"fake pdf content", meta={"file_path": "test.pdf"}
             )
 
-    def test_run_with_image_url_chunk(self, mock_ocr_response):
-        """Test processing with ImageURLChunk"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key")
-        )
-
-        with patch.object(
-            converter.client.ocr, "process", return_value=mock_ocr_response
-        ):
-            sources = [ImageURLChunk(image_url="https://example.com/image.jpg")]
-            result = converter.run(sources=sources)
-
-            assert len(result["documents"]) == 1
-            assert isinstance(result["documents"][0], Document)
-
-    def test_run_with_file_path(self, mock_ocr_response, tmp_path):
-        """Test processing with string file path"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key")
-        )
-
-        # Create a temporary file
-        test_file = tmp_path / "test.pdf"
-        test_file.write_bytes(b"fake pdf content")
-
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.id = "uploaded-file-123"
 
@@ -294,64 +288,13 @@ class TestMistralOCRDocumentConverter:
                 converter.client.ocr, "process", return_value=mock_ocr_response
             ):
                 with patch.object(converter.client.files, "delete"):
-                    sources = [str(test_file)]
-                    result = converter.run(sources=sources)
+                    result = converter.run(sources=[source])
 
                     assert len(result["documents"]) == 1
                     assert isinstance(result["documents"][0], Document)
-                    converter.client.files.upload.assert_called_once()
-
-    def test_run_with_path_object(self, mock_ocr_response, tmp_path):
-        """Test processing with Path object"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key")
-        )
-
-        # Create a temporary file
-        test_file = tmp_path / "test.pdf"
-        test_file.write_bytes(b"fake pdf content")
-
-        mock_uploaded_file = MagicMock()
-        mock_uploaded_file.id = "uploaded-file-123"
-
-        with patch.object(
-            converter.client.files, "upload", return_value=mock_uploaded_file
-        ):
-            with patch.object(
-                converter.client.ocr, "process", return_value=mock_ocr_response
-            ):
-                with patch.object(converter.client.files, "delete"):
-                    sources = [test_file]
-                    result = converter.run(sources=sources)
-
-                    assert len(result["documents"]) == 1
-                    assert isinstance(result["documents"][0], Document)
-
-    def test_run_with_bytestream(self, mock_ocr_response):
-        """Test processing with ByteStream"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key")
-        )
-
-        bytestream = ByteStream(
-            data=b"fake pdf content", meta={"file_path": "test.pdf"}
-        )
-
-        mock_uploaded_file = MagicMock()
-        mock_uploaded_file.id = "uploaded-file-123"
-
-        with patch.object(
-            converter.client.files, "upload", return_value=mock_uploaded_file
-        ):
-            with patch.object(
-                converter.client.ocr, "process", return_value=mock_ocr_response
-            ):
-                with patch.object(converter.client.files, "delete"):
-                    sources = [bytestream]
-                    result = converter.run(sources=sources)
-
-                    assert len(result["documents"]) == 1
-                    assert isinstance(result["documents"][0], Document)
+                    # Verify file was uploaded for local sources
+                    if source_type == "file_path_str":
+                        converter.client.files.upload.assert_called_once()
 
     def test_run_with_multiple_sources(self, mock_ocr_response, tmp_path):
         """Test processing with multiple mixed source types"""
