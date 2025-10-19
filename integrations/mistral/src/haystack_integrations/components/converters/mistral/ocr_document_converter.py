@@ -336,6 +336,9 @@ class MistralOCRDocumentConverter:
         """
         Convert various source types to Mistral-compatible chunk format.
 
+        Local sources (str, Path, ByteStream) are uploaded to Mistral's storage and returned
+        as FileChunk. Remote sources (DocumentURLChunk, ImageURLChunk, FileChunk) are returned as-is.
+
         :param source:
             The source to convert. Can be a file path (str/Path), ByteStream, or Mistral chunk type.
 
