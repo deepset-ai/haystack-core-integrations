@@ -84,7 +84,6 @@ class MistralOCRDocumentConverter:
         urls: List[str] = Field(..., description="URLs found in the text")
 
     converter = MistralOCRDocumentConverter(
-        api_key=Secret.from_env_var("MISTRAL_API_KEY"),
         model="mistral-ocr-2505",
     )
 
