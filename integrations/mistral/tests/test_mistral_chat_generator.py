@@ -448,6 +448,41 @@ class TestMistralChatGenerator:
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),
+        reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_response_format_json_schema(self):
+        response_schema = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "CapitalCity",
+                "strict": True,
+                "schema": {
+                    "title": "CapitalCity",
+                    "type": "object",
+                    "properties": {
+                        "city": {"title": "City", "type": "string"},
+                        "country": {"title": "Country", "type": "string"},
+                    },
+                    "required": ["city", "country"],
+                    "additionalProperties": False,
+                },
+            },
+        }
+
+        chat_messages = [ChatMessage.from_user("What's the capital of France?")]
+        comp = MistralChatGenerator(generation_kwargs={"response_format": response_schema})
+        results = comp.run(chat_messages)
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        msg = json.loads(message.text)
+        assert "Paris" in msg["city"]
+        assert isinstance(msg["country"], str)
+        assert "France" in msg["country"]
+        assert message.meta["finish_reason"] == "stop"
+
+    @pytest.mark.skipif(
+        not os.environ.get("MISTRAL_API_KEY", None),
         reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",
     )
     @pytest.mark.integration
