@@ -19,8 +19,7 @@ from haystack_integrations.components.converters.mistral import (
 
 class TestMistralOCRDocumentConverter:
     CLASS_TYPE = (
-        "haystack_integrations.components.converters.mistral."
-        "ocr_document_converter.MistralOCRDocumentConverter"
+        "haystack_integrations.components.converters.mistral.ocr_document_converter.MistralOCRDocumentConverter"
     )
 
     def test_init_default(self, monkeypatch):
@@ -170,9 +169,7 @@ class TestMistralOCRDocumentConverter:
         mock_response.pages = [mock_page]
         mock_response.document_annotation = None
         mock_response.model_dump.return_value = {
-            "pages": [
-                {"markdown": "# Sample Document\n\nThis is page 1.", "images": []}
-            ],
+            "pages": [{"markdown": "# Sample Document\n\nThis is page 1.", "images": []}],
             "document_annotation": None,
         }
         return mock_response
@@ -211,20 +208,14 @@ class TestMistralOCRDocumentConverter:
     )
     def test_run_with_remote_chunk_types(self, mock_ocr_response, source):
         """Test processing with remote chunk types (DocumentURLChunk, FileChunk, ImageURLChunk)"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key")
-        )
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
 
-        with patch.object(
-            converter.client.ocr, "process", return_value=mock_ocr_response
-        ):
+        with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
             result = converter.run(sources=[source])
 
             assert len(result["documents"]) == 1
             assert isinstance(result["documents"][0], Document)
-            assert (
-                result["documents"][0].content == "# Sample Document\n\nThis is page 1."
-            )
+            assert result["documents"][0].content == "# Sample Document\n\nThis is page 1."
             # Metadata assertions apply to all chunk types
             if isinstance(source, DocumentURLChunk):
                 assert result["documents"][0].meta["source_page_count"] == 1
@@ -234,13 +225,9 @@ class TestMistralOCRDocumentConverter:
         "source_type",
         ["file_path_str", "path_object", "bytestream"],
     )
-    def test_run_with_local_sources(
-        self, mock_ocr_response, tmp_path, source_type
-    ):
+    def test_run_with_local_sources(self, mock_ocr_response, tmp_path, source_type):
         """Test processing with local source types (str, Path, ByteStream)"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key")
-        )
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
 
         # Create temporary file if needed
         if source_type in ["file_path_str", "path_object"]:
@@ -253,19 +240,13 @@ class TestMistralOCRDocumentConverter:
         elif source_type == "path_object":
             source = test_file
         else:  # bytestream
-            source = ByteStream(
-                data=b"fake pdf content", meta={"file_path": "test.pdf"}
-            )
+            source = ByteStream(data=b"fake pdf content", meta={"file_path": "test.pdf"})
 
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.id = "uploaded-file-123"
 
-        with patch.object(
-            converter.client.files, "upload", return_value=mock_uploaded_file
-        ):
-            with patch.object(
-                converter.client.ocr, "process", return_value=mock_ocr_response
-            ):
+        with patch.object(converter.client.files, "upload", return_value=mock_uploaded_file):
+            with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
                 with patch.object(converter.client.files, "delete"):
                     result = converter.run(sources=[source])
 
@@ -277,9 +258,7 @@ class TestMistralOCRDocumentConverter:
 
     def test_run_with_multiple_sources(self, mock_ocr_response, tmp_path):
         """Test processing with multiple mixed source types"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key")
-        )
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
 
         # Create a temporary file
         test_file = tmp_path / "test.pdf"
@@ -288,12 +267,8 @@ class TestMistralOCRDocumentConverter:
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.id = "uploaded-file-123"
 
-        with patch.object(
-            converter.client.files, "upload", return_value=mock_uploaded_file
-        ):
-            with patch.object(
-                converter.client.ocr, "process", return_value=mock_ocr_response
-            ):
+        with patch.object(converter.client.files, "upload", return_value=mock_uploaded_file):
+            with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
                 with patch.object(converter.client.files, "delete"):
                     sources = [
                         DocumentURLChunk(document_url="https://example.com/doc.pdf"),
@@ -307,9 +282,7 @@ class TestMistralOCRDocumentConverter:
 
     def test_run_with_bbox_annotations(self):
         """Test processing with bbox annotation schema"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key")
-        )
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
 
         # Define annotation schema
         class ImageAnnotation(BaseModel):
@@ -334,9 +307,7 @@ class TestMistralOCRDocumentConverter:
 
         with patch.object(converter.client.ocr, "process", return_value=mock_response):
             sources = [DocumentURLChunk(document_url="https://example.com/doc.pdf")]
-            result = converter.run(
-                sources=sources, bbox_annotation_schema=ImageAnnotation
-            )
+            result = converter.run(sources=sources, bbox_annotation_schema=ImageAnnotation)
 
             assert len(result["documents"]) == 1
             # Check that image annotation was enriched in content
@@ -344,9 +315,7 @@ class TestMistralOCRDocumentConverter:
 
     def test_run_with_document_annotations(self):
         """Test processing with document annotation schema"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key")
-        )
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
 
         # Define annotation schema
         class DocumentAnnotation(BaseModel):
@@ -368,9 +337,7 @@ class TestMistralOCRDocumentConverter:
 
         with patch.object(converter.client.ocr, "process", return_value=mock_response):
             sources = [DocumentURLChunk(document_url="https://example.com/doc.pdf")]
-            result = converter.run(
-                sources=sources, document_annotation_schema=DocumentAnnotation
-            )
+            result = converter.run(sources=sources, document_annotation_schema=DocumentAnnotation)
 
             assert len(result["documents"]) == 1
             # Check that document annotations are in metadata
@@ -379,9 +346,7 @@ class TestMistralOCRDocumentConverter:
 
     def test_run_with_both_annotations(self):
         """Test processing with both bbox and document annotation schemas"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key")
-        )
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
 
         class ImageAnnotation(BaseModel):
             image_type: str = Field(..., description="Type of image")
@@ -420,13 +385,9 @@ class TestMistralOCRDocumentConverter:
 
     def test_run_with_pages_parameter(self, mock_ocr_response):
         """Test that pages parameter is passed to API"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key"), pages=[0, 1]
-        )
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"), pages=[0, 1])
 
-        with patch.object(
-            converter.client.ocr, "process", return_value=mock_ocr_response
-        ) as mock_process:
+        with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response) as mock_process:
             sources = [DocumentURLChunk(document_url="https://example.com/doc.pdf")]
             result = converter.run(sources=sources)
 
@@ -437,9 +398,7 @@ class TestMistralOCRDocumentConverter:
 
     def test_run_handles_api_error(self, mock_ocr_response):
         """Test error handling when API fails"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key")
-        )
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
 
         with patch.object(converter.client.ocr, "process") as mock_process:
             # First call succeeds, second fails, third succeeds
@@ -460,13 +419,9 @@ class TestMistralOCRDocumentConverter:
             assert len(result["documents"]) == 2
             assert len(result["raw_mistral_response"]) == 2
 
-    def test_process_ocr_response_multiple_pages(
-        self, mock_ocr_response_with_multiple_pages
-    ):
+    def test_process_ocr_response_multiple_pages(self, mock_ocr_response_with_multiple_pages):
         """Test multi-page document with form feed separator"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key")
-        )
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
 
         document = converter._process_ocr_response(
             mock_ocr_response_with_multiple_pages, document_annotation_schema=None
@@ -480,9 +435,7 @@ class TestMistralOCRDocumentConverter:
 
     def test_process_ocr_response_with_images(self):
         """Test metadata extraction with images"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key")
-        )
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
 
         # Create mock response with images
         mock_image1 = MagicMock()
@@ -501,18 +454,14 @@ class TestMistralOCRDocumentConverter:
         mock_response.pages = [mock_page]
         mock_response.document_annotation = None
 
-        document = converter._process_ocr_response(
-            mock_response, document_annotation_schema=None
-        )
+        document = converter._process_ocr_response(mock_response, document_annotation_schema=None)
 
         assert document.meta["source_page_count"] == 1
         assert document.meta["source_total_images"] == 2
 
     def test_run_with_cleanup_disabled(self, mock_ocr_response, tmp_path):
         """Test that files are not deleted when cleanup_uploaded_files=False"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key"), cleanup_uploaded_files=False
-        )
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"), cleanup_uploaded_files=False)
 
         # Create a temporary file
         test_file = tmp_path / "test.pdf"
@@ -521,12 +470,8 @@ class TestMistralOCRDocumentConverter:
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.id = "uploaded-file-123"
 
-        with patch.object(
-            converter.client.files, "upload", return_value=mock_uploaded_file
-        ):
-            with patch.object(
-                converter.client.ocr, "process", return_value=mock_ocr_response
-            ):
+        with patch.object(converter.client.files, "upload", return_value=mock_uploaded_file):
+            with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
                 with patch.object(converter.client.files, "delete") as mock_delete:
                     sources = [str(test_file)]
                     result = converter.run(sources=sources)
@@ -538,9 +483,7 @@ class TestMistralOCRDocumentConverter:
 
     def test_run_cleanup_happens_on_ocr_failure(self, tmp_path):
         """Test that cleanup happens even when OCR processing fails"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key"), cleanup_uploaded_files=True
-        )
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"), cleanup_uploaded_files=True)
 
         # Create a temporary file
         test_file = tmp_path / "test.pdf"
@@ -549,12 +492,8 @@ class TestMistralOCRDocumentConverter:
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.id = "uploaded-file-123"
 
-        with patch.object(
-            converter.client.files, "upload", return_value=mock_uploaded_file
-        ):
-            with patch.object(
-                converter.client.ocr, "process", side_effect=Exception("OCR failed")
-            ):
+        with patch.object(converter.client.files, "upload", return_value=mock_uploaded_file):
+            with patch.object(converter.client.ocr, "process", side_effect=Exception("OCR failed")):
                 with patch.object(converter.client.files, "delete") as mock_delete:
                     sources = [str(test_file)]
                     result = converter.run(sources=sources)
@@ -566,9 +505,7 @@ class TestMistralOCRDocumentConverter:
 
     def test_run_cleanup_failure_does_not_break_flow(self, mock_ocr_response, tmp_path):
         """Test that cleanup failures don't break the main flow"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key"), cleanup_uploaded_files=True
-        )
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"), cleanup_uploaded_files=True)
 
         # Create a temporary file
         test_file = tmp_path / "test.pdf"
@@ -577,12 +514,8 @@ class TestMistralOCRDocumentConverter:
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.id = "uploaded-file-123"
 
-        with patch.object(
-            converter.client.files, "upload", return_value=mock_uploaded_file
-        ):
-            with patch.object(
-                converter.client.ocr, "process", return_value=mock_ocr_response
-            ):
+        with patch.object(converter.client.files, "upload", return_value=mock_uploaded_file):
+            with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
                 with patch.object(
                     converter.client.files,
                     "delete",
@@ -596,13 +529,9 @@ class TestMistralOCRDocumentConverter:
                     assert len(result["documents"]) == 1
                     assert isinstance(result["documents"][0], Document)
 
-    def test_run_mixed_sources_only_uploaded_files_deleted(
-        self, mock_ocr_response, tmp_path
-    ):
+    def test_run_mixed_sources_only_uploaded_files_deleted(self, mock_ocr_response, tmp_path):
         """Test that only uploaded files are deleted, not user-provided chunks"""
-        converter = MistralOCRDocumentConverter(
-            api_key=Secret.from_token("test-api-key"), cleanup_uploaded_files=True
-        )
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"), cleanup_uploaded_files=True)
 
         # Create a temporary file
         test_file = tmp_path / "test.pdf"
@@ -611,19 +540,13 @@ class TestMistralOCRDocumentConverter:
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.id = "uploaded-file-123"
 
-        with patch.object(
-            converter.client.files, "upload", return_value=mock_uploaded_file
-        ):
-            with patch.object(
-                converter.client.ocr, "process", return_value=mock_ocr_response
-            ):
+        with patch.object(converter.client.files, "upload", return_value=mock_uploaded_file):
+            with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
                 with patch.object(converter.client.files, "delete") as mock_delete:
                     sources = [
                         str(test_file),  # This will be uploaded
                         FileChunk(file_id="user-file-123"),  # User-provided
-                        DocumentURLChunk(
-                            document_url="https://example.com/doc.pdf"
-                        ),  # URL
+                        DocumentURLChunk(document_url="https://example.com/doc.pdf"),  # URL
                     ]
                     result = converter.run(sources=sources)
 
@@ -658,9 +581,7 @@ class TestMistralOCRDocumentConverter:
     @pytest.mark.integration
     def test_integration_run_with_annotations(self):
         """Integration test with real API call using annotation schemas"""
-        converter = MistralOCRDocumentConverter(
-            pages=[0]
-        )  # Only process first page for speed
+        converter = MistralOCRDocumentConverter(pages=[0])  # Only process first page for speed
 
         # Define simple annotation schemas
         class ImageAnnotation(BaseModel):
@@ -670,9 +591,7 @@ class TestMistralOCRDocumentConverter:
             )
 
         class DocumentAnnotation(BaseModel):
-            language: str = Field(
-                ..., description="The primary language of the document"
-            )
+            language: str = Field(..., description="The primary language of the document")
 
         sources = [DocumentURLChunk(document_url="https://arxiv.org/pdf/1706.03762")]
         result = converter.run(
@@ -687,4 +606,3 @@ class TestMistralOCRDocumentConverter:
         assert len(doc.content) > 0
         # Check if document annotation was added to metadata
         assert "source_language" in doc.meta
-

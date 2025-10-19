@@ -169,14 +169,10 @@ class MistralOCRDocumentConverter:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    @component.output_types(
-        documents=List[Document], raw_mistral_response=List[Dict[str, Any]]
-    )
+    @component.output_types(documents=List[Document], raw_mistral_response=List[Dict[str, Any]])
     def run(
         self,
-        sources: List[
-            Union[str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk]
-        ],
+        sources: List[Union[str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk]],
         bbox_annotation_schema: Optional[Type[BaseModel]] = None,
         document_annotation_schema: Optional[Type[BaseModel]] = None,
     ) -> Dict[str, Any]:
@@ -215,14 +211,10 @@ class MistralOCRDocumentConverter:
         """
         # Convert Pydantic models to Mistral ResponseFormat schemas
         bbox_annotation_format = (
-            response_format_from_pydantic_model(bbox_annotation_schema)
-            if bbox_annotation_schema
-            else None
+            response_format_from_pydantic_model(bbox_annotation_schema) if bbox_annotation_schema else None
         )
         document_annotation_format = (
-            response_format_from_pydantic_model(document_annotation_schema)
-            if document_annotation_schema
-            else None
+            response_format_from_pydantic_model(document_annotation_schema) if document_annotation_schema else None
         )
 
         # Process each source
@@ -231,19 +223,21 @@ class MistralOCRDocumentConverter:
         uploaded_file_ids = []
 
         for source in sources:
-            result = self._process_single_source(
+            document, raw_response, uploaded_file_id = self._process_single_source(
                 source,
                 bbox_annotation_format,
                 document_annotation_format,
                 document_annotation_schema,
             )
 
-            if result is not None:
-                document, raw_response, uploaded_file_id = result
+            # Add results if processing succeeded
+            if document is not None and raw_response is not None:
                 documents.append(document)
                 raw_responses.append(raw_response)
-                if uploaded_file_id:
-                    uploaded_file_ids.append(uploaded_file_id)
+
+            # Track uploaded file for cleanup even if processing failed
+            if uploaded_file_id:
+                uploaded_file_ids.append(uploaded_file_id)
 
         # Cleanup uploaded files
         self._cleanup_uploaded_files(uploaded_file_ids)
@@ -252,13 +246,11 @@ class MistralOCRDocumentConverter:
 
     def _process_single_source(
         self,
-        source: Union[
-            str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk
-        ],
+        source: Union[str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk],
         bbox_annotation_format: Optional[Any],
         document_annotation_format: Optional[Any],
         document_annotation_schema: Optional[Type[BaseModel]],
-    ) -> Optional[tuple[Document, Dict[str, Any], Optional[str]]]:
+    ) -> tuple[Optional[Document], Optional[Dict[str, Any]], Optional[str]]:
         """
         Process a single source and return the document, raw response, and file_id if uploaded.
 
@@ -272,16 +264,15 @@ class MistralOCRDocumentConverter:
             Optional Pydantic model for document-level annotations.
 
         :returns:
-            A tuple of (Document, raw_response_dict, uploaded_file_id) or None if processing fails.
+            A tuple of (Document|None, raw_response_dict|None, uploaded_file_id|None).
+            Returns (None, None, uploaded_file_id) if processing fails but file was uploaded.
         """
+        uploaded_file_id = None
         try:
             chunk = self._convert_source_to_chunk(source)
 
             # Track if we uploaded this file
-            uploaded_file_id = None
-            if isinstance(source, (str, Path, ByteStream)) and isinstance(
-                chunk, FileChunk
-            ):
+            if isinstance(source, (str, Path, ByteStream)) and isinstance(chunk, FileChunk):
                 uploaded_file_id = chunk.file_id
 
             ocr_response: OCRResponse = self.client.ocr.process(
@@ -295,9 +286,7 @@ class MistralOCRDocumentConverter:
                 document_annotation_format=document_annotation_format,
             )
 
-            document = self._process_ocr_response(
-                ocr_response, document_annotation_schema
-            )
+            document = self._process_ocr_response(ocr_response, document_annotation_schema)
             return (document, ocr_response.model_dump(), uploaded_file_id)
         except Exception as e:
             logger.warning(
@@ -305,7 +294,7 @@ class MistralOCRDocumentConverter:
                 source=source,
                 error=e,
             )
-            return None
+            return (None, None, uploaded_file_id)
 
     def _cleanup_uploaded_files(self, file_ids: List[str]) -> None:
         """
@@ -329,9 +318,7 @@ class MistralOCRDocumentConverter:
 
     def _convert_source_to_chunk(
         self,
-        source: Union[
-            str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk
-        ],
+        source: Union[str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk],
     ) -> Union[DocumentURLChunk, FileChunk, ImageURLChunk]:
         """
         Convert various source types to Mistral-compatible chunk format.
