@@ -675,10 +675,10 @@ class OpenSearchDocumentStore:
         try:
             normalized_filters = normalize_filters(filters)
             # Build the update script to modify metadata fields
-            # Ensure metadata object exists before updating fields
-            update_script_lines = ["if (ctx._source.metadata == null) { ctx._source.metadata = [:]; }"]
+            # Documents are stored with flattened metadata, so update fields directly in ctx._source
+            update_script_lines = []
             for key in meta.keys():
-                update_script_lines.append(f"ctx._source.metadata.{key} = params.{key};")
+                update_script_lines.append(f"ctx._source.{key} = params.{key};")
             update_script = " ".join(update_script_lines)
 
             body = {
@@ -712,10 +712,10 @@ class OpenSearchDocumentStore:
         try:
             normalized_filters = normalize_filters(filters)
             # Build the update script to modify metadata fields
-            # Ensure metadata object exists before updating fields
-            update_script_lines = ["if (ctx._source.metadata == null) { ctx._source.metadata = [:]; }"]
+            # Documents are stored with flattened metadata, so update fields directly in ctx._source
+            update_script_lines = []
             for key in meta.keys():
-                update_script_lines.append(f"ctx._source.metadata.{key} = params.{key};")
+                update_script_lines.append(f"ctx._source.{key} = params.{key};")
             update_script = " ".join(update_script_lines)
 
             body = {
