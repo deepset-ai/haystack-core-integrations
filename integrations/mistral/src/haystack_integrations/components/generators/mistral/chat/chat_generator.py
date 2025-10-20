@@ -10,7 +10,7 @@ from haystack.dataclasses import ChatMessage, StreamingCallbackT
 from haystack.tools import Tool, Toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
-from haystack.utils.json_schema import to_strict_json_schema
+from openai.lib._pydantic import to_strict_json_schema
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
