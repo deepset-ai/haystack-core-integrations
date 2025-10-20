@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/snowflake-v1.2.0] - 2025-10-17
+
+### 🚀 Features
+
+- Add MFA authentication support to snowflake integration (#2305)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+- Fix linting in tests for snowflake (#2258)
+
+
 ## [integrations/snowflake-v1.1.0] - 2025-06-30
 
 ### 🐛 Bug Fixes

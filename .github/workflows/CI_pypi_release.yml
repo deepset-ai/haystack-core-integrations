@@ -24,8 +24,11 @@ jobs:
           token: ${{ secrets.HAYSTACK_BOT_TOKEN }}
           fetch-depth: 0
 
-      - name: Install Hatch
-        run: pip install hatch
+      - name: Install dependencies
+        run: pip install hatch requests
+
+      - name: Validate version number
+        run: python .github/utils/validate_version.py --tag ${{ github.ref_name }}
 
       - name: Get project folder
         id: pathfinder
