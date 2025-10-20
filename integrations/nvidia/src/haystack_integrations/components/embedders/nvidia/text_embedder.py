@@ -4,7 +4,7 @@
 
 import os
 import warnings
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -39,13 +39,13 @@ class NvidiaTextEmbedder:
 
     def __init__(
         self,
-        model: str | None = None,
-        api_key: Secret | None = Secret.from_env_var("NVIDIA_API_KEY"),
+        model: Optional[str] = None,
+        api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         api_url: str = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
         prefix: str = "",
         suffix: str = "",
-        truncate: EmbeddingTruncateMode | str | None = None,
-        timeout: float | None = None,
+        truncate: Optional[Union[EmbeddingTruncateMode, str]] = None,
+        timeout: Optional[float] = None,
     ):
         """
         Create a NvidiaTextEmbedder component.
@@ -81,7 +81,7 @@ class NvidiaTextEmbedder:
             truncate = EmbeddingTruncateMode.from_str(truncate)
         self.truncate = truncate
 
-        self.backend: Any | None = None
+        self.backend: Optional[Any] = None
         self._initialized = False
 
         if timeout is None:
@@ -146,7 +146,7 @@ class NvidiaTextEmbedder:
             else:
                 self.default_model()
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -165,14 +165,14 @@ class NvidiaTextEmbedder:
         )
 
     @property
-    def available_models(self) -> list[Model]:
+    def available_models(self) -> List[Model]:
         """
         Get a list of available models that work with NvidiaTextEmbedder.
         """
         return self.backend.models() if self.backend else []
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "NvidiaTextEmbedder":
+    def from_dict(cls, data: Dict[str, Any]) -> "NvidiaTextEmbedder":
         """
         Deserializes the component from a dictionary.
 
@@ -186,8 +186,8 @@ class NvidiaTextEmbedder:
             deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    @component.output_types(embedding=list[float], meta=dict[str, Any])
-    def run(self, text: str) -> dict[str, list[float] | dict[str, Any]]:
+    @component.output_types(embedding=List[float], meta=Dict[str, Any])
+    def run(self, text: str) -> Dict[str, Union[List[float], Dict[str, Any]]]:
         """
         Embed a string.
 

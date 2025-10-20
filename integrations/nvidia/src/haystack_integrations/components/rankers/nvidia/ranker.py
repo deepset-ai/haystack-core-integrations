@@ -4,7 +4,7 @@
 
 import os
 import warnings
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -47,16 +47,16 @@ class NvidiaRanker:
 
     def __init__(
         self,
-        model: str | None = None,
-        truncate: RankerTruncateMode | str | None = None,
+        model: Optional[str] = None,
+        truncate: Optional[Union[RankerTruncateMode, str]] = None,
         api_url: str = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
-        api_key: Secret | None = Secret.from_env_var("NVIDIA_API_KEY"),
+        api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         top_k: int = 5,
         query_prefix: str = "",
         document_prefix: str = "",
-        meta_fields_to_embed: list[str] | None = None,
+        meta_fields_to_embed: Optional[List[str]] = None,
         embedding_separator: str = "\n",
-        timeout: float | None = None,
+        timeout: Optional[float] = None,
     ):
         """
         Create a NvidiaRanker component.
@@ -107,7 +107,7 @@ class NvidiaRanker:
         self.api_url = url_validation(api_url)
         self.top_k = top_k
         self._initialized = False
-        self.backend: Any | None = None
+        self.backend: Optional[Any] = None
         self.is_hosted = is_hosted(api_url)
 
         self.query_prefix = query_prefix
@@ -122,7 +122,7 @@ class NvidiaRanker:
     def class_name(cls) -> str:
         return "NvidiaRanker"
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """
         Serialize the ranker to a dictionary.
 
@@ -143,7 +143,7 @@ class NvidiaRanker:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "NvidiaRanker":
+    def from_dict(cls, data: Dict[str, Any]) -> "NvidiaRanker":
         """
         Deserialize the ranker from a dictionary.
 
@@ -162,7 +162,7 @@ class NvidiaRanker:
         :raises ValueError: If the API key is required for hosted NVIDIA NIMs.
         """
         if not self._initialized:
-            model_kwargs: dict[str, Any] = {}
+            model_kwargs: Dict[str, Any] = {}
             if self.truncate is not None:
                 model_kwargs.update(truncate=str(self.truncate))
             self.backend = NimBackend(
@@ -179,7 +179,7 @@ class NvidiaRanker:
                     self.model = self.backend.model
             self._initialized = True
 
-    def _prepare_documents_to_embed(self, documents: list[Document]) -> list[str]:
+    def _prepare_documents_to_embed(self, documents: List[Document]) -> List[str]:
         document_texts = []
         for doc in documents:
             meta_values_to_embed = [
@@ -191,13 +191,13 @@ class NvidiaRanker:
             document_texts.append(self.document_prefix + text_to_embed)
         return document_texts
 
-    @component.output_types(documents=list[Document])
+    @component.output_types(documents=List[Document])
     def run(
         self,
         query: str,
-        documents: list[Document],
-        top_k: int | None = None,
-    ) -> dict[str, list[Document]]:
+        documents: List[Document],
+        top_k: Optional[int] = None,
+    ) -> Dict[str, List[Document]]:
         """
         Rank a list of documents based on a given query.
 
