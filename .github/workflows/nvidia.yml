@@ -33,7 +33,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10"]   # we don't test on other python versions to reduce API calls
+        python-version: ["3.9"]   # we don't test on other python versions to reduce API calls
 
     steps:
       - name: Support longpaths

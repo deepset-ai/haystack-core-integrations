@@ -7,7 +7,7 @@ name = "nvidia-haystack"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
@@ -15,6 +15,7 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
+  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -22,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.18.0", "requests>=2.25.0", "tqdm>=4.21.0"]
+dependencies = ["haystack-ai>=2.13.0", "requests>=2.25.0", "tqdm>=4.21.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/nvidia#readme"
@@ -42,7 +43,6 @@ git_describe_command = 'git describe --tags --match="integrations/nvidia-v[0-9]*
 
 [tool.hatch.envs.default]
 installer = "uv"
-python = "3.12"
 dependencies = ["haystack-pydoc-tools", "ruff"]
 
 [tool.hatch.envs.default.scripts]
