@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -53,13 +53,13 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
         *,
         api_key: Secret = Secret.from_env_var("NVIDIA_API_KEY"),
         model: str = "meta/llama-3.1-8b-instruct",
-        streaming_callback: StreamingCallbackT | None = None,
-        api_base_url: str | None = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
-        generation_kwargs: dict[str, Any] | None = None,
-        tools: list[Tool] | Toolset | None = None,
-        timeout: float | None = None,
-        max_retries: int | None = None,
-        http_client_kwargs: dict[str, Any] | None = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
+        api_base_url: Optional[str] = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
+        timeout: Optional[float] = None,
+        max_retries: Optional[int] = None,
+        http_client_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
         Creates an instance of NvidiaChatGenerator.
@@ -87,12 +87,10 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
             - `stream`: Whether to stream back partial progress. If set, tokens will be sent as data-only server-sent
                 events as they become available, with the stream terminated by a data: [DONE] message.
             - `response_format`: For NVIDIA NIM servers, this parameter has limited support.
-                Only basic JSON mode with `{"type": "json_object"}` works with compatible models, to produce
-                any valid JSON including empty objects.
-                Recommended approach for NVIDIA NIM: Use the `guided_json` parameter in `extra_body` instead,
-                which allows to pass a JSON schema to the model.
-
-                For NVIDIA NIM structured outputs, use:
+                - The basic JSON mode with `{"type": "json_object"}` is supported by compatible models, to produce
+                valid JSON output.
+                To pass the JSON schema to the model, use the `guided_json` parameter in `extra_body`.
+                For example:
                 ```python
                 generation_kwargs={
                     "extra_body": {
@@ -128,7 +126,7 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
             http_client_kwargs=http_client_kwargs,
         )
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """
         Serialize this component to a dictionary.
 
