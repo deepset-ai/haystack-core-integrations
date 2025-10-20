@@ -102,8 +102,6 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
                 If provided, the output will always be validated against this
                 format (unless the model returns a tool call).
                 For details, see the [OpenRouter Structured Outputs documentation](https://openrouter.ai/docs/features/structured-outputs).
-                Notes:
-                For detailed information on JSON mode, see the [OpenAI Structured Outputs documentation](https://platform.openai.com/docs/guides/structured-outputs#json-mode).
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
             list of `Tool` objects or a `Toolset` instance.
