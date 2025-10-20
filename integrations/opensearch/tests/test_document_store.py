@@ -538,8 +538,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
             filters={"field": "meta.category", "operator": "==", "value": "A"}
         )
         time.sleep(2)  # wait for deletion to be reflected
-        # TEMPORARY: Intentionally failing to verify CI/CD runs integration tests
-        assert deleted_count == 999  # Should be 2, but set to 999 to make it fail
+        assert deleted_count == 2
         assert document_store.count_documents() == 1
 
         # Verify only category B remains
