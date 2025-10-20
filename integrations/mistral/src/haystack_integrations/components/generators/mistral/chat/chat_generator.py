@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -10,8 +10,6 @@ from haystack.dataclasses import ChatMessage, StreamingCallbackT
 from haystack.tools import Tool, Toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
-from openai.lib._pydantic import to_strict_json_schema
-from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -63,14 +61,14 @@ class MistralChatGenerator(OpenAIChatGenerator):
         self,
         api_key: Secret = Secret.from_env_var("MISTRAL_API_KEY"),
         model: str = "mistral-small-latest",
-        streaming_callback: StreamingCallbackT | None = None,
-        api_base_url: str | None = "https://api.mistral.ai/v1",
-        generation_kwargs: dict[str, Any] | None = None,
-        tools: list[Tool] | Toolset | None = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
+        api_base_url: Optional[str] = "https://api.mistral.ai/v1",
+        generation_kwargs: Optional[Dict[str, Any]] = None,
+        tools: Optional[Union[List[Tool], Toolset]] = None,
         *,
-        timeout: float | None = None,
-        max_retries: int | None = None,
-        http_client_kwargs: dict[str, Any] | None = None,
+        timeout: Optional[float] = None,
+        max_retries: Optional[int] = None,
+        http_client_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """
         Creates an instance of MistralChatGenerator. Unless specified otherwise in the `model`, this is for Mistral's
@@ -100,7 +98,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
                 events as they become available, with the stream terminated by a data: [DONE] message.
             - `safe_prompt`: Whether to inject a safety prompt before all conversations.
             - `random_seed`: The seed to use for random sampling.
-            - `response_format`: A JSON schema or a Pydantic model that enforces the structure of the model's response.
+             - `response_format`: A JSON schema or a Pydantic model that enforces the structure of the model's response.
                 If provided, the output will always be validated against this
                 format (unless the model returns a tool call).
                 For details, see the [OpenAI Structured Outputs documentation](https://platform.openai.com/docs/guides/structured-outputs).
@@ -140,10 +138,10 @@ class MistralChatGenerator(OpenAIChatGenerator):
         self,
         *,
         messages: list[ChatMessage],
-        streaming_callback: StreamingCallbackT | None = None,
-        generation_kwargs: dict[str, Any] | None = None,
-        tools: list[Tool] | Toolset | None = None,
-        tools_strict: bool | None = None,
+        streaming_callback: Optional[StreamingCallbackT] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
+        tools: Optional[Union[list[Tool], Toolset]] = None,
+        tools_strict: Optional[bool] = None,
     ) -> dict[str, Any]:
         api_args = super(MistralChatGenerator, self)._prepare_api_call(  # noqa: UP008
             messages=messages,
@@ -158,7 +156,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
             api_args.pop("response_format")
         return api_args
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """
         Serialize this component to a dictionary.
 
@@ -166,21 +164,6 @@ class MistralChatGenerator(OpenAIChatGenerator):
             The serialized component as a dictionary.
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
-        generation_kwargs = self.generation_kwargs.copy()
-        response_format = generation_kwargs.get("response_format")
-
-        # If the response format is a Pydantic model, it's converted to openai's json schema format
-        # If it's already a json schema, it's left as is
-        if response_format and isinstance(response_format, type) and issubclass(response_format, BaseModel):
-            json_schema = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": response_format.__name__,
-                    "strict": True,
-                    "schema": to_strict_json_schema(response_format),
-                },
-            }
-            generation_kwargs["response_format"] = json_schema
 
         # if we didn't implement the to_dict method here then the to_dict method of the superclass would be used
         # which would serialiaze some fields that we don't want to serialize (e.g. the ones we don't have in
