@@ -1,11 +1,11 @@
-# Isaacus (Kanon 2) Embedders for Haystack
+# Isaacus Kanon 2 Embedder for Haystack
 
-This package provides two Haystack 2.x components for the Isaacus **Kanon 2** embedding model:
+This package provides two Haystack components for the [Isaacus Kanon 2 embedding model]("https://docs.isaacus.com/capabilities/embedding"):
 
 - `Kanon2TextEmbedder` – embeds a query string and returns a vector.
 - `Kanon2DocumentEmbedder` – embeds a list of `Document`s and writes vectors to `document.embedding`.
 
-It calls the Isaacus Embeddings API (`POST /v1/embeddings`, model `kanon-2-embedder`). See the official API docs for details.
+It calls the Isaacus Embeddings API (`POST /v1/embeddings`, model `kanon-2-embedder`). See the official [API docs]("https://docs.isaacus.com/capabilities/embedding") for details.
 
 ## Installation
 This package is built and tested inside the `deepset-ai/haystack-core-integrations` monorepo using **Hatch**.
@@ -25,7 +25,7 @@ store = InMemoryDocumentStore(embedding_similarity_function="dot_product")
 
 # Index docs
 doc_emb = Kanon2DocumentEmbedder(api_key=Secret.from_env_var("ISAACUS_API_KEY"))
-docs = [Document(content="Isaacus builds Kanon 2."), Document(content="Haystack supports many embedders.")]
+docs = [Document(content="Isaacus built the best performing model on the Massive Legal Embedding Benchmark: Kanon 2 embedder"), Document(content="Haystack supports many embedders.")]
 store.write_documents(doc_emb.run(docs)["documents"])
 
 # Query pipeline
