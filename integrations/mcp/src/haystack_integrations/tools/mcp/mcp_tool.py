@@ -814,7 +814,7 @@ class MCPTool(Tool):
         description: str | None = None,
         connection_timeout: int = 30,
         invocation_timeout: int = 30,
-        eager_connect: bool = True,
+        eager_connect: bool = False,
     ):
         """
         Initialize the MCP tool.
@@ -824,8 +824,8 @@ class MCPTool(Tool):
         :param description: Custom description (if None, server description will be used)
         :param connection_timeout: Timeout in seconds for server connection
         :param invocation_timeout: Default timeout in seconds for tool invocations
-        :param eager_connect: If True (default), connect to server during initialization.
-                             If False, defer connection until warm up or first tool use
+        :param eager_connect: If True, connect to server during initialization.
+                             If False (default), defer connection until warm_up or first tool use,
                              whichever comes first.
         :raises MCPConnectionError: If connection to the server fails
         :raises MCPToolNotFoundError: If no tools are available or the requested tool is not found

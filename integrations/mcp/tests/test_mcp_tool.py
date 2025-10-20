@@ -26,21 +26,21 @@ class TestMCPTool:
         """Provides an MCPTool instance for the 'add' tool using the in-memory calculator server."""
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
         # The MCPTool constructor will fetch the tool's schema from the in-memory server
-        tool = MCPTool(name="add", server_info=server_info)
+        tool = MCPTool(name="add", server_info=server_info, eager_connect=True)
         return mcp_tool_cleanup(tool)
 
     @pytest.fixture
     def mcp_echo_tool(self, mcp_tool_cleanup):
         """Provides an MCPTool instance for the 'echo' tool using the in-memory echo server."""
         server_info = InMemoryServerInfo(server=echo_mcp._mcp_server)
-        tool = MCPTool(name="echo", server_info=server_info)
+        tool = MCPTool(name="echo", server_info=server_info, eager_connect=True)
         return mcp_tool_cleanup(tool)
 
     @pytest.fixture
     def mcp_error_tool(self, mcp_tool_cleanup):
         """Provides an MCPTool instance for the 'divide_by_zero' tool for error testing."""
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
-        tool = MCPTool(name="divide_by_zero", server_info=server_info)
+        tool = MCPTool(name="divide_by_zero", server_info=server_info, eager_connect=True)
         return mcp_tool_cleanup(tool)
 
     # New tests using in-memory approach will be added below
@@ -90,7 +90,9 @@ class TestMCPTool:
         """Test serialization and deserialization of MCPTool with in-memory server."""
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
 
-        tool = MCPTool(name="add", server_info=server_info, description="Addition tool for serde testing")
+        tool = MCPTool(
+            name="add", server_info=server_info, description="Addition tool for serde testing", eager_connect=True
+        )
         # Register tool for cleanup
         mcp_tool_cleanup(tool)
 

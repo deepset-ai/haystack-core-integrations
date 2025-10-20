@@ -38,6 +38,7 @@ async def calculator_toolset(mcp_tool_cleanup):
         server_info=server_info,
         connection_timeout=45,
         invocation_timeout=60,
+        eager_connect=True,
     )
 
     return mcp_tool_cleanup(toolset)
@@ -52,6 +53,7 @@ async def echo_toolset(mcp_tool_cleanup):
         server_info=server_info,
         connection_timeout=45,
         invocation_timeout=60,
+        eager_connect=True,
     )
 
     return mcp_tool_cleanup(toolset)
@@ -67,6 +69,7 @@ async def calculator_toolset_with_tool_filter(mcp_tool_cleanup):
         tool_names=["add"],  # Only include the 'add' tool
         connection_timeout=45,
         invocation_timeout=60,
+        eager_connect=True,
     )
 
     return mcp_tool_cleanup(toolset)
@@ -211,6 +214,7 @@ class TestMCPToolset:
                 server_info=server_info,
                 connection_timeout=1.0,
                 invocation_timeout=1.0,
+                eager_connect=True,
             )
 
     async def test_toolset_tool_not_found(self):
@@ -223,6 +227,7 @@ class TestMCPToolset:
                 tool_names=["non_existent_tool"],
                 connection_timeout=10,
                 invocation_timeout=10,
+                eager_connect=True,
             )
 
 
@@ -280,7 +285,7 @@ if __name__ == "__main__":
 
             # Create the toolset
             server_info = SSEServerInfo(base_url=f"http://127.0.0.1:{port}")
-            toolset = MCPToolset(server_info=server_info)
+            toolset = MCPToolset(server_info=server_info, eager_connect=True)
             # Verify we got both tools
             assert len(toolset) == 2
 
@@ -381,7 +386,7 @@ if __name__ == "__main__":
 
             # Create the toolset - note the /mcp endpoint for streamable-http
             server_info = StreamableHttpServerInfo(url=f"http://127.0.0.1:{port}/mcp")
-            toolset = MCPToolset(server_info=server_info)
+            toolset = MCPToolset(server_info=server_info, eager_connect=True)
 
             # Verify we got both tools
             assert len(toolset) == 2

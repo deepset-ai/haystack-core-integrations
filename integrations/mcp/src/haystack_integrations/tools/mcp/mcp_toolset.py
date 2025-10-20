@@ -120,7 +120,7 @@ class MCPToolset(Toolset):
         tool_names: list[str] | None = None,
         connection_timeout: float = 30.0,
         invocation_timeout: float = 30.0,
-        eager_connect: bool = True,
+        eager_connect: bool = False,
     ):
         """
         Initialize the MCP toolset.
@@ -130,8 +130,8 @@ class MCPToolset(Toolset):
                           matching names will be added to the toolset.
         :param connection_timeout: Timeout in seconds for server connection
         :param invocation_timeout: Default timeout in seconds for tool invocations
-        :param eager_connect: If True (default), connect to server and load tools during initialization.
-                             If False, defer connection to warm up.
+        :param eager_connect: If True, connect to server and load tools during initialization.
+                             If False (default), defer connection to warm_up.
         :raises MCPToolNotFoundError: If any of the specified tool names are not found on the server
         """
         # Store configuration
