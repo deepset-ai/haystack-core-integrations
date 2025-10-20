@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 import os
 from datetime import datetime
 from unittest.mock import AsyncMock, patch
@@ -294,11 +295,39 @@ class TestNvidiaChatGenerator:
 
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
-        message: ChatMessage = results["replies"][0]
-        assert "Inception" in message.text
-        assert "4" in message.text
-        assert message.meta["finish_reason"] == "stop"
+        message = results["replies"][0].text
+        output = json.loads(message)
+        assert output["title"] == "Inception"
+        assert "rating" in output
 
+    @pytest.mark.skipif(
+        not os.environ.get("NVIDIA_API_KEY", None),
+        reason="Export an env var called NVIDIA_API_KEY containing the NVIDIA API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_json_object(self):
+        chat_messages = [
+            ChatMessage.from_user(
+                """
+            Return the title and the rating based on the following movie review according
+            to the provided json schema.
+            Review: Inception is a really well made film. I rate it four stars out of five."""
+            )
+        ]
+
+        component = NvidiaChatGenerator(
+            model="meta/llama-3.1-70b-instruct",
+            generation_kwargs={"response_format": {"type": "json_object"}},
+        )
+
+        results = component.run(chat_messages)
+        assert len(results["replies"]) == 1
+        message = results["replies"][0].text
+        output = json.loads(message)
+        assert "title" in output
+        assert "rating" in output
+        assert isinstance(output["rating"], int)
+        assert "Inception" in output["title"]
 
 class TestNvidiaChatGeneratorAsync:
     def test_init_default_async(self, monkeypatch):
