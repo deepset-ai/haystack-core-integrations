@@ -1,5 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates
 
+import json
 import os
 from datetime import datetime
 from unittest.mock import patch
@@ -15,6 +16,7 @@ from haystack.utils.auth import Secret
 from openai import OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
+from pydantic import BaseModel
 
 from haystack_integrations.components.generators.meta_llama.chat.chat_generator import (
     MetaLlamaChatGenerator,
@@ -134,12 +136,44 @@ class TestLlamaChatGenerator:
 
     def test_to_dict_with_parameters(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test-api-key")
+
+        class NobelPrizeInfo(BaseModel):
+            recipient_name: str
+            award_year: int
+
+        schema = {
+            "json_schema": {
+                "name": "NobelPrizeInfo",
+                "schema": {
+                    "additionalProperties": False,
+                    "properties": {
+                        "award_year": {
+                            "title": "Award Year",
+                            "type": "integer",
+                        },
+                        "recipient_name": {
+                            "title": "Recipient Name",
+                            "type": "string",
+                        },
+                    },
+                    "required": [
+                        "recipient_name",
+                        "award_year",
+                    ],
+                    "title": "NobelPrizeInfo",
+                    "type": "object",
+                },
+                "strict": True,
+            },
+            "type": "json_schema",
+        }
+
         component = MetaLlamaChatGenerator(
             api_key=Secret.from_env_var("ENV_VAR"),
             model="Llama-4-Scout-17B-16E-Instruct-FP8",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
-            generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
+            generation_kwargs={"max_tokens": 10, "some_test_param": "test-params", "response_format": NobelPrizeInfo},
         )
         data = component.to_dict()
 
@@ -153,7 +187,7 @@ class TestLlamaChatGenerator:
             "model": "Llama-4-Scout-17B-16E-Instruct-FP8",
             "api_base_url": "test-base-url",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-            "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+            "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params", "response_format": schema},
         }
 
         for key, value in expected_params.items():
@@ -292,6 +326,77 @@ class TestLlamaChatGenerator:
 
         assert callback.counter > 1
         assert "Paris" in callback.responses
+
+    @pytest.mark.skipif(
+        not os.environ.get("LLAMA_API_KEY", None),
+        reason="Export an env var called LLAMA_API_KEY containing the Llama API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_response_format(self):
+        class NobelPrizeInfo(BaseModel):
+            recipient_name: str
+            award_year: int
+            category: str
+            achievement_description: str
+            nationality: str
+
+        chat_messages = [
+            ChatMessage.from_user(
+                "In 2021, American scientist David Julius received the Nobel Prize in"
+                " Physiology or Medicine for his groundbreaking discoveries on how the human body"
+                " senses temperature and touch."
+            )
+        ]
+        component = MetaLlamaChatGenerator(generation_kwargs={"response_format": NobelPrizeInfo})
+        results = component.run(chat_messages)
+        assert isinstance(results, dict)
+        assert "replies" in results
+        assert isinstance(results["replies"], list)
+        assert len(results["replies"]) == 1
+        assert isinstance(results["replies"][0], ChatMessage)
+        message = results["replies"][0]
+        assert isinstance(message.text, str)
+        msg = json.loads(message.text)
+        assert msg["recipient_name"] == "David Julius"
+        assert msg["award_year"] == 2021
+        assert "category" in msg
+        assert "achievement_description" in msg
+        assert msg["nationality"] == "American"
+
+    @pytest.mark.skipif(
+        not os.environ.get("LLAMA_API_KEY", None),
+        reason="Export an env var called LLAMA_API_KEY containing the Llama API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_response_format_json_schema(self):
+        response_schema = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "CapitalCity",
+                "strict": True,
+                "schema": {
+                    "title": "CapitalCity",
+                    "type": "object",
+                    "properties": {
+                        "city": {"title": "City", "type": "string"},
+                        "country": {"title": "Country", "type": "string"},
+                    },
+                    "required": ["city", "country"],
+                    "additionalProperties": False,
+                },
+            },
+        }
+
+        chat_messages = [ChatMessage.from_user("What's the capital of France?")]
+        comp = MetaLlamaChatGenerator(generation_kwargs={"response_format": response_schema})
+        results = comp.run(chat_messages)
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        msg = json.loads(message.text)
+        assert "Paris" in msg["city"]
+        assert isinstance(msg["country"], str)
+        assert "France" in msg["country"]
+        assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
         not os.environ.get("LLAMA_API_KEY", None),
