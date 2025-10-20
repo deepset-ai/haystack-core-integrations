@@ -59,14 +59,14 @@ class TestNvidiaDocumentEmbedder:
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-        component = NvidiaDocumentEmbedder("playground_nvolveqa_40k")
+        component = NvidiaDocumentEmbedder("nvidia/nv-embedqa-e5-v5")
         data = component.to_dict()
         assert data == {
             "type": "haystack_integrations.components.embedders.nvidia.document_embedder.NvidiaDocumentEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
                 "api_url": DEFAULT_API_URL,
-                "model": "playground_nvolveqa_40k",
+                "model": "nvidia/nv-embedqa-e5-v5",
                 "prefix": "",
                 "suffix": "",
                 "batch_size": 32,
@@ -81,7 +81,7 @@ class TestNvidiaDocumentEmbedder:
     def test_to_dict_with_custom_init_parameters(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         component = NvidiaDocumentEmbedder(
-            model="playground_nvolveqa_40k",
+            model="nvidia/nv-embedqa-e5-v5",
             api_url="https://example.com",
             prefix="prefix",
             suffix="suffix",
@@ -98,7 +98,7 @@ class TestNvidiaDocumentEmbedder:
             "init_parameters": {
                 "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
                 "api_url": "https://example.com/v1",
-                "model": "playground_nvolveqa_40k",
+                "model": "nvidia/nv-embedqa-e5-v5",
                 "prefix": "prefix",
                 "suffix": "suffix",
                 "batch_size": 10,
@@ -117,7 +117,7 @@ class TestNvidiaDocumentEmbedder:
             "init_parameters": {
                 "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
                 "api_url": "https://example.com",
-                "model": "playground_nvolveqa_40k",
+                "model": "nvidia/nv-embedqa-e5-v5",
                 "prefix": "prefix",
                 "suffix": "suffix",
                 "batch_size": 10,
@@ -129,7 +129,7 @@ class TestNvidiaDocumentEmbedder:
             },
         }
         component = NvidiaDocumentEmbedder.from_dict(data)
-        assert component.model == "playground_nvolveqa_40k"
+        assert component.model == "nvidia/nv-embedqa-e5-v5"
         assert component.api_url == "https://example.com/v1"
         assert component.prefix == "prefix"
         assert component.suffix == "suffix"
@@ -166,7 +166,7 @@ class TestNvidiaDocumentEmbedder:
         ]
 
         embedder = NvidiaDocumentEmbedder(
-            "playground_nvolveqa_40k",
+            "nvidia/nv-embedqa-e5-v5",
             api_key=Secret.from_token("fake-api-key"),
             meta_fields_to_embed=["meta_field"],
             embedding_separator=" | ",
@@ -187,7 +187,7 @@ class TestNvidiaDocumentEmbedder:
         documents = [Document(content=f"document number {i}") for i in range(5)]
 
         embedder = NvidiaDocumentEmbedder(
-            "playground_nvolveqa_40k",
+            "nvidia/nv-embedqa-e5-v5",
             api_key=Secret.from_token("fake-api-key"),
             prefix="my_prefix ",
             suffix=" my_suffix",
@@ -205,7 +205,7 @@ class TestNvidiaDocumentEmbedder:
 
     def test_embed_batch(self):
         texts = ["text 1", "text 2", "text 3", "text 4", "text 5"]
-        model = "playground_nvolveqa_40k"
+        model = "nvidia/nv-embedqa-e5-v5"
         api_key = Secret.from_token("fake-api-key")
         embedder = NvidiaDocumentEmbedder(
             model,
@@ -275,7 +275,7 @@ class TestNvidiaDocumentEmbedder:
             Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
         ]
         api_key = Secret.from_token("fake-api-key")
-        model = "playground_nvolveqa_40k"
+        model = "nvidia/nv-embedqa-e5-v5"
         embedder = NvidiaDocumentEmbedder(
             api_key=api_key,
             model=model,
@@ -308,7 +308,7 @@ class TestNvidiaDocumentEmbedder:
             Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
         ]
         api_key = Secret.from_token("fake-api-key")
-        model = "playground_nvolveqa_40k"
+        model = "nvidia/nv-embedqa-e5-v5"
         embedder = NvidiaDocumentEmbedder(
             api_key=api_key,
             model=model,
@@ -338,7 +338,7 @@ class TestNvidiaDocumentEmbedder:
         assert metadata == {"usage": {"prompt_tokens": 2 * 4, "total_tokens": 2 * 4}}
 
     def test_run_wrong_input_format(self):
-        model = "playground_nvolveqa_40k"
+        model = "nvidia/nv-embedqa-e5-v5"
         api_key = Secret.from_token("fake-api-key")
         embedder = NvidiaDocumentEmbedder(model, api_key=api_key)
 
@@ -355,7 +355,7 @@ class TestNvidiaDocumentEmbedder:
             embedder.run(documents=list_integers_input)
 
     def test_run_empty_document(self, caplog):
-        model = "playground_nvolveqa_40k"
+        model = "nvidia/nv-embedqa-e5-v5"
         api_key = Secret.from_token("fake-api-key")
         embedder = NvidiaDocumentEmbedder(model, api_key=api_key)
 
@@ -368,7 +368,7 @@ class TestNvidiaDocumentEmbedder:
             assert "has no content to embed." in caplog.text
 
     def test_run_on_empty_list(self):
-        model = "playground_nvolveqa_40k"
+        model = "nvidia/nv-embedqa-e5-v5"
         api_key = Secret.from_token("fake-api-key")
         embedder = NvidiaDocumentEmbedder(model, api_key=api_key)
 
@@ -430,11 +430,9 @@ class TestNvidiaDocumentEmbedder:
     @pytest.mark.parametrize(
         "model, api_url",
         [
-            ("NV-Embed-QA", None),
             ("nvidia/nv-embedqa-e5-v5", "https://integrate.api.nvidia.com/v1"),
         ],
         ids=[
-            "NV-Embed-QA",
             "nvidia/nv-embedqa-e5-v5",
         ],
     )

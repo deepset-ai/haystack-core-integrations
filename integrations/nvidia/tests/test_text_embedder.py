@@ -148,10 +148,10 @@ class TestNvidiaTextEmbedder:
 
     def test_run(self):
         api_key = Secret.from_token("fake-api-key")
-        embedder = NvidiaTextEmbedder("playground_nvolveqa_40k", api_key=api_key, prefix="prefix ", suffix=" suffix")
+        embedder = NvidiaTextEmbedder("nvidia/nv-embedqa-e5-v5", api_key=api_key, prefix="prefix ", suffix=" suffix")
 
         embedder.warm_up()
-        embedder.backend = MockBackend(model="playground_nvolveqa_40k", api_key=api_key)
+        embedder.backend = MockBackend(model="nvidia/nv-embedqa-e5-v5", api_key=api_key)
 
         result = embedder.run(text="The food was delicious")
 
@@ -163,9 +163,9 @@ class TestNvidiaTextEmbedder:
 
     def test_run_wrong_input_format(self):
         api_key = Secret.from_token("fake-api-key")
-        embedder = NvidiaTextEmbedder("playground_nvolveqa_40k", api_key=api_key)
+        embedder = NvidiaTextEmbedder("nvidia/nv-embedqa-e5-v5", api_key=api_key)
         embedder.warm_up()
-        embedder.backend = MockBackend(model="playground_nvolveqa_40k", api_key=api_key)
+        embedder.backend = MockBackend(model="nvidia/nv-embedqa-e5-v5", api_key=api_key)
 
         list_integers_input = [1, 2, 3]
 
@@ -173,7 +173,7 @@ class TestNvidiaTextEmbedder:
             embedder.run(text=list_integers_input)
 
     def test_run_empty_string(self):
-        model = "playground_nvolveqa_40k"
+        model = "nvidia/nv-embedqa-e5-v5"
         api_key = Secret.from_token("fake-api-key")
         embedder = NvidiaTextEmbedder(model, api_key=api_key)
 
@@ -222,11 +222,9 @@ class TestNvidiaTextEmbedder:
     @pytest.mark.parametrize(
         "model, api_url",
         [
-            ("NV-Embed-QA", None),
             ("nvidia/nv-embedqa-e5-v5", "https://integrate.api.nvidia.com/v1"),
         ],
         ids=[
-            "NV-Embed-QA",
             "nvidia/nv-embedqa-e5-v5",
         ],
     )
