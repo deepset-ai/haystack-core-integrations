@@ -66,7 +66,9 @@ class GitHubIssueViewer:
         """
         headers = self.base_headers.copy()
         if self.github_token:
-            headers["Authorization"] = f"Bearer {self.github_token.resolve_value()}"
+            token_value = self.github_token.resolve_value()
+            if token_value:
+                headers["Authorization"] = f"Bearer {token_value}"
         return headers
 
     def _parse_github_url(self, url: str) -> tuple[str, str, int]:
