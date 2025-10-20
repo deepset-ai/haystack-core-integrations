@@ -137,12 +137,44 @@ class TestMistralChatGenerator:
 
     def test_to_dict_with_parameters(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test-api-key")
+
+        class NobelPrizeInfo(BaseModel):
+            recipient_name: str
+            award_year: int
+
+        schema = {
+            "json_schema": {
+                "name": "NobelPrizeInfo",
+                "schema": {
+                    "additionalProperties": False,
+                    "properties": {
+                        "award_year": {
+                            "title": "Award Year",
+                            "type": "integer",
+                        },
+                        "recipient_name": {
+                            "title": "Recipient Name",
+                            "type": "string",
+                        },
+                    },
+                    "required": [
+                        "recipient_name",
+                        "award_year",
+                    ],
+                    "title": "NobelPrizeInfo",
+                    "type": "object",
+                },
+                "strict": True,
+            },
+            "type": "json_schema",
+        }
+
         component = MistralChatGenerator(
             api_key=Secret.from_env_var("ENV_VAR"),
             model="mistral-small",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
-            generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
+            generation_kwargs={"max_tokens": 10, "some_test_param": "test-params", "response_format": NobelPrizeInfo},
         )
         data = component.to_dict()
 
@@ -156,7 +188,7 @@ class TestMistralChatGenerator:
             "model": "mistral-small",
             "api_base_url": "test-base-url",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-            "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+            "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params", "response_format": schema},
         }
 
         for key, value in expected_params.items():
@@ -358,7 +390,7 @@ class TestMistralChatGenerator:
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),
-        reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",
+        reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run(self):
@@ -373,7 +405,7 @@ class TestMistralChatGenerator:
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),
-        reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",
+        reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run_wrong_model(self, chat_messages):
@@ -383,7 +415,7 @@ class TestMistralChatGenerator:
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),
-        reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",
+        reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run_streaming(self):
@@ -412,7 +444,7 @@ class TestMistralChatGenerator:
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),
-        reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",
+        reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run_response_format(self):
@@ -483,7 +515,7 @@ class TestMistralChatGenerator:
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),
-        reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",
+        reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run_with_tools(self, tools):
@@ -503,7 +535,7 @@ class TestMistralChatGenerator:
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),
-        reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",
+        reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run_with_tools_and_response(self, tools):
@@ -551,7 +583,7 @@ class TestMistralChatGenerator:
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),
-        reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",
+        reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run_with_tools_streaming(self, tools):

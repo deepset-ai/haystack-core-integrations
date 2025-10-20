@@ -10,6 +10,8 @@ from haystack.dataclasses import ChatMessage, StreamingCallbackT
 from haystack.tools import Tool, Toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
+from haystack.utils.json_schema import to_strict_json_schema
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +166,22 @@ class MistralChatGenerator(OpenAIChatGenerator):
             The serialized component as a dictionary.
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+        generation_kwargs = self.generation_kwargs.copy()
+        response_format = generation_kwargs.get("response_format")
+
+        # If the response format is a Pydantic model, it's converted to openai's json schema format
+        # If it's already a json schema, it's left as is
+        if response_format and isinstance(response_format, type) and issubclass(response_format, BaseModel):
+            json_schema = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": response_format.__name__,
+                    "strict": True,
+                    "schema": to_strict_json_schema(response_format),
+                },
+            }
+
+            generation_kwargs["response_format"] = json_schema
 
         # if we didn't implement the to_dict method here then the to_dict method of the superclass would be used
         # which would serialiaze some fields that we don't want to serialize (e.g. the ones we don't have in
@@ -173,7 +191,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
             model=self.model,
             streaming_callback=callback_name,
             api_base_url=self.api_base_url,
-            generation_kwargs=self.generation_kwargs,
+            generation_kwargs=generation_kwargs,
             api_key=self.api_key.to_dict(),
             tools=[tool.to_dict() for tool in self.tools] if self.tools else None,
             timeout=self.timeout,
