@@ -1,11 +1,17 @@
 import json
+import os
 
 import pytest
+from haystack.components.agents import Agent
+from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.core.pipeline import Pipeline
+from haystack.dataclasses import ChatMessage
 from haystack.tools.errors import ToolInvocationError
 from haystack.tools.from_function import tool
 
 from haystack_integrations.tools.mcp import (
     MCPTool,
+    StdioServerInfo,
 )
 
 from .mcp_memory_transport import InMemoryServerInfo
@@ -152,3 +158,26 @@ class TestMCPTool:
             "title": "addArguments",
             "type": "object",
         }
+
+    @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
+    @pytest.mark.integration
+    def test_pipeline_warmup_with_mcp_tool(self):
+        """Test lazy connection with Pipeline.warm_up() - replicates time_pipeline.py."""
+
+        # Replicate time_pipeline.py using MCPTool instead of MCPToolset
+        server_info = StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=Europe/Berlin"])
+
+        # Create tool with lazy connection (default behavior)
+        tool = MCPTool(name="get_current_time", server_info=server_info)
+        try:
+            # Build pipeline with Agent, Pipeline will warm up the tool in the agent automatically
+            agent = Agent(chat_generator=OpenAIChatGenerator(model="gpt-4.1-mini"), tools=[tool])
+            pipeline = Pipeline()
+            pipeline.add_component("agent", agent)
+
+            user_input_msg = ChatMessage.from_user(text="What is the time in New York?")
+            result = pipeline.run({"agent": {"messages": [user_input_msg]}})
+            assert "New York" in result["agent"]["messages"][3].text
+        finally:
+            if tool:
+                tool.close()
