@@ -675,7 +675,12 @@ class OpenSearchDocumentStore:
         try:
             normalized_filters = normalize_filters(filters)
             # Build the update script to modify metadata fields
-            update_script = "".join([f"ctx._source.metadata.{key} = params.{key}; " for key in meta.keys()])
+            # Ensure metadata object exists before updating fields
+            update_script_lines = ["if (ctx._source.metadata == null) { ctx._source.metadata = [:]; }"]
+            for key in meta.keys():
+                update_script_lines.append(f"ctx._source.metadata.{key} = params.{key};")
+            update_script = " ".join(update_script_lines)
+
             body = {
                 "query": {"bool": {"filter": normalized_filters}},
                 "script": {"source": update_script, "params": meta, "lang": "painless"},
@@ -707,7 +712,12 @@ class OpenSearchDocumentStore:
         try:
             normalized_filters = normalize_filters(filters)
             # Build the update script to modify metadata fields
-            update_script = "".join([f"ctx._source.metadata.{key} = params.{key}; " for key in meta.keys()])
+            # Ensure metadata object exists before updating fields
+            update_script_lines = ["if (ctx._source.metadata == null) { ctx._source.metadata = [:]; }"]
+            for key in meta.keys():
+                update_script_lines.append(f"ctx._source.metadata.{key} = params.{key};")
+            update_script = " ".join(update_script_lines)
+
             body = {
                 "query": {"bool": {"filter": normalized_filters}},
                 "script": {"source": update_script, "params": meta, "lang": "painless"},
