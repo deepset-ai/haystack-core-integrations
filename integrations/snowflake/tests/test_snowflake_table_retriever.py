@@ -129,11 +129,11 @@ class TestSnowflakeTableRetriever:
 
     def test_from_dict_minimal(self):
         data = {
-            "type": "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.SnowflakeTableRetriever",
+            "type": "haystack_integrations.components.retrievers.snowflake.snowflake_table_retriever.SnowflakeTableRetriever",  # noqa: E501
             "init_parameters": {
                 "user": "test_user",
                 "account": "test_account",
-                "api_key": {'type': 'env_var', 'env_vars': ['SNOWFLAKE_API_KEY'], 'strict': False}
+                "api_key": {"type": "env_var", "env_vars": ["SNOWFLAKE_API_KEY"], "strict": False},
             },
         }
         deserialized = SnowflakeTableRetriever.from_dict(data)

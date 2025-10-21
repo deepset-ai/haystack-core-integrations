@@ -39,6 +39,7 @@ class SnowflakeTableRetriever:
         db_schema="<SCHEMA-NAME>",
         warehouse="<WAREHOUSE-NAME>",
     )
+    executor.warm_up()
     ```
 
     #### Key-pair Authentication (MFA):
@@ -53,6 +54,7 @@ class SnowflakeTableRetriever:
         db_schema="<SCHEMA-NAME>",
         warehouse="<WAREHOUSE-NAME>",
     )
+    executor.warm_up()
     ```
 
     #### OAuth Authentication (MFA):
@@ -68,6 +70,7 @@ class SnowflakeTableRetriever:
         db_schema="<SCHEMA-NAME>",
         warehouse="<WAREHOUSE-NAME>",
     )
+    executor.warm_up()
     ```
 
     #### Running queries:
@@ -413,7 +416,8 @@ class SnowflakeTableRetriever:
             - `"table"`: A Markdown-formatted string representation of the DataFrame.
         """
         if not self._warmed_up:
-            raise RuntimeError("SnowflakeTableRetriever not warmed up. Please call `warm_up()` before running queries.")
+            msg = "SnowflakeTableRetriever not warmed up. Please call `warm_up()` before running queries."
+            raise RuntimeError(msg)
 
         # Validate SQL query
         if not query:
