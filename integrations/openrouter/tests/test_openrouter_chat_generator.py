@@ -17,8 +17,20 @@ from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_chunk import Choice as ChoiceChunk
 from openai.types.chat.chat_completion_chunk import ChoiceDelta, ChoiceDeltaToolCall, ChoiceDeltaToolCallFunction
 from openai.types.completion_usage import CompletionTokensDetails, CompletionUsage, PromptTokensDetails
+from pydantic import BaseModel
 
 from haystack_integrations.components.generators.openrouter.chat.chat_generator import OpenRouterChatGenerator
+
+
+class CalendarEvent(BaseModel):
+    event_name: str
+    event_date: str
+    event_location: str
+
+
+@pytest.fixture
+def calendar_event_model():
+    return CalendarEvent
 
 
 class CollectorCallback:
@@ -574,6 +586,24 @@ class TestOpenRouterChatGenerator:
         assert loaded_generator.tools[0].name == generator.tools[0].name
         assert loaded_generator.tools[0].description == generator.tools[0].description
         assert loaded_generator.tools[0].parameters == generator.tools[0].parameters
+
+    @pytest.mark.skipif(
+        not os.environ.get("OPENROUTER_API_KEY", None),
+        reason="Export an env var called OPENROUTER_API_KEY containing the OpenRouter API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_response_format_pydantic_model(self, calendar_event_model):
+        chat_messages = [
+            ChatMessage.from_user("The marketing summit takes place on October12th at the Hilton Hotel downtown.")
+        ]
+        component = OpenRouterChatGenerator(generation_kwargs={"response_format": calendar_event_model})
+        results = component.run(chat_messages)
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        msg = json.loads(message.text)
+        assert "Marketing Summit" in msg["event_name"]
+        assert isinstance(msg["event_date"], str)
+        assert isinstance(msg["event_location"], str)
 
 
 class TestChatCompletionChunkConversion:
