@@ -1413,7 +1413,7 @@ class TestAnthropicChatGenerator:
         assert isinstance(restored.tools[0], Tool)
         assert isinstance(restored.tools[1], Toolset)
         assert restored.tools[0].name == "tool1"
-        assert list(restored.tools[1])[0].name == "tool2"
+        assert next(iter(restored.tools[1])).name == "tool2"
 
     def test_run_with_mixed_tools_and_toolsets(self, chat_messages, mock_anthropic_completion, monkeypatch):
         """Test that the run method works with mixed Tools and Toolsets."""
