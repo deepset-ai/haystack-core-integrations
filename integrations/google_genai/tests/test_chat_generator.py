@@ -39,6 +39,10 @@ def weather(city: str):
     return f"Weather in {city}: 22°C, sunny"
 
 
+def population(city: str) -> str:
+    return f"The population of {city} is 2.2 million"
+
+
 @pytest.fixture
 def tools():
     return [
@@ -945,6 +949,102 @@ class TestGoogleGenAIChatGenerator:
         assert message.text and ("paris" in message.text.lower() or "berlin" in message.text.lower())
         # Check that the response mentions both temperature readings
         assert "22" in message.text or "15" in message.text
+
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_mixed_tools(self):
+        """
+        Integration test that verifies GoogleGenAIChatGenerator works with mixed Tool and Toolset.
+        This tests that the LLM can correctly invoke tools from both a standalone Tool and a Toolset.
+        """
+        weather_tool = Tool(
+            name="weather",
+            description="useful to determine the weather in a given location",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "description": "The name of the city to get weather for, e.g. Paris, London",
+                    }
+                },
+                "required": ["city"],
+            },
+            function=weather,
+        )
+
+        population_tool = Tool(
+            name="population",
+            description="useful to determine the population of a given city",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "description": "The name of the city to get population for, e.g. Paris, Berlin",
+                    }
+                },
+                "required": ["city"],
+            },
+            function=population,
+        )
+
+        # Create a toolset with the population tool
+        population_toolset = Toolset([population_tool])
+
+        # Mix standalone tool with toolset
+        mixed_tools = [weather_tool, population_toolset]
+
+        initial_messages = [
+            ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
+        ]
+        component = GoogleGenAIChatGenerator(tools=mixed_tools)
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+
+        first_reply = results["replies"][0]
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert first_reply.tool_calls, "First reply has no tool calls"
+
+        tool_calls = first_reply.tool_calls
+        assert len(tool_calls) == 2, f"Expected 2 tool calls, got {len(tool_calls)}"
+
+        # Verify we got calls to both weather and population tools
+        tool_names = {tc.tool_name for tc in tool_calls}
+        assert "weather" in tool_names, "Expected 'weather' tool call"
+        assert "population" in tool_names, "Expected 'population' tool call"
+
+        # Verify tool call details
+        for tool_call in tool_calls:
+            # Google GenAI may not provide IDs for tool calls
+            assert tool_call.tool_name in ["weather", "population"]
+            assert "city" in tool_call.arguments
+            assert tool_call.arguments["city"] in ["Paris", "Berlin"]
+            assert first_reply.meta["finish_reason"] == "stop"
+
+        # Mock the response we'd get from ToolInvoker
+        tool_result_messages = []
+        for tool_call in tool_calls:
+            if tool_call.tool_name == "weather":
+                result = "The weather in Paris is sunny and 32°C"
+            else:  # population
+                result = "The population of Berlin is 2.2 million"
+            tool_result_messages.append(ChatMessage.from_tool(tool_result=result, origin=tool_call))
+
+        new_messages = [*initial_messages, first_reply, *tool_result_messages]
+        results = component.run(new_messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_calls
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+        assert "berlin" in final_message.text.lower()
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
