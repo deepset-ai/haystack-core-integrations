@@ -329,6 +329,7 @@ class TestNvidiaChatGenerator:
         assert isinstance(output["rating"], int)
         assert "Inception" in output["title"]
 
+
 class TestNvidiaChatGeneratorAsync:
     def test_init_default_async(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")

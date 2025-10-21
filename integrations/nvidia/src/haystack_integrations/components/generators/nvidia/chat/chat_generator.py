@@ -3,12 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import StreamingCallbackT
-from haystack.tools import Tool, Toolset, serialize_tools_or_toolset
+from haystack.tools import ToolsType, serialize_tools_or_toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
 
@@ -56,7 +56,7 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[ToolsType] = None,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
         http_client_kwargs: Optional[Dict[str, Any]] = None,
