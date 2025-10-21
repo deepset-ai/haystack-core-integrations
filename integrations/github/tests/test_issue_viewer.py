@@ -150,3 +150,37 @@ class TestGitHubIssueViewer:
 
         with pytest.raises(ValueError):
             viewer._parse_github_url("https://github.com/invalid/url")
+
+    def test_get_request_headers_with_valid_token(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token-value")
+
+        token = Secret.from_env_var("GITHUB_TOKEN")
+        viewer = GitHubIssueViewer(github_token=token)
+
+        headers = viewer._get_request_headers()
+
+        assert "Authorization" in headers
+        assert headers["Authorization"] == "Bearer test-token-value"
+        assert headers["Accept"] == "application/vnd.github.v3+json"
+        assert headers["User-Agent"] == "Haystack/GitHubIssueViewer"
+
+    def test_get_request_headers_without_token(self):
+        viewer = GitHubIssueViewer(github_token=None)
+
+        headers = viewer._get_request_headers()
+
+        assert "Authorization" not in headers
+        assert headers["Accept"] == "application/vnd.github.v3+json"
+        assert headers["User-Agent"] == "Haystack/GitHubIssueViewer"
+
+    def test_get_request_headers_with_empty_token(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "")
+
+        token = Secret.from_env_var("GITHUB_TOKEN")
+        viewer = GitHubIssueViewer(github_token=token)
+
+        headers = viewer._get_request_headers()
+
+        assert "Authorization" not in headers
+        assert headers["Accept"] == "application/vnd.github.v3+json"
+        assert headers["User-Agent"] == "Haystack/GitHubIssueViewer"
