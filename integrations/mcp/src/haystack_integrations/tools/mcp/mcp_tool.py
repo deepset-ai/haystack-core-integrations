@@ -845,7 +845,7 @@ class MCPTool(Tool):
         if not eager_connect:
             # Permissive placeholder JSON Schema so the Tool is valid
             # without discovering the remote schema during validation.
-            # Replaced with the strict schema on first use.
+            # Tool parameters/schema will be replaced with the correct schema (from the MCP server) on first use.
             params = {"type": "object", "properties": {}, "additionalProperties": True}
             super().__init__(name=name, description=description or "", parameters=params, function=self._invoke_tool)
             return
