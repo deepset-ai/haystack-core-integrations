@@ -6,7 +6,7 @@ from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, StreamingChunk, ToolCall
-from haystack.tools import Tool
+from haystack.tools import Tool, Toolset
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 
@@ -304,6 +304,86 @@ class TestAmazonBedrockChatGenerator:
         )
         assert request_params["messages"] == [{"content": [{"text": "What's the capital of France?"}], "role": "user"}]
         assert request_params["guardrailConfig"] == {"guardrailIdentifier": "test", "guardrailVersion": "test"}
+
+    def test_init_with_mixed_tools(self, mock_boto3_session, set_env_variables):
+        def tool_fn(city: str) -> str:
+            return city
+
+        weather_tool = Tool(
+            name="weather",
+            description="Weather lookup",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=tool_fn,
+        )
+        population_tool = Tool(
+            name="population",
+            description="Population lookup",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=tool_fn,
+        )
+        toolset = Toolset([population_tool])
+
+        generator = AmazonBedrockChatGenerator(
+            model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+            tools=[weather_tool, toolset],
+        )
+
+        assert generator.tools == [weather_tool, toolset]
+
+    def test_prepare_request_params_with_mixed_tools(self, mock_boto3_session, set_env_variables):
+        def tool_fn(city: str) -> str:
+            return city
+
+        weather_tool = Tool(
+            name="weather",
+            description="Weather lookup",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=tool_fn,
+        )
+        population_tool = Tool(
+            name="population",
+            description="Population lookup",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=tool_fn,
+        )
+        toolset = Toolset([population_tool])
+
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+        request_params, _ = generator._prepare_request_params(
+            messages=[ChatMessage.from_user("What's the capital of France?")],
+            tools=[weather_tool, toolset],
+        )
+
+        assert request_params["toolConfig"] == {
+            "tools": [
+                {
+                    "toolSpec": {
+                        "name": "weather",
+                        "description": "Weather lookup",
+                        "inputSchema": {
+                            "json": {
+                                "type": "object",
+                                "properties": {"city": {"type": "string"}},
+                                "required": ["city"],
+                            }
+                        },
+                    }
+                },
+                {
+                    "toolSpec": {
+                        "name": "population",
+                        "description": "Population lookup",
+                        "inputSchema": {
+                            "json": {
+                                "type": "object",
+                                "properties": {"city": {"type": "string"}},
+                                "required": ["city"],
+                            }
+                        },
+                    }
+                },
+            ]
+        }
 
 
 # In the CI, those tests are skipped if AWS Authentication fails
