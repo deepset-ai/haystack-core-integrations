@@ -187,9 +187,8 @@ class AmazonBedrockChatGenerator:
             [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk) object and switches
             the streaming mode on.
         :param boto3_config: The configuration for the boto3 client.
-        :param tools:
-            A collection of tools (single `Tool`, list of `Tool` items, `Toolset`, or a mix of both) that the model can
-            use. Each tool should have a unique name.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            Each tool should have a unique name.
         :param guardrail_config: Optional configuration for a guardrail that has been created in Amazon Bedrock.
             This must be provided as a dictionary matching either
             [GuardrailConfiguration](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_GuardrailConfiguration.html).
@@ -360,9 +359,8 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
-        :param tools:
-            Optional collection of tools (single `Tool`, list of `Tool` items, `Toolset`, or a mix of both) that the
-            model can use.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            Each tool should have a unique name.
         :param requires_async: Boolean flag to indicate if an async-compatible streaming callback function is needed.
 
         :returns:
@@ -441,9 +439,8 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
-        :param tools:
-            Optional collection of tools (single `Tool`, list of `Tool` items, `Toolset`, or a mix of both) that the
-            model can use.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            Each tool should have a unique name.
 
         :returns:
             A dictionary containing the model-generated replies under the `"replies"` key.
@@ -503,9 +500,8 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
-        :param tools:
-            Optional collection of tools (single `Tool`, list of `Tool` items, `Toolset`, or a mix of both) that the
-            model can use.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            Each tool should have a unique name.
 
         :returns:
             A dictionary containing the model-generated replies under the `"replies"` key.
