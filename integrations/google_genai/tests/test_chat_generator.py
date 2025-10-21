@@ -450,6 +450,78 @@ class TestGoogleGenAIChatGenerator:
         assert len(deserialized_component._tools) == len(tools)
         assert all(isinstance(tool, Tool) for tool in deserialized_component._tools)
 
+    def test_init_with_mixed_tools_and_toolsets(self, monkeypatch):
+        """Test initialization with a mixed list of Tools and Toolsets."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+
+        tool1 = Tool(
+            name="tool1",
+            description="First tool",
+            parameters={"type": "object", "properties": {"x": {"type": "string"}}, "required": ["x"]},
+            function=weather,
+        )
+        tool2 = Tool(
+            name="tool2",
+            description="Second tool",
+            parameters={"type": "object", "properties": {"y": {"type": "string"}}, "required": ["y"]},
+            function=weather,
+        )
+        tool3 = Tool(
+            name="tool3",
+            description="Third tool",
+            parameters={"type": "object", "properties": {"z": {"type": "string"}}, "required": ["z"]},
+            function=weather,
+        )
+
+        toolset1 = Toolset([tool2])
+
+        # Initialize with mixed list: Tool, Toolset, Tool
+        generator = GoogleGenAIChatGenerator(model="gemini-2.0-flash", tools=[tool1, toolset1, tool3])
+
+        assert generator._tools == [tool1, toolset1, tool3]
+        assert isinstance(generator._tools, list)
+        assert len(generator._tools) == 3
+        assert isinstance(generator._tools[0], Tool)
+        assert isinstance(generator._tools[1], Toolset)
+        assert isinstance(generator._tools[2], Tool)
+
+    def test_serde_with_mixed_tools_and_toolsets(self, monkeypatch):
+        """Test serialization/deserialization with mixed Tools and Toolsets."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+
+        tool1 = Tool(
+            name="tool1",
+            description="First tool",
+            parameters={"type": "object", "properties": {"x": {"type": "string"}}, "required": ["x"]},
+            function=weather,
+        )
+        tool2 = Tool(
+            name="tool2",
+            description="Second tool",
+            parameters={"type": "object", "properties": {"y": {"type": "string"}}, "required": ["y"]},
+            function=weather,
+        )
+
+        toolset1 = Toolset([tool2])
+
+        generator = GoogleGenAIChatGenerator(model="gemini-2.0-flash", tools=[tool1, toolset1])
+        data = generator.to_dict()
+
+        # Verify serialization preserves structure
+        assert isinstance(data["init_parameters"]["tools"], list)
+        assert len(data["init_parameters"]["tools"]) == 2
+        assert data["init_parameters"]["tools"][0]["type"].endswith("Tool")
+        assert data["init_parameters"]["tools"][1]["type"].endswith("Toolset")
+
+        # Verify deserialization
+        restored = GoogleGenAIChatGenerator.from_dict(data)
+        assert isinstance(restored._tools, list)
+        assert len(restored._tools) == 2
+        assert isinstance(restored._tools[0], Tool)
+        assert isinstance(restored._tools[1], Toolset)
+        assert restored._tools[0].name == "tool1"
+        assert len(restored._tools[1]) == 1
+
     def test_convert_message_to_google_genai_format_complex(self):
         """
         Test that the GoogleGenAIChatGenerator can convert a complex sequence of ChatMessages to Google GenAI format.
