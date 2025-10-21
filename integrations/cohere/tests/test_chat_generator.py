@@ -364,8 +364,10 @@ class TestCohereChatGenerator:
         assert loaded_generator.tools[0].description == generator.tools[0].description
         assert loaded_generator.tools[0].parameters == generator.tools[0].parameters
 
-    def test_init_with_mixed_tools_and_toolsets(self):
+    def test_init_with_mixed_tools_and_toolsets(self, monkeypatch):
         """Test initialization with a mixed list of Tools and Toolsets."""
+        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
+
         tool1 = Tool(
             name="tool1",
             description="First tool",
@@ -386,14 +388,16 @@ class TestCohereChatGenerator:
             function=weather,
         )
 
-        generator = CohereChatGenerator(api_key=Secret.from_token("test-api-key"), tools=[tool1, toolset1, tool3])
+        generator = CohereChatGenerator(tools=[tool1, toolset1, tool3])
 
         assert generator.tools == [tool1, toolset1, tool3]
         assert isinstance(generator.tools, list)
         assert len(generator.tools) == 3
 
-    def test_serde_with_mixed_tools_and_toolsets(self):
+    def test_serde_with_mixed_tools_and_toolsets(self, monkeypatch):
         """Test serialization/deserialization with mixed Tools and Toolsets."""
+        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
+
         tool1 = Tool(
             name="tool1",
             description="First tool",
@@ -408,7 +412,7 @@ class TestCohereChatGenerator:
         )
         toolset1 = Toolset([tool2])
 
-        generator = CohereChatGenerator(api_key=Secret.from_token("test-api-key"), tools=[tool1, toolset1])
+        generator = CohereChatGenerator(tools=[tool1, toolset1])
         data = generator.to_dict()
 
         # Verify serialization preserves structure
