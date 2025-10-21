@@ -1052,7 +1052,7 @@ class MCPTool(Tool):
         # Handle backward compatibility for timeout parameters
         connection_timeout = inner_data.get("connection_timeout", 30)
         invocation_timeout = inner_data.get("invocation_timeout", 30)
-        eager_connect = inner_data.get("eager_connect", True)
+        eager_connect = inner_data.get("eager_connect", False) # because False is the default
 
         # Create a new MCPTool instance with the deserialized parameters
         # This will establish a new connection to the MCP server
