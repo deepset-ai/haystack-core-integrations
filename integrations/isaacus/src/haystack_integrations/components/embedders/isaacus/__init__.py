@@ -1,4 +1,4 @@
-from .text_embedder import Kanon2TextEmbedder
-from .document_embedder import Kanon2DocumentEmbedder
+from .text_embedder import IsaacusTextEmbedder
+from .document_embedder import IsaacusDocumentEmbedder
 
-__all__ = ["Kanon2TextEmbedder", "Kanon2DocumentEmbedder"]
+__all__ = ["IsaacusTextEmbedder", "IsaacusDocumentEmbedder"]

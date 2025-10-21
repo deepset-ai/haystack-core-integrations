@@ -7,10 +7,12 @@ from .utils import IsaacusClient
 
 
 @component
-class Kanon2DocumentEmbedder:
+class IsaacusDocumentEmbedder:
     """
-    Embeds a list of Haystack `Document`s using Isaacus Kanon 2.
+    Embeds a list of Haystack `Document`s using Isaacus (configurable model).
     Writes vectors to `document.embedding` and returns the list under `documents`.
+
+    Parameters mirror IsaacusTextEmbedder, with an additional `batch_size`.
     """
 
     def __init__(
@@ -36,6 +38,7 @@ class Kanon2DocumentEmbedder:
     def run(self, documents: List[Document]):
         if not documents:
             return {"documents": []}
+
         # Only embed non-empty docs
         docs = [d for d in documents if (d.content or "").strip()]
 

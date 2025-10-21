@@ -6,10 +6,27 @@ from .utils import IsaacusClient
 
 
 @component
-class Kanon2TextEmbedder:
+class IsaacusTextEmbedder:
     """
-    Embeds a text string into a vector using Isaacus Kanon 2.
+    Embeds a text string into a vector using Isaacus (configurable model).
     Returns a single vector under the key `embedding`.
+
+    Parameters
+    ----------
+    api_key : Secret
+        Isaacus API key (default reads ISAACUS_API_KEY env var).
+    base_url : str
+        Isaacus API base URL.
+    model : str
+        Embedding model name (e.g., "kanon-2-embedder").
+    task : str
+        Embedding task name ("retrieval/query" by default for queries).
+    dimensions : Optional[int]
+        Optional output dimensionality (e.g., 1792, 1024, 768...).
+    overflow_strategy : Optional[str]
+        Truncation strategy for long inputs (e.g., "drop_end").
+    timeout : int
+        HTTP timeout in seconds.
     """
 
     def __init__(
