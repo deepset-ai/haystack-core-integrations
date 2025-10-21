@@ -25,7 +25,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai>=2.11.0",
-  "pinecone[asyncio]>=6.0.0", # asyncio extra was added in 6.0.0,
+  "pinecone[asyncio]>=7.0.0",
 ]
 
 [project.urls]
