@@ -37,7 +37,7 @@ class CometAPIChatGenerator(OpenAIChatGenerator):
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: Optional[int] = None,
         max_retries: Optional[int] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[Union[List[Union[Tool, Toolset]], Toolset]] = None,
         *,
         tools_strict: bool = False,
         http_client_kwargs: Optional[Dict[str, Any]] = None,
