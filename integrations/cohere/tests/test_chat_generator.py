@@ -9,7 +9,7 @@ from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, ToolCall
 from haystack.dataclasses.streaming_chunk import StreamingChunk
-from haystack.tools import Tool
+from haystack.tools import Tool, Toolset
 from haystack.utils import Secret
 
 from haystack_integrations.components.generators.cohere import CohereChatGenerator
@@ -363,6 +363,68 @@ class TestCohereChatGenerator:
         assert loaded_generator.tools[0].name == generator.tools[0].name
         assert loaded_generator.tools[0].description == generator.tools[0].description
         assert loaded_generator.tools[0].parameters == generator.tools[0].parameters
+
+    def test_init_with_mixed_tools_and_toolsets(self):
+        """Test initialization with a mixed list of Tools and Toolsets."""
+        tool1 = Tool(
+            name="tool1",
+            description="First tool",
+            parameters={"type": "object", "properties": {"param1": {"type": "string"}}},
+            function=weather,
+        )
+        tool2 = Tool(
+            name="tool2",
+            description="Second tool",
+            parameters={"type": "object", "properties": {"param2": {"type": "string"}}},
+            function=stock_price,
+        )
+        toolset1 = Toolset([tool2])
+        tool3 = Tool(
+            name="tool3",
+            description="Third tool",
+            parameters={"type": "object", "properties": {"param3": {"type": "string"}}},
+            function=weather,
+        )
+
+        generator = CohereChatGenerator(api_key=Secret.from_token("test-api-key"), tools=[tool1, toolset1, tool3])
+
+        assert generator.tools == [tool1, toolset1, tool3]
+        assert isinstance(generator.tools, list)
+        assert len(generator.tools) == 3
+
+    def test_serde_with_mixed_tools_and_toolsets(self):
+        """Test serialization/deserialization with mixed Tools and Toolsets."""
+        tool1 = Tool(
+            name="tool1",
+            description="First tool",
+            parameters={"type": "object", "properties": {"param1": {"type": "string"}}},
+            function=weather,
+        )
+        tool2 = Tool(
+            name="tool2",
+            description="Second tool",
+            parameters={"type": "object", "properties": {"param2": {"type": "string"}}},
+            function=stock_price,
+        )
+        toolset1 = Toolset([tool2])
+
+        generator = CohereChatGenerator(api_key=Secret.from_token("test-api-key"), tools=[tool1, toolset1])
+        data = generator.to_dict()
+
+        # Verify serialization preserves structure
+        assert isinstance(data["init_parameters"]["tools"], list)
+        assert len(data["init_parameters"]["tools"]) == 2
+        assert data["init_parameters"]["tools"][0]["type"] == "haystack.tools.tool.Tool"
+        assert data["init_parameters"]["tools"][1]["type"] == "haystack.tools.toolset.Toolset"
+
+        # Verify deserialization
+        restored = CohereChatGenerator.from_dict(data)
+        assert isinstance(restored.tools, list)
+        assert len(restored.tools) == 2
+        assert isinstance(restored.tools[0], Tool)
+        assert isinstance(restored.tools[1], Toolset)
+        assert restored.tools[0].name == "tool1"
+        assert len(list(restored.tools[1])) == 1
 
     def test_run_image(self):
         """Test multimodal message processing with mocked client."""
