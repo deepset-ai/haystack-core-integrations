@@ -97,12 +97,8 @@ class MetaLlamaChatGenerator(OpenAIChatGenerator):
                 If provided, the output will always be validated against this
                 format (unless the model returns a tool call).
                 For details, see the [OpenAI Structured Outputs documentation](https://platform.openai.com/docs/guides/structured-outputs).
-                Notes:
-                - This parameter accepts Pydantic models and JSON schemas for latest models starting from GPT-4o.
-                    Older models only support basic version of structured outputs through `{"type": "json_object"}`.
-                    For detailed information on JSON mode, see the [OpenAI Structured Outputs documentation](https://platform.openai.com/docs/guides/structured-outputs#json-mode).
-                - For structured outputs with streaming,
-                    the `response_format` must be a JSON schema and not a Pydantic model.
+                For structured outputs with streaming, the `response_format` must be a JSON
+                schema and not a Pydantic model.
         :param tools:
             A list of tools for which the model can prepare calls.
         """
