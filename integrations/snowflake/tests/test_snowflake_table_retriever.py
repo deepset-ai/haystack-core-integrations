@@ -731,6 +731,7 @@ class TestSnowflakeTableRetriever:
             private_key_file=Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_FILE"),
             private_key_file_pwd=Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_PWD"),
         )
+        jwt_retriever.warm_up()
 
         # Mock _execute_query_with_connector to return toy data
         mocker.patch.object(jwt_retriever, "_execute_query_with_connector", return_value=toy_polars_df)

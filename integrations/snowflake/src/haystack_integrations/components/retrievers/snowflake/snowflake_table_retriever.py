@@ -412,6 +412,9 @@ class SnowflakeTableRetriever:
             - `"dataframe"`: A Pandas DataFrame with the query results.
             - `"table"`: A Markdown-formatted string representation of the DataFrame.
         """
+        if not self._warmed_up:
+            raise RuntimeError("SnowflakeTableRetriever not warmed up. Please call `warm_up()` before running queries.")
+
         # Validate SQL query
         if not query:
             logger.warning("Empty query provided, returning empty DataFrame")
