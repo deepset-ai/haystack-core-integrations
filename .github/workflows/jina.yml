@@ -63,14 +63,14 @@ jobs:
       - name: Run unit tests with lowest direct dependencies
         run: |
           hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
-          hatch run uv pip install -r requirements_lowest_direct.txt
+          hatch run -e test uv pip install -r requirements_lowest_direct.txt
           hatch run test:unit            
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
           hatch env prune
-          hatch run uv pip install git+https://github.com/deepset-ai/haystack.git@main
+          hatch run -e test uv pip install git+https://github.com/deepset-ai/haystack.git@main
           hatch run test:unit
 
       - name: Send event to Datadog for nightly failures
