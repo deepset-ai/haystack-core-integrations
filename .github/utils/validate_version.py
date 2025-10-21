@@ -11,7 +11,6 @@ def validate_version_number(tag: str):
     """
 
     matches = re.match(INTEGRATION_VERSION_REGEX, tag)
-    print(f"Matches: {matches}")
     if not matches or len(matches.groups()) != 2:
         raise ValueError(f"Invalid tag: {tag}")
 
