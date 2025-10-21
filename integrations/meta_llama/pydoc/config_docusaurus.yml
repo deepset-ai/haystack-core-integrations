@@ -1,0 +1,28 @@
+loaders:
+- ignore_when_discovered:
+  - __init__
+  modules:
+  - haystack_integrations.components.generators.meta_llama.chat.chat_generator
+  search_path:
+  - ../src
+  type: haystack_pydoc_tools.loaders.CustomPythonLoader
+processors:
+- do_not_filter_modules: false
+  documented_only: true
+  expression: null
+  skip_empty_modules: true
+  type: filter
+- type: smart
+- type: crossref
+renderer:
+  description: Meta Llama API integration for Haystack
+  id: integrations-meta-llama
+  markdown:
+    add_member_class_prefix: false
+    add_method_class_prefix: true
+    classdef_code_block: false
+    descriptive_class_title: false
+    descriptive_module_title: true
+    filename: meta_llama.md
+  title: Meta Llama API
+  type: haystack_pydoc_tools.renderers.DocusaurusRenderer
