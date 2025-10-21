@@ -924,8 +924,7 @@ class MCPTool(Tool):
         logger.debug(f"TOOL: Invoking tool '{self.name}' with args: {kwargs}")
         try:
             # Connect on first use if eager_connect is turned off
-            if not self._eager_connect:
-                self._ensure_connected()
+            self.warm_up()
 
             async def invoke():
                 logger.debug(f"TOOL: Inside invoke coroutine for '{self.name}'")
@@ -962,8 +961,7 @@ class MCPTool(Tool):
         :raises TimeoutError: If the operation times out
         """
         try:
-            if not self._eager_connect:
-                self._ensure_connected()
+            self.warm_up()
             client = cast(MCPClient, self._client)
             return await asyncio.wait_for(client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
         except asyncio.TimeoutError as e:
@@ -976,13 +974,9 @@ class MCPTool(Tool):
             raise MCPInvocationError(message, self.name, kwargs) from e
 
     def warm_up(self) -> None:
-        """Connect and fetch the tool schema eager_connect is turned off."""
+        """Connect and fetch the tool schema if eager_connect is turned off."""
         if self._eager_connect:
             return
-        self._ensure_connected()
-
-    def _ensure_connected(self) -> None:
-        """Establish connection if not connected eager_connect is turned off."""
         with self._lock:
             if self._client is not None:
                 return
