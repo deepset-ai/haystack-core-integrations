@@ -1372,6 +1372,86 @@ class TestAnthropicChatGenerator:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
 
+    def test_init_with_mixed_tools_and_toolsets(self, monkeypatch):
+        """Test initialization with a mixed list of Tools and Toolsets."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        tool1 = Tool(name="tool1", description="First tool", parameters={"x": {"type": "string"}}, function=lambda x: x)
+        tool2 = Tool(
+            name="tool2", description="Second tool", parameters={"y": {"type": "string"}}, function=lambda y: y
+        )
+        tool3 = Tool(name="tool3", description="Third tool", parameters={"z": {"type": "string"}}, function=lambda z: z)
+        toolset1 = Toolset([tool2])
+
+        generator = AnthropicChatGenerator(tools=[tool1, toolset1, tool3])
+
+        assert generator.tools == [tool1, toolset1, tool3]
+        assert isinstance(generator.tools, list)
+        assert len(generator.tools) == 3
+
+    def test_serde_with_mixed_tools_and_toolsets(self, monkeypatch):
+        """Test serialization/deserialization with mixed Tools and Toolsets."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        tool1 = Tool(name="tool1", description="First tool", parameters={"x": {"type": "string"}}, function=print)
+        tool2 = Tool(name="tool2", description="Second tool", parameters={"y": {"type": "string"}}, function=print)
+        toolset1 = Toolset([tool2])
+
+        generator = AnthropicChatGenerator(tools=[tool1, toolset1])
+        data = generator.to_dict()
+
+        # Verify serialization preserves structure
+        assert isinstance(data["init_parameters"]["tools"], list)
+        assert len(data["init_parameters"]["tools"]) == 2
+        assert data["init_parameters"]["tools"][0]["type"] == "haystack.tools.tool.Tool"
+        assert data["init_parameters"]["tools"][1]["type"] == "haystack.tools.toolset.Toolset"
+
+        # Verify deserialization
+        restored = AnthropicChatGenerator.from_dict(data)
+        assert isinstance(restored.tools, list)
+        assert len(restored.tools) == 2
+        assert isinstance(restored.tools[0], Tool)
+        assert isinstance(restored.tools[1], Toolset)
+        assert restored.tools[0].name == "tool1"
+        assert list(restored.tools[1])[0].name == "tool2"
+
+    def test_run_with_mixed_tools_and_toolsets(self, chat_messages, mock_anthropic_completion, monkeypatch):
+        """Test that the run method works with mixed Tools and Toolsets."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        tool1 = Tool(name="tool1", description="First tool", parameters={"x": {"type": "string"}}, function=lambda x: x)
+        tool2 = Tool(
+            name="tool2", description="Second tool", parameters={"y": {"type": "string"}}, function=lambda y: y
+        )
+        toolset1 = Toolset([tool2])
+
+        component = AnthropicChatGenerator(tools=[tool1, toolset1])
+        response = component.run(chat_messages)
+
+        # Check that the component returns the correct ChatMessage response
+        assert isinstance(response, dict)
+        assert "replies" in response
+        assert isinstance(response["replies"], list)
+        assert len(response["replies"]) == 1
+
+        # Check that the component called the Anthropic API with the correct tools
+        _, kwargs = mock_anthropic_completion.call_args
+        assert "tools" in kwargs
+        assert len(kwargs["tools"]) == 2
+        assert kwargs["tools"][0]["name"] == "tool1"
+        assert kwargs["tools"][1]["name"] == "tool2"
+
+    def test_init_with_duplicate_tools_in_mixed_list(self, monkeypatch):
+        """Test that initialization fails with duplicate tool names in mixed Tools and Toolsets."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        tool1 = Tool(name="duplicate", description="First", parameters={}, function=lambda: None)
+        tool2 = Tool(name="duplicate", description="Second", parameters={}, function=lambda: None)
+        toolset1 = Toolset([tool2])
+
+        with pytest.raises(ValueError, match="duplicate"):
+            AnthropicChatGenerator(tools=[tool1, toolset1])
+
     @pytest.mark.skipif(
         not os.environ.get("ANTHROPIC_API_KEY", None),
         reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
