@@ -90,7 +90,7 @@ jobs:
 
       - name: print dir structure
         run: |
-          find . | sed -e "s/[^-][^\/]*\// |/g" -e "s/|\([^ ]\)/|-\1/"
+          ls -lrth
 
       - name: Sync docs
         shell: python
@@ -99,14 +99,17 @@ jobs:
         run: |
           import os
           import shutil
+
+          print(os.listdir("."))
+
           # Copy the artifact markdown to docs-website/reference/integrations_api
           artifact_fname = os.environ['ARTIFACT_NAME']+'.md'
-          haystack_docs_path = "haystack/docs-website/reference/integrations_api/"
+          haystack_docs_path = "docs-website/reference/integrations_api/"
           shutil.copy(artifact_fname, haystack_docs_path)
 
           # loop over docs-website/reference_versioned_docs subfolders and copy the artifact markdown to the corresponding folder
-          for folder in os.listdir("haystack/docs-website/reference_versioned_docs"):
-            shutil.copy(artifact_fname, "haystack/docs-website/reference_versioned_docs/" + folder + "/" + artifact_fname)
+          for folder in os.listdir("docs-website/reference_versioned_docs"):
+            shutil.copy(artifact_fname, "docs-website/reference_versioned_docs/" + folder + "/" + artifact_fname)
 
           # remove the artifact markdown
           os.remove(artifact_fname)
