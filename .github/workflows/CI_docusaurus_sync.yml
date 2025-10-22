@@ -98,9 +98,11 @@ jobs:
           shutil.copy(artifact_filename, "docs-website/reference/integrations-api/")
 
           # Copy to versioned API reference
-          for element in os.scandir("docs-website/reference_versioned_docs"):
-              if element.is_dir():
-                  shutil.copy(artifact_filename, element.path)
+          for version_dir in os.scandir("docs-website/reference_versioned_docs"):
+              if version_dir.is_dir():
+                  # example: docs-website/reference_versioned_docs/version-2.17/integrations-api
+                  integrations_api_ref_dir = os.path.join(version_dir.path, "integrations-api")
+                  shutil.copy(artifact_filename, integrations_api_ref_dir)
 
           os.remove(artifact_filename)
 
