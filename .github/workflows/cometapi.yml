@@ -64,7 +64,7 @@ jobs:
       - name: Run unit tests with lowest direct dependencies
         run: |
           hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
-          hatch run uv pip install -r requirements_lowest_direct.txt
+          hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
           hatch run test:unit
 
       - name: Nightly - run unit tests with Haystack main branch
