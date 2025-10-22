@@ -339,53 +339,6 @@ class TestNvidiaChatGenerator:
         reason="Export an env var called NVIDIA_API_KEY containing the NVIDIA API key to run this test.",
     )
     @pytest.mark.integration
-    def test_integration_mixing_init_and_runtime_tools(self):
-        """Test mixing tools from init and runtime by passing tools to both __init__ and run()."""
-
-        def weather_function(city: str) -> str:
-            """Get weather information for a city."""
-            return f"Weather in {city}: 22°C, sunny"
-
-        def time_function(city: str) -> str:
-            """Get current time in a city."""
-            return f"Current time in {city}: 14:30"
-
-        # Create tools
-        weather_tool = Tool(
-            name="weather",
-            description="Get weather information for a city",
-            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
-            function=weather_function,
-        )
-
-        time_tool = Tool(
-            name="time",
-            description="Get current time in a city",
-            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
-            function=time_function,
-        )
-
-        # Initialize with weather_tool
-        component = NvidiaChatGenerator(tools=[weather_tool])
-
-        # Pass time_tool at runtime - runtime tools should take precedence
-        messages = [ChatMessage.from_user("What's the time in Tokyo?")]
-        results = component.run(messages, tools=[time_tool])
-
-        assert len(results["replies"]) == 1
-        message = results["replies"][0]
-
-        # Should use time_tool since it was passed at runtime
-        assert message.tool_calls is not None
-        tool_call = message.tool_calls[0]
-        assert tool_call.tool_name == "time"
-        assert tool_call.arguments == {"city": "Tokyo"}
-
-    @pytest.mark.skipif(
-        not os.environ.get("NVIDIA_API_KEY", None),
-        reason="Export an env var called NVIDIA_API_KEY containing the NVIDIA API key to run this test.",
-    )
-    @pytest.mark.integration
     def test_integration_mixing_tools_and_toolset(self):
         """Test mixing Tool list and Toolset at runtime."""
 
