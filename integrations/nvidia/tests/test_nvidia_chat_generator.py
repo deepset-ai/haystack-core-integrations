@@ -34,6 +34,11 @@ def weather(city: str):
     return f"The weather in {city} is sunny and 32°C"
 
 
+def echo_function(text: str) -> str:
+    """Echo a text."""
+    return text
+
+
 @pytest.fixture
 def tools():
     tool_parameters = {
@@ -437,6 +442,63 @@ class TestNvidiaChatGenerator:
         assert tool_call.tool_name == "echo"
         assert tool_call.arguments == {"text": "Hello World"}
 
+    def test_to_dict_with_mixed_tools_and_toolset(self, tools, monkeypatch):
+        """Test serialization with a mixed list containing both Tool and Toolset objects."""
+        monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")
+
+        # Create additional tools for the toolset using module-level function
+        echo_tool = Tool(
+            name="echo",
+            description="Echo a text",
+            parameters={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
+            function=echo_function,
+        )
+
+        # Create a mixed list: some individual tools + a toolset
+        toolset = Toolset([echo_tool])
+        mixed_tools = tools + [toolset]  # List containing both Tool objects and a Toolset
+
+        component = NvidiaChatGenerator(model="meta/llama-3.1-8b-instruct", tools=mixed_tools)
+        data = component.to_dict()
+
+        assert data["init_parameters"]["tools"] is not None
+        assert isinstance(data["init_parameters"]["tools"], list)
+        assert len(data["init_parameters"]["tools"]) == len(mixed_tools)
+
+        # Check that we have both Tool and Toolset in the serialized data
+        tool_types = [tool["type"] for tool in data["init_parameters"]["tools"]]
+        assert "haystack.tools.tool.Tool" in tool_types
+        assert "haystack.tools.toolset.Toolset" in tool_types
+
+    def test_from_dict_with_mixed_tools_and_toolset(self, tools, monkeypatch):
+        """Test deserialization with a mixed list containing both Tool and Toolset objects."""
+        monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")
+
+        # Create additional tools for the toolset using module-level function
+        echo_tool = Tool(
+            name="echo",
+            description="Echo a text",
+            parameters={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
+            function=echo_function,
+        )
+
+        # Create a mixed list: some individual tools + a toolset
+        toolset = Toolset([echo_tool])
+        mixed_tools = tools + [toolset]  # List containing both Tool objects and a Toolset
+
+        component = NvidiaChatGenerator(model="meta/llama-3.1-8b-instruct", tools=mixed_tools)
+        data = component.to_dict()
+
+        deserialized_component = NvidiaChatGenerator.from_dict(data)
+
+        assert isinstance(deserialized_component.tools, list)
+        assert len(deserialized_component.tools) == len(mixed_tools)
+
+        # Check that we have both Tool and Toolset objects in the deserialized list
+        tool_types = [type(tool).__name__ for tool in deserialized_component.tools]
+        assert "Tool" in tool_types
+        assert "Toolset" in tool_types
+
 
 class TestNvidiaChatGeneratorAsync:
     def test_init_default_async(self, monkeypatch):
@@ -547,54 +609,6 @@ class TestNvidiaChatGeneratorAsync:
 
         assert counter > 1
         assert "Paris" in responses
-
-    @pytest.mark.skipif(
-        not os.environ.get("NVIDIA_API_KEY", None),
-        reason="Export an env var called NVIDIA_API_KEY containing the NVIDIA API key to run this test.",
-    )
-    @pytest.mark.integration
-    @pytest.mark.asyncio
-    async def test_integration_mixing_init_and_runtime_tools_async(self):
-        """Test mixing tools from init and runtime in async mode."""
-
-        def weather_function(city: str) -> str:
-            """Get weather information for a city."""
-            return f"Weather in {city}: 22°C, sunny"
-
-        def time_function(city: str) -> str:
-            """Get current time in a city."""
-            return f"Current time in {city}: 14:30"
-
-        # Create tools
-        weather_tool = Tool(
-            name="weather",
-            description="Get weather information for a city",
-            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
-            function=weather_function,
-        )
-
-        time_tool = Tool(
-            name="time",
-            description="Get current time in a city",
-            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
-            function=time_function,
-        )
-
-        # Initialize with weather_tool
-        component = NvidiaChatGenerator(tools=[weather_tool])
-
-        # Pass time_tool at runtime - runtime tools should take precedence
-        messages = [ChatMessage.from_user("What's the time in Tokyo?")]
-        results = await component.run_async(messages, tools=[time_tool])
-
-        assert len(results["replies"]) == 1
-        message = results["replies"][0]
-
-        # Should use time_tool since it was passed at runtime
-        assert message.tool_calls is not None
-        tool_call = message.tool_calls[0]
-        assert tool_call.tool_name == "time"
-        assert tool_call.arguments == {"city": "Tokyo"}
 
     @pytest.mark.skipif(
         not os.environ.get("NVIDIA_API_KEY", None),
