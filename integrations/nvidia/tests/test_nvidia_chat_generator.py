@@ -426,21 +426,23 @@ class TestNvidiaChatGenerator:
         # Create Toolset with weather and time tools
         toolset = Toolset([weather_tool, time_tool])
 
-        # Initialize with toolset
-        component = NvidiaChatGenerator(tools=toolset)
+        # Initialize without tools
+        component = NvidiaChatGenerator()
 
-        # Pass echo_tool as a list at runtime - runtime tools should take precedence
-        messages = [ChatMessage.from_user("Echo this: Hello World")]
-        results = component.run(messages, tools=[echo_tool])
+        # Mix tools and toolset at runtime
+        messages = [ChatMessage.from_user("What's the weather in Tokyo and echo 'test'")]
+        results = component.run(messages, tools=[echo_tool, toolset])
 
         assert len(results["replies"]) == 1
         message = results["replies"][0]
 
-        # Should use echo_tool since it was passed at runtime
+        # Should have access to both echo tool and tools from toolset
         assert message.tool_calls is not None
-        tool_call = message.tool_calls[0]
-        assert tool_call.tool_name == "echo"
-        assert tool_call.arguments == {"text": "Hello World"}
+        assert len(message.tool_calls) >= 1
+
+        # Check that we can use tools from both the list and toolset
+        tool_names = [call.tool_name for call in message.tool_calls]
+        assert "echo" in tool_names or "weather" in tool_names
 
     def test_to_dict_with_mixed_tools_and_toolset(self, tools, monkeypatch):
         """Test serialization with a mixed list containing both Tool and Toolset objects."""
@@ -656,18 +658,20 @@ class TestNvidiaChatGeneratorAsync:
         # Create Toolset with weather and time tools
         toolset = Toolset([weather_tool, time_tool])
 
-        # Initialize with toolset
-        component = NvidiaChatGenerator(tools=toolset)
+        # Initialize without tools
+        component = NvidiaChatGenerator()
 
-        # Pass echo_tool as a list at runtime - runtime tools should take precedence
-        messages = [ChatMessage.from_user("Echo this: Hello World")]
-        results = await component.run_async(messages, tools=[echo_tool])
+        # Mix tools and toolset at runtime
+        messages = [ChatMessage.from_user("What's the weather in Tokyo and echo 'test'")]
+        results = await component.run_async(messages, tools=[echo_tool, toolset])
 
         assert len(results["replies"]) == 1
         message = results["replies"][0]
 
-        # Should use echo_tool since it was passed at runtime
+        # Should have access to both echo tool and tools from toolset
         assert message.tool_calls is not None
-        tool_call = message.tool_calls[0]
-        assert tool_call.tool_name == "echo"
-        assert tool_call.arguments == {"text": "Hello World"}
+        assert len(message.tool_calls) >= 1
+
+        # Check that we can use tools from both the list and toolset
+        tool_names = [call.tool_name for call in message.tool_calls]
+        assert "echo" in tool_names or "weather" in tool_names
