@@ -1,0 +1,29 @@
+loaders:
+- ignore_when_discovered:
+  - __init__
+  modules:
+  - haystack_integrations.components.generators.anthropic.generator
+  - haystack_integrations.components.generators.anthropic.chat.chat_generator
+  - haystack_integrations.components.generators.anthropic.chat.vertex_chat_generator
+  search_path:
+  - ../src
+  type: haystack_pydoc_tools.loaders.CustomPythonLoader
+processors:
+- do_not_filter_modules: false
+  documented_only: true
+  expression: null
+  skip_empty_modules: true
+  type: filter
+- type: smart
+- type: crossref
+renderer:
+  description: Anthropic integration for Haystack
+  id: integrations-anthropic
+  markdown:
+    add_member_class_prefix: false
+    add_method_class_prefix: true
+    descriptive_class_title: false
+    descriptive_module_title: true
+    filename: anthropic.md
+  title: Anthropic
+  type: haystack_pydoc_tools.renderers.DocusaurusRenderer

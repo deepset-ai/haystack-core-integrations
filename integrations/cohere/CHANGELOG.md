@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/cohere-v6.1.0] - 2025-10-22
+
+### 🚀 Features
+
+- `CohereChatGenerator` update tools param to ToolsType (#2416)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Install dependencies in the `test` environment when testing with lowest direct dependencies and Haystack main (#2418)
+
+
 ## [integrations/cohere-v6.0.0] - 2025-09-17
 
 ### 🧹 Chores

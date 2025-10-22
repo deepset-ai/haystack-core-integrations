@@ -1005,7 +1005,7 @@ class MCPTool(Tool):
         active connection is not maintained.
 
         :returns: Dictionary with serialized data in the format:
-                  {"type": fully_qualified_class_name, "data": {parameters}}
+                  `{"type": fully_qualified_class_name, "data": {parameters}}`
         """
         serialized = {
             "name": self.name,
