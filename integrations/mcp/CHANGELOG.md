@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/mcp-v0.9.0] - 2025-10-22
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+- Fix docstrings to avoid errors in API reference generation (#2423)
+
+### 🌀 Miscellaneous
+
+- Add MCPTool/MCPToolset warm_up (#2384)
+
 ## [integrations/mcp-v0.8.0] - 2025-10-14
 
 ### 🐛 Bug Fixes
