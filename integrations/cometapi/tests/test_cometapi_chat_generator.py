@@ -843,6 +843,9 @@ class TestChatCompletionChunkConversion:
         assert result.meta["finish_reason"] == "tool_calls"
         assert result.meta["index"] == 0
         assert result.meta["completion_start_time"] is not None
+        
+        result.meta["usage"]["completion_tokens_details"] = result.meta["usage"]["completion_tokens_details"].model_dump()
+        result.meta["usage"]["prompt_tokens_details"] = result.meta["usage"]["prompt_tokens_details"].model_dump()
         assert result.meta["usage"] == {
             "completion_tokens": 42,
             "prompt_tokens": 55,
