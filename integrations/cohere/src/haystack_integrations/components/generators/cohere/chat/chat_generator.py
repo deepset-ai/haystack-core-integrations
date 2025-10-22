@@ -15,9 +15,10 @@ from haystack.dataclasses.streaming_chunk import (
 )
 from haystack.tools import (
     Tool,
-    Toolset,
+    ToolsType,
     _check_duplicate_tool_names,
     deserialize_tools_or_toolset_inplace,
+    flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
 )
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -519,7 +520,7 @@ class CohereChatGenerator:
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[ToolsType] = None,
         **kwargs: Any,
     ):
         """
@@ -542,10 +543,11 @@ class CohereChatGenerator:
               `accurate` results or `fast` results.
             - 'temperature': A non-negative float that tunes the degree of randomness in generation. Lower temperatures
               mean less random generations.
-        :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset that the model can use.
+            Each tool should have a unique name.
 
         """
-        _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
+        _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
 
         if not api_base_url:
             api_base_url = "https://api.cohere.com"
@@ -616,7 +618,7 @@ class CohereChatGenerator:
         self,
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[ToolsType] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
     ) -> Dict[str, List[ChatMessage]]:
         """
@@ -627,8 +629,8 @@ class CohereChatGenerator:
             potentially override the parameters passed in the __init__ method.
             For more details on the parameters supported by the Cohere API, refer to the
             Cohere [documentation](https://docs.cohere.com/reference/chat).
-        :param tools: A list of tools or a Toolset for which the model can prepare calls. If set, it will override
-            the `tools` parameter set during component initialization.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            If set, it will override the `tools` parameter set during component initialization.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
 
@@ -644,11 +646,10 @@ class CohereChatGenerator:
 
         # Handle tools
         tools = tools or self.tools
-        if isinstance(tools, Toolset):
-            tools = list(tools)
-        if tools:
-            _check_duplicate_tool_names(tools)
-            generation_kwargs["tools"] = [_format_tool(tool) for tool in tools]
+        flattened_tools = flatten_tools_or_toolsets(tools)
+        if flattened_tools:
+            _check_duplicate_tool_names(flattened_tools)
+            generation_kwargs["tools"] = [_format_tool(tool) for tool in flattened_tools]
 
         formatted_messages = [_format_message(message) for message in messages]
 
@@ -684,7 +685,7 @@ class CohereChatGenerator:
         self,
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[ToolsType] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
     ) -> Dict[str, List[ChatMessage]]:
         """
@@ -695,8 +696,8 @@ class CohereChatGenerator:
             potentially override the parameters passed in the __init__ method.
             For more details on the parameters supported by the Cohere API, refer to the
             Cohere [documentation](https://docs.cohere.com/reference/chat).
-        :param tools: A list of tools for which the model can prepare calls. If set, it will override
-            the `tools` parameter set during component initialization.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            If set, it will override the `tools` parameter set during component initialization.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :returns: A dictionary with the following keys:
             - `replies`: a list of `ChatMessage` instances representing the generated responses.
@@ -710,11 +711,10 @@ class CohereChatGenerator:
 
         # Handle tools
         tools = tools or self.tools
-        if isinstance(tools, Toolset):
-            tools = list(tools)
-        if tools:
-            _check_duplicate_tool_names(tools)
-            generation_kwargs["tools"] = [_format_tool(tool) for tool in tools]
+        flattened_tools = flatten_tools_or_toolsets(tools)
+        if flattened_tools:
+            _check_duplicate_tool_names(flattened_tools)
+            generation_kwargs["tools"] = [_format_tool(tool) for tool in flattened_tools]
 
         formatted_messages = [_format_message(message) for message in messages]
 

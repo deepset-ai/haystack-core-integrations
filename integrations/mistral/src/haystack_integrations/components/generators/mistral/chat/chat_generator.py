@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage, StreamingCallbackT
-from haystack.tools import ToolsType
+from haystack.tools import ToolsType, serialize_tools_or_toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
 from openai.lib._pydantic import to_strict_json_schema
@@ -108,8 +108,8 @@ class MistralChatGenerator(OpenAIChatGenerator):
                 - For structured outputs with streaming,
                   the `response_format` must be a JSON schema and not a Pydantic model.
         :param tools:
-            A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
-            list of `Tool` objects or a `Toolset` instance.
+            A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            Each tool should have a unique name.
         :param timeout:
             The timeout for the Mistral API call. If not set, it defaults to either the `OPENAI_TIMEOUT`
             environment variable, or 30 seconds.
@@ -190,7 +190,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
             api_base_url=self.api_base_url,
             generation_kwargs=generation_kwargs,
             api_key=self.api_key.to_dict(),
-            tools=[tool.to_dict() for tool in self.tools] if self.tools else None,
+            tools=serialize_tools_or_toolset(self.tools),
             timeout=self.timeout,
             max_retries=self.max_retries,
             http_client_kwargs=self.http_client_kwargs,

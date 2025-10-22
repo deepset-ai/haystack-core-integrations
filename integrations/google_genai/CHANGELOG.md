@@ -1,5 +1,29 @@
 # Changelog
 
+## [integrations/google_genai-v2.2.0] - 2025-10-22
+
+### 🚀 Features
+
+- `GoogleGenAIChatGenerator` update tools param to ToolsType (#2419)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+- Fix docstrings to avoid errors in API reference generation (#2423)
+
+### 🧪 Testing
+
+- Replace deprecated `gemini-1.5` model with `gemini-2.0-flash` in Google GenAI test (#2323)
+
+### ⚙️ CI
+
+- Install dependencies in the `test` environment when testing with lowest direct dependencies and Haystack main (#2418)
+
+### 🧹 Chores
+
+- *(deps)* Bump actions/setup-python from 5 to 6 (#2241)
+
+
 ## [integrations/google_genai-v2.1.2] - 2025-08-28
 
 ### 🚀 Features

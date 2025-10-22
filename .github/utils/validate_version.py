@@ -2,7 +2,7 @@ import re
 import requests
 
 # * integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0
-INTEGRATION_VERSION_REGEX = r"integrations/([a-zA-Z-]+)-v([0-9]\.[0-9]+\.[0-9]+)"
+INTEGRATION_VERSION_REGEX = r"integrations/([a-zA-Z_]+)-v([0-9]\.[0-9]+\.[0-9]+)"
 
 
 def validate_version_number(tag: str):
@@ -18,7 +18,8 @@ def validate_version_number(tag: str):
     print(f"Integration name: {integration_name}")
     print(f"Integration version to release: {version_to_release}")
 
-    integration_package = f"{integration_name}-haystack"
+    # Replace underscores with hyphens to look for the package on PyPi
+    integration_package = f"{integration_name.replace('_', '-')}-haystack"
     print(f"Integration PyPi package: {integration_package}")
 
     # connect to PyPi and check the latest version

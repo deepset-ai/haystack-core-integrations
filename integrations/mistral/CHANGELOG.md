@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/mistral-v0.4.0] - 2025-10-22
+
+### 🚀 Features
+
+- Add support for structured outputs for `MistralChatGenerator` (#2390)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### 🌀 Miscellaneous
+
+- Feat: `MistralChatGenerator` update tools param to ToolsType (#2430)
+
 ## [integrations/mistral-v0.3.1] - 2025-09-23
 
 ### 🐛 Bug Fixes
