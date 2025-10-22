@@ -639,7 +639,7 @@ class TestOpenRouterChatGenerator:
         # Initialize with weather_tool
         component = OpenRouterChatGenerator(tools=[weather_tool])
 
-        # Pass both tools at runtime - runtime tools should take precedence
+        # Pass tools - runtime tools should take precedence
         messages = [ChatMessage.from_user("What's the time in Tokyo?")]
         results = component.run(messages, tools=[time_tool])
 
