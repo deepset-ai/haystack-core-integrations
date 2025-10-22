@@ -9,7 +9,7 @@ from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, ToolCall, ToolCallDelta
-from haystack.tools import Tool
+from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 from openai import OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
@@ -47,6 +47,11 @@ def weather(city: str):
     return f"The weather in {city} is sunny and 32°C"
 
 
+def population(city: str):
+    """Get population for a given city."""
+    return f"The population of {city} is 2.1 million"
+
+
 @pytest.fixture
 def tools():
     tool_parameters = {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
@@ -58,6 +63,25 @@ def tools():
     )
 
     return [tool]
+
+
+@pytest.fixture
+def mixed_tools():
+    """Fixture that returns a mixed list of Tool and Toolset."""
+    weather_tool = Tool(
+        name="weather",
+        description="useful to determine the weather in a given location",
+        parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+        function=weather,
+    )
+    population_tool = Tool(
+        name="population",
+        description="useful to determine the population of a given location",
+        parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+        function=population,
+    )
+    toolset = Toolset([population_tool])
+    return [weather_tool, toolset]
 
 
 @pytest.fixture
@@ -227,6 +251,27 @@ class TestMistralChatGenerator:
         }
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             MistralChatGenerator.from_dict(data)
+
+    def test_init_with_mixed_tools(self, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
+
+        weather_tool = Tool(
+            name="weather",
+            description="Weather lookup",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=weather,
+        )
+        population_tool = Tool(
+            name="population",
+            description="Population lookup",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=population,
+        )
+        toolset = Toolset([population_tool])
+
+        component = MistralChatGenerator(tools=[weather_tool, toolset])
+
+        assert component.tools == [weather_tool, toolset]
 
     def test_handle_stream_response(self):
         mistral_chunks = [
@@ -741,3 +786,48 @@ class TestMistralChatGenerator:
         assert loaded_generator.tools[0].name == generator.tools[0].name
         assert loaded_generator.tools[0].description == generator.tools[0].description
         assert loaded_generator.tools[0].parameters == generator.tools[0].parameters
+
+    @pytest.mark.skipif(
+        not os.environ.get("MISTRAL_API_KEY", None),
+        reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_mixed_tools(self, mixed_tools):
+        """
+        Integration test that verifies MistralChatGenerator works with mixed Tool and Toolset.
+        This tests that the LLM can correctly invoke tools from both a standalone Tool and a Toolset.
+        """
+        initial_messages = [
+            ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
+        ]
+        component = MistralChatGenerator(tools=mixed_tools)
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+
+        # Find the message with tool calls
+        tool_call_message = None
+        for message in results["replies"]:
+            if message.tool_calls:
+                tool_call_message = message
+                break
+
+        assert tool_call_message is not None, "No message with tool call found"
+        assert isinstance(tool_call_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_call_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_calls = tool_call_message.tool_calls
+        assert len(tool_calls) == 2, f"Expected 2 tool calls, got {len(tool_calls)}"
+
+        # Verify we got calls to both weather and population tools
+        tool_names = {tc.tool_name for tc in tool_calls}
+        assert "weather" in tool_names, "Expected 'weather' tool call"
+        assert "population" in tool_names, "Expected 'population' tool call"
+
+        # Verify tool call details
+        for tool_call in tool_calls:
+            assert tool_call.id, "Tool call does not contain value for 'id' key"
+            assert tool_call.tool_name in ["weather", "population"]
+            assert "city" in tool_call.arguments
+            assert tool_call.arguments["city"] in ["Paris", "Berlin"]
+            assert tool_call_message.meta["finish_reason"] == "tool_calls"
