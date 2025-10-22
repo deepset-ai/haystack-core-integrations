@@ -1,10 +1,15 @@
 # Changelog
 
-## [integrations/snowflake-v1.2.0] - 2025-10-17
+## [integrations/snowflake-v2.0.0] - 2025-10-22
 
 ### 🚀 Features
 
 - Add MFA authentication support to snowflake integration (#2305)
+- [**breaking**] Add `warm_up` method to `SnowflakeTableRetriever` to delegate auth and database connection testing  (#2414)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
 
 ### 🧹 Chores
 
