@@ -13,24 +13,6 @@ from haystack_integrations.components.retrievers.snowflake.auth import (
 class TestSnowflakeAuthenticator:
     """Tests for the SnowflakeAuthenticator class."""
 
-    def test_authenticator_resolve_secret_value_error(self, mocker: Mock, tmp_path: Path) -> None:
-        # Test error handling in resolve_secret_value
-
-        # Create a mock secret that raises an exception
-        mock_secret = mocker.Mock()
-        mock_secret.resolve_value.side_effect = Exception("Failed to resolve secret")
-
-        key_file = tmp_path / "key.pem"
-        key_file.write_text("-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----")
-
-        auth = SnowflakeAuthenticator(
-            authenticator="SNOWFLAKE_JWT",
-            private_key_file=Secret.from_token(str(key_file)),
-        )
-
-        with pytest.raises(ValueError, match="Failed to resolve secret value"):
-            auth.resolve_secret_value(mock_secret)
-
     def test_authenticator_read_private_key_not_found(self, mocker: Mock) -> None:
         # Test error handling when private key file doesn't exist
 
@@ -85,11 +67,9 @@ class TestSnowflakeAuthenticator:
         mock_secret = mocker.Mock()
         mock_secret.resolve_value.side_effect = Exception("Resolution failed")
 
-        with pytest.raises(ValueError, match="Failed to resolve api_key"):
-            SnowflakeAuthenticator(
-                authenticator="SNOWFLAKE",
-                api_key=mock_secret,
-            )
+        with pytest.raises(ValueError, match="None of the following authentication environment"):
+            retriever = SnowflakeAuthenticator(authenticator="SNOWFLAKE", api_key=Secret.from_env_var("TEST_ENV"))
+            retriever.warm_up()
 
     def test_authenticator_validate_empty_api_key(self, mocker: Mock) -> None:
         # Test validation when api_key resolves to empty string

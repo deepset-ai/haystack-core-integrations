@@ -1,9 +1,15 @@
 import os
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingChunk
-from haystack.tools import Tool, _check_duplicate_tool_names, deserialize_tools_or_toolset_inplace
+from haystack.tools import (
+    ToolsType,
+    _check_duplicate_tool_names,
+    deserialize_tools_or_toolset_inplace,
+    flatten_tools_or_toolsets,
+    serialize_tools_or_toolset,
+)
 from haystack.utils import deserialize_callable, serialize_callable
 
 from anthropic import AnthropicVertex, AsyncAnthropicVertex
@@ -67,7 +73,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         ignore_tools_thinking_messages: bool = True,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[ToolsType] = None,
         *,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
@@ -98,14 +104,15 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
             `ignore_tools_thinking_messages` is `True`, the generator will drop so-called thinking messages when tool
             use is detected. See the Anthropic [tools](https://docs.anthropic.com/en/docs/tool-use#chain-of-thought-tool-use)
             for more details.
-        :param tools: A list of Tool objects that the model can use. Each tool should have a unique name.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
+            Each tool should have a unique name.
         :param timeout:
             Timeout for Anthropic client calls. If not set, it defaults to the default set by the Anthropic client.
         :param max_retries:
             Maximum number of retries to attempt for failed requests. If not set, it defaults to the default set by
             the Anthropic client.
         """
-        _check_duplicate_tool_names(tools)
+        _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
         self.region = region or os.environ.get("REGION")
         self.project_id = project_id or os.environ.get("PROJECT_ID")
         self.model = model
@@ -136,7 +143,6 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
             The serialized component as a dictionary.
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
-        serialized_tools = [tool.to_dict() for tool in self.tools] if self.tools else None
 
         return default_to_dict(
             self,
@@ -146,7 +152,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
             streaming_callback=callback_name,
             generation_kwargs=self.generation_kwargs,
             ignore_tools_thinking_messages=self.ignore_tools_thinking_messages,
-            tools=serialized_tools,
+            tools=serialize_tools_or_toolset(self.tools),
             timeout=self.timeout,
             max_retries=self.max_retries,
         )
