@@ -140,7 +140,7 @@ class MCPToolset(Toolset):
         self.connection_timeout = connection_timeout
         self.invocation_timeout = invocation_timeout
         self.eager_connect = eager_connect
-        self.warmup_called = False
+        self._warmup_called = False
 
         if not eager_connect:
             # Do not connect during validation; expose a toolset with one fake tool to pass validation
@@ -154,19 +154,21 @@ class MCPToolset(Toolset):
         else:
             tools = self._connect_and_load_tools()
             super().__init__(tools=tools)
+            self._warmup_called = True
 
     def warm_up(self) -> None:
-        """Connect and load tools when running eager_connect is turned off.
+        """Connect and load tools when eager_connect is turned off.
 
-        Call this before handing the toolset to components like ``ToolInvoker`` so that
-        each tool's schema is available without performing a real invocation.
+        This method is automatically called by ``ToolInvoker.warm_up()`` and ``Pipeline.warm_up()``.
+        You can also call it directly before using the toolset to ensure all tool schemas
+        are available without performing a real invocation.
         """
-        if self.eager_connect or self.warmup_called:
+        if self._warmup_called:
             return
 
         # connect and load tools never adds duplicate tools, set the tools attribute directly
         self.tools = self._connect_and_load_tools()
-        self.warmup_called = True
+        self._warmup_called = True
 
     def _connect_and_load_tools(self) -> list[Tool]:
         """Connect and load tools."""
