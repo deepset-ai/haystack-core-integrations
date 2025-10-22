@@ -456,7 +456,7 @@ class TestNvidiaChatGenerator:
 
         # Create a mixed list: some individual tools + a toolset
         toolset = Toolset([echo_tool])
-        mixed_tools = tools + [toolset]  # List containing both Tool objects and a Toolset
+        mixed_tools = [*tools, toolset]  # List containing both Tool objects and a Toolset
 
         component = NvidiaChatGenerator(model="meta/llama-3.1-8b-instruct", tools=mixed_tools)
         data = component.to_dict()
@@ -484,7 +484,7 @@ class TestNvidiaChatGenerator:
 
         # Create a mixed list: some individual tools + a toolset
         toolset = Toolset([echo_tool])
-        mixed_tools = tools + [toolset]  # List containing both Tool objects and a Toolset
+        mixed_tools = [*tools, toolset]  # List containing both Tool objects and a Toolset
 
         component = NvidiaChatGenerator(model="meta/llama-3.1-8b-instruct", tools=mixed_tools)
         data = component.to_dict()
