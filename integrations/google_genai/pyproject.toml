@@ -28,7 +28,6 @@ classifiers = [
 ]
 dependencies = ["haystack-ai>=2.19.0", "google-genai[aiohttp]>=1.18.0", "jsonref>=1.0.0"]
 
-
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_genai#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
