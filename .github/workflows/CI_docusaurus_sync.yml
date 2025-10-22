@@ -46,7 +46,7 @@ jobs:
         run: |
           import os
           project_path = os.environ["TAG"].rsplit("-", maxsplit=1)[0]
-          docusaurus_fname = project_path.replace("/integrations", "")
+          docusaurus_fname = project_path.split("/")[-1]
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
             print(f'project_path={project_path}', file=f)
             print(f'docusaurus_fname={docusaurus_fname}', file=f)
