@@ -1,8 +1,6 @@
 name: Core / Sync API reference with Docusaurus
 
 on:
-  # for testing purposes
-  pull_request:
   push:
     tags:
       - "**-v[0-9].[0-9]+.[0-9]+"
@@ -16,9 +14,7 @@ on:
         default: integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0
 
 env:
-  # TAG: ${{ inputs.tag || github.ref_name}}
-  # for testing purposes
-  TAG: integrations/qdrant-v1.0.0
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   generate-api-reference:
@@ -122,4 +118,3 @@ jobs:
             docs-website
           body: |
             This PR syncs the Core Integrations API reference (${{ env.INTEGRATION_NAME }}) on Docusaurus. Just approve and merge it.
-          draft: true
