@@ -1,32 +1,36 @@
 # Changelog
 
+## [unreleased]
+
+### 🚀 Features
+
+- `AmazonBedrockChatGenerator` update tools param to ToolsType (#2415)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
 ## [integrations/amazon_bedrock-v5.1.0] - 2025-09-29
 
 ### 🚀 Features
 
 - S3Downloader - add `s3_key_generation_function` param to customize S3 key generation (#2343)
 
+
 ## [integrations/amazon_bedrock-v5.0.0] - 2025-09-22
-
-### 🧹 Chores
-
-- [**breaking**] Remove deprecated `BedrockRanker` (use `AmazonBedrockRanker` instead) (#2287)
-
-## [integrations/amazon_bedrock-v4.2.0] - 2025-09-19
-
-### 🚀 Features
-
-- Add a new `S3Downloader` component (#2192)
-
-## [integrations/amazon_bedrock-v4.1.0] - 2025-09-19
 
 ### 🚀 Features
 
 - Support AWS Bedrock Guardrails in `AmazonBedrockChatGenerator` (#2284)
+- Add a new `S3Downloader` component (#2192)
+
+### 📚 Documentation
+
 
 ### 🧹 Chores
 
 - Bedrock - remove unused `stop_words` init parameter (#2275)
+- [**breaking**] Remove deprecated `BedrockRanker` (use `AmazonBedrockRanker` instead) (#2287)
 
 ### 🌀 Miscellaneous
 
