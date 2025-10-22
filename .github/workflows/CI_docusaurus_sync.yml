@@ -51,12 +51,12 @@ jobs:
             print(f'project_path={project_path}', file=f)
             print(f'docusaurus_filename={docusaurus_filename}', file=f)
 
-      - name: Generate docs
+      - name: Generate API reference
         working-directory: ${{ steps.pathfinder.outputs.project_path }}
 
         run: pydoc-markdown pydoc/config_docusaurus.yml
 
-      - name: Upload docs artifact
+      - name: Upload API reference artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.pathfinder.outputs.docusaurus_filename }}
