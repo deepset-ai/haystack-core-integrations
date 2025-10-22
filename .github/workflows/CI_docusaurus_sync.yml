@@ -10,7 +10,7 @@ on:
   workflow_dispatch: # Activate this workflow manually
     inputs:
       tag:
-        description: "Tag with this format: integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0"
+        description: "Tag with this format: integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0. When running this workflow manually, version is irrelevant so you can use any value."
         required: true
         type: string
         default: integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0
@@ -24,7 +24,7 @@ jobs:
   generate-api-reference:
     runs-on: ubuntu-latest
     outputs:
-      artifact_filename: ${{ steps.pathfinder.outputs.docusaurus_filename }}
+      integration_name: ${{ steps.pathfinder.outputs.integration_name }}
 
     steps:
       - name: Checkout this repo
@@ -46,10 +46,10 @@ jobs:
         run: |
           import os
           project_path = os.environ["TAG"].rsplit("-", maxsplit=1)[0]
-          docusaurus_filename = project_path.split("/")[-1]
+          integration_name = project_path.split("/")[-1]
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
             print(f'project_path={project_path}', file=f)
-            print(f'docusaurus_filename={docusaurus_filename}', file=f)
+            print(f'integration_name={integration_name}', file=f)
 
       - name: Generate API reference
         working-directory: ${{ steps.pathfinder.outputs.project_path }}
@@ -59,8 +59,8 @@ jobs:
       - name: Upload API reference artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.pathfinder.outputs.docusaurus_filename }}
-          path: ${{ steps.pathfinder.outputs.project_path }}/${{ steps.pathfinder.outputs.docusaurus_filename }}.md
+          name: ${{ steps.pathfinder.outputs.integration_name }}
+          path: ${{ steps.pathfinder.outputs.project_path }}/${{ steps.pathfinder.outputs.integration_name }}.md
           if-no-files-found: error
           retention-days: 1
           overwrite: true
@@ -86,17 +86,17 @@ jobs:
       - name: Download API reference artifact
         uses: actions/download-artifact@v4
         with:
-          name: ${{ needs.generate-api-reference.outputs.artifact_filename }}
+          name: ${{ needs.generate-api-reference.outputs.integration_name }}
 
       - name: Sync API reference
         shell: python
         env:
-          ARTIFACT_FILENAME: ${{ needs.generate-api-reference.outputs.artifact_filename }}
+          INTEGRATION_NAME: ${{ needs.generate-api-reference.outputs.integration_name }}
         run: |
           import os
           import shutil
 
-          artifact_filename = os.environ['ARTIFACT_FILENAME']+'.md'
+          artifact_filename = os.environ['INTEGRATION_NAME']+'.md'
 
           # Copy to main API reference
           shutil.copy(artifact_filename, "docs-website/reference/integrations-api/")
@@ -111,15 +111,15 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
         env:
-          PROJECT_NAME: ${{ needs.generate-api-reference.outputs.artifact_filename }}
+          INTEGRATION_NAME: ${{ needs.generate-api-reference.outputs.integration_name }}
         with:
           token: ${{ secrets.HAYSTACK_BOT_TOKEN }}
-          commit-message: "Sync Core Integrations API reference (${{ env.PROJECT_NAME }}) on Docusaurus"
-          branch: sync-docusaurus-api-reference-${{ env.PROJECT_NAME }}
+          commit-message: "Sync Core Integrations API reference (${{ env.INTEGRATION_NAME }}) on Docusaurus"
+          branch: sync-docusaurus-api-reference-${{ env.INTEGRATION_NAME }}
           base: main
-          title: "docs: sync Core Integrations API reference (${{ env.PROJECT_NAME }}) on Docusaurus"
+          title: "docs: sync Core Integrations API reference (${{ env.INTEGRATION_NAME }}) on Docusaurus"
           add-paths: |
             docs-website
           body: |
-            This PR syncs the Core Integrations API reference (${{ env.PROJECT_NAME }}) on Docusaurus. Just approve and merge it.
+            This PR syncs the Core Integrations API reference (${{ env.INTEGRATION_NAME }}) on Docusaurus. Just approve and merge it.
           draft: true
