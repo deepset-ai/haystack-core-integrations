@@ -505,7 +505,11 @@ class OllamaChatGenerator:
         flattened_tools = flatten_tools_or_toolsets(tools_to_use)
         _check_duplicate_tool_names(flattened_tools)
 
-        ollama_tools = [{"type": "function", "function": {**tool.tool_spec}} for tool in flattened_tools] if flattened_tools else None
+        ollama_tools = (
+            [{"type": "function", "function": {**tool.tool_spec}} for tool in flattened_tools]
+            if flattened_tools
+            else None
+        )
 
         is_stream = callback is not None
 
@@ -562,7 +566,11 @@ class OllamaChatGenerator:
         flattened_tools = flatten_tools_or_toolsets(tools_to_use)
         _check_duplicate_tool_names(flattened_tools)
 
-        ollama_tools = [{"type": "function", "function": {**tool.tool_spec}} for tool in flattened_tools] if flattened_tools else None
+        ollama_tools = (
+            [{"type": "function", "function": {**tool.tool_spec}} for tool in flattened_tools]
+            if flattened_tools
+            else None
+        )
 
         is_stream = callback is not None
 
