@@ -21,10 +21,10 @@ env:
   TAG: integrations/qdrant-v1.0.0
 
 jobs:
-  generate-docs:
+  generate-api-reference:
     runs-on: ubuntu-latest
     outputs:
-      artifact_name: ${{ steps.pathfinder.outputs.docusaurus_fname }}
+      artifact_filename: ${{ steps.pathfinder.outputs.docusaurus_filename }}
 
     steps:
       - name: Checkout this repo
@@ -46,10 +46,10 @@ jobs:
         run: |
           import os
           project_path = os.environ["TAG"].rsplit("-", maxsplit=1)[0]
-          docusaurus_fname = project_path.split("/")[-1]
+          docusaurus_filename = project_path.split("/")[-1]+'.md'
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
             print(f'project_path={project_path}', file=f)
-            print(f'docusaurus_fname={docusaurus_fname}', file=f)
+            print(f'docusaurus_filename={docusaurus_filename}', file=f)
 
       - name: Generate docs
         working-directory: ${{ steps.pathfinder.outputs.project_path }}
@@ -59,16 +59,16 @@ jobs:
       - name: Upload docs artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.pathfinder.outputs.docusaurus_fname }}
-          path: ${{ steps.pathfinder.outputs.project_path }}/${{ steps.pathfinder.outputs.docusaurus_fname }}.md
+          name: ${{ steps.pathfinder.outputs.docusaurus_filename }}
+          path: ${{ steps.pathfinder.outputs.project_path }}/${{ steps.pathfinder.outputs.docusaurus_filename }}
           if-no-files-found: error
           retention-days: 1
           overwrite: true
 
 
-  sync-docs:
+  sync-api-reference:
     runs-on: ubuntu-latest
-    needs: generate-docs
+    needs: generate-api-reference
     
     steps:
       - name: Checkout Haystack repo
@@ -83,36 +83,30 @@ jobs:
         with:
           python-version: "3.10"          
 
-      - name: Download docs artifact
+      - name: Download API reference artifact
         uses: actions/download-artifact@v4
         with:
-          name: ${{ needs.generate-docs.outputs.artifact_name }}
+          name: ${{ needs.generate-api-reference.outputs.artifact_filename }}
 
-      - name: print dir structure
-        run: |
-          ls -lrth
-
-      - name: Sync docs
+      - name: Sync API reference
         shell: python
         env:
-          ARTIFACT_NAME: ${{ needs.generate-docs.outputs.artifact_name }}
+          ARTIFACT_FILENAME: ${{ needs.generate-api-reference.outputs.artifact_filename }}
         run: |
           import os
           import shutil
 
-          print(os.listdir("."))
+          artifact_filename = os.environ['ARTIFACT_FILENAME']
 
-          # Copy the artifact markdown to docs-website/reference/integrations-api
-          artifact_fname = os.environ['ARTIFACT_NAME']+'.md'
-          haystack_docs_path = "docs-website/reference/integrations-api/"
-          shutil.copy(artifact_fname, haystack_docs_path)
+          # Copy to main API reference
+          shutil.copy(artifact_filename, "docs-website/reference/integrations-api/")
 
-          # loop over docs-website/reference_versioned_docs subfolders and copy the artifact markdown to the corresponding folder
-          for folder in os.listdir("docs-website/reference_versioned_docs"):
-            shutil.copy(artifact_fname, "docs-website/reference_versioned_docs/" + folder + "/" + artifact_fname)
+          # Copy to versioned API reference
+          for element in os.scandir("docs-website/reference_versioned_docs"):
+              if element.is_dir():
+                  shutil.copy(artifact_filename, element.path)
 
-          # remove the artifact markdown
-          os.remove(artifact_fname)
+          os.remove(artifact_filename)
 
       - name: Print git status
         working-directory: haystack
