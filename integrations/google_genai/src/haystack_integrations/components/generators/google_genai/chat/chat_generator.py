@@ -5,7 +5,7 @@
 import base64
 import json
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Union
+from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional
 
 from google.genai import types
 from haystack import logging
@@ -27,10 +27,10 @@ from haystack.dataclasses import (
 )
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole, ReasoningContent
 from haystack.tools import (
-    Tool,
-    Toolset,
+    ToolsType,
     _check_duplicate_tool_names,
     deserialize_tools_or_toolset_inplace,
+    flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
 )
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
@@ -231,19 +231,18 @@ def _sanitize_tool_schema(tool_schema: Dict[str, Any]) -> Dict[str, Any]:
     return final_schema
 
 
-def _convert_tools_to_google_genai_format(tools: Union[List[Tool], Toolset]) -> List[types.Tool]:
+def _convert_tools_to_google_genai_format(tools: ToolsType) -> List[types.Tool]:
     """
-    Converts a list of Haystack Tools or a Toolset to Google Gen AI Tool format.
+    Converts a list of Haystack Tools, Toolsets, or a mix to Google Gen AI Tool format.
 
-    :param tools: List of Haystack Tool objects or a Toolset.
+    :param tools: List of Haystack Tool and/or Toolset objects, or a single Toolset.
     :returns: List of Google Gen AI Tool objects.
     """
-    # Convert Toolset to list if needed
-    if isinstance(tools, Toolset):
-        tools = list(tools)
+    # Flatten Tools and Toolsets into a single list of Tools
+    flattened_tools = flatten_tools_or_toolsets(tools)
 
     function_declarations: List[types.FunctionDeclaration] = []
-    for tool in tools:
+    for tool in flattened_tools:
         parameters = _sanitize_tool_schema(tool.parameters)
         function_declarations.append(
             types.FunctionDeclaration(
@@ -462,7 +461,7 @@ class GoogleGenAIChatGenerator:
         generation_kwargs: Optional[Dict[str, Any]] = None,
         safety_settings: Optional[List[Dict[str, Any]]] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[ToolsType] = None,
     ):
         """
         Initialize a GoogleGenAIChatGenerator instance.
@@ -485,9 +484,10 @@ class GoogleGenAIChatGenerator:
               - Positive integer: Set explicit budget
         :param safety_settings: Safety settings for content filtering
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
-        :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            Each tool should have a unique name.
         """
-        _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
+        _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
 
         self._client = _get_client(
             api_key=api_key,
@@ -803,7 +803,7 @@ class GoogleGenAIChatGenerator:
         generation_kwargs: Optional[Dict[str, Any]] = None,
         safety_settings: Optional[List[Dict[str, Any]]] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[ToolsType] = None,
     ) -> Dict[str, Any]:
         """
         Run the Google Gen AI chat generator on the given input data.
@@ -815,8 +815,8 @@ class GoogleGenAIChatGenerator:
         default settings.
         :param streaming_callback: A callback function that is called when a new token is
         received from the stream.
-        :param tools: A list of Tool objects or a Toolset that the model can use. If provided, it will
-        override the tools set during initialization.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+        If provided, it will override the tools set during initialization.
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated ChatMessage responses.
 
@@ -840,7 +840,7 @@ class GoogleGenAIChatGenerator:
         )
 
         # Check for duplicate tool names
-        _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
+        _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
 
         # Handle system message if present
         system_instruction = None
@@ -911,7 +911,7 @@ class GoogleGenAIChatGenerator:
         generation_kwargs: Optional[Dict[str, Any]] = None,
         safety_settings: Optional[List[Dict[str, Any]]] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[ToolsType] = None,
     ) -> Dict[str, Any]:
         """
         Async version of the run method. Run the Google Gen AI chat generator on the given input data.
@@ -924,8 +924,8 @@ class GoogleGenAIChatGenerator:
         default settings.
         :param streaming_callback: A callback function that is called when a new token is
         received from the stream.
-        :param tools: A list of Tool objects or a Toolset that the model can use. If provided, it will
-        override the tools set during initialization.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+        If provided, it will override the tools set during initialization.
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated ChatMessage responses.
 
@@ -949,7 +949,7 @@ class GoogleGenAIChatGenerator:
         )
 
         # Check for duplicate tool names
-        _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
+        _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
 
         # Handle system message if present
         system_instruction = None
