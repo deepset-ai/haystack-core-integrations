@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from typing import Any, Dict, Literal, Optional
 from urllib.parse import quote_plus
 
@@ -9,7 +10,7 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 from pandas import DataFrame
 
-import snowflake.connector  # type: ignore[import-not-found]
+import snowflake
 
 from .auth import SnowflakeAuthenticator
 
@@ -38,6 +39,7 @@ class SnowflakeTableRetriever:
         db_schema="<SCHEMA-NAME>",
         warehouse="<WAREHOUSE-NAME>",
     )
+    executor.warm_up()
     ```
 
     #### Key-pair Authentication (MFA):
@@ -52,6 +54,7 @@ class SnowflakeTableRetriever:
         db_schema="<SCHEMA-NAME>",
         warehouse="<WAREHOUSE-NAME>",
     )
+    executor.warm_up()
     ```
 
     #### OAuth Authentication (MFA):
@@ -67,6 +70,7 @@ class SnowflakeTableRetriever:
         db_schema="<SCHEMA-NAME>",
         warehouse="<WAREHOUSE-NAME>",
     )
+    executor.warm_up()
     ```
 
     #### Running queries:
@@ -97,17 +101,17 @@ class SnowflakeTableRetriever:
         self,
         user: str,
         account: str,
-        authenticator: Literal["SNOWFLAKE", "SNOWFLAKE_JWT", "OAUTH"],
-        api_key: Optional[Secret] = None,
+        authenticator: Literal["SNOWFLAKE", "SNOWFLAKE_JWT", "OAUTH"] = "SNOWFLAKE",
+        api_key: Optional[Secret] = Secret.from_env_var("SNOWFLAKE_API_KEY", strict=False),  # noqa: B008
         database: Optional[str] = None,
         db_schema: Optional[str] = None,
         warehouse: Optional[str] = None,
         login_timeout: Optional[int] = 60,
         return_markdown: bool = True,
-        private_key_file: Optional[Secret] = None,
-        private_key_file_pwd: Optional[Secret] = None,
-        oauth_client_id: Optional[Secret] = None,
-        oauth_client_secret: Optional[Secret] = None,
+        private_key_file: Optional[Secret] = Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_FILE", strict=False),  # noqa: B008
+        private_key_file_pwd: Optional[Secret] = Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_PWD", strict=False),  # noqa: B008
+        oauth_client_id: Optional[Secret] = Secret.from_env_var("SNOWFLAKE_OAUTH_CLIENT_ID", strict=False),  # noqa: B008
+        oauth_client_secret: Optional[Secret] = Secret.from_env_var("SNOWFLAKE_OAUTH_CLIENT_SECRET", strict=False),  # noqa: B008
         oauth_token_request_url: Optional[str] = None,
         oauth_authorization_url: Optional[str] = None,
     ) -> None:
@@ -142,32 +146,39 @@ class SnowflakeTableRetriever:
         self.warehouse = warehouse
         self.login_timeout = login_timeout or 60
         self.return_markdown = return_markdown
-
-        # Initialize authentication handler
-        self.authenticator_handler = SnowflakeAuthenticator(
-            authenticator=authenticator,
-            api_key=api_key,
-            private_key_file=private_key_file,
-            private_key_file_pwd=private_key_file_pwd,
-            oauth_client_id=oauth_client_id,
-            oauth_client_secret=oauth_client_secret,
-            oauth_token_request_url=oauth_token_request_url,
-            oauth_authorization_url=oauth_authorization_url,
-        )
         self.authenticator = authenticator
+        self.private_key_file = private_key_file
+        self.private_key_file_pwd = private_key_file_pwd
+        self.oauth_client_id = oauth_client_id
+        self.oauth_client_secret = oauth_client_secret
+        self.oauth_token_request_url = oauth_token_request_url
+        self.oauth_authorization_url = oauth_authorization_url
+        self.authenticator_handler: Optional[SnowflakeAuthenticator] = None
+        self._warmed_up = False
+
+    def warm_up(self) -> None:
+        """
+        Warm up the component by initializing the authenticator handler and testing the database connection.
+        """
+        if self._warmed_up:
+            return
+        self.authenticator_handler = SnowflakeAuthenticator(
+            authenticator=self.authenticator,
+            api_key=self.api_key,
+            private_key_file=self.private_key_file,
+            private_key_file_pwd=self.private_key_file_pwd,
+            oauth_client_id=self.oauth_client_id,
+            oauth_client_secret=self.oauth_client_secret,
+            oauth_token_request_url=self.oauth_token_request_url,
+            oauth_authorization_url=self.oauth_authorization_url,
+        )
 
         # Test connection during initialization to verify credentials
-        if not self.test_connection():
+        if not self.authenticator_handler.test_connection(user=self.user, account=self.account, database=self.database):
             msg = "Failed to connect to Snowflake with provided credentials"
             raise ConnectionError(msg)
 
-    def test_connection(self) -> bool:
-        """
-        Tests the connection with the current authentication settings.
-
-        :returns: True if connection is successful, False otherwise.
-        """
-        return self.authenticator_handler.test_connection(user=self.user, account=self.account, database=self.database)
+        self._warmed_up = True
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -185,22 +196,14 @@ class SnowflakeTableRetriever:
             "login_timeout": self.login_timeout,
             "return_markdown": self.return_markdown,
             "authenticator": self.authenticator,
-            "oauth_token_request_url": self.authenticator_handler.oauth_token_request_url,
-            "oauth_authorization_url": self.authenticator_handler.oauth_authorization_url,
+            "oauth_token_request_url": self.oauth_token_request_url,
+            "oauth_authorization_url": self.oauth_authorization_url,
+            "api_key": self.api_key.to_dict() if self.api_key else None,
+            "private_key_file": self.private_key_file.to_dict() if self.private_key_file else None,
+            "private_key_file_pwd": self.private_key_file_pwd.to_dict() if self.private_key_file_pwd else None,
+            "oauth_client_id": self.oauth_client_id.to_dict() if self.oauth_client_id else None,
+            "oauth_client_secret": self.oauth_client_secret.to_dict() if self.oauth_client_secret else None,
         }
-
-        # Handle Secret fields
-        if self.authenticator_handler.api_key:
-            data["api_key"] = self.authenticator_handler.api_key.to_dict()
-        if self.authenticator_handler.private_key_file:
-            data["private_key_file"] = self.authenticator_handler.private_key_file.to_dict()
-        if self.authenticator_handler.private_key_file_pwd:
-            data["private_key_file_pwd"] = self.authenticator_handler.private_key_file_pwd.to_dict()
-        if self.authenticator_handler.oauth_client_id:
-            data["oauth_client_id"] = self.authenticator_handler.oauth_client_id.to_dict()
-        if self.authenticator_handler.oauth_client_secret:
-            data["oauth_client_secret"] = self.authenticator_handler.oauth_client_secret.to_dict()
-
         return default_to_dict(self, **data)
 
     @classmethod
@@ -244,7 +247,8 @@ class SnowflakeTableRetriever:
         encoded_user = quote_plus(self.user)
         encoded_account = quote_plus(self.account)
 
-        password = self.authenticator_handler.get_password_for_uri()
+        # We ignore the mypy error since it doesn't know that self.authenticator_handler has been set at this point
+        password = self.authenticator_handler.get_password_for_uri()  # type: ignore[union-attr]
         if password:
             # Traditional password authentication - encode password
             encoded_password = quote_plus(password)
@@ -270,7 +274,8 @@ class SnowflakeTableRetriever:
         params.append(f"login_timeout={self.login_timeout}")
 
         # Add authentication-specific parameters (pass user for JWT ADBC support)
-        auth_params = self.authenticator_handler.build_auth_params(user=self.user)
+        # We ignore the mypy error since it doesn't know that self.authenticator_handler has been set at this point
+        auth_params = self.authenticator_handler.build_auth_params(user=self.user)  # type: ignore[union-attr]
         params.extend(auth_params)
 
         if params:
@@ -292,7 +297,8 @@ class SnowflakeTableRetriever:
 
         # Mask password if present
         if self.authenticator == "SNOWFLAKE":
-            password = self.authenticator_handler.get_password_for_uri()
+            # We ignore the mypy error since it doesn't know that self.authenticator_handler has been set at this point
+            password = self.authenticator_handler.get_password_for_uri()  # type: ignore[union-attr]
             if password:
                 encoded_password = quote_plus(password)
                 masked_uri = masked_uri.replace(encoded_password, "***REDACTED***")
@@ -301,7 +307,7 @@ class SnowflakeTableRetriever:
         if "?" in masked_uri:
             base_uri, query_params = masked_uri.split("?", 1)
             param_list = query_params.split("&")
-            masked_params = self.authenticator_handler.create_masked_params(param_list)
+            masked_params = self.authenticator_handler.create_masked_params(param_list)  # type: ignore[union-attr]
             masked_uri = base_uri + "?" + "&".join(masked_params)
 
         return masked_uri
@@ -355,18 +361,15 @@ class SnowflakeTableRetriever:
 
             # Add JWT-specific parameters
             if self.authenticator == "SNOWFLAKE_JWT":
-                private_key_file = self.authenticator_handler.resolve_secret_value(
-                    self.authenticator_handler.private_key_file
-                )
-                if private_key_file:
-                    conn_params["private_key_file"] = private_key_file
+                # We ignore the mypy error since it doesn't know that self.authenticator_handler has been set at this
+                # point
+                if self.authenticator_handler.private_key_file:  # type: ignore[union-attr]
+                    conn_params["private_key_file"] = self.authenticator_handler.private_key_file  # type: ignore[union-attr]
 
-                if self.authenticator_handler.private_key_file_pwd:
-                    private_key_pwd = self.authenticator_handler.resolve_secret_value(
-                        self.authenticator_handler.private_key_file_pwd
-                    )
-                    if private_key_pwd:
-                        conn_params["private_key_file_pwd"] = private_key_pwd
+                # We ignore the mypy error since it doesn't know that self.authenticator_handler has been set at this
+                # point
+                if self.authenticator_handler.private_key_file_pwd:  # type: ignore[union-attr]
+                    conn_params["private_key_file_pwd"] = self.authenticator_handler.private_key_file_pwd  # type: ignore[union-attr]
 
             # Connect and execute query
             conn = snowflake.connector.connect(**conn_params)
@@ -419,6 +422,10 @@ class SnowflakeTableRetriever:
             - `"dataframe"`: A Pandas DataFrame with the query results.
             - `"table"`: A Markdown-formatted string representation of the DataFrame.
         """
+        if not self._warmed_up:
+            msg = "SnowflakeTableRetriever not warmed up. Please call `warm_up()` before running queries."
+            raise RuntimeError(msg)
+
         # Validate SQL query
         if not query:
             logger.warning("Empty query provided, returning empty DataFrame")
