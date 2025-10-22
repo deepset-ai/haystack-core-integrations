@@ -46,7 +46,7 @@ jobs:
         run: |
           import os
           project_path = os.environ["TAG"].rsplit("-", maxsplit=1)[0]
-          docusaurus_filename = project_path.split("/")[-1]+'.md'
+          docusaurus_filename = project_path.split("/")[-1]
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
             print(f'project_path={project_path}', file=f)
             print(f'docusaurus_filename={docusaurus_filename}', file=f)
@@ -60,7 +60,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.pathfinder.outputs.docusaurus_filename }}
-          path: ${{ steps.pathfinder.outputs.project_path }}/${{ steps.pathfinder.outputs.docusaurus_filename }}
+          path: ${{ steps.pathfinder.outputs.project_path }}/${{ steps.pathfinder.outputs.docusaurus_filename }}.md
           if-no-files-found: error
           retention-days: 1
           overwrite: true
@@ -96,7 +96,7 @@ jobs:
           import os
           import shutil
 
-          artifact_filename = os.environ['ARTIFACT_FILENAME']
+          artifact_filename = os.environ['ARTIFACT_FILENAME']+'.md'
 
           # Copy to main API reference
           shutil.copy(artifact_filename, "docs-website/reference/integrations-api/")
@@ -108,6 +108,18 @@ jobs:
 
           os.remove(artifact_filename)
 
-      - name: Print git status
-        working-directory: haystack
-        run: git status
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        env:
+          PROJECT_NAME: ${{ needs.generate-api-reference.outputs.artifact_filename }}
+        with:
+          token: ${{ secrets.HAYSTACK_BOT_TOKEN }}
+          commit-message: "Sync Core Integrations API reference (${{ env.PROJECT_NAME }}) on Docusaurus"
+          branch: sync-docusaurus-api-reference-${{ env.PROJECT_NAME }}
+          base: main
+          title: "docs: sync Core Integrations API reference (${{ env.PROJECT_NAME }}) on Docusaurus"
+          add-paths: |
+            docs-website
+          body: |
+            This PR syncs the Core Integrations API reference (${{ env.PROJECT_NAME }}) on Docusaurus. Just approve and merge it.
+          draft: true
