@@ -247,6 +247,7 @@ class SnowflakeTableRetriever:
         encoded_user = quote_plus(self.user)
         encoded_account = quote_plus(self.account)
 
+        # We ignore the mypy error since it doesn't know that self.authenticator_handler has been set at this point
         password = self.authenticator_handler.get_password_for_uri()  # type: ignore[union-attr]
         if password:
             # Traditional password authentication - encode password
@@ -273,6 +274,7 @@ class SnowflakeTableRetriever:
         params.append(f"login_timeout={self.login_timeout}")
 
         # Add authentication-specific parameters (pass user for JWT ADBC support)
+        # We ignore the mypy error since it doesn't know that self.authenticator_handler has been set at this point
         auth_params = self.authenticator_handler.build_auth_params(user=self.user)  # type: ignore[union-attr]
         params.extend(auth_params)
 
@@ -295,6 +297,7 @@ class SnowflakeTableRetriever:
 
         # Mask password if present
         if self.authenticator == "SNOWFLAKE":
+            # We ignore the mypy error since it doesn't know that self.authenticator_handler has been set at this point
             password = self.authenticator_handler.get_password_for_uri()  # type: ignore[union-attr]
             if password:
                 encoded_password = quote_plus(password)
@@ -358,9 +361,13 @@ class SnowflakeTableRetriever:
 
             # Add JWT-specific parameters
             if self.authenticator == "SNOWFLAKE_JWT":
+                # We ignore the mypy error since it doesn't know that self.authenticator_handler has been set at this
+                # point
                 if self.authenticator_handler.private_key_file:  # type: ignore[union-attr]
                     conn_params["private_key_file"] = self.authenticator_handler.private_key_file  # type: ignore[union-attr]
 
+                # We ignore the mypy error since it doesn't know that self.authenticator_handler has been set at this
+                # point
                 if self.authenticator_handler.private_key_file_pwd:  # type: ignore[union-attr]
                     conn_params["private_key_file_pwd"] = self.authenticator_handler.private_key_file_pwd  # type: ignore[union-attr]
 
