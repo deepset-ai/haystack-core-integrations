@@ -55,6 +55,10 @@ def hello_world():
     return "Hello, World!"
 
 
+def population(city: str) -> str:
+    return f"The population of {city} is 2.2 million"
+
+
 @pytest.fixture
 def tool_with_no_parameters():
     tool = Tool(
@@ -1372,6 +1376,86 @@ class TestAnthropicChatGenerator:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
 
+    def test_init_with_mixed_tools_and_toolsets(self, monkeypatch):
+        """Test initialization with a mixed list of Tools and Toolsets."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        tool1 = Tool(name="tool1", description="First tool", parameters={"x": {"type": "string"}}, function=lambda x: x)
+        tool2 = Tool(
+            name="tool2", description="Second tool", parameters={"y": {"type": "string"}}, function=lambda y: y
+        )
+        tool3 = Tool(name="tool3", description="Third tool", parameters={"z": {"type": "string"}}, function=lambda z: z)
+        toolset1 = Toolset([tool2])
+
+        generator = AnthropicChatGenerator(tools=[tool1, toolset1, tool3])
+
+        assert generator.tools == [tool1, toolset1, tool3]
+        assert isinstance(generator.tools, list)
+        assert len(generator.tools) == 3
+
+    def test_serde_with_mixed_tools_and_toolsets(self, monkeypatch):
+        """Test serialization/deserialization with mixed Tools and Toolsets."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        tool1 = Tool(name="tool1", description="First tool", parameters={"x": {"type": "string"}}, function=print)
+        tool2 = Tool(name="tool2", description="Second tool", parameters={"y": {"type": "string"}}, function=print)
+        toolset1 = Toolset([tool2])
+
+        generator = AnthropicChatGenerator(tools=[tool1, toolset1])
+        data = generator.to_dict()
+
+        # Verify serialization preserves structure
+        assert isinstance(data["init_parameters"]["tools"], list)
+        assert len(data["init_parameters"]["tools"]) == 2
+        assert data["init_parameters"]["tools"][0]["type"] == "haystack.tools.tool.Tool"
+        assert data["init_parameters"]["tools"][1]["type"] == "haystack.tools.toolset.Toolset"
+
+        # Verify deserialization
+        restored = AnthropicChatGenerator.from_dict(data)
+        assert isinstance(restored.tools, list)
+        assert len(restored.tools) == 2
+        assert isinstance(restored.tools[0], Tool)
+        assert isinstance(restored.tools[1], Toolset)
+        assert restored.tools[0].name == "tool1"
+        assert next(iter(restored.tools[1])).name == "tool2"
+
+    def test_run_with_mixed_tools_and_toolsets(self, chat_messages, mock_anthropic_completion, monkeypatch):
+        """Test that the run method works with mixed Tools and Toolsets."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        tool1 = Tool(name="tool1", description="First tool", parameters={"x": {"type": "string"}}, function=lambda x: x)
+        tool2 = Tool(
+            name="tool2", description="Second tool", parameters={"y": {"type": "string"}}, function=lambda y: y
+        )
+        toolset1 = Toolset([tool2])
+
+        component = AnthropicChatGenerator(tools=[tool1, toolset1])
+        response = component.run(chat_messages)
+
+        # Check that the component returns the correct ChatMessage response
+        assert isinstance(response, dict)
+        assert "replies" in response
+        assert isinstance(response["replies"], list)
+        assert len(response["replies"]) == 1
+
+        # Check that the component called the Anthropic API with the correct tools
+        _, kwargs = mock_anthropic_completion.call_args
+        assert "tools" in kwargs
+        assert len(kwargs["tools"]) == 2
+        assert kwargs["tools"][0]["name"] == "tool1"
+        assert kwargs["tools"][1]["name"] == "tool2"
+
+    def test_init_with_duplicate_tools_in_mixed_list(self, monkeypatch):
+        """Test that initialization fails with duplicate tool names in mixed Tools and Toolsets."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        tool1 = Tool(name="duplicate", description="First", parameters={}, function=lambda: None)
+        tool2 = Tool(name="duplicate", description="Second", parameters={}, function=lambda: None)
+        toolset1 = Toolset([tool2])
+
+        with pytest.raises(ValueError, match="duplicate"):
+            AnthropicChatGenerator(tools=[tool1, toolset1])
+
     @pytest.mark.skipif(
         not os.environ.get("ANTHROPIC_API_KEY", None),
         reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
@@ -1618,6 +1702,106 @@ class TestAnthropicChatGenerator:
         assert "22°" in message.text
         assert "12°" in message.text
         assert message.meta["finish_reason"] == "stop"
+
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_mixed_tools(self):
+        """
+        Integration test that verifies AnthropicChatGenerator works with mixed Tool and Toolset.
+        This tests that the LLM can correctly invoke tools from both a standalone Tool and a Toolset.
+        """
+
+        def weather(city: str):
+            return f"The weather in {city} is sunny and 32°C"
+
+        weather_tool = Tool(
+            name="weather",
+            description="useful to determine the weather in a given location",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "description": "The name of the city to get weather for, e.g. Paris, London",
+                    }
+                },
+                "required": ["city"],
+            },
+            function=weather,
+        )
+
+        population_tool = Tool(
+            name="population",
+            description="useful to determine the population of a given city",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "description": "The name of the city to get population for, e.g. Paris, Berlin",
+                    }
+                },
+                "required": ["city"],
+            },
+            function=population,
+        )
+
+        # Create a toolset with the population tool
+        population_toolset = Toolset([population_tool])
+
+        # Mix standalone tool with toolset
+        mixed_tools = [weather_tool, population_toolset]
+
+        initial_messages = [
+            ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
+        ]
+        component = AnthropicChatGenerator(tools=mixed_tools)
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+
+        first_reply = results["replies"][0]
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert first_reply.tool_calls, "First reply has no tool calls"
+
+        tool_calls = first_reply.tool_calls
+        assert len(tool_calls) == 2, f"Expected 2 tool calls, got {len(tool_calls)}"
+
+        # Verify we got calls to both weather and population tools
+        tool_names = {tc.tool_name for tc in tool_calls}
+        assert "weather" in tool_names, "Expected 'weather' tool call"
+        assert "population" in tool_names, "Expected 'population' tool call"
+
+        # Verify tool call details
+        for tool_call in tool_calls:
+            assert tool_call.id, "Tool call does not contain value for 'id' key"
+            assert tool_call.tool_name in ["weather", "population"]
+            assert "city" in tool_call.arguments
+            assert tool_call.arguments["city"] in ["Paris", "Berlin"]
+            assert first_reply.meta["finish_reason"] == "tool_calls"
+
+        # Mock the response we'd get from ToolInvoker
+        tool_result_messages = []
+        for tool_call in tool_calls:
+            if tool_call.tool_name == "weather":
+                result = "The weather in Paris is sunny and 32°C"
+            else:  # population
+                result = "The population of Berlin is 2.2 million"
+            tool_result_messages.append(ChatMessage.from_tool(tool_result=result, origin=tool_call))
+
+        new_messages = [*initial_messages, first_reply, *tool_result_messages]
+        results = component.run(new_messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_calls
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+        assert "berlin" in final_message.text.lower()
 
     def test_prompt_caching_enabled(self, monkeypatch):
         """
