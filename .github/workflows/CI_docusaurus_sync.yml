@@ -90,6 +90,8 @@ jobs:
 
       - name: Sync docs
         shell: python
+        env:
+          ARTIFACT_NAME: ${{ needs.generate-docs.outputs.artifact_name }}
         run: |
           import os
           import shutil
