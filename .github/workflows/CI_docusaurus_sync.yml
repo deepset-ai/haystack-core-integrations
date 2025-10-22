@@ -102,9 +102,9 @@ jobs:
 
           print(os.listdir("."))
 
-          # Copy the artifact markdown to docs-website/reference/integrations_api
+          # Copy the artifact markdown to docs-website/reference/integrations-api
           artifact_fname = os.environ['ARTIFACT_NAME']+'.md'
-          haystack_docs_path = "docs-website/reference/integrations_api/"
+          haystack_docs_path = "docs-website/reference/integrations-api/"
           shutil.copy(artifact_fname, haystack_docs_path)
 
           # loop over docs-website/reference_versioned_docs subfolders and copy the artifact markdown to the corresponding folder
