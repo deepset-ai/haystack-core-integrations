@@ -847,14 +847,18 @@ class TestChatCompletionChunkConversion:
             "completion_tokens": 42,
             "prompt_tokens": 55,
             "total_tokens": 97,
-            "completion_tokens_details": CompletionTokensDetails(**{
-                "accepted_prediction_tokens": None,
-                "audio_tokens": None,
-                "reasoning_tokens": 0,
-                "rejected_prediction_tokens": None,
-            }),
-            "prompt_tokens_details": PromptTokensDetails(**{
-                "audio_tokens": None,
-                "cached_tokens": 0,
-            }),
+            "completion_tokens_details": CompletionTokensDetails(
+                **{
+                    "accepted_prediction_tokens": None,
+                    "audio_tokens": None,
+                    "reasoning_tokens": 0,
+                    "rejected_prediction_tokens": None,
+                }
+            ),
+            "prompt_tokens_details": PromptTokensDetails(
+                **{
+                    "audio_tokens": None,
+                    "cached_tokens": 0,
+                }
+            ),
         }
