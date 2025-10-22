@@ -12,12 +12,12 @@ from haystack.dataclasses import (
 )
 from haystack.dataclasses.streaming_chunk import ComponentInfo, FinishReason, StreamingChunk, ToolCallDelta
 from haystack.tools import (
-    Tool,
+    ToolsType,
     _check_duplicate_tool_names,
     deserialize_tools_or_toolset_inplace,
+    flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
 )
-from haystack.tools.toolset import Toolset
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 from pydantic.json_schema import JsonSchemaValue
 
@@ -215,7 +215,7 @@ class OllamaChatGenerator:
         timeout: int = 120,
         keep_alive: Optional[Union[float, str]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[ToolsType] = None,
         response_format: Optional[Union[None, Literal["json"], JsonSchemaValue]] = None,
         think: Union[bool, Literal["low", "medium", "high"]] = False,
     ):
@@ -248,9 +248,9 @@ class OllamaChatGenerator:
             A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
         :param tools:
-            A list of `haystack.tools.Tool` or a `haystack.tools.Toolset`. Duplicate tool names raise a `ValueError`.
-            Not all models support tools. For a list of models compatible with tools, see the
-            [models page](https://ollama.com/search?c=tools).
+            A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            Each tool should have a unique name. Not all models support tools. For a list of models compatible
+            with tools, see the [models page](https://ollama.com/search?c=tools).
         :param response_format:
             The format for structured model outputs. The value can be:
             - None: No specific structure or format is applied to the response. The response is returned as-is.
@@ -258,7 +258,8 @@ class OllamaChatGenerator:
             - JSON Schema: The response is formatted as a JSON object
                 that adheres to the specified JSON Schema. (needs Ollama ≥ 0.1.34)
         """
-        _check_duplicate_tool_names(list(tools or []))
+        flattened_tools = flatten_tools_or_toolsets(tools)
+        _check_duplicate_tool_names(flattened_tools)
 
         self.model = model
         self.url = url
@@ -266,7 +267,7 @@ class OllamaChatGenerator:
         self.timeout = timeout
         self.keep_alive = keep_alive
         self.streaming_callback = streaming_callback
-        self.tools = tools
+        self.tools = tools  # Store original tools for serialization
         self.think = think
         self.response_format = response_format
 
@@ -470,7 +471,7 @@ class OllamaChatGenerator:
         self,
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[ToolsType] = None,
         *,
         streaming_callback: Optional[StreamingCallbackT] = None,
     ) -> Dict[str, List[ChatMessage]]:
@@ -485,9 +486,8 @@ class OllamaChatGenerator:
             Optional arguments to pass to the Ollama generation endpoint, such as temperature, top_p, etc. See the
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :param tools:
-            A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
-            list of `Tool` objects or a `Toolset` instance. If set, it will override the `tools` parameter set
-            during component initialization.
+            A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            If set, it will override the `tools` parameter set during component initialization.
         :param streaming_callback:
             A callable to receive `StreamingChunk` objects as they
             arrive.  Supplying a callback (here or in the constructor) switches
@@ -501,13 +501,11 @@ class OllamaChatGenerator:
             init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
         )
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        tools = tools or self.tools
-        _check_duplicate_tool_names(list(tools or []))
+        tools_to_use = tools or self.tools
+        flattened_tools = flatten_tools_or_toolsets(tools_to_use)
+        _check_duplicate_tool_names(flattened_tools)
 
-        # Convert Toolset → list[Tool] for JSON serialization
-        if isinstance(tools, Toolset):
-            tools = list(tools)
-        ollama_tools = [{"type": "function", "function": {**tool.tool_spec}} for tool in tools] if tools else None
+        ollama_tools = [{"type": "function", "function": {**tool.tool_spec}} for tool in flattened_tools] if flattened_tools else None
 
         is_stream = callback is not None
 
@@ -535,7 +533,7 @@ class OllamaChatGenerator:
         self,
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[ToolsType] = None,
         *,
         streaming_callback: Optional[StreamingCallbackT] = None,
     ) -> Dict[str, List[ChatMessage]]:
@@ -548,7 +546,7 @@ class OllamaChatGenerator:
             Per-call overrides for Ollama inference options.
             These are merged on top of the instance-level `generation_kwargs`.
         :param tools:
-            A list of tools or a Toolset for which the model can prepare calls.
+            A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             If set, it will override the `tools` parameter set during component initialization.
         :param streaming_callback:
             A callable to receive `StreamingChunk` objects as they arrive.
@@ -560,13 +558,11 @@ class OllamaChatGenerator:
         callback = select_streaming_callback(self.streaming_callback, streaming_callback, requires_async=True)
 
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        tools = tools or self.tools
-        _check_duplicate_tool_names(list(tools or []))
+        tools_to_use = tools or self.tools
+        flattened_tools = flatten_tools_or_toolsets(tools_to_use)
+        _check_duplicate_tool_names(flattened_tools)
 
-        # Convert Toolset → list[Tool] for JSON serialization
-        if isinstance(tools, Toolset):
-            tools = list(tools)
-        ollama_tools = [{"type": "function", "function": {**tool.tool_spec}} for tool in tools] if tools else None
+        ollama_tools = [{"type": "function", "function": {**tool.tool_spec}} for tool in flattened_tools] if flattened_tools else None
 
         is_stream = callback is not None
 
