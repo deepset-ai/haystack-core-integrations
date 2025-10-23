@@ -202,7 +202,7 @@ class MistralOCRDocumentConverter:
                 - `content`: All pages joined with form feed (\\f) separators in markdown format.
                   When using bbox_annotation_schema, image tags will be enriched with your defined descriptions.
                 - `meta`: Aggregated metadata dictionary with structure:
-                  {"source_page_count": int, "source_total_images": int, "source_*": any}.
+                  `{"source_page_count": int, "source_total_images": int, "source_*": any}`.
                   If document_annotation_schema was provided, all annotation fields are unpacked
                   with 'source_' prefix (e.g., source_language, source_chapter_titles, source_urls).
             - `raw_mistral_response`:
