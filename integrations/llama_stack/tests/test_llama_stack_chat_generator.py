@@ -70,7 +70,7 @@ def mock_chat_completion():
     with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
         completion = ChatCompletion(
             id="foo",
-            model="llama3.2:3b",
+            model="ollama/llama3.2:3b",
             object="chat.completion",
             choices=[
                 Choice(
@@ -90,27 +90,27 @@ def mock_chat_completion():
 
 class TestLlamaStackChatGenerator:
     def test_init_default(self):
-        component = LlamaStackChatGenerator(model="llama3.2:3b")
-        assert component.model == "llama3.2:3b"
+        component = LlamaStackChatGenerator(model="ollama/llama3.2:3b")
+        assert component.model == "ollama/llama3.2:3b"
         assert component.api_base_url == "http://localhost:8321/v1/openai/v1"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
 
     def test_init_with_parameters(self):
         component = LlamaStackChatGenerator(
-            model="llama3.2:3b",
+            model="ollama/llama3.2:3b",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
-        assert component.model == "llama3.2:3b"
+        assert component.model == "ollama/llama3.2:3b"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
     def test_to_dict_default(
         self,
     ):
-        component = LlamaStackChatGenerator(model="llama3.2:3b")
+        component = LlamaStackChatGenerator(model="ollama/llama3.2:3b")
         data = component.to_dict()
 
         assert (
@@ -119,7 +119,7 @@ class TestLlamaStackChatGenerator:
         )
 
         expected_params = {
-            "model": "llama3.2:3b",
+            "model": "ollama/llama3.2:3b",
             "streaming_callback": None,
             "api_base_url": "http://localhost:8321/v1/openai/v1",
             "generation_kwargs": {},
@@ -137,7 +137,7 @@ class TestLlamaStackChatGenerator:
         self,
     ):
         component = LlamaStackChatGenerator(
-            model="llama3.2:3b",
+            model="ollama/llama3.2:3b",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
@@ -155,7 +155,7 @@ class TestLlamaStackChatGenerator:
         )
 
         expected_params = {
-            "model": "llama3.2:3b",
+            "model": "ollama/llama3.2:3b",
             "api_base_url": "test-base-url",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -177,7 +177,7 @@ class TestLlamaStackChatGenerator:
                 "haystack_integrations.components.generators.llama_stack.chat.chat_generator.LlamaStackChatGenerator"
             ),
             "init_parameters": {
-                "model": "llama3.2:3b",
+                "model": "ollama/llama3.2:3b",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -189,7 +189,7 @@ class TestLlamaStackChatGenerator:
             },
         }
         component = LlamaStackChatGenerator.from_dict(data)
-        assert component.model == "llama3.2:3b"
+        assert component.model == "ollama/llama3.2:3b"
         assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -218,14 +218,14 @@ class TestLlamaStackChatGenerator:
         toolset = Toolset([population_tool])
 
         generator = LlamaStackChatGenerator(
-            model="llama3.2:3b",
+            model="ollama/llama3.2:3b",
             tools=[weather_tool, toolset],
         )
 
         assert generator.tools == [weather_tool, toolset]
 
     def test_run(self, chat_messages, mock_chat_completion):  # noqa: ARG002
-        component = LlamaStackChatGenerator(model="llama3.2:3b")
+        component = LlamaStackChatGenerator(model="ollama/llama3.2:3b")
         response = component.run(chat_messages)
 
         # check that the component returns the correct ChatMessage response
@@ -237,7 +237,7 @@ class TestLlamaStackChatGenerator:
 
     def test_run_with_params(self, chat_messages, mock_chat_completion):
         component = LlamaStackChatGenerator(
-            model="llama3.2:3b",
+            model="ollama/llama3.2:3b",
             generation_kwargs={"max_tokens": 10, "temperature": 0.5},
         )
         response = component.run(chat_messages)
@@ -257,12 +257,12 @@ class TestLlamaStackChatGenerator:
     @pytest.mark.integration
     def test_live_run(self):
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = LlamaStackChatGenerator(model="ollama/llama3.2:3b")
+        component = LlamaStackChatGenerator(model="ollama/ollama/llama3.2:3b")
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "llama3.2:3b" in message.meta["model"]
+        assert "ollama/llama3.2:3b" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.integration
@@ -277,14 +277,14 @@ class TestLlamaStackChatGenerator:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        component = LlamaStackChatGenerator(model="llama3.2:3b", streaming_callback=callback)
+        component = LlamaStackChatGenerator(model="ollama/llama3.2:3b", streaming_callback=callback)
         results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "llama3.2:3b" in message.meta["model"]
+        assert "ollama/llama3.2:3b" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
@@ -293,7 +293,7 @@ class TestLlamaStackChatGenerator:
     @pytest.mark.integration
     def test_live_run_with_tools(self, tools):
         chat_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = LlamaStackChatGenerator(model="llama3.2:3b", tools=tools)
+        component = LlamaStackChatGenerator(model="ollama/llama3.2:3b", tools=tools)
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message = results["replies"][0]
@@ -312,7 +312,7 @@ class TestLlamaStackChatGenerator:
         Integration test that the LlamaStackChatGenerator component can run with tools and get a response.
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = LlamaStackChatGenerator(model="llama3.2:3b", tools=tools)
+        component = LlamaStackChatGenerator(model="ollama/llama3.2:3b", tools=tools)
         results = component.run(messages=initial_messages, generation_kwargs={"tool_choice": "auto"})
 
         assert len(results["replies"]) > 0, "No replies received"
@@ -357,7 +357,7 @@ class TestLlamaStackChatGenerator:
         initial_messages = [
             ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
         ]
-        component = LlamaStackChatGenerator(model="llama3.2:3b", tools=mixed_tools)
+        component = LlamaStackChatGenerator(model="ollama/llama3.2:3b", tools=mixed_tools)
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"
