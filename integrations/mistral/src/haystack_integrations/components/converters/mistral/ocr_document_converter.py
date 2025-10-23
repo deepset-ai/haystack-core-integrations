@@ -4,7 +4,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
-from haystack.components.converters.utils import get_bytestream_from_source
+from haystack.components.converters.utils import (
+    get_bytestream_from_source,
+    normalize_metadata,
+)
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret, deserialize_secrets_inplace
 from mistralai import Mistral
@@ -169,10 +172,15 @@ class MistralOCRDocumentConverter:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    @component.output_types(documents=List[Document], raw_mistral_response=List[Dict[str, Any]])
+    @component.output_types(
+        documents=List[Document], raw_mistral_response=List[Dict[str, Any]]
+    )
     def run(
         self,
-        sources: List[Union[str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk]],
+        sources: List[
+            Union[str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk]
+        ],
+        meta: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
         bbox_annotation_schema: Optional[Type[BaseModel]] = None,
         document_annotation_schema: Optional[Type[BaseModel]] = None,
     ) -> Dict[str, Any]:
@@ -187,6 +195,11 @@ class MistralOCRDocumentConverter:
             - DocumentURLChunk: Mistral chunk for document URLs (signed or public URLs to PDFs, etc.)
             - ImageURLChunk: Mistral chunk for image URLs (signed or public URLs to images)
             - FileChunk: Mistral chunk for file IDs (files previously uploaded to Mistral)
+        :param meta:
+            Optional metadata to attach to the Documents.
+            This value can be either a list of dictionaries or a single dictionary.
+            If it's a single dictionary, its content is added to the metadata of all produced Documents.
+            If it's a list, the length of the list must match the number of sources, because they will be zipped.
         :param bbox_annotation_schema:
             Optional Pydantic model for structured annotations per bounding box.
             When provided, a Vision LLM analyzes each image region and returns structured data.
@@ -202,7 +215,7 @@ class MistralOCRDocumentConverter:
                 - `content`: All pages joined with form feed (\\f) separators in markdown format.
                   When using bbox_annotation_schema, image tags will be enriched with your defined descriptions.
                 - `meta`: Aggregated metadata dictionary with structure:
-                  `{"source_page_count": int, "source_total_images": int, "source_*": any}`.
+                  {"source_page_count": int, "source_total_images": int, "source_*": any}.
                   If document_annotation_schema was provided, all annotation fields are unpacked
                   with 'source_' prefix (e.g., source_language, source_chapter_titles, source_urls).
             - `raw_mistral_response`:
@@ -211,20 +224,28 @@ class MistralOCRDocumentConverter:
         """
         # Convert Pydantic models to Mistral ResponseFormat schemas
         bbox_annotation_format = (
-            response_format_from_pydantic_model(bbox_annotation_schema) if bbox_annotation_schema else None
+            response_format_from_pydantic_model(bbox_annotation_schema)
+            if bbox_annotation_schema
+            else None
         )
         document_annotation_format = (
-            response_format_from_pydantic_model(document_annotation_schema) if document_annotation_schema else None
+            response_format_from_pydantic_model(document_annotation_schema)
+            if document_annotation_schema
+            else None
         )
+
+        # Normalize metadata
+        meta_list = normalize_metadata(meta, sources_count=len(sources))
 
         # Process each source
         documents = []
         raw_responses = []
         uploaded_file_ids = []
 
-        for source in sources:
+        for source, user_metadata in zip(sources, meta_list):
             document, raw_response, uploaded_file_id = self._process_single_source(
                 source,
+                user_metadata,
                 bbox_annotation_format,
                 document_annotation_format,
                 document_annotation_schema,
@@ -246,7 +267,10 @@ class MistralOCRDocumentConverter:
 
     def _process_single_source(
         self,
-        source: Union[str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk],
+        source: Union[
+            str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk
+        ],
+        user_metadata: Dict[str, Any],
         bbox_annotation_format: Optional[Any],
         document_annotation_format: Optional[Any],
         document_annotation_schema: Optional[Type[BaseModel]],
@@ -256,6 +280,8 @@ class MistralOCRDocumentConverter:
 
         :param source:
             The source to process.
+        :param user_metadata:
+            User-provided metadata to attach to the document.
         :param bbox_annotation_format:
             Optional response format for bounding box annotations.
         :param document_annotation_format:
@@ -272,7 +298,9 @@ class MistralOCRDocumentConverter:
             chunk = self._convert_source_to_chunk(source)
 
             # Track if we uploaded this file
-            if isinstance(source, (str, Path, ByteStream)) and isinstance(chunk, FileChunk):
+            if isinstance(source, (str, Path, ByteStream)) and isinstance(
+                chunk, FileChunk
+            ):
                 uploaded_file_id = chunk.file_id
 
             ocr_response: OCRResponse = self.client.ocr.process(
@@ -286,7 +314,9 @@ class MistralOCRDocumentConverter:
                 document_annotation_format=document_annotation_format,
             )
 
-            document = self._process_ocr_response(ocr_response, document_annotation_schema)
+            document = self._process_ocr_response(
+                ocr_response, user_metadata, document_annotation_schema
+            )
             return (document, ocr_response.model_dump(), uploaded_file_id)
         except Exception as e:
             logger.warning(
@@ -318,7 +348,9 @@ class MistralOCRDocumentConverter:
 
     def _convert_source_to_chunk(
         self,
-        source: Union[str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk],
+        source: Union[
+            str, Path, ByteStream, DocumentURLChunk, FileChunk, ImageURLChunk
+        ],
     ) -> Union[DocumentURLChunk, FileChunk, ImageURLChunk]:
         """
         Convert various source types to Mistral-compatible chunk format.
@@ -354,6 +386,7 @@ class MistralOCRDocumentConverter:
     def _process_ocr_response(
         self,
         ocr_response: OCRResponse,
+        user_metadata: Dict[str, Any],
         document_annotation_schema: Optional[Type[BaseModel]],
     ) -> Document:
         """
@@ -361,6 +394,8 @@ class MistralOCRDocumentConverter:
 
         :param ocr_response:
             The OCR response object from Mistral API.
+        :param user_metadata:
+            User-provided metadata to attach to the document.
         :param document_annotation_schema:
             Optional Pydantic model for document-level annotations.
 
@@ -402,9 +437,12 @@ class MistralOCRDocumentConverter:
         document = Document(
             content=all_content,
             meta={
+                # User metadata (lowest priority - can be overridden)
+                **user_metadata,
+                # Automatic metadata (medium priority)
                 "source_page_count": len(ocr_response.pages),
                 "source_total_images": total_images,
-                # Unpack document annotation
+                # Document annotation (highest priority - overrides all)
                 **doc_annotation_meta,
             },
         )
