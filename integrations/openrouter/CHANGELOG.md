@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/openrouter-v0.3.0] - 2025-10-23
+
+### 🚀 Features
+
+- Add support for structured outputs in OpenRouterChatGenerator (#2406)
+- `OpenRouterChatGenerator` add integration tests for mixing Tool/Toolset (#2421)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+
 ## [integrations/openrouter-v0.2.2] - 2025-09-23
 
 ### 🐛 Bug Fixes

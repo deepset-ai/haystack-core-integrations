@@ -1,11 +1,17 @@
 import json
+import os
 
 import pytest
+from haystack.components.agents import Agent
+from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.core.pipeline import Pipeline
+from haystack.dataclasses import ChatMessage
 from haystack.tools.errors import ToolInvocationError
 from haystack.tools.from_function import tool
 
 from haystack_integrations.tools.mcp import (
     MCPTool,
+    StdioServerInfo,
 )
 
 from .mcp_memory_transport import InMemoryServerInfo
@@ -26,21 +32,21 @@ class TestMCPTool:
         """Provides an MCPTool instance for the 'add' tool using the in-memory calculator server."""
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
         # The MCPTool constructor will fetch the tool's schema from the in-memory server
-        tool = MCPTool(name="add", server_info=server_info)
+        tool = MCPTool(name="add", server_info=server_info, eager_connect=True)
         return mcp_tool_cleanup(tool)
 
     @pytest.fixture
     def mcp_echo_tool(self, mcp_tool_cleanup):
         """Provides an MCPTool instance for the 'echo' tool using the in-memory echo server."""
         server_info = InMemoryServerInfo(server=echo_mcp._mcp_server)
-        tool = MCPTool(name="echo", server_info=server_info)
+        tool = MCPTool(name="echo", server_info=server_info, eager_connect=True)
         return mcp_tool_cleanup(tool)
 
     @pytest.fixture
     def mcp_error_tool(self, mcp_tool_cleanup):
         """Provides an MCPTool instance for the 'divide_by_zero' tool for error testing."""
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
-        tool = MCPTool(name="divide_by_zero", server_info=server_info)
+        tool = MCPTool(name="divide_by_zero", server_info=server_info, eager_connect=True)
         return mcp_tool_cleanup(tool)
 
     # New tests using in-memory approach will be added below
@@ -90,7 +96,9 @@ class TestMCPTool:
         """Test serialization and deserialization of MCPTool with in-memory server."""
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
 
-        tool = MCPTool(name="add", server_info=server_info, description="Addition tool for serde testing")
+        tool = MCPTool(
+            name="add", server_info=server_info, description="Addition tool for serde testing", eager_connect=True
+        )
         # Register tool for cleanup
         mcp_tool_cleanup(tool)
 
@@ -124,3 +132,26 @@ class TestMCPTool:
         }
 
         assert isinstance(new_tool._server_info, InMemoryServerInfo)
+
+    @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
+    @pytest.mark.integration
+    def test_pipeline_warmup_with_mcp_tool(self):
+        """Test lazy connection with Pipeline.warm_up() - replicates time_pipeline.py."""
+
+        # Replicate time_pipeline.py using MCPTool instead of MCPToolset
+        server_info = StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=Europe/Berlin"])
+
+        # Create tool with lazy connection (default behavior)
+        tool = MCPTool(name="get_current_time", server_info=server_info)
+        try:
+            # Build pipeline with Agent, Pipeline will warm up the tool in the agent automatically
+            agent = Agent(chat_generator=OpenAIChatGenerator(model="gpt-4.1-mini"), tools=[tool])
+            pipeline = Pipeline()
+            pipeline.add_component("agent", agent)
+
+            user_input_msg = ChatMessage.from_user(text="What is the time in New York?")
+            result = pipeline.run({"agent": {"messages": [user_input_msg]}})
+            assert "New York" in result["agent"]["messages"][3].text
+        finally:
+            if tool:
+                tool.close()
