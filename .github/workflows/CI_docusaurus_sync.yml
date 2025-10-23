@@ -58,7 +58,7 @@ jobs:
       - name: print output
         run: |
           ls -la
-          cat openrouter.md
+          cat integrations/openrouter/openrouter.md
 
   #     - name: Upload API reference artifact
   #       uses: actions/upload-artifact@v4
