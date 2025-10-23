@@ -262,7 +262,7 @@ class TestLlamaStackChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "ollama/llama3.2:3b" in message.meta["model"]
+        assert "llama3.2:3b" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.integration
@@ -284,7 +284,7 @@ class TestLlamaStackChatGenerator:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "ollama/llama3.2:3b" in message.meta["model"]
+        assert "llama3.2:3b" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
