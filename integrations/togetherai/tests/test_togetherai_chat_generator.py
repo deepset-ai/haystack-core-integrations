@@ -17,7 +17,7 @@ from openai.types.chat.chat_completion_chunk import Choice as ChoiceChunk
 from openai.types.chat.chat_completion_chunk import ChoiceDelta, ChoiceDeltaToolCall, ChoiceDeltaToolCallFunction
 from openai.types.completion_usage import CompletionTokensDetails, CompletionUsage, PromptTokensDetails
 
-from haystack_integrations.components.generators.together_ai.chat.chat_generator import TogetherAIChatGenerator
+from haystack_integrations.components.generators.togetherai.chat.chat_generator import TogetherAIChatGenerator
 
 
 class CollectorCallback:
@@ -143,7 +143,7 @@ class TestTogetherAIChatGenerator:
 
         assert (
             data["type"]
-            == "haystack_integrations.components.generators.together_ai.chat.chat_generator.TogetherAIChatGenerator"
+            == "haystack_integrations.components.generators.togetherai.chat.chat_generator.TogetherAIChatGenerator"
         )
 
         expected_params = {
@@ -178,7 +178,7 @@ class TestTogetherAIChatGenerator:
 
         assert (
             data["type"]
-            == "haystack_integrations.components.generators.together_ai.chat.chat_generator.TogetherAIChatGenerator"
+            == "haystack_integrations.components.generators.togetherai.chat.chat_generator.TogetherAIChatGenerator"
         )
 
         expected_params = {
@@ -200,7 +200,7 @@ class TestTogetherAIChatGenerator:
         monkeypatch.setenv("TOGETHER_API_KEY", "fake-api-key")
         data = {
             "type": (
-                "haystack_integrations.components.generators.together_ai.chat.chat_generator.TogetherAIChatGenerator"
+                "haystack_integrations.components.generators.togetherai.chat.chat_generator.TogetherAIChatGenerator"
             ),
             "init_parameters": {
                 "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
@@ -229,7 +229,7 @@ class TestTogetherAIChatGenerator:
         monkeypatch.delenv("TOGETHER_API_KEY", raising=False)
         data = {
             "type": (
-                "haystack_integrations.components.generators.together_ai.chat.chat_generator.TogetherAIChatGenerator"
+                "haystack_integrations.components.generators.togetherai.chat.chat_generator.TogetherAIChatGenerator"
             ),
             "init_parameters": {
                 "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
@@ -431,7 +431,7 @@ class TestTogetherAIChatGenerator:
         reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
-    def test_pipeline_with_together_ai_chat_generator(self, tools):
+    def test_pipeline_with_togetherai_chat_generator(self, tools):
         """
         Test that the TogetherAIChatGenerator component can be used in a pipeline
         """
@@ -491,7 +491,7 @@ class TestTogetherAIChatGenerator:
             "connection_type_validation": True,
             "components": {
                 "generator": {
-                    "type": "haystack_integrations.components.generators.together_ai.chat.chat_generator.TogetherAIChatGenerator",  # noqa: E501
+                    "type": "haystack_integrations.components.generators.togetherai.chat.chat_generator.TogetherAIChatGenerator",  # noqa: E501
                     "init_parameters": {
                         "api_key": {"type": "env_var", "env_vars": ["ENV_VAR"], "strict": True},
                         "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
@@ -505,7 +505,7 @@ class TestTogetherAIChatGenerator:
                                     "name": "weather",
                                     "description": "useful to determine the weather in a given location",
                                     "parameters": {"city": {"type": "string"}},
-                                    "function": "tests.test_together_ai_chat_generator.weather",
+                                    "function": "tests.test_togetherai_chat_generator.weather",
                                 },
                             }
                         ],
@@ -648,7 +648,7 @@ class TestTogetherAIChatGenerator:
 
 class TestChatCompletionChunkConversion:
     def test_handle_stream_response(self):
-        together_ai_chunks = [
+        togetherai_chunks = [
             ChatCompletionChunk(
                 id="gen-1750162525-tc7ParBHvsqd6rYhCDtK",
                 choices=[
@@ -946,7 +946,7 @@ class TestChatCompletionChunkConversion:
 
         collector_callback = CollectorCallback()
         llm = TogetherAIChatGenerator(api_key=Secret.from_token("test-api-key"))
-        result = llm._handle_stream_response(together_ai_chunks, callback=collector_callback)[0]  # type: ignore
+        result = llm._handle_stream_response(togetherai_chunks, callback=collector_callback)[0]  # type: ignore
 
         # Assert text is empty
         assert result.text is None
