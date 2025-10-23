@@ -3,12 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import StreamingCallbackT
-from haystack.tools import Tool, Toolset, serialize_tools_or_toolset
+from haystack.tools import ToolsType, serialize_tools_or_toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
 
@@ -56,7 +56,7 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[ToolsType] = None,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
         http_client_kwargs: Optional[Dict[str, Any]] = None,
@@ -86,6 +86,22 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
                 comprising the top 10% probability mass are considered.
             - `stream`: Whether to stream back partial progress. If set, tokens will be sent as data-only server-sent
                 events as they become available, with the stream terminated by a data: [DONE] message.
+            - `response_format`: For NVIDIA NIM servers, this parameter has limited support.
+                - The basic JSON mode with `{"type": "json_object"}` is supported by compatible models, to produce
+                valid JSON output.
+                To pass the JSON schema to the model, use the `guided_json` parameter in `extra_body`.
+                For example:
+                ```python
+                generation_kwargs={
+                    "extra_body": {
+                        "nvext": {
+                            "guided_json": {
+                                json_schema
+                        }
+                    }
+                }
+                ```
+                For more details, see the [NVIDIA NIM documentation](https://docs.nvidia.com/nim/large-language-models/latest/structured-generation.html).
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
             list of `Tool` objects or a `Toolset` instance.

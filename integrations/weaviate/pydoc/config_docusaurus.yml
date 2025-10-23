@@ -1,0 +1,32 @@
+loaders:
+- ignore_when_discovered:
+  - __init__
+  modules:
+  - haystack_integrations.document_stores.weaviate.auth
+  - haystack_integrations.document_stores.weaviate.document_store
+  - haystack_integrations.components.retrievers.weaviate.bm25_retriever
+  - haystack_integrations.components.retrievers.weaviate.embedding_retriever
+  - haystack_integrations.components.retrievers.weaviate.hybrid_retriever
+  search_path:
+  - ../src
+  type: haystack_pydoc_tools.loaders.CustomPythonLoader
+processors:
+- do_not_filter_modules: false
+  documented_only: true
+  expression: null
+  skip_empty_modules: true
+  type: filter
+- type: smart
+- type: crossref
+renderer:
+  description: Weaviate integration for Haystack
+  id: integrations-weaviate
+  markdown:
+    add_member_class_prefix: false
+    add_method_class_prefix: true
+    classdef_code_block: false
+    descriptive_class_title: false
+    descriptive_module_title: true
+    filename: weaviate.md
+  title: Weaviate
+  type: haystack_pydoc_tools.renderers.DocusaurusRenderer

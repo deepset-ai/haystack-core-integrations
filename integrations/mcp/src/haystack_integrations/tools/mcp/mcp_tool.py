@@ -814,6 +814,7 @@ class MCPTool(Tool):
         description: str | None = None,
         connection_timeout: int = 30,
         invocation_timeout: int = 30,
+        eager_connect: bool = False,
     ):
         """
         Initialize the MCP tool.
@@ -823,6 +824,9 @@ class MCPTool(Tool):
         :param description: Custom description (if None, server description will be used)
         :param connection_timeout: Timeout in seconds for server connection
         :param invocation_timeout: Default timeout in seconds for tool invocations
+        :param eager_connect: If True, connect to server during initialization.
+                             If False (default), defer connection until warm_up or first tool use,
+                             whichever comes first.
         :raises MCPConnectionError: If connection to the server fails
         :raises MCPToolNotFoundError: If no tools are available or the requested tool is not found
         :raises TimeoutError: If connection times out
@@ -832,39 +836,27 @@ class MCPTool(Tool):
         self._server_info = server_info
         self._connection_timeout = connection_timeout
         self._invocation_timeout = invocation_timeout
+        self._eager_connect = eager_connect
+        self._client: MCPClient | None = None
+        self._worker: _MCPClientSessionManager | None = None
+        self._lock = threading.RLock()
+
+        # don't connect now; initialize permissively
+        if not eager_connect:
+            # Permissive placeholder JSON Schema so the Tool is valid
+            # without discovering the remote schema during validation.
+            # Tool parameters/schema will be replaced with the correct schema (from the MCP server) on first use.
+            params = {"type": "object", "properties": {}, "additionalProperties": True}
+            super().__init__(name=name, description=description or "", parameters=params, function=self._invoke_tool)
+            return
 
         logger.debug(f"TOOL: Initializing MCPTool '{name}'")
 
         try:
-            # Create client and spin up a long-lived worker that keeps the
-            # connect/close lifecycle inside one coroutine.
-            self._client = server_info.create_client()
-            logger.debug(f"TOOL: Created client for MCPTool '{name}'")
-
-            # The worker starts immediately and blocks here until the connection
-            # is established (or fails), returning the tool list.
-            self._worker = _MCPClientSessionManager(self._client, timeout=connection_timeout)
-
-            tools = self._worker.tools()
-            # Handle no tools case
-            if not tools:
-                logger.debug(f"TOOL: No tools found for '{name}'")
-                message = "No tools available on server"
-                raise MCPToolNotFoundError(message, tool_name=name)
-
-            # Find the specified tool
-            tool_dict = {t.name: t for t in tools}
-            logger.debug(f"TOOL: Available tools: {list(tool_dict.keys())}")
-
-            tool_info: types.Tool | None = tool_dict.get(name)
-
-            if not tool_info:
-                available = list(tool_dict.keys())
-                logger.debug(f"TOOL: Tool '{name}' not found in available tools")
-                message = f"Tool '{name}' not found on server. Available tools: {', '.join(available)}"
-                raise MCPToolNotFoundError(message, tool_name=name, available_tools=available)
-
+            logger.debug(f"TOOL: Connecting to MCP server for '{name}'")
+            tool_info = self._connect_and_initialize(name)
             logger.debug(f"TOOL: Found tool '{name}', initializing Tool parent class")
+
             # Initialize the parent class
             super().__init__(
                 name=name,
@@ -897,6 +889,36 @@ class MCPTool(Tool):
             message = f"Failed to initialize MCPTool '{name}': {error_message}"
             raise MCPConnectionError(message=message, server_info=server_info, operation="initialize") from e
 
+    def _connect_and_initialize(self, tool_name: str) -> types.Tool:
+        """
+        Connect to the MCP server and retrieve the tool schema.
+
+        :param tool_name: Name of the tool to look for
+        :returns: The tool schema for this tool
+        :raises MCPToolNotFoundError: If the tool is not found on the server
+        """
+        client = self._server_info.create_client()
+        worker = _MCPClientSessionManager(client, timeout=self._connection_timeout)
+        tools = worker.tools()
+
+        # Handle no tools case
+        if not tools:
+            message = "No tools available on server"
+            raise MCPToolNotFoundError(message, tool_name=tool_name)
+
+        # Find the specified tool
+        tool = next((t for t in tools if t.name == tool_name), None)
+        if tool is None:
+            available = [t.name for t in tools]
+            msg = f"Tool '{tool_name}' not found on server. Available tools: {', '.join(available)}"
+            raise MCPToolNotFoundError(msg, tool_name=tool_name, available_tools=available)
+
+        # Publish connection
+        self._client = client
+        self._worker = worker
+
+        return tool
+
     def _invoke_tool(self, **kwargs: Any) -> str:
         """
         Synchronous tool invocation.
@@ -906,12 +928,13 @@ class MCPTool(Tool):
         """
         logger.debug(f"TOOL: Invoking tool '{self.name}' with args: {kwargs}")
         try:
+            # Connect on first use if eager_connect is turned off
+            self.warm_up()
 
             async def invoke():
                 logger.debug(f"TOOL: Inside invoke coroutine for '{self.name}'")
-                result = await asyncio.wait_for(
-                    self._client.call_tool(self.name, kwargs), timeout=self._invocation_timeout
-                )
+                client = cast(MCPClient, self._client)
+                result = await asyncio.wait_for(client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
                 logger.debug(f"TOOL: Invoke successful for '{self.name}'")
                 return result
 
@@ -939,7 +962,9 @@ class MCPTool(Tool):
         :raises TimeoutError: If the operation times out
         """
         try:
-            return await asyncio.wait_for(self._client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
+            self.warm_up()
+            client = cast(MCPClient, self._client)
+            return await asyncio.wait_for(client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
         except asyncio.TimeoutError as e:
             message = f"Tool invocation timed out after {self._invocation_timeout} seconds"
             raise TimeoutError(message) from e
@@ -948,6 +973,14 @@ class MCPTool(Tool):
                 raise
             message = f"Failed to invoke tool '{self.name}' with args: {kwargs} , got error: {e!s}"
             raise MCPInvocationError(message, self.name, kwargs) from e
+
+    def warm_up(self) -> None:
+        """Connect and fetch the tool schema if eager_connect is turned off."""
+        with self._lock:
+            if self._client is not None:
+                return
+            tool = self._connect_and_initialize(self.name)
+            self.parameters = tool.inputSchema
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -958,7 +991,7 @@ class MCPTool(Tool):
         active connection is not maintained.
 
         :returns: Dictionary with serialized data in the format:
-                  {"type": fully_qualified_class_name, "data": {parameters}}
+                  `{"type": fully_qualified_class_name, "data": {parameters}}`
         """
         serialized = {
             "name": self.name,
@@ -966,6 +999,7 @@ class MCPTool(Tool):
             "server_info": self._server_info.to_dict(),
             "connection_timeout": self._connection_timeout,
             "invocation_timeout": self._invocation_timeout,
+            "eager_connect": self._eager_connect,
         }
         return {
             "type": generate_qualified_class_name(type(self)),
@@ -998,6 +1032,7 @@ class MCPTool(Tool):
         # Handle backward compatibility for timeout parameters
         connection_timeout = inner_data.get("connection_timeout", 30)
         invocation_timeout = inner_data.get("invocation_timeout", 30)
+        eager_connect = inner_data.get("eager_connect", False)  # because False is the default
 
         # Create a new MCPTool instance with the deserialized parameters
         # This will establish a new connection to the MCP server
@@ -1007,6 +1042,7 @@ class MCPTool(Tool):
             server_info=server_info,
             connection_timeout=connection_timeout,
             invocation_timeout=invocation_timeout,
+            eager_connect=eager_connect,
         )
 
     def close(self):
