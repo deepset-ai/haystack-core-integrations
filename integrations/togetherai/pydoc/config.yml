@@ -2,8 +2,8 @@ loaders:
   - type: haystack_pydoc_tools.loaders.CustomPythonLoader
     search_path: [../src]
     modules: [
-      "haystack_integrations.components.generators.together_ai.generator",
-      "haystack_integrations.components.generators.together_ai.chat.chat_generator",
+      "haystack_integrations.components.generators.togetherai.generator",
+      "haystack_integrations.components.generators.togetherai.chat.chat_generator",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
@@ -27,4 +27,4 @@ renderer:
     descriptive_module_title: true
     add_method_class_prefix: true
     add_member_class_prefix: false
-    filename: _readme_together_ai.md
+    filename: _readme_togetherai.md

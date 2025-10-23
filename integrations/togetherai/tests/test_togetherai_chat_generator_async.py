@@ -14,7 +14,7 @@ from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 
-from haystack_integrations.components.generators.together_ai.chat.chat_generator import (
+from haystack_integrations.components.generators.togetherai.chat.chat_generator import (
     TogetherAIChatGenerator,
 )
 
