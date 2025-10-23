@@ -5,6 +5,7 @@ loaders:
       "haystack_integrations.components.embedders.mistral.document_embedder",
       "haystack_integrations.components.embedders.mistral.text_embedder",
       "haystack_integrations.components.generators.mistral.chat.chat_generator",
+      "haystack_integrations.components.converters.mistral.ocr_document_converter",
     ]
     ignore_when_discovered: ["__init__"]
 processors:
