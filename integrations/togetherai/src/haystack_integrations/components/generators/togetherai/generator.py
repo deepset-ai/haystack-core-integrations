@@ -20,7 +20,7 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
 
     Usage example:
     ```python
-    from haystack_integrations.components.generators.together_ai import TogetherAIGenerator
+    from haystack_integrations.components.generators.togetherai import TogetherAIGenerator
 
     generator = TogetherAIGenerator(model="deepseek-ai/DeepSeek-R1",
                                 generation_kwargs={
