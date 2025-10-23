@@ -257,7 +257,7 @@ class TestLlamaStackChatGenerator:
     @pytest.mark.integration
     def test_live_run(self):
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = LlamaStackChatGenerator(model="ollama/ollama/llama3.2:3b")
+        component = LlamaStackChatGenerator(model="ollama/llama3.2:3b")
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
