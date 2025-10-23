@@ -650,17 +650,18 @@ class TestOpenRouterChatGenerator:
         # Create Toolset with weather and time tools
         toolset = Toolset([weather_tool, time_tool])
 
-        # Initialize with toolset
-        component = OpenRouterChatGenerator(tools=toolset)
+        # Initialize with no tools, we'll pass them at runtime
+        component = OpenRouterChatGenerator()
 
-        # Pass echo_tool as a list at runtime - runtime tools should take precedence
+        # Pass mixed list: echo_tool (individual) and toolset (weather + time) at runtime
+        # This tests that both individual tools and toolsets can be combined
         messages = [ChatMessage.from_user("Echo this: Hello World")]
-        results = component.run(messages, tools=[echo_tool])
+        results = component.run(messages, tools=[echo_tool, toolset])
 
         assert len(results["replies"]) == 1
         message = results["replies"][0]
 
-        # Should use echo_tool since it was passed at runtime
+        # Should be able to use echo_tool from the runtime mixed list
         assert message.tool_calls is not None
         tool_call = message.tool_calls[0]
         assert tool_call.tool_name == "echo"
