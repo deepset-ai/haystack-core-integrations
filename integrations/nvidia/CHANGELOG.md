@@ -1,5 +1,34 @@
 # Changelog
 
+## [integrations/nvidia-v0.4.0] - 2025-10-23
+
+### 🚀 Features
+
+- `NvidiaChatGenerator` add integration tests for mixing Tool/Toolset (#2422)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+- Fix docstrings to avoid errors in API reference generation (#2423)
+
+### 🧪 Testing
+
+- Make tests successfully run from forks (#2203)
+- Remove deprecated NV-Embed-QA model from Nvidia tests (#2370)
+
+### ⚙️ CI
+
+- Temporarily install `click<8.3.0` (#2288)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+- Standardize readmes - part 2 (#2205)
+
+### 🌀 Miscellaneous
+
+- Add structured output support in `NvidiaChatGenerator` (#2405)
+
 ## [integrations/nvidia-v0.3.0] - 2025-06-20
 
 ### 🐛 Bug Fixes

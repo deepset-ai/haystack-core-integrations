@@ -8,7 +8,7 @@ from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
-from haystack.tools import Tool
+from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 from openai import OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
@@ -17,7 +17,7 @@ from openai.types.chat.chat_completion_chunk import Choice as ChoiceChunk
 from openai.types.chat.chat_completion_chunk import ChoiceDelta, ChoiceDeltaToolCall, ChoiceDeltaToolCallFunction
 from openai.types.completion_usage import CompletionTokensDetails, CompletionUsage, PromptTokensDetails
 
-from haystack_integrations.components.generators.together_ai.chat.chat_generator import TogetherAIChatGenerator
+from haystack_integrations.components.generators.togetherai.chat.chat_generator import TogetherAIChatGenerator
 
 
 class CollectorCallback:
@@ -45,6 +45,11 @@ def weather(city: str):
     return f"The weather in {city} is sunny and 32°C"
 
 
+def population(city: str):
+    """Get population for a given city."""
+    return f"The population of {city} is 2.2 million"
+
+
 @pytest.fixture
 def tools():
     tool_parameters = {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
@@ -56,6 +61,25 @@ def tools():
     )
 
     return [tool]
+
+
+@pytest.fixture
+def mixed_tools():
+    """Fixture that returns a mixed list of Tool and Toolset."""
+    weather_tool = Tool(
+        name="weather",
+        description="useful to determine the weather in a given location",
+        parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+        function=weather,
+    )
+    population_tool = Tool(
+        name="population",
+        description="useful to determine the population of a given location",
+        parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+        function=population,
+    )
+    toolset = Toolset([population_tool])
+    return [weather_tool, toolset]
 
 
 @pytest.fixture
@@ -119,7 +143,7 @@ class TestTogetherAIChatGenerator:
 
         assert (
             data["type"]
-            == "haystack_integrations.components.generators.together_ai.chat.chat_generator.TogetherAIChatGenerator"
+            == "haystack_integrations.components.generators.togetherai.chat.chat_generator.TogetherAIChatGenerator"
         )
 
         expected_params = {
@@ -154,7 +178,7 @@ class TestTogetherAIChatGenerator:
 
         assert (
             data["type"]
-            == "haystack_integrations.components.generators.together_ai.chat.chat_generator.TogetherAIChatGenerator"
+            == "haystack_integrations.components.generators.togetherai.chat.chat_generator.TogetherAIChatGenerator"
         )
 
         expected_params = {
@@ -176,7 +200,7 @@ class TestTogetherAIChatGenerator:
         monkeypatch.setenv("TOGETHER_API_KEY", "fake-api-key")
         data = {
             "type": (
-                "haystack_integrations.components.generators.together_ai.chat.chat_generator.TogetherAIChatGenerator"
+                "haystack_integrations.components.generators.togetherai.chat.chat_generator.TogetherAIChatGenerator"
             ),
             "init_parameters": {
                 "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
@@ -205,7 +229,7 @@ class TestTogetherAIChatGenerator:
         monkeypatch.delenv("TOGETHER_API_KEY", raising=False)
         data = {
             "type": (
-                "haystack_integrations.components.generators.together_ai.chat.chat_generator.TogetherAIChatGenerator"
+                "haystack_integrations.components.generators.togetherai.chat.chat_generator.TogetherAIChatGenerator"
             ),
             "init_parameters": {
                 "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
@@ -407,7 +431,7 @@ class TestTogetherAIChatGenerator:
         reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
-    def test_pipeline_with_together_ai_chat_generator(self, tools):
+    def test_pipeline_with_togetherai_chat_generator(self, tools):
         """
         Test that the TogetherAIChatGenerator component can be used in a pipeline
         """
@@ -467,7 +491,7 @@ class TestTogetherAIChatGenerator:
             "connection_type_validation": True,
             "components": {
                 "generator": {
-                    "type": "haystack_integrations.components.generators.together_ai.chat.chat_generator.TogetherAIChatGenerator",  # noqa: E501
+                    "type": "haystack_integrations.components.generators.togetherai.chat.chat_generator.TogetherAIChatGenerator",  # noqa: E501
                     "init_parameters": {
                         "api_key": {"type": "env_var", "env_vars": ["ENV_VAR"], "strict": True},
                         "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
@@ -481,7 +505,7 @@ class TestTogetherAIChatGenerator:
                                     "name": "weather",
                                     "description": "useful to determine the weather in a given location",
                                     "parameters": {"city": {"type": "string"}},
-                                    "function": "tests.test_together_ai_chat_generator.weather",
+                                    "function": "tests.test_togetherai_chat_generator.weather",
                                 },
                             }
                         ],
@@ -529,10 +553,102 @@ class TestTogetherAIChatGenerator:
         assert loaded_generator.tools[0].description == generator.tools[0].description
         assert loaded_generator.tools[0].parameters == generator.tools[0].parameters
 
+    def test_init_with_mixed_tools(self, monkeypatch):
+        """Test that TogetherAIChatGenerator can be initialized with mixed Tool and Toolset."""
+        monkeypatch.setenv("TOGETHER_API_KEY", "test-api-key")
+
+        def tool_fn(city: str) -> str:
+            return city
+
+        weather_tool = Tool(
+            name="weather",
+            description="Weather lookup",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=tool_fn,
+        )
+        population_tool = Tool(
+            name="population",
+            description="Population lookup",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=tool_fn,
+        )
+        toolset = Toolset([population_tool])
+
+        generator = TogetherAIChatGenerator(
+            model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            tools=[weather_tool, toolset],
+        )
+
+        assert generator.tools == [weather_tool, toolset]
+
+    @pytest.mark.skipif(
+        not os.environ.get("TOGETHER_API_KEY", None),
+        reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_mixed_tools(self, mixed_tools):
+        """
+        Integration test that verifies TogetherAIChatGenerator works with mixed Tool and Toolset.
+        This tests that the LLM can correctly invoke tools from both a standalone Tool and a Toolset.
+        """
+        initial_messages = [
+            ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
+        ]
+        component = TogetherAIChatGenerator(model="meta-llama/Llama-3.3-70B-Instruct-Turbo", tools=mixed_tools)
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+
+        # Find the message with tool calls
+        tool_call_message = None
+        for message in results["replies"]:
+            if message.tool_calls:
+                tool_call_message = message
+                break
+
+        assert tool_call_message is not None, "No message with tool call found"
+        assert isinstance(tool_call_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_call_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_calls = tool_call_message.tool_calls
+        assert len(tool_calls) == 2, f"Expected 2 tool calls, got {len(tool_calls)}"
+
+        # Verify we got calls to both weather and population tools
+        tool_names = {tc.tool_name for tc in tool_calls}
+        assert "weather" in tool_names, "Expected 'weather' tool call"
+        assert "population" in tool_names, "Expected 'population' tool call"
+
+        # Verify tool call details
+        for tool_call in tool_calls:
+            assert tool_call.id, "Tool call does not contain value for 'id' key"
+            assert tool_call.tool_name in ["weather", "population"]
+            assert "city" in tool_call.arguments
+            assert tool_call.arguments["city"] in ["Paris", "Berlin"]
+            assert tool_call_message.meta["finish_reason"] == "tool_calls"
+
+        # Mock the response we'd get from ToolInvoker
+        tool_result_messages = []
+        for tool_call in tool_calls:
+            if tool_call.tool_name == "weather":
+                result = "The weather in Paris is sunny and 32°C"
+            else:  # population
+                result = "The population of Berlin is 2.2 million"
+            tool_result_messages.append(ChatMessage.from_tool(tool_result=result, origin=tool_call))
+
+        new_messages = [*initial_messages, tool_call_message, *tool_result_messages]
+        results = component.run(new_messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_call
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+        assert "berlin" in final_message.text.lower()
+
 
 class TestChatCompletionChunkConversion:
     def test_handle_stream_response(self):
-        together_ai_chunks = [
+        togetherai_chunks = [
             ChatCompletionChunk(
                 id="gen-1750162525-tc7ParBHvsqd6rYhCDtK",
                 choices=[
@@ -830,7 +946,7 @@ class TestChatCompletionChunkConversion:
 
         collector_callback = CollectorCallback()
         llm = TogetherAIChatGenerator(api_key=Secret.from_token("test-api-key"))
-        result = llm._handle_stream_response(together_ai_chunks, callback=collector_callback)[0]  # type: ignore
+        result = llm._handle_stream_response(togetherai_chunks, callback=collector_callback)[0]  # type: ignore
 
         # Assert text is empty
         assert result.text is None

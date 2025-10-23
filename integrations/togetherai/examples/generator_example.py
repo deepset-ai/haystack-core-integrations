@@ -9,7 +9,7 @@
 
 from haystack.utils import Secret
 
-from haystack_integrations.components.generators.together_ai.generator import TogetherAIGenerator
+from haystack_integrations.components.generators.togetherai.generator import TogetherAIGenerator
 
 generator = TogetherAIGenerator(
     model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
