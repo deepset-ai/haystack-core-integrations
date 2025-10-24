@@ -67,7 +67,7 @@ def test_tracing_integration(provider, env_var):
 
     # LLM integrations are imported here to prevent errors when running unit tests with lowest direct dependencies in
     # the CI. When determining lowest direct dependencies, test dependencies like LLM integrations are not considered,
-    # so keeping imports at the top of the file would cause import errors.
+    # so keeping imports at the top of the file would cause errors.
     if provider == "openai":
         llm = OpenAIChatGenerator()
     elif provider == "anthropic":
@@ -79,7 +79,6 @@ def test_tracing_integration(provider, env_var):
 
         llm = CohereChatGenerator()
 
-    # Initialize pipeline with the dynamically imported LLM
     pipe = Pipeline()
     pipe.add_component("tracer", LangfuseConnector(name=f"Chat example - {provider}", public=True))
     pipe.add_component("prompt_builder", ChatPromptBuilder())
