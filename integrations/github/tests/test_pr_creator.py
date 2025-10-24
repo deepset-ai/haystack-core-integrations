@@ -132,3 +132,14 @@ class TestGitHubPRCreator:
                 branch="feature-branch",
                 base="main",
             )
+
+    def test_get_request_headers_with_empty_token(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "")
+
+        pr_creator = GitHubPRCreator()
+
+        headers = pr_creator._get_request_headers()
+
+        assert "Authorization" not in headers
+        assert headers["Accept"] == "application/vnd.github.v3+json"
+        assert headers["User-Agent"] == "Haystack/GitHubPRCreator"

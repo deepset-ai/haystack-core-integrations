@@ -1,0 +1,41 @@
+loaders:
+- ignore_when_discovered:
+  - __init__
+  modules:
+  - haystack_integrations.common.amazon_bedrock.errors
+  - haystack_integrations.components.embedders.amazon_bedrock.document_embedder
+  - haystack_integrations.components.embedders.amazon_bedrock.text_embedder
+  - haystack_integrations.components.embedders.amazon_bedrock.document_image_embedder
+  - haystack_integrations.components.generators.amazon_bedrock.generator
+  - haystack_integrations.components.generators.amazon_bedrock.adapters
+  - haystack_integrations.common.amazon_bedrock.errors
+  - haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator
+  - haystack_integrations.components.rankers.amazon_bedrock.ranker
+  - haystack_integrations.components.downloaders.s3.s3_downloader
+  - haystack_integrations.common.s3.utils
+  - haystack_integrations.common.s3.errors
+  search_path:
+  - ../src
+  type: haystack_pydoc_tools.loaders.CustomPythonLoader
+processors:
+- do_not_filter_modules: false
+  documented_only: true
+  expression: null
+  skip_empty_modules: true
+  type: filter
+- expression: name not in ['BedrockRanker']
+  type: filter
+- type: smart
+- type: crossref
+renderer:
+  description: Amazon Bedrock integration for Haystack
+  id: integrations-amazon-bedrock
+  markdown:
+    add_member_class_prefix: false
+    add_method_class_prefix: true
+    classdef_code_block: false
+    descriptive_class_title: false
+    descriptive_module_title: true
+    filename: amazon_bedrock.md
+  title: Amazon Bedrock
+  type: haystack_pydoc_tools.renderers.DocusaurusRenderer

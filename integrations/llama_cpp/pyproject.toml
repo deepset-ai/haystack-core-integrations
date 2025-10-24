@@ -26,7 +26,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.16.1", "llama-cpp-python>=0.2.87"]
+dependencies = ["haystack-ai>=2.19.0", "llama-cpp-python>=0.2.87"]
 
 # On macOS GitHub runners, we use a custom index to download pre-built wheels.
 # Installing from source might fail due to missing dependencies (CMake fails with "OpenMP not found")
