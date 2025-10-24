@@ -46,18 +46,23 @@ def poll_langfuse(url: str):
 
     return res
 
+
 def get_llm_instance(provider: str, **kwargs):
     if provider == "openai":
-        from haystack.components.generators.chat import OpenAIChatGenerator
+        from haystack.components.generators.chat import OpenAIChatGenerator  # noqa: PLC0415
+
         return OpenAIChatGenerator(**kwargs)
     if provider == "anthropic":
-        from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
+        from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator  # noqa: PLC0415
+
         return AnthropicChatGenerator(**kwargs)
     if provider == "cohere":
-        from haystack_integrations.components.generators.cohere import CohereChatGenerator
+        from haystack_integrations.components.generators.cohere import CohereChatGenerator  # noqa: PLC0415
+
         return CohereChatGenerator(**kwargs)
     msg = f"Unknown provider: {provider}"
     raise ValueError(msg)
+
 
 @pytest.fixture
 def basic_pipeline(provider, expected_trace):
@@ -138,7 +143,7 @@ def test_tracing_with_sub_pipelines():
     class SubGenerator:
         def __init__(self):
             self.sub_pipeline = Pipeline()
-            self.sub_pipeline.add_component("llm", get_generator_instance("openai"))
+            self.sub_pipeline.add_component("llm", get_llm_instance("openai"))
 
         @component.output_types(replies=List[ChatMessage])
         def run(self, messages: List[ChatMessage]) -> Dict[str, Any]:
