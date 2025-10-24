@@ -41,7 +41,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
 
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
 
-    client = LlamaStackChatGenerator(model="llama3.2:3b")
+    client = LlamaStackChatGenerator(model="ollama/llama3.2:3b")
     response = client.run(messages)
     print(response)
 
@@ -49,7 +49,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
     is a branch of artificial intelligence
     >>that focuses on enabling computers to understand, interpret, and generate human language in a way that is
     >>meaningful and useful.')], _role=<ChatRole.ASSISTANT: 'assistant'>, _name=None,
-    >>_meta={'model': 'llama3.2:3b', 'index': 0, 'finish_reason': 'stop',
+    >>_meta={'model': 'ollama/llama3.2:3b', 'index': 0, 'finish_reason': 'stop',
     >>'usage': {'prompt_tokens': 15, 'completion_tokens': 36, 'total_tokens': 51}})]}
     """
 
