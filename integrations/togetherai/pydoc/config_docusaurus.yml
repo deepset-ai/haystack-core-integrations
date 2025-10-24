@@ -2,8 +2,8 @@ loaders:
 - ignore_when_discovered:
   - __init__
   modules:
-  - haystack_integrations.components.generators.together_ai.generator
-  - haystack_integrations.components.generators.together_ai.chat.chat_generator
+  - haystack_integrations.components.generators.togetherai.generator
+  - haystack_integrations.components.generators.togetherai.chat.chat_generator
   search_path:
   - ../src
   type: haystack_pydoc_tools.loaders.CustomPythonLoader
@@ -17,13 +17,13 @@ processors:
 - type: crossref
 renderer:
   description: Together AI integration for Haystack
-  id: integrations-together-ai
+  id: integrations-togetherai
   markdown:
     add_member_class_prefix: false
     add_method_class_prefix: true
     classdef_code_block: false
     descriptive_class_title: false
     descriptive_module_title: true
-    filename: together_ai.md
+    filename: togetherai.md
   title: Together AI
   type: haystack_pydoc_tools.renderers.DocusaurusRenderer

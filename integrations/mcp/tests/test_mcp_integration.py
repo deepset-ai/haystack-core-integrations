@@ -234,7 +234,7 @@ if __name__ == "__main__":
         # Use a non-existent server address to force a connection error
         server_info = SSEServerInfo(base_url="http://localhost:9999", timeout=1)  # Short timeout
         with pytest.raises(MCPConnectionError) as exc_info:
-            MCPTool(name="non_existent_tool", server_info=server_info, connection_timeout=2)
+            MCPTool(name="non_existent_tool", server_info=server_info, connection_timeout=2, eager_connect=True)
 
         # Check for platform-agnostic error message patterns
         error_message = str(exc_info.value)

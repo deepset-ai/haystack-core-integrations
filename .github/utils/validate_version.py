@@ -18,7 +18,8 @@ def validate_version_number(tag: str):
     print(f"Integration name: {integration_name}")
     print(f"Integration version to release: {version_to_release}")
 
-    integration_package = f"{integration_name}-haystack"
+    # Replace underscores with hyphens to look for the package on PyPi
+    integration_package = f"{integration_name.replace('_', '-')}-haystack"
     print(f"Integration PyPi package: {integration_package}")
 
     # connect to PyPi and check the latest version
