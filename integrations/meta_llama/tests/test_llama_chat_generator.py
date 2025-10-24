@@ -602,7 +602,9 @@ class TestLlamaChatGenerator:
         initial_messages = [
             ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
         ]
-        component = MetaLlamaChatGenerator(tools=mixed_tools)
+        # default model Llama-4-Scout-17B-16E-Instruct-FP8 can't handle multiple tool responses well
+        # we use stronger model Llama-3.3-70B-Instruct for this test
+        component = MetaLlamaChatGenerator(model="Llama-3.3-70B-Instruct", tools=mixed_tools)
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"
