@@ -16,7 +16,7 @@ from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 from openai.types.completion_usage import CompletionUsage
 
-from haystack_integrations.components.generators.together_ai.generator import TogetherAIGenerator
+from haystack_integrations.components.generators.togetherai.generator import TogetherAIGenerator
 
 
 @pytest.fixture
@@ -92,7 +92,7 @@ class TestTogetherAIGenerator:
         )
         data = component.to_dict()
         assert data == {
-            "type": "haystack_integrations.components.generators.together_ai.generator.TogetherAIGenerator",
+            "type": "haystack_integrations.components.generators.togetherai.generator.TogetherAIGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
@@ -119,7 +119,7 @@ class TestTogetherAIGenerator:
         )
         data = component.to_dict()
         assert data == {
-            "type": "haystack_integrations.components.generators.together_ai.generator.TogetherAIGenerator",
+            "type": "haystack_integrations.components.generators.togetherai.generator.TogetherAIGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "gpt-4o-mini",
@@ -135,7 +135,7 @@ class TestTogetherAIGenerator:
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("TOGETHER_API_KEY", "fake-api-key")
         data = {
-            "type": "haystack_integrations.components.generators.together_ai.generator.TogetherAIGenerator",
+            "type": "haystack_integrations.components.generators.togetherai.generator.TogetherAIGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "gpt-4o-mini",
@@ -160,7 +160,7 @@ class TestTogetherAIGenerator:
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
         monkeypatch.delenv("TOGETHER_API_KEY", raising=False)
         data = {
-            "type": "haystack_integrations.components.generators.together_ai.generator.TogetherAIGenerator",
+            "type": "haystack_integrations.components.generators.togetherai.generator.TogetherAIGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "gpt-4o-mini",
