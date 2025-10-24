@@ -20,9 +20,13 @@ from haystack_integrations.components.connectors.langfuse import LangfuseConnect
 
 try:
     from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
+except:
+    AnthropicChatGenerator = None
+
+try:
     from haystack_integrations.components.generators.cohere import CohereChatGenerator
 except:
-    pass
+    CohereChatGenerator = None
 
 # don't remove (or move) this env var setting from here, it's needed to turn tracing on
 os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
