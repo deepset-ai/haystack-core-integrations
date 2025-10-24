@@ -648,7 +648,7 @@ class TestLlamaChatGenerator:
 
         assert len(results["replies"]) == 1
         final_message = results["replies"][0]
-        assert not final_message.tool_call
+        assert not final_message.tool_calls
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
