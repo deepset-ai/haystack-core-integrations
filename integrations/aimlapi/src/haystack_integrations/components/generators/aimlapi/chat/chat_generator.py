@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -66,7 +66,7 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = "https://api.aimlapi.com/v1",
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[Union[list[Union[Tool, Toolset]], Toolset]] = None,
         timeout: Optional[float] = None,
         extra_headers: Optional[Dict[str, Any]] = None,
         max_retries: Optional[int] = None,
@@ -157,7 +157,7 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         messages: List[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[Union[list[Union[Tool, Toolset]], Toolset]] = None,
         tools_strict: Optional[bool] = None,
     ) -> Dict[str, Any]:
         # update generation kwargs by merging with the generation kwargs passed to the run method
@@ -167,17 +167,22 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         # adapt ChatMessage(s) to the format expected by the OpenAI API (AIMLAPI uses the same format)
         aimlapi_formatted_messages: List[Dict[str, Any]] = [message.to_openai_dict_format() for message in messages]
 
-        tools = tools or self.tools
-        if isinstance(tools, Toolset):
-            tools = list(tools)
+        tools_in = tools or self.tools
+
+        tools_list: List[Tool]
+        if isinstance(tools_in, Toolset):
+            tools_list = list(tools_in)
+        else:
+            tools_list = cast(List[Tool], tools_in or [])
+
         tools_strict = tools_strict if tools_strict is not None else self.tools_strict
-        _check_duplicate_tool_names(list(tools or []))
+        _check_duplicate_tool_names(tools_list)
 
         aimlapi_tools = {}
-        if tools:
+        if tools_list:
             tool_definitions = [
                 {"type": "function", "function": {**t.tool_spec, **({"strict": tools_strict} if tools_strict else {})}}
-                for t in tools
+                for t in tools_list
             ]
             aimlapi_tools = {"tools": tool_definitions}
 
@@ -189,10 +194,11 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
 
         return {
             "model": self.model,
-            "messages": aimlapi_formatted_messages,
+            "messages": aimlapi_formatted_messages,  # type: ignore[arg-type] # openai expects list of specific message types
             "stream": streaming_callback is not None,
             "n": num_responses,
             **aimlapi_tools,
             "extra_body": {**generation_kwargs},
             "extra_headers": {**extra_headers},
+            "openai_endpoint": "create",
         }
