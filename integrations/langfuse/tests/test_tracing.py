@@ -12,10 +12,17 @@ import pytest
 import requests
 from haystack import Pipeline, component
 from haystack.components.builders import ChatPromptBuilder
+from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
 from requests.auth import HTTPBasicAuth
 
 from haystack_integrations.components.connectors.langfuse import LangfuseConnector
+
+try:
+    from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator
+    from haystack_integrations.components.generators.cohere import CohereChatGenerator
+except:
+    pass
 
 # don't remove (or move) this env var setting from here, it's needed to turn tracing on
 os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
@@ -47,32 +54,12 @@ def poll_langfuse(url: str):
     return res
 
 
-def get_llm_instance(provider: str, **kwargs):
-    if provider == "openai":
-        from haystack.components.generators.chat import OpenAIChatGenerator  # noqa: PLC0415
-
-        return OpenAIChatGenerator(**kwargs)
-    if provider == "anthropic":
-        from haystack_integrations.components.generators.anthropic import AnthropicChatGenerator  # noqa: PLC0415
-
-        return AnthropicChatGenerator(**kwargs)
-    if provider == "cohere":
-        from haystack_integrations.components.generators.cohere import CohereChatGenerator  # noqa: PLC0415
-
-        return CohereChatGenerator(**kwargs)
-    msg = f"Unknown provider: {provider}"
-    raise ValueError(msg)
-
-
 @pytest.fixture
-def basic_pipeline(provider, expected_trace):
+def basic_pipeline(llm_class, expected_trace):
     pipe = Pipeline()
     pipe.add_component("tracer", LangfuseConnector(name=f"Chat example - {expected_trace}", public=True))
     pipe.add_component("prompt_builder", ChatPromptBuilder())
-
-    llm_instance = get_llm_instance(provider)
-    pipe.add_component("llm", llm_instance)
-
+    pipe.add_component("llm", llm_class())
     pipe.connect("prompt_builder.prompt", "llm.messages")
     return pipe
 
@@ -83,11 +70,11 @@ def basic_pipeline(provider, expected_trace):
 )
 @pytest.mark.integration
 @pytest.mark.parametrize(
-    "provider, env_var, expected_trace",
+    "llm_class, env_var, expected_trace",
     [
-        ("openai", "OPENAI_API_KEY", "OpenAI"),
-        ("anthropic", "ANTHROPIC_API_KEY", "Anthropic"),
-        ("cohere", "COHERE_API_KEY", "Cohere"),
+        (OpenAIChatGenerator, "OPENAI_API_KEY", "OpenAI"),
+        (AnthropicChatGenerator, "ANTHROPIC_API_KEY", "Anthropic"),
+        (CohereChatGenerator, "COHERE_API_KEY", "Cohere"),
     ],
 )
 def test_tracing_integration(env_var, expected_trace, basic_pipeline):
@@ -143,7 +130,7 @@ def test_tracing_with_sub_pipelines():
     class SubGenerator:
         def __init__(self):
             self.sub_pipeline = Pipeline()
-            self.sub_pipeline.add_component("llm", get_llm_instance("openai"))
+            self.sub_pipeline.add_component("llm", OpenAIChatGenerator())
 
         @component.output_types(replies=List[ChatMessage])
         def run(self, messages: List[ChatMessage]) -> Dict[str, Any]:
