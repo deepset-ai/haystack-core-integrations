@@ -66,6 +66,19 @@ class TestDocumentStoreAsync:
         await document_store_async.delete_documents_async([doc.id])
         assert await document_store_async.count_documents_async() == 0
 
+    async def test_delete_all_documents_async(self, document_store_async: PineconeDocumentStore):
+        docs = [Document(content="first doc"), Document(content="second doc")]
+        await document_store_async.write_documents_async(docs)
+        assert await document_store_async.count_documents_async() == 2
+
+        await document_store_async.delete_all_documents_async()
+        assert await document_store_async.count_documents_async() == 0
+
+    async def test_delete_all_documents_async_empty_collection(self, document_store_async: PineconeDocumentStore):
+        assert await document_store_async.count_documents_async() == 0
+        await document_store_async.delete_all_documents_async()
+        assert await document_store_async.count_documents_async() == 0
+
     async def test_embedding_retrieval(self, document_store_async: PineconeDocumentStore):
         query_embedding = [0.1] * 768
         most_similar_embedding = [0.8] * 768
