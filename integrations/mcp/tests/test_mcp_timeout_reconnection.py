@@ -13,6 +13,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import textwrap
 import time
 from unittest.mock import AsyncMock, MagicMock
 
@@ -108,40 +109,39 @@ class TestMCPTimeoutReconnection:
         try:
             # Create server script with cross-platform signal handling
             with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as temp_file:
-                temp_file.write(
-                    f"""
-import sys
-import signal
-from mcp.server.fastmcp import FastMCP
+                script_content = textwrap.dedent(f"""
+                    import sys
+                    import signal
+                    from mcp.server.fastmcp import FastMCP
 
-# Handle shutdown signals gracefully (cross-platform)
-def signal_handler(signum, frame):
-    sys.exit(0)
+                    # Handle shutdown signals gracefully (cross-platform)
+                    def signal_handler(signum, frame):
+                        sys.exit(0)
 
-# Only set up signal handlers that exist on the platform
-if hasattr(signal, 'SIGTERM'):
-    signal.signal(signal.SIGTERM, signal_handler)
-if hasattr(signal, 'SIGINT'):
-    signal.signal(signal.SIGINT, signal_handler)
+                    # Only set up signal handlers that exist on the platform
+                    if hasattr(signal, 'SIGTERM'):
+                        signal.signal(signal.SIGTERM, signal_handler)
+                    if hasattr(signal, 'SIGINT'):
+                        signal.signal(signal.SIGINT, signal_handler)
 
-mcp = FastMCP("Reconnection Test Server", host="127.0.0.1", port={port})
+                    mcp = FastMCP("Reconnection Test Server", host="127.0.0.1", port={port})
 
-@mcp.tool()
-def test_tool(message: str) -> str:
-    return f"Server response: {{message}}"
+                    @mcp.tool()
+                    def test_tool(message: str) -> str:
+                        return f"Server response: {{message}}"
 
-if __name__ == "__main__":
-    try:
-        print(f"Starting server on port {port}", flush=True)
-        mcp.run(transport="sse")
-    except (KeyboardInterrupt, SystemExit):
-        print("Server shutting down gracefully", flush=True)
-        sys.exit(0)
-    except Exception as e:
-        print(f"Server error: {{e}}", file=sys.stderr, flush=True)
-        sys.exit(1)
-""".encode()
-                )
+                    if __name__ == "__main__":
+                        try:
+                            print(f"Starting server on port {port}", flush=True)
+                            mcp.run(transport="sse")
+                        except (KeyboardInterrupt, SystemExit):
+                            print("Server shutting down gracefully", flush=True)
+                            sys.exit(0)
+                        except Exception as e:
+                            print(f"Server error: {{e}}", file=sys.stderr, flush=True)
+                            sys.exit(1)
+                """).strip()
+                temp_file.write(script_content.encode())
                 server_script_path = temp_file.name
 
             # Start server

@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/mistral-v0.5.0] - 2025-10-23
+
+### 🚀 Features
+
+- Mistral ocr converter (#2376)
+
+
 ## [integrations/mistral-v0.4.0] - 2025-10-22
 
 ### 🚀 Features

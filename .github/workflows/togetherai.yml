@@ -1,22 +1,22 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / together_ai
+name: Test / togetherai
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/together_ai/**"
-      - "!integrations/together_ai/*.md"
-      - ".github/workflows/together_ai.yml"
+      - "integrations/togetherai/**"
+      - "!integrations/togetherai/*.md"
+      - ".github/workflows/togetherai.yml"
 
 defaults:
   run:
-    working-directory: integrations/together_ai
+    working-directory: integrations/togetherai
 
 concurrency:
-  group: together_ai-${{ github.head_ref }}
+  group: togetherai-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:

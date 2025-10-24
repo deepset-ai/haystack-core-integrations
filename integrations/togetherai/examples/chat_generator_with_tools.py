@@ -11,7 +11,7 @@ from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage
 from haystack.tools import Tool
 
-from haystack_integrations.components.generators.together_ai import TogetherAIChatGenerator
+from haystack_integrations.components.generators.togetherai import TogetherAIChatGenerator
 
 
 # Define a tool that models can call
