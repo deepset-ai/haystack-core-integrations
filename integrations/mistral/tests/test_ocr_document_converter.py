@@ -419,12 +419,84 @@ class TestMistralOCRDocumentConverter:
             assert len(result["documents"]) == 2
             assert len(result["raw_mistral_response"]) == 2
 
+    def test_run_with_meta_single_dict(self, mock_ocr_response):
+        """Test that meta parameter with single dict is applied to all documents"""
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
+
+        with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
+            sources = [
+                DocumentURLChunk(document_url="https://example.com/doc1.pdf"),
+                DocumentURLChunk(document_url="https://example.com/doc2.pdf"),
+            ]
+            result = converter.run(sources=sources, meta={"department": "engineering", "year": 2024})
+
+            assert len(result["documents"]) == 2
+            # Both documents should have the same metadata
+            for doc in result["documents"]:
+                assert doc.meta["department"] == "engineering"
+                assert doc.meta["year"] == 2024
+                # Automatic metadata should still be present
+                assert "source_page_count" in doc.meta
+                assert "source_total_images" in doc.meta
+
+    def test_run_with_meta_list_of_dicts(self, mock_ocr_response):
+        """Test that meta parameter with list of dicts applies each dict to corresponding document"""
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
+
+        with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
+            sources = [
+                DocumentURLChunk(document_url="https://example.com/doc1.pdf"),
+                DocumentURLChunk(document_url="https://example.com/doc2.pdf"),
+            ]
+            result = converter.run(
+                sources=sources,
+                meta=[
+                    {"author": "Alice", "category": "report"},
+                    {"author": "Bob", "category": "invoice"},
+                ],
+            )
+
+            assert len(result["documents"]) == 2
+            # First document
+            assert result["documents"][0].meta["author"] == "Alice"
+            assert result["documents"][0].meta["category"] == "report"
+            # Second document
+            assert result["documents"][1].meta["author"] == "Bob"
+            assert result["documents"][1].meta["category"] == "invoice"
+            # Automatic metadata should still be present in both
+            assert "source_page_count" in result["documents"][0].meta
+            assert "source_page_count" in result["documents"][1].meta
+
+    def test_run_with_meta_none(self, mock_ocr_response):
+        """Test that meta parameter with None works correctly"""
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
+
+        with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
+            sources = [DocumentURLChunk(document_url="https://example.com/doc.pdf")]
+            result = converter.run(sources=sources, meta=None)
+
+            assert len(result["documents"]) == 1
+            # Only automatic metadata should be present
+            assert "source_page_count" in result["documents"][0].meta
+            assert "source_total_images" in result["documents"][0].meta
+
+    def test_run_with_meta_list_length_mismatch(self):
+        """Test that meta parameter with list length mismatch raises ValueError"""
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
+
+        with pytest.raises(ValueError, match="length of the metadata list must match"):
+            sources = [
+                DocumentURLChunk(document_url="https://example.com/doc1.pdf"),
+                DocumentURLChunk(document_url="https://example.com/doc2.pdf"),
+            ]
+            converter.run(sources=sources, meta=[{"author": "Alice"}])  # Only 1 dict for 2 sources
+
     def test_process_ocr_response_multiple_pages(self, mock_ocr_response_with_multiple_pages):
         """Test multi-page document with form feed separator"""
         converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
 
         document = converter._process_ocr_response(
-            mock_ocr_response_with_multiple_pages, document_annotation_schema=None
+            mock_ocr_response_with_multiple_pages, user_metadata={}, document_annotation_schema=None
         )
 
         assert isinstance(document, Document)
@@ -454,7 +526,7 @@ class TestMistralOCRDocumentConverter:
         mock_response.pages = [mock_page]
         mock_response.document_annotation = None
 
-        document = converter._process_ocr_response(mock_response, document_annotation_schema=None)
+        document = converter._process_ocr_response(mock_response, user_metadata={}, document_annotation_schema=None)
 
         assert document.meta["source_page_count"] == 1
         assert document.meta["source_total_images"] == 2
