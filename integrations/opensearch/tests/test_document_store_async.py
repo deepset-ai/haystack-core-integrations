@@ -302,3 +302,57 @@ class TestDocumentStoreAsync:
         results = await document_store.filter_documents_async()
         assert len(results) == 1
         assert results[0].content == "New document after delete all"
+
+    async def test_delete_by_filter_async(self, document_store: OpenSearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "A"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+        # Delete documents with category="A"
+        deleted_count = await document_store.delete_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        time.sleep(2)  # wait for deletion to be reflected
+        assert deleted_count == 2
+        assert await document_store.count_documents_async() == 1
+
+        # Verify only category B remains
+        remaining_docs = await document_store.filter_documents_async()
+        assert len(remaining_docs) == 1
+        assert remaining_docs[0].meta["category"] == "B"
+
+    async def test_update_by_filter_async(self, document_store: OpenSearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "draft"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "draft"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+        # Update status for category="A" documents
+        updated_count = await document_store.update_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
+        )
+        time.sleep(2)  # wait for update to be reflected
+        assert updated_count == 2
+
+        # Verify the updates
+        published_docs = await document_store.filter_documents_async(
+            filters={"field": "meta.status", "operator": "==", "value": "published"}
+        )
+        assert len(published_docs) == 2
+        for doc in published_docs:
+            assert doc.meta["category"] == "A"
+            assert doc.meta["status"] == "published"
+
+        # Verify category B still has draft status
+        draft_docs = await document_store.filter_documents_async(
+            filters={"field": "meta.status", "operator": "==", "value": "draft"}
+        )
+        assert len(draft_docs) == 1
+        assert draft_docs[0].meta["category"] == "B"
