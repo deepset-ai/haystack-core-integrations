@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/llama_stack-v1.2.0] - 2025-10-24
+
+### 🚀 Features
+
+- `LlamaStackChatGenerator` update tools param to ToolsType (#2436)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+
 ## [integrations/llama_stack-v1.1.1] - 2025-08-22
 
 
