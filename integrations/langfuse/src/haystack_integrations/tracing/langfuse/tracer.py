@@ -354,6 +354,30 @@ class DefaultSpanHandler(SpanHandler):
                     completion_start_time=completion_start_time,
                 )
 
+        if component_type in _SUPPORTED_EMBEDDERS:
+            meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
+            if meta:
+                usage = meta.get("usage")
+                # Transform usage data format for embeddings:
+                # 1. OpenAI-compatible embedders return usage in Completion API format: 
+                #    {prompt_tokens, completion_tokens, total_tokens}
+                # 2. Langfuse's EMBEDDING observation type expects Response API format:
+                #    {input_tokens, output_tokens, total_tokens}
+                # 3. Transform the keys so Langfuse properly recognizes and displays the usage metrics
+                #    instead of showing them as "Other usage"
+                if usage:
+                    transformed_usage = {
+                        "input_tokens": usage.get("prompt_tokens", 0),
+                        "output_tokens": usage.get("completion_tokens", 0),
+                        "total_tokens": usage.get("total_tokens", 0),
+                    }
+                    span.raw_span().update(
+                        usage_details=transformed_usage,
+                        model=meta.get("model")
+                    )
+                else:
+                    span.raw_span().update(model=meta.get("model"))
+
 
 class LangfuseTracer(Tracer):
     """

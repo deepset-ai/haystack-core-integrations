@@ -13,7 +13,9 @@ import pytest
 from haystack.dataclasses import ChatMessage, ToolCall
 
 from haystack_integrations.tracing.langfuse.tracer import (
+    _ALL_SUPPORTED_GENERATORS,
     _COMPONENT_OUTPUT_KEY,
+    _SUPPORTED_EMBEDDERS,
     DefaultSpanHandler,
     LangfuseSpan,
     LangfuseTracer,
@@ -203,7 +205,7 @@ class TestDefaultSpanHandler:
         handler.handle(mock_span, component_type="OpenAIGenerator")
 
         assert mock_span.update.call_count == 1
-        assert mock_span.update.call_args_list[0][1] == {"usage": None, "model": "test_model"}
+        assert mock_span.update.call_args_list[0][1] == {"usage_details": None, "model": "test_model"}
 
     def test_handle_chat_generator(self):
         mock_span = Mock()
@@ -225,7 +227,7 @@ class TestDefaultSpanHandler:
 
         assert mock_span.update.call_count == 1
         assert mock_span.update.call_args_list[0][1] == {
-            "usage": None,
+            "usage_details": None,
             "model": "test_model",
             "completion_start_time": datetime.datetime(  # noqa: DTZ001
                 2021, 7, 27, 16, 2, 8, 12345
@@ -254,7 +256,7 @@ class TestDefaultSpanHandler:
 
         assert mock_span.update.call_count == 1
         assert mock_span.update.call_args_list[0][1] == {
-            "usage": None,
+            "usage_details": None,
             "model": "test_model",
             "completion_start_time": None,
         }
@@ -284,6 +286,76 @@ class TestCustomSpanHandler:
             "level": "WARNING",
             "status_message": "Response too long (> 10 chars)",
         }
+
+    @pytest.mark.parametrize(
+        "embedder_type,model_name,usage_data,expected_usage_details,description",
+        [
+            # OpenAI-compatible embedders (use Completion API format: prompt_tokens/completion_tokens)
+            # These inherit from OpenAITextEmbedder/OpenAIDocumentEmbedder and need transformation
+            (
+                "MistralTextEmbedder",
+                "mistral-embed",
+                {"prompt_tokens": 1103, "completion_tokens": 0, "total_tokens": 1103},
+                {"input_tokens": 1103, "output_tokens": 0, "total_tokens": 1103},
+                "OpenAI-compatible text embedder with Completion API format",
+            ),
+            (
+                "MistralDocumentEmbedder",
+                "mistral-embed",
+                {"prompt_tokens": 2500, "completion_tokens": 0, "total_tokens": 2500},
+                {"input_tokens": 2500, "output_tokens": 0, "total_tokens": 2500},
+                "OpenAI-compatible document embedder with Completion API format",
+            ),
+            # Test graceful handling when no usage data present
+            (
+                "MistralTextEmbedder",
+                "mistral-embed",
+                None,
+                None,
+                "Embedder without usage data",
+            ),
+        ],
+    )
+    def test_openai_compatible_embedder_usage_transformation(
+        self, embedder_type, model_name, usage_data, expected_usage_details, description
+    ):
+        """
+        Test that OpenAI-compatible embedders have their usage data transformed correctly.
+
+        OpenAI-compatible embedders (those inheriting from OpenAITextEmbedder/OpenAIDocumentEmbedder)
+        return usage in Completion API format (prompt_tokens, completion_tokens, total_tokens).
+
+        Langfuse's EMBEDDING observation type expects Response API format
+        (input_tokens, output_tokens, total_tokens).
+
+        This test validates that the transformation happens correctly for any such embedder.
+        """
+        mock_span = Mock()
+        mock_span.raw_span.return_value = mock_span
+
+        output_data = {"meta": {"model": model_name}}
+        if usage_data is not None:
+            output_data["meta"]["usage"] = usage_data
+
+        mock_span.get_data.return_value = {
+            "haystack.component.type": embedder_type,
+            "haystack.component.output": output_data,
+        }
+
+        handler = DefaultSpanHandler()
+        handler.handle(mock_span, component_type=embedder_type)
+
+        assert mock_span.update.call_count == 1
+
+        if expected_usage_details is not None:
+            # Verify usage data is transformed from Completion API to Response API format
+            assert mock_span.update.call_args_list[0][1] == {
+                "usage_details": expected_usage_details,
+                "model": model_name,
+            }
+        else:
+            # When no usage data, only model is updated
+            assert mock_span.update.call_args_list[0][1] == {"model": model_name}
 
 
 class TestLangfuseTracer:
