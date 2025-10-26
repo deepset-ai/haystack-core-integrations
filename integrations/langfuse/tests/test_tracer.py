@@ -286,7 +286,7 @@ class TestCustomSpanHandler:
         }
 
     @pytest.mark.parametrize(
-        "embedder_type,model_name,usage_data,expected_usage_details,description",
+        "embedder_type,model_name,usage_data,expected_usage_details",
         [
             # OpenAI-compatible embedders (use Completion API format: prompt_tokens/completion_tokens)
             # These inherit from OpenAITextEmbedder/OpenAIDocumentEmbedder and need transformation
@@ -295,14 +295,12 @@ class TestCustomSpanHandler:
                 "mistral-embed",
                 {"prompt_tokens": 1103, "completion_tokens": 0, "total_tokens": 1103},
                 {"input_tokens": 1103, "output_tokens": 0, "total_tokens": 1103},
-                "OpenAI-compatible text embedder with Completion API format",
             ),
             (
                 "MistralDocumentEmbedder",
                 "mistral-embed",
                 {"prompt_tokens": 2500, "completion_tokens": 0, "total_tokens": 2500},
                 {"input_tokens": 2500, "output_tokens": 0, "total_tokens": 2500},
-                "OpenAI-compatible document embedder with Completion API format",
             ),
             # Test graceful handling when no usage data present
             (
@@ -310,7 +308,6 @@ class TestCustomSpanHandler:
                 "mistral-embed",
                 None,
                 None,
-                "Embedder without usage data",
             ),
         ],
     )
