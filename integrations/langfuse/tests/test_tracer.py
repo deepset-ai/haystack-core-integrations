@@ -13,9 +13,7 @@ import pytest
 from haystack.dataclasses import ChatMessage, ToolCall
 
 from haystack_integrations.tracing.langfuse.tracer import (
-    _ALL_SUPPORTED_GENERATORS,
     _COMPONENT_OUTPUT_KEY,
-    _SUPPORTED_EMBEDDERS,
     DefaultSpanHandler,
     LangfuseSpan,
     LangfuseTracer,
@@ -317,7 +315,7 @@ class TestCustomSpanHandler:
         ],
     )
     def test_openai_compatible_embedder_usage_transformation(
-        self, embedder_type, model_name, usage_data, expected_usage_details, description
+        self, embedder_type, model_name, usage_data, expected_usage_details
     ):
         """
         Test that OpenAI-compatible embedders have their usage data transformed correctly.

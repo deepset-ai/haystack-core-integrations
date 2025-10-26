@@ -359,7 +359,7 @@ class DefaultSpanHandler(SpanHandler):
             if meta:
                 usage = meta.get("usage")
                 # Transform usage data format for embeddings:
-                # 1. OpenAI-compatible embedders return usage in Completion API format: 
+                # 1. OpenAI-compatible embedders return usage in Completion API format:
                 #    {prompt_tokens, completion_tokens, total_tokens}
                 # 2. Langfuse's EMBEDDING observation type expects Response API format:
                 #    {input_tokens, output_tokens, total_tokens}
@@ -371,10 +371,7 @@ class DefaultSpanHandler(SpanHandler):
                         "output_tokens": usage.get("completion_tokens", 0),
                         "total_tokens": usage.get("total_tokens", 0),
                     }
-                    span.raw_span().update(
-                        usage_details=transformed_usage,
-                        model=meta.get("model")
-                    )
+                    span.raw_span().update(usage_details=transformed_usage, model=meta.get("model"))
                 else:
                     span.raw_span().update(model=meta.get("model"))
 
