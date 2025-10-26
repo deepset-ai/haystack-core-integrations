@@ -44,8 +44,13 @@ _SUPPORTED_CHAT_GENERATORS = [
     "CohereChatGenerator",
     "OllamaChatGenerator",
     "GoogleGenAIChatGenerator",
+    "MistralChatGenerator",
 ]
 _ALL_SUPPORTED_GENERATORS = _SUPPORTED_GENERATORS + _SUPPORTED_CHAT_GENERATORS
+_SUPPORTED_EMBEDDERS = [
+    "MistralTextEmbedder",
+    "MistralDocumentEmbedder",
+]
 
 # These are the keys used by Haystack for traces and span.
 # We keep them here to avoid making typos when using them.
@@ -300,6 +305,8 @@ class DefaultSpanHandler(SpanHandler):
             return span
         elif context.component_type in _ALL_SUPPORTED_GENERATORS:
             return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type="generation"))
+        elif context.component_type in _SUPPORTED_EMBEDDERS:
+            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type="embedding"))
         else:
             return LangfuseSpan(self.tracer.start_as_current_span(name=context.name))
 
