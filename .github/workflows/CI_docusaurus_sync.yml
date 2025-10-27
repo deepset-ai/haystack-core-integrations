@@ -53,7 +53,7 @@ jobs:
         run: pydoc-markdown pydoc/config_docusaurus.yml
 
       - name: Upload API reference artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ steps.pathfinder.outputs.integration_name }}
           path: ${{ steps.pathfinder.outputs.project_path }}/${{ steps.pathfinder.outputs.integration_name }}.md
