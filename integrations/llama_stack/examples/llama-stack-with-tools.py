@@ -34,7 +34,7 @@ weather_tool = Tool(
 tool_invoker = ToolInvoker(tools=[weather_tool])
 
 client = LlamaStackChatGenerator(
-    model="llama3.2:3b",  # model name varies depending on the inference provider used for the Llama Stack Server.
+    model="ollama/llama3.2:3b",  # model depends on the inference provider used for the Llama Stack Server.
     api_base_url="http://localhost:8321/v1/openai/v1",
 )
 messages = [ChatMessage.from_user("What's the weather in Tokyo?")]

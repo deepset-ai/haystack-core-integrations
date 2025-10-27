@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime
 from unittest.mock import patch
@@ -8,7 +9,7 @@ from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
-from haystack.tools import Tool
+from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 from openai import OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
@@ -16,8 +17,20 @@ from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_chunk import Choice as ChoiceChunk
 from openai.types.chat.chat_completion_chunk import ChoiceDelta, ChoiceDeltaToolCall, ChoiceDeltaToolCallFunction
 from openai.types.completion_usage import CompletionTokensDetails, CompletionUsage, PromptTokensDetails
+from pydantic import BaseModel
 
 from haystack_integrations.components.generators.openrouter.chat.chat_generator import OpenRouterChatGenerator
+
+
+class CalendarEvent(BaseModel):
+    event_name: str
+    event_date: str
+    event_location: str
+
+
+@pytest.fixture
+def calendar_event_model():
+    return CalendarEvent
 
 
 class CollectorCallback:
@@ -440,6 +453,41 @@ class TestOpenRouterChatGenerator:
             == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
         )
 
+    @pytest.mark.skipif(
+        not os.environ.get("OPENROUTER_API_KEY", None),
+        reason="Export an env var called OPENROUTER_API_KEY containing the OpenRouter API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_response_format_json_schema(self):
+        response_schema = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "CapitalCity",
+                "strict": True,
+                "schema": {
+                    "title": "CapitalCity",
+                    "type": "object",
+                    "properties": {
+                        "city": {"title": "City", "type": "string"},
+                        "country": {"title": "Country", "type": "string"},
+                    },
+                    "required": ["city", "country"],
+                    "additionalProperties": False,
+                },
+            },
+        }
+
+        chat_messages = [ChatMessage.from_user("What's the capital of France?")]
+        comp = OpenRouterChatGenerator(generation_kwargs={"response_format": response_schema})
+        results = comp.run(chat_messages)
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        msg = json.loads(message.text)
+        assert "Paris" in msg["city"]
+        assert isinstance(msg["country"], str)
+        assert "France" in msg["country"]
+        assert message.meta["finish_reason"] == "stop"
+
     def test_serde_in_pipeline(self, monkeypatch):
         """
         Test serialization/deserialization of OpenRouterChatGenerator in a Pipeline,
@@ -538,6 +586,86 @@ class TestOpenRouterChatGenerator:
         assert loaded_generator.tools[0].name == generator.tools[0].name
         assert loaded_generator.tools[0].description == generator.tools[0].description
         assert loaded_generator.tools[0].parameters == generator.tools[0].parameters
+
+    @pytest.mark.skipif(
+        not os.environ.get("OPENROUTER_API_KEY", None),
+        reason="Export an env var called OPENROUTER_API_KEY containing the OpenRouter API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_response_format_pydantic_model(self, calendar_event_model):
+        chat_messages = [
+            ChatMessage.from_user("The marketing summit takes place on October12th at the Hilton Hotel downtown.")
+        ]
+        component = OpenRouterChatGenerator(generation_kwargs={"response_format": calendar_event_model})
+        results = component.run(chat_messages)
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        msg = json.loads(message.text)
+        assert "Marketing Summit" in msg["event_name"]
+        assert isinstance(msg["event_date"], str)
+        assert isinstance(msg["event_location"], str)
+
+    @pytest.mark.skipif(
+        not os.environ.get("OPENROUTER_API_KEY", None),
+        reason="Export an env var called OPENROUTER_API_KEY containing the OpenRouter API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_integration_mixing_tools_and_toolset(self):
+        """Test mixing Tool list and Toolset at runtime."""
+
+        def weather_function(city: str) -> str:
+            """Get weather information for a city."""
+            return f"Weather in {city}: 22°C, sunny"
+
+        def time_function(city: str) -> str:
+            """Get current time in a city."""
+            return f"Current time in {city}: 14:30"
+
+        def echo_function(text: str) -> str:
+            """Echo a text."""
+            return text
+
+        # Create tools
+        weather_tool = Tool(
+            name="weather",
+            description="Get weather information for a city",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=weather_function,
+        )
+
+        time_tool = Tool(
+            name="time",
+            description="Get current time in a city",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=time_function,
+        )
+
+        echo_tool = Tool(
+            name="echo",
+            description="Echo a text",
+            parameters={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
+            function=echo_function,
+        )
+
+        # Create Toolset with weather and time tools
+        toolset = Toolset([weather_tool, time_tool])
+
+        # Initialize with no tools, we'll pass them at runtime
+        component = OpenRouterChatGenerator()
+
+        # Pass mixed list: echo_tool (individual) and toolset (weather + time) at runtime
+        # This tests that both individual tools and toolsets can be combined
+        messages = [ChatMessage.from_user("Echo this: Hello World")]
+        results = component.run(messages, tools=[echo_tool, toolset])
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+
+        # Should be able to use echo_tool from the runtime mixed list
+        assert message.tool_calls is not None
+        tool_call = message.tool_calls[0]
+        assert tool_call.tool_name == "echo"
+        assert tool_call.arguments == {"text": "Hello World"}
 
 
 class TestChatCompletionChunkConversion:
