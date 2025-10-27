@@ -19,7 +19,7 @@ renderer:
   excerpt: Together AI integration for Haystack
   category_slug: integrations-api
   title: Together AI
-  slug: integrations-together-ai
+  slug: integrations-togetherai
   order: 170
   markdown:
     descriptive_class_title: false
