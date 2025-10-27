@@ -1,0 +1,122 @@
+name: Core / Sync API reference with Docusaurus
+
+on:
+  push:
+    tags:
+      - "**-v[0-9].[0-9]+.[0-9]+"
+
+  workflow_dispatch: # Activate this workflow manually
+    inputs:
+      tag:
+        description: "Tag with this format: integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0. When running this workflow manually, version is irrelevant so you can use any value."
+        required: true
+        type: string
+        default: integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  generate-api-reference:
+    runs-on: ubuntu-latest
+    outputs:
+      integration_name: ${{ steps.pathfinder.outputs.integration_name }}
+
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -U haystack-pydoc-tools
+
+      - name: Get project folder
+        id: pathfinder
+        shell: python
+        run: |
+          import os
+          project_path = os.environ["TAG"].rsplit("-", maxsplit=1)[0]
+          integration_name = project_path.split("/")[-1]
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            print(f'project_path={project_path}', file=f)
+            print(f'integration_name={integration_name}', file=f)
+
+      - name: Generate API reference
+        working-directory: ${{ steps.pathfinder.outputs.project_path }}
+
+        run: pydoc-markdown pydoc/config_docusaurus.yml
+
+      - name: Upload API reference artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${{ steps.pathfinder.outputs.integration_name }}
+          path: ${{ steps.pathfinder.outputs.project_path }}/${{ steps.pathfinder.outputs.integration_name }}.md
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
+
+  sync-api-reference:
+    runs-on: ubuntu-latest
+    needs: generate-api-reference
+    
+    steps:
+      - name: Checkout Haystack repo
+        uses: actions/checkout@v5
+        with:
+          repository: deepset-ai/haystack
+          ref: main
+          token: ${{ secrets.HAYSTACK_BOT_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"          
+
+      - name: Download API reference artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: ${{ needs.generate-api-reference.outputs.integration_name }}
+
+      - name: Sync API reference
+        shell: python
+        env:
+          INTEGRATION_NAME: ${{ needs.generate-api-reference.outputs.integration_name }}
+        run: |
+          import os
+          import shutil
+
+          artifact_filename = os.environ['INTEGRATION_NAME']+'.md'
+
+          # Copy to main API reference
+          shutil.copy(artifact_filename, "docs-website/reference/integrations-api/")
+
+          # Copy to versioned API reference
+          for version_dir in os.scandir("docs-website/reference_versioned_docs"):
+              if version_dir.is_dir():
+                  # example: docs-website/reference_versioned_docs/version-2.17/integrations-api
+                  integrations_api_ref_dir = os.path.join(version_dir.path, "integrations-api")
+                  shutil.copy(artifact_filename, integrations_api_ref_dir)
+
+          os.remove(artifact_filename)
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        env:
+          INTEGRATION_NAME: ${{ needs.generate-api-reference.outputs.integration_name }}
+        with:
+          token: ${{ secrets.HAYSTACK_BOT_TOKEN }}
+          commit-message: "Sync Core Integrations API reference (${{ env.INTEGRATION_NAME }}) on Docusaurus"
+          branch: sync-docusaurus-api-reference-${{ env.INTEGRATION_NAME }}
+          base: main
+          title: "docs: sync Core Integrations API reference (${{ env.INTEGRATION_NAME }}) on Docusaurus"
+          add-paths: |
+            docs-website
+          body: |
+            This PR syncs the Core Integrations API reference (${{ env.INTEGRATION_NAME }}) on Docusaurus. Just approve and merge it.

@@ -61,7 +61,7 @@ class NvidiaDocumentEmbedder:
             API key for the NVIDIA NIM.
         :param api_url:
             Custom API URL for the NVIDIA NIM.
-            Format for API URL is http://host:port
+            Format for API URL is `http://host:port`
         :param prefix:
             A string to add to the beginning of each text.
         :param suffix:

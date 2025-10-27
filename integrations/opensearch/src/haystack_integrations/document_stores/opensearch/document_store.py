@@ -105,7 +105,7 @@ class OpenSearchDocumentStore:
             for more information. If None, it uses the embedding_dim and method arguments to create default mappings.
             Defaults to None
         :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
-            for more information. Defaults to {"index.knn": True}
+            for more information. Defaults to `{"index.knn": True}`.
         :param create_index: Whether to create the index if it doesn't exist. Defaults to True
         :param http_auth: http_auth param passed to the underlying connection class.
             For basic authentication with default connection class `Urllib3HttpConnection` this can be

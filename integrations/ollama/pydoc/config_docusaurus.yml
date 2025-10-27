@@ -1,0 +1,31 @@
+loaders:
+- ignore_when_discovered:
+  - __init__
+  modules:
+  - haystack_integrations.components.generators.ollama.generator
+  - haystack_integrations.components.generators.ollama.chat.chat_generator
+  - haystack_integrations.components.embedders.ollama.document_embedder
+  - haystack_integrations.components.embedders.ollama.text_embedder
+  search_path:
+  - ../src
+  type: haystack_pydoc_tools.loaders.CustomPythonLoader
+processors:
+- do_not_filter_modules: false
+  documented_only: true
+  expression: null
+  skip_empty_modules: true
+  type: filter
+- type: smart
+- type: crossref
+renderer:
+  description: Ollama integration for Haystack
+  id: integrations-ollama
+  markdown:
+    add_member_class_prefix: false
+    add_method_class_prefix: true
+    classdef_code_block: false
+    descriptive_class_title: false
+    descriptive_module_title: true
+    filename: ollama.md
+  title: Ollama
+  type: haystack_pydoc_tools.renderers.DocusaurusRenderer
