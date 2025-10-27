@@ -420,34 +420,38 @@ class ChromaDocumentStore:
         A fast way to clear all documents from the document store while preserving any collection settings and mappings.
         :param recreate_index: Whether to recreate the index after deleting all documents.
         """
-        self._ensure_initialized()  # _ensure_initialized ensures _client is not None and an collection exists
+        self._ensure_initialized()  # _ensure_initialized ensures _client is not None and a collection exists
         assert self._collection is not None
 
-        if recreate_index:
-            # Store existing collection metadata and embedding function
-            metadata = self._collection.metadata
-            embedding_function = self._collection._embedding_function
-            collection_name = self._collection_name
+        try:
+            if recreate_index:
+                # Store existing collection metadata and embedding function
+                metadata = self._collection.metadata
+                embedding_function = self._collection._embedding_function
+                collection_name = self._collection_name
 
-            # Delete the collection
-            self._client.delete_collection(name=collection_name)
+                # Delete the collection
+                self._client.delete_collection(name=collection_name)
 
-            # Recreate the collection with previous metadata
-            self._collection = self._client.create_collection(
-                name=collection_name,
-                metadata=metadata,
-                embedding_function=embedding_function,
-            )
+                # Recreate the collection with previous metadata
+                self._collection = self._client.create_collection(
+                    name=collection_name,
+                    metadata=metadata,
+                    embedding_function=embedding_function,
+                )
 
-        else:
-            collection = self._collection.get()
-            ids = collection.get("ids", [])
-            self._collection.delete(ids=ids)  # type: ignore
-            logger.info(
-                "Deleted all the {n_docs} documents from the collection '{name}'.",
-                name=self._collection_name,
-                n_docs=len(ids),
-            )
+            else:
+                collection = self._collection.get()
+                ids = collection.get("ids", [])
+                self._collection.delete(ids=ids)  # type: ignore
+                logger.info(
+                    "Deleted all the {n_docs} documents from the collection '{name}'.",
+                    name=self._collection_name,
+                    n_docs=len(ids),
+                )
+        except Exception as e:
+            msg = f"Failed to delete all documents from ChromaDB: {e!s}"
+            raise DocumentStoreError(msg) from e
 
     async def delete_all_documents_async(self, *, recreate_index: bool = False) -> None:
         """
