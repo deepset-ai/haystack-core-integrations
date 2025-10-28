@@ -100,7 +100,8 @@ class MetaLlamaChatGenerator(OpenAIChatGenerator):
                 For structured outputs with streaming, the `response_format` must be a JSON
                 schema and not a Pydantic model.
         :param tools:
-            A list of tools for which the model can prepare calls.
+            A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            Each tool should have a unique name.
         """
         super(MetaLlamaChatGenerator, self).__init__(  # noqa: UP008
             api_key=api_key,

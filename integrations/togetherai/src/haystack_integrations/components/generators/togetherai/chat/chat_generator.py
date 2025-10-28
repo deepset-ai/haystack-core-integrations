@@ -39,7 +39,7 @@ class TogetherAIChatGenerator(OpenAIChatGenerator):
 
     Usage example:
     ```python
-    from haystack_integrations.components.generators.together_ai import TogetherAIChatGenerator
+    from haystack_integrations.components.generators.togetherai import TogetherAIChatGenerator
     from haystack.dataclasses import ChatMessage
 
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]

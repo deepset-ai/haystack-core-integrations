@@ -289,6 +289,7 @@ class DefaultSpanHandler(SpanHandler):
                 "metadata": None,
                 "tags": tracing_ctx.get("tags"),
                 "public": context.public,
+                "release": None,
             }
 
             # Filter out None values and apply trace attributes
@@ -465,11 +466,11 @@ class LangfuseTracer(Tracer):
         Return the URL to the tracing data.
         :return: The URL to the tracing data.
         """
-        return self._tracer.get_trace_url()
+        return self._tracer.get_trace_url() or ""
 
     def get_trace_id(self) -> str:
         """
         Return the trace ID.
         :return: The trace ID.
         """
-        return self._tracer.get_current_trace_id()
+        return self._tracer.get_current_trace_id() or ""
