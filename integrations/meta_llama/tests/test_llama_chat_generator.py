@@ -600,6 +600,12 @@ class TestLlamaChatGenerator:
         This tests that the LLM can correctly invoke tools from both a standalone Tool and a Toolset.
         """
         initial_messages = [
+#             ChatMessage.from_system(
+#                 """You are a helpful assistant that can provide weather and population information.
+# Use the 'weather' tool to get weather information for a city.
+# Use the 'population' tool to get population information for a city.
+# """
+#             ),
             ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
         ]
         # default model Llama-4-Scout-17B-16E-Instruct-FP8 can't handle multiple tool responses well
