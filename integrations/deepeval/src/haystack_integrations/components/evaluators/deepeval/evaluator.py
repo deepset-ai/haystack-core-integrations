@@ -1,5 +1,6 @@
 import json
-from typing import Any, Callable, Dict, List, Optional, Union
+from collections.abc import Callable
+from typing import Any
 
 from haystack import DeserializationError, component, default_from_dict, default_to_dict
 
@@ -47,12 +48,12 @@ class DeepEvalEvaluator:
 
     _backend_metric: BaseMetric
     # Wrapped for easy mocking.
-    _backend_callable: Callable[[List[LLMTestCase], BaseMetric], EvaluationResult]
+    _backend_callable: Callable[[list[LLMTestCase], BaseMetric], EvaluationResult]
 
     def __init__(
         self,
-        metric: Union[str, DeepEvalMetric],
-        metric_params: Optional[Dict[str, Any]] = None,
+        metric: str | DeepEvalMetric,
+        metric_params: dict[str, Any] | None = None,
     ):
         """
         Construct a new DeepEval evaluator.
@@ -72,8 +73,8 @@ class DeepEvalEvaluator:
         expected_inputs = self.descriptor.input_parameters
         component.set_input_types(self, **expected_inputs)
 
-    @component.output_types(results=List[List[Dict[str, Any]]])
-    def run(self, **inputs: Any) -> Dict[str, Any]:
+    @component.output_types(results=list[list[dict[str, Any]]])
+    def run(self, **inputs: Any) -> dict[str, Any]:
         """
         Run the DeepEval evaluator on the provided inputs.
 
@@ -91,7 +92,7 @@ class DeepEvalEvaluator:
             - `explanation` - An optional explanation of the score.
         """
         InputConverters.validate_input_parameters(self.metric, self.descriptor.input_parameters, inputs)
-        converted_inputs: List[LLMTestCase] = list(self.descriptor.input_converter(**inputs))  # type: ignore
+        converted_inputs: list[LLMTestCase] = list(self.descriptor.input_converter(**inputs))  # type: ignore
 
         results = self._backend_callable(converted_inputs, self._backend_metric)
         converted_results = [
@@ -100,7 +101,7 @@ class DeepEvalEvaluator:
 
         return {"results": converted_results}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -128,7 +129,7 @@ class DeepEvalEvaluator:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "DeepEvalEvaluator":
+    def from_dict(cls, data: dict[str, Any]) -> "DeepEvalEvaluator":
         """
         Deserializes the component from a dictionary.
 
@@ -140,7 +141,7 @@ class DeepEvalEvaluator:
         return default_from_dict(cls, data)
 
     @staticmethod
-    def _invoke_deepeval(test_cases: List[LLMTestCase], metric: BaseMetric) -> EvaluationResult:
+    def _invoke_deepeval(test_cases: list[LLMTestCase], metric: BaseMetric) -> EvaluationResult:
         return evaluate(test_cases=test_cases, metrics=[metric])
 
     def _init_backend(self):
