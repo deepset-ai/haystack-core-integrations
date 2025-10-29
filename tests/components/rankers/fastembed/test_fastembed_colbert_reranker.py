@@ -1,10 +1,12 @@
 import numpy as np
+import pytest
 from haystack import Document
 from integrations.fastembed.haystack_integrations.components.rankers.fastembed import (
     FastembedColbertReranker,
 )
 from integrations.fastembed.haystack_integrations.components.rankers.fastembed.colbert_reranker import (
-    _maxsim_score, _l2_normalize_rows
+    _maxsim_score,
+    _l2_normalize_rows,
 )
 
 
@@ -58,11 +60,11 @@ def test_run_topk_slices_without_fastembed(monkeypatch):
         mats = []
         for t in texts:
             if "best" in t:
-                mats.append(np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32))   # high
+                mats.append(np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32))  # high
             elif "ok" in t:
-                mats.append(np.array([[0.8, 0.2], [0.2, 0.8]], dtype=np.float32))   # medium
+                mats.append(np.array([[0.8, 0.2], [0.2, 0.8]], dtype=np.float32))  # medium
             else:
-                mats.append(np.array([[1.0, 0.0]], dtype=np.float32))               # lower
+                mats.append(np.array([[1.0, 0.0]], dtype=np.float32))  # lower
         return mats
 
     rr._encode_query = fake_encode_query  # type: ignore
@@ -81,3 +83,39 @@ def test_run_topk_slices_without_fastembed(monkeypatch):
     assert "best" in ranked[0].content
     assert "ok" in ranked[1].content
     assert ranked[0].score >= ranked[1].score
+
+
+def test_param_validation():
+    with pytest.raises(ValueError):
+        FastembedColbertReranker(batch_size=0)
+    with pytest.raises(ValueError):
+        FastembedColbertReranker(similarity="euclid")  # unsupported
+
+
+def test_topk_validation():
+    rr = FastembedColbertReranker()
+    with pytest.raises(ValueError):
+        rr.run(query="q", documents=[Document(content="x")], top_k=-1)
+
+
+def test_stable_tie_break(monkeypatch):
+    rr = FastembedColbertReranker()
+    rr._ready = True
+    rr._encoder = object()
+
+    def fake_q(_):  # same query vectors
+        return np.eye(2, dtype=np.float32)
+
+    def fake_docs(texts):
+        # craft docs with identical scores → tie
+        mat = np.eye(2, dtype=np.float32)
+        return [mat for _ in texts]
+
+    rr._encode_query = fake_q  # type: ignore
+    rr._encode_docs_batched = fake_docs  # type: ignore
+
+    docs = [Document(content=f"doc{i}") for i in range(4)]
+    out = rr.run(query="q", documents=docs)
+    ranked = out["documents"]
+    # Ensure length preserved and deterministic order
+    assert [d.content for d in ranked] == ["doc3", "doc2", "doc1", "doc0"]  # due to tie-break we defined

@@ -3,39 +3,43 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable, List, Optional, Sequence
+from typing import Any, List, Optional, Sequence
 
-import math
 import numpy as np
 from haystack import Document, component
+
+_TWO_D = 2  # avoid PLR2004 "magic number" warning
+_VALID_SIMS = {"cosine", "dot"}
 
 
 def _l2_normalize_rows(mat: np.ndarray) -> np.ndarray:
     """
     L2-normalize each row vector in a 2D array. Safe for zero rows.
     """
-    if mat.ndim != 2:
-        raise ValueError(f"Expected 2D matrix, got shape {mat.shape}")
+    if mat.ndim != _TWO_D:
+        msg = f"Expected 2D matrix, got shape {mat.shape}"
+        raise ValueError(msg)
     norms = np.linalg.norm(mat, axis=1, keepdims=True)
-    # avoid division by zero
-    norms = np.where(norms == 0.0, 1.0, norms)
+    norms = np.where(norms == 0.0, 1.0, norms)  # avoid division by zero
     return mat / norms
 
 
-def _maxsim_score(q_mat: np.ndarray, d_mat: np.ndarray, *, similarity: str = "cosine", normalize: bool = True) -> float:
+def _maxsim_score(
+    q_mat: np.ndarray,
+    d_mat: np.ndarray,
+    *,
+    similarity: str = "cosine",
+    normalize: bool = True,
+) -> float:
     """
-    ColBERT late-interaction (MaxSim) score.
-
-    For each query token vector, take the maximum similarity across all doc token vectors,
-    then sum over query tokens.
-
-    Similarity is either cosine (row-wise normalized dot) or raw dot.
+    ColBERT late-interaction (MaxSim) score:
+    For each query token vector, take the maximum similarity across all doc token vectors, then sum.
     """
     if q_mat.size == 0 or d_mat.size == 0:
         return 0.0
-
-    if similarity not in ("cosine", "dot"):
-        raise ValueError(f"Unsupported similarity '{similarity}'. Use 'cosine' or 'dot'.")
+    if similarity not in _VALID_SIMS:
+        msg = f"Unsupported similarity '{similarity}'. Use 'cosine' or 'dot'."
+        raise ValueError(msg)
 
     if similarity == "cosine" and normalize:
         q = _l2_normalize_rows(q_mat)
@@ -44,14 +48,10 @@ def _maxsim_score(q_mat: np.ndarray, d_mat: np.ndarray, *, similarity: str = "co
         q = q_mat
         d = d_mat
 
-    # [Lq, D] x [D, Ld] -> [Lq, Ld]
-    sim = q @ d.T  # numpy matmul
-
-    # Max over doc tokens for each query token, then sum
-    # Guard against empty axis when Ld==0 (handled above by size check)
-    max_per_q = sim.max(axis=1)
-    score = float(max_per_q.sum())
-    return score
+    # [Lq, D] @ [D, Ld] -> [Lq, Ld]
+    sim = q @ d.T
+    max_per_q = sim.max(axis=1)  # max over doc tokens for each query token
+    return float(max_per_q.sum())
 
 
 @component
@@ -61,39 +61,17 @@ class FastembedColbertReranker:
 
     This component expects a *retrieved* list of Documents (e.g., top 100–500)
     and reorders them by ColBERT MaxSim score with respect to the input query.
-
-    Parameters
-    ----------
-    model : str, default: "colbert-ir/colbertv2.0"
-        The ColBERT-compatible model name to load via FastEmbed.
-    batch_size : int, default: 16
-        Number of documents to encode per batch.
-    threads : Optional[int], default: None
-        Number of CPU threads for inference (passed to FastEmbed if supported).
-    similarity : {"cosine", "dot"}, default: "cosine"
-        Similarity for token–token interactions inside MaxSim.
-    normalize : bool, default: True
-        L2-normalize token embeddings before similarity (needed for cosine).
-    max_query_tokens : Optional[int], default: None
-        Truncate/limit tokens on the query side, if supported by the encoder.
-    max_doc_tokens : Optional[int], default: None
-        Truncate/limit tokens on the document side, if supported by the encoder.
-
-    Notes
-    -----
-    - This is a *reranker*. Use it after a retriever (BM25/dense) with ~100–500 candidates.
-    - Lives in the FastEmbed integration to avoid new core dependencies.
     """
 
     def __init__(
         self,
         model: str = "colbert-ir/colbertv2.0",
         batch_size: int = 16,
-        threads: Optional[int] = None,
+        threads: int | None = None,
         similarity: str = "cosine",
         normalize: bool = True,
-        max_query_tokens: Optional[int] = None,
-        max_doc_tokens: Optional[int] = None,
+        max_query_tokens: int | None = None,
+        max_doc_tokens: int | None = None,
     ):
         self.model = model
         self.batch_size = batch_size
@@ -103,146 +81,138 @@ class FastembedColbertReranker:
         self.max_query_tokens = max_query_tokens
         self.max_doc_tokens = max_doc_tokens
 
+        if similarity not in _VALID_SIMS:
+            msg = f"similarity must be one of {_VALID_SIMS}, got {similarity!r}"
+            raise ValueError(msg)
+        if batch_size <= 0:
+            msg = f"batch_size must be > 0, got {batch_size}"
+            raise ValueError(msg)
+
         # Lazy-loaded in warm_up()
         self._encoder = None  # LateInteractionTextEmbedding
         self._ready = False
 
     def warm_up(self):
-        """
-        Load FastEmbed encoders and do a tiny dry run to initialize backends.
-        """
         if self._ready:
             return
-
         try:
-            # Lazy import to avoid hard dependency outside this integration
             from fastembed import LateInteractionTextEmbedding  # type: ignore
 
-            # LateInteractionTextEmbedding exposes .query_embed() and .embed() generators
-            # Some fastembed versions use 'model_name' kw, others accept positional.
-            # We'll pass by name for clarity.
-            self._encoder = LateInteractionTextEmbedding(
-                model_name=self.model,
-                threads=self.threads,
-                # Some fastembed versions accept kwargs like max_tokens; if not, they're ignored safely.
-                max_tokens_query=self.max_query_tokens,     # optional / best-effort
-                max_tokens_document=self.max_doc_tokens,    # optional / best-effort
-            )
+            kwargs = {"model_name": self.model, "threads": self.threads}
+            # best-effort: only pass token kwargs if supported
+            for k, v in {
+                "max_tokens_query": self.max_query_tokens,
+                "max_tokens_document": self.max_doc_tokens,
+            }.items():
+                if v is not None:
+                    kwargs[k] = v
 
-            # Tiny dry-run to trigger onnx initialization (doesn't fail if offline)
-            _ = next(self._encoder.query_embed(["warmup"]), None)
-            _ = next(self._encoder.embed(["warmup"]), None)
+            try:
+                self._encoder = LateInteractionTextEmbedding(**kwargs)
+            except TypeError:
+                # remove unknown kwargs & retry
+                safe_kwargs = {"model_name": self.model, "threads": self.threads}
+                self._encoder = LateInteractionTextEmbedding(**safe_kwargs)
+
+            # tiny dry runs (guard generators possibly being empty)
+            gen_q = self._encoder.query_embed(["warmup"])
+            next(gen_q, None)
+            gen_d = self._encoder.embed(["warmup"])
+            next(gen_d, None)
 
             self._ready = True
         except ModuleNotFoundError as e:
-            raise RuntimeError(
+            msg = (
                 "fastembed is not installed. Please install the FastEmbed integration:\n\n"
                 "    pip install fastembed-haystack\n"
+            )
+            raise RuntimeError(
+                msg
             ) from e
         except Exception as e:
-            raise RuntimeError(
-                f"Failed to initialize FastEmbed ColBERT encoder for model '{self.model}': {e}"
-            ) from e
+            msg = f"Failed to initialize FastEmbed ColBERT encoder for model '{self.model}': {e}"
+            raise RuntimeError(msg) from e
 
     def _ensure_ready(self):
         if not self._ready:
             self.warm_up()
 
     @staticmethod
-    def _get_texts(documents: Sequence[Document]) -> List[str]:
+    def _get_texts(documents: Sequence[Document]) -> list[str]:
         # Prefer Document.content; fall back to empty string to avoid crashes
         return [doc.content or "" for doc in documents]
 
     def _encode_query(self, text: str) -> np.ndarray:
-        """
-        Encode a single query into a [Lq, D] numpy array of token embeddings.
-        """
         assert self._encoder is not None
-        # .query_embed returns an iterator/generator over embeddings
-        gen = self._encoder.query_embed([text])
-        arr = next(gen, None)
+        arr = next(self._encoder.query_embed([text]), None)
         if arr is None:
             return np.zeros((0, 0), dtype=np.float32)
-        return np.asarray(arr, dtype=np.float32)
+        a = np.asarray(arr, dtype=np.float32)
+        if a.ndim != 2:
+            a = a.reshape(-1, a.shape[-1])  # best-effort
+        return a
 
-    def _encode_docs_batched(self, texts: List[str]) -> List[np.ndarray]:
-        """
-        Encode documents into token-embedding matrices, batched.
-        Returns a list of [Ld, D] arrays aligned with `texts`.
-        """
+    def _encode_docs_batched(self, texts: list[str]) -> list[np.ndarray]:
         assert self._encoder is not None
-
-        results: List[np.ndarray] = []
-        n = len(texts)
-        if n == 0:
-            return results
-
-        for start in range(0, n, self.batch_size):
-            end = min(start + self.batch_size, n)
-            batch = texts[start:end]
-            # .embed returns a generator yielding one embedding per input string
+        results: list[np.ndarray] = []
+        for start in range(0, len(texts), self.batch_size):
+            batch = texts[start : start + self.batch_size]
             for emb in self._encoder.embed(batch):
                 if emb is None:
                     results.append(np.zeros((0, 0), dtype=np.float32))
                 else:
-                    results.append(np.asarray(emb, dtype=np.float32))
-
-        # Safety: ensure alignment
-        if len(results) != n:
-            raise RuntimeError(
-                f"Encoder returned {len(results)} embeddings for {n} documents; batch logic out of sync."
-            )
+                    a = np.asarray(emb, dtype=np.float32)
+                    if a.ndim != 2:
+                        a = a.reshape(-1, a.shape[-1])
+                    results.append(a)
+        if len(results) != len(texts):
+            msg = f"Encoder returned {len(results)} embeddings for {len(texts)} documents."
+            raise RuntimeError(msg)
         return results
 
     def run(
         self,
         query: str,
         documents: Sequence[Document],
-        top_k: Optional[int] = None,
+        top_k: int | None = None,
     ) -> dict[str, Any]:
-        """
-        Rerank the input documents with respect to the query using ColBERT MaxSim.
-
-        Parameters
-        ----------
-        query : str
-            The user query.
-        documents : Sequence[Document]
-            Candidate documents to rerank (typically ~100–500).
-        top_k : Optional[int]
-            If given, only the top-k reranked documents are returned.
-
-        Returns
-        -------
-        dict
-            {"documents": List[Document]} with `Document.score` set to the ColBERT score.
-        """
         self._ensure_ready()
 
         docs_list = list(documents)
         if not docs_list:
             return {"documents": []}
 
-        # Encode query once
-        q_mat = self._encode_query(query)
+        if top_k is not None and top_k < 0:
+            msg = f"top_k must be >= 0, got {top_k}"
+            raise ValueError(msg)
 
-        # Encode documents (batched)
+        # keep original order indices for a stable tie-break
+        for i, d in enumerate(docs_list):
+            if getattr(d, "meta", None) is None:
+                d.meta = {}
+            d.meta.setdefault("_orig_idx", i)
+
+        # --- actual scoring ---
+        q_mat = self._encode_query(query)
         doc_texts = self._get_texts(docs_list)
         doc_mats = self._encode_docs_batched(doc_texts)
 
-        # Compute scores
-        scores: List[float] = []
-        for d_mat in doc_mats:
-            score = _maxsim_score(q_mat, d_mat, similarity=self.similarity, normalize=self.normalize)
-            scores.append(score)
+        for d, d_mat in zip(docs_list, doc_mats):
+            d.score = _maxsim_score(q_mat, d_mat, similarity=self.similarity, normalize=self.normalize)
 
-        # Attach and sort (descending)
-        for d, s in zip(docs_list, scores):
-            d.score = s
+        # sort by score desc; deterministic tie-break by original index
+        docs_list.sort(
+            key=lambda d: (
+                d.score if d.score is not None else float("-inf"),
+                -d.meta.get("_orig_idx", 0),
+            ),
+            reverse=True,
+        )
 
-        docs_list.sort(key=lambda d: (d.score if d.score is not None else float("-inf")), reverse=True)
+        # strip helper key
+        for d in docs_list:
+            d.meta.pop("_orig_idx", None)
 
-        # Slice top_k if requested
         if top_k is not None:
             docs_list = docs_list[:top_k]
 
