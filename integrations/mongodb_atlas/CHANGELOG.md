@@ -4,7 +4,7 @@
 
 ### 🚀 Features
 
-- Add delete_all_documents() to MongoDB DocumentStore (#2401)
+- Add `delete_all_documents()` operation to MongoDB DocumentStore (#2401)
 
 ### 📚 Documentation
 
