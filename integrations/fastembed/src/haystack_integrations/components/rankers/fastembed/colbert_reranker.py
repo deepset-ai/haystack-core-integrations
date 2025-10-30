@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Sequence
+from typing import Any, Sequence, List, Optional
 
 import numpy as np
 from haystack import Document, component
