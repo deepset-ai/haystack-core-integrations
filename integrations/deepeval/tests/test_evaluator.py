@@ -1,7 +1,6 @@
 import copy
 import os
 from dataclasses import dataclass
-from typing import Dict, Optional
 
 import pytest
 from deepeval.evaluate.types import EvaluationResult, TestResult
@@ -46,8 +45,8 @@ class Unserializable:
 @dataclass(frozen=True)
 class MockResult:
     score: float
-    reason: Optional[str] = None
-    score_breakdown: Optional[Dict[str, float]] = None
+    reason: str | None = None
+    score_breakdown: dict[str, float] | None = None
 
 
 # Only returns results for the passed metrics.
@@ -273,7 +272,7 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params, monk
     assert isinstance(results, type(expected_outputs))
     assert len(results) == len(expected_outputs)
 
-    for r, o in zip(results, expected_outputs):
+    for r, o in zip(results, expected_outputs, strict=True):
         assert len(r) == len(o)
 
         expected = {(name if name is not None else str(metric), score, exp) for name, score, exp in o}
