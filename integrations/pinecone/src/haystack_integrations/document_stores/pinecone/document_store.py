@@ -11,6 +11,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 
 from pinecone import Pinecone, PineconeAsyncio, PodSpec, ServerlessSpec
 from pinecone.db_data import _Index, _IndexAsyncio
+from pinecone.exceptions import NotFoundException
 
 from .filters import _normalize_filters, _validate_filters
 
@@ -358,7 +359,11 @@ class PineconeDocumentStore:
         """
         self._initialize_index()
         assert self._index is not None, "Index is not initialized"
-        self._index.delete(delete_all=True, namespace=self.namespace)
+        try:
+            self._index.delete(delete_all=True, namespace=self.namespace)
+        except NotFoundException:
+            # Namespace doesn't exist (empty collection), which is fine - nothing to delete
+            logger.debug("Namespace '{namespace}' not found. Nothing to delete.", namespace=self.namespace or "default")
 
     async def delete_all_documents_async(self) -> None:
         """
@@ -366,7 +371,11 @@ class PineconeDocumentStore:
         """
         await self._initialize_async_index()
         assert self._async_index is not None, "Index is not initialized"
-        await self._async_index.delete(delete_all=True, namespace=self.namespace)
+        try:
+            await self._async_index.delete(delete_all=True, namespace=self.namespace)
+        except NotFoundException:
+            # Namespace doesn't exist (empty collection), which is fine - nothing to delete
+            logger.debug("Namespace '{namespace}' not found. Nothing to delete.", namespace=self.namespace or "default")
 
     def _embedding_retrieval(
         self,
