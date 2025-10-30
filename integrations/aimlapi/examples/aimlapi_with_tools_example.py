@@ -35,38 +35,32 @@ def main() -> None:
 
     tool_invoker = ToolInvoker(tools=[weather_tool])
 
-    client = AIMLAPIChatGenerator(
-        model="openai/gpt-5-mini-2025-08-07"
-    )
+    client = AIMLAPIChatGenerator(model="openai/gpt-5-mini-2025-08-07")
 
     messages = [
-        ChatMessage.from_system(
-            "You help users by calling the provided tools when they are relevant."
-        ),
+        ChatMessage.from_system("You help users by calling the provided tools when they are relevant."),
         ChatMessage.from_user("What's the weather in Tokyo today?"),
     ]
 
-    print("Requesting a tool call from the model...")
+    print("Requesting a tool call from the model...")  # noqa: T201
     tool_request = client.run(
         messages=messages,
         tools=[weather_tool],
-        generation_kwargs={
-            "tool_choice": {"type": "function", "function": {"name": "weather"}}
-        },
+        generation_kwargs={"tool_choice": {"type": "function", "function": {"name": "weather"}}},
     )["replies"][0]
 
-    print(f"assistant tool request: {tool_request}")
+    print(f"assistant tool request: {tool_request}")  # noqa: T201
 
     if not tool_request.tool_calls:
-        print("No tool call was produced by the model.")
+        print("No tool call was produced by the model.")  # noqa: T201
         return
 
     tool_messages = tool_invoker.run(messages=[tool_request])["tool_messages"]
     for tool_message in tool_messages:
         for tool_result in tool_message.tool_call_results:
-            print(f"tool output: {tool_result.result}")
+            print(f"tool output: {tool_result.result}")  # noqa: T201
 
-    follow_up_messages = messages + [tool_request, *tool_messages]
+    follow_up_messages = [*messages, tool_request, *tool_messages]
 
     final_reply = client.run(
         messages=follow_up_messages,
@@ -74,7 +68,7 @@ def main() -> None:
         generation_kwargs={"tool_choice": "none"},
     )["replies"][0]
 
-    print(f"assistant final answer: {final_reply.text}")
+    print(f"assistant final answer: {final_reply.text}")  # noqa: T201
 
 
 if __name__ == "__main__":
