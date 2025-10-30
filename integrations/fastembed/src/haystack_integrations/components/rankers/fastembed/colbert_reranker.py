@@ -3,12 +3,11 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Optional, Sequence
-
+from typing import Any, Sequence
 import numpy as np
 from haystack import Document, component
 
-_TWO_D = 2  # avoid PLR2004 "magic number" warning
+_TWO_D = 2
 _VALID_SIMS = {"cosine", "dot"}
 
 
@@ -20,7 +19,7 @@ def _l2_normalize_rows(mat: np.ndarray) -> np.ndarray:
         msg = f"Expected 2D matrix, got shape {mat.shape}"
         raise ValueError(msg)
     norms = np.linalg.norm(mat, axis=1, keepdims=True)
-    norms = np.where(norms == 0.0, 1.0, norms)  # avoid division by zero
+    norms = np.where(norms == 0.0, 1.0, norms)
     return mat / norms
 
 
@@ -48,9 +47,8 @@ def _maxsim_score(
         q = q_mat
         d = d_mat
 
-    # [Lq, D] @ [D, Ld] -> [Lq, Ld]
-    sim = q @ d.T
-    max_per_q = sim.max(axis=1)  # max over doc tokens for each query token
+    sim = q @ d.T  # [Lq, D] @ [D, Ld] -> [Lq, Ld]
+    max_per_q = sim.max(axis=1)
     return float(max_per_q.sum())
 
 
@@ -59,7 +57,7 @@ class FastembedColbertReranker:
     """
     Rerank Documents using ColBERT late-interaction scoring via FastEmbed.
 
-    This component expects a *retrieved* list of Documents (e.g., top 100–500)
+    This component expects a *retrieved* list of Documents (e.g., top 100-500)
     and reorders them by ColBERT MaxSim score with respect to the input query.
     """
 
@@ -88,7 +86,6 @@ class FastembedColbertReranker:
             msg = f"batch_size must be > 0, got {batch_size}"
             raise ValueError(msg)
 
-        # Lazy-loaded in warm_up()
         self._encoder = None  # LateInteractionTextEmbedding
         self._ready = False
 
@@ -96,10 +93,9 @@ class FastembedColbertReranker:
         if self._ready:
             return
         try:
-            from fastembed import LateInteractionTextEmbedding  # type: ignore
+            from fastembed import LateInteractionTextEmbedding  # type: ignore  # noqa: PLC0415
 
             kwargs = {"model_name": self.model, "threads": self.threads}
-            # best-effort: only pass token kwargs if supported
             for k, v in {
                 "max_tokens_query": self.max_query_tokens,
                 "max_tokens_document": self.max_doc_tokens,
@@ -110,11 +106,8 @@ class FastembedColbertReranker:
             try:
                 self._encoder = LateInteractionTextEmbedding(**kwargs)
             except TypeError:
-                # remove unknown kwargs & retry
-                safe_kwargs = {"model_name": self.model, "threads": self.threads}
-                self._encoder = LateInteractionTextEmbedding(**safe_kwargs)
+                self._encoder = LateInteractionTextEmbedding(model_name=self.model, threads=self.threads)
 
-            # tiny dry runs (guard generators possibly being empty)
             gen_q = self._encoder.query_embed(["warmup"])
             next(gen_q, None)
             gen_d = self._encoder.embed(["warmup"])
@@ -126,9 +119,7 @@ class FastembedColbertReranker:
                 "fastembed is not installed. Please install the FastEmbed integration:\n\n"
                 "    pip install fastembed-haystack\n"
             )
-            raise RuntimeError(
-                msg
-            ) from e
+            raise RuntimeError(msg) from e
         except Exception as e:
             msg = f"Failed to initialize FastEmbed ColBERT encoder for model '{self.model}': {e}"
             raise RuntimeError(msg) from e
@@ -139,21 +130,24 @@ class FastembedColbertReranker:
 
     @staticmethod
     def _get_texts(documents: Sequence[Document]) -> list[str]:
-        # Prefer Document.content; fall back to empty string to avoid crashes
         return [doc.content or "" for doc in documents]
 
     def _encode_query(self, text: str) -> np.ndarray:
-        assert self._encoder is not None
+        if self._encoder is None:
+            msg = "Encoder is not initialized. Call warm_up() first."
+            raise RuntimeError(msg)
         arr = next(self._encoder.query_embed([text]), None)
         if arr is None:
             return np.zeros((0, 0), dtype=np.float32)
         a = np.asarray(arr, dtype=np.float32)
-        if a.ndim != 2:
-            a = a.reshape(-1, a.shape[-1])  # best-effort
+        if a.ndim != _TWO_D:
+            a = a.reshape(-1, a.shape[-1])
         return a
 
     def _encode_docs_batched(self, texts: list[str]) -> list[np.ndarray]:
-        assert self._encoder is not None
+        if self._encoder is None:
+            msg = "Encoder is not initialized. Call warm_up() first."
+            raise RuntimeError(msg)
         results: list[np.ndarray] = []
         for start in range(0, len(texts), self.batch_size):
             batch = texts[start : start + self.batch_size]
@@ -162,7 +156,7 @@ class FastembedColbertReranker:
                     results.append(np.zeros((0, 0), dtype=np.float32))
                 else:
                     a = np.asarray(emb, dtype=np.float32)
-                    if a.ndim != 2:
+                    if a.ndim != _TWO_D:
                         a = a.reshape(-1, a.shape[-1])
                     results.append(a)
         if len(results) != len(texts):
@@ -186,13 +180,11 @@ class FastembedColbertReranker:
             msg = f"top_k must be >= 0, got {top_k}"
             raise ValueError(msg)
 
-        # keep original order indices for a stable tie-break
         for i, d in enumerate(docs_list):
             if getattr(d, "meta", None) is None:
                 d.meta = {}
             d.meta.setdefault("_orig_idx", i)
 
-        # --- actual scoring ---
         q_mat = self._encode_query(query)
         doc_texts = self._get_texts(docs_list)
         doc_mats = self._encode_docs_batched(doc_texts)
@@ -200,7 +192,6 @@ class FastembedColbertReranker:
         for d, d_mat in zip(docs_list, doc_mats):
             d.score = _maxsim_score(q_mat, d_mat, similarity=self.similarity, normalize=self.normalize)
 
-        # sort by score desc; deterministic tie-break by original index
         docs_list.sort(
             key=lambda d: (
                 d.score if d.score is not None else float("-inf"),
@@ -209,7 +200,6 @@ class FastembedColbertReranker:
             reverse=True,
         )
 
-        # strip helper key
         for d in docs_list:
             d.meta.pop("_orig_idx", None)
 
