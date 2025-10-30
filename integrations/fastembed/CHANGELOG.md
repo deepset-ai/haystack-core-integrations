@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### 🚀 Features
+- Add `FastembedColbertReranker`: ColBERT late-interaction (MaxSim) reranker for 1st-stage candidates (100–500). (#PR_NUMBER)
+
+### 📚 Documentation
+- FastEmbed docs: “ColBERT Reranker” section with quickstart + pipeline example. (#PR_NUMBER)
+- Integration README: add bullet for `FastembedColbertReranker` and links. (#PR_NUMBER)
+
+### 🧪 Testing
+- Unit tests for MaxSim math, parameter validation, stable tie-break, and monkeypatched ranking (no model download). (#PR_NUMBER)
+
+### 🧹 Chores
+- Parameter validation, robust warm-up for fastembed API drift, stable sorting on score ties. (#PR_NUMBER)
+
+
 ## [integrations/fastembed-v1.5.0] - 2025-06-17
 
 ### 🐛 Bug Fixes

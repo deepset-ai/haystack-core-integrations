@@ -1,3 +1,3 @@
-from .ranker import FastembedRanker
+from .colbert_reranker import FastembedColbertReranker
 
-__all__ = ["FastembedRanker"]
+__all__ = ["FastembedColbertReranker"]
