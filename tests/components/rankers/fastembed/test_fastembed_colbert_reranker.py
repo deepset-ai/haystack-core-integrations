@@ -1,13 +1,12 @@
 import numpy as np
 import pytest
 from haystack import Document
-from integrations.fastembed.haystack_integrations.components.rankers.fastembed import (
-    FastembedColbertReranker,
-)
-from integrations.fastembed.haystack_integrations.components.rankers.fastembed.colbert_reranker import (
+from haystack_integrations.components.rankers.fastembed import FastembedColbertReranker
+from haystack_integrations.components.rankers.fastembed.colbert_reranker import (
     _maxsim_score,
     _l2_normalize_rows,
 )
+
 
 
 def test_symbol_imports():

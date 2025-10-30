@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional
 
-from haystack import Document, component, default_from_dict, default_to_dict, logging
 from fastembed.rerank.cross_encoder import TextCrossEncoder
+from haystack import Document, component, default_from_dict, default_to_dict, logging
 
 logger = logging.getLogger(__name__)
 
@@ -131,15 +131,21 @@ class FastembedRanker:
         concatenated_input_list = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta.get(key)
+                str(doc.meta[key])
+                for key in self.meta_fields_to_embed
+                if key in doc.meta and doc.meta.get(key)
             ]
-            concatenated_input = self.meta_data_separator.join([*meta_values_to_embed, doc.content or ""])
+            concatenated_input = self.meta_data_separator.join(
+                [*meta_values_to_embed, doc.content or ""]
+            )
             concatenated_input_list.append(concatenated_input)
 
         return concatenated_input_list
 
     @component.output_types(documents=List[Document])
-    def run(self, query: str, documents: List[Document], top_k: Optional[int] = None) -> Dict[str, List[Document]]:
+    def run(
+        self, query: str, documents: List[Document], top_k: Optional[int] = None
+    ) -> Dict[str, List[Document]]:
         """
         Returns a list of documents ranked by their similarity to the given query, using FastEmbed.
 
@@ -156,7 +162,9 @@ class FastembedRanker:
 
         :raises ValueError: If `top_k` is not > 0.
         """
-        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
+        if not isinstance(documents, list) or (
+            documents and not isinstance(documents[0], Document)
+        ):
             msg = "FastembedRanker expects a list of Documents as input. "
             raise TypeError(msg)
         if query == "":
