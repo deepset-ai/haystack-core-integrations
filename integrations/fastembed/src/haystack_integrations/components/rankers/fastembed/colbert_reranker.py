@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Sequence, List, Optional
+from typing import Any, Sequence
 
 import numpy as np
 from haystack import Document, component
@@ -107,9 +107,7 @@ class FastembedColbertReranker:
             try:
                 self._encoder = LateInteractionTextEmbedding(**kwargs)
             except TypeError:
-                self._encoder = LateInteractionTextEmbedding(
-                    model_name=self.model, threads=self.threads
-                )
+                self._encoder = LateInteractionTextEmbedding(model_name=self.model, threads=self.threads)
 
             gen_q = self._encoder.query_embed(["warmup"])
             next(gen_q, None)
@@ -193,9 +191,7 @@ class FastembedColbertReranker:
         doc_mats = self._encode_docs_batched(doc_texts)
 
         for d, d_mat in zip(docs_list, doc_mats):
-            d.score = _maxsim_score(
-                q_mat, d_mat, similarity=self.similarity, normalize=self.normalize
-            )
+            d.score = _maxsim_score(q_mat, d_mat, similarity=self.similarity, normalize=self.normalize)
 
         docs_list.sort(
             key=lambda d: (
