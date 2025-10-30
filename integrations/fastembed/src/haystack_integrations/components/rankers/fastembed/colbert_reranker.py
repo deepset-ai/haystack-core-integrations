@@ -104,11 +104,10 @@ class FastembedColbertReranker:
                 if v is not None:
                     kwargs[k] = v
 
-            try:
-                self._encoder = LateInteractionTextEmbedding(**kwargs)
-            except TypeError:
-                self._encoder = LateInteractionTextEmbedding(model_name=self.model, threads=self.threads)
-
+            # Only include keys that are not None
+            init_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+            self._encoder = LateInteractionTextEmbedding(**init_kwargs)
+            
             gen_q = self._encoder.query_embed(["warmup"])
             next(gen_q, None)
             gen_d = self._encoder.embed(["warmup"])
