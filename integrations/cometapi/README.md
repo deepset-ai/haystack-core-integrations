@@ -1,48 +1,15 @@
-# Comet API Haystack Integration
+# cometapi-haystack
 
 [![PyPI - Version](https://img.shields.io/pypi/v/cometapi-haystack.svg)](https://pypi.org/project/cometapi-haystack)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/cometapi-haystack.svg)](https://pypi.org/project/cometapi-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/cometapi-haystack.svg)](https://pypi.org/project/cometapihaystack)
 
------
+- [Integration page](https://haystack.deepset.ai/integrations/cometapi)
+- [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/cometapi/CHANGELOG.md)
 
-**CometAPI Resources**
-- [Website](https://www.cometapi.com/?utm_source=haystack&utm_campaign=integration&utm_medium=integration&utm_content=integration)
-- [Documentation](https://api.cometapi.com/doc)
-- [Get an API Key](https://api.cometapi.com/console/token)
-- [Pricing](https://api.cometapi.com/pricing)
+---
 
-**Table of Contents**
+## Contributing
 
-- [Installation](#installation)
-- [Usage](#usage)
-- [License](#license)
+Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
-## Installation
-
-```console
-pip install cometapi-haystack
-```
-
-## Usage
-
-This integration offers a set of pre-built components that allow developers to interact seamlessly with AI models using the new Comet APIs.
-
-### Chat Generator
-
-```python
-from haystack.dataclasses.chat_message import ChatMessage
-from haystack_integrations.components.generators.cometapi import CometAPIChatGenerator
-
-# Initialize the chat generator
-chat_generator = CometAPIChatGenerator(model="grok-3-mini")
-
-# Generate a response
-messages = [ChatMessage.from_user("Tell me about the future of AI")]
-response = chat_generator.run(messages=messages)
-print(response["replies"][0].text)
-```
-
-
-## License
-
-`cometapi-haystack` is distributed under the terms of the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license. 
+To run integration tests locally, you need to export the `COMET_API_KEY` environment variable.
