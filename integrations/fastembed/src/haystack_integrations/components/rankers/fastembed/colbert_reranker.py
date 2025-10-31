@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Sequence
-
+from typing import Any, Sequence, Optional, TYPE_CHECKING
 import numpy as np
 from haystack import Document, component
+
+if TYPE_CHECKING:
+    from fastembed import LateInteractionTextEmbedding  # type: ignore
 
 _TWO_D = 2
 _VALID_SIMS = {"cosine", "dot"}
@@ -87,7 +89,7 @@ class FastembedColbertReranker:
             msg = f"batch_size must be > 0, got {batch_size}"
             raise ValueError(msg)
 
-        self._encoder = None  # LateInteractionTextEmbedding
+        self._encoder: Optional["LateInteractionTextEmbedding"] = None  # LateInteractionTextEmbedding
         self._ready = False
 
     def warm_up(self):
@@ -96,18 +98,14 @@ class FastembedColbertReranker:
         try:
             from fastembed import LateInteractionTextEmbedding  # type: ignore  # noqa: PLC0415
 
-            kwargs = {"model_name": self.model, "threads": self.threads}
-            for k, v in {
-                "max_tokens_query": self.max_query_tokens,
-                "max_tokens_document": self.max_doc_tokens,
-            }.items():
-                if v is not None:
-                    kwargs[k] = v
-
-            # Only include keys that are not None
-            init_kwargs = {k: v for k, v in kwargs.items() if v is not None}
-            self._encoder = LateInteractionTextEmbedding(**init_kwargs)
-
+            # Call constructor with explicit named arguments so the type checker can verify them.
+            # Passing None for optional args is OK if the fastembed constructor accepts Optional values.
+            self._encoder = LateInteractionTextEmbedding(
+                model_name=self.model,
+                threads=self.threads,
+                max_tokens_query=self.max_query_tokens,
+                max_tokens_document=self.max_doc_tokens,
+            )
             gen_q = self._encoder.query_embed(["warmup"])
             next(gen_q, None)
             gen_d = self._encoder.embed(["warmup"])
