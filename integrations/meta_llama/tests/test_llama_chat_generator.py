@@ -1,5 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates
 
+import json
 import os
 from datetime import datetime
 from unittest.mock import patch
@@ -10,11 +11,12 @@ from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
-from haystack.tools import Tool
+from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 from openai import OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
+from pydantic import BaseModel
 
 from haystack_integrations.components.generators.meta_llama.chat.chat_generator import (
     MetaLlamaChatGenerator,
@@ -33,6 +35,11 @@ def weather(city: str):
     return f"The weather in {city} is sunny and 32°C"
 
 
+def population(city: str):
+    """Get population for a given city."""
+    return f"The population of {city} is 2.2 million"
+
+
 @pytest.fixture
 def tools():
     tool_parameters = {
@@ -48,6 +55,25 @@ def tools():
     )
 
     return [tool]
+
+
+@pytest.fixture
+def mixed_tools():
+    """Fixture that returns a mixed list of Tool and Toolset."""
+    weather_tool = Tool(
+        name="weather",
+        description="useful to determine the weather in a given location",
+        parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+        function=weather,
+    )
+    population_tool = Tool(
+        name="population",
+        description="useful to determine the population of a given location",
+        parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+        function=population,
+    )
+    toolset = Toolset([population_tool])
+    return [weather_tool, toolset]
 
 
 @pytest.fixture
@@ -134,12 +160,44 @@ class TestLlamaChatGenerator:
 
     def test_to_dict_with_parameters(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test-api-key")
+
+        class NobelPrizeInfo(BaseModel):
+            recipient_name: str
+            award_year: int
+
+        schema = {
+            "json_schema": {
+                "name": "NobelPrizeInfo",
+                "schema": {
+                    "additionalProperties": False,
+                    "properties": {
+                        "award_year": {
+                            "title": "Award Year",
+                            "type": "integer",
+                        },
+                        "recipient_name": {
+                            "title": "Recipient Name",
+                            "type": "string",
+                        },
+                    },
+                    "required": [
+                        "recipient_name",
+                        "award_year",
+                    ],
+                    "title": "NobelPrizeInfo",
+                    "type": "object",
+                },
+                "strict": True,
+            },
+            "type": "json_schema",
+        }
+
         component = MetaLlamaChatGenerator(
             api_key=Secret.from_env_var("ENV_VAR"),
             model="Llama-4-Scout-17B-16E-Instruct-FP8",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
-            generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
+            generation_kwargs={"max_tokens": 10, "some_test_param": "test-params", "response_format": NobelPrizeInfo},
         )
         data = component.to_dict()
 
@@ -153,7 +211,7 @@ class TestLlamaChatGenerator:
             "model": "Llama-4-Scout-17B-16E-Instruct-FP8",
             "api_base_url": "test-base-url",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-            "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+            "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params", "response_format": schema},
         }
 
         for key, value in expected_params.items():
@@ -292,6 +350,77 @@ class TestLlamaChatGenerator:
 
         assert callback.counter > 1
         assert "Paris" in callback.responses
+
+    @pytest.mark.skipif(
+        not os.environ.get("LLAMA_API_KEY", None),
+        reason="Export an env var called LLAMA_API_KEY containing the Llama API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_response_format(self):
+        class NobelPrizeInfo(BaseModel):
+            recipient_name: str
+            award_year: int
+            category: str
+            achievement_description: str
+            nationality: str
+
+        chat_messages = [
+            ChatMessage.from_user(
+                "In 2021, American scientist David Julius received the Nobel Prize in"
+                " Physiology or Medicine for his groundbreaking discoveries on how the human body"
+                " senses temperature and touch."
+            )
+        ]
+        component = MetaLlamaChatGenerator(generation_kwargs={"response_format": NobelPrizeInfo})
+        results = component.run(chat_messages)
+        assert isinstance(results, dict)
+        assert "replies" in results
+        assert isinstance(results["replies"], list)
+        assert len(results["replies"]) == 1
+        assert isinstance(results["replies"][0], ChatMessage)
+        message = results["replies"][0]
+        assert isinstance(message.text, str)
+        msg = json.loads(message.text)
+        assert msg["recipient_name"] == "David Julius"
+        assert msg["award_year"] == 2021
+        assert "category" in msg
+        assert "achievement_description" in msg
+        assert msg["nationality"] == "American"
+
+    @pytest.mark.skipif(
+        not os.environ.get("LLAMA_API_KEY", None),
+        reason="Export an env var called LLAMA_API_KEY containing the Llama API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_response_format_json_schema(self):
+        response_schema = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "CapitalCity",
+                "strict": True,
+                "schema": {
+                    "title": "CapitalCity",
+                    "type": "object",
+                    "properties": {
+                        "city": {"title": "City", "type": "string"},
+                        "country": {"title": "Country", "type": "string"},
+                    },
+                    "required": ["city", "country"],
+                    "additionalProperties": False,
+                },
+            },
+        }
+
+        chat_messages = [ChatMessage.from_user("What's the capital of France?")]
+        comp = MetaLlamaChatGenerator(generation_kwargs={"response_format": response_schema})
+        results = comp.run(chat_messages)
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        msg = json.loads(message.text)
+        assert "Paris" in msg["city"]
+        assert isinstance(msg["country"], str)
+        assert "France" in msg["country"]
+        assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
         not os.environ.get("LLAMA_API_KEY", None),
@@ -538,3 +667,95 @@ class TestLlamaChatGenerator:
         assert loaded_generator.tools[0].name == generator.tools[0].name
         assert loaded_generator.tools[0].description == generator.tools[0].description
         assert loaded_generator.tools[0].parameters == generator.tools[0].parameters
+
+    def test_init_with_mixed_tools(self, monkeypatch):
+        def tool_fn(city: str) -> str:
+            return city
+
+        weather_tool = Tool(
+            name="weather",
+            description="Weather lookup",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=tool_fn,
+        )
+        population_tool = Tool(
+            name="population",
+            description="Population lookup",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=tool_fn,
+        )
+        toolset = Toolset([population_tool])
+
+        monkeypatch.setenv("LLAMA_API_KEY", "test-api-key")
+        generator = MetaLlamaChatGenerator(
+            model="Llama-4-Scout-17B-16E-Instruct-FP8",
+            tools=[weather_tool, toolset],
+        )
+
+        assert generator.tools == [weather_tool, toolset]
+
+    @pytest.mark.skipif(
+        not os.environ.get("LLAMA_API_KEY", None),
+        reason="Export an env var called LLAMA_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_mixed_tools(self, mixed_tools):
+        """
+        Integration test that verifies MetaLlamaChatGenerator works with mixed Tool and Toolset.
+        This tests that the LLM can correctly invoke tools from both a standalone Tool and a Toolset.
+        """
+        initial_messages = [
+            ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
+        ]
+        # default model Llama-4-Scout-17B-16E-Instruct-FP8 can't handle multiple tool responses well
+        # we use stronger model Llama-3.3-70B-Instruct for this test
+        component = MetaLlamaChatGenerator(model="Llama-3.3-70B-Instruct", tools=mixed_tools)
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+
+        # Find the message with tool calls
+        tool_call_message = None
+        for message in results["replies"]:
+            if message.tool_calls:
+                tool_call_message = message
+                break
+
+        assert tool_call_message is not None, "No message with tool call found"
+        assert isinstance(tool_call_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_call_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_calls = tool_call_message.tool_calls
+        assert len(tool_calls) == 2, f"Expected 2 tool calls, got {len(tool_calls)}"
+
+        # Verify we got calls to both weather and population tools
+        tool_names = {tc.tool_name for tc in tool_calls}
+        assert "weather" in tool_names, "Expected 'weather' tool call"
+        assert "population" in tool_names, "Expected 'population' tool call"
+
+        # Verify tool call details
+        for tool_call in tool_calls:
+            assert tool_call.id, "Tool call does not contain value for 'id' key"
+            assert tool_call.tool_name in ["weather", "population"]
+            assert "city" in tool_call.arguments
+            assert tool_call.arguments["city"] in ["Paris", "Berlin"]
+            assert tool_call_message.meta["finish_reason"] == "tool_calls"
+
+        # Mock the response we'd get from ToolInvoker
+        tool_result_messages = []
+        for tool_call in tool_calls:
+            if tool_call.tool_name == "weather":
+                result = "The weather in Paris is sunny and 32°C"
+            else:  # population
+                result = "The population of Berlin is 2.2 million"
+            tool_result_messages.append(ChatMessage.from_tool(tool_result=result, origin=tool_call))
+
+        new_messages = [*initial_messages, tool_call_message, *tool_result_messages]
+        results = component.run(new_messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_calls
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+        assert "berlin" in final_message.text.lower()

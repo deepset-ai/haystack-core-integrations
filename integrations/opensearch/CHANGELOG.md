@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/opensearch-v4.5.0] - 2025-10-27
+
+### 🚀 Features
+
+- Add delete by filter and update by filer to OpenSearchDocumentStore (#2407)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+- Fix docstrings to avoid errors in API reference generation (#2423)
+
+
 ## [integrations/opensearch-v4.4.0] - 2025-10-09
 
 ### 🚀 Features

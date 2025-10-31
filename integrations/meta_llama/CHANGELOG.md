@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/meta_llama-v1.3.0] - 2025-10-28
+
+### 🚀 Features
+
+- Support structured outputs in `MetaLlamaChatGenerator` (#2410)
+
+
+## [integrations/meta_llama-v1.2.0] - 2025-10-24
+
+### 🚀 Features
+
+- `MetaLlamaChatGenerator` update tools param to ToolsType (#2437)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+
 ## [integrations/meta_llama-v1.1.1] - 2025-09-23
 
 ### 🧹 Chores

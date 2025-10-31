@@ -723,6 +723,59 @@ class TestLlamaCppChatGenerator:
         generator = LlamaCppChatGenerator(model="test_model.gguf", tools=toolset)
         assert generator.tools == toolset
 
+    def test_init_with_mixed_tools(self, temperature_tool):
+        """Test initialization with mixed Tool and Toolset objects."""
+
+        def population(city: str):
+            """Get population for a given city."""
+            return f"The population of {city} is 2.2 million"
+
+        population_tool = create_tool_from_function(population)
+        toolset = Toolset([population_tool])
+
+        generator = LlamaCppChatGenerator(model="test_model.gguf", tools=[temperature_tool, toolset])
+        assert generator.tools == [temperature_tool, toolset]
+
+    def test_run_with_mixed_tools(self, temperature_tool):
+        """Test run method with mixed Tool and Toolset objects."""
+
+        def population(city: str):
+            """Get population for a given city."""
+            return f"The population of {city} is 2.2 million"
+
+        population_tool = create_tool_from_function(population)
+        toolset = Toolset([population_tool])
+
+        generator = LlamaCppChatGenerator(model="test_model.gguf")
+
+        # Mock the model
+        mock_model = MagicMock()
+        mock_response = {
+            "choices": [{"message": {"content": "Generated text"}, "index": 0, "finish_reason": "stop"}],
+            "id": "test_id",
+            "model": "test_model",
+            "created": 1234567890,
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+        mock_model.create_chat_completion.return_value = mock_response
+        generator._model = mock_model
+
+        generator.run(
+            messages=[ChatMessage.from_user("What's the weather in Paris and population of Berlin?")],
+            tools=[temperature_tool, toolset],
+        )
+
+        # Verify the model was called with the correct tools
+        mock_model.create_chat_completion.assert_called_once()
+        call_args = mock_model.create_chat_completion.call_args[1]
+        assert "tools" in call_args
+        assert len(call_args["tools"]) == 2  # Both tools should be flattened
+
+        # Verify tool names
+        tool_names = {tool["function"]["name"] for tool in call_args["tools"]}
+        assert "get_current_temperature" in tool_names
+        assert "population" in tool_names
+
     def test_init_with_multimodal_params(self):
         """Test initialization with multimodal parameters."""
         generator = LlamaCppChatGenerator(
