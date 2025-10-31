@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/mistral-v0.6.0] - 2025-10-27
+
+### 🚀 Features
+
+- Metadata as input for `MistalOCRDocumentConverter` (#2457)
+
+### 📚 Documentation
+
+- Fix MistralOCRDocumentConverter docstring (#2444)
+
+
 ## [integrations/mistral-v0.5.0] - 2025-10-23
 
 ### 🚀 Features
