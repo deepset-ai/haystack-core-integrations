@@ -3,7 +3,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Sequence, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Iterator, Optional, Sequence
+
 import numpy as np
 from haystack import Document, component
 
@@ -89,7 +90,7 @@ class FastembedColbertReranker:
             msg = f"batch_size must be > 0, got {batch_size}"
             raise ValueError(msg)
 
-        self._encoder: Optional["LateInteractionTextEmbedding"] = None  # LateInteractionTextEmbedding
+        self._encoder: Optional[LateInteractionTextEmbedding] = None  # LateInteractionTextEmbedding # noqa: UP045
         self._ready = False
 
     def warm_up(self):
@@ -106,10 +107,10 @@ class FastembedColbertReranker:
                 max_tokens_query=self.max_query_tokens,
                 max_tokens_document=self.max_doc_tokens,
             )
-            gen_q = self._encoder.query_embed(["warmup"])
-            next(gen_q, None)
-            gen_d = self._encoder.embed(["warmup"])
-            next(gen_d, None)
+            gen_q_iter: Iterator[np.ndarray] = iter(self._encoder.query_embed(["warmup"]))
+            next(gen_q_iter, None)
+            gen_d_iter: Iterator[np.ndarray] = iter(self._encoder.embed(["warmup"]))
+            next(gen_d_iter, None)
 
             self._ready = True
         except ModuleNotFoundError as e:
@@ -134,7 +135,8 @@ class FastembedColbertReranker:
         if self._encoder is None:
             msg = "Encoder is not initialized. Call warm_up() first."
             raise RuntimeError(msg)
-        arr = next(self._encoder.query_embed([text]), None)
+        it: Iterator[np.ndarray] = iter(self._encoder.query_embed([text]))
+        arr = next(it, None)
         if arr is None:
             return np.zeros((0, 0), dtype=np.float32)
         a = np.asarray(arr, dtype=np.float32)
