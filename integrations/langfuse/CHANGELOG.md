@@ -1,5 +1,24 @@
 # Changelog
 
+## [integrations/langfuse-v3.1.0] - 2025-10-24
+
+### 🐛 Bug Fixes
+
+- Langfuse - add py.typed; fix testing with lowest deps (#2458)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Install dependencies in the `test` environment when testing with lowest direct dependencies and Haystack main (#2418)
+
+### 🧹 Chores
+
+- Remove ruff exclude and fix linting in Langfuse integration (#2257)
+
+
 ## [integrations/langfuse-v3.0.0] - 2025-09-19
 
 ### 🌀 Miscellaneous

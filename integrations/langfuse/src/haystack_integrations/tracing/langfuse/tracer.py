@@ -289,6 +289,7 @@ class DefaultSpanHandler(SpanHandler):
                 "metadata": None,
                 "tags": tracing_ctx.get("tags"),
                 "public": context.public,
+                "release": None,
             }
 
             # Filter out None values and apply trace attributes
@@ -327,7 +328,7 @@ class DefaultSpanHandler(SpanHandler):
         if component_type in _SUPPORTED_GENERATORS:
             meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
             if meta:
-                span.raw_span().update(usage=meta[0].get("usage") or None, model=meta[0].get("model"))
+                span.raw_span().update(usage_details=meta[0].get("usage") or None, model=meta[0].get("model"))
 
         if component_type in _SUPPORTED_CHAT_GENERATORS:
             replies = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("replies")
@@ -341,7 +342,7 @@ class DefaultSpanHandler(SpanHandler):
                         logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
                         completion_start_time = None
                 span.raw_span().update(
-                    usage=meta.get("usage") or None,
+                    usage_details=meta.get("usage") or None,
                     model=meta.get("model"),
                     completion_start_time=completion_start_time,
                 )
@@ -465,11 +466,11 @@ class LangfuseTracer(Tracer):
         Return the URL to the tracing data.
         :return: The URL to the tracing data.
         """
-        return self._tracer.get_trace_url()
+        return self._tracer.get_trace_url() or ""
 
     def get_trace_id(self) -> str:
         """
         Return the trace ID.
         :return: The trace ID.
         """
-        return self._tracer.get_current_trace_id()
+        return self._tracer.get_current_trace_id() or ""

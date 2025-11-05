@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import StreamingCallbackT
-from haystack.tools import Tool, Toolset, deserialize_tools_or_toolset_inplace, serialize_tools_or_toolset
+from haystack.tools import ToolsType, deserialize_tools_or_toolset_inplace, serialize_tools_or_toolset
 from haystack.utils import deserialize_callable, serialize_callable
 from haystack.utils.auth import Secret
 
@@ -41,7 +41,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
 
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
 
-    client = LlamaStackChatGenerator(model="llama3.2:3b")
+    client = LlamaStackChatGenerator(model="ollama/llama3.2:3b")
     response = client.run(messages)
     print(response)
 
@@ -49,7 +49,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
     is a branch of artificial intelligence
     >>that focuses on enabling computers to understand, interpret, and generate human language in a way that is
     >>meaningful and useful.')], _role=<ChatRole.ASSISTANT: 'assistant'>, _name=None,
-    >>_meta={'model': 'llama3.2:3b', 'index': 0, 'finish_reason': 'stop',
+    >>_meta={'model': 'ollama/llama3.2:3b', 'index': 0, 'finish_reason': 'stop',
     >>'usage': {'prompt_tokens': 15, 'completion_tokens': 36, 'total_tokens': 51}})]}
     """
 
@@ -62,7 +62,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         timeout: Optional[int] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[ToolsType] = None,
         tools_strict: bool = False,
         max_retries: Optional[int] = None,
         http_client_kwargs: Optional[Dict[str, Any]] = None,
@@ -98,8 +98,8 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
             Timeout for client calls using OpenAI API. If not set, it defaults to either the
             `OPENAI_TIMEOUT` environment variable, or 30 seconds.
         :param tools:
-            A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
-            list of `Tool` objects or a `Toolset` instance.
+            A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            Each tool should have a unique name.
         :param tools_strict:
             Whether to enable strict schema adherence for tool calls. If set to `True`, the model will follow exactly
             the schema provided in the `parameters` field of the tool definition, but this may increase latency.
