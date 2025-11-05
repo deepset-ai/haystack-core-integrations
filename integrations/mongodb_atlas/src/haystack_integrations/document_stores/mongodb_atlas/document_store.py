@@ -531,6 +531,108 @@ class MongoDBAtlasDocumentStore:
             msg = f"Failed to update documents by filter in MongoDB Atlas: {e!s}"
             raise DocumentStoreError(msg) from e
 
+    def delete_all_documents(self, *, recreate_collection: bool = False) -> None:
+        """
+        Deletes all documents in the document store.
+
+        :param recreate_collection: If True, the collection will be dropped and recreated with the original
+            configuration and indexes. If False, all documents will be deleted while preserving the collection.
+            Recreating the collection is faster for very large collections.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+        assert self._connection is not None
+
+        try:
+            if recreate_collection:
+                database = self._connection[self.database_name]
+
+                # Save collection configuration
+                collection_info = database.list_collections(filter={"name": self.collection_name})
+                config = next(collection_info, {}).get("options", {})
+
+                # Save index definitions (excluding default _id index)
+                indexes = list(self._collection.list_indexes())
+                custom_indexes = [idx for idx in indexes if idx["name"] != "_id_"]
+
+                # Drop and recreate collection
+                self._collection.drop()
+                database.create_collection(self.collection_name, **config)
+
+                # Recreate indexes
+                for idx in custom_indexes:
+                    keys = list(idx["key"].items())
+                    index_options = {k: v for k, v in idx.items() if k not in ["key", "v", "ns"]}
+                    self._collection.create_index(keys, **index_options)
+
+                logger.info(
+                    "Collection '{collection}' recreated with original configuration.",
+                    collection=self.collection_name,
+                )
+            else:
+                # Delete all documents without recreating collection
+                result = self._collection.delete_many({})
+                logger.info(
+                    "Deleted {n_docs} documents from collection '{collection}'.",
+                    n_docs=result.deleted_count,
+                    collection=self.collection_name,
+                )
+        except Exception as e:
+            msg = f"Failed to delete all documents from MongoDB Atlas: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def delete_all_documents_async(self, *, recreate_collection: bool = False) -> None:
+        """
+        Asynchronously deletes all documents in the document store.
+
+        :param recreate_collection: If True, the collection will be dropped and recreated with the original
+            configuration and indexes. If False, all documents will be deleted while preserving the collection.
+            Recreating the collection is faster for very large collections.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+        assert self._connection_async is not None
+
+        try:
+            if recreate_collection:
+                database = self._connection_async[self.database_name]
+
+                # Save collection configuration
+                collection_info_cursor = await database.list_collections(filter={"name": self.collection_name})
+                config_list = await collection_info_cursor.to_list(length=1)
+                config = config_list[0].get("options", {}) if config_list else {}
+
+                # Save index definitions (excluding default _id index)
+                indexes_cursor = await self._collection_async.list_indexes()
+                indexes = await indexes_cursor.to_list(length=None)
+                custom_indexes = [idx for idx in indexes if idx["name"] != "_id_"]
+
+                # Drop and recreate collection
+                await self._collection_async.drop()
+                await database.create_collection(self.collection_name, **config)
+
+                # Recreate indexes
+                for idx in custom_indexes:
+                    keys = list(idx["key"].items())
+                    index_options = {k: v for k, v in idx.items() if k not in ["key", "v", "ns"]}
+                    await self._collection_async.create_index(keys, **index_options)
+
+                logger.info(
+                    "Collection '{collection}' recreated with original configuration.",
+                    collection=self.collection_name,
+                )
+            else:
+                # Delete all documents without recreating collection
+                result = await self._collection_async.delete_many({})
+                logger.info(
+                    "Deleted {n_docs} documents from collection '{collection}'.",
+                    n_docs=result.deleted_count,
+                    collection=self.collection_name,
+                )
+        except Exception as e:
+            msg = f"Failed to delete all documents from MongoDB Atlas: {e!s}"
+            raise DocumentStoreError(msg) from e
+
     def _embedding_retrieval(
         self,
         query_embedding: List[float],

@@ -203,7 +203,7 @@ class TestDefaultSpanHandler:
         handler.handle(mock_span, component_type="OpenAIGenerator")
 
         assert mock_span.update.call_count == 1
-        assert mock_span.update.call_args_list[0][1] == {"usage": None, "model": "test_model"}
+        assert mock_span.update.call_args_list[0][1] == {"usage_details": None, "model": "test_model"}
 
     def test_handle_chat_generator(self):
         mock_span = Mock()
@@ -225,7 +225,7 @@ class TestDefaultSpanHandler:
 
         assert mock_span.update.call_count == 1
         assert mock_span.update.call_args_list[0][1] == {
-            "usage": None,
+            "usage_details": None,
             "model": "test_model",
             "completion_start_time": datetime.datetime(  # noqa: DTZ001
                 2021, 7, 27, 16, 2, 8, 12345
@@ -254,7 +254,7 @@ class TestDefaultSpanHandler:
 
         assert mock_span.update.call_count == 1
         assert mock_span.update.call_args_list[0][1] == {
-            "usage": None,
+            "usage_details": None,
             "model": "test_model",
             "completion_start_time": None,
         }
@@ -348,7 +348,7 @@ class TestLangfuseTracer:
             }
             with tracer.trace(operation_name="operation_name", tags=tags) as span:
                 ...
-            assert span.raw_span()._data["usage"] is None
+            assert span.raw_span()._data["usage_details"] is None
             assert span.raw_span()._data["model"] == "test_model"
             assert span.raw_span()._data["completion_start_time"] == datetime.datetime(2021, 7, 27, 16, 2, 8, 12345)  # noqa: DTZ001
 
@@ -415,7 +415,7 @@ class TestLangfuseTracer:
             }
             with tracer.trace(operation_name="operation_name", tags=tags) as span:
                 ...
-            assert span.raw_span()._data["usage"] is None
+            assert span.raw_span()._data["usage_details"] is None
             assert span.raw_span()._data["model"] == "test_model"
             assert span.raw_span()._data["completion_start_time"] is None
 

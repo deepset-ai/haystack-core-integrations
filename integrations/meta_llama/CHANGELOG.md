@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/meta_llama-v1.3.0] - 2025-10-28
+
+### 🚀 Features
+
+- Support structured outputs in `MetaLlamaChatGenerator` (#2410)
+
+
 ## [integrations/meta_llama-v1.2.0] - 2025-10-24
 
 ### 🚀 Features
