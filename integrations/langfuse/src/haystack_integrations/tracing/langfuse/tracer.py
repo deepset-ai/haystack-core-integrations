@@ -368,9 +368,9 @@ class DefaultSpanHandler(SpanHandler):
         if component_type in _SUPPORTED_GENERATORS:
             meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
             if meta:
-                span.raw_span().update(
-                    usage_details=_sanitize_usage_data(meta[0].get("usage") or {}), model=meta[0].get("model")
-                )
+                usage = meta[0].get("usage")
+                sanitized_usage = _sanitize_usage_data(usage) if usage else None
+                span.raw_span().update(usage_details=sanitized_usage, model=meta[0].get("model"))
 
         if component_type in _SUPPORTED_CHAT_GENERATORS:
             replies = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("replies")
@@ -383,8 +383,10 @@ class DefaultSpanHandler(SpanHandler):
                     except ValueError:
                         logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
                         completion_start_time = None
+                usage = meta.get("usage")
+                sanitized_usage = _sanitize_usage_data(usage) if usage else None
                 span.raw_span().update(
-                    usage_details=_sanitize_usage_data(meta.get("usage") or {}),
+                    usage_details=sanitized_usage,
                     model=meta.get("model"),
                     completion_start_time=completion_start_time,
                 )
