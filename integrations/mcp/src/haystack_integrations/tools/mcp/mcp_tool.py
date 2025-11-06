@@ -437,6 +437,13 @@ class SSEClient(MCPClient):
         self.token: str | None = (
             server_info.token.resolve_value() if isinstance(server_info.token, Secret) else server_info.token
         )
+        # Resolve Secret values in headers dictionary
+        self.headers: dict[str, str] | None = None
+        if server_info.headers:
+            self.headers = {
+                key: (value.resolve_value() if isinstance(value, Secret) else value) or ""
+                for key, value in server_info.headers.items()
+            }
         self.timeout: int = server_info.timeout
 
     async def connect(self) -> list[types.Tool]:
@@ -453,7 +460,13 @@ class SSEClient(MCPClient):
             )
             raise MCPConnectionError(message=message, operation="sse_connect")
 
-        headers = {"Authorization": f"Bearer {self.token}"} if self.token else None
+        # Use custom headers if provided, otherwise fall back to token-based Authorization
+        headers = None
+        if self.headers:
+            headers = self.headers
+        elif self.token:
+            headers = {"Authorization": f"Bearer {self.token}"}
+
         sse_transport = await self.exit_stack.enter_async_context(
             sse_client(self.url, headers=headers, timeout=self.timeout)
         )
@@ -485,6 +498,13 @@ class StreamableHttpClient(MCPClient):
         self.token: str | None = (
             server_info.token.resolve_value() if isinstance(server_info.token, Secret) else server_info.token
         )
+        # Resolve Secret values in headers dictionary
+        self.headers: dict[str, str] | None = None
+        if server_info.headers:
+            self.headers = {
+                key: (value.resolve_value() if isinstance(value, Secret) else value) or ""
+                for key, value in server_info.headers.items()
+            }
         self.timeout: int = server_info.timeout
 
     async def connect(self) -> list[types.Tool]:
@@ -501,7 +521,13 @@ class StreamableHttpClient(MCPClient):
             )
             raise MCPConnectionError(message=message, operation="streamable_http_connect")
 
-        headers = {"Authorization": f"Bearer {self.token}"} if self.token else None
+        # Use custom headers if provided, otherwise fall back to token-based Authorization
+        headers = None
+        if self.headers:
+            headers = self.headers
+        elif self.token:
+            headers = {"Authorization": f"Bearer {self.token}"}
+
         streamablehttp_transport = await self.exit_stack.enter_async_context(
             streamablehttp_client(url=self.url, headers=headers, timeout=timedelta(seconds=self.timeout))
         )
@@ -599,15 +625,36 @@ class SSEServerInfo(MCPServerInfo):
     )
     ```
 
+    For custom headers (e.g., non-standard authentication):
+
+    ```python
+    # Single custom header with Secret
+    server_info = SSEServerInfo(
+        url="https://my-mcp-server.com",
+        headers={"X-API-Key": Secret.from_env_var("API_KEY")},
+    )
+
+    # Multiple headers (mix of Secret and plain strings)
+    server_info = SSEServerInfo(
+        url="https://my-mcp-server.com",
+        headers={
+            "X-API-Key": Secret.from_env_var("API_KEY"),
+            "X-Client-ID": "my-client-id",
+        },
+    )
+    ```
+
     :param url: Full URL of the MCP server (including /sse endpoint)
     :param base_url: Base URL of the MCP server (deprecated, use url instead)
-    :param token: Authentication token for the server (optional)
+    :param token: Authentication token for the server (optional, generates "Authorization: Bearer {token}" header)
+    :param headers: Custom HTTP headers (optional, takes precedence over token parameter if provided)
     :param timeout: Connection timeout in seconds
     """
 
     url: str | None = None
     base_url: str | None = None  # deprecated
     token: str | Secret | None = None
+    headers: dict[str, str | Secret] | None = None
     timeout: int = 30
     max_retries: int = 3
     base_delay: float = 1.0
@@ -666,13 +713,34 @@ class StreamableHttpServerInfo(MCPServerInfo):
     )
     ```
 
+    For custom headers (e.g., non-standard authentication):
+
+    ```python
+    # Single custom header with Secret
+    server_info = StreamableHttpServerInfo(
+        url="https://my-mcp-server.com",
+        headers={"X-API-Key": Secret.from_env_var("API_KEY")},
+    )
+
+    # Multiple headers (mix of Secret and plain strings)
+    server_info = StreamableHttpServerInfo(
+        url="https://my-mcp-server.com",
+        headers={
+            "X-API-Key": Secret.from_env_var("API_KEY"),
+            "X-Client-ID": "my-client-id",
+        },
+    )
+    ```
+
     :param url: Full URL of the MCP server (streamable HTTP endpoint)
-    :param token: Authentication token for the server (optional)
+    :param token: Authentication token for the server (optional, generates "Authorization: Bearer {token}" header)
+    :param headers: Custom HTTP headers (optional, takes precedence over token parameter if provided)
     :param timeout: Connection timeout in seconds
     """
 
     url: str
     token: str | Secret | None = None
+    headers: dict[str, str | Secret] | None = None
     timeout: int = 30
     max_retries: int = 3
     base_delay: float = 1.0
