@@ -404,7 +404,7 @@ class TestTogetherAIChatGenerator:
         Integration test that the TogetherAIChatGenerator component can run with tools and streaming.
         """
         component = TogetherAIChatGenerator(
-            model="openai/gpt-oss-20b", tools=tools, streaming_callback=print_streaming_chunk
+            model="openai/gpt-oss-120b", tools=tools, streaming_callback=print_streaming_chunk
         )
         results = component.run(
             [ChatMessage.from_user("What's the weather like in Paris and Berlin?")],
