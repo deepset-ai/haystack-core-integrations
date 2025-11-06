@@ -6,7 +6,7 @@ from haystack_integrations.tools.mcp import (
     StdioServerInfo,
     StreamableHttpServerInfo,
 )
-from haystack_integrations.tools.mcp.mcp_tool import SSEClient, StreamableHttpClient
+from haystack_integrations.tools.mcp.mcp_tool import StreamableHttpClient
 
 
 class TestMCPServerInfo:
@@ -283,22 +283,8 @@ class TestMCPServerInfo:
         assert deserialized.env["CONFIG"] == non_secret_dict  # Should be unchanged
         assert not isinstance(deserialized.env["CONFIG"], Secret)  # Should NOT be a Secret
 
-    def test_sse_server_info_with_plain_headers(self):
-        """Test SSEServerInfo with plain string headers."""
-        server_info = SSEServerInfo(
-            url="http://example.com/sse", headers={"X-API-Key": "my-api-key", "X-Client-ID": "client-123"}
-        )
-
-        # Test serialization
-        info_dict = server_info.to_dict()
-        assert info_dict["headers"] == {"X-API-Key": "my-api-key", "X-Client-ID": "client-123"}
-
-        # Test deserialization
-        new_info = SSEServerInfo.from_dict(info_dict)
-        assert new_info.headers == {"X-API-Key": "my-api-key", "X-Client-ID": "client-123"}
-
     def test_streamable_http_server_info_with_plain_headers(self):
-        """Test StreamableHttpServerInfo with plain string headers."""
+        """Test StreamableHttpServerInfo with plain string headers and serialization."""
         server_info = StreamableHttpServerInfo(
             url="http://example.com/mcp", headers={"X-API-Key": "my-api-key", "X-Client-ID": "client-123"}
         )
@@ -311,22 +297,8 @@ class TestMCPServerInfo:
         new_info = StreamableHttpServerInfo.from_dict(info_dict)
         assert new_info.headers == {"X-API-Key": "my-api-key", "X-Client-ID": "client-123"}
 
-    def test_sse_server_info_with_secret_headers(self, monkeypatch):
-        """Test SSEServerInfo with Secret headers."""
-        monkeypatch.setenv("API_KEY", "secret-api-key-value")
-        server_info = SSEServerInfo(url="http://example.com/sse", headers={"X-API-Key": Secret.from_env_var("API_KEY")})
-
-        # Test serialization
-        info_dict = server_info.to_dict()
-        assert info_dict["headers"]["X-API-Key"] == {"type": "env_var", "env_vars": ["API_KEY"], "strict": True}
-
-        # Test deserialization
-        new_info = SSEServerInfo.from_dict(info_dict)
-        assert isinstance(new_info.headers["X-API-Key"], Secret)
-        assert new_info.headers["X-API-Key"].resolve_value() == "secret-api-key-value"
-
     def test_streamable_http_server_info_with_secret_headers(self, monkeypatch):
-        """Test StreamableHttpServerInfo with Secret headers."""
+        """Test StreamableHttpServerInfo with Secret headers and serialization."""
         monkeypatch.setenv("API_KEY", "secret-api-key-value")
         server_info = StreamableHttpServerInfo(
             url="http://example.com/mcp", headers={"X-API-Key": Secret.from_env_var("API_KEY")}
@@ -340,25 +312,6 @@ class TestMCPServerInfo:
         new_info = StreamableHttpServerInfo.from_dict(info_dict)
         assert isinstance(new_info.headers["X-API-Key"], Secret)
         assert new_info.headers["X-API-Key"].resolve_value() == "secret-api-key-value"
-
-    def test_sse_server_info_with_mixed_headers(self, monkeypatch):
-        """Test SSEServerInfo with mix of Secret and plain string headers."""
-        monkeypatch.setenv("API_KEY", "secret-api-key-value")
-        server_info = SSEServerInfo(
-            url="http://example.com/sse",
-            headers={"X-API-Key": Secret.from_env_var("API_KEY"), "X-Client-ID": "client-123"},
-        )
-
-        # Test serialization
-        info_dict = server_info.to_dict()
-        assert info_dict["headers"]["X-API-Key"] == {"type": "env_var", "env_vars": ["API_KEY"], "strict": True}
-        assert info_dict["headers"]["X-Client-ID"] == "client-123"
-
-        # Test deserialization
-        new_info = SSEServerInfo.from_dict(info_dict)
-        assert isinstance(new_info.headers["X-API-Key"], Secret)
-        assert new_info.headers["X-API-Key"].resolve_value() == "secret-api-key-value"
-        assert new_info.headers["X-Client-ID"] == "client-123"
 
     def test_streamable_http_server_info_with_mixed_headers(self, monkeypatch):
         """Test StreamableHttpServerInfo with mix of Secret and plain string headers."""
@@ -379,24 +332,6 @@ class TestMCPServerInfo:
         assert new_info.headers["X-API-Key"].resolve_value() == "secret-api-key-value"
         assert new_info.headers["X-Client-ID"] == "client-123"
 
-    def test_sse_server_info_backward_compatibility_token_only(self):
-        """Test that existing code using only token parameter still works."""
-        server_info = SSEServerInfo(url="http://example.com/sse", token="my-token")
-
-        # Verify token is set and headers is None
-        assert server_info.token == "my-token"
-        assert server_info.headers is None
-
-        # Test serialization
-        info_dict = server_info.to_dict()
-        assert info_dict["token"] == "my-token"
-        assert info_dict.get("headers") is None
-
-        # Test deserialization
-        new_info = SSEServerInfo.from_dict(info_dict)
-        assert new_info.token == "my-token"
-        assert new_info.headers is None
-
     def test_streamable_http_server_info_backward_compatibility_token_only(self):
         """Test that existing code using only token parameter still works."""
         server_info = StreamableHttpServerInfo(url="http://example.com/mcp", token="my-token")
@@ -415,23 +350,8 @@ class TestMCPServerInfo:
         assert new_info.token == "my-token"
         assert new_info.headers is None
 
-    def test_sse_server_info_headers_and_token_both_provided(self):
-        """Test SSEServerInfo when both headers and token are provided (headers should take precedence)."""
-        server_info = SSEServerInfo(
-            url="http://example.com/sse", token="my-token", headers={"X-Custom-Auth": "custom-value"}
-        )
-
-        # Both should be stored
-        assert server_info.token == "my-token"
-        assert server_info.headers == {"X-Custom-Auth": "custom-value"}
-
-        # Verify they are properly serialized
-        info_dict = server_info.to_dict()
-        assert info_dict["token"] == "my-token"
-        assert info_dict["headers"] == {"X-Custom-Auth": "custom-value"}
-
     def test_streamable_http_server_info_headers_and_token_both_provided(self):
-        """Test StreamableHttpServerInfo when both headers and token are provided (headers should take precedence)."""
+        """Test StreamableHttpServerInfo when both headers and token are provided."""
         server_info = StreamableHttpServerInfo(
             url="http://example.com/mcp", token="my-token", headers={"X-Custom-Auth": "custom-value"}
         )
@@ -444,42 +364,6 @@ class TestMCPServerInfo:
         info_dict = server_info.to_dict()
         assert info_dict["token"] == "my-token"
         assert info_dict["headers"] == {"X-Custom-Auth": "custom-value"}
-
-    def test_sse_client_uses_custom_headers(self, monkeypatch):
-        """Test that SSEClient correctly uses custom headers."""
-        monkeypatch.setenv("API_KEY", "secret-api-key-value")
-        server_info = SSEServerInfo(url="http://example.com/sse", headers={"X-API-Key": Secret.from_env_var("API_KEY")})
-
-        client = SSEClient(server_info)
-
-        # Verify headers are resolved and stored
-        assert client.headers == {"X-API-Key": "secret-api-key-value"}
-        assert client.token is None
-
-    def test_sse_client_uses_token_when_no_headers(self):
-        """Test that SSEClient falls back to token when no headers provided."""
-        server_info = SSEServerInfo(url="http://example.com/sse", token="my-token")
-
-        client = SSEClient(server_info)
-
-        # Verify token is stored and headers is None
-        assert client.token == "my-token"
-        assert client.headers is None
-
-    def test_sse_client_prefers_headers_over_token(self, monkeypatch):
-        """Test that SSEClient prefers headers over token when both are provided."""
-        monkeypatch.setenv("API_KEY", "secret-api-key-value")
-        server_info = SSEServerInfo(
-            url="http://example.com/sse",
-            token="my-token",
-            headers={"X-API-Key": Secret.from_env_var("API_KEY")},
-        )
-
-        client = SSEClient(server_info)
-
-        # Both should be stored, but headers take precedence in connect()
-        assert client.headers == {"X-API-Key": "secret-api-key-value"}
-        assert client.token == "my-token"
 
     def test_streamable_http_client_uses_custom_headers(self, monkeypatch):
         """Test that StreamableHttpClient correctly uses custom headers."""
