@@ -1,10 +1,21 @@
 # Changelog
 
+## [integrations/mongodb_atlas-v3.5.0] - 2025-11-06
+
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🌀 Miscellaneous
+
+- Feat: add filter methods to MongoDB DocumentStore (#2474)
+
 ## [integrations/mongodb_atlas-v3.4.0] - 2025-10-29
 
 ### 🚀 Features
 
-- Add `delete_all_documents()` operation to MongoDB DocumentStore (#2401)
+- Add delete_all_documents() to MongoDB DocumentStore (#2401)
 
 ### 📚 Documentation
 
