@@ -34,6 +34,31 @@ from mcp.shared.message import SessionMessage
 logger = logging.getLogger(__name__)
 
 
+def _resolve_headers(headers: dict[str, str | Secret] | None) -> dict[str, str] | None:
+    """
+    Resolve Secret values in headers dictionary and warn about None values.
+
+    :param headers: Dictionary of headers, potentially containing Secret objects
+    :returns: Dictionary with resolved string values, or None if input is None
+    """
+    if not headers:
+        return None
+
+    resolved_headers = {}
+    for key, value in headers.items():
+        resolved_value = value.resolve_value() if isinstance(value, Secret) else value
+        if resolved_value is None:
+            logger.warning(
+                f"Header '{key}' resolved to None. This may indicate a misconfiguration. "
+                f"The header will be set to an empty string."
+            )
+            resolved_headers[key] = ""
+        else:
+            resolved_headers[key] = resolved_value
+
+    return resolved_headers
+
+
 class AsyncExecutor:
     """Thread-safe event loop executor for running async code from sync contexts."""
 
@@ -438,17 +463,14 @@ class SSEClient(MCPClient):
             server_info.token.resolve_value() if isinstance(server_info.token, Secret) else server_info.token
         )
         # Resolve Secret values in headers dictionary
-        self.headers: dict[str, str] | None = None
-        if server_info.headers:
-            self.headers = {
-                key: (value.resolve_value() if isinstance(value, Secret) else value) or ""
-                for key, value in server_info.headers.items()
-            }
+        self.headers: dict[str, str] | None = _resolve_headers(server_info.headers)
         self.timeout: int = server_info.timeout
 
     async def connect(self) -> list[types.Tool]:
         """
         Connect to an MCP server using SSE transport.
+
+        Note: If both custom headers and token are provided, custom headers take precedence.
 
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
@@ -499,17 +521,14 @@ class StreamableHttpClient(MCPClient):
             server_info.token.resolve_value() if isinstance(server_info.token, Secret) else server_info.token
         )
         # Resolve Secret values in headers dictionary
-        self.headers: dict[str, str] | None = None
-        if server_info.headers:
-            self.headers = {
-                key: (value.resolve_value() if isinstance(value, Secret) else value) or ""
-                for key, value in server_info.headers.items()
-            }
+        self.headers: dict[str, str] | None = _resolve_headers(server_info.headers)
         self.timeout: int = server_info.timeout
 
     async def connect(self) -> list[types.Tool]:
         """
         Connect to an MCP server using streamable HTTP transport.
+
+        Note: If both custom headers and token are provided, custom headers take precedence.
 
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails

@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 from haystack.utils import Secret
 
@@ -6,7 +8,7 @@ from haystack_integrations.tools.mcp import (
     StdioServerInfo,
     StreamableHttpServerInfo,
 )
-from haystack_integrations.tools.mcp.mcp_tool import StreamableHttpClient
+from haystack_integrations.tools.mcp.mcp_tool import SSEClient, StreamableHttpClient
 
 
 class TestMCPServerInfo:
@@ -402,3 +404,27 @@ class TestMCPServerInfo:
         # Both should be stored, but headers take precedence in connect()
         assert client.headers == {"X-API-Key": "secret-api-key-value"}
         assert client.token == "my-token"
+
+    def test_streamable_http_client_warns_on_none_header_value(self, caplog):
+        """Test that StreamableHttpClient logs a warning when a header value is None."""
+        server_info = StreamableHttpServerInfo(url="http://example.com/mcp", headers={"X-API-Key": None})
+
+        with caplog.at_level(logging.WARNING):
+            client = StreamableHttpClient(server_info)
+
+        # Verify warning was logged
+        assert any("Header 'X-API-Key' resolved to None" in record.message for record in caplog.records)
+        # Verify the header is set to empty string
+        assert client.headers == {"X-API-Key": ""}
+
+    def test_sse_client_warns_on_none_header_value(self, caplog):
+        """Test that SSEClient logs a warning when a header value is None."""
+        server_info = SSEServerInfo(url="http://example.com/sse", headers={"X-API-Key": None})
+
+        with caplog.at_level(logging.WARNING):
+            client = SSEClient(server_info)
+
+        # Verify warning was logged
+        assert any("Header 'X-API-Key' resolved to None" in record.message for record in caplog.records)
+        # Verify the header is set to empty string
+        assert client.headers == {"X-API-Key": ""}
