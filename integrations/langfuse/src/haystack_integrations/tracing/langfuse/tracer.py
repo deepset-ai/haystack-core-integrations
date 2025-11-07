@@ -256,6 +256,46 @@ class SpanHandler(ABC):
         return default_to_dict(self)
 
 
+def _sanitize_usage_data(usage: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Sanitize usage data for Langfuse by flattening to a single-level dictionary.
+
+    Langfuse's usage_details must be a flat dictionary with only numeric values. This function:
+    - Flattens nested dictionaries using dot notation (e.g., cache_creation.input_tokens)
+    - Keeps int and float values
+    - Skips None, boolean, string, and other non-numeric types
+
+    :param usage: Raw usage dictionary from the provider.
+    :returns: Flat dictionary with only numeric values (int or float).
+    """
+    if not isinstance(usage, dict):
+        return {}
+
+    sanitized: Dict[str, Any] = {}
+
+    def _flatten(data: Dict[str, Any], prefix: str = "") -> None:
+        """Recursively flatten nested dictionaries."""
+        for key, value in data.items():
+            full_key = f"{prefix}.{key}" if prefix else key
+
+            if value is None:
+                # Skip None values (e.g., Anthropic's server_tool_use)
+                continue
+            elif isinstance(value, bool):
+                # Skip boolean values
+                continue
+            elif isinstance(value, (int, float)):
+                # Keep numeric values
+                sanitized[full_key] = value
+            elif isinstance(value, dict):
+                # Recursively flatten nested dicts
+                _flatten(value, full_key)
+            # Skip strings and other non-numeric types (e.g., Anthropic's service_tier)
+
+    _flatten(usage)
+    return sanitized
+
+
 class DefaultSpanHandler(SpanHandler):
     """DefaultSpanHandler provides the default Langfuse tracing behavior for Haystack."""
 
@@ -328,7 +368,9 @@ class DefaultSpanHandler(SpanHandler):
         if component_type in _SUPPORTED_GENERATORS:
             meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
             if meta:
-                span.raw_span().update(usage_details=meta[0].get("usage") or None, model=meta[0].get("model"))
+                usage = meta[0].get("usage")
+                sanitized_usage = _sanitize_usage_data(usage) if usage else None
+                span.raw_span().update(usage_details=sanitized_usage, model=meta[0].get("model"))
 
         if component_type in _SUPPORTED_CHAT_GENERATORS:
             replies = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("replies")
@@ -341,8 +383,10 @@ class DefaultSpanHandler(SpanHandler):
                     except ValueError:
                         logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
                         completion_start_time = None
+                usage = meta.get("usage")
+                sanitized_usage = _sanitize_usage_data(usage) if usage else None
                 span.raw_span().update(
-                    usage_details=meta.get("usage") or None,
+                    usage_details=sanitized_usage,
                     model=meta.get("model"),
                     completion_start_time=completion_start_time,
                 )
