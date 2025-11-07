@@ -18,8 +18,6 @@ from haystack_integrations.components.generators.cometapi.chat.chat_generator im
     CometAPIChatGenerator,
 )
 
-pytestmark = pytest.mark.asyncio
-
 
 @pytest.fixture
 def chat_messages():
