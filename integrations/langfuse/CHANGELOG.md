@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/langfuse-v3.2.1] - 2025-11-07
+
+### 🌀 Miscellaneous
+
+- Chore: Upgrade langfuse dep, observation types require version>=3.3.1 (#2493)
+
 ## [integrations/langfuse-v3.2.0] - 2025-11-07
 
 ### 🐛 Bug Fixes
