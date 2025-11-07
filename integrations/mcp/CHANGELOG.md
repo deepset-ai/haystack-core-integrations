@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/mcp-v1.0.0] - 2025-11-07
+
+### 🚀 Features
+
+- MCP add custom header support (#2488)
+
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
 ## [integrations/mcp-v0.9.0] - 2025-10-22
 
 ### 📚 Documentation
@@ -10,27 +21,6 @@
 ### 🌀 Miscellaneous
 
 - Add MCPTool/MCPToolset warm_up (#2384)
-- Added `eager_connect` parameter to `MCPTool` and `MCPToolset` (default: `False`).
-  
-  **When `eager_connect=False` (default)**:
-  - Connection deferred until first use or `warm_up()` call
-  - Fast initialization, enables pipeline validation without server availability
-  - Recommended for most use cases
-  
-  **When `eager_connect=True`**:
-  - Connects immediately during initialization
-  - Fail-fast validation, tool schema available immediately
-  - Use when you need upfront validation
-  - Existing agent/pipelines should set `eager_connect=True` to keep the behaviour from previous releases
-  
-  ```python
-  # Lazy connection (default)
-  tool = MCPTool(name="weather", server_info=info)
-  
-  # Eager connection
-  tool = MCPTool(name="weather", server_info=info, eager_connect=True)
-  ```
-- See related https://github.com/deepset-ai/haystack/pull/9856 for more details
 
 ## [integrations/mcp-v0.8.0] - 2025-10-14
 
