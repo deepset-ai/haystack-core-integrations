@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/langfuse-v3.2.0] - 2025-11-07
+
+### 🐛 Bug Fixes
+
+- Flatten usage_details dict (#2491)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🌀 Miscellaneous
+
+- Usage_details instead usage (#2481)
+- Feat: Langfuse - add support for tool and agent observation types (#2490)
+
 ## [integrations/langfuse-v3.1.0] - 2025-10-24
 
 ### 🐛 Bug Fixes
