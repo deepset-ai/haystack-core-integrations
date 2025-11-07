@@ -10,7 +10,7 @@ from contextlib import AbstractContextManager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Literal, Optional
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage
@@ -311,10 +311,12 @@ class DefaultSpanHandler(SpanHandler):
         # Get external tracing context for root trace creation (correlation metadata)
         tracing_ctx = tracing_context_var.get({})
         if not context.parent_span:
+            root_span_type: Literal["agent", "span"] = (
+                "agent" if context.operation_name == "haystack.agent.run" else "span"
+            )
             # Create a new trace when there's no parent span
-            span_context_manager = self.tracer.start_as_current_span(
-                name=context.trace_name,
-                version=tracing_ctx.get("version"),
+            span_context_manager = self.tracer.start_as_current_observation(
+                name=context.trace_name, version=tracing_ctx.get("version"), as_type=root_span_type
             )
 
             # Create LangfuseSpan which will handle entering the context manager
@@ -338,6 +340,10 @@ class DefaultSpanHandler(SpanHandler):
                 span._span.update_trace(**trace_attrs)
 
             return span
+        elif context.component_type == "ToolInvoker":
+            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type="tool"))
+        elif context.operation_name == "haystack.agent.run":
+            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type="agent"))
         elif context.component_type in _ALL_SUPPORTED_GENERATORS:
             return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type="generation"))
         else:
