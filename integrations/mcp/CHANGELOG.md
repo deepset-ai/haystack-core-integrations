@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/mcp-v1.0.0] - 2025-11-07
+
+### 🚀 Features
+
+- MCP add custom header support (#2488)
+
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
 ## [integrations/mcp-v0.9.0] - 2025-10-22
 
 ### 📚 Documentation
@@ -31,6 +42,7 @@
   tool = MCPTool(name="weather", server_info=info, eager_connect=True)
   ```
 - See related https://github.com/deepset-ai/haystack/pull/9856 for more details
+
 
 ## [integrations/mcp-v0.8.0] - 2025-10-14
 

@@ -18,6 +18,7 @@ from haystack_integrations.tracing.langfuse.tracer import (
     LangfuseSpan,
     LangfuseTracer,
     SpanContext,
+    _sanitize_usage_data,
 )
 
 
@@ -188,6 +189,41 @@ class TestSpanContext:
                 parent_span=None,
                 trace_name=None,
             )
+
+
+class TestSanitizeUsageData:
+    def test_anthropic_usage_flattens_and_filters(self):
+        """Test Anthropic's nested dict with None and strings gets flattened and filtered"""
+        usage = {
+            "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "server_tool_use": None,  # Should be filtered
+            "service_tier": "standard",  # Should be filtered
+            "prompt_tokens": 25,
+            "completion_tokens": 449,
+        }
+        result = _sanitize_usage_data(usage)
+        assert result == {
+            "cache_creation.ephemeral_1h_input_tokens": 0,
+            "cache_creation.ephemeral_5m_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "prompt_tokens": 25,
+            "completion_tokens": 449,
+        }
+
+    def test_openai_usage_preserved(self):
+        """Test OpenAI/Cohere flat dict with only numeric values works unchanged"""
+        usage = {"prompt_tokens": 29, "completion_tokens": 267, "total_tokens": 296}
+        result = _sanitize_usage_data(usage)
+        assert result == {"prompt_tokens": 29, "completion_tokens": 267, "total_tokens": 296}
+
+    def test_empty_and_invalid_input(self):
+        """Test edge cases return empty dict"""
+        assert _sanitize_usage_data({}) == {}
+        assert _sanitize_usage_data(None) == {}
+        assert _sanitize_usage_data({"only_strings": "value", "only_none": None}) == {}
 
 
 class TestDefaultSpanHandler:

@@ -423,6 +423,114 @@ class MongoDBAtlasDocumentStore:
             return
         await self._collection_async.delete_many(filter={"id": {"$in": document_ids}})
 
+    def delete_by_filter(self, filters: Dict[str, Any]) -> int:
+        """
+        Deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+
+        try:
+            normalized_filters = _normalize_filters(filters)
+            result = self._collection.delete_many(filter=normalized_filters)
+            deleted_count = result.deleted_count
+            logger.info(
+                "Deleted {n_docs} documents from collection '{collection}' using filters.",
+                n_docs=deleted_count,
+                collection=self.collection_name,
+            )
+            return deleted_count
+        except Exception as e:
+            msg = f"Failed to delete documents by filter from MongoDB Atlas: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def delete_by_filter_async(self, filters: Dict[str, Any]) -> int:
+        """
+        Asynchronously deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+
+        try:
+            normalized_filters = _normalize_filters(filters)
+            result = await self._collection_async.delete_many(filter=normalized_filters)
+            deleted_count = result.deleted_count
+            logger.info(
+                "Deleted {n_docs} documents from collection '{collection}' using filters.",
+                n_docs=deleted_count,
+                collection=self.collection_name,
+            )
+            return deleted_count
+        except Exception as e:
+            msg = f"Failed to delete documents by filter from MongoDB Atlas: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def update_by_filter(self, filters: Dict[str, Any], meta: Dict[str, Any]) -> int:
+        """
+        Updates the metadata of all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update.
+        :returns: The number of documents updated.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+
+        try:
+            normalized_filters = _normalize_filters(filters)
+            # Build update operation to set metadata fields
+            # MongoDB stores documents with flatten=False, so metadata is in the "meta" field
+            update_fields = {f"meta.{key}": value for key, value in meta.items()}
+            result = self._collection.update_many(filter=normalized_filters, update={"$set": update_fields})
+            updated_count = result.modified_count
+            logger.info(
+                "Updated {n_docs} documents in collection '{collection}' using filters.",
+                n_docs=updated_count,
+                collection=self.collection_name,
+            )
+            return updated_count
+        except Exception as e:
+            msg = f"Failed to update documents by filter in MongoDB Atlas: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def update_by_filter_async(self, filters: Dict[str, Any], meta: Dict[str, Any]) -> int:
+        """
+        Asynchronously updates the metadata of all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update.
+        :returns: The number of documents updated.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+
+        try:
+            normalized_filters = _normalize_filters(filters)
+            # Build update operation to set metadata fields
+            # MongoDB stores documents with flatten=False, so metadata is in the "meta" field
+            update_fields = {f"meta.{key}": value for key, value in meta.items()}
+            result = await self._collection_async.update_many(filter=normalized_filters, update={"$set": update_fields})
+            updated_count = result.modified_count
+            logger.info(
+                "Updated {n_docs} documents in collection '{collection}' using filters.",
+                n_docs=updated_count,
+                collection=self.collection_name,
+            )
+            return updated_count
+        except Exception as e:
+            msg = f"Failed to update documents by filter in MongoDB Atlas: {e!s}"
+            raise DocumentStoreError(msg) from e
+
     def delete_all_documents(self, *, recreate_collection: bool = False) -> None:
         """
         Deletes all documents in the document store.
