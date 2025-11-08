@@ -295,6 +295,91 @@ class TestDefaultSpanHandler:
             "completion_start_time": None,
         }
 
+    def test_create_span_custom_chat_generator(self):
+        """Test that custom chat generators create 'generation' span type."""
+        mock_client = MockLangfuseClient()
+        handler = DefaultSpanHandler()
+        handler.init_tracer(mock_client)
+
+        context = SpanContext(
+            name="MistralChatGenerator",
+            operation_name="haystack.component.run",
+            component_type="MistralChatGenerator",
+            tags={},
+            parent_span=LangfuseSpan(mock_client.start_as_current_span()),
+        )
+
+        span = handler.create_span(context)
+        assert isinstance(span, LangfuseSpan)
+
+    def test_create_span_custom_generator(self):
+        """Test that custom generators create 'generation' span type."""
+        mock_client = MockLangfuseClient()
+        handler = DefaultSpanHandler()
+        handler.init_tracer(mock_client)
+
+        context = SpanContext(
+            name="CustomAPIGenerator",
+            operation_name="haystack.component.run",
+            component_type="CustomAPIGenerator",
+            tags={},
+            parent_span=LangfuseSpan(mock_client.start_as_current_span()),
+        )
+
+        span = handler.create_span(context)
+        assert isinstance(span, LangfuseSpan)
+
+    def test_create_span_retriever(self):
+        """Test that retrievers create 'retriever' span type."""
+        mock_client = MockLangfuseClient()
+        handler = DefaultSpanHandler()
+        handler.init_tracer(mock_client)
+
+        context = SpanContext(
+            name="InMemoryBM25Retriever",
+            operation_name="haystack.component.run",
+            component_type="InMemoryBM25Retriever",
+            tags={},
+            parent_span=LangfuseSpan(mock_client.start_as_current_span()),
+        )
+
+        span = handler.create_span(context)
+        assert isinstance(span, LangfuseSpan)
+
+    def test_create_span_embedder(self):
+        """Test that embedders create 'embedding' span type."""
+        mock_client = MockLangfuseClient()
+        handler = DefaultSpanHandler()
+        handler.init_tracer(mock_client)
+
+        context = SpanContext(
+            name="SentenceTransformersDocumentEmbedder",
+            operation_name="haystack.component.run",
+            component_type="SentenceTransformersDocumentEmbedder",
+            tags={},
+            parent_span=LangfuseSpan(mock_client.start_as_current_span()),
+        )
+
+        span = handler.create_span(context)
+        assert isinstance(span, LangfuseSpan)
+
+    def test_create_span_non_component(self):
+        """Test that non-matching components create regular spans."""
+        mock_client = MockLangfuseClient()
+        handler = DefaultSpanHandler()
+        handler.init_tracer(mock_client)
+
+        context = SpanContext(
+            name="DocumentJoiner",
+            operation_name="haystack.component.run",
+            component_type="DocumentJoiner",
+            tags={},
+            parent_span=LangfuseSpan(mock_client.start_as_current_span()),
+        )
+
+        span = handler.create_span(context)
+        assert isinstance(span, LangfuseSpan)
+
 
 class TestCustomSpanHandler:
     def test_handle(self):
