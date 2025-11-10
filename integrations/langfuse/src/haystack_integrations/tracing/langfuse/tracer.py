@@ -337,7 +337,11 @@ class DefaultSpanHandler(SpanHandler):
             span_type = "generation"
 
         if span_type:
-            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type=cast(ObservationSpanType, span_type)))
+            return LangfuseSpan(
+                self.tracer.start_as_current_observation(
+                    name=context.name, as_type=cast(ObservationSpanType, span_type)
+                )
+            )
         else:
             return LangfuseSpan(self.tracer.start_as_current_span(name=context.name))
 
