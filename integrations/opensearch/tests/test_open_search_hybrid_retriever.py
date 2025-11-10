@@ -96,12 +96,16 @@ class TestOpenSearchHybridRetriever:
         return MockedTextEmbedder()
 
     def test_to_dict(self) -> None:
+
         doc_store = OpenSearchDocumentStore()
         embedder = SentenceTransformersTextEmbedder()  # we use actual embedder here for the de/serialization
         hybrid_retriever = OpenSearchHybridRetriever(document_store=doc_store, embedder=embedder)
         result = hybrid_retriever.to_dict()
         result["init_parameters"]["embedder"]["init_parameters"].pop("device")  # remove device info for comparison
-        assert result == self.serialised
+        data = deepcopy(self.serialised)
+        if "revision" in result["init_parameters"]["embedder"]["init_parameters"]:
+            data["init_parameters"]["embedder"]["init_parameters"]["revision"] = None
+        assert result == data
 
     def test_from_dict(self):
         data = deepcopy(self.serialised)
