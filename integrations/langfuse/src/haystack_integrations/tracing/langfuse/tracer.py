@@ -10,7 +10,7 @@ from contextlib import AbstractContextManager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, Literal, Optional
+from typing import Any, Dict, Iterator, List, Literal, Optional, cast
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage
@@ -36,6 +36,9 @@ _COMPONENT_NAME_KEY = "haystack.component.name"
 _COMPONENT_TYPE_KEY = "haystack.component.type"
 _COMPONENT_OUTPUT_KEY = "haystack.component.output"
 _COMPONENT_INPUT_KEY = "haystack.component.input"
+
+# Type alias for observation span types
+ObservationSpanType = Literal["tool", "agent", "retriever", "embedding", "generation"]
 
 # External session metadata for trace correlation (Haystack system)
 # Stores trace_id, user_id, session_id, tags, version for root trace creation
@@ -334,7 +337,7 @@ class DefaultSpanHandler(SpanHandler):
             span_type = "generation"
 
         if span_type:
-            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type=span_type))
+            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type=cast(ObservationSpanType, span_type)))
         else:
             return LangfuseSpan(self.tracer.start_as_current_span(name=context.name))
 
