@@ -320,7 +320,7 @@ class DefaultSpanHandler(SpanHandler):
 
             return span
 
-        span_type = "span"
+        span_type = None
 
         if context.component_type == "ToolInvoker":
             span_type = "tool"
@@ -332,7 +332,11 @@ class DefaultSpanHandler(SpanHandler):
             span_type = "embedding"
         elif context.component_type and context.component_type.endswith("Generator"):
             span_type = "generation"
-        return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type=span_type))
+
+        if span_type:
+            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type=span_type))
+        else:
+            return LangfuseSpan(self.tracer.start_as_current_span(name=context.name))
 
     def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
         # If the span is at the pipeline level, we add input and output keys to the span
