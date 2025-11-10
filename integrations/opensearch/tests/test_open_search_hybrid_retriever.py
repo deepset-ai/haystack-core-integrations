@@ -96,7 +96,6 @@ class TestOpenSearchHybridRetriever:
         return MockedTextEmbedder()
 
     def test_to_dict(self) -> None:
-
         doc_store = OpenSearchDocumentStore()
         embedder = SentenceTransformersTextEmbedder()  # we use actual embedder here for the de/serialization
         hybrid_retriever = OpenSearchHybridRetriever(document_store=doc_store, embedder=embedder)
