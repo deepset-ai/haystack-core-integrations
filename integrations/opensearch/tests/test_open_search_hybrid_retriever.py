@@ -101,7 +101,12 @@ class TestOpenSearchHybridRetriever:
         hybrid_retriever = OpenSearchHybridRetriever(document_store=doc_store, embedder=embedder)
         result = hybrid_retriever.to_dict()
         result["init_parameters"]["embedder"]["init_parameters"].pop("device")  # remove device info for comparison
-        assert result == self.serialised
+        data = deepcopy(self.serialised)
+        # We add revision to the expected dict if it exists in the result for comparison
+        # This was added in PR https://github.com/deepset-ai/haystack/pull/10003 and released in Haystack 2.20.0
+        if "revision" in result["init_parameters"]["embedder"]["init_parameters"]:
+            data["init_parameters"]["embedder"]["init_parameters"]["revision"] = None
+        assert result == data
 
     def test_from_dict(self):
         data = deepcopy(self.serialised)
@@ -118,6 +123,10 @@ class TestOpenSearchHybridRetriever:
         result = hybrid_retriever.to_dict()
         expected = deepcopy(self.serialised)
         expected["init_parameters"]["embedding_retriever"] = {"raise_on_failure": True}
+        # We add revision to the expected dict if it exists in the result for comparison
+        # This was added in PR https://github.com/deepset-ai/haystack/pull/10003 and released in Haystack 2.20.0
+        if "revision" in result["init_parameters"]["embedder"]["init_parameters"]:
+            expected["init_parameters"]["embedder"]["init_parameters"]["revision"] = None
         result["init_parameters"]["embedder"]["init_parameters"].pop("device")  # remove device info for comparison
         assert result == expected
 

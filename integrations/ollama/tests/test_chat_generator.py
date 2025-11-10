@@ -328,18 +328,29 @@ class TestUtils:
         assert streaming_chunks[0].start is True
         assert streaming_chunks[1].start is True
         assert streaming_chunks[2].start is False
-        assert streaming_chunks[0].tool_calls[0].to_dict() == {
+        expected = {
             "index": 1,
             "arguments": '{"expression": "7 * (4 + 2)"}',
             "id": None,
             "tool_name": "calculator",
         }
-        assert streaming_chunks[1].tool_calls[0].to_dict() == {
+        # We add extra to the expected dict if it exists in the result for comparison
+        # This was added in PR https://github.com/deepset-ai/haystack/pull/10018 and released in Haystack 2.20.0
+        if "extra" in streaming_chunks[0].tool_calls[0].to_dict():
+            expected["extra"] = streaming_chunks[0].tool_calls[0].to_dict()["extra"]
+        assert streaming_chunks[0].tool_calls[0].to_dict() == expected
+
+        expected = {
             "index": 2,
             "tool_name": "factorial",
             "arguments": '{"n": 5}',
             "id": None,
         }
+        # We add extra to the expected dict if it exists in the result for comparison
+        # This was added in PR https://github.com/deepset-ai/haystack/pull/10018 and released in Haystack 2.20.0
+        if "extra" in streaming_chunks[1].tool_calls[0].to_dict():
+            expected["extra"] = streaming_chunks[1].tool_calls[0].to_dict()["extra"]
+        assert streaming_chunks[1].tool_calls[0].to_dict() == expected
         assert len(streaming_chunks[2].tool_calls) == 0
 
     def test_handle_streaming_response_tool_calls_with_thinking(self):
@@ -480,12 +491,18 @@ class TestUtils:
             else:
                 assert chunk.start is False
 
-        assert streaming_chunks[12].tool_calls[0].to_dict() == {
+        expected = {
             "index": 1,
             "arguments": '{"a": 2, "b": 2}',
             "id": None,
             "tool_name": "add_two_numbers",
         }
+        serialized_dict = streaming_chunks[12].tool_calls[0].to_dict()
+        # We add extra to the expected dict if it exists in the result for comparison
+        # This was added in PR https://github.com/deepset-ai/haystack/pull/10018 and released in Haystack 2.20.0
+        if "extra" in serialized_dict:
+            expected["extra"] = serialized_dict["extra"]
+        assert serialized_dict == expected
 
 
 class TestOllamaChatGeneratorInitSerializeDeserialize:
