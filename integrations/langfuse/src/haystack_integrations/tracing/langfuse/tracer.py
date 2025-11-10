@@ -319,18 +319,20 @@ class DefaultSpanHandler(SpanHandler):
                 span._span.update_trace(**trace_attrs)
 
             return span
-        elif context.component_type == "ToolInvoker":
-            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type="tool"))
+
+        span_type = "span"
+
+        if context.component_type == "ToolInvoker":
+            span_type = "tool"
         elif context.operation_name == "haystack.agent.run":
-            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type="agent"))
+            span_type = "agent"
         elif context.component_type and context.component_type.endswith("Retriever"):
-            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type="retriever"))
+            span_type = "retriever"
         elif context.component_type and context.component_type.endswith("Embedder"):
-            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type="embedding"))
+            span_type = "embedding"
         elif context.component_type and context.component_type.endswith("Generator"):
-            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type="generation"))
-        else:
-            return LangfuseSpan(self.tracer.start_as_current_span(name=context.name))
+            span_type = "generation"
+        return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type=span_type))
 
     def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
         # If the span is at the pipeline level, we add input and output keys to the span
