@@ -665,7 +665,7 @@ class SSEServerInfo(MCPServerInfo):
 
     :param url: Full URL of the MCP server (including /sse endpoint)
     :param base_url: Base URL of the MCP server (deprecated, use url instead)
-    :param token: Authentication token for the server (optional, generates "Authorization: Bearer <token>" header)
+    :param token: Authentication token for the server (optional, generates "Authorization: Bearer `<token>`" header)
     :param headers: Custom HTTP headers (optional, takes precedence over token parameter if provided)
     :param timeout: Connection timeout in seconds
     """
@@ -752,7 +752,7 @@ class StreamableHttpServerInfo(MCPServerInfo):
     ```
 
     :param url: Full URL of the MCP server (streamable HTTP endpoint)
-    :param token: Authentication token for the server (optional, generates "Authorization: Bearer <token>" header)
+    :param token: Authentication token for the server (optional, generates "Authorization: Bearer `<token>`" header)
     :param headers: Custom HTTP headers (optional, takes precedence over token parameter if provided)
     :param timeout: Connection timeout in seconds
     """
