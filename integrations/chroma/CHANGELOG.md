@@ -1,5 +1,12 @@
 # Changelog
 
+## [unreleased]
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+
 ## [integrations/chroma-v3.4.0] - 2025-10-27
 
 ### 🚀 Features
