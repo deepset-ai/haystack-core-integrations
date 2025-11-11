@@ -16,10 +16,10 @@ from haystack.dataclasses import (
 )
 from haystack.dataclasses.streaming_chunk import FinishReason, StreamingChunk, SyncStreamingCallbackT
 from haystack.tools import (
-    Tool,
-    Toolset,
+    ToolsType,
     _check_duplicate_tool_names,
     deserialize_tools_or_toolset_inplace,
+    flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
 )
 from haystack.utils import deserialize_callable, serialize_callable
@@ -196,7 +196,7 @@ class LlamaCppChatGenerator:
         model_kwargs: Optional[Dict[str, Any]] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
         *,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[ToolsType] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
         chat_handler_name: Optional[str] = None,
         model_clip_path: Optional[str] = None,
@@ -215,8 +215,8 @@ class LlamaCppChatGenerator:
             For more information on the available kwargs, see
             [llama.cpp documentation](https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.Llama.create_chat_completion).
         :param tools:
-            A list of tools or a Toolset for which the model can prepare calls.
-            This parameter can accept either a list of `Tool` objects or a `Toolset` instance.
+            A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            Each tool should have a unique name.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :param chat_handler_name: Name of the chat handler for multimodal models.
             Common options include: "Llava16ChatHandler", "MoondreamChatHandler", "Qwen25VLChatHandler".
@@ -235,7 +235,7 @@ class LlamaCppChatGenerator:
         model_kwargs.setdefault("n_ctx", n_ctx)
         model_kwargs.setdefault("n_batch", n_batch)
 
-        _check_duplicate_tool_names(list(tools or []))
+        _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
 
         handler: Optional[Llava15ChatHandler] = None
         # Validate multimodal requirements
@@ -325,7 +325,7 @@ class LlamaCppChatGenerator:
         messages: List[ChatMessage],
         generation_kwargs: Optional[Dict[str, Any]] = None,
         *,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[ToolsType] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
     ) -> Dict[str, List[ChatMessage]]:
         """
@@ -337,8 +337,9 @@ class LlamaCppChatGenerator:
             For more information on the available kwargs, see
             [llama.cpp documentation](https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.Llama.create_chat_completion).
         :param tools:
-            A list of tools or a Toolset for which the model can prepare calls. If set, it will override the `tools`
-            parameter set during component initialization.
+            A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            Each tool should have a unique name. If set, it will override the `tools` parameter set during
+            component initialization.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             If set, it will override the `streaming_callback` parameter set during component initialization.
         :returns: A dictionary with the following keys:
@@ -355,13 +356,12 @@ class LlamaCppChatGenerator:
         formatted_messages = [_convert_message_to_llamacpp_format(msg) for msg in messages]
 
         tools = tools or self.tools
-        if isinstance(tools, Toolset):
-            tools = list(tools)
-        _check_duplicate_tool_names(tools)
+        flattened_tools = flatten_tools_or_toolsets(tools)
+        _check_duplicate_tool_names(flattened_tools)
 
         llamacpp_tools: List[ChatCompletionTool] = []
-        if tools:
-            for t in tools:
+        if flattened_tools:
+            for t in flattened_tools:
                 llamacpp_tools.append(
                     {
                         "type": "function",

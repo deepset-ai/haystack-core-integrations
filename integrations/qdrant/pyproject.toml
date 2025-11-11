@@ -67,7 +67,7 @@ dependencies = [
 unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
-cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
+cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x {args:tests}'
 
 types = """mypy -p haystack_integrations.document_stores.qdrant \
 -p haystack_integrations.components.retrievers.qdrant {args}"""

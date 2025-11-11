@@ -1,5 +1,37 @@
 # Changelog
 
+## [integrations/mistral-v0.6.0] - 2025-10-27
+
+### 🚀 Features
+
+- Metadata as input for `MistalOCRDocumentConverter` (#2457)
+
+### 📚 Documentation
+
+- Fix MistralOCRDocumentConverter docstring (#2444)
+
+
+## [integrations/mistral-v0.5.0] - 2025-10-23
+
+### 🚀 Features
+
+- Mistral ocr converter (#2376)
+
+
+## [integrations/mistral-v0.4.0] - 2025-10-22
+
+### 🚀 Features
+
+- Add support for structured outputs for `MistralChatGenerator` (#2390)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### 🌀 Miscellaneous
+
+- Feat: `MistralChatGenerator` update tools param to ToolsType (#2430)
+
 ## [integrations/mistral-v0.3.1] - 2025-09-23
 
 ### 🐛 Bug Fixes

@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.13.2"]
+dependencies = ["haystack-ai>=2.19.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/meta_llama#readme"
@@ -63,8 +63,8 @@ dependencies = [
 [tool.hatch.envs.test.scripts]
 unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
-all = 'pytest {args:tests}'
-cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
+all = 'pytest --reruns 3 --reruns-delay 30 -x {args:tests}'
+cov-retry = 'pytest --cov="haystack_integrations" --reruns 3 --reruns-delay 30 -x {args:tests}'
 
 types = "mypy -p haystack_integrations.components.generators.meta_llama {args}"
 

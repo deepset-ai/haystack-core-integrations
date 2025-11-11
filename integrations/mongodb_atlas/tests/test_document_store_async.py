@@ -127,3 +127,81 @@ class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
         assert await document_store.count_documents_async() == 1
         await document_store.delete_documents_async(document_ids=["1"])
         assert await document_store.count_documents_async() == 0
+
+    async def test_delete_by_filter_async(self, document_store: MongoDBAtlasDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "A"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+        # Delete documents with category="A"
+        deleted_count = await document_store.delete_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert deleted_count == 2
+        assert await document_store.count_documents_async() == 1
+
+        # Verify the remaining document is the one with category="B"
+        remaining_docs = await document_store.filter_documents_async()
+        assert len(remaining_docs) == 1
+        assert remaining_docs[0].meta["category"] == "B"
+
+    async def test_update_by_filter_async(self, document_store: MongoDBAtlasDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "A"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+        # Update documents with category="A" to have status="published"
+        updated_count = await document_store.update_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
+        )
+        assert updated_count == 2
+
+        # Verify the updated documents have the new metadata
+        published_docs = await document_store.filter_documents_async(
+            filters={"field": "meta.status", "operator": "==", "value": "published"}
+        )
+        assert len(published_docs) == 2
+        for doc in published_docs:
+            assert doc.meta["status"] == "published"
+            assert doc.meta["category"] == "A"
+
+        # Verify documents with category="B" were not updated
+        unpublished_docs = await document_store.filter_documents_async(
+            filters={"field": "meta.category", "operator": "==", "value": "B"}
+        )
+        assert len(unpublished_docs) == 1
+        assert "status" not in unpublished_docs[0].meta
+
+    async def test_delete_all_documents_async(self, document_store: MongoDBAtlasDocumentStore):
+        docs = [Document(id="1", content="first doc"), Document(id="2", content="second doc")]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 2
+        await document_store.delete_all_documents_async()
+        assert await document_store.count_documents_async() == 0
+
+    async def test_delete_all_documents_async_empty_collection(self, document_store: MongoDBAtlasDocumentStore):
+        assert await document_store.count_documents_async() == 0
+        await document_store.delete_all_documents_async()
+        assert await document_store.count_documents_async() == 0
+
+    async def test_delete_all_documents_async_with_recreate_collection(self, document_store: MongoDBAtlasDocumentStore):
+        docs = [Document(id="1", content="first doc"), Document(id="2", content="second doc")]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 2
+
+        # Delete all documents with collection recreation
+        await document_store.delete_all_documents_async(recreate_collection=True)
+        assert await document_store.count_documents_async() == 0
+
+        # Verify collection still exists and we can write to it
+        new_docs = [Document(id="3", content="third doc")]
+        await document_store.write_documents_async(new_docs)
+        assert await document_store.count_documents_async() == 1

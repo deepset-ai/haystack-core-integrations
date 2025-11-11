@@ -261,3 +261,14 @@ class TestGitHubRepoForker:
 
         with pytest.raises(ValueError):
             forker._parse_github_url("https://github.com/invalid/url")
+
+    def test_get_request_headers_with_empty_token(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "")
+
+        forker = GitHubRepoForker()
+
+        headers = forker._get_request_headers()
+
+        assert "Authorization" not in headers
+        assert headers["Accept"] == "application/vnd.github.v3+json"
+        assert headers["User-Agent"] == "Haystack/GitHubRepoForker"

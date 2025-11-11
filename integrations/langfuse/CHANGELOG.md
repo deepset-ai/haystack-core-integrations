@@ -1,5 +1,45 @@
 # Changelog
 
+## [integrations/langfuse-v3.2.1] - 2025-11-07
+
+### 🌀 Miscellaneous
+
+- Chore: Upgrade langfuse dep, observation types require version>=3.3.1 (#2493)
+
+## [integrations/langfuse-v3.2.0] - 2025-11-07
+
+### 🐛 Bug Fixes
+
+- Flatten usage_details dict (#2491)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🌀 Miscellaneous
+
+- Usage_details instead usage (#2481)
+- Feat: Langfuse - add support for tool and agent observation types (#2490)
+
+## [integrations/langfuse-v3.1.0] - 2025-10-24
+
+### 🐛 Bug Fixes
+
+- Langfuse - add py.typed; fix testing with lowest deps (#2458)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Install dependencies in the `test` environment when testing with lowest direct dependencies and Haystack main (#2418)
+
+### 🧹 Chores
+
+- Remove ruff exclude and fix linting in Langfuse integration (#2257)
+
+
 ## [integrations/langfuse-v3.0.0] - 2025-09-19
 
 ### 🌀 Miscellaneous

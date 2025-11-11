@@ -423,6 +423,216 @@ class MongoDBAtlasDocumentStore:
             return
         await self._collection_async.delete_many(filter={"id": {"$in": document_ids}})
 
+    def delete_by_filter(self, filters: Dict[str, Any]) -> int:
+        """
+        Deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+
+        try:
+            normalized_filters = _normalize_filters(filters)
+            result = self._collection.delete_many(filter=normalized_filters)
+            deleted_count = result.deleted_count
+            logger.info(
+                "Deleted {n_docs} documents from collection '{collection}' using filters.",
+                n_docs=deleted_count,
+                collection=self.collection_name,
+            )
+            return deleted_count
+        except Exception as e:
+            msg = f"Failed to delete documents by filter from MongoDB Atlas: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def delete_by_filter_async(self, filters: Dict[str, Any]) -> int:
+        """
+        Asynchronously deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+
+        try:
+            normalized_filters = _normalize_filters(filters)
+            result = await self._collection_async.delete_many(filter=normalized_filters)
+            deleted_count = result.deleted_count
+            logger.info(
+                "Deleted {n_docs} documents from collection '{collection}' using filters.",
+                n_docs=deleted_count,
+                collection=self.collection_name,
+            )
+            return deleted_count
+        except Exception as e:
+            msg = f"Failed to delete documents by filter from MongoDB Atlas: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def update_by_filter(self, filters: Dict[str, Any], meta: Dict[str, Any]) -> int:
+        """
+        Updates the metadata of all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update.
+        :returns: The number of documents updated.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+
+        try:
+            normalized_filters = _normalize_filters(filters)
+            # Build update operation to set metadata fields
+            # MongoDB stores documents with flatten=False, so metadata is in the "meta" field
+            update_fields = {f"meta.{key}": value for key, value in meta.items()}
+            result = self._collection.update_many(filter=normalized_filters, update={"$set": update_fields})
+            updated_count = result.modified_count
+            logger.info(
+                "Updated {n_docs} documents in collection '{collection}' using filters.",
+                n_docs=updated_count,
+                collection=self.collection_name,
+            )
+            return updated_count
+        except Exception as e:
+            msg = f"Failed to update documents by filter in MongoDB Atlas: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def update_by_filter_async(self, filters: Dict[str, Any], meta: Dict[str, Any]) -> int:
+        """
+        Asynchronously updates the metadata of all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update.
+        :returns: The number of documents updated.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+
+        try:
+            normalized_filters = _normalize_filters(filters)
+            # Build update operation to set metadata fields
+            # MongoDB stores documents with flatten=False, so metadata is in the "meta" field
+            update_fields = {f"meta.{key}": value for key, value in meta.items()}
+            result = await self._collection_async.update_many(filter=normalized_filters, update={"$set": update_fields})
+            updated_count = result.modified_count
+            logger.info(
+                "Updated {n_docs} documents in collection '{collection}' using filters.",
+                n_docs=updated_count,
+                collection=self.collection_name,
+            )
+            return updated_count
+        except Exception as e:
+            msg = f"Failed to update documents by filter in MongoDB Atlas: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def delete_all_documents(self, *, recreate_collection: bool = False) -> None:
+        """
+        Deletes all documents in the document store.
+
+        :param recreate_collection: If True, the collection will be dropped and recreated with the original
+            configuration and indexes. If False, all documents will be deleted while preserving the collection.
+            Recreating the collection is faster for very large collections.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+        assert self._connection is not None
+
+        try:
+            if recreate_collection:
+                database = self._connection[self.database_name]
+
+                # Save collection configuration
+                collection_info = database.list_collections(filter={"name": self.collection_name})
+                config = next(collection_info, {}).get("options", {})
+
+                # Save index definitions (excluding default _id index)
+                indexes = list(self._collection.list_indexes())
+                custom_indexes = [idx for idx in indexes if idx["name"] != "_id_"]
+
+                # Drop and recreate collection
+                self._collection.drop()
+                database.create_collection(self.collection_name, **config)
+
+                # Recreate indexes
+                for idx in custom_indexes:
+                    keys = list(idx["key"].items())
+                    index_options = {k: v for k, v in idx.items() if k not in ["key", "v", "ns"]}
+                    self._collection.create_index(keys, **index_options)
+
+                logger.info(
+                    "Collection '{collection}' recreated with original configuration.",
+                    collection=self.collection_name,
+                )
+            else:
+                # Delete all documents without recreating collection
+                result = self._collection.delete_many({})
+                logger.info(
+                    "Deleted {n_docs} documents from collection '{collection}'.",
+                    n_docs=result.deleted_count,
+                    collection=self.collection_name,
+                )
+        except Exception as e:
+            msg = f"Failed to delete all documents from MongoDB Atlas: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def delete_all_documents_async(self, *, recreate_collection: bool = False) -> None:
+        """
+        Asynchronously deletes all documents in the document store.
+
+        :param recreate_collection: If True, the collection will be dropped and recreated with the original
+            configuration and indexes. If False, all documents will be deleted while preserving the collection.
+            Recreating the collection is faster for very large collections.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+        assert self._connection_async is not None
+
+        try:
+            if recreate_collection:
+                database = self._connection_async[self.database_name]
+
+                # Save collection configuration
+                collection_info_cursor = await database.list_collections(filter={"name": self.collection_name})
+                config_list = await collection_info_cursor.to_list(length=1)
+                config = config_list[0].get("options", {}) if config_list else {}
+
+                # Save index definitions (excluding default _id index)
+                indexes_cursor = await self._collection_async.list_indexes()
+                indexes = await indexes_cursor.to_list(length=None)
+                custom_indexes = [idx for idx in indexes if idx["name"] != "_id_"]
+
+                # Drop and recreate collection
+                await self._collection_async.drop()
+                await database.create_collection(self.collection_name, **config)
+
+                # Recreate indexes
+                for idx in custom_indexes:
+                    keys = list(idx["key"].items())
+                    index_options = {k: v for k, v in idx.items() if k not in ["key", "v", "ns"]}
+                    await self._collection_async.create_index(keys, **index_options)
+
+                logger.info(
+                    "Collection '{collection}' recreated with original configuration.",
+                    collection=self.collection_name,
+                )
+            else:
+                # Delete all documents without recreating collection
+                result = await self._collection_async.delete_many({})
+                logger.info(
+                    "Deleted {n_docs} documents from collection '{collection}'.",
+                    n_docs=result.deleted_count,
+                    collection=self.collection_name,
+                )
+        except Exception as e:
+            msg = f"Failed to delete all documents from MongoDB Atlas: {e!s}"
+            raise DocumentStoreError(msg) from e
+
     def _embedding_retrieval(
         self,
         query_embedding: List[float],

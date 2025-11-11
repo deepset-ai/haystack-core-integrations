@@ -105,7 +105,7 @@ class OpenSearchDocumentStore:
             for more information. If None, it uses the embedding_dim and method arguments to create default mappings.
             Defaults to None
         :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
-            for more information. Defaults to {"index.knn": True}
+            for more information. Defaults to `{"index.knn": True}`.
         :param create_index: Whether to create the index if it doesn't exist. Defaults to True
         :param http_auth: http_auth param passed to the underlying connection class.
             For basic authentication with default connection class `Urllib3HttpConnection` this can be
@@ -606,6 +606,132 @@ class OpenSearchDocumentStore:
 
         except Exception as e:
             msg = f"Failed to delete all documents from OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def delete_by_filter(self, filters: Dict[str, Any]) -> int:
+        """
+        Deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        try:
+            normalized_filters = normalize_filters(filters)
+            body = {"query": {"bool": {"filter": normalized_filters}}}
+            result = self._client.delete_by_query(index=self._index, body=body)
+            deleted_count = result.get("deleted", 0)
+            logger.info(
+                "Deleted {n_docs} documents from index '{index}' using filters.",
+                n_docs=deleted_count,
+                index=self._index,
+            )
+            return deleted_count
+        except Exception as e:
+            msg = f"Failed to delete documents by filter from OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def delete_by_filter_async(self, filters: Dict[str, Any]) -> int:
+        """
+        Asynchronously deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        self._ensure_initialized()
+        assert self._async_client is not None
+
+        try:
+            normalized_filters = normalize_filters(filters)
+            body = {"query": {"bool": {"filter": normalized_filters}}}
+            result = await self._async_client.delete_by_query(index=self._index, body=body)
+            deleted_count = result.get("deleted", 0)
+            logger.info(
+                "Deleted {n_docs} documents from index '{index}' using filters.",
+                n_docs=deleted_count,
+                index=self._index,
+            )
+            return deleted_count
+        except Exception as e:
+            msg = f"Failed to delete documents by filter from OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def update_by_filter(self, filters: Dict[str, Any], meta: Dict[str, Any]) -> int:
+        """
+        Updates the metadata of all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update.
+        :returns: The number of documents updated.
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        try:
+            normalized_filters = normalize_filters(filters)
+            # Build the update script to modify metadata fields
+            # Documents are stored with flattened metadata, so update fields directly in ctx._source
+            update_script_lines = []
+            for key in meta.keys():
+                update_script_lines.append(f"ctx._source.{key} = params.{key};")
+            update_script = " ".join(update_script_lines)
+
+            body = {
+                "query": {"bool": {"filter": normalized_filters}},
+                "script": {"source": update_script, "params": meta, "lang": "painless"},
+            }
+            result = self._client.update_by_query(index=self._index, body=body)
+            updated_count = result.get("updated", 0)
+            logger.info(
+                "Updated {n_docs} documents in index '{index}' using filters.",
+                n_docs=updated_count,
+                index=self._index,
+            )
+            return updated_count
+        except Exception as e:
+            msg = f"Failed to update documents by filter in OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def update_by_filter_async(self, filters: Dict[str, Any], meta: Dict[str, Any]) -> int:
+        """
+        Asynchronously updates the metadata of all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update.
+        :returns: The number of documents updated.
+        """
+        self._ensure_initialized()
+        assert self._async_client is not None
+
+        try:
+            normalized_filters = normalize_filters(filters)
+            # Build the update script to modify metadata fields
+            # Documents are stored with flattened metadata, so update fields directly in ctx._source
+            update_script_lines = []
+            for key in meta.keys():
+                update_script_lines.append(f"ctx._source.{key} = params.{key};")
+            update_script = " ".join(update_script_lines)
+
+            body = {
+                "query": {"bool": {"filter": normalized_filters}},
+                "script": {"source": update_script, "params": meta, "lang": "painless"},
+            }
+            result = await self._async_client.update_by_query(index=self._index, body=body)
+            updated_count = result.get("updated", 0)
+            logger.info(
+                "Updated {n_docs} documents in index '{index}' using filters.",
+                n_docs=updated_count,
+                index=self._index,
+            )
+            return updated_count
+        except Exception as e:
+            msg = f"Failed to update documents by filter in OpenSearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
     def _prepare_bm25_search_request(
