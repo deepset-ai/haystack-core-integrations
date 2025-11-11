@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# ruff: noqa: T201
+
 """Basic text generation example using AIMLAPIChatGenerator."""
 
 from haystack.dataclasses import ChatMessage
@@ -12,9 +14,7 @@ from haystack_integrations.components.generators.aimlapi import AIMLAPIChatGener
 def main() -> None:
     """Generate a response without using any tools."""
 
-    generator = AIMLAPIChatGenerator(
-        model="openai/gpt-5-chat-latest"
-    )
+    generator = AIMLAPIChatGenerator(model="openai/gpt-5-chat-latest")
 
     messages = [
         ChatMessage.from_system("You are a concise assistant."),
