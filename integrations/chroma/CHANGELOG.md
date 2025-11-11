@@ -1,10 +1,10 @@
 # Changelog
 
-## [unreleased]
+## [integrations/chroma-v3.4.1]
 
 ### ⚙️ CI
 
-- Change pytest command (#2475)
+- Adopt PEP 585 type hinting (#2475)
 
 
 ## [integrations/chroma-v3.4.0] - 2025-10-27
