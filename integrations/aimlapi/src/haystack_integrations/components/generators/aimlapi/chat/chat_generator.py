@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage, StreamingCallbackT
-from haystack.tools import ToolsType, _check_duplicate_tool_names, flatten_tools_or_toolsets
+from haystack.tools import ToolsType, _check_duplicate_tool_names, flatten_tools_or_toolsets, serialize_tools_or_toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
 
@@ -144,7 +144,7 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
             api_base_url=self.api_base_url,
             generation_kwargs=self.generation_kwargs,
             api_key=self.api_key.to_dict(),
-            tools=[tool.to_dict() for tool in self.tools] if self.tools else None,
+            tools=serialize_tools_or_toolset(self.tools),
             extra_headers=self.extra_headers,
             timeout=self.timeout,
             max_retries=self.max_retries,
@@ -171,7 +171,7 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
         _check_duplicate_tool_names(flattened_tools)
 
-        aimlapi_tools = {}
+        openai_tools = {}
         if flattened_tools:
             tool_definitions = []
             for tool in flattened_tools:
@@ -182,13 +182,15 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
                     if isinstance(parameters, dict):
                         parameters["additionalProperties"] = False
                 tool_definitions.append({"type": "function", "function": function_spec})
-            aimlapi_tools = {"tools": tool_definitions}
+            openai_tools = {"tools": tool_definitions}
 
         is_streaming = streaming_callback is not None
         num_responses = generation_kwargs.pop("n", 1)
+
         if is_streaming and num_responses > 1:
             msg = "Cannot stream multiple responses, please set n=1."
             raise ValueError(msg)
+        response_format = generation_kwargs.pop("response_format", None)
 
         response_format = generation_kwargs.pop("response_format", None)
 
@@ -196,7 +198,7 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
             "model": self.model,
             "messages": aimlapi_formatted_messages,
             "n": num_responses,
-            **aimlapi_tools,
+            **openai_tools,
             "extra_body": {**generation_kwargs},
             "extra_headers": {**extra_headers},
         }
