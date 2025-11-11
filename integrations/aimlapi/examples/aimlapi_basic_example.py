@@ -12,9 +12,7 @@ from haystack_integrations.components.generators.aimlapi import AIMLAPIChatGener
 def main() -> None:
     """Generate a response without using any tools."""
 
-    generator = AIMLAPIChatGenerator(
-        model="openai/gpt-5-chat-latest"
-    )
+    generator = AIMLAPIChatGenerator(model="openai/gpt-5-chat-latest")
 
     messages = [
         ChatMessage.from_system("You are a concise assistant."),
@@ -23,7 +21,7 @@ def main() -> None:
 
     reply = generator.run(messages=messages)["replies"][0]
 
-    print(f"assistant response: {reply.text}")
+    print(f"assistant response: {reply.text}")  # noqa: T201
 
 
 if __name__ == "__main__":
