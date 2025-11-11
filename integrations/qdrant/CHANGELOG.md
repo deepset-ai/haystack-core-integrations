@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/qdrant-v9.3.0] - 2025-11-11
+
+### 🚀 Features
+
+- Adding `delete_all_docs` to Qdrant document store (#2363)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+- Standardize readmes - part 2 (#2205)
+
+
 ## [integrations/qdrant-v9.2.0] - 2025-06-12
 
 ### 🐛 Bug Fixes
