@@ -6,7 +6,6 @@ import logging
 import operator
 import time
 import uuid
-from typing import List
 from unittest import mock
 
 import pytest
@@ -39,7 +38,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             get_func.return_value = embedding_function
             return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
 
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
         Assert that two lists of Documents are equal.
         This is used in every test, if a Document Store implementation has a different behaviour
@@ -245,7 +244,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         assert retrieved_doc.content == "test"
         assert retrieved_doc.blob is None
 
-    def test_contains(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_contains(self, document_store: ChromaDocumentStore, filterable_docs: list[Document]):
         document_store.write_documents(filterable_docs)
         filters = {"field": "content", "operator": "contains", "value": "FOO"}
         result = document_store.filter_documents(filters=filters)
@@ -254,7 +253,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             [doc for doc in filterable_docs if doc.content and "FOO" in doc.content],
         )
 
-    def test_multiple_contains(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_multiple_contains(self, document_store: ChromaDocumentStore, filterable_docs: list[Document]):
         document_store.write_documents(filterable_docs)
         filters = {
             "operator": "OR",
@@ -269,7 +268,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             [doc for doc in filterable_docs if doc.content and ("FOO" in doc.content or "BAR" not in doc.content)],
         )
 
-    def test_nested_logical_filters(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_nested_logical_filters(self, document_store: ChromaDocumentStore, filterable_docs: list[Document]):
         document_store.write_documents(filterable_docs)
         filters = {
             "operator": "OR",

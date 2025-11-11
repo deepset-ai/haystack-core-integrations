@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import logging as python_logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Optional, Union
 
 from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import (
@@ -56,7 +56,7 @@ type_mapping = {
 }
 
 # Map of expected field names to their corresponding classes
-AZURE_CLASS_MAPPING: Dict[str, Type] = {
+AZURE_CLASS_MAPPING: dict[str, Any] = {
     "suggesters": SearchSuggester,
     "analyzers": LexicalAnalyzer,
     "tokenizers": LexicalTokenizer,
@@ -98,7 +98,7 @@ class AzureAISearchDocumentStore:
         azure_endpoint: Secret = Secret.from_env_var("AZURE_AI_SEARCH_ENDPOINT", strict=True),  # noqa: B008
         index_name: str = "default",
         embedding_dimension: int = 768,
-        metadata_fields: Optional[Dict[str, Union[SearchField, type]]] = None,
+        metadata_fields: Optional[dict[str, Union[SearchField, type]]] = None,
         vector_search_configuration: Optional[VectorSearch] = None,
         include_search_metadata: bool = False,
         **index_creation_kwargs: Any,
@@ -148,7 +148,7 @@ class AzureAISearchDocumentStore:
         """
         self._client: Optional[SearchClient] = None
         self._index_client: Optional[SearchIndexClient] = None
-        self._index_fields = []  # type: List[Any]  # stores all fields in the final schema of index
+        self._index_fields = []  # type: list[Any]  # stores all fields in the final schema of index
         self._api_key = api_key
         self._azure_endpoint = azure_endpoint
         self._index_name = index_name
@@ -199,8 +199,8 @@ class AzureAISearchDocumentStore:
         return self._client
 
     def _normalize_metadata_index_fields(
-        self, metadata_fields: Optional[Dict[str, Union[SearchField, type]]]
-    ) -> Dict[str, SearchField]:
+        self, metadata_fields: Optional[dict[str, Union[SearchField, type]]]
+    ) -> dict[str, SearchField]:
         """Create a list of index fields for storing metadata values."""
 
         if not metadata_fields:
@@ -271,8 +271,8 @@ class AzureAISearchDocumentStore:
 
     @staticmethod
     def _serialize_index_creation_kwargs(
-        index_creation_kwargs: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        index_creation_kwargs: dict[str, Any],
+    ) -> dict[str, Any]:
         """
         Serializes the index creation kwargs to a dictionary.
         This is needed to handle serialization of Azure AI Search classes
@@ -288,7 +288,7 @@ class AzureAISearchDocumentStore:
                 result[key] = value
         return result
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -307,7 +307,7 @@ class AzureAISearchDocumentStore:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AzureAISearchDocumentStore":
+    def from_dict(cls, data: dict[str, Any]) -> "AzureAISearchDocumentStore":
         """
         Deserializes the component from a dictionary.
 
@@ -345,7 +345,7 @@ class AzureAISearchDocumentStore:
         """
         return self.client.get_document_count()
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
+    def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes the provided documents to search index.
 
@@ -373,7 +373,7 @@ class AzureAISearchDocumentStore:
             client.upload_documents(documents_to_write)
         return len(documents_to_write)
 
-    def delete_documents(self, document_ids: List[str]) -> None:
+    def delete_documents(self, document_ids: list[str]) -> None:
         """
         Deletes all documents with a matching document_ids from the search index.
 
@@ -423,10 +423,10 @@ class AzureAISearchDocumentStore:
             msg = f"Failed to delete all documents from Azure AI Search: {e!s}"
             raise HttpResponseError(msg) from e
 
-    def get_documents_by_id(self, document_ids: List[str]) -> List[Document]:
+    def get_documents_by_id(self, document_ids: list[str]) -> list[Document]:
         return self._convert_search_result_to_documents(self._get_raw_documents_by_id(document_ids))
 
-    def search_documents(self, search_text: str = "*", top_k: int = 10) -> List[Document]:
+    def search_documents(self, search_text: str = "*", top_k: int = 10) -> list[Document]:
         """
         Returns all documents that match the provided search_text.
         If search_text is None, returns all documents.
@@ -437,7 +437,7 @@ class AzureAISearchDocumentStore:
         result = self.client.search(search_text=search_text, top=top_k)
         return self._convert_search_result_to_documents(list(result))
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
         """
         Returns the documents that match the provided filters.
         Filters should be given as a dictionary supporting filtering by metadata. For details on
@@ -453,7 +453,7 @@ class AzureAISearchDocumentStore:
         else:
             return self.search_documents()
 
-    def _convert_search_result_to_documents(self, azure_docs: List[Dict[str, Any]]) -> List[Document]:
+    def _convert_search_result_to_documents(self, azure_docs: list[dict[str, Any]]) -> list[Document]:
         """
         Converts Azure search results to Haystack Documents.
         """
@@ -502,7 +502,7 @@ class AzureAISearchDocumentStore:
             msg = "Index name is required to check if the index exists."
             raise ValueError(msg)
 
-    def _get_raw_documents_by_id(self, document_ids: List[str]) -> List[Dict]:
+    def _get_raw_documents_by_id(self, document_ids: list[str]) -> list[dict]:
         """
         Retrieves all Azure documents with a matching document_ids from the document store.
 
@@ -518,7 +518,7 @@ class AzureAISearchDocumentStore:
                 logger.warning(f"Document with ID {doc_id} not found.")
         return azure_documents
 
-    def _convert_haystack_document_to_azure(self, document: Document) -> Dict[str, Any]:
+    def _convert_haystack_document_to_azure(self, document: Document) -> dict[str, Any]:
         """Convert a Haystack Document to an Azure Search document"""
 
         doc_dict = document.to_dict(flatten=False)
@@ -532,12 +532,12 @@ class AzureAISearchDocumentStore:
 
     def _embedding_retrieval(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         *,
         top_k: int = 10,
         filters: Optional[str] = None,
         **kwargs: Any,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
         It uses the vector configuration specified in the document store. By default, it uses the HNSW algorithm
@@ -571,7 +571,7 @@ class AzureAISearchDocumentStore:
         top_k: int = 10,
         filters: Optional[str] = None,
         **kwargs: Any,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Retrieves documents that are most similar to `query`, using the BM25 algorithm.
 
@@ -600,11 +600,11 @@ class AzureAISearchDocumentStore:
     def _hybrid_retrieval(
         self,
         query: str,
-        query_embedding: List[float],
+        query_embedding: list[float],
         top_k: int = 10,
         filters: Optional[str] = None,
         **kwargs: Any,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Retrieves documents similar to query using the vector configuration in the document store and
         the BM25 algorithm. This method combines vector similarity and BM25 for improved retrieval.

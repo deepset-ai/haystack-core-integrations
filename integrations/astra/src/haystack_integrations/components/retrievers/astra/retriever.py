@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
@@ -36,7 +36,7 @@ class AstraEmbeddingRetriever:
     def __init__(
         self,
         document_store: AstraDocumentStore,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
@@ -57,13 +57,13 @@ class AstraEmbeddingRetriever:
             message = "document_store must be an instance of AstraDocumentStore"
             raise Exception(message)
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(
         self,
-        query_embedding: List[float],
-        filters: Optional[Dict[str, Any]] = None,
+        query_embedding: list[float],
+        filters: Optional[dict[str, Any]] = None,
         top_k: Optional[int] = None,
-    ) -> Dict[str, List[Document]]:
+    ) -> dict[str, list[Document]]:
         """Retrieve documents from the AstraDocumentStore.
 
         :param query_embedding: floats representing the query embedding
@@ -79,7 +79,7 @@ class AstraEmbeddingRetriever:
 
         return {"documents": self.document_store.search(query_embedding, top_k, filters=filters)}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -95,7 +95,7 @@ class AstraEmbeddingRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AstraEmbeddingRetriever":
+    def from_dict(cls, data: dict[str, Any]) -> "AstraEmbeddingRetriever":
         """
         Deserializes the component from a dictionary.
 

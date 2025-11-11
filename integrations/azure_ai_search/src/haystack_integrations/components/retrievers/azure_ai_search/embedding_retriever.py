@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.document_stores.types import FilterPolicy
@@ -21,7 +21,7 @@ class AzureAISearchEmbeddingRetriever:
         self,
         *,
         document_store: AzureAISearchDocumentStore,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
         **kwargs: Any,
@@ -55,7 +55,7 @@ class AzureAISearchEmbeddingRetriever:
             message = "document_store must be an instance of AzureAISearchDocumentStore"
             raise Exception(message)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -72,7 +72,7 @@ class AzureAISearchEmbeddingRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AzureAISearchEmbeddingRetriever":
+    def from_dict(cls, data: dict[str, Any]) -> "AzureAISearchEmbeddingRetriever":
         """
         Deserializes the component from a dictionary.
 
@@ -92,10 +92,10 @@ class AzureAISearchEmbeddingRetriever:
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(
-        self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
-    ) -> Dict[str, List[Document]]:
+        self, query_embedding: list[float], filters: Optional[dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> dict[str, list[Document]]:
         """Retrieve documents from the AzureAISearchDocumentStore.
 
         :param query_embedding: A list of floats representing the query embedding.

@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import operator
 import os
-from typing import List
 from unittest import mock
 
 import pytest
@@ -70,7 +69,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         document_store.delete_all_documents()
         assert document_store.count_documents() == 0
 
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
         Assert that two lists of Documents are equal.
         This is used in every test, if a Document Store implementation has a different behaviour

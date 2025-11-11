@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present Anant Corporation <support@anant.us>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -115,7 +115,7 @@ class AstraDocumentStore:
         return self._index
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AstraDocumentStore":
+    def from_dict(cls, data: dict[str, Any]) -> "AstraDocumentStore":
         """
         Deserializes the component from a dictionary.
 
@@ -127,7 +127,7 @@ class AstraDocumentStore:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_endpoint", "token"])
         return default_from_dict(cls, data)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -148,7 +148,7 @@ class AstraDocumentStore:
 
     def write_documents(
         self,
-        documents: List[Document],
+        documents: list[Document],
         policy: DuplicatePolicy = DuplicatePolicy.NONE,
     ) -> int:
         """
@@ -176,7 +176,7 @@ class AstraDocumentStore:
 
         batch_size = MAX_BATCH_SIZE
 
-        def _convert_input_document(document: Union[dict, Document]) -> Dict[str, Any]:
+        def _convert_input_document(document: Union[dict, Document]) -> dict[str, Any]:
             if isinstance(document, Document):
                 document_dict = document.to_dict(flatten=False)
             elif isinstance(document, dict):
@@ -217,7 +217,7 @@ class AstraDocumentStore:
         documents_to_write = [_convert_input_document(doc) for doc in documents]
 
         duplicate_documents = []
-        new_documents: List[Dict] = []
+        new_documents: list[dict] = []
         i = 0
         while i < len(documents_to_write):
             doc = documents_to_write[i]
@@ -283,7 +283,7 @@ class AstraDocumentStore:
         """
         return self.index.count_documents()
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
         """
         Returns at most 1000 documents that match the filter.
 
@@ -326,7 +326,7 @@ class AstraDocumentStore:
         return documents
 
     @staticmethod
-    def _get_result_to_documents(results: QueryResponse) -> List[Document]:
+    def _get_result_to_documents(results: QueryResponse) -> list[Document]:
         documents = []
         for match in results.matches:
             metadata = match.metadata
@@ -343,7 +343,7 @@ class AstraDocumentStore:
             documents.append(document)
         return documents
 
-    def get_documents_by_id(self, ids: List[str]) -> List[Document]:
+    def get_documents_by_id(self, ids: list[str]) -> list[Document]:
         """
         Gets documents by their IDs.
 
@@ -370,8 +370,8 @@ class AstraDocumentStore:
         return ret[0]
 
     def search(
-        self, query_embedding: List[float], top_k: int, filters: Optional[Dict[str, Any]] = None
-    ) -> List[Document]:
+        self, query_embedding: list[float], top_k: int, filters: Optional[dict[str, Any]] = None
+    ) -> list[Document]:
         """
         Perform a search for a list of queries.
 
@@ -395,7 +395,7 @@ class AstraDocumentStore:
 
         return result
 
-    def delete_documents(self, document_ids: List[str]) -> None:
+    def delete_documents(self, document_ids: list[str]) -> None:
         """
         Deletes documents from the document store.
 
