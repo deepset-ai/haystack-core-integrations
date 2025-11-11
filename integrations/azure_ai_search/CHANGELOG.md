@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/azure_ai_search-v2.3.2] - 2025-11-11
+
+### 🚀 Features
+
+- Delete all documents for AzureAISearch DocumentStore (#2404)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+- Fix docstrings to avoid errors in API reference generation (#2423)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+
 ## [integrations/azure_ai_search-v2.3.1] - 2025-10-10
 
 ### 🐛 Bug Fixes
