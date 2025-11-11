@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/astra-v3.0.0] - 2025-10-21
+
+### 🚀 Features
+
+- Add support for `delete_all_documents` for astra client (#2362)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### 🧹 Chores
+
+- Standardize readmes - part 1 (#2202)
+
+
 ## [integrations/astra-v2.1.0] - 2025-06-27
 
 ### 🐛 Bug Fixes

@@ -82,13 +82,30 @@ jobs:
           OLLAMA_URL: http://localhost:11434
         shell: bash
         run: |
-          pip install uv
-          uv run --with llama-stack llama stack build --distro starter --image-type venv --run < /dev/null > server.log 2>&1 &
-          sleep 120
-          # Verify it's running
-          curl -f http://localhost:8321/v1/models || { cat server.log; exit 1; }
-          
-          echo "Llama Stack Server started successfully."
+          set -euo pipefail
+          pip install -q uv
+
+          # Install the starter distro's deps into the uv environment
+          uv run --with llama-stack bash -lc 'llama stack list-deps starter | xargs -L1 uv pip install'
+
+          # Start Llama Stack (no more --image-type flag)
+          uv run --with llama-stack llama stack run starter > server.log 2>&1 &
+          SERVER_PID=$!
+
+          # Wait up to ~120s for health; fail fast if process dies
+          for i in {1..60}; do
+            if curl -fsS http://localhost:8321/v1/models >/dev/null; then
+              echo "Llama Stack Server started successfully."
+              break
+            fi
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+              echo "Server exited early. Logs:"; cat server.log; exit 1
+            fi
+            sleep 2
+          done
+
+          # Final health check
+          curl -fsS http://localhost:8321/v1/models || { echo "Health check failed. Logs:"; cat server.log; exit 1; }
 
       - name: Install Hatch
         run: pip install --upgrade hatch
@@ -107,7 +124,7 @@ jobs:
       - name: Run unit tests with lowest direct dependencies
         run: |
           hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
-          hatch run uv pip install -r requirements_lowest_direct.txt
+          hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
           hatch run test:unit
 
       # Since this integration inherits from OpenAIChatGenerator, we run ALL tests with Haystack main branch to catch regressions
@@ -115,7 +132,7 @@ jobs:
         if: github.event_name == 'schedule'
         run: |
           hatch env prune
-          hatch run uv pip install git+https://github.com/deepset-ai/haystack.git@main
+          hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
           hatch run test:all
 
       - name: Send event to Datadog for nightly failures

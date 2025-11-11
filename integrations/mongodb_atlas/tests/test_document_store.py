@@ -333,3 +333,81 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         finally:
             database[collection_name].drop()
+
+    def test_delete_by_filter(self, document_store: MongoDBAtlasDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "A"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 3
+
+        # Delete documents with category="A"
+        deleted_count = document_store.delete_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert deleted_count == 2
+        assert document_store.count_documents() == 1
+
+        # Verify the remaining document is the one with category="B"
+        remaining_docs = document_store.filter_documents()
+        assert len(remaining_docs) == 1
+        assert remaining_docs[0].meta["category"] == "B"
+
+    def test_update_by_filter(self, document_store: MongoDBAtlasDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "A"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 3
+
+        # Update documents with category="A" to have status="published"
+        updated_count = document_store.update_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
+        )
+        assert updated_count == 2
+
+        # Verify the updated documents have the new metadata
+        published_docs = document_store.filter_documents(
+            filters={"field": "meta.status", "operator": "==", "value": "published"}
+        )
+        assert len(published_docs) == 2
+        for doc in published_docs:
+            assert doc.meta["status"] == "published"
+            assert doc.meta["category"] == "A"
+
+        # Verify documents with category="B" were not updated
+        unpublished_docs = document_store.filter_documents(
+            filters={"field": "meta.category", "operator": "==", "value": "B"}
+        )
+        assert len(unpublished_docs) == 1
+        assert "status" not in unpublished_docs[0].meta
+
+    def test_delete_all_documents(self, document_store: MongoDBAtlasDocumentStore):
+        docs = [Document(id="1", content="first doc"), Document(id="2", content="second doc")]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 2
+        document_store.delete_all_documents()
+        assert document_store.count_documents() == 0
+
+    def test_delete_all_documents_empty_collection(self, document_store: MongoDBAtlasDocumentStore):
+        assert document_store.count_documents() == 0
+        document_store.delete_all_documents()
+        assert document_store.count_documents() == 0
+
+    def test_delete_all_documents_with_recreate_collection(self, document_store: MongoDBAtlasDocumentStore):
+        docs = [Document(id="1", content="first doc"), Document(id="2", content="second doc")]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 2
+
+        # Delete all documents with collection recreation
+        document_store.delete_all_documents(recreate_collection=True)
+        assert document_store.count_documents() == 0
+
+        # Verify collection still exists and we can write to it
+        new_docs = [Document(id="3", content="third doc")]
+        document_store.write_documents(new_docs)
+        assert document_store.count_documents() == 1

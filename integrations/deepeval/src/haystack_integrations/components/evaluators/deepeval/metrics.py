@@ -1,9 +1,10 @@
 import dataclasses
 import inspect
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Type
+from typing import Any
 
 from deepeval.evaluate.types import TestResult
 from deepeval.metrics import (
@@ -83,8 +84,8 @@ class MetricResult:
     """
 
     name: str
-    score: Optional[float] = None
-    explanation: Optional[str] = None
+    score: float | None = None
+    explanation: str | None = None
 
     def to_dict(self):
         return dataclasses.asdict(self)
@@ -112,21 +113,21 @@ class MetricDescriptor:
     """
 
     metric: DeepEvalMetric
-    backend: Type[BaseMetric]
-    input_parameters: Dict[str, Type]
+    backend: type[BaseMetric]
+    input_parameters: dict[str, type]
     input_converter: Callable[[Any], Iterable[LLMTestCase]]
-    output_converter: Callable[[TestResult], List[MetricResult]]
-    init_parameters: Optional[Mapping[str, Type]] = None
+    output_converter: Callable[[TestResult], list[MetricResult]]
+    init_parameters: Mapping[str, type] | None = None
 
     @classmethod
     def new(
         cls,
         metric: DeepEvalMetric,
-        backend: Type[BaseMetric],
+        backend: type[BaseMetric],
         input_converter: Callable[[Any], Iterable[LLMTestCase]],
-        output_converter: Optional[Callable[[TestResult], List[MetricResult]]] = None,
+        output_converter: Callable[[TestResult], list[MetricResult]] | None = None,
         *,
-        init_parameters: Optional[Mapping[str, Type]] = None,
+        init_parameters: Mapping[str, type] | None = None,
     ) -> "MetricDescriptor":
         input_converter_signature = inspect.signature(input_converter)
         input_parameters = {}
@@ -175,7 +176,7 @@ class InputConverters:
             raise ValueError(msg)
 
     @staticmethod
-    def validate_input_parameters(metric: DeepEvalMetric, expected: Dict[str, Any], received: Dict[str, Any]) -> None:
+    def validate_input_parameters(metric: DeepEvalMetric, expected: dict[str, Any], received: dict[str, Any]) -> None:
         for param, _ in expected.items():
             if param not in received:
                 msg = f"DeepEval evaluator expected input parameter '{param}' for metric '{metric}'"
@@ -183,19 +184,19 @@ class InputConverters:
 
     @staticmethod
     def question_context_response(
-        questions: List[str], contexts: List[List[str]], responses: List[str]
+        questions: list[str], contexts: list[list[str]], responses: list[str]
     ) -> Iterable[LLMTestCase]:
         InputConverters._validate_input_elements(questions=questions, contexts=contexts, responses=responses)
-        for q, c, r in zip(questions, contexts, responses):  # type: ignore
+        for q, c, r in zip(questions, contexts, responses, strict=True):  # type: ignore
             test_case = LLMTestCase(input=q, actual_output=r, retrieval_context=c)
             yield test_case
 
     @staticmethod
     def question_context_response_ground_truth(
-        questions: List[str], contexts: List[List[str]], responses: List[str], ground_truths: List[str]
+        questions: list[str], contexts: list[list[str]], responses: list[str], ground_truths: list[str]
     ) -> Iterable[LLMTestCase]:
         InputConverters._validate_input_elements(questions=questions, contexts=contexts, responses=responses)
-        for q, c, r, gt in zip(questions, contexts, responses, ground_truths):  # type: ignore
+        for q, c, r, gt in zip(questions, contexts, responses, ground_truths, strict=True):  # type: ignore
             test_case = LLMTestCase(input=q, actual_output=r, retrieval_context=c, expected_output=gt)
             yield test_case
 
@@ -210,8 +211,8 @@ class OutputConverters:
     @staticmethod
     def default(
         metric: DeepEvalMetric,
-    ) -> Callable[[TestResult], List[MetricResult]]:
-        def inner(output: TestResult, metric: DeepEvalMetric) -> List[MetricResult]:
+    ) -> Callable[[TestResult], list[MetricResult]]:
+        def inner(output: TestResult, metric: DeepEvalMetric) -> list[MetricResult]:
             metric_name = str(metric)
             assert output.metrics_data
             assert len(output.metrics_data) == 1
@@ -227,30 +228,30 @@ METRIC_DESCRIPTORS = {
         DeepEvalMetric.ANSWER_RELEVANCY,
         AnswerRelevancyMetric,
         InputConverters.question_context_response,  # type: ignore
-        init_parameters={"model": Optional[str]},  # type: ignore
+        init_parameters={"model": str | None},  # type: ignore
     ),
     DeepEvalMetric.FAITHFULNESS: MetricDescriptor.new(
         DeepEvalMetric.FAITHFULNESS,
         FaithfulnessMetric,
         InputConverters.question_context_response,  # type: ignore
-        init_parameters={"model": Optional[str]},  # type: ignore
+        init_parameters={"model": str | None},  # type: ignore
     ),
     DeepEvalMetric.CONTEXTUAL_PRECISION: MetricDescriptor.new(
         DeepEvalMetric.CONTEXTUAL_PRECISION,
         ContextualPrecisionMetric,
         InputConverters.question_context_response_ground_truth,  # type: ignore
-        init_parameters={"model": Optional[str]},  # type: ignore
+        init_parameters={"model": str | None},  # type: ignore
     ),
     DeepEvalMetric.CONTEXTUAL_RECALL: MetricDescriptor.new(
         DeepEvalMetric.CONTEXTUAL_RECALL,
         ContextualRecallMetric,
         InputConverters.question_context_response_ground_truth,  # type: ignore
-        init_parameters={"model": Optional[str]},  # type: ignore
+        init_parameters={"model": str | None},  # type: ignore
     ),
     DeepEvalMetric.CONTEXTUAL_RELEVANCE: MetricDescriptor.new(
         DeepEvalMetric.CONTEXTUAL_RELEVANCE,
         ContextualRelevancyMetric,
         InputConverters.question_context_response,  # type: ignore
-        init_parameters={"model": Optional[str]},  # type: ignore
+        init_parameters={"model": str | None},  # type: ignore
     ),
 }

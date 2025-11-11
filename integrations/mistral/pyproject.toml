@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.15.1"]
+dependencies = ["haystack-ai>=2.19.0", "mistralai>=1.9.11"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/mistral#readme"
@@ -58,17 +58,18 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
-    "pytz"
+    "pytz",
 ]
 
 [tool.hatch.envs.test.scripts]
 unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
-cov-retry = 'all --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x'
+cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x {args:tests}'
 
 types = """mypy -p haystack_integrations.components.embedders.mistral \
--p haystack_integrations.components.generators.mistral {args}"""
+-p haystack_integrations.components.generators.mistral \
+-p haystack_integrations.components.converters {args}"""
 
 [tool.mypy]
 install_types = true

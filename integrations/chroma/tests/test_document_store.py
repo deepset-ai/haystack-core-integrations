@@ -4,6 +4,7 @@
 
 import logging
 import operator
+import time
 import uuid
 from typing import List
 from unittest import mock
@@ -381,3 +382,41 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         # check that empty filters behave as no filters
         result_empty_filters = document_store.search(["Third"], filters={}, top_k=1)
         assert result == result_empty_filters
+
+    def test_delete_all_documents_index_recreation(self, document_store: ChromaDocumentStore):
+        # write some documents
+        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
+        document_store.write_documents(docs)
+
+        # get the current document_store config
+        config_before = document_store._collection.get(document_store._collection_name)
+
+        # delete all documents with recreating the index
+        document_store.delete_all_documents(recreate_index=True)
+        assert document_store.count_documents() == 0
+
+        # assure that with the same config
+        config_after = document_store._collection.get(document_store._collection_name)
+
+        assert config_before == config_after
+
+        # ensure the collection still exists by writing documents again
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 2
+
+    def test_delete_all_documents_no_index_recreation(self, document_store: ChromaDocumentStore):
+        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 2
+
+        document_store.delete_all_documents()
+        time.sleep(2)  # need to wait for the deletion to be reflected in count_documents
+        assert document_store.count_documents() == 0
+
+        new_doc = Document(id="3", content="New document after delete all")
+        document_store.write_documents([new_doc])
+        assert document_store.count_documents() == 1
+
+        results = document_store.filter_documents()
+        assert len(results) == 1
+        assert results[0].content == "New document after delete all"

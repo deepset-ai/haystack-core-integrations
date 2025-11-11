@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/ollama-v5.3.0] - 2025-10-22
+
+### 🚀 Features
+
+- OllamaChatGenerator update tools param to ToolsType (#2432)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Install dependencies in the `test` environment when testing with lowest direct dependencies and Haystack main (#2418)
+
+
 ## [integrations/ollama-v5.2.0] - 2025-09-26
 
 ### 🚀 Features

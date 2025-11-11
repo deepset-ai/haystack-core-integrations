@@ -10,7 +10,7 @@ from contextlib import AbstractContextManager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Literal, Optional, cast
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage
@@ -25,27 +25,6 @@ from langfuse.types import TraceMetadata
 logger = logging.getLogger(__name__)
 
 HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR = "HAYSTACK_LANGFUSE_ENFORCE_FLUSH"
-_SUPPORTED_GENERATORS = [
-    "AzureOpenAIGenerator",
-    "OpenAIGenerator",
-    "AnthropicGenerator",
-    "HuggingFaceAPIGenerator",
-    "HuggingFaceLocalGenerator",
-    "CohereGenerator",
-    "OllamaGenerator",
-]
-_SUPPORTED_CHAT_GENERATORS = [
-    "AmazonBedrockChatGenerator",
-    "AzureOpenAIChatGenerator",
-    "OpenAIChatGenerator",
-    "AnthropicChatGenerator",
-    "HuggingFaceAPIChatGenerator",
-    "HuggingFaceLocalChatGenerator",
-    "CohereChatGenerator",
-    "OllamaChatGenerator",
-    "GoogleGenAIChatGenerator",
-]
-_ALL_SUPPORTED_GENERATORS = _SUPPORTED_GENERATORS + _SUPPORTED_CHAT_GENERATORS
 
 # These are the keys used by Haystack for traces and span.
 # We keep them here to avoid making typos when using them.
@@ -57,6 +36,9 @@ _COMPONENT_NAME_KEY = "haystack.component.name"
 _COMPONENT_TYPE_KEY = "haystack.component.type"
 _COMPONENT_OUTPUT_KEY = "haystack.component.output"
 _COMPONENT_INPUT_KEY = "haystack.component.input"
+
+# Type alias for observation span types
+ObservationSpanType = Literal["tool", "agent", "retriever", "embedding", "generation"]
 
 # External session metadata for trace correlation (Haystack system)
 # Stores trace_id, user_id, session_id, tags, version for root trace creation
@@ -256,6 +238,46 @@ class SpanHandler(ABC):
         return default_to_dict(self)
 
 
+def _sanitize_usage_data(usage: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Sanitize usage data for Langfuse by flattening to a single-level dictionary.
+
+    Langfuse's usage_details must be a flat dictionary with only numeric values. This function:
+    - Flattens nested dictionaries using dot notation (e.g., cache_creation.input_tokens)
+    - Keeps int and float values
+    - Skips None, boolean, string, and other non-numeric types
+
+    :param usage: Raw usage dictionary from the provider.
+    :returns: Flat dictionary with only numeric values (int or float).
+    """
+    if not isinstance(usage, dict):
+        return {}
+
+    sanitized: Dict[str, Any] = {}
+
+    def _flatten(data: Dict[str, Any], prefix: str = "") -> None:
+        """Recursively flatten nested dictionaries."""
+        for key, value in data.items():
+            full_key = f"{prefix}.{key}" if prefix else key
+
+            if value is None:
+                # Skip None values (e.g., Anthropic's server_tool_use)
+                continue
+            elif isinstance(value, bool):
+                # Skip boolean values
+                continue
+            elif isinstance(value, (int, float)):
+                # Keep numeric values
+                sanitized[full_key] = value
+            elif isinstance(value, dict):
+                # Recursively flatten nested dicts
+                _flatten(value, full_key)
+            # Skip strings and other non-numeric types (e.g., Anthropic's service_tier)
+
+    _flatten(usage)
+    return sanitized
+
+
 class DefaultSpanHandler(SpanHandler):
     """DefaultSpanHandler provides the default Langfuse tracing behavior for Haystack."""
 
@@ -271,10 +293,12 @@ class DefaultSpanHandler(SpanHandler):
         # Get external tracing context for root trace creation (correlation metadata)
         tracing_ctx = tracing_context_var.get({})
         if not context.parent_span:
+            root_span_type: Literal["agent", "span"] = (
+                "agent" if context.operation_name == "haystack.agent.run" else "span"
+            )
             # Create a new trace when there's no parent span
-            span_context_manager = self.tracer.start_as_current_span(
-                name=context.trace_name,
-                version=tracing_ctx.get("version"),
+            span_context_manager = self.tracer.start_as_current_observation(
+                name=context.trace_name, version=tracing_ctx.get("version"), as_type=root_span_type
             )
 
             # Create LangfuseSpan which will handle entering the context manager
@@ -289,6 +313,7 @@ class DefaultSpanHandler(SpanHandler):
                 "metadata": None,
                 "tags": tracing_ctx.get("tags"),
                 "public": context.public,
+                "release": None,
             }
 
             # Filter out None values and apply trace attributes
@@ -297,8 +322,26 @@ class DefaultSpanHandler(SpanHandler):
                 span._span.update_trace(**trace_attrs)
 
             return span
-        elif context.component_type in _ALL_SUPPORTED_GENERATORS:
-            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type="generation"))
+
+        span_type = None
+
+        if context.component_type == "ToolInvoker":
+            span_type = "tool"
+        elif context.operation_name == "haystack.agent.run":
+            span_type = "agent"
+        elif context.component_type and context.component_type.endswith("Retriever"):
+            span_type = "retriever"
+        elif context.component_type and context.component_type.endswith("Embedder"):
+            span_type = "embedding"
+        elif context.component_type and context.component_type.endswith("Generator"):
+            span_type = "generation"
+
+        if span_type:
+            return LangfuseSpan(
+                self.tracer.start_as_current_observation(
+                    name=context.name, as_type=cast(ObservationSpanType, span_type)
+                )
+            )
         else:
             return LangfuseSpan(self.tracer.start_as_current_span(name=context.name))
 
@@ -324,12 +367,7 @@ class DefaultSpanHandler(SpanHandler):
                 formatted_names = [f"{name} (x{count})" if count > 1 else name for name, count in tool_counts.items()]
                 span.raw_span().update(name=f"{tool_invoker_name} - {sorted(formatted_names)}")
 
-        if component_type in _SUPPORTED_GENERATORS:
-            meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
-            if meta:
-                span.raw_span().update(usage=meta[0].get("usage") or None, model=meta[0].get("model"))
-
-        if component_type in _SUPPORTED_CHAT_GENERATORS:
+        if component_type and component_type.endswith("ChatGenerator"):
             replies = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("replies")
             if replies:
                 meta = replies[0].meta
@@ -340,11 +378,19 @@ class DefaultSpanHandler(SpanHandler):
                     except ValueError:
                         logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
                         completion_start_time = None
+                usage = meta.get("usage")
+                sanitized_usage = _sanitize_usage_data(usage) if usage else None
                 span.raw_span().update(
-                    usage=meta.get("usage") or None,
+                    usage_details=sanitized_usage,
                     model=meta.get("model"),
                     completion_start_time=completion_start_time,
                 )
+        elif component_type and component_type.endswith("Generator"):
+            meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
+            if meta:
+                usage = meta[0].get("usage")
+                sanitized_usage = _sanitize_usage_data(usage) if usage else None
+                span.raw_span().update(usage_details=sanitized_usage, model=meta[0].get("model"))
 
 
 class LangfuseTracer(Tracer):
@@ -465,11 +511,11 @@ class LangfuseTracer(Tracer):
         Return the URL to the tracing data.
         :return: The URL to the tracing data.
         """
-        return self._tracer.get_trace_url()
+        return self._tracer.get_trace_url() or ""
 
     def get_trace_id(self) -> str:
         """
         Return the trace ID.
         :return: The trace ID.
         """
-        return self._tracer.get_current_trace_id()
+        return self._tracer.get_current_trace_id() or ""

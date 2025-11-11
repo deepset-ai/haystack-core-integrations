@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v5.2.0] - 2025-10-22
+
+### 🚀 Features
+
+- `AmazonBedrockChatGenerator` update tools param to ToolsType (#2415)
+
 ## [integrations/amazon_bedrock-v5.1.0] - 2025-09-29
 
 ### 🚀 Features

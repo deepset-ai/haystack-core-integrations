@@ -9,7 +9,7 @@ from haystack.dataclasses import (
     ChatRole,
     StreamingChunk,
 )
-from haystack.tools import Tool
+from haystack.tools import Tool, Toolset
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
@@ -262,3 +262,66 @@ class TestOpenRouterChatGeneratorAsync:
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
         assert tool_message.meta["finish_reason"] == "tool_calls"
+
+    @pytest.mark.skipif(
+        not os.environ.get("OPENROUTER_API_KEY", None),
+        reason="Export an env var called OPENROUTER_API_KEY containing the OpenRouter API key to run this test.",
+    )
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_integration_mixing_tools_and_toolset_async(self):
+        """Test mixing Tool list and Toolset at runtime in async mode."""
+
+        def weather_function(city: str) -> str:
+            """Get weather information for a city."""
+            return f"Weather in {city}: 22°C, sunny"
+
+        def time_function(city: str) -> str:
+            """Get current time in a city."""
+            return f"Current time in {city}: 14:30"
+
+        def echo_function(text: str) -> str:
+            """Echo a text."""
+            return text
+
+        # Create tools
+        weather_tool = Tool(
+            name="weather",
+            description="Get weather information for a city",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=weather_function,
+        )
+
+        time_tool = Tool(
+            name="time",
+            description="Get current time in a city",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=time_function,
+        )
+
+        echo_tool = Tool(
+            name="echo",
+            description="Echo a text",
+            parameters={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
+            function=echo_function,
+        )
+
+        # Create Toolset with weather and time tools
+        toolset = Toolset([weather_tool, time_tool])
+
+        # Initialize with no tools, we'll pass them at runtime
+        component = OpenRouterChatGenerator()
+
+        # Pass mixed list: echo_tool (individual) and toolset (weather + time) at runtime
+        # This tests that both individual tools and toolsets can be combined
+        messages = [ChatMessage.from_user("Echo this: Hello World")]
+        results = await component.run_async(messages, tools=[echo_tool, toolset])
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+
+        # Should be able to use echo_tool from the runtime mixed list
+        assert message.tool_calls is not None
+        tool_call = message.tool_calls[0]
+        assert tool_call.tool_name == "echo"
+        assert tool_call.arguments == {"text": "Hello World"}
