@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -64,18 +64,18 @@ class AmazonBedrockDocumentEmbedder:
             "amazon.titan-embed-text-v2:0",
             "amazon.titan-embed-image-v1",
         ],
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
-        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
+        aws_access_key_id: Secret | None = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
+        aws_secret_access_key: Secret | None = Secret.from_env_var(  # noqa: B008
             "AWS_SECRET_ACCESS_KEY", strict=False
         ),
-        aws_session_token: Optional[Secret] = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
-        aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
-        aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
+        aws_session_token: Secret | None = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
+        aws_region_name: Secret | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
+        aws_profile_name: Secret | None = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         batch_size: int = 32,
         progress_bar: bool = True,
-        meta_fields_to_embed: Optional[List[str]] = None,
+        meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
-        boto3_config: Optional[Dict[str, Any]] = None,
+        boto3_config: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -127,7 +127,7 @@ class AmazonBedrockDocumentEmbedder:
         self.boto3_config = boto3_config
         self.kwargs = kwargs
 
-        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+        def resolve_secret(secret: Secret | None) -> str | None:
             return secret.resolve_value() if secret else None
 
         try:
@@ -149,7 +149,7 @@ class AmazonBedrockDocumentEmbedder:
             )
             raise AmazonBedrockConfigurationError(msg) from exception
 
-    def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
+    def _prepare_texts_to_embed(self, documents: list[Document]) -> list[str]:
         """
         Prepare the texts to embed by concatenating the Document text with the metadata fields to embed.
         """
@@ -162,7 +162,7 @@ class AmazonBedrockDocumentEmbedder:
             texts_to_embed.append(text_to_embed)
         return texts_to_embed
 
-    def _embed_cohere(self, documents: List[Document]) -> List[Document]:
+    def _embed_cohere(self, documents: list[Document]) -> list[Document]:
         """
         Internal method to embed Documents using Cohere models.
         Batch inference is supported.
@@ -199,7 +199,7 @@ class AmazonBedrockDocumentEmbedder:
 
         return documents
 
-    def _embed_titan(self, documents: List[Document]) -> List[Document]:
+    def _embed_titan(self, documents: list[Document]) -> list[Document]:
         """
         Internal method to embed Documents using Amazon Titan models.
         NOTE: Batch inference is not supported, so embeddings are created one by one.
@@ -227,8 +227,8 @@ class AmazonBedrockDocumentEmbedder:
 
         return documents
 
-    @component.output_types(documents=List[Document])
-    def run(self, documents: List[Document]) -> Dict[str, List[Document]]:
+    @component.output_types(documents=list[Document])
+    def run(self, documents: list[Document]) -> dict[str, list[Document]]:
         """Embed the provided `Document`s using the specified model.
 
         :param documents: The `Document`s to embed.
@@ -253,7 +253,7 @@ class AmazonBedrockDocumentEmbedder:
 
         return {"documents": documents_with_embeddings}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -277,7 +277,7 @@ class AmazonBedrockDocumentEmbedder:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AmazonBedrockDocumentEmbedder":
+    def from_dict(cls, data: dict[str, Any]) -> "AmazonBedrockDocumentEmbedder":
         """
         Deserializes the component from a dictionary.
 

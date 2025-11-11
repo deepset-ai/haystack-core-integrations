@@ -6,7 +6,6 @@ import os
 from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
-from typing import Optional
 
 from boto3.session import Session
 from botocore.config import Config
@@ -23,9 +22,9 @@ class S3Storage:
         self,
         s3_bucket: str,
         session: Session,
-        s3_prefix: Optional[str] = None,
-        endpoint_url: Optional[str] = None,
-        config: Optional[Config] = None,
+        s3_prefix: str | None = None,
+        endpoint_url: str | None = None,
+        config: Config | None = None,
     ) -> None:
         """
         Initializes the S3Storage object with the provided parameters.

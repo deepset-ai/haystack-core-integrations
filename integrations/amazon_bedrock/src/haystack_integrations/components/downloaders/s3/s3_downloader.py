@@ -3,9 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from botocore.config import Config
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -29,20 +30,20 @@ class S3Downloader:
     def __init__(
         self,
         *,
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
-        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
+        aws_access_key_id: Secret | None = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
+        aws_secret_access_key: Secret | None = Secret.from_env_var(  # noqa: B008
             "AWS_SECRET_ACCESS_KEY", strict=False
         ),
-        aws_session_token: Optional[Secret] = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
-        aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
-        aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
-        boto3_config: Optional[Dict[str, Any]] = None,
-        file_root_path: Optional[str] = None,
-        file_extensions: Optional[List[str]] = None,
+        aws_session_token: Secret | None = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
+        aws_region_name: Secret | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
+        aws_profile_name: Secret | None = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
+        boto3_config: dict[str, Any] | None = None,
+        file_root_path: str | None = None,
+        file_extensions: list[str] | None = None,
         file_name_meta_key: str = "file_name",
         max_workers: int = 32,
         max_cache_size: int = 100,
-        s3_key_generation_function: Optional[Callable[[Document], str]] = None,
+        s3_key_generation_function: Callable[[Document], str] | None = None,
     ) -> None:
         """
         Initializes the `S3Downloader` with the provided parameters.
@@ -104,9 +105,9 @@ class S3Downloader:
         self.file_name_meta_key = file_name_meta_key
         self.s3_key_generation_function = s3_key_generation_function
 
-        self._storage: Optional[S3Storage] = None
+        self._storage: S3Storage | None = None
 
-        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+        def resolve_secret(secret: Secret | None) -> str | None:
             return secret.resolve_value() if secret else None
 
         self._session = get_aws_session(
@@ -126,11 +127,11 @@ class S3Downloader:
             self.file_root_path.mkdir(parents=True, exist_ok=True)
             self._storage = S3Storage.from_env(session=self._session, config=self._config)
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(
         self,
-        documents: List[Document],
-    ) -> Dict[str, List[Document]]:
+        documents: list[Document],
+    ) -> dict[str, list[Document]]:
         """Download files from AWS S3 Buckets to local filesystem.
 
         Return enriched `Document`s with the path of the downloaded file.
@@ -160,7 +161,7 @@ class S3Downloader:
         downloaded_documents = [d for d in iterable if d is not None]
         return {"documents": downloaded_documents}
 
-    def _filter_documents_by_extensions(self, documents: List[Document]) -> List[Document]:
+    def _filter_documents_by_extensions(self, documents: list[Document]) -> list[Document]:
         """Filter documents by file extensions."""
         if not self.file_extensions:
             return documents
@@ -170,7 +171,7 @@ class S3Downloader:
             if Path(doc.meta.get(self.file_name_meta_key, "")).suffix.lower() in self.file_extensions
         ]
 
-    def _download_file(self, document: Document) -> Optional[Document]:
+    def _download_file(self, document: Document) -> Document | None:
         """
         Download a single file from AWS S3 Bucket to local filesystem.
 
@@ -202,7 +203,7 @@ class S3Downloader:
         document.meta["file_path"] = str(file_path)
         return document
 
-    def _cleanup_cache(self, documents: List[Document]) -> None:
+    def _cleanup_cache(self, documents: list[Document]) -> None:
         """
         Remove least-recently-accessed cache files when cache exceeds `max_cache_size`.
 
@@ -224,7 +225,7 @@ class S3Downloader:
                 except Exception as error:
                     logger.warning("Failed to remove cache file at {path} with error: {e}", path=p, e=error)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize the component to a dictionary."""
 
         s3_key_generation_function_name = (
@@ -247,7 +248,7 @@ class S3Downloader:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "S3Downloader":
+    def from_dict(cls, data: dict[str, Any]) -> "S3Downloader":
         """
         Deserializes the component from a dictionary.
         :param data:

@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -57,14 +57,14 @@ class AmazonBedrockTextEmbedder:
             "amazon.titan-embed-text-v2:0",
             "amazon.titan-embed-image-v1",
         ],
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
-        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
+        aws_access_key_id: Secret | None = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
+        aws_secret_access_key: Secret | None = Secret.from_env_var(  # noqa: B008
             "AWS_SECRET_ACCESS_KEY", strict=False
         ),
-        aws_session_token: Optional[Secret] = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
-        aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
-        aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
-        boto3_config: Optional[Dict[str, Any]] = None,
+        aws_session_token: Secret | None = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
+        aws_region_name: Secret | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
+        aws_profile_name: Secret | None = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
+        boto3_config: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -105,7 +105,7 @@ class AmazonBedrockTextEmbedder:
         self.boto3_config = boto3_config
         self.kwargs = kwargs
 
-        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+        def resolve_secret(secret: Secret | None) -> str | None:
             return secret.resolve_value() if secret else None
 
         try:
@@ -127,8 +127,8 @@ class AmazonBedrockTextEmbedder:
             )
             raise AmazonBedrockConfigurationError(msg) from exception
 
-    @component.output_types(embedding=List[float])
-    def run(self, text: str) -> Dict[str, List[float]]:
+    @component.output_types(embedding=list[float])
+    def run(self, text: str) -> dict[str, list[float]]:
         """Embeds the input text using the Amazon Bedrock model.
 
         :param text: The input text to embed.
@@ -177,7 +177,7 @@ class AmazonBedrockTextEmbedder:
 
         return {"embedding": embedding}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -197,7 +197,7 @@ class AmazonBedrockTextEmbedder:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AmazonBedrockTextEmbedder":
+    def from_dict(cls, data: dict[str, Any]) -> "AmazonBedrockTextEmbedder":
         """
         Deserializes the component from a dictionary.
 

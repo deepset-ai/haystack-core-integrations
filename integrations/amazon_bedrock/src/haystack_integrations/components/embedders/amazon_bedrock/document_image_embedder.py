@@ -4,7 +4,7 @@
 
 import json
 from dataclasses import replace
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Literal
 
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -70,18 +70,18 @@ class AmazonBedrockDocumentImageEmbedder:
         self,
         *,
         model: Literal["amazon.titan-embed-image-v1", "cohere.embed-english-v3", "cohere.embed-multilingual-v3"],
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
-        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
+        aws_access_key_id: Secret | None = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
+        aws_secret_access_key: Secret | None = Secret.from_env_var(  # noqa: B008
             "AWS_SECRET_ACCESS_KEY", strict=False
         ),
-        aws_session_token: Optional[Secret] = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
-        aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
-        aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
+        aws_session_token: Secret | None = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
+        aws_region_name: Secret | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
+        aws_profile_name: Secret | None = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         file_path_meta_field: str = "file_path",
-        root_path: Optional[str] = None,
-        image_size: Optional[Tuple[int, int]] = None,
+        root_path: str | None = None,
+        image_size: tuple[int, int] | None = None,
         progress_bar: bool = True,
-        boto3_config: Optional[Dict[str, Any]] = None,
+        boto3_config: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -144,7 +144,7 @@ class AmazonBedrockDocumentImageEmbedder:
                 raise ValueError(msg)
             self.embedding_types = emmbedding_types
 
-        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+        def resolve_secret(secret: Secret | None) -> str | None:
             return secret.resolve_value() if secret else None
 
         try:
@@ -296,7 +296,7 @@ class AmazonBedrockDocumentImageEmbedder:
 
         return {"documents": docs_with_embeddings}
 
-    def _embed_titan(self, images: List[str]) -> List[List[float]]:
+    def _embed_titan(self, images: list[str]) -> list[list[float]]:
         """
         Internal method to embed base64 images using Amazon Titan models.
 
@@ -326,7 +326,7 @@ class AmazonBedrockDocumentImageEmbedder:
 
         return all_embeddings
 
-    def _embed_cohere(self, image_uris: List[str]) -> List[List[float]]:
+    def _embed_cohere(self, image_uris: list[str]) -> list[list[float]]:
         """
         Internal method to embed base64 images using Cohere models.
 

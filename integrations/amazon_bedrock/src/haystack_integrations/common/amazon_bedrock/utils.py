@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional, Union
+from typing import Any
 
 import aioboto3
 import boto3
@@ -20,14 +20,14 @@ AWS_CONFIGURATION_KEYS = [
 
 
 def get_aws_session(
-    aws_access_key_id: Optional[str] = None,
-    aws_secret_access_key: Optional[str] = None,
-    aws_session_token: Optional[str] = None,
-    aws_region_name: Optional[str] = None,
-    aws_profile_name: Optional[str] = None,
+    aws_access_key_id: str | None = None,
+    aws_secret_access_key: str | None = None,
+    aws_session_token: str | None = None,
+    aws_region_name: str | None = None,
+    aws_profile_name: str | None = None,
     async_mode: bool = False,
     **kwargs: Any,
-) -> Union[boto3.Session, aioboto3.Session]:
+) -> boto3.Session | aioboto3.Session:
     """
     Creates an AWS Session with the given parameters.
     Checks if the provided AWS credentials are valid and can be used to connect to AWS.
