@@ -591,7 +591,7 @@ class QdrantDocumentStore:
 
             # deal with the Optional use_sparse_embeddings
             sparse_vectors = info_json["config"]["params"]["sparse_vectors"]
-            use_sparse_embeddings = sparse_vectors if sparse_vectors else False
+            use_sparse_embeddings = True if sparse_vectors else False
 
             # deal with the Optional sparse_idf
             hnsw_config = info_json["config"]["params"]["vectors"].get("config", {}).get("hnsw_config", None)
