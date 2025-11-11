@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import aioboto3
 from botocore.config import Config
@@ -154,12 +154,12 @@ class AmazonBedrockChatGenerator:
         aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
         aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
-        boto3_config: Optional[Dict[str, Any]] = None,
+        boto3_config: Optional[dict[str, Any]] = None,
         tools: Optional[ToolsType] = None,
         *,
-        guardrail_config: Optional[Dict[str, str]] = None,
+        guardrail_config: Optional[dict[str, str]] = None,
     ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
@@ -289,7 +289,7 @@ class AmazonBedrockChatGenerator:
             )
             raise AmazonBedrockConfigurationError(msg) from exception
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -313,7 +313,7 @@ class AmazonBedrockChatGenerator:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AmazonBedrockChatGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "AmazonBedrockChatGenerator":
         """
         Deserializes the component from a dictionary.
 
@@ -340,12 +340,12 @@ class AmazonBedrockChatGenerator:
 
     def _prepare_request_params(
         self,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         tools: Optional[ToolsType] = None,
         requires_async: bool = False,
-    ) -> Tuple[Dict[str, Any], Optional[StreamingCallbackT]]:
+    ) -> tuple[dict[str, Any], Optional[StreamingCallbackT]]:
         """
         Prepares and formats parameters required to call the Amazon Bedrock Converse API.
 
@@ -419,14 +419,14 @@ class AmazonBedrockChatGenerator:
 
         return params, callback
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         tools: Optional[ToolsType] = None,
-    ) -> Dict[str, List[ChatMessage]]:
+    ) -> dict[str, list[ChatMessage]]:
         """
         Executes a synchronous inference call to the Amazon Bedrock model using the Converse API.
 
@@ -480,14 +480,14 @@ class AmazonBedrockChatGenerator:
 
         return {"replies": replies}
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         tools: Optional[ToolsType] = None,
-    ) -> Dict[str, List[ChatMessage]]:
+    ) -> dict[str, list[ChatMessage]]:
         """
         Executes an asynchronous inference call to the Amazon Bedrock model using the Converse API.
 
