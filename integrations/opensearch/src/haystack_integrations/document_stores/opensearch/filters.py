@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from datetime import datetime
-from typing import Any
+from typing import Any, Dict, List
 
 from haystack.errors import FilterError
 
