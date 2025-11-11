@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/azure_ai_search-v2.3.2] - 2025-11-11
+
+### 🚀 Features
+
+- Delete all documents for AzureAISearch DocumentStore (#2404)
+
+### ⚙️ CI
+
+- Adopt PEP 585 type hinting (#2475)
+
+
 ## [integrations/azure_ai_search-v2.3.1] - 2025-10-10
 
 ### 🐛 Bug Fixes
