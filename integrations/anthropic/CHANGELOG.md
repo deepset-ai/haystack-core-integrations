@@ -1,5 +1,12 @@
 # Changelog
 
+## [unreleased]
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+
 ## [integrations/anthropic-v4.5.0] - 2025-10-22
 
 ### 🚀 Features
