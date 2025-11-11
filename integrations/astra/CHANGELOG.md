@@ -1,6 +1,6 @@
 # Changelog
 
-## [integrations/astra-v2.1.0]
+## [integrations/astra-v3.0.1]
 
 ### ⚙️ CI
 
