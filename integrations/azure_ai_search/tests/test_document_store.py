@@ -4,7 +4,6 @@
 import os
 import random
 from datetime import datetime, timezone
-from typing import List
 from unittest.mock import patch
 
 import pytest
@@ -231,7 +230,7 @@ def test_init(_mock_azure_search_client):
     assert document_store._vector_search_configuration == DEFAULT_VECTOR_SEARCH
 
 
-def _assert_documents_are_equal(received: List[Document], expected: List[Document]):
+def _assert_documents_are_equal(received: list[Document], expected: list[Document]):
     """
     Assert that two lists of Documents are equal.
 
@@ -258,7 +257,7 @@ def _assert_documents_are_equal(received: List[Document], expected: List[Documen
     reason="Missing AZURE_AI_SEARCH_ENDPOINT or AZURE_AI_SEARCH_API_KEY.",
 )
 class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         _assert_documents_are_equal(received, expected)
 
     def test_write_documents(self, document_store: AzureAISearchDocumentStore):
@@ -328,7 +327,7 @@ TEST_EMBEDDING_2 = _random_embeddings(768)
 class TestFilters(FilterDocumentsTest):
     # Overriding to change "date" to compatible ISO 8601 format
     @pytest.fixture
-    def filterable_docs(self) -> List[Document]:
+    def filterable_docs(self) -> list[Document]:
         """Fixture that returns a list of Documents that can be used to test filtering."""
         documents = []
         for i in range(3):
@@ -381,7 +380,7 @@ class TestFilters(FilterDocumentsTest):
         return documents
 
     # Overriding to compare the documents with the same order
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         _assert_documents_are_equal(received, expected)
 
     # Azure search index supports UTC datetime in ISO 8601 format
