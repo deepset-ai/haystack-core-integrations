@@ -10,7 +10,7 @@ from contextlib import AbstractContextManager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, Literal, Optional
+from typing import Any, Dict, Iterator, List, Literal, Optional, cast
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage
@@ -25,27 +25,6 @@ from langfuse.types import TraceMetadata
 logger = logging.getLogger(__name__)
 
 HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR = "HAYSTACK_LANGFUSE_ENFORCE_FLUSH"
-_SUPPORTED_GENERATORS = [
-    "AzureOpenAIGenerator",
-    "OpenAIGenerator",
-    "AnthropicGenerator",
-    "HuggingFaceAPIGenerator",
-    "HuggingFaceLocalGenerator",
-    "CohereGenerator",
-    "OllamaGenerator",
-]
-_SUPPORTED_CHAT_GENERATORS = [
-    "AmazonBedrockChatGenerator",
-    "AzureOpenAIChatGenerator",
-    "OpenAIChatGenerator",
-    "AnthropicChatGenerator",
-    "HuggingFaceAPIChatGenerator",
-    "HuggingFaceLocalChatGenerator",
-    "CohereChatGenerator",
-    "OllamaChatGenerator",
-    "GoogleGenAIChatGenerator",
-]
-_ALL_SUPPORTED_GENERATORS = _SUPPORTED_GENERATORS + _SUPPORTED_CHAT_GENERATORS
 
 # These are the keys used by Haystack for traces and span.
 # We keep them here to avoid making typos when using them.
@@ -57,6 +36,9 @@ _COMPONENT_NAME_KEY = "haystack.component.name"
 _COMPONENT_TYPE_KEY = "haystack.component.type"
 _COMPONENT_OUTPUT_KEY = "haystack.component.output"
 _COMPONENT_INPUT_KEY = "haystack.component.input"
+
+# Type alias for observation span types
+ObservationSpanType = Literal["tool", "agent", "retriever", "embedding", "generation"]
 
 # External session metadata for trace correlation (Haystack system)
 # Stores trace_id, user_id, session_id, tags, version for root trace creation
@@ -340,12 +322,26 @@ class DefaultSpanHandler(SpanHandler):
                 span._span.update_trace(**trace_attrs)
 
             return span
-        elif context.component_type == "ToolInvoker":
-            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type="tool"))
+
+        span_type = None
+
+        if context.component_type == "ToolInvoker":
+            span_type = "tool"
         elif context.operation_name == "haystack.agent.run":
-            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type="agent"))
-        elif context.component_type in _ALL_SUPPORTED_GENERATORS:
-            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name, as_type="generation"))
+            span_type = "agent"
+        elif context.component_type and context.component_type.endswith("Retriever"):
+            span_type = "retriever"
+        elif context.component_type and context.component_type.endswith("Embedder"):
+            span_type = "embedding"
+        elif context.component_type and context.component_type.endswith("Generator"):
+            span_type = "generation"
+
+        if span_type:
+            return LangfuseSpan(
+                self.tracer.start_as_current_observation(
+                    name=context.name, as_type=cast(ObservationSpanType, span_type)
+                )
+            )
         else:
             return LangfuseSpan(self.tracer.start_as_current_span(name=context.name))
 
@@ -371,14 +367,7 @@ class DefaultSpanHandler(SpanHandler):
                 formatted_names = [f"{name} (x{count})" if count > 1 else name for name, count in tool_counts.items()]
                 span.raw_span().update(name=f"{tool_invoker_name} - {sorted(formatted_names)}")
 
-        if component_type in _SUPPORTED_GENERATORS:
-            meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
-            if meta:
-                usage = meta[0].get("usage")
-                sanitized_usage = _sanitize_usage_data(usage) if usage else None
-                span.raw_span().update(usage_details=sanitized_usage, model=meta[0].get("model"))
-
-        if component_type in _SUPPORTED_CHAT_GENERATORS:
+        if component_type and component_type.endswith("ChatGenerator"):
             replies = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("replies")
             if replies:
                 meta = replies[0].meta
@@ -396,6 +385,12 @@ class DefaultSpanHandler(SpanHandler):
                     model=meta.get("model"),
                     completion_start_time=completion_start_time,
                 )
+        elif component_type and component_type.endswith("Generator"):
+            meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
+            if meta:
+                usage = meta[0].get("usage")
+                sanitized_usage = _sanitize_usage_data(usage) if usage else None
+                span.raw_span().update(usage_details=sanitized_usage, model=meta[0].get("model"))
 
 
 class LangfuseTracer(Tracer):
