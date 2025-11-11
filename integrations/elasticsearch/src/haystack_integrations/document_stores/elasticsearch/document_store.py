@@ -8,7 +8,7 @@
 
 
 from collections.abc import Mapping
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Literal, Optional, Union
 
 import numpy as np
 from elastic_transport import NodeConfig
@@ -25,7 +25,7 @@ from .filters import _normalize_filters
 
 logger = logging.getLogger(__name__)
 
-Hosts = Union[str, List[Union[str, Mapping[str, Union[str, int]], NodeConfig]]]
+Hosts = Union[str, list[Union[str, Mapping[str, Union[str, int]], NodeConfig]]]
 
 # document scores are essentially unbounded and will be scaled to values between 0 and 1 if scale_score is set to
 # True. Scaling uses the expit function (inverse of the logit function) after applying a scaling factor
@@ -71,7 +71,7 @@ class ElasticsearchDocumentStore:
         self,
         *,
         hosts: Optional[Hosts] = None,
-        custom_mapping: Optional[Dict[str, Any]] = None,
+        custom_mapping: Optional[dict[str, Any]] = None,
         index: str = "default",
         api_key: Secret = Secret.from_env_var("ELASTIC_API_KEY", strict=False),
         api_key_id: Secret = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),
@@ -120,7 +120,7 @@ class ElasticsearchDocumentStore:
         self._kwargs = kwargs
         self._initialized = False
 
-        if self._custom_mapping and not isinstance(self._custom_mapping, Dict):
+        if self._custom_mapping and not isinstance(self._custom_mapping, dict):
             msg = "custom_mapping must be a dictionary"
             raise ValueError(msg)
 
@@ -186,7 +186,7 @@ class ElasticsearchDocumentStore:
 
             self._initialized = True
 
-    def _handle_auth(self) -> Optional[Union[str, Tuple[str, str]]]:
+    def _handle_auth(self) -> Optional[Union[str, tuple[str, str]]]:
         """
         Handles authentication for the Elasticsearch client.
 
@@ -206,7 +206,7 @@ class ElasticsearchDocumentStore:
 
         """
 
-        api_key: Optional[Union[str, Tuple[str, str]]]  # make the type checker happy
+        api_key: Optional[Union[str, tuple[str, str]]]  # make the type checker happy
 
         api_key_resolved = self._api_key.resolve_value()
         api_key_id_resolved = self._api_key_id.resolve_value()
@@ -247,7 +247,7 @@ class ElasticsearchDocumentStore:
         assert self._async_client is not None
         return self._async_client
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -269,7 +269,7 @@ class ElasticsearchDocumentStore:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ElasticsearchDocumentStore":
+    def from_dict(cls, data: dict[str, Any]) -> "ElasticsearchDocumentStore":
         """
         Deserializes the component from a dictionary.
 
@@ -300,7 +300,7 @@ class ElasticsearchDocumentStore:
         result = await self._async_client.count(index=self._index)  # type: ignore
         return result["count"]
 
-    def _search_documents(self, **kwargs: Any) -> List[Document]:
+    def _search_documents(self, **kwargs: Any) -> list[Document]:
         """
         Calls the Elasticsearch client's search method and handles pagination.
         """
@@ -308,7 +308,7 @@ class ElasticsearchDocumentStore:
         if top_k is None and "knn" in kwargs and "k" in kwargs["knn"]:
             top_k = kwargs["knn"]["k"]
 
-        documents: List[Document] = []
+        documents: list[Document] = []
         from_ = 0
         # Handle pagination
         while True:
@@ -327,7 +327,7 @@ class ElasticsearchDocumentStore:
                 break
         return documents
 
-    async def _search_documents_async(self, **kwargs: Any) -> List[Document]:
+    async def _search_documents_async(self, **kwargs: Any) -> list[Document]:
         """
         Asynchronously calls the Elasticsearch client's search method and handles pagination.
         """
@@ -335,7 +335,7 @@ class ElasticsearchDocumentStore:
         if top_k is None and "knn" in kwargs and "k" in kwargs["knn"]:
             top_k = kwargs["knn"]["k"]
 
-        documents: List[Document] = []
+        documents: list[Document] = []
         from_ = 0
 
         # handle pagination
@@ -352,7 +352,7 @@ class ElasticsearchDocumentStore:
 
         return documents
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
         """
         The main query method for the document store. It retrieves all documents that match the filters.
 
@@ -370,7 +370,7 @@ class ElasticsearchDocumentStore:
         documents = self._search_documents(query=query)
         return documents
 
-    async def filter_documents_async(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    async def filter_documents_async(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
         """
         Asynchronously retrieves all documents that match the filters.
 
@@ -389,7 +389,7 @@ class ElasticsearchDocumentStore:
         return documents
 
     @staticmethod
-    def _deserialize_document(hit: Dict[str, Any]) -> Document:
+    def _deserialize_document(hit: dict[str, Any]) -> Document:
         """
         Creates a `Document` from the search hit provided.
         This is mostly useful in self.filter_documents().
@@ -404,7 +404,7 @@ class ElasticsearchDocumentStore:
 
         return Document.from_dict(data)
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
+    def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes `Document`s to Elasticsearch.
 
@@ -482,7 +482,7 @@ class ElasticsearchDocumentStore:
         return documents_written
 
     async def write_documents_async(
-        self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
+        self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
     ) -> int:
         """
         Asynchronously writes `Document`s to Elasticsearch.
@@ -550,7 +550,7 @@ class ElasticsearchDocumentStore:
             msg = f"Failed to write documents to Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    def delete_documents(self, document_ids: List[str]) -> None:
+    def delete_documents(self, document_ids: list[str]) -> None:
         """
         Deletes all documents with a matching document_ids from the document store.
 
@@ -564,7 +564,7 @@ class ElasticsearchDocumentStore:
             raise_on_error=False,
         )
 
-    def _prepare_delete_all_request(self, *, is_async: bool) -> Dict[str, Any]:
+    def _prepare_delete_all_request(self, *, is_async: bool) -> dict[str, Any]:
         return {
             "index": self._index,
             "body": {"query": {"match_all": {}}},  # Delete all documents
@@ -572,7 +572,7 @@ class ElasticsearchDocumentStore:
             "refresh": True,  # Ensure changes are visible immediately
         }
 
-    async def delete_documents_async(self, document_ids: List[str]) -> None:
+    async def delete_documents_async(self, document_ids: list[str]) -> None:
         """
         Asynchronously deletes all documents with a matching document_ids from the document store.
 
@@ -681,11 +681,11 @@ class ElasticsearchDocumentStore:
         self,
         query: str,
         *,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         fuzziness: str = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Retrieves documents using BM25 retrieval.
 
@@ -700,7 +700,7 @@ class ElasticsearchDocumentStore:
             msg = "query must be a non empty string"
             raise ValueError(msg)
 
-        body: Dict[str, Any] = {
+        body: dict[str, Any] = {
             "size": top_k,
             "query": {
                 "bool": {
@@ -735,11 +735,11 @@ class ElasticsearchDocumentStore:
         self,
         query: str,
         *,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         fuzziness: str = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Asynchronously retrieves documents using BM25 retrieval.
 
@@ -789,12 +789,12 @@ class ElasticsearchDocumentStore:
 
     def _embedding_retrieval(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         *,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
         num_candidates: Optional[int] = None,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Retrieves documents using dense vector similarity search.
 
@@ -811,7 +811,7 @@ class ElasticsearchDocumentStore:
         if not num_candidates:
             num_candidates = top_k * 10
 
-        body: Dict[str, Any] = {
+        body: dict[str, Any] = {
             "knn": {
                 "field": "embedding",
                 "query_vector": query_embedding,
@@ -828,12 +828,12 @@ class ElasticsearchDocumentStore:
 
     async def _embedding_retrieval_async(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         *,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
         num_candidates: Optional[int] = None,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Asynchronously retrieves documents using dense vector similarity search.
 
