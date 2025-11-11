@@ -263,7 +263,7 @@ class TestAIMLAPIChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "openai/gpt-5-chat-latest" in message.meta["model"]
+        assert "gpt-5-chat-latest" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -299,7 +299,7 @@ class TestAIMLAPIChatGenerator:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "openai/gpt-5-chat-latest" in message.meta["model"]
+        assert "gpt-5-chat-latest" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
