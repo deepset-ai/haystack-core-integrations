@@ -1,4 +1,4 @@
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Union
+from typing import Any, Callable, ClassVar, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingChunk
@@ -46,7 +46,7 @@ class AnthropicGenerator:
     """
 
     # The parameters that can be passed to the Anthropic API https://docs.anthropic.com/claude/reference/messages_post
-    ALLOWED_PARAMS: ClassVar[List[str]] = [
+    ALLOWED_PARAMS: ClassVar[list[str]] = [
         "system",
         "max_tokens",
         "metadata",
@@ -63,7 +63,7 @@ class AnthropicGenerator:
         model: str = "claude-sonnet-4-20250514",
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
         system_prompt: Optional[str] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         *,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
@@ -90,7 +90,7 @@ class AnthropicGenerator:
         self.thinking_tag_start = f"<{self.thinking_tag}>" if self.thinking_tag else ""
         self.thinking_tag_end = f"</{self.thinking_tag}>\n\n" if self.thinking_tag else "\n\n"
 
-        client_kwargs: Dict[str, Any] = {"api_key": api_key.resolve_value()}
+        client_kwargs: dict[str, Any] = {"api_key": api_key.resolve_value()}
         # We do this since timeout=None is not the same as not setting it in Anthropic
         if timeout is not None:
             client_kwargs["timeout"] = timeout
@@ -100,7 +100,7 @@ class AnthropicGenerator:
 
         self.client = Anthropic(**client_kwargs)
 
-    def _get_telemetry_data(self) -> Dict[str, Any]:
+    def _get_telemetry_data(self) -> dict[str, Any]:
         """
         Get telemetry data for the component.
 
@@ -108,7 +108,7 @@ class AnthropicGenerator:
         """
         return {"model": self.model}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize this component to a dictionary.
 
@@ -128,7 +128,7 @@ class AnthropicGenerator:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AnthropicGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "AnthropicGenerator":
         """
         Deserialize this component from a dictionary.
 
@@ -143,13 +143,13 @@ class AnthropicGenerator:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
-    @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
+    @component.output_types(replies=list[str], meta=list[dict[str, Any]])
     def run(
         self,
         prompt: str,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-    ) -> Dict[str, Union[List[str], List[Dict[str, Any]]]]:
+    ) -> dict[str, Union[list[str], list[dict[str, Any]]]]:
         """
         Generate replies using the Anthropic API.
 
@@ -183,12 +183,12 @@ class AnthropicGenerator:
             **filtered_generation_kwargs,
         )
 
-        completions: List[str] = []
-        meta: Dict[str, Any] = {}
+        completions: list[str] = []
+        meta: dict[str, Any] = {}
         # if streaming is enabled, the response is a Stream[MessageStreamEvent]
         # some tracing libs (e.g. ddtrace) wrap the response breaking isinstance checks
         if stream:
-            chunks: List[StreamingChunk] = []
+            chunks: list[StreamingChunk] = []
             stream_event, delta, start_event, content_block_type = None, None, None, None
             for stream_event in response:
                 if isinstance(stream_event, MessageStartEvent):

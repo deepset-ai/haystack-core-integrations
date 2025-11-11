@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union, cast, get_args
+from typing import Any, Literal, Optional, Union, cast, get_args
 
 from haystack.dataclasses.chat_message import (
     ChatMessage,
@@ -33,7 +33,7 @@ IMAGE_SUPPORTED_FORMATS: list[ImageFormat] = list(get_args(ImageFormat))
 
 
 # Mapping from Anthropic stop reasons to Haystack FinishReason values
-FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
+FINISH_REASON_MAPPING: dict[str, FinishReason] = {
     "end_turn": "stop",
     "stop_sequence": "stop",
     "max_tokens": "length",
@@ -44,8 +44,8 @@ FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
 
 
 def _update_anthropic_message_with_tool_call_results(
-    tool_call_results: List[ToolCallResult],
-    content: List[
+    tool_call_results: list[ToolCallResult],
+    content: list[
         Union[
             TextBlockParam,
             ToolUseBlockParam,
@@ -76,7 +76,7 @@ def _update_anthropic_message_with_tool_call_results(
         content.append(tool_result_block)
 
 
-def _convert_tool_calls_to_anthropic_format(tool_calls: List[ToolCall]) -> List[ToolUseBlockParam]:
+def _convert_tool_calls_to_anthropic_format(tool_calls: list[ToolCall]) -> list[ToolUseBlockParam]:
     """
     Convert a list of tool calls to the format expected by Anthropic Chat API.
 
@@ -100,8 +100,8 @@ def _convert_tool_calls_to_anthropic_format(tool_calls: List[ToolCall]) -> List[
 
 
 def _convert_messages_to_anthropic_format(
-    messages: List[ChatMessage],
-) -> Tuple[List[TextBlockParam], List[MessageParam]]:
+    messages: list[ChatMessage],
+) -> tuple[list[TextBlockParam], list[MessageParam]]:
     """
     Convert a list of messages to the format expected by Anthropic Chat API.
 
@@ -111,8 +111,8 @@ def _convert_messages_to_anthropic_format(
         - A list of non-system MessageParam objects in the format expected by Anthropic API.
     """
 
-    anthropic_system_messages: List[TextBlockParam] = []
-    anthropic_non_system_messages: List[MessageParam] = []
+    anthropic_system_messages: list[TextBlockParam] = []
+    anthropic_non_system_messages: list[MessageParam] = []
 
     i = 0
     while i < len(messages):
@@ -129,7 +129,7 @@ def _convert_messages_to_anthropic_format(
             i += 1
             continue
 
-        content: List[
+        content: list[
             Union[
                 TextBlockParam,
                 ToolUseBlockParam,
@@ -258,7 +258,7 @@ def _convert_chat_completion_to_chat_message(
     reasoning_text = ""
 
     for block in anthropic_response.content:
-        reasoning_content: Dict[str, Any] = {}
+        reasoning_content: dict[str, Any] = {}
         if block.type == "tool_use":
             tool_calls.append(ToolCall(tool_name=block.name, arguments=block.input, id=block.id))
         elif block.type == "thinking":
@@ -358,7 +358,7 @@ def _convert_anthropic_chunk_to_streaming_chunk(
     )
 
 
-def _process_reasoning_contents(chunks: List[StreamingChunk]) -> Optional[ReasoningContent]:
+def _process_reasoning_contents(chunks: list[StreamingChunk]) -> Optional[ReasoningContent]:
     """
     Process reasoning contents from a list of StreamingChunk objects into the Anthropic expected format.
 

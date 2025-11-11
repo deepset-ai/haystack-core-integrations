@@ -1,5 +1,5 @@
 import os
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingChunk
@@ -71,7 +71,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         project_id: str,
         model: str = "claude-sonnet-4@20250514",
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         ignore_tools_thinking_messages: bool = True,
         tools: Optional[ToolsType] = None,
         *,
@@ -123,7 +123,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         self.timeout = timeout
         self.max_retries = max_retries
 
-        client_kwargs: Dict[str, Any] = {"region": self.region, "project_id": self.project_id}
+        client_kwargs: dict[str, Any] = {"region": self.region, "project_id": self.project_id}
         # We do this since timeout=None is not the same as not setting it in Anthropic
         if timeout is not None:
             client_kwargs["timeout"] = timeout
@@ -135,7 +135,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         self.client = AnthropicVertex(**client_kwargs)  # type: ignore[assignment]
         self.async_client = AsyncAnthropicVertex(**client_kwargs)  # type: ignore[assignment]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize this component to a dictionary.
 
@@ -158,7 +158,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AnthropicVertexChatGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "AnthropicVertexChatGenerator":
         """
         Deserialize this component from a dictionary.
 
