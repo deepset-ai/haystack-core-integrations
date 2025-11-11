@@ -2,7 +2,7 @@
 
 ## [integrations/astra-v3.0.1]
 
-### ⚙️ CI
+### 🧹 Chores
 
 - Adopt PEP 585 type hinting
 
