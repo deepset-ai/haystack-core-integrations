@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from haystack import component, logging
 from haystack.dataclasses import ChatMessage
@@ -53,11 +53,11 @@ class CohereGenerator(CohereChatGenerator):
         # Note we have to call super() like this because of the way components are dynamically built with the decorator
         super(CohereGenerator, self).__init__(api_key, model, streaming_callback, api_base_url, None, **kwargs)  # noqa
 
-    @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
+    @component.output_types(replies=list[str], meta=list[dict[str, Any]])
     def run(  # type: ignore[override] # due to incompatible signature with ChatGenerator
         self,
         prompt: str,
-    ) -> Dict[str, Union[List[str], List[Dict[str, Any]]]]:
+    ) -> dict[str, Union[list[str], list[dict[str, Any]]]]:
         """
         Queries the LLM with the prompts to produce replies.
 
@@ -76,11 +76,11 @@ class CohereGenerator(CohereChatGenerator):
             "meta": [reply.meta],
         }
 
-    @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
+    @component.output_types(replies=list[str], meta=list[dict[str, Any]])
     async def run_async(  # type: ignore[override] # due to incompatible signature with ChatGenerator
         self,
         prompt: str,
-    ) -> Dict[str, Union[List[str], List[Dict[str, Any]]]]:
+    ) -> dict[str, Union[list[str], list[dict[str, Any]]]]:
         """
         Queries the LLM asynchronously with the prompts to produce replies.
         :param prompt: the prompt to be sent to the generative model.
