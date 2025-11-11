@@ -1,5 +1,12 @@
 # Changelog
 
+## [unreleased]
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+
 ## [integrations/astra-v3.0.0] - 2025-10-21
 
 ### 🚀 Features
