@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage, StreamingCallbackT
-from haystack.tools import Tool, Toolset, _check_duplicate_tool_names
+from haystack.tools import ToolsType, _check_duplicate_tool_names, flatten_tools_or_toolsets
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
 
@@ -66,7 +66,7 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = "https://api.aimlapi.com/v1",
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[ToolsType] = None,
         timeout: Optional[float] = None,
         extra_headers: Optional[Dict[str, Any]] = None,
         max_retries: Optional[int] = None,
@@ -157,7 +157,7 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         messages: List[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        tools: Optional[ToolsType] = None,
         tools_strict: Optional[bool] = None,
     ) -> Dict[str, Any]:
         # update generation kwargs by merging with the generation kwargs passed to the run method
@@ -167,18 +167,21 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         # adapt ChatMessage(s) to the format expected by the OpenAI API (AIMLAPI uses the same format)
         aimlapi_formatted_messages: List[Dict[str, Any]] = [message.to_openai_dict_format() for message in messages]
 
-        tools = tools or self.tools
-        if isinstance(tools, Toolset):
-            tools = list(tools)
         tools_strict = tools_strict if tools_strict is not None else self.tools_strict
-        _check_duplicate_tool_names(list(tools or []))
+        flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
+        _check_duplicate_tool_names(flattened_tools)
 
         aimlapi_tools = {}
-        if tools:
-            tool_definitions = [
-                {"type": "function", "function": {**t.tool_spec, **({"strict": tools_strict} if tools_strict else {})}}
-                for t in tools
-            ]
+        if flattened_tools:
+            tool_definitions = []
+            for tool in flattened_tools:
+                function_spec = {**tool.tool_spec}
+                if tools_strict:
+                    function_spec["strict"] = True
+                    parameters = function_spec.get("parameters")
+                    if isinstance(parameters, dict):
+                        parameters["additionalProperties"] = False
+                tool_definitions.append({"type": "function", "function": function_spec})
             aimlapi_tools = {"tools": tool_definitions}
 
         is_streaming = streaming_callback is not None
@@ -187,12 +190,20 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
             msg = "Cannot stream multiple responses, please set n=1."
             raise ValueError(msg)
 
-        return {
+        response_format = generation_kwargs.pop("response_format", None)
+
+        base_args = {
             "model": self.model,
             "messages": aimlapi_formatted_messages,
-            "stream": streaming_callback is not None,
             "n": num_responses,
             **aimlapi_tools,
             "extra_body": {**generation_kwargs},
             "extra_headers": {**extra_headers},
         }
+        if response_format and not is_streaming:
+            return {**base_args, "response_format": response_format, "openai_endpoint": "parse"}
+
+        final_args = {**base_args, "stream": is_streaming, "openai_endpoint": "create"}
+        if response_format:
+            final_args["response_format"] = response_format
+        return final_args
