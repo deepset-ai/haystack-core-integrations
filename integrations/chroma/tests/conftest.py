@@ -1,5 +1,3 @@
-from typing import List
-
 import numpy as np
 import pytest
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
@@ -29,7 +27,7 @@ def embedding_function():
 
 
 @pytest.fixture
-def filterable_docs() -> List[Document]:
+def filterable_docs() -> list[Document]:
     """
     This fixture has been copied from haystack/testing/document_store.py and modified to
     remove the documents that don't have textual content, as Chroma does not support writing them.

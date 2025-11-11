@@ -56,7 +56,7 @@ type_mapping = {
 }
 
 # Map of expected field names to their corresponding classes
-AZURE_CLASS_MAPPING: dict[str, type] = {
+AZURE_CLASS_MAPPING: dict[str, Any] = {
     "suggesters": SearchSuggester,
     "analyzers": LexicalAnalyzer,
     "tokenizers": LexicalTokenizer,
@@ -148,7 +148,7 @@ class AzureAISearchDocumentStore:
         """
         self._client: Optional[SearchClient] = None
         self._index_client: Optional[SearchIndexClient] = None
-        self._index_fields = []  # type: List[Any]  # stores all fields in the final schema of index
+        self._index_fields = []  # type: list[Any]  # stores all fields in the final schema of index
         self._api_key = api_key
         self._azure_endpoint = azure_endpoint
         self._index_name = index_name

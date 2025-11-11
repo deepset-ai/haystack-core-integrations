@@ -5,7 +5,6 @@
 import operator
 import sys
 import uuid
-from typing import List
 from unittest import mock
 
 import pytest
@@ -33,7 +32,7 @@ class TestDocumentStoreAsync:
                 port=8000,
             )
 
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
         Assert that two lists of Documents are equal.
         This is used in every test, if a Document Store implementation has a different behaviour
