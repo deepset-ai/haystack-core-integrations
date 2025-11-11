@@ -595,7 +595,7 @@ class QdrantDocumentStore:
 
             # deal with the Optional sparse_idf
             hnsw_config = info_json["config"]["params"]["vectors"].get("config", {}).get("hnsw_config", None)
-            sparse_idf = hnsw_config if use_sparse_embeddings and hnsw_config else False
+            sparse_idf = True if use_sparse_embeddings and hnsw_config else False
 
             # recreate collection
             await self._set_up_collection_async(
