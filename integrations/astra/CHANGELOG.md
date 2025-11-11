@@ -1,10 +1,10 @@
 # Changelog
 
-## [unreleased]
+## [integrations/astra-v2.1.0]
 
 ### ⚙️ CI
 
-- Change pytest command (#2475)
+- Adopt PEP 585 type hinting
 
 
 ## [integrations/astra-v3.0.0] - 2025-10-21
