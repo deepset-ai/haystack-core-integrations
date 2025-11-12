@@ -25,7 +25,7 @@ class WatsonxTextEmbedder:
     text_to_embed = "I love pizza!"
 
     text_embedder = WatsonxTextEmbedder(
-        model="ibm/slate-30m-english-rtrvr",
+        model="ibm/slate-30m-english-rtrvr-v2",
         api_key=Secret.from_env_var("WATSONX_API_KEY"),
         api_base_url="https://us-south.ml.cloud.ibm.com",
         project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
@@ -34,7 +34,7 @@ class WatsonxTextEmbedder:
     print(text_embedder.run(text_to_embed))
 
     # {'embedding': [0.017020374536514282, -0.023255806416273117, ...],
-    #  'meta': {'model': 'ibm/slate-30m-english-rtrvr',
+    #  'meta': {'model': 'ibm/slate-30m-english-rtrvr-v2',
     #           'truncated_input_tokens': 3}}
     ```
     """
@@ -42,7 +42,7 @@ class WatsonxTextEmbedder:
     def __init__(
         self,
         *,
-        model: str = "ibm/slate-30m-english-rtrvr",
+        model: str = "ibm/slate-30m-english-rtrvr-v2",
         api_key: Secret = Secret.from_env_var("WATSONX_API_KEY"),  # noqa: B008
         api_base_url: str = "https://us-south.ml.cloud.ibm.com",
         project_id: Secret = Secret.from_env_var("WATSONX_PROJECT_ID"),  # noqa: B008
@@ -57,7 +57,7 @@ class WatsonxTextEmbedder:
 
         :param model:
             The name of the IBM watsonx model to use for calculating embeddings.
-            Default is "ibm/slate-30m-english-rtrvr".
+            Default is "ibm/slate-30m-english-rtrvr-v2".
         :param api_key:
             The WATSONX API key. Can be set via environment variable WATSONX_API_KEY.
         :param api_base_url:
