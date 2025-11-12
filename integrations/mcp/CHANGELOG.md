@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/mcp-v1.1.0] - 2025-11-12
+
+### 🚀 Features
+
+- Add Agent state-mapping parameters to MCPTool (#2501)
+
+
+### 🌀 Miscellaneous
+
+- Docs: update syntax in mcp docstrings (#2496)
+- Docs: wrap special syntax in mcp docstrings in code ticks (#2499)
+
 ## [integrations/mcp-v1.0.0] - 2025-11-07
 
 ### 🚀 Features
