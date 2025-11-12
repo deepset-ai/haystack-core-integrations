@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/anthropic-v4.5.1]
+
+### 🧹 Chores
+
+- Adopt PEP 585 type hinting
+
+
 ## [integrations/anthropic-v4.5.0] - 2025-10-22
 
 ### 🚀 Features
