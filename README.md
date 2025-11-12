@@ -27,6 +27,7 @@ Please check out our [Contribution Guidelines](CONTRIBUTING.md) for all the deta
 |----------------------------------------------------------------------------------------------------------------|-----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [amazon-bedrock-haystack](integrations/amazon_bedrock/)                                                        | Embedder, Generator, Ranker, Downloader | [![PyPI - Version](https://img.shields.io/pypi/v/amazon-bedrock-haystack.svg)](https://pypi.org/project/amazon-bedrock-haystack)                         | [![Test / amazon_bedrock](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/amazon_bedrock.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/amazon_bedrock.yml)                   |
 | [amazon-sagemaker-haystack](integrations/amazon_sagemaker/)                                                    | Generator                   | [![PyPI - Version](https://img.shields.io/pypi/v/amazon-sagemaker-haystack.svg)](https://pypi.org/project/amazon-sagemaker-haystack)                     | [![Test / amazon_sagemaker](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/amazon_sagemaker.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/amazon_sagemaker.yml)             |
+| [aimlapi-haystack](integrations/aimlapi/)                                                                      | Generator                   | [![PyPI - Version](https://img.shields.io/pypi/v/aimlapi-haystack.svg)](https://pypi.org/project/aimlapi-haystack)                                       | [![Test / aimlapi](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/aimlapi.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/aimlapi.yml)                                        |
 | [anthropic-haystack](integrations/anthropic/)                                                                  | Generator                   | [![PyPI - Version](https://img.shields.io/pypi/v/anthropic-haystack.svg)](https://pypi.org/project/anthropic-haystack)                                   | [![Test / anthropic](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/anthropic.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/anthropic.yml)                                  |
 | [astra-haystack](integrations/astra/)                                                                          | Document Store              | [![PyPI - Version](https://img.shields.io/pypi/v/astra-haystack.svg)](https://pypi.org/project/astra-haystack)                                           | [![Test / astra](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/astra.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/astra.yml)                                              |
 | [azure-ai-search-haystack](integrations/azure_ai_search/)                                                      | Document Store              | [![PyPI - Version](https://img.shields.io/pypi/v/azure-ai-search-haystack.svg)](https://pypi.org/project/azure-ai-search-haystack)                       | [![Test / azure-ai-search](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/azure_ai_search.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/azure_ai_search.yml)                |
@@ -74,7 +75,7 @@ Please check out our [Contribution Guidelines](CONTRIBUTING.md) for all the deta
 > If you're a community contributor and want to release a new version of an integration,
 > reach out to a maintainer.
 
-To release a new version of an integration to PyPI tag the commit with the right version number and push the tag to 
+To release a new version of an integration to PyPI tag the commit with the right version number and push the tag to
 GitHub. The GitHub Actions workflow will take care of the rest.
 
 1. Tag the commit with the right version number
@@ -98,10 +99,10 @@ GitHub. The GitHub Actions workflow will take care of the rest.
 3. Wait for the CI to do its magic
 4. Review the changelog PR
 
-    If the release is successful, the HaystackBot will open a pull request to generate the changelog. 
+    If the release is successful, the HaystackBot will open a pull request to generate the changelog.
     Add yourself as the reviewer. If there are any issues, edit the changelog manually.
 
-> [!IMPORTANT]  
-> To ensure the changelog is accurate, it's recommended to tag a commit that includes the actual changes for the 
-> integration (usually the PR merge commit). Tagging a commit that doesn't contain those changes can lead to an 
+> [!IMPORTANT]
+> To ensure the changelog is accurate, it's recommended to tag a commit that includes the actual changes for the
+> integration (usually the PR merge commit). Tagging a commit that doesn't contain those changes can lead to an
 > incorrect changelog.
