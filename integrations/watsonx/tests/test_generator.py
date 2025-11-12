@@ -82,14 +82,14 @@ class TestWatsonxGenerator:
             yield {"model": mock_model, "model_instance": mock_model_instance}
 
     def test_init_default(self, mock_watsonx):
-        generator = WatsonxGenerator(model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("fake-project-id"))
+        generator = WatsonxGenerator(project_id=Secret.from_token("fake-project-id"))
 
         _, kwargs = mock_watsonx["model"].call_args
-        assert kwargs["model_id"] == "ibm/granite-3-2b-instruct"
+        assert kwargs["model_id"] == "ibm/granite-3-3-8b-instruct"
         assert kwargs["project_id"] == "fake-project-id"
         assert kwargs["verify"] is None
 
-        assert generator.model == "ibm/granite-3-2b-instruct"
+        assert generator.model == "ibm/granite-3-3-8b-instruct"
         assert isinstance(generator.project_id, Secret)
         assert generator.project_id.resolve_value() == "fake-project-id"
         assert generator.api_base_url == "https://us-south.ml.cloud.ibm.com"
@@ -97,7 +97,6 @@ class TestWatsonxGenerator:
     def test_init_with_all_params(self, mock_watsonx):
         generator = WatsonxGenerator(
             api_key=Secret.from_token("test-api-key"),
-            model="ibm/granite-3-2b-instruct",
             project_id=Secret.from_token("test-project"),
             api_base_url="https://custom-url.com",
             generation_kwargs={"max_tokens": 100, "temperature": 0.7, "top_p": 0.9},
@@ -105,7 +104,7 @@ class TestWatsonxGenerator:
         )
 
         _, kwargs = mock_watsonx["model"].call_args
-        assert kwargs["model_id"] == "ibm/granite-3-2b-instruct"
+        assert kwargs["model_id"] == "ibm/granite-3-3-8b-instruct"
         assert kwargs["project_id"] == "test-project"
         assert kwargs["verify"] is False
 
@@ -115,11 +114,10 @@ class TestWatsonxGenerator:
     def test_init_fails_without_project_id(self, mock_watsonx):
         os.environ.pop("WATSONX_PROJECT_ID", None)
         with pytest.raises(ValueError, match="None of the following authentication environment variables are set"):
-            WatsonxGenerator(api_key=Secret.from_token("test-api-key"), model="ibm/granite-3-2b-instruct")
+            WatsonxGenerator(api_key=Secret.from_token("test-api-key"))
 
     def test_to_dict(self, mock_watsonx):
         generator = WatsonxGenerator(
-            model="ibm/granite-3-2b-instruct",
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             generation_kwargs={"max_tokens": 100},
         )
@@ -128,7 +126,7 @@ class TestWatsonxGenerator:
             "type": "haystack_integrations.components.generators.watsonx.generator.WatsonxGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "ibm/granite-3-2b-instruct",
+                "model": "ibm/granite-3-3-8b-instruct",
                 "project_id": {"env_vars": ["WATSONX_PROJECT_ID"], "strict": True, "type": "env_var"},
                 "api_base_url": "https://us-south.ml.cloud.ibm.com",
                 "generation_kwargs": {"max_tokens": 100},
@@ -146,7 +144,7 @@ class TestWatsonxGenerator:
             "type": "haystack_integrations.components.generators.watsonx.generator.WatsonxGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "ibm/granite-3-2b-instruct",
+                "model": "ibm/granite-3-3-8b-instruct",
                 "project_id": {"env_vars": ["WATSONX_PROJECT_ID"], "strict": True, "type": "env_var"},
                 "api_base_url": "https://us-south.ml.cloud.ibm.com",
                 "generation_kwargs": {"max_tokens": 100},
@@ -160,7 +158,7 @@ class TestWatsonxGenerator:
 
         generator = WatsonxGenerator.from_dict(data)
         assert generator.api_key == Secret.from_env_var("WATSONX_API_KEY")
-        assert generator.model == "ibm/granite-3-2b-instruct"
+        assert generator.model == "ibm/granite-3-3-8b-instruct"
         assert generator.project_id == Secret.from_env_var("WATSONX_PROJECT_ID")
         assert generator.api_base_url == "https://us-south.ml.cloud.ibm.com"
         assert generator.generation_kwargs == {"max_tokens": 100}
@@ -173,7 +171,6 @@ class TestWatsonxGenerator:
     def test_run_with_prompt_only(self, mock_watsonx):
         generator = WatsonxGenerator(
             api_key=Secret.from_token("test-api-key"),
-            model="ibm/granite-3-2b-instruct",
             project_id=Secret.from_token("test-project"),
         )
 
@@ -194,7 +191,6 @@ class TestWatsonxGenerator:
     def test_run_with_system_prompt(self, mock_watsonx):
         generator = WatsonxGenerator(
             api_key=Secret.from_token("test-api-key"),
-            model="ibm/granite-3-2b-instruct",
             project_id=Secret.from_token("test-project"),
         )
 
@@ -212,7 +208,6 @@ class TestWatsonxGenerator:
     def test_run_with_generation_kwargs(self, mock_watsonx):
         generator = WatsonxGenerator(
             api_key=Secret.from_token("test-api-key"),
-            model="ibm/granite-3-2b-instruct",
             project_id=Secret.from_token("test-project"),
             generation_kwargs={"max_tokens": 100, "temperature": 0.7},
         )
@@ -241,7 +236,7 @@ class TestWatsonxGenerator:
         assert result["replies"][0] == "Streaming response"
 
     def test_prepare_messages_user_only(self, mock_watsonx):
-        generator = WatsonxGenerator(model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project"))
+        generator = WatsonxGenerator(project_id=Secret.from_token("test-project"))
 
         messages = generator._prepare_messages("Hello world")
 
@@ -250,7 +245,7 @@ class TestWatsonxGenerator:
         assert messages[0].text == "Hello world"
 
     def test_prepare_messages_with_system(self, mock_watsonx):
-        generator = WatsonxGenerator(model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project"))
+        generator = WatsonxGenerator(project_id=Secret.from_token("test-project"))
 
         messages = generator._prepare_messages("Hello world", "You are helpful")
 
@@ -261,7 +256,7 @@ class TestWatsonxGenerator:
         assert messages[1].text == "Hello world"
 
     def test_convert_chat_response_to_generator_format(self, mock_watsonx):
-        generator = WatsonxGenerator(model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project"))
+        generator = WatsonxGenerator(project_id=Secret.from_token("test-project"))
         chat_response = {
             "replies": [
                 ChatMessage.from_assistant("First response", meta={"model": "test-model", "tokens": 10}),
@@ -279,7 +274,7 @@ class TestWatsonxGenerator:
         assert result["meta"][1]["tokens"] == 15
 
     def test_convert_empty_chat_response(self, mock_watsonx):
-        generator = WatsonxGenerator(model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project"))
+        generator = WatsonxGenerator(project_id=Secret.from_token("test-project"))
         result = generator._convert_chat_response_to_generator_format([])
         assert result["replies"] == []
         assert result["meta"] == []
@@ -288,7 +283,6 @@ class TestWatsonxGenerator:
     async def test_run_async_with_prompt_only(self, mock_watsonx):
         generator = WatsonxGenerator(
             api_key=Secret.from_token("test-api-key"),
-            model="ibm/granite-3-2b-instruct",
             project_id=Secret.from_token("test-project"),
         )
 
@@ -309,7 +303,6 @@ class TestWatsonxGenerator:
     async def test_run_async_with_system_prompt(self, mock_watsonx):
         generator = WatsonxGenerator(
             api_key=Secret.from_token("test-api-key"),
-            model="ibm/granite-3-2b-instruct",
             project_id=Secret.from_token("test-project"),
         )
 
@@ -328,7 +321,6 @@ class TestWatsonxGenerator:
     async def test_run_async_streaming(self, mock_watsonx):
         generator = WatsonxGenerator(
             api_key=Secret.from_token("test-api-key"),
-            model="ibm/granite-3-2b-instruct",
             project_id=Secret.from_token("test-project"),
         )
 
@@ -347,7 +339,7 @@ class TestWatsonxGenerator:
     def test_inheritance_from_chat_generator(self, mock_watsonx):
         """Test that WatsonxGenerator properly inherits from WatsonxChatGenerator"""
 
-        generator = WatsonxGenerator(model="ibm/granite-3-2b-instruct", project_id=Secret.from_token("test-project"))
+        generator = WatsonxGenerator(project_id=Secret.from_token("test-project"))
 
         assert isinstance(generator, WatsonxChatGenerator)
 
@@ -365,7 +357,7 @@ class TestWatsonxGeneratorIntegration:
     )
     def test_live_run(self):
         generator = WatsonxGenerator(
-            model="ibm/granite-3-2b-instruct",
+            model="ibm/granite-3-3-8b-instruct",
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             generation_kwargs={"max_tokens": 50, "temperature": 0.7, "top_p": 0.9},
         )
@@ -392,7 +384,7 @@ class TestWatsonxGeneratorIntegration:
     )
     def test_live_run_streaming(self):
         generator = WatsonxGenerator(
-            model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
+            model="ibm/granite-3-3-8b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
         )
 
         collected_chunks = []
@@ -420,7 +412,7 @@ class TestWatsonxGeneratorIntegration:
     )
     async def test_live_run_async(self):
         generator = WatsonxGenerator(
-            model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
+            model="ibm/granite-3-3-8b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
         )
 
         result = await generator.run_async(prompt="What's the capital of Germany? Answer concisely.")

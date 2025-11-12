@@ -44,7 +44,7 @@ class TestWatsonXDocumentEmbedder:
             api_key="fake-api-key", url="https://us-south.ml.cloud.ibm.com"
         )
         mock_watsonx["embeddings"].assert_called_once_with(
-            model_id="ibm/slate-30m-english-rtrvr",
+            model_id="ibm/slate-30m-english-rtrvr-v2",
             credentials=mock_watsonx["creds_instance"],
             project_id="fake-project-id",
             params=None,
@@ -53,7 +53,7 @@ class TestWatsonXDocumentEmbedder:
             max_retries=None,
         )
 
-        assert embedder.model == "ibm/slate-30m-english-rtrvr"
+        assert embedder.model == "ibm/slate-30m-english-rtrvr-v2"
         assert embedder.prefix == ""
         assert embedder.suffix == ""
         assert embedder.batch_size == 1000
@@ -64,7 +64,6 @@ class TestWatsonXDocumentEmbedder:
     def test_init_with_parameters(self, mock_watsonx):
         embedder = WatsonxDocumentEmbedder(
             api_key=Secret.from_token("fake-api-key"),
-            model="ibm/slate-125m-english-rtrvr",
             api_base_url="https://custom-url.ibm.com",
             project_id=Secret.from_token("custom-project-id"),
             truncate_input_tokens=128,
@@ -78,7 +77,7 @@ class TestWatsonXDocumentEmbedder:
 
         mock_watsonx["credentials"].assert_called_once_with(api_key="fake-api-key", url="https://custom-url.ibm.com")
         mock_watsonx["embeddings"].assert_called_once_with(
-            model_id="ibm/slate-125m-english-rtrvr",
+            model_id="ibm/slate-30m-english-rtrvr-v2",
             credentials=mock_watsonx["creds_instance"],
             project_id="custom-project-id",
             params={"truncate_input_tokens": 128},
@@ -110,7 +109,7 @@ class TestWatsonXDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.watsonx.document_embedder.WatsonxDocumentEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "ibm/slate-30m-english-rtrvr",
+                "model": "ibm/slate-30m-english-rtrvr-v2",
                 "api_base_url": "https://us-south.ml.cloud.ibm.com",
                 "project_id": {"env_vars": ["WATSONX_PROJECT_ID"], "strict": True, "type": "env_var"},
                 "truncate_input_tokens": None,
@@ -173,7 +172,7 @@ class TestWatsonXDocumentEmbedder:
         result = embedder.run(documents=[])
         assert result == {
             "documents": [],
-            "meta": {"model": "ibm/slate-30m-english-rtrvr", "truncate_input_tokens": None, "batch_size": 1000},
+            "meta": {"model": "ibm/slate-30m-english-rtrvr-v2", "truncate_input_tokens": None, "batch_size": 1000},
         }
 
 
@@ -196,7 +195,6 @@ class TestWatsonxDocumentEmbedderIntegration:
     def test_run(self, test_documents):
         """Test real API call with documents"""
         embedder = WatsonxDocumentEmbedder(
-            model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             truncate_input_tokens=128,
@@ -209,7 +207,7 @@ class TestWatsonxDocumentEmbedderIntegration:
             assert len(doc.embedding) > 0
             assert all(isinstance(x, float) for x in doc.embedding)
 
-        assert result["meta"]["model"] == "ibm/slate-30m-english-rtrvr"
+        assert result["meta"]["model"] == "ibm/slate-30m-english-rtrvr-v2"
 
     @pytest.mark.skipif(
         not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
@@ -218,7 +216,6 @@ class TestWatsonxDocumentEmbedderIntegration:
     def test_batch_processing(self, test_documents):
         """Test that batch processing works"""
         embedder = WatsonxDocumentEmbedder(
-            model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             batch_size=2,
@@ -239,7 +236,6 @@ class TestWatsonxDocumentEmbedderIntegration:
         long_document = Document(content=long_content)
 
         embedder = WatsonxDocumentEmbedder(
-            model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             truncate_input_tokens=4,

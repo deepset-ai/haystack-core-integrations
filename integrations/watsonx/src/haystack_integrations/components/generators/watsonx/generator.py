@@ -21,11 +21,8 @@ class WatsonxGenerator(WatsonxChatGenerator):
     This component extends WatsonxChatGenerator to provide the standard Generator interface that works with prompt
     strings instead of ChatMessage objects.
 
-    The generator works with IBM's foundation models including:
-    - granite-13b-chat-v2
-    - llama-2-70b-chat
-    - llama-3-70b-instruct
-    - Other watsonx.ai chat models
+    The generator works with IBM's foundation models that are listed
+    [here](https://dataplatform.cloud.ibm.com/docs/content/wsj/analyze-data/fm-models.html?context=wx&audience=wdp).
 
     You can customize the generation behavior by passing parameters to the watsonx.ai API through the
     `generation_kwargs` argument. These parameters are passed directly to the watsonx.ai inference endpoint.
@@ -74,7 +71,7 @@ class WatsonxGenerator(WatsonxChatGenerator):
         self,
         *,
         api_key: Secret = Secret.from_env_var("WATSONX_API_KEY"),  # noqa: B008
-        model: str = "ibm/granite-3-2b-instruct",
+        model: str = "ibm/granite-3-3-8b-instruct",
         project_id: Secret = Secret.from_env_var("WATSONX_PROJECT_ID"),  # noqa: B008
         api_base_url: str = "https://us-south.ml.cloud.ibm.com",
         system_prompt: str | None = None,

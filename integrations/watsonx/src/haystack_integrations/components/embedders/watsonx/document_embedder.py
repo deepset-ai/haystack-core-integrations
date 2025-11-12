@@ -29,7 +29,7 @@ class WatsonxDocumentEmbedder:
     ]
 
     document_embedder = WatsonxDocumentEmbedder(
-        model="ibm/slate-30m-english-rtrvr",
+        model="ibm/slate-30m-english-rtrvr-v2",
         api_key=Secret.from_env_var("WATSONX_API_KEY"),
         api_base_url="https://us-south.ml.cloud.ibm.com",
         project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
@@ -45,7 +45,7 @@ class WatsonxDocumentEmbedder:
     def __init__(
         self,
         *,
-        model: str = "ibm/slate-30m-english-rtrvr",
+        model: str = "ibm/slate-30m-english-rtrvr-v2",
         api_key: Secret = Secret.from_env_var("WATSONX_API_KEY"),  # noqa: B008
         api_base_url: str = "https://us-south.ml.cloud.ibm.com",
         project_id: Secret = Secret.from_env_var("WATSONX_PROJECT_ID"),  # noqa: B008
@@ -64,7 +64,7 @@ class WatsonxDocumentEmbedder:
 
         :param model:
             The name of the model to use for calculating embeddings.
-            Default is "ibm/slate-30m-english-rtrvr".
+            Default is "ibm/slate-30m-english-rtrvr-v2".
         :param api_key:
             The WATSONX API key. Can be set via environment variable WATSONX_API_KEY.
         :param api_base_url:

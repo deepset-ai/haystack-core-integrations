@@ -42,7 +42,7 @@ class TestWatsonxTextEmbedder:
             api_key="fake-api-key", url="https://us-south.ml.cloud.ibm.com"
         )
         mock_watsonx["embeddings"].assert_called_once_with(
-            model_id="ibm/slate-30m-english-rtrvr",
+            model_id="ibm/slate-30m-english-rtrvr-v2",
             credentials=mock_watsonx["creds_instance"],
             project_id="fake-project-id",
             params=None,
@@ -50,7 +50,7 @@ class TestWatsonxTextEmbedder:
         )
         assert isinstance(embedder.project_id, Secret)
         assert embedder.project_id.resolve_value() == "fake-project-id"
-        assert embedder.model == "ibm/slate-30m-english-rtrvr"
+        assert embedder.model == "ibm/slate-30m-english-rtrvr-v2"
         assert embedder.prefix == ""
         assert embedder.suffix == ""
 
@@ -97,7 +97,7 @@ class TestWatsonxTextEmbedder:
             "type": "haystack_integrations.components.embedders.watsonx.text_embedder.WatsonxTextEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "ibm/slate-30m-english-rtrvr",
+                "model": "ibm/slate-30m-english-rtrvr-v2",
                 "api_base_url": "https://us-south.ml.cloud.ibm.com",
                 "project_id": {"env_vars": ["WATSONX_PROJECT_ID"], "strict": True, "type": "env_var"},
                 "truncate_input_tokens": None,
@@ -159,7 +159,6 @@ class TestWatsonxTextEmbedderIntegration:
     def test_run(self):
         """Test real API call with simple text"""
         embedder = WatsonxTextEmbedder(
-            model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             prefix="prefix ",
@@ -182,7 +181,6 @@ class TestWatsonxTextEmbedderIntegration:
     def test_text_too_long(self):
         """Test handling of text that exceeds token limit when truncation is disabled"""
         embedder = WatsonxTextEmbedder(
-            model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             truncate_input_tokens=None,
@@ -193,7 +191,7 @@ class TestWatsonxTextEmbedderIntegration:
         with pytest.raises(ApiRequestFailure) as exc_info:
             embedder.run(very_long_text)
 
-        assert "exceeds the maximum sequence length" in str(exc_info.value)
+        assert "Please reduce the length of the input." in str(exc_info.value)
         assert "512" in str(exc_info.value)
 
     @pytest.mark.integration
@@ -204,7 +202,6 @@ class TestWatsonxTextEmbedderIntegration:
     def test_text_truncation(self):
         """Test that truncation works with long text"""
         embedder = WatsonxTextEmbedder(
-            model="ibm/slate-30m-english-rtrvr",
             api_key=Secret.from_env_var("WATSONX_API_KEY"),
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             truncate_input_tokens=4,
