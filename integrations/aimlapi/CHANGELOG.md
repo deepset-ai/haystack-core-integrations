@@ -1,3 +1,7 @@
 # Changelog
 
-## [integrations/aimlapi-v0.1.0] - 2025-04-09
+## [unreleased]
+
+### 🚀 Features
+
+- *(aimlapi)* Add AIMLAPI provider integration (#2267)
