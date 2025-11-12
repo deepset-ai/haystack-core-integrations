@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/astra-v3.0.1]
+
+### 🧹 Chores
+
+- Adopt PEP 585 type hinting
+
+
 ## [integrations/astra-v3.0.0] - 2025-10-21
 
 ### 🚀 Features
