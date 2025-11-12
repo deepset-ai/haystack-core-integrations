@@ -133,6 +133,69 @@ class TestMCPTool:
 
         assert isinstance(new_tool._server_info, InMemoryServerInfo)
 
+    def test_mcp_tool_state_mapping_parameters(self, mcp_tool_cleanup):
+        """Test that MCPTool correctly initializes with state-mapping parameters."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+
+        # Create tool with state-mapping parameters
+        # Map state key "state_a" to tool parameter "a"
+        tool = MCPTool(
+            name="add",
+            server_info=server_info,
+            eager_connect=False,
+            outputs_to_string={"source": "result", "handler": str},
+            inputs_from_state={"state_a": "a"},
+            outputs_to_state={"result": {"source": "output", "handler": str}},
+        )
+        mcp_tool_cleanup(tool)
+
+        # Verify the parameters are stored correctly
+        assert tool._outputs_to_string == {"source": "result", "handler": str}
+        assert tool._inputs_from_state == {"state_a": "a"}
+        assert tool._outputs_to_state == {"result": {"source": "output", "handler": str}}
+
+        # Warm up the tool to trigger schema adjustment
+        tool.warm_up()
+
+        # Verify that "a" was removed from parameters since it's in inputs_from_state
+        assert "a" not in tool.parameters["properties"]
+        assert "a" not in tool.parameters.get("required", [])
+        # Verify that "b" is still present (not removed)
+        assert "b" in tool.parameters["properties"]
+        assert "b" in tool.parameters["required"]
+
+    def test_mcp_tool_serde_with_state_mapping(self, mcp_tool_cleanup):
+        """Test serialization and deserialization of MCPTool with state-mapping parameters."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+
+        # Create tool with state-mapping parameters
+        tool = MCPTool(
+            name="add",
+            server_info=server_info,
+            eager_connect=False,
+            outputs_to_string={"source": "result"},
+            inputs_from_state={"filter": "query_filter"},
+            outputs_to_state={"result": {"source": "output"}},
+        )
+        mcp_tool_cleanup(tool)
+
+        # Test serialization (to_dict)
+        tool_dict = tool.to_dict()
+
+        # Verify state-mapping parameters are serialized
+        assert tool_dict["data"]["outputs_to_string"] == {"source": "result"}
+        assert tool_dict["data"]["inputs_from_state"] == {"filter": "query_filter"}
+        assert tool_dict["data"]["outputs_to_state"] == {"result": {"source": "output"}}
+
+        # Test deserialization (from_dict)
+        new_tool = MCPTool.from_dict(tool_dict)
+        mcp_tool_cleanup(new_tool)
+
+        # Verify state-mapping parameters are restored
+        assert new_tool._outputs_to_string == {"source": "result"}
+        assert new_tool._inputs_from_state == {"filter": "query_filter"}
+        assert new_tool._outputs_to_state == {"result": {"source": "output"}}
+
     @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
     @pytest.mark.integration
     def test_pipeline_warmup_with_mcp_tool(self):
@@ -152,6 +215,57 @@ class TestMCPTool:
             user_input_msg = ChatMessage.from_user(text="What is the time in New York?")
             result = pipeline.run({"agent": {"messages": [user_input_msg]}})
             assert "New York" in result["agent"]["messages"][3].text
+        finally:
+            if tool:
+                tool.close()
+
+    @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
+    @pytest.mark.integration
+    def test_agent_with_state_mapping(self):
+        """Test Agent with MCPTool using state-mapping to inject location from state."""
+
+        # Create MCPTool with state-mapping that injects home_city from state as timezone parameter
+        server_info = StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=Europe/Berlin"])
+        tool = MCPTool(
+            name="get_current_time",
+            server_info=server_info,
+            inputs_from_state={"home_city": "timezone"},  # Inject home_city from state as timezone
+        )
+
+        try:
+            # Build Agent with state schema that includes home_city
+            agent = Agent(
+                chat_generator=OpenAIChatGenerator(model="gpt-4o-mini"),
+                tools=[tool],
+                state_schema={"home_city": {"type": str}},
+            )
+            pipeline = Pipeline()
+            pipeline.add_component("agent", agent)
+
+            # Ask for time without mentioning the location - it should use home_city from state
+            user_input_msg = ChatMessage.from_user(text="What time is it at home?")
+            result = pipeline.run(
+                {
+                    "agent": {
+                        "messages": [user_input_msg],
+                        "home_city": "America/New_York",  # Inject New York as home city
+                    }
+                }
+            )
+
+            # Verify the agent got the time for New York
+            final_message = result["agent"]["messages"][-1].text
+
+            # The response should mention time
+            assert any(keyword in final_message.lower() for keyword in ["time", "o'clock", "am", "pm"]), (
+                f"Expected time in response: {final_message}"
+            )
+
+            # Verify the response mentions New York or Eastern timezone (proving state-mapping injected it)
+            # The user never mentioned location, but timezone info should appear in the response
+            assert any(keyword in final_message for keyword in ["New York", "New_York"]), (
+                f"Expected timezone reference (New York) to confirm state-mapping: {final_message}"
+            )
         finally:
             if tool:
                 tool.close()

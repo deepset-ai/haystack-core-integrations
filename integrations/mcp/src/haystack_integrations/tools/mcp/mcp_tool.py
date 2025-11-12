@@ -845,6 +845,11 @@ class MCPTool(Tool):
     - The JSON contains the structured response from the MCP server
     - Use json.loads() to parse the response into a dictionary
 
+    State-mapping support:
+    - MCPTool supports state-mapping parameters (`outputs_to_string`, `inputs_from_state`, `outputs_to_state`)
+    - These enable integration with Agent state for automatic parameter injection and output handling
+    - See the `__init__` method documentation for details on each parameter
+
     Example using Streamable HTTP:
     ```python
     import json
@@ -902,6 +907,9 @@ class MCPTool(Tool):
         connection_timeout: int = 30,
         invocation_timeout: int = 30,
         eager_connect: bool = False,
+        outputs_to_string: dict[str, Any] | None = None,
+        inputs_from_state: dict[str, str] | None = None,
+        outputs_to_state: dict[str, dict[str, Any]] | None = None,
     ):
         """
         Initialize the MCP tool.
@@ -914,6 +922,17 @@ class MCPTool(Tool):
         :param eager_connect: If True, connect to server during initialization.
                              If False (default), defer connection until warm_up or first tool use,
                              whichever comes first.
+        :param outputs_to_string: Optional dictionary defining how tool outputs should be converted into a string.
+                                 If the source is provided only the specified output key is sent to the handler.
+                                 If the source is omitted the whole tool result is sent to the handler.
+                                 Example: `{"source": "docs", "handler": my_custom_function}`
+        :param inputs_from_state: Optional dictionary mapping state keys to tool parameter names.
+                                 Example: `{"repository": "repo"}` maps state's "repository" to tool's "repo" parameter.
+        :param outputs_to_state: Optional dictionary defining how tool outputs map to keys within state as well as
+                                optional handlers. If the source is provided only the specified output key is sent
+                                to the handler.
+                                Example with source: `{"documents": {"source": "docs", "handler": custom_handler}}`
+                                Example without source: `{"documents": {"handler": custom_handler}}`
         :raises MCPConnectionError: If connection to the server fails
         :raises MCPToolNotFoundError: If no tools are available or the requested tool is not found
         :raises TimeoutError: If connection times out
@@ -924,6 +943,9 @@ class MCPTool(Tool):
         self._connection_timeout = connection_timeout
         self._invocation_timeout = invocation_timeout
         self._eager_connect = eager_connect
+        self._outputs_to_string = outputs_to_string
+        self._inputs_from_state = inputs_from_state
+        self._outputs_to_state = outputs_to_state
         self._client: MCPClient | None = None
         self._worker: _MCPClientSessionManager | None = None
         self._lock = threading.RLock()
@@ -934,7 +956,15 @@ class MCPTool(Tool):
             # without discovering the remote schema during validation.
             # Tool parameters/schema will be replaced with the correct schema (from the MCP server) on first use.
             params = {"type": "object", "properties": {}, "additionalProperties": True}
-            super().__init__(name=name, description=description or "", parameters=params, function=self._invoke_tool)
+            super().__init__(
+                name=name,
+                description=description or "",
+                parameters=params,
+                function=self._invoke_tool,
+                outputs_to_string=outputs_to_string,
+                inputs_from_state=inputs_from_state,
+                outputs_to_state=outputs_to_state,
+            )
             return
 
         logger.debug(f"TOOL: Initializing MCPTool '{name}'")
@@ -950,7 +980,19 @@ class MCPTool(Tool):
                 description=description or tool_info.description or "",
                 parameters=tool_info.inputSchema,
                 function=self._invoke_tool,
+                outputs_to_string=outputs_to_string,
+                inputs_from_state=inputs_from_state,
+                outputs_to_state=outputs_to_state,
             )
+
+            # Remove inputs_from_state keys from parameters schema if present
+            # This matches the behavior of ComponentTool
+            if inputs_from_state and "properties" in self.parameters:
+                for key in inputs_from_state.values():
+                    self.parameters["properties"].pop(key, None)
+                    if "required" in self.parameters and key in self.parameters["required"]:
+                        self.parameters["required"].remove(key)
+
             logger.debug(f"TOOL: Initialization complete for '{name}'")
 
         except Exception as e:
@@ -1069,13 +1111,21 @@ class MCPTool(Tool):
             tool = self._connect_and_initialize(self.name)
             self.parameters = tool.inputSchema
 
+            # Remove inputs_from_state keys from parameters schema if present
+            # This matches the behavior of ComponentTool
+            if self._inputs_from_state and "properties" in self.parameters:
+                for key in self._inputs_from_state.values():
+                    self.parameters["properties"].pop(key, None)
+                    if "required" in self.parameters and key in self.parameters["required"]:
+                        self.parameters["required"].remove(key)
+
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the MCPTool to a dictionary.
 
         The serialization preserves all information needed to recreate the tool,
-        including server connection parameters and timeout settings. Note that the
-        active connection is not maintained.
+        including server connection parameters, timeout settings, and state-mapping parameters.
+        Note that the active connection is not maintained.
 
         :returns: Dictionary with serialized data in the format:
                   `{"type": fully_qualified_class_name, "data": {parameters}}`
@@ -1087,6 +1137,9 @@ class MCPTool(Tool):
             "connection_timeout": self._connection_timeout,
             "invocation_timeout": self._invocation_timeout,
             "eager_connect": self._eager_connect,
+            "outputs_to_string": self._outputs_to_string,
+            "inputs_from_state": self._inputs_from_state,
+            "outputs_to_state": self._outputs_to_state,
         }
         return {
             "type": generate_qualified_class_name(type(self)),
@@ -1099,8 +1152,8 @@ class MCPTool(Tool):
         Deserializes the MCPTool from a dictionary.
 
         This method reconstructs an MCPTool instance from a serialized dictionary,
-        including recreating the server_info object. A new connection will be established
-        to the MCP server during initialization.
+        including recreating the server_info object and state-mapping parameters.
+        A new connection will be established to the MCP server during initialization.
 
         :param data: Dictionary containing serialized tool data
         :returns: A fully initialized MCPTool instance
@@ -1121,6 +1174,11 @@ class MCPTool(Tool):
         invocation_timeout = inner_data.get("invocation_timeout", 30)
         eager_connect = inner_data.get("eager_connect", False)  # because False is the default
 
+        # Handle state-mapping parameters
+        outputs_to_string = inner_data.get("outputs_to_string")
+        inputs_from_state = inner_data.get("inputs_from_state")
+        outputs_to_state = inner_data.get("outputs_to_state")
+
         # Create a new MCPTool instance with the deserialized parameters
         # This will establish a new connection to the MCP server
         return cls(
@@ -1130,6 +1188,9 @@ class MCPTool(Tool):
             connection_timeout=connection_timeout,
             invocation_timeout=invocation_timeout,
             eager_connect=eager_connect,
+            outputs_to_string=outputs_to_string,
+            inputs_from_state=inputs_from_state,
+            outputs_to_state=outputs_to_state,
         )
 
     def close(self):
