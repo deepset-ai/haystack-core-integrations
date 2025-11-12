@@ -551,7 +551,7 @@ class TestWatsonxChatGeneratorIntegration:
     )
     def test_live_run(self):
         generator = WatsonxChatGenerator(
-            model="ibm/granite-3-2b-instruct",
+            model="ibm/granite-3-3-8b-instruct",
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             generation_kwargs={"max_tokens": 50, "temperature": 0.7, "top_p": 0.9},
         )
@@ -572,7 +572,7 @@ class TestWatsonxChatGeneratorIntegration:
     )
     def test_live_run_streaming(self):
         generator = WatsonxChatGenerator(
-            model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
+            model="ibm/granite-3-3-8b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
         )
         collected_chunks = []
 
@@ -597,7 +597,7 @@ class TestWatsonxChatGeneratorIntegration:
     )
     async def test_live_run_async(self):
         generator = WatsonxChatGenerator(
-            model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
+            model="ibm/granite-3-3-8b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
         )
         messages = [ChatMessage.from_user("What's the capital of Germany? Answer concisely.")]
         results = await generator.run_async(messages=messages)

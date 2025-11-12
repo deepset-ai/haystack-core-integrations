@@ -365,7 +365,7 @@ class TestWatsonxGeneratorIntegration:
     )
     def test_live_run(self):
         generator = WatsonxGenerator(
-            model="ibm/granite-3-2b-instruct",
+            model="ibm/granite-3-3-8b-instruct",
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             generation_kwargs={"max_tokens": 50, "temperature": 0.7, "top_p": 0.9},
         )
@@ -392,7 +392,7 @@ class TestWatsonxGeneratorIntegration:
     )
     def test_live_run_streaming(self):
         generator = WatsonxGenerator(
-            model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
+            model="ibm/granite-3-3-8b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
         )
 
         collected_chunks = []
@@ -420,7 +420,7 @@ class TestWatsonxGeneratorIntegration:
     )
     async def test_live_run_async(self):
         generator = WatsonxGenerator(
-            model="ibm/granite-3-2b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
+            model="ibm/granite-3-3-8b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
         )
 
         result = await generator.run_async(prompt="What's the capital of Germany? Answer concisely.")
