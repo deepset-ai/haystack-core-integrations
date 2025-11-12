@@ -925,11 +925,14 @@ class MCPTool(Tool):
         :param outputs_to_string: Optional dictionary defining how tool outputs should be converted into a string.
                                  If the source is provided only the specified output key is sent to the handler.
                                  If the source is omitted the whole tool result is sent to the handler.
+                                 Example: `{"source": "docs", "handler": my_custom_function}`
         :param inputs_from_state: Optional dictionary mapping state keys to tool parameter names.
                                  Example: `{"repository": "repo"}` maps state's "repository" to tool's "repo" parameter.
         :param outputs_to_state: Optional dictionary defining how tool outputs map to keys within state as well as
                                 optional handlers. If the source is provided only the specified output key is sent
                                 to the handler.
+                                Example with source: `{"documents": {"source": "docs", "handler": custom_handler}}`
+                                Example without source: `{"documents": {"handler": custom_handler}}`
         :raises MCPConnectionError: If connection to the server fails
         :raises MCPToolNotFoundError: If no tools are available or the requested tool is not found
         :raises TimeoutError: If connection times out
