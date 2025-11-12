@@ -98,7 +98,7 @@ class WatsonxChatGenerator:
         self,
         *,
         api_key: Secret = Secret.from_env_var("WATSONX_API_KEY"),  # noqa: B008
-        model: str = "ibm/granite-3-2b-instruct",
+        model: str = "ibm/granite-3-3-8b-instruct",
         project_id: Secret = Secret.from_env_var("WATSONX_PROJECT_ID"),  # noqa: B008
         api_base_url: str = "https://us-south.ml.cloud.ibm.com",
         generation_kwargs: dict[str, Any] | None = None,
