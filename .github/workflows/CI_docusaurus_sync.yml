@@ -3,12 +3,12 @@ name: Core / Sync API reference with Docusaurus
 on:
   push:
     tags:
-      - "**-v[0-9].[0-9]+.[0-9]+"
+      - "**-v[0-9].[0-9]+.[0-9]+*"
 
   workflow_dispatch: # Activate this workflow manually
     inputs:
       tag:
-        description: "Tag with this format: integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0. When running this workflow manually, version is irrelevant so you can use any value."
+        description: "Tag with this format: integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0 or integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0.post0. When running this workflow manually, version is irrelevant so you can use any value."
         required: true
         type: string
         default: integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0
