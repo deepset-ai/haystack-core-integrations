@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import StreamingCallbackT
@@ -35,12 +35,12 @@ class CometAPIChatGenerator(OpenAIChatGenerator):
         api_key: Secret = Secret.from_env_var("COMET_API_KEY"),
         model: str = "gpt-4o-mini",
         streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         timeout: Optional[int] = None,
         max_retries: Optional[int] = None,
-        tools: Optional[Union[List[Union[Tool, Toolset]], Toolset]] = None,
+        tools: Optional[Union[list[Union[Tool, Toolset]], Toolset]] = None,
         tools_strict: bool = False,
-        http_client_kwargs: Optional[Dict[str, Any]] = None,
+        http_client_kwargs: Optional[dict[str, Any]] = None,
     ):
         api_base_url = "https://api.cometapi.com/v1"
 

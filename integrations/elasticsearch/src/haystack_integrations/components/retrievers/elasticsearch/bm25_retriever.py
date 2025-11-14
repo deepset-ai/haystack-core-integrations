@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -47,7 +47,7 @@ class ElasticsearchBM25Retriever:
         self,
         *,
         document_store: ElasticsearchDocumentStore,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         fuzziness: str = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
@@ -79,7 +79,7 @@ class ElasticsearchBM25Retriever:
         self._scale_score = scale_score
         self._filter_policy = FilterPolicy.from_str(filter_policy) if isinstance(filter_policy, str) else filter_policy
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -97,7 +97,7 @@ class ElasticsearchBM25Retriever:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ElasticsearchBM25Retriever":
+    def from_dict(cls, data: dict[str, Any]) -> "ElasticsearchBM25Retriever":
         """
         Deserializes the component from a dictionary.
 
@@ -115,10 +115,10 @@ class ElasticsearchBM25Retriever:
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
         return default_from_dict(cls, data)
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(
-        self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
-    ) -> Dict[str, List[Document]]:
+        self, query: str, filters: Optional[dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> dict[str, list[Document]]:
         """
         Retrieve documents using the BM25 keyword-based algorithm.
 
@@ -140,10 +140,10 @@ class ElasticsearchBM25Retriever:
         )
         return {"documents": docs}
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     async def run_async(
-        self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
-    ) -> Dict[str, List[Document]]:
+        self, query: str, filters: Optional[dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> dict[str, list[Document]]:
         """
         Asynchronously retrieve documents using the BM25 keyword-based algorithm.
 

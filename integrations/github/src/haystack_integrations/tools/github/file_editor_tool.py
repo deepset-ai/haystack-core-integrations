@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from haystack.core.serialization import generate_qualified_class_name
 from haystack.tools import ComponentTool
@@ -22,14 +22,14 @@ class GitHubFileEditorTool(ComponentTool):
         *,
         name: Optional[str] = "file_editor",
         description: Optional[str] = FILE_EDITOR_PROMPT,
-        parameters: Optional[Dict[str, Any]] = FILE_EDITOR_SCHEMA,
+        parameters: Optional[dict[str, Any]] = FILE_EDITOR_SCHEMA,
         github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"),
         repo: Optional[str] = None,
         branch: str = "main",
         raise_on_failure: bool = True,
-        outputs_to_string: Optional[Dict[str, Union[str, Callable[[Any], str]]]] = None,
-        inputs_from_state: Optional[Dict[str, str]] = None,
-        outputs_to_state: Optional[Dict[str, Dict[str, Union[str, Callable]]]] = None,
+        outputs_to_string: Optional[dict[str, Union[str, Callable[[Any], str]]]] = None,
+        inputs_from_state: Optional[dict[str, str]] = None,
+        outputs_to_state: Optional[dict[str, dict[str, Union[str, Callable]]]] = None,
     ):
         """
         Initialize the GitHub file editor tool.
@@ -86,7 +86,7 @@ class GitHubFileEditorTool(ComponentTool):
             outputs_to_state=outputs_to_state,
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the tool to a dictionary.
 
@@ -110,7 +110,7 @@ class GitHubFileEditorTool(ComponentTool):
         return {"type": generate_qualified_class_name(type(self)), "data": serialized}
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GitHubFileEditorTool":
+    def from_dict(cls, data: dict[str, Any]) -> "GitHubFileEditorTool":
         """
         Deserializes the tool from a dictionary.
 

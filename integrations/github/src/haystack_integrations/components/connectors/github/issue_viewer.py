@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import requests
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -154,7 +154,7 @@ class GitHubIssueViewer:
             },
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize the component to a dictionary.
 
@@ -168,7 +168,7 @@ class GitHubIssueViewer:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GitHubIssueViewer":
+    def from_dict(cls, data: dict[str, Any]) -> "GitHubIssueViewer":
         """
         Deserialize the component from a dictionary.
 
@@ -179,7 +179,7 @@ class GitHubIssueViewer:
         deserialize_secrets_inplace(init_params, keys=["github_token"])
         return default_from_dict(cls, data)
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(self, url: str) -> dict:
         """
         Process a GitHub issue URL and return documents.

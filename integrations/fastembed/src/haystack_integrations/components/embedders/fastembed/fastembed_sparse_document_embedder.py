@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from haystack import Document, component, default_to_dict
 
@@ -60,9 +60,9 @@ class FastembedSparseDocumentEmbedder:
         progress_bar: bool = True,
         parallel: Optional[int] = None,
         local_files_only: bool = False,
-        meta_fields_to_embed: Optional[List[str]] = None,
+        meta_fields_to_embed: Optional[list[str]] = None,
         embedding_separator: str = "\n",
-        model_kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[dict[str, Any]] = None,
     ):
         """
         Create an FastembedDocumentEmbedder component.
@@ -96,7 +96,7 @@ class FastembedSparseDocumentEmbedder:
         self.embedding_separator = embedding_separator
         self.model_kwargs = model_kwargs
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
         :returns:
@@ -129,7 +129,7 @@ class FastembedSparseDocumentEmbedder:
                 model_kwargs=self.model_kwargs,
             )
 
-    def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
+    def _prepare_texts_to_embed(self, documents: list[Document]) -> list[str]:
         texts_to_embed = []
         for doc in documents:
             meta_values_to_embed = [
@@ -140,8 +140,8 @@ class FastembedSparseDocumentEmbedder:
             texts_to_embed.append(text_to_embed)
         return texts_to_embed
 
-    @component.output_types(documents=List[Document])
-    def run(self, documents: List[Document]) -> Dict[str, List[Document]]:
+    @component.output_types(documents=list[Document])
+    def run(self, documents: list[Document]) -> dict[str, list[Document]]:
         """
         Embeds a list of Documents.
 
