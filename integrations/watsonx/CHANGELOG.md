@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/watsonx-v1.0.0] - 2025-11-12
+
+### 🐛 Bug Fixes
+
+- Update model in tests for IBM Watsonx and default models (#2515)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🌀 Miscellaneous
+
+- Chore: Fix linting in tests for watsonx integration (#2263)
+
 ## [integrations/watsonx-v0.2.0] - 2025-08-27
 
 ### 🚀 Features

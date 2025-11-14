@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from haystack import component, default_to_dict
 
@@ -64,7 +64,7 @@ class FastembedTextEmbedder:
         self.parallel = parallel
         self.local_files_only = local_files_only
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -95,8 +95,8 @@ class FastembedTextEmbedder:
                 local_files_only=self.local_files_only,
             )
 
-    @component.output_types(embedding=List[float])
-    def run(self, text: str) -> Dict[str, List[float]]:
+    @component.output_types(embedding=list[float])
+    def run(self, text: str) -> dict[str, list[float]]:
         """
         Embeds text using the Fastembed model.
 

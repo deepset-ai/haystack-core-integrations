@@ -4,7 +4,7 @@
 
 # ruff: noqa: FBT001  Boolean-typed positional argument in function definition
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -28,13 +28,13 @@ class OpenSearchBM25Retriever:
         self,
         *,
         document_store: OpenSearchDocumentStore,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         fuzziness: Union[int, str] = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
-        custom_query: Optional[Dict[str, Any]] = None,
+        custom_query: Optional[dict[str, Any]] = None,
         raise_on_failure: bool = True,
     ):
         """
@@ -114,7 +114,7 @@ class OpenSearchBM25Retriever:
         self._custom_query = custom_query
         self._raise_on_failure = raise_on_failure
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -134,7 +134,7 @@ class OpenSearchBM25Retriever:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OpenSearchBM25Retriever":
+    def from_dict(cls, data: dict[str, Any]) -> "OpenSearchBM25Retriever":
         """
         Deserializes the component from a dictionary.
 
@@ -158,13 +158,13 @@ class OpenSearchBM25Retriever:
         self,
         *,
         query: str,
-        filters: Optional[Dict[str, Any]],
+        filters: Optional[dict[str, Any]],
         all_terms_must_match: Optional[bool],
         top_k: Optional[int],
         fuzziness: Optional[Union[str, int]],
         scale_score: Optional[bool],
-        custom_query: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        custom_query: Optional[dict[str, Any]],
+    ) -> dict[str, Any]:
         filters = apply_filter_policy(self._filter_policy, self._filters, filters)
 
         if filters is None:
@@ -190,32 +190,33 @@ class OpenSearchBM25Retriever:
             "custom_query": custom_query,
         }
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(
         self,
         query: str,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         all_terms_must_match: Optional[bool] = None,
         top_k: Optional[int] = None,
         fuzziness: Optional[Union[int, str]] = None,
         scale_score: Optional[bool] = None,
-        custom_query: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, List[Document]]:
+        custom_query: Optional[dict[str, Any]] = None,
+        document_store: Optional[OpenSearchDocumentStore] = None,
+    ) -> dict[str, list[Document]]:
         """
         Retrieve documents using BM25 retrieval.
 
         :param query: The query string.
         :param filters: Filters applied to the retrieved documents. The way runtime filters are applied depends on
-                        the `filter_policy` specified at Retriever's initialization.
+            the `filter_policy` specified at Retriever's initialization.
         :param all_terms_must_match: If `True`, all terms in the query string must be present in the
-        retrieved documents.
+            retrieved documents.
         :param top_k: Maximum number of documents to return.
         :param fuzziness: Fuzziness parameter for full-text queries to apply approximate string matching.
         For more information, see [OpenSearch fuzzy query](https://opensearch.org/docs/latest/query-dsl/term/fuzzy/).
         :param scale_score: If `True`, scales the score of retrieved documents to a range between 0 and 1.
             This is useful when comparing documents across different indexes.
         :param custom_query: A custom OpenSearch query. It must include a `$query` and may optionally
-        include a `$filters` placeholder.
+            include a `$filters` placeholder.
 
             **An example custom_query:**
 
@@ -247,13 +248,15 @@ class OpenSearchBM25Retriever:
             },
         )
         ```
+        :param document_store: Optionally, an instance of OpenSearchDocumentStore to use with the Retriever
 
         :returns:
             A dictionary containing the retrieved documents with the following structure:
             - documents: List of retrieved Documents.
 
+
         """
-        docs: List[Document] = []
+        docs: list[Document] = []
 
         bm25_args = self._prepare_bm25_args(
             query=query,
@@ -265,8 +268,16 @@ class OpenSearchBM25Retriever:
             custom_query=custom_query,
         )
 
+        if document_store is not None:
+            if not isinstance(document_store, OpenSearchDocumentStore):
+                msg = "document_store must be an instance of OpenSearchDocumentStore"
+                raise ValueError(msg)
+            doc_store = document_store
+        else:
+            doc_store = self._document_store
+
         try:
-            docs = self._document_store._bm25_retrieval(**bm25_args)
+            docs = doc_store._bm25_retrieval(**bm25_args)  # example for BM25Retriever
         except Exception as e:
             if self._raise_on_failure:
                 raise e
@@ -279,17 +290,18 @@ class OpenSearchBM25Retriever:
 
         return {"documents": docs}
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     async def run_async(  # pylint: disable=too-many-positional-arguments
         self,
         query: str,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         all_terms_must_match: Optional[bool] = None,
         top_k: Optional[int] = None,
         fuzziness: Optional[Union[int, str]] = None,
         scale_score: Optional[bool] = None,
-        custom_query: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, List[Document]]:
+        custom_query: Optional[dict[str, Any]] = None,
+        document_store: Optional[OpenSearchDocumentStore] = None,
+    ) -> dict[str, list[Document]]:
         """
         Asynchronously retrieve documents using BM25 retrieval.
 
@@ -305,13 +317,14 @@ class OpenSearchBM25Retriever:
             This is useful when comparing documents across different indexes.
         :param custom_query: A custom OpenSearch query. It must include a `$query` and may optionally
         include a `$filters` placeholder.
+        :param document_store: Optionally, an instance of OpenSearchDocumentStore to use with the Retriever
 
         :returns:
             A dictionary containing the retrieved documents with the following structure:
             - documents: List of retrieved Documents.
 
         """
-        docs: List[Document] = []
+        docs: list[Document] = []
         bm25_args = self._prepare_bm25_args(
             query=query,
             filters=filters,
@@ -321,8 +334,17 @@ class OpenSearchBM25Retriever:
             scale_score=scale_score,
             custom_query=custom_query,
         )
+
+        if document_store is not None:
+            if not isinstance(document_store, OpenSearchDocumentStore):
+                msg = "document_store must be an instance of OpenSearchDocumentStore"
+                raise ValueError(msg)
+            doc_store = document_store
+        else:
+            doc_store = self._document_store
+
         try:
-            docs = await self._document_store._bm25_retrieval_async(**bm25_args)
+            docs = await doc_store._bm25_retrieval_async(**bm25_args)
         except Exception as e:
             if self._raise_on_failure:
                 raise e

@@ -1,4 +1,3 @@
-from typing import List
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -74,7 +73,7 @@ class TestQdrantDocumentStore:
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
         embedding = [0.1] * 768
 
-        results: List[Document] = await document_store._query_hybrid_async(
+        results: list[Document] = await document_store._query_hybrid_async(
             query_sparse_embedding=sparse_embedding, query_embedding=embedding, top_k=10, return_embedding=True
         )
         assert len(results) == 10
@@ -103,7 +102,7 @@ class TestQdrantDocumentStore:
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
         embedding = [0.1] * 768
 
-        results: List[Document] = await document_store._query_hybrid_async(
+        results: list[Document] = await document_store._query_hybrid_async(
             query_sparse_embedding=sparse_embedding,
             query_embedding=embedding,
             top_k=3,
@@ -151,8 +150,9 @@ class TestQdrantDocumentStore:
         mock_collection_info.config.params.vectors.distance = rest.Distance.COSINE
         mock_collection_info.config.params.vectors.size = 512
 
-        with patch.object(document_store._async_client, "collection_exists", return_value=True), patch.object(
-            document_store._async_client, "get_collection", return_value=mock_collection_info
+        with (
+            patch.object(document_store._async_client, "collection_exists", return_value=True),
+            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
         ):
             with pytest.raises(ValueError, match="different vector size"):
                 await document_store._set_up_collection_async("test_collection", 768, False, "cosine", False, False)
@@ -165,8 +165,9 @@ class TestQdrantDocumentStore:
         mock_collection_info = MagicMock()
         mock_collection_info.config.params.vectors = {"some_other_vector": MagicMock()}
 
-        with patch.object(document_store._async_client, "collection_exists", return_value=True), patch.object(
-            document_store._async_client, "get_collection", return_value=mock_collection_info
+        with (
+            patch.object(document_store._async_client, "collection_exists", return_value=True),
+            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
         ):
             with pytest.raises(QdrantStoreError, match="created outside of Haystack"):
                 await document_store._set_up_collection_async("test_collection", 768, False, "cosine", True, False)
@@ -181,8 +182,9 @@ class TestQdrantDocumentStore:
         mock_collection_info = MagicMock()
         mock_collection_info.config.params.vectors = MagicMock(spec=rest.VectorsConfig)
 
-        with patch.object(document_store._async_client, "collection_exists", return_value=True), patch.object(
-            document_store._async_client, "get_collection", return_value=mock_collection_info
+        with (
+            patch.object(document_store._async_client, "collection_exists", return_value=True),
+            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
         ):
             with pytest.raises(QdrantStoreError, match="without sparse embedding vectors"):
                 await document_store._set_up_collection_async("test_collection", 768, False, "cosine", True, False)
@@ -196,8 +198,9 @@ class TestQdrantDocumentStore:
         mock_collection_info = MagicMock()
         mock_collection_info.config.params.vectors = {DENSE_VECTORS_NAME: MagicMock()}
 
-        with patch.object(document_store._async_client, "collection_exists", return_value=True), patch.object(
-            document_store._async_client, "get_collection", return_value=mock_collection_info
+        with (
+            patch.object(document_store._async_client, "collection_exists", return_value=True),
+            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
         ):
             with pytest.raises(QdrantStoreError, match="with sparse embedding vectors"):
                 await document_store._set_up_collection_async("test_collection", 768, False, "cosine", False, False)
@@ -213,8 +216,49 @@ class TestQdrantDocumentStore:
         mock_collection_info.config.params.vectors.distance = rest.Distance.DOT
         mock_collection_info.config.params.vectors.size = 768
 
-        with patch.object(document_store._async_client, "collection_exists", return_value=True), patch.object(
-            document_store._async_client, "get_collection", return_value=mock_collection_info
+        with (
+            patch.object(document_store._async_client, "collection_exists", return_value=True),
+            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
         ):
             with pytest.raises(ValueError, match="different similarity"):
                 await document_store._set_up_collection_async("test_collection", 768, False, "cosine", False, False)
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_async_no_index_recreation(self, document_store):
+        await document_store._initialize_async_client()
+
+        # write some documents
+        docs = [Document(id=str(i)) for i in range(5)]
+        await document_store.write_documents_async(docs)
+
+        # delete all documents without recreating the index
+        await document_store.delete_all_documents_async(recreate_index=False)
+        assert await document_store.count_documents_async() == 0
+
+        # ensure the collection still exists by writing documents again
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 5
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_async_index_recreation(self, document_store):
+        await document_store._initialize_async_client()
+
+        # write some documents
+        docs = [Document(id=str(i)) for i in range(5)]
+        await document_store.write_documents_async(docs)
+
+        # get the current document_store config
+        config_before = await document_store._async_client.get_collection(document_store.index)
+
+        # delete all documents with recreating the index
+        await document_store.delete_all_documents_async(recreate_index=True)
+        assert await document_store.count_documents_async() == 0
+
+        # assure that with the same config
+        config_after = await document_store._async_client.get_collection(document_store.index)
+
+        assert config_before.config == config_after.config
+
+        # ensure the collection still exists by writing documents again
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 5

@@ -2,8 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Mapping
 from math import exp
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -18,7 +19,7 @@ from haystack_integrations.document_stores.opensearch.filters import normalize_f
 
 logger = logging.getLogger(__name__)
 
-Hosts = Union[str, List[Union[str, Mapping[str, Union[str, int]]]]]
+Hosts = Union[str, list[Union[str, Mapping[str, Union[str, int]]]]]
 
 # document scores are essentially unbounded and will be scaled to values between 0 and 1 if scale_score is set to
 # True. Scaling uses the expit function (inverse of the logit function) after applying a scaling factor
@@ -70,9 +71,9 @@ class OpenSearchDocumentStore:
         max_chunk_bytes: int = DEFAULT_MAX_CHUNK_BYTES,
         embedding_dim: int = 768,
         return_embedding: bool = False,
-        method: Optional[Dict[str, Any]] = None,
-        mappings: Optional[Dict[str, Any]] = None,
-        settings: Optional[Dict[str, Any]] = DEFAULT_SETTINGS,
+        method: Optional[dict[str, Any]] = None,
+        mappings: Optional[dict[str, Any]] = None,
+        settings: Optional[dict[str, Any]] = DEFAULT_SETTINGS,
         create_index: bool = True,
         http_auth: Any = (
             Secret.from_env_var("OPENSEARCH_USERNAME", strict=False),  # noqa: B008
@@ -87,7 +88,7 @@ class OpenSearchDocumentStore:
         Creates a new OpenSearchDocumentStore instance.
 
         The ``embeddings_dim``, ``method``, ``mappings``, and ``settings`` arguments are only used if the index does not
-        exists and needs to be created. If the index already exists, its current configurations will be used.
+        exist and needs to be created. If the index already exists, its current configurations will be used.
 
         For more information on connection parameters, see the [official OpenSearch documentation](https://opensearch.org/docs/latest/clients/python-low-level/#connecting-to-opensearch)
 
@@ -105,9 +106,9 @@ class OpenSearchDocumentStore:
             for more information. If None, it uses the embedding_dim and method arguments to create default mappings.
             Defaults to None
         :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
-            for more information. Defaults to {"index.knn": True}
+            for more information. Defaults to `{"index.knn": True}`.
         :param create_index: Whether to create the index if it doesn't exist. Defaults to True
-        :param http_auth: http_auth param passed to the underying connection class.
+        :param http_auth: http_auth param passed to the underlying connection class.
             For basic authentication with default connection class `Urllib3HttpConnection` this can be
             - a tuple of (username, password)
             - a list of [username, password]
@@ -153,8 +154,8 @@ class OpenSearchDocumentStore:
         self._async_client: Optional[AsyncOpenSearch] = None
         self._initialized = False
 
-    def _get_default_mappings(self) -> Dict[str, Any]:
-        default_mappings: Dict[str, Any] = {
+    def _get_default_mappings(self) -> dict[str, Any]:
+        default_mappings: dict[str, Any] = {
             "properties": {
                 "embedding": {"type": "knn_vector", "index": True, "dimension": self._embedding_dim},
                 "content": {"type": "text"},
@@ -175,8 +176,8 @@ class OpenSearchDocumentStore:
     def create_index(
         self,
         index: Optional[str] = None,
-        mappings: Optional[Dict[str, Any]] = None,
-        settings: Optional[Dict[str, Any]] = None,
+        mappings: Optional[dict[str, Any]] = None,
+        settings: Optional[dict[str, Any]] = None,
     ) -> None:
         """
         Creates an index in OpenSearch.
@@ -202,7 +203,7 @@ class OpenSearchDocumentStore:
         if not self._client.indices.exists(index=index):
             self._client.indices.create(index=index, body={"mappings": mappings, "settings": settings})
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -210,7 +211,7 @@ class OpenSearchDocumentStore:
             Dictionary with serialized data.
         """
         # Handle http_auth serialization
-        http_auth: Union[List[Dict[str, Any]], Dict[str, Any], Tuple[str, str], List[str], str] = ""
+        http_auth: Union[list[dict[str, Any]], dict[str, Any], tuple[str, str], list[str], str] = ""
         if isinstance(self._http_auth, list) and self._http_auth_are_secrets:
             # Recreate the Secret objects for serialization
             http_auth = [
@@ -241,7 +242,7 @@ class OpenSearchDocumentStore:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OpenSearchDocumentStore":
+    def from_dict(cls, data: dict[str, Any]) -> "OpenSearchDocumentStore":
         """
         Deserializes the component from a dictionary.
 
@@ -319,7 +320,8 @@ class OpenSearchDocumentStore:
         assert self._async_client is not None
         return (await self._async_client.count(index=self._index))["count"]
 
-    def _deserialize_search_hits(self, hits: List[Dict[str, Any]]) -> List[Document]:
+    @staticmethod
+    def _deserialize_search_hits(hits: list[dict[str, Any]]) -> list[Document]:
         out = []
         for hit in hits:
             data = hit["_source"]
@@ -330,8 +332,8 @@ class OpenSearchDocumentStore:
 
         return out
 
-    def _prepare_filter_search_request(self, filters: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        search_kwargs: Dict[str, Any] = {"size": 10_000}
+    def _prepare_filter_search_request(self, filters: Optional[dict[str, Any]]) -> dict[str, Any]:
+        search_kwargs: dict[str, Any] = {"size": 10_000}
         if filters:
             search_kwargs["query"] = {"bool": {"filter": normalize_filters(filters)}}
 
@@ -341,17 +343,17 @@ class OpenSearchDocumentStore:
             search_kwargs["_source"] = {"excludes": ["embedding"]}
         return search_kwargs
 
-    def _search_documents(self, request_body: Dict[str, Any]) -> List[Document]:
+    def _search_documents(self, request_body: dict[str, Any]) -> list[Document]:
         assert self._client is not None
         search_results = self._client.search(index=self._index, body=request_body)
-        return self._deserialize_search_hits(search_results["hits"]["hits"])
+        return OpenSearchDocumentStore._deserialize_search_hits(search_results["hits"]["hits"])
 
-    async def _search_documents_async(self, request_body: Dict[str, Any]) -> List[Document]:
+    async def _search_documents_async(self, request_body: dict[str, Any]) -> list[Document]:
         assert self._async_client is not None
         search_results = await self._async_client.search(index=self._index, body=request_body)
-        return self._deserialize_search_hits(search_results["hits"]["hits"])
+        return OpenSearchDocumentStore._deserialize_search_hits(search_results["hits"]["hits"])
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -364,7 +366,7 @@ class OpenSearchDocumentStore:
         self._ensure_initialized()
         return self._search_documents(self._prepare_filter_search_request(filters))
 
-    async def filter_documents_async(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    async def filter_documents_async(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
         """
         Asynchronously returns the documents that match the filters provided.
 
@@ -378,8 +380,8 @@ class OpenSearchDocumentStore:
         return await self._search_documents_async(self._prepare_filter_search_request(filters))
 
     def _prepare_bulk_write_request(
-        self, *, documents: List[Document], policy: DuplicatePolicy, is_async: bool
-    ) -> Dict[str, Any]:
+        self, *, documents: list[Document], policy: DuplicatePolicy, is_async: bool
+    ) -> dict[str, Any]:
         if len(documents) > 0 and not isinstance(documents[0], Document):
             msg = "param 'documents' must contain a list of objects of type Document"
             raise ValueError(msg)
@@ -418,7 +420,8 @@ class OpenSearchDocumentStore:
             "stats_only": False,
         }
 
-    def _process_bulk_write_errors(self, errors: List[Dict[str, Any]], policy: DuplicatePolicy) -> None:
+    @staticmethod
+    def _process_bulk_write_errors(errors: list[dict[str, Any]], policy: DuplicatePolicy) -> None:
         if len(errors) == 0:
             return
 
@@ -447,7 +450,7 @@ class OpenSearchDocumentStore:
             msg = f"Failed to write documents to OpenSearch. Errors:\n{other_errors}"
             raise DocumentStoreError(msg)
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
+    def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes documents to the document store.
 
@@ -461,11 +464,11 @@ class OpenSearchDocumentStore:
 
         bulk_params = self._prepare_bulk_write_request(documents=documents, policy=policy, is_async=False)
         documents_written, errors = bulk(**bulk_params)
-        self._process_bulk_write_errors(errors, policy)
+        OpenSearchDocumentStore._process_bulk_write_errors(errors, policy)
         return documents_written
 
     async def write_documents_async(
-        self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
+        self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
     ) -> int:
         """
         Asynchronously writes documents to the document store.
@@ -478,10 +481,11 @@ class OpenSearchDocumentStore:
         bulk_params = self._prepare_bulk_write_request(documents=documents, policy=policy, is_async=True)
         documents_written, errors = await async_bulk(**bulk_params)
         # since we call async_bulk with stats_only=False, errors is guaranteed to be a list (not int)
-        self._process_bulk_write_errors(errors=errors, policy=policy)  # type: ignore[arg-type]
+        OpenSearchDocumentStore._process_bulk_write_errors(errors=errors, policy=policy)  # type: ignore[arg-type]
         return documents_written
 
-    def _deserialize_document(self, hit: Dict[str, Any]) -> Document:
+    @staticmethod
+    def _deserialize_document(hit: dict[str, Any]) -> Document:
         """
         Creates a Document from the search hit provided.
         This is mostly useful in self.filter_documents().
@@ -494,7 +498,7 @@ class OpenSearchDocumentStore:
 
         return Document.from_dict(data)
 
-    def _prepare_bulk_delete_request(self, *, document_ids: List[str], is_async: bool) -> Dict[str, Any]:
+    def _prepare_bulk_delete_request(self, *, document_ids: list[str], is_async: bool) -> dict[str, Any]:
         return {
             "client": self._client if not is_async else self._async_client,
             "actions": ({"_op_type": "delete", "_id": id_} for id_ in document_ids),
@@ -504,7 +508,7 @@ class OpenSearchDocumentStore:
             "max_chunk_bytes": self._max_chunk_bytes,
         }
 
-    def delete_documents(self, document_ids: List[str]) -> None:
+    def delete_documents(self, document_ids: list[str]) -> None:
         """
         Deletes documents that match the provided `document_ids` from the document store.
 
@@ -515,7 +519,7 @@ class OpenSearchDocumentStore:
 
         bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=False))
 
-    async def delete_documents_async(self, document_ids: List[str]) -> None:
+    async def delete_documents_async(self, document_ids: list[str]) -> None:
         """
         Asynchronously deletes documents that match the provided `document_ids` from the document store.
 
@@ -525,18 +529,224 @@ class OpenSearchDocumentStore:
 
         await async_bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=True))
 
+    def _prepare_delete_all_request(self, *, is_async: bool) -> dict[str, Any]:
+        return {
+            "index": self._index,
+            "body": {"query": {"match_all": {}}},  # Delete all documents
+            "wait_for_completion": False if is_async else True,  # block until done (set False for async)
+        }
+
+    def delete_all_documents(self, recreate_index: bool = False) -> None:  # noqa: FBT002, FBT001
+        """
+        Deletes all documents in the document store.
+
+        :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
+            settings. If False, all documents will be deleted using the `delete_by_query` API.
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        try:
+            if recreate_index:
+                # get the current index mappings and settings
+                index_name = self._index
+                body = {
+                    "mappings": self._client.indices.get(self._index)[index_name]["mappings"],
+                    "settings": self._client.indices.get(self._index)[index_name]["settings"],
+                }
+                body["settings"]["index"].pop("uuid", None)
+                body["settings"]["index"].pop("creation_date", None)
+                body["settings"]["index"].pop("provided_name", None)
+                body["settings"]["index"].pop("version", None)
+                self._client.indices.delete(index=self._index)
+                self._client.indices.create(index=self._index, body=body)
+                logger.info(
+                    "The index '{index}' recreated with the original mappings and settings.",
+                    index=self._index,
+                )
+
+            else:
+                result = self._client.delete_by_query(**self._prepare_delete_all_request(is_async=False))
+                logger.info(
+                    "Deleted all the {n_docs} documents from the index '{index}'.",
+                    index=self._index,
+                    n_docs=result["deleted"],
+                )
+        except Exception as e:
+            msg = f"Failed to delete all documents from OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def delete_all_documents_async(self, recreate_index: bool = False) -> None:  # noqa: FBT002, FBT001
+        """
+        Asynchronously deletes all documents in the document store.
+
+        :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
+            settings. If False, all documents will be deleted using the `delete_by_query` API.
+        """
+        self._ensure_initialized()
+        assert self._async_client is not None
+
+        try:
+            if recreate_index:
+                # get the current index mappings and settings
+                index_name = self._index
+                index_info = await self._async_client.indices.get(self._index)
+                body = {
+                    "mappings": index_info[index_name]["mappings"],
+                    "settings": index_info[index_name]["settings"],
+                }
+                body["settings"]["index"].pop("uuid", None)
+                body["settings"]["index"].pop("creation_date", None)
+                body["settings"]["index"].pop("provided_name", None)
+                body["settings"]["index"].pop("version", None)
+
+                await self._async_client.indices.delete(index=self._index)
+                await self._async_client.indices.create(index=self._index, body=body)
+            else:
+                await self._async_client.delete_by_query(**self._prepare_delete_all_request(is_async=True))
+
+        except Exception as e:
+            msg = f"Failed to delete all documents from OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        try:
+            normalized_filters = normalize_filters(filters)
+            body = {"query": {"bool": {"filter": normalized_filters}}}
+            result = self._client.delete_by_query(index=self._index, body=body)
+            deleted_count = result.get("deleted", 0)
+            logger.info(
+                "Deleted {n_docs} documents from index '{index}' using filters.",
+                n_docs=deleted_count,
+                index=self._index,
+            )
+            return deleted_count
+        except Exception as e:
+            msg = f"Failed to delete documents by filter from OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        self._ensure_initialized()
+        assert self._async_client is not None
+
+        try:
+            normalized_filters = normalize_filters(filters)
+            body = {"query": {"bool": {"filter": normalized_filters}}}
+            result = await self._async_client.delete_by_query(index=self._index, body=body)
+            deleted_count = result.get("deleted", 0)
+            logger.info(
+                "Deleted {n_docs} documents from index '{index}' using filters.",
+                n_docs=deleted_count,
+                index=self._index,
+            )
+            return deleted_count
+        except Exception as e:
+            msg = f"Failed to delete documents by filter from OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Updates the metadata of all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update.
+        :returns: The number of documents updated.
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        try:
+            normalized_filters = normalize_filters(filters)
+            # Build the update script to modify metadata fields
+            # Documents are stored with flattened metadata, so update fields directly in ctx._source
+            update_script_lines = []
+            for key in meta.keys():
+                update_script_lines.append(f"ctx._source.{key} = params.{key};")
+            update_script = " ".join(update_script_lines)
+
+            body = {
+                "query": {"bool": {"filter": normalized_filters}},
+                "script": {"source": update_script, "params": meta, "lang": "painless"},
+            }
+            result = self._client.update_by_query(index=self._index, body=body)
+            updated_count = result.get("updated", 0)
+            logger.info(
+                "Updated {n_docs} documents in index '{index}' using filters.",
+                n_docs=updated_count,
+                index=self._index,
+            )
+            return updated_count
+        except Exception as e:
+            msg = f"Failed to update documents by filter in OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Asynchronously updates the metadata of all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update.
+        :returns: The number of documents updated.
+        """
+        self._ensure_initialized()
+        assert self._async_client is not None
+
+        try:
+            normalized_filters = normalize_filters(filters)
+            # Build the update script to modify metadata fields
+            # Documents are stored with flattened metadata, so update fields directly in ctx._source
+            update_script_lines = []
+            for key in meta.keys():
+                update_script_lines.append(f"ctx._source.{key} = params.{key};")
+            update_script = " ".join(update_script_lines)
+
+            body = {
+                "query": {"bool": {"filter": normalized_filters}},
+                "script": {"source": update_script, "params": meta, "lang": "painless"},
+            }
+            result = await self._async_client.update_by_query(index=self._index, body=body)
+            updated_count = result.get("updated", 0)
+            logger.info(
+                "Updated {n_docs} documents in index '{index}' using filters.",
+                n_docs=updated_count,
+                index=self._index,
+            )
+            return updated_count
+        except Exception as e:
+            msg = f"Failed to update documents by filter in OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
     def _prepare_bm25_search_request(
         self,
         *,
         query: str,
-        filters: Optional[Dict[str, Any]],
+        filters: Optional[dict[str, Any]],
         fuzziness: Union[int, str],
         top_k: int,
         all_terms_must_match: bool,
-        custom_query: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        custom_query: Optional[dict[str, Any]],
+    ) -> dict[str, Any]:
         if not query:
-            body: Dict[str, Any] = {"query": {"bool": {"must": {"match_all": {}}}}}
+            body: dict[str, Any] = {"query": {"bool": {"must": {"match_all": {}}}}}
             if filters:
                 body["query"]["bool"]["filter"] = normalize_filters(filters)
 
@@ -580,7 +790,8 @@ class OpenSearchDocumentStore:
 
         return body
 
-    def _postprocess_bm25_search_results(self, *, results: List[Document], scale_score: bool) -> None:
+    @staticmethod
+    def _postprocess_bm25_search_results(*, results: list[Document], scale_score: bool) -> None:
         if not scale_score:
             return
 
@@ -593,13 +804,13 @@ class OpenSearchDocumentStore:
         self,
         query: str,
         *,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         fuzziness: Union[int, str] = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
-        custom_query: Optional[Dict[str, Any]] = None,
-    ) -> List[Document]:
+        custom_query: Optional[dict[str, Any]] = None,
+    ) -> list[Document]:
         """
         Retrieves documents that match the provided `query` using the BM25 search algorithm.
 
@@ -624,20 +835,20 @@ class OpenSearchDocumentStore:
             custom_query=custom_query,
         )
         documents = self._search_documents(search_params)
-        self._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
+        OpenSearchDocumentStore._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
         return documents
 
     async def _bm25_retrieval_async(
         self,
         query: str,
         *,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         fuzziness: str = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
-        custom_query: Optional[Dict[str, Any]] = None,
-    ) -> List[Document]:
+        custom_query: Optional[dict[str, Any]] = None,
+    ) -> list[Document]:
         """
         Asynchronously retrieves documents that match the provided `query` using the BM25 search algorithm.
 
@@ -663,23 +874,23 @@ class OpenSearchDocumentStore:
             custom_query=custom_query,
         )
         documents = await self._search_documents_async(search_params)
-        self._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
+        OpenSearchDocumentStore._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
         return documents
 
     def _prepare_embedding_search_request(
         self,
         *,
-        query_embedding: List[float],
-        filters: Optional[Dict[str, Any]],
+        query_embedding: list[float],
+        filters: Optional[dict[str, Any]],
         top_k: int,
-        custom_query: Optional[Dict[str, Any]],
+        custom_query: Optional[dict[str, Any]],
         efficient_filtering: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
             raise ValueError(msg)
 
-        body: Dict[str, Any]
+        body: dict[str, Any]
         if isinstance(custom_query, dict):
             body = self._render_custom_query(
                 custom_query,
@@ -724,13 +935,13 @@ class OpenSearchDocumentStore:
 
     def _embedding_retrieval(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         *,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
-        custom_query: Optional[Dict[str, Any]] = None,
+        custom_query: Optional[dict[str, Any]] = None,
         efficient_filtering: bool = False,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
         It uses the OpenSearch's Approximate k-Nearest Neighbors search algorithm.
@@ -754,13 +965,13 @@ class OpenSearchDocumentStore:
 
     async def _embedding_retrieval_async(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         *,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
-        custom_query: Optional[Dict[str, Any]] = None,
+        custom_query: Optional[dict[str, Any]] = None,
         efficient_filtering: bool = False,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Asynchronously retrieves documents that are most similar to the query embedding using a vector similarity
         metric. It uses the OpenSearch's Approximate k-Nearest Neighbors search algorithm.
@@ -782,7 +993,7 @@ class OpenSearchDocumentStore:
         )
         return await self._search_documents_async(search_params)
 
-    def _render_custom_query(self, custom_query: Any, substitutions: Dict[str, Any]) -> Any:
+    def _render_custom_query(self, custom_query: Any, substitutions: dict[str, Any]) -> Any:
         """
         Recursively replaces the placeholders in the custom_query with the actual values.
 

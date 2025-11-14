@@ -1,15 +1,88 @@
 # Changelog
 
-## [integrations/mcp-v0.6.0] - 2025-09-16
+## [integrations/mcp-v1.1.0] - 2025-11-12
+
+### 🚀 Features
+
+- Add Agent state-mapping parameters to MCPTool (#2501)
+
+
+### 🌀 Miscellaneous
+
+- Docs: update syntax in mcp docstrings (#2496)
+- Docs: wrap special syntax in mcp docstrings in code ticks (#2499)
+
+## [integrations/mcp-v1.0.0] - 2025-11-07
+
+### 🚀 Features
+
+- MCP add custom header support (#2488)
+
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+## [integrations/mcp-v0.9.0] - 2025-10-22
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+- Fix docstrings to avoid errors in API reference generation (#2423)
+
+### 🌀 Miscellaneous
+
+- Add MCPTool/MCPToolset warm_up (#2384)
+- Added `eager_connect` parameter to `MCPTool` and `MCPToolset` (default: `False`).
+  
+  **When `eager_connect=False` (default)**:
+  - Connection deferred until first use or `warm_up()` call
+  - Fast initialization, enables pipeline validation without server availability
+  - Recommended for most use cases
+  
+  **When `eager_connect=True`**:
+  - Connects immediately during initialization
+  - Fail-fast validation, tool schema available immediately
+  - Use when you need upfront validation
+  - Existing agent/pipelines should set `eager_connect=True` to keep the behaviour from previous releases
+  
+  ```python
+  # Lazy connection (default)
+  tool = MCPTool(name="weather", server_info=info)
+  
+  # Eager connection
+  tool = MCPTool(name="weather", server_info=info, eager_connect=True)
+  ```
+- See related https://github.com/deepset-ai/haystack/pull/9856 for more details
+
+
+## [integrations/mcp-v0.8.0] - 2025-10-14
+
+### 🐛 Bug Fixes
+
+- Surface MCPToolNotFoundError (#2380)
+
+### 📚 Documentation
+
+- Recommend Streamable HTTP instead of SSE (#2338)
+
+### 🧹 Chores
+
+- Add Agent pipeline with MCPToolset deserialization test (#2357)
+
+## [integrations/mcp-v0.7.0] - 2025-09-23
 
 ### 🐛 Bug Fixes
 
 - Temporarily disable brave search mcp integration test (#2187)
-- Fix mcp types + add py.typed
+- Fix mcp types + add py.typed (#2248)
+- Make MCPInvocationError compatible with haystack-ai>=2.18.0 (#2297)
+
 
 ### 🧹 Chores
 
 - Standardize readmes - part 2 (#2205)
+
 
 ## [integrations/mcp-v0.5.0] - 2025-08-04
 

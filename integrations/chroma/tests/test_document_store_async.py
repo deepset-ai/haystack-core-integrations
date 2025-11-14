@@ -5,7 +5,6 @@
 import operator
 import sys
 import uuid
-from typing import List
 from unittest import mock
 
 import pytest
@@ -33,7 +32,7 @@ class TestDocumentStoreAsync:
                 port=8000,
             )
 
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
         Assert that two lists of Documents are equal.
         This is used in every test, if a Document Store implementation has a different behaviour
@@ -120,3 +119,53 @@ class TestDocumentStoreAsync:
         # check that empty filters behave as no filters
         result_empty_filters = document_store.search(["Third"], filters={}, top_k=1)
         assert result == result_empty_filters
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_index_recreation(self, document_store: ChromaDocumentStore):
+        # write some documents
+        docs = [
+            Document(id="1", content="First document", meta={"category": "test"}),
+            Document(id="2", content="Second document", meta={"category": "test"}),
+            Document(id="3", content="Third document", meta={"category": "other"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        # get the current document_store config
+        config_before = await document_store._async_collection.get(document_store._collection_name)
+
+        # delete all documents with recreating the index
+        await document_store.delete_all_documents_async(recreate_index=True)
+        assert await document_store.count_documents_async() == 0
+
+        # assure that with the same config
+        config_after = await document_store._async_collection.get(document_store._collection_name)
+
+        assert config_before == config_after
+
+        # ensure the collection still exists by writing documents again
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_async(self, document_store):
+        docs = [
+            Document(id="1", content="First document", meta={"category": "test"}),
+            Document(id="2", content="Second document", meta={"category": "test"}),
+            Document(id="3", content="Third document", meta={"category": "other"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+        # delete all documents
+        await document_store.delete_all_documents_async()
+        assert await document_store.count_documents_async() == 0
+
+        # verify index still exists and can accept new documents and retrieve
+        new_doc = Document(id="4", content="New document after delete all")
+        await document_store.write_documents_async([new_doc])
+        assert await document_store.count_documents_async() == 1
+
+        results = await document_store.filter_documents_async()
+        assert len(results) == 1
+        assert results[0].id == "4"
+        assert results[0].content == "New document after delete all"

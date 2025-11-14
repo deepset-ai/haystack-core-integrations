@@ -1,5 +1,33 @@
 # Changelog
 
+## [integrations/chroma-v3.4.1]
+
+### ⚙️ CI
+
+- Adopt PEP 585 type hinting (#2475)
+
+
+## [integrations/chroma-v3.4.0] - 2025-10-27
+
+### 🚀 Features
+
+- Adding delete_all_docs to ChromaDB document store (#2399)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Install dependencies in the `test` environment when testing with lowest direct dependencies and Haystack main (#2418)
+
+### 🧹 Chores
+
+- Update md files for new hatch scripts (#1911)
+- Remove black (#1985)
+- Standardize readmes - part 1 (#2202)
+
+
 ## [integrations/chroma-v3.3.0] - 2025-06-09
 
 ### 🚀 Features

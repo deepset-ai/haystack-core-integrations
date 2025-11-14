@@ -1,9 +1,9 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from haystack.errors import FilterError
 
 
-def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_filters(filters: dict[str, Any]) -> dict[str, Any]:
     """
     Converts Haystack filters to Astra compatible filters.
     """
@@ -16,7 +16,7 @@ def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
     return _parse_logical_condition(filters)
 
 
-def _convert_filters(filters: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+def _convert_filters(filters: Optional[dict[str, Any]] = None) -> Optional[dict[str, Any]]:
     """
     Convert haystack filters to astra filter string capturing all boolean operators
     """
@@ -61,7 +61,7 @@ OPERATORS = {
 }
 
 
-def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
+def _parse_logical_condition(condition: dict[str, Any]) -> dict[str, Any]:
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
         raise FilterError(msg)
@@ -79,7 +79,7 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     return {OPERATORS[operator]: conditions}
 
 
-def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
+def _parse_comparison_condition(condition: dict[str, Any]) -> dict[str, Any]:
     if "field" not in condition:
         msg = f"'field' key missing in {condition}"
         raise FilterError(msg)
@@ -97,7 +97,7 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     return {field: {OPERATORS[operator]: value}}
 
 
-def _normalize_ranges(conditions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _normalize_ranges(conditions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     Merges range conditions acting on a same field.
 
@@ -117,7 +117,7 @@ def _normalize_ranges(conditions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     range_conditions = [next(iter(c["range"].items())) for c in conditions if "range" in c]
     if range_conditions:
         conditions = [c for c in conditions if "range" not in c]
-        range_conditions_dict: Dict[str, Any] = {}
+        range_conditions_dict: dict[str, Any] = {}
         for field_name, comparison in range_conditions:
             if field_name not in range_conditions_dict:
                 range_conditions_dict[field_name] = {}

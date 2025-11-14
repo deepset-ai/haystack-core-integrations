@@ -1,0 +1,32 @@
+loaders:
+- ignore_when_discovered:
+  - __init__
+  modules:
+  - haystack_integrations.components.embedders.fastembed.fastembed_document_embedder
+  - haystack_integrations.components.embedders.fastembed.fastembed_text_embedder
+  - haystack_integrations.components.embedders.fastembed.fastembed_sparse_document_embedder
+  - haystack_integrations.components.embedders.fastembed.fastembed_sparse_text_embedder
+  - haystack_integrations.components.rankers.fastembed.ranker
+  search_path:
+  - ../src
+  type: haystack_pydoc_tools.loaders.CustomPythonLoader
+processors:
+- do_not_filter_modules: false
+  documented_only: true
+  expression: null
+  skip_empty_modules: true
+  type: filter
+- type: smart
+- type: crossref
+renderer:
+  description: FastEmbed integration for Haystack
+  id: fastembed-embedders
+  markdown:
+    add_member_class_prefix: false
+    add_method_class_prefix: true
+    classdef_code_block: false
+    descriptive_class_title: false
+    descriptive_module_title: true
+    filename: fastembed.md
+  title: FastEmbed
+  type: haystack_pydoc_tools.renderers.DocusaurusRenderer

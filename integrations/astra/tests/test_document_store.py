@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import operator
 import os
-from typing import List
 from unittest import mock
 
 import pytest
@@ -54,7 +53,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
     you can add more to this class.
     """
 
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def document_store(self) -> AstraDocumentStore:
         return AstraDocumentStore(
             collection_name="haystack_integration",
@@ -63,14 +62,14 @@ class TestDocumentStore(DocumentStoreBaseTests):
         )
 
     @pytest.fixture(autouse=True)
-    def run_before_and_after_tests(self, document_store: AstraDocumentStore):
+    def run_before_tests(self, document_store: AstraDocumentStore):
         """
         Cleaning up document store
         """
-        document_store.delete_documents(delete_all=True)
+        document_store.delete_all_documents()
         assert document_store.count_documents() == 0
 
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
         Assert that two lists of Documents are equal.
         This is used in every test, if a Document Store implementation has a different behaviour
@@ -136,8 +135,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         document_store.write_documents(docs)
         assert document_store.count_documents() == 25
 
-        document_store.delete_documents(delete_all=True)
-
+        document_store.delete_all_documents()
         assert document_store.count_documents() == 0
 
     def test_delete_documents_more_than_twenty_delete_ids(self, document_store: AstraDocumentStore):
@@ -204,6 +202,13 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         self.assert_documents_are_equal([result[0]], [docs[0]])
         self.assert_documents_are_equal([result[1]], [docs[1]])
+
+    def test_delete_all_documents(self, document_store: AstraDocumentStore):
+        """
+        Test delete_all_documents() on an Astra.
+        """
+        document_store.delete_all_documents()
+        assert document_store.count_documents() == 0
 
     @pytest.mark.skip(reason="Unsupported filter operator not.")
     def test_not_operator(self, document_store, filterable_docs):

@@ -2,13 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Literal, Optional, Sequence, cast
+from collections.abc import Sequence
+from typing import Any, Literal, Optional, cast
 
 import chromadb
 from chromadb.api.models.AsyncCollection import AsyncCollection
 from chromadb.api.types import GetResult, QueryResult
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
+from haystack.document_stores.errors import DocumentStoreError
 from haystack.document_stores.types import DuplicatePolicy
 
 from .filters import _convert_filters
@@ -113,6 +115,8 @@ class ChromaDocumentStore:
                 # Local persistent storage
                 client = chromadb.PersistentClient(path=self._persist_path)
 
+            self._client = client  # store client for potential future use
+
             self._metadata = self._metadata or {}
             if "hnsw:space" not in self._metadata:
                 self._metadata["hnsw:space"] = self._distance_function
@@ -149,6 +153,8 @@ class ChromaDocumentStore:
                 port=self._port,
             )
 
+            self._async_client = client  # store client for potential future use
+
             self._metadata = self._metadata or {}
             if "hnsw:space" not in self._metadata:
                 self._metadata["hnsw:space"] = self._distance_function
@@ -172,11 +178,11 @@ class ChromaDocumentStore:
                     embedding_function=self._embedding_func,
                 )
 
-    def _prepare_get_kwargs(self, filters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _prepare_get_kwargs(self, filters: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         """
         Prepare kwargs for Chroma get operations.
         """
-        kwargs: Dict[str, Any] = {"include": ["embeddings", "documents", "metadatas"]}
+        kwargs: dict[str, Any] = {"include": ["embeddings", "documents", "metadatas"]}
 
         if filters:
             chroma_filter = _convert_filters(filters)
@@ -189,7 +195,7 @@ class ChromaDocumentStore:
 
         return kwargs
 
-    def _prepare_query_kwargs(self, filters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _prepare_query_kwargs(self, filters: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         """
         Prepare kwargs for Chroma query operations.
         """
@@ -227,7 +233,7 @@ class ChromaDocumentStore:
 
         return value
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -245,7 +251,7 @@ class ChromaDocumentStore:
 
         return self._get_result_to_documents(result)
 
-    async def filter_documents_async(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    async def filter_documents_async(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
         """
         Asynchronously returns the documents that match the filters provided.
 
@@ -265,7 +271,7 @@ class ChromaDocumentStore:
 
         return self._get_result_to_documents(result)
 
-    def _convert_document_to_chroma(self, doc: Document) -> Optional[Dict[str, Any]]:
+    def _convert_document_to_chroma(self, doc: Document) -> Optional[dict[str, Any]]:
         """
         Converts a Haystack Document to a Chroma document.
         """
@@ -287,7 +293,7 @@ class ChromaDocumentStore:
                 "This field will be ignored.",
                 doc_id=doc.id,
             )
-        data: Dict[str, Any] = {"ids": [doc.id], "documents": [doc.content]}
+        data: dict[str, Any] = {"ids": [doc.id], "documents": [doc.content]}
 
         if doc.meta:
             valid_meta = {}
@@ -326,7 +332,7 @@ class ChromaDocumentStore:
 
     def write_documents(
         self,
-        documents: List[Document],
+        documents: list[Document],
         policy: DuplicatePolicy = DuplicatePolicy.FAIL,
     ) -> int:
         """
@@ -355,7 +361,7 @@ class ChromaDocumentStore:
 
     async def write_documents_async(
         self,
-        documents: List[Document],
+        documents: list[Document],
         policy: DuplicatePolicy = DuplicatePolicy.FAIL,
     ) -> int:
         """
@@ -384,7 +390,7 @@ class ChromaDocumentStore:
 
         return len(documents)
 
-    def delete_documents(self, document_ids: List[str]) -> None:
+    def delete_documents(self, document_ids: list[str]) -> None:
         """
         Deletes all documents with a matching document_ids from the document store.
 
@@ -395,7 +401,7 @@ class ChromaDocumentStore:
 
         self._collection.delete(ids=document_ids)
 
-    async def delete_documents_async(self, document_ids: List[str]) -> None:
+    async def delete_documents_async(self, document_ids: list[str]) -> None:
         """
         Asynchronously deletes all documents with a matching document_ids from the document store.
 
@@ -408,12 +414,92 @@ class ChromaDocumentStore:
 
         await self._async_collection.delete(ids=document_ids)
 
+    def delete_all_documents(self, *, recreate_index: bool = False) -> None:
+        """
+        Deletes all documents in the document store.
+
+        A fast way to clear all documents from the document store while preserving any collection settings and mappings.
+        :param recreate_index: Whether to recreate the index after deleting all documents.
+        """
+        self._ensure_initialized()  # _ensure_initialized ensures _client is not None and a collection exists
+        assert self._collection is not None
+
+        try:
+            if recreate_index:
+                # Store existing collection metadata and embedding function
+                metadata = self._collection.metadata
+                embedding_function = self._collection._embedding_function
+                collection_name = self._collection_name
+
+                # Delete the collection
+                self._client.delete_collection(name=collection_name)
+
+                # Recreate the collection with previous metadata
+                self._collection = self._client.create_collection(
+                    name=collection_name,
+                    metadata=metadata,
+                    embedding_function=embedding_function,
+                )
+
+            else:
+                collection = self._collection.get()
+                ids = collection.get("ids", [])
+                self._collection.delete(ids=ids)  # type: ignore
+                logger.info(
+                    "Deleted all the {n_docs} documents from the collection '{name}'.",
+                    name=self._collection_name,
+                    n_docs=len(ids),
+                )
+        except Exception as e:
+            msg = f"Failed to delete all documents from ChromaDB: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def delete_all_documents_async(self, *, recreate_index: bool = False) -> None:
+        """
+        Asynchronously deletes all documents in the document store.
+
+        A fast way to clear all documents from the document store while preserving any collection settings and mappings.
+        :param recreate_index: Whether to recreate the index after deleting all documents.
+        """
+        await self._ensure_initialized_async()  # ensures _async_client is not None
+        assert self._async_collection is not None
+
+        try:
+            if recreate_index:
+                # Store existing collection metadata and embedding function
+                metadata = self._async_collection.metadata
+                embedding_function = self._async_collection._embedding_function
+                collection_name = self._collection_name
+
+                # Delete the collection
+                await self._async_client.delete_collection(name=collection_name)
+
+                # Recreate the collection with previous metadata
+                self._async_collection = await self._async_client.create_collection(
+                    name=collection_name,
+                    metadata=metadata,
+                    embedding_function=embedding_function,
+                )
+            else:
+                collection = await self._async_collection.get()
+                ids = collection.get("ids", [])
+                await self._async_collection.delete(ids=ids)  # type: ignore
+                logger.info(
+                    "Deleted all the {n_docs} documents from the collection '{name}'.",
+                    name=self._collection_name,
+                    n_docs=len(ids),
+                )
+
+        except Exception as e:
+            msg = f"Failed to delete all documents from ChromaDB: {e!s}"
+            raise DocumentStoreError(msg) from e
+
     def search(
         self,
-        queries: List[str],
+        queries: list[str],
         top_k: int,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[List[Document]]:
+        filters: Optional[dict[str, Any]] = None,
+    ) -> list[list[Document]]:
         """
         Search the documents in the store using the provided text queries.
 
@@ -436,10 +522,10 @@ class ChromaDocumentStore:
 
     async def search_async(
         self,
-        queries: List[str],
+        queries: list[str],
         top_k: int,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[List[Document]]:
+        filters: Optional[dict[str, Any]] = None,
+    ) -> list[list[Document]]:
         """
         Asynchronously search the documents in the store using the provided text queries.
 
@@ -464,10 +550,10 @@ class ChromaDocumentStore:
 
     def search_embeddings(
         self,
-        query_embeddings: List[List[float]],
+        query_embeddings: list[list[float]],
         top_k: int,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[List[Document]]:
+        filters: Optional[dict[str, Any]] = None,
+    ) -> list[list[Document]]:
         """
         Perform vector search on the stored document, pass the embeddings of the queries instead of their text.
 
@@ -483,7 +569,7 @@ class ChromaDocumentStore:
 
         kwargs = self._prepare_query_kwargs(filters)
         results = self._collection.query(
-            query_embeddings=cast(List[Sequence[float]], query_embeddings),
+            query_embeddings=cast(list[Sequence[float]], query_embeddings),
             n_results=top_k,
             **kwargs,
         )
@@ -492,10 +578,10 @@ class ChromaDocumentStore:
 
     async def search_embeddings_async(
         self,
-        query_embeddings: List[List[float]],
+        query_embeddings: list[list[float]],
         top_k: int,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[List[Document]]:
+        filters: Optional[dict[str, Any]] = None,
+    ) -> list[list[Document]]:
         """
         Asynchronously perform vector search on the stored document, pass the embeddings of the queries instead of
         their text.
@@ -514,7 +600,7 @@ class ChromaDocumentStore:
 
         kwargs = self._prepare_query_kwargs(filters)
         results = await self._async_collection.query(
-            query_embeddings=cast(List[Sequence[float]], query_embeddings),
+            query_embeddings=cast(list[Sequence[float]], query_embeddings),
             n_results=top_k,
             **kwargs,
         )
@@ -522,7 +608,7 @@ class ChromaDocumentStore:
         return self._query_result_to_documents(results)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ChromaDocumentStore":
+    def from_dict(cls, data: dict[str, Any]) -> "ChromaDocumentStore":
         """
         Deserializes the component from a dictionary.
 
@@ -533,7 +619,7 @@ class ChromaDocumentStore:
         """
         return default_from_dict(cls, data)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -552,14 +638,14 @@ class ChromaDocumentStore:
         )
 
     @staticmethod
-    def _get_result_to_documents(result: GetResult) -> List[Document]:
+    def _get_result_to_documents(result: GetResult) -> list[Document]:
         """
         Helper function to convert Chroma results into Haystack Documents
         """
         retval = []
         documents = result.get("documents") or []
         for i in range(len(documents)):
-            document_dict: Dict[str, Any] = {"id": result["ids"][i]}
+            document_dict: dict[str, Any] = {"id": result["ids"][i]}
 
             result_documents = result.get("documents")
             if result_documents:
@@ -588,11 +674,11 @@ class ChromaDocumentStore:
     @staticmethod
     def _query_result_to_documents(
         result: QueryResult,
-    ) -> List[List[Document]]:
+    ) -> list[list[Document]]:
         """
         Helper function to convert Chroma results into Haystack Documents
         """
-        retval: List[List[Document]] = []
+        retval: list[list[Document]] = []
         documents = result.get("documents")
         if documents is None:
             return retval
@@ -600,7 +686,7 @@ class ChromaDocumentStore:
         for i, answers in enumerate(documents):
             converted_answers = []
             for j in range(len(answers)):
-                document_dict: Dict[str, Any] = {
+                document_dict: dict[str, Any] = {
                     "id": result["ids"][i][j],
                     "content": answers[j],
                 }

@@ -4,7 +4,7 @@
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Optional, cast
 
 from chromadb.api.types import WhereDocument, validate_where, validate_where_document
 
@@ -37,20 +37,20 @@ class ChromaFilter:
     - `where_document`: A dictionary of content-based filters applied to the documents' content.
     """
 
-    ids: List[str]
-    where: Optional[Dict[str, Any]]
-    where_document: Optional[Dict[str, Any]]
+    ids: list[str]
+    where: Optional[dict[str, Any]]
+    where_document: Optional[dict[str, Any]]
 
 
-def _convert_filters(filters: Dict[str, Any]) -> ChromaFilter:
+def _convert_filters(filters: dict[str, Any]) -> ChromaFilter:
     """
     Converts Haystack filters into a format compatible with Chroma, separating them into ids, metadata filters,
     and content filters to be passed to chroma as ids, where, and where_document clauses respectively.
     """
 
     ids = []
-    where: Dict[str, Any] = defaultdict(list)
-    where_document: Dict[str, Any] = defaultdict(list)
+    where: dict[str, Any] = defaultdict(list)
+    where_document: dict[str, Any] = defaultdict(list)
 
     converted_filters = _convert_filter_clause(filters)
     for field, value in converted_filters.items():
@@ -87,7 +87,7 @@ def _convert_filters(filters: Dict[str, Any]) -> ChromaFilter:
     return ChromaFilter(ids=ids, where=where or None, where_document=where_document or None)
 
 
-def _convert_filter_clause(filters: Dict[str, Any]) -> Dict[str, Any]:
+def _convert_filter_clause(filters: dict[str, Any]) -> dict[str, Any]:
     """
     Converts Haystack filters to Chroma compatible filters.
     """
@@ -101,13 +101,13 @@ def _convert_filter_clause(filters: Dict[str, Any]) -> Dict[str, Any]:
     return converted_clauses
 
 
-def _create_where_document_filter(field: str, value: Dict[Any, Any]) -> Dict[str, Any]:
+def _create_where_document_filter(field: str, value: dict[Any, Any]) -> dict[str, Any]:
     """
     Method to check if given haystack filter is a document filter
     and converts it to Chroma-compatible where_document filter.
 
     """
-    where_document: Dict[str, List[Any]] = defaultdict(list)
+    where_document: dict[str, list[Any]] = defaultdict(list)
 
     # Create a single document filter for the content field
     if field == "content":
@@ -124,7 +124,7 @@ def _create_where_document_filter(field: str, value: Dict[Any, Any]) -> Dict[str
     return where_document
 
 
-def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
+def _parse_logical_condition(condition: dict[str, Any]) -> dict[str, Any]:
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
         raise ChromaDocumentStoreFilterError(msg)
@@ -141,7 +141,7 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     return {OPERATORS[operator]: conditions}
 
 
-def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
+def _parse_comparison_condition(condition: dict[str, Any]) -> dict[str, Any]:
     if "field" not in condition:
         msg = f"'field' key missing in {condition}"
         raise ChromaDocumentStoreFilterError(msg)

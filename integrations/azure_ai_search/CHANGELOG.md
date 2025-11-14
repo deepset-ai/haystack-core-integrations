@@ -1,12 +1,32 @@
 # Changelog
 
+## [integrations/azure_ai_search-v2.3.2] - 2025-11-11
+
+### 🚀 Features
+
+- Delete all documents for AzureAISearch DocumentStore (#2404)
+
+### ⚙️ CI
+
+- Adopt PEP 585 type hinting (#2475)
+
+
+## [integrations/azure_ai_search-v2.3.1] - 2025-10-10
+
+### 🐛 Bug Fixes
+
+- Azure AI Search - do not use Azure private types and simplify deserialization (#2372)
+
+
+### 🧹 Chores
+
+- Standardize readmes - part 1 (#2202)
+
 ## [integrations/azure_ai_search-v2.3.0] - 2025-06-27
 
 ### 🚀 Features
 
-- Allow the @search metadata returned by AI Search to be populated in the Document.meta (#1907)
-- Update the Document.score with @search.score
-- Introduced a new param `include_search_metadata`
+- Allow the scores returned by AI Search to be populated in the Document.meta (#1907)
 
 
 ## [integrations/azure_ai_search-v2.2.0] - 2025-06-27

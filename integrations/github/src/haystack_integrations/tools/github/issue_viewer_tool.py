@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from haystack.core.serialization import generate_qualified_class_name
 from haystack.tools import ComponentTool
@@ -22,13 +22,13 @@ class GitHubIssueViewerTool(ComponentTool):
         *,
         name: Optional[str] = "issue_viewer",
         description: Optional[str] = ISSUE_VIEWER_PROMPT,
-        parameters: Optional[Dict[str, Any]] = ISSUE_VIEWER_SCHEMA,
+        parameters: Optional[dict[str, Any]] = ISSUE_VIEWER_SCHEMA,
         github_token: Optional[Secret] = None,
         raise_on_failure: bool = True,
         retry_attempts: int = 2,
-        outputs_to_string: Optional[Dict[str, Union[str, Callable[[Any], str]]]] = None,
-        inputs_from_state: Optional[Dict[str, str]] = None,
-        outputs_to_state: Optional[Dict[str, Dict[str, Union[str, Callable]]]] = None,
+        outputs_to_string: Optional[dict[str, Union[str, Callable[[Any], str]]]] = None,
+        inputs_from_state: Optional[dict[str, str]] = None,
+        outputs_to_state: Optional[dict[str, dict[str, Union[str, Callable]]]] = None,
     ):
         """
         Initialize the GitHub issue viewer tool.
@@ -82,7 +82,7 @@ class GitHubIssueViewerTool(ComponentTool):
             outputs_to_state=outputs_to_state,
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the tool to a dictionary.
 
@@ -105,7 +105,7 @@ class GitHubIssueViewerTool(ComponentTool):
         return {"type": generate_qualified_class_name(type(self)), "data": serialized}
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GitHubIssueViewerTool":
+    def from_dict(cls, data: dict[str, Any]) -> "GitHubIssueViewerTool":
         """
         Deserializes the tool from a dictionary.
 

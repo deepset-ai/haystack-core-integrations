@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -93,7 +93,7 @@ class CohereTextEmbedder:
             )
             raise TypeError(msg)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -112,7 +112,7 @@ class CohereTextEmbedder:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CohereTextEmbedder":
+    def from_dict(cls, data: dict[str, Any]) -> "CohereTextEmbedder":
         """
         Deserializes the component from a dictionary.
 
@@ -133,8 +133,8 @@ class CohereTextEmbedder:
 
         return default_from_dict(cls, data)
 
-    @component.output_types(embedding=List[float], meta=Dict[str, Any])
-    def run(self, text: str) -> Dict[str, Union[List[float], Dict[str, Any]]]:
+    @component.output_types(embedding=list[float], meta=dict[str, Any])
+    def run(self, text: str) -> dict[str, Union[list[float], dict[str, Any]]]:
         """
         Embed text.
 
@@ -160,8 +160,8 @@ class CohereTextEmbedder:
 
         return {"embedding": embedding[0], "meta": metadata}
 
-    @component.output_types(embedding=List[float], meta=Dict[str, Any])
-    async def run_async(self, text: str) -> Dict[str, Union[List[float], Dict[str, Any]]]:
+    @component.output_types(embedding=list[float], meta=dict[str, Any])
+    async def run_async(self, text: str) -> dict[str, Union[list[float], dict[str, Any]]]:
         """
         Asynchronously embed text.
 

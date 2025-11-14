@@ -9,7 +9,7 @@ from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, ReasoningContent, ToolCall
 from haystack.dataclasses.streaming_chunk import StreamingChunk
-from haystack.tools import Tool
+from haystack.tools import Tool, Toolset
 from haystack.utils import Secret
 
 from haystack_integrations.components.generators.cohere import CohereChatGenerator
@@ -25,6 +25,10 @@ def weather(city: str) -> str:
 
 def stock_price(ticker: str):
     return f"The current price of {ticker} is $100"
+
+
+def population(city: str) -> str:
+    return f"The population of {city} is 2.2 million"
 
 
 class TestFormatMessage:
@@ -364,6 +368,72 @@ class TestCohereChatGenerator:
         assert loaded_generator.tools[0].name == generator.tools[0].name
         assert loaded_generator.tools[0].description == generator.tools[0].description
         assert loaded_generator.tools[0].parameters == generator.tools[0].parameters
+
+    def test_init_with_mixed_tools_and_toolsets(self, monkeypatch):
+        """Test initialization with a mixed list of Tools and Toolsets."""
+        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
+
+        tool1 = Tool(
+            name="tool1",
+            description="First tool",
+            parameters={"type": "object", "properties": {"param1": {"type": "string"}}},
+            function=weather,
+        )
+        tool2 = Tool(
+            name="tool2",
+            description="Second tool",
+            parameters={"type": "object", "properties": {"param2": {"type": "string"}}},
+            function=stock_price,
+        )
+        toolset1 = Toolset([tool2])
+        tool3 = Tool(
+            name="tool3",
+            description="Third tool",
+            parameters={"type": "object", "properties": {"param3": {"type": "string"}}},
+            function=weather,
+        )
+
+        generator = CohereChatGenerator(tools=[tool1, toolset1, tool3])
+
+        assert generator.tools == [tool1, toolset1, tool3]
+        assert isinstance(generator.tools, list)
+        assert len(generator.tools) == 3
+
+    def test_serde_with_mixed_tools_and_toolsets(self, monkeypatch):
+        """Test serialization/deserialization with mixed Tools and Toolsets."""
+        monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
+
+        tool1 = Tool(
+            name="tool1",
+            description="First tool",
+            parameters={"type": "object", "properties": {"param1": {"type": "string"}}},
+            function=weather,
+        )
+        tool2 = Tool(
+            name="tool2",
+            description="Second tool",
+            parameters={"type": "object", "properties": {"param2": {"type": "string"}}},
+            function=stock_price,
+        )
+        toolset1 = Toolset([tool2])
+
+        generator = CohereChatGenerator(tools=[tool1, toolset1])
+        data = generator.to_dict()
+
+        # Verify serialization preserves structure
+        assert isinstance(data["init_parameters"]["tools"], list)
+        assert len(data["init_parameters"]["tools"]) == 2
+        assert data["init_parameters"]["tools"][0]["type"] == "haystack.tools.tool.Tool"
+        assert data["init_parameters"]["tools"][1]["type"] == "haystack.tools.toolset.Toolset"
+
+        # Verify deserialization
+        restored = CohereChatGenerator.from_dict(data)
+        assert isinstance(restored.tools, list)
+        assert len(restored.tools) == 2
+        assert isinstance(restored.tools[0], Tool)
+        assert isinstance(restored.tools[1], Toolset)
+        assert restored.tools[0].name == "tool1"
+        assert len(list(restored.tools[1])) == 1
 
     def test_run_image(self):
         """Test multimodal message processing with mocked client."""
@@ -908,3 +978,95 @@ I'll check the weather in Paris for you."""
 
         # Check cleaned content
         assert "I'll check the weather in Paris" in reply.text
+
+    @pytest.mark.skipif(not os.environ.get("COHERE_API_KEY"), reason="COHERE_API_KEY not set")
+    @pytest.mark.integration
+    def test_live_run_with_mixed_tools(self):
+        """
+        Integration test that verifies CohereChatGenerator works with mixed Tool and Toolset.
+        This tests that the LLM can correctly invoke tools from both a standalone Tool and a Toolset.
+        """
+        weather_tool = Tool(
+            name="weather",
+            description="useful to determine the weather in a given location",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "description": "The name of the city to get weather for, e.g. Paris, London",
+                    }
+                },
+                "required": ["city"],
+            },
+            function=weather,
+        )
+
+        population_tool = Tool(
+            name="population",
+            description="useful to determine the population of a given city",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "description": "The name of the city to get population for, e.g. Paris, Berlin",
+                    }
+                },
+                "required": ["city"],
+            },
+            function=population,
+        )
+
+        # Create a toolset with the population tool
+        population_toolset = Toolset([population_tool])
+
+        # Mix standalone tool with toolset
+        mixed_tools = [weather_tool, population_toolset]
+
+        initial_messages = [
+            ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
+        ]
+        component = CohereChatGenerator(model="command-r-08-2024", tools=mixed_tools)
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) > 0, "No replies received"
+
+        first_reply = results["replies"][0]
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert first_reply.tool_calls, "First reply has no tool calls"
+
+        tool_calls = first_reply.tool_calls
+        assert len(tool_calls) == 2, f"Expected 2 tool calls, got {len(tool_calls)}"
+
+        # Verify we got calls to both weather and population tools
+        tool_names = {tc.tool_name for tc in tool_calls}
+        assert "weather" in tool_names, "Expected 'weather' tool call"
+        assert "population" in tool_names, "Expected 'population' tool call"
+
+        # Verify tool call details
+        for tool_call in tool_calls:
+            assert tool_call.id, "Tool call does not contain value for 'id' key"
+            assert tool_call.tool_name in ["weather", "population"]
+            assert "city" in tool_call.arguments
+            assert tool_call.arguments["city"] in ["Paris", "Berlin"]
+
+        # Mock the response we'd get from ToolInvoker
+        tool_result_messages = []
+        for tool_call in tool_calls:
+            if tool_call.tool_name == "weather":
+                result = "The weather in Paris is sunny and 32°C"
+            else:  # population
+                result = "The population of Berlin is 2.2 million"
+            tool_result_messages.append(ChatMessage.from_tool(tool_result=result, origin=tool_call))
+
+        new_messages = [*initial_messages, first_reply, *tool_result_messages]
+        results = component.run(new_messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_calls
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+        assert "berlin" in final_message.text.lower()

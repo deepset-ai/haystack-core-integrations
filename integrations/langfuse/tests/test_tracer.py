@@ -6,12 +6,10 @@ import asyncio
 import datetime
 import logging
 import sys
-import json
 from typing import Optional
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from haystack import Pipeline, component
 from haystack.dataclasses import ChatMessage, ToolCall
 
 from haystack_integrations.tracing.langfuse.tracer import (
@@ -20,8 +18,8 @@ from haystack_integrations.tracing.langfuse.tracer import (
     LangfuseSpan,
     LangfuseTracer,
     SpanContext,
+    _sanitize_usage_data,
 )
-from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 
 
 # Mock functions for Langfuse v3 API
@@ -78,7 +76,7 @@ class MockSpan:
 
 
 class MockTracer:
-    def trace(self, name, **kwargs):
+    def trace(self, name, **kwargs):  # noqa: ARG002
         # Return a unique mock span for each trace call
         return MockSpan(name=name)
 
@@ -92,10 +90,10 @@ class MockLangfuseClient:
     def __init__(self):
         self._mock_context_manager = MockContextManager()
 
-    def start_as_current_span(self, name=None, **kwargs):
+    def start_as_current_span(self, _name=None, **_kwargs):
         return self._mock_context_manager
 
-    def start_as_current_observation(self, name=None, as_type=None, **kwargs):
+    def start_as_current_observation(self, _name=None, _as_type=None, **_kwargs):
         return self._mock_context_manager
 
     def get_current_trace_id(self):
@@ -193,6 +191,41 @@ class TestSpanContext:
             )
 
 
+class TestSanitizeUsageData:
+    def test_anthropic_usage_flattens_and_filters(self):
+        """Test Anthropic's nested dict with None and strings gets flattened and filtered"""
+        usage = {
+            "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "server_tool_use": None,  # Should be filtered
+            "service_tier": "standard",  # Should be filtered
+            "prompt_tokens": 25,
+            "completion_tokens": 449,
+        }
+        result = _sanitize_usage_data(usage)
+        assert result == {
+            "cache_creation.ephemeral_1h_input_tokens": 0,
+            "cache_creation.ephemeral_5m_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "prompt_tokens": 25,
+            "completion_tokens": 449,
+        }
+
+    def test_openai_usage_preserved(self):
+        """Test OpenAI/Cohere flat dict with only numeric values works unchanged"""
+        usage = {"prompt_tokens": 29, "completion_tokens": 267, "total_tokens": 296}
+        result = _sanitize_usage_data(usage)
+        assert result == {"prompt_tokens": 29, "completion_tokens": 267, "total_tokens": 296}
+
+    def test_empty_and_invalid_input(self):
+        """Test edge cases return empty dict"""
+        assert _sanitize_usage_data({}) == {}
+        assert _sanitize_usage_data(None) == {}
+        assert _sanitize_usage_data({"only_strings": "value", "only_none": None}) == {}
+
+
 class TestDefaultSpanHandler:
     def test_handle_generator(self):
         mock_span = Mock()
@@ -206,7 +239,7 @@ class TestDefaultSpanHandler:
         handler.handle(mock_span, component_type="OpenAIGenerator")
 
         assert mock_span.update.call_count == 1
-        assert mock_span.update.call_args_list[0][1] == {"usage": None, "model": "test_model"}
+        assert mock_span.update.call_args_list[0][1] == {"usage_details": None, "model": "test_model"}
 
     def test_handle_chat_generator(self):
         mock_span = Mock()
@@ -228,9 +261,11 @@ class TestDefaultSpanHandler:
 
         assert mock_span.update.call_count == 1
         assert mock_span.update.call_args_list[0][1] == {
-            "usage": None,
+            "usage_details": None,
             "model": "test_model",
-            "completion_start_time": datetime.datetime(2021, 7, 27, 16, 2, 8, 12345),
+            "completion_start_time": datetime.datetime(  # noqa: DTZ001
+                2021, 7, 27, 16, 2, 8, 12345
+            ),
         }
 
     def test_handle_bad_completion_start_time(self, caplog):
@@ -255,10 +290,126 @@ class TestDefaultSpanHandler:
 
         assert mock_span.update.call_count == 1
         assert mock_span.update.call_args_list[0][1] == {
-            "usage": None,
+            "usage_details": None,
             "model": "test_model",
             "completion_start_time": None,
         }
+
+    def test_create_span_custom_chat_generator(self):
+        """Test that custom chat generators create 'generation' span type."""
+        mock_client = Mock()
+        mock_client.start_as_current_span = Mock(return_value=MockContextManager())
+        mock_client.start_as_current_observation = Mock(return_value=MockContextManager())
+
+        handler = DefaultSpanHandler()
+        handler.init_tracer(mock_client)
+
+        context = SpanContext(
+            name="MistralChatGenerator",
+            operation_name="haystack.component.run",
+            component_type="MistralChatGenerator",
+            tags={},
+            parent_span=LangfuseSpan(mock_client.start_as_current_span()),
+        )
+
+        span = handler.create_span(context)
+        assert isinstance(span, LangfuseSpan)
+        mock_client.start_as_current_observation.assert_called_once_with(
+            name="MistralChatGenerator", as_type="generation"
+        )
+
+    def test_create_span_custom_generator(self):
+        """Test that custom generators create 'generation' span type."""
+        mock_client = Mock()
+        mock_client.start_as_current_span = Mock(return_value=MockContextManager())
+        mock_client.start_as_current_observation = Mock(return_value=MockContextManager())
+
+        handler = DefaultSpanHandler()
+        handler.init_tracer(mock_client)
+
+        context = SpanContext(
+            name="CustomAPIGenerator",
+            operation_name="haystack.component.run",
+            component_type="CustomAPIGenerator",
+            tags={},
+            parent_span=LangfuseSpan(mock_client.start_as_current_span()),
+        )
+
+        span = handler.create_span(context)
+        assert isinstance(span, LangfuseSpan)
+        mock_client.start_as_current_observation.assert_called_once_with(
+            name="CustomAPIGenerator", as_type="generation"
+        )
+
+    def test_create_span_retriever(self):
+        """Test that retrievers create 'retriever' span type."""
+        mock_client = Mock()
+        mock_client.start_as_current_span = Mock(return_value=MockContextManager())
+        mock_client.start_as_current_observation = Mock(return_value=MockContextManager())
+
+        handler = DefaultSpanHandler()
+        handler.init_tracer(mock_client)
+
+        context = SpanContext(
+            name="InMemoryBM25Retriever",
+            operation_name="haystack.component.run",
+            component_type="InMemoryBM25Retriever",
+            tags={},
+            parent_span=LangfuseSpan(mock_client.start_as_current_span()),
+        )
+
+        span = handler.create_span(context)
+        assert isinstance(span, LangfuseSpan)
+        mock_client.start_as_current_observation.assert_called_once_with(
+            name="InMemoryBM25Retriever", as_type="retriever"
+        )
+
+    def test_create_span_embedder(self):
+        """Test that embedders create 'embedding' span type."""
+        mock_client = Mock()
+        mock_client.start_as_current_span = Mock(return_value=MockContextManager())
+        mock_client.start_as_current_observation = Mock(return_value=MockContextManager())
+
+        handler = DefaultSpanHandler()
+        handler.init_tracer(mock_client)
+
+        context = SpanContext(
+            name="SentenceTransformersDocumentEmbedder",
+            operation_name="haystack.component.run",
+            component_type="SentenceTransformersDocumentEmbedder",
+            tags={},
+            parent_span=LangfuseSpan(mock_client.start_as_current_span()),
+        )
+
+        span = handler.create_span(context)
+        assert isinstance(span, LangfuseSpan)
+        mock_client.start_as_current_observation.assert_called_once_with(
+            name="SentenceTransformersDocumentEmbedder", as_type="embedding"
+        )
+
+    def test_create_span_non_component(self):
+        """Test that non-matching components create regular spans."""
+        mock_client = Mock()
+        mock_client.start_as_current_span = Mock(return_value=MockContextManager())
+        mock_client.start_as_current_observation = Mock(return_value=MockContextManager())
+
+        handler = DefaultSpanHandler()
+        handler.init_tracer(mock_client)
+
+        context = SpanContext(
+            name="DocumentJoiner",
+            operation_name="haystack.component.run",
+            component_type="DocumentJoiner",
+            tags={},
+            parent_span=LangfuseSpan(mock_client.start_as_current_span()),
+        )
+
+        span = handler.create_span(context)
+        assert isinstance(span, LangfuseSpan)
+        # Non-matching components should use start_as_current_span, not start_as_current_observation
+        mock_client.start_as_current_observation.assert_not_called()
+        # Verify start_as_current_span was called for the actual span creation (not just parent)
+        assert mock_client.start_as_current_span.call_count == 2  # Once for parent, once for the span
 
 
 class TestCustomSpanHandler:
@@ -302,18 +453,15 @@ class TestLangfuseTracer:
         mock_raw_span.operation_name = "operation_name"
         mock_raw_span.metadata = {"tag1": "value1", "tag2": "value2"}
 
-        with patch("haystack_integrations.tracing.langfuse.tracer.LangfuseSpan") as MockLangfuseSpan, patch(
-            "haystack_integrations.tracing.langfuse.tracer.langfuse.get_client"
-        ) as mock_get_client:
-            mock_span_instance = MockLangfuseSpan.return_value
+        with patch("haystack_integrations.tracing.langfuse.tracer.LangfuseSpan") as mock_langfuse_span:
+            mock_span_instance = mock_langfuse_span.return_value
             mock_span_instance.raw_span.return_value = mock_raw_span
 
-            mock_client = mock_get_client()
             mock_context_manager = MockContextManager()
             mock_context_manager._span = mock_raw_span
-            mock_client.start_as_current_span.return_value = mock_context_manager
-
             mock_tracer = MagicMock()
+            mock_tracer.start_as_current_span.return_value = mock_context_manager
+
             tracer = LangfuseTracer(tracer=mock_tracer, name="Haystack", public=False)
 
             # check that the trace method is called on the tracer instance with the provided operation name and tags
@@ -329,9 +477,7 @@ class TestLangfuseTracer:
 
     # check that update method is called on the span instance with the provided key value pairs
     def test_update_span_with_pipeline_input_output_data(self):
-        with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client") as mock_get_client:
-            mock_client = mock_get_client()
-
+        with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client"):
             tracer = LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
             with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
                 assert span.raw_span()._data["metadata"] == {"haystack.pipeline.input_data": "hello"}
@@ -340,9 +486,7 @@ class TestLangfuseTracer:
                 assert span.raw_span()._data["metadata"] == {"haystack.pipeline.output_data": "bye"}
 
     def test_trace_generation(self):
-        with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client") as mock_get_client:
-            mock_client = mock_get_client()
-
+        with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client"):
             tracer = LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
             tags = {
                 "haystack.component.type": "OpenAIChatGenerator",
@@ -356,9 +500,9 @@ class TestLangfuseTracer:
             }
             with tracer.trace(operation_name="operation_name", tags=tags) as span:
                 ...
-            assert span.raw_span()._data["usage"] is None
+            assert span.raw_span()._data["usage_details"] is None
             assert span.raw_span()._data["model"] == "test_model"
-            assert span.raw_span()._data["completion_start_time"] == datetime.datetime(2021, 7, 27, 16, 2, 8, 12345)
+            assert span.raw_span()._data["completion_start_time"] == datetime.datetime(2021, 7, 27, 16, 2, 8, 12345)  # noqa: DTZ001
 
     def test_handle_tool_invoker(self):
         """
@@ -402,7 +546,7 @@ class TestLangfuseTracer:
         updated_name = name_update_call[1]["name"]
 
         # verify the format of the updated span name to be: `original_component_name - [list_of_tool_names]`
-        assert updated_name != "tool_invoker", f"Expected 'tool_invoker` to be upddated with tool names"
+        assert updated_name != "tool_invoker", "Expected 'tool_invoker` to be upddated with tool names"
         assert " - " in updated_name, f"Expected ' - ' in {updated_name}"
         assert "[" in updated_name, f"Expected '[' in {updated_name}"
         assert "]" in updated_name, f"Expected ']' in {updated_name}"
@@ -411,9 +555,7 @@ class TestLangfuseTracer:
         assert "weather_tool" in updated_name, f"Expected 'weather_tool' in {updated_name}"
 
     def test_trace_generation_invalid_start_time(self):
-        with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client") as mock_get_client:
-            mock_client = mock_get_client()
-
+        with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client"):
             tracer = LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
             tags = {
                 "haystack.component.type": "OpenAIChatGenerator",
@@ -425,7 +567,7 @@ class TestLangfuseTracer:
             }
             with tracer.trace(operation_name="operation_name", tags=tags) as span:
                 ...
-            assert span.raw_span()._data["usage"] is None
+            assert span.raw_span()._data["usage_details"] is None
             assert span.raw_span()._data["model"] == "test_model"
             assert span.raw_span()._data["completion_start_time"] is None
 
@@ -434,7 +576,7 @@ class TestLangfuseTracer:
         tracer_mock.flush = Mock()  # Make flush a mock for assertions
 
         tracer = LangfuseTracer(tracer=tracer_mock, name="Haystack", public=False)
-        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
+        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}):
             pass
 
         tracer_mock.flush.assert_called_once()
@@ -444,10 +586,11 @@ class TestLangfuseTracer:
         tracer_mock = MockLangfuseClient()
         tracer_mock.flush = Mock()  # Make flush a mock for assertions
 
-        from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer
+        # Re-import LangfuseTracer to ensure it picks up the new environment variable
+        from haystack_integrations.tracing.langfuse.tracer import LangfuseTracer  # noqa: PLC0415
 
         tracer = LangfuseTracer(tracer=tracer_mock, name="Haystack", public=False)
-        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
+        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}):
             pass
 
         tracer_mock.flush.assert_not_called()
@@ -456,7 +599,7 @@ class TestLangfuseTracer:
         tracer_mock = MockLangfuseClient()
 
         tracer = LangfuseTracer(tracer=tracer_mock, name="Haystack", public=False)
-        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
+        with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}):
             pass
 
         # Check behavioral state instead of internal _context list
@@ -471,7 +614,7 @@ class TestLangfuseTracer:
         # Re-import LangfuseTracer and instantiate it with tracing disabled
         with caplog.at_level(logging.WARNING):
             monkeypatch.setenv("HAYSTACK_CONTENT_TRACING_ENABLED", "false")
-            from haystack_integrations.tracing.langfuse import LangfuseTracer
+            from haystack_integrations.tracing.langfuse import LangfuseTracer  # noqa: PLC0415
 
             LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
             assert "tracing is disabled" in caplog.text

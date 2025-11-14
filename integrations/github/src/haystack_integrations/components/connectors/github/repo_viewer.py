@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import base64
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import requests
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -109,10 +109,12 @@ class GitHubRepoViewer:
         """
         headers = self.base_headers.copy()
         if self.github_token is not None:
-            headers["Authorization"] = f"Bearer {self.github_token.resolve_value()}"
+            token_value = self.github_token.resolve_value()
+            if token_value:
+                headers["Authorization"] = f"Bearer {token_value}"
         return headers
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize the component to a dictionary.
 
@@ -128,7 +130,7 @@ class GitHubRepoViewer:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GitHubRepoViewer":
+    def from_dict(cls, data: dict[str, Any]) -> "GitHubRepoViewer":
         """
         Deserialize the component from a dictionary.
 
@@ -179,7 +181,7 @@ class GitHubRepoViewer:
             },
         )
 
-    def _create_directory_documents(self, items: List[GitHubItem]) -> List[Document]:
+    def _create_directory_documents(self, items: list[GitHubItem]) -> list[Document]:
         """Create a list of Documents from directory contents"""
         return [
             Document(
@@ -204,8 +206,8 @@ class GitHubRepoViewer:
             },
         )
 
-    @component.output_types(documents=List[Document])
-    def run(self, path: str, repo: Optional[str] = None, branch: Optional[str] = None) -> Dict[str, List[Document]]:
+    @component.output_types(documents=list[Document])
+    def run(self, path: str, repo: Optional[str] = None, branch: Optional[str] = None) -> dict[str, list[Document]]:
         """
         Process a GitHub repository path and return documents.
 

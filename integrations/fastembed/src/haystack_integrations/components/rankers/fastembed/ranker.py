@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 
@@ -40,7 +40,7 @@ class FastembedRanker:
         batch_size: int = 64,
         parallel: Optional[int] = None,
         local_files_only: bool = False,
-        meta_fields_to_embed: Optional[List[str]] = None,
+        meta_fields_to_embed: Optional[list[str]] = None,
         meta_data_separator: str = "\n",
     ):
         """
@@ -78,7 +78,7 @@ class FastembedRanker:
         self.meta_data_separator = meta_data_separator
         self._model: Optional[TextCrossEncoder] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -99,7 +99,7 @@ class FastembedRanker:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "FastembedRanker":
+    def from_dict(cls, data: dict[str, Any]) -> "FastembedRanker":
         """
         Deserializes the component from a dictionary.
 
@@ -122,7 +122,7 @@ class FastembedRanker:
                 local_files_only=self.local_files_only,
             )
 
-    def _prepare_fastembed_input_docs(self, documents: List[Document]) -> List[str]:
+    def _prepare_fastembed_input_docs(self, documents: list[Document]) -> list[str]:
         """
         Prepare the input by concatenating the document text with the metadata fields specified.
         :param documents: The list of Document objects.
@@ -139,8 +139,8 @@ class FastembedRanker:
 
         return concatenated_input_list
 
-    @component.output_types(documents=List[Document])
-    def run(self, query: str, documents: List[Document], top_k: Optional[int] = None) -> Dict[str, List[Document]]:
+    @component.output_types(documents=list[Document])
+    def run(self, query: str, documents: list[Document], top_k: Optional[int] = None) -> dict[str, list[Document]]:
         """
         Returns a list of documents ranked by their similarity to the given query, using FastEmbed.
 

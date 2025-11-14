@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from copy import copy
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -11,6 +11,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 
 from pinecone import Pinecone, PineconeAsyncio, PodSpec, ServerlessSpec
 from pinecone.db_data import _Index, _IndexAsyncio
+from pinecone.exceptions import NotFoundException
 
 from .filters import _normalize_filters, _validate_filters
 
@@ -39,7 +40,7 @@ class PineconeDocumentStore:
         namespace: str = "default",
         batch_size: int = 100,
         dimension: int = 768,
-        spec: Optional[Dict[str, Any]] = None,
+        spec: Optional[dict[str, Any]] = None,
         metric: Literal["cosine", "euclidean", "dotproduct"] = "cosine",
     ):
         """
@@ -154,7 +155,7 @@ class PineconeDocumentStore:
             self._async_index = None
 
     @staticmethod
-    def _convert_dict_spec_to_pinecone_object(spec: Dict[str, Any]) -> Union[ServerlessSpec, PodSpec]:
+    def _convert_dict_spec_to_pinecone_object(spec: dict[str, Any]) -> Union[ServerlessSpec, PodSpec]:
         """Convert the spec dictionary to a Pinecone spec object"""
 
         if "serverless" in spec:
@@ -171,7 +172,7 @@ class PineconeDocumentStore:
         raise ValueError(msg)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PineconeDocumentStore":
+    def from_dict(cls, data: dict[str, Any]) -> "PineconeDocumentStore":
         """
         Deserializes the component from a dictionary.
         :param data:
@@ -182,7 +183,7 @@ class PineconeDocumentStore:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
         :returns:
@@ -226,7 +227,7 @@ class PineconeDocumentStore:
             count = 0
         return count
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
+    def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes Documents to Pinecone.
 
@@ -249,7 +250,7 @@ class PineconeDocumentStore:
         return written_docs
 
     async def write_documents_async(
-        self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
+        self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
     ) -> int:
         """
         Asynchronously writes Documents to Pinecone.
@@ -273,7 +274,7 @@ class PineconeDocumentStore:
 
         return written_docs
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -305,7 +306,7 @@ class PineconeDocumentStore:
             )
         return documents
 
-    async def filter_documents_async(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    async def filter_documents_async(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
         """
         Asynchronously returns the documents that match the filters provided.
 
@@ -332,7 +333,7 @@ class PineconeDocumentStore:
 
         return documents
 
-    def delete_documents(self, document_ids: List[str]) -> None:
+    def delete_documents(self, document_ids: list[str]) -> None:
         """
         Deletes documents that match the provided `document_ids` from the document store.
 
@@ -342,7 +343,7 @@ class PineconeDocumentStore:
         assert self._index is not None, "Index is not initialized"
         self._index.delete(ids=document_ids, namespace=self.namespace)
 
-    async def delete_documents_async(self, document_ids: List[str]) -> None:
+    async def delete_documents_async(self, document_ids: list[str]) -> None:
         """
         Asynchronously deletes documents that match the provided `document_ids` from the document store.
 
@@ -352,14 +353,38 @@ class PineconeDocumentStore:
         assert self._async_index is not None, "Index is not initialized"
         await self._async_index.delete(ids=document_ids, namespace=self.namespace)
 
+    def delete_all_documents(self) -> None:
+        """
+        Deletes all documents in the document store.
+        """
+        self._initialize_index()
+        assert self._index is not None, "Index is not initialized"
+        try:
+            self._index.delete(delete_all=True, namespace=self.namespace)
+        except NotFoundException:
+            # Namespace doesn't exist (empty collection), which is fine - nothing to delete
+            logger.debug("Namespace '{namespace}' not found. Nothing to delete.", namespace=self.namespace or "default")
+
+    async def delete_all_documents_async(self) -> None:
+        """
+        Asynchronously deletes all documents in the document store.
+        """
+        await self._initialize_async_index()
+        assert self._async_index is not None, "Index is not initialized"
+        try:
+            await self._async_index.delete(delete_all=True, namespace=self.namespace)
+        except NotFoundException:
+            # Namespace doesn't exist (empty collection), which is fine - nothing to delete
+            logger.debug("Namespace '{namespace}' not found. Nothing to delete.", namespace=self.namespace or "default")
+
     def _embedding_retrieval(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         *,
         namespace: Optional[str] = None,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
 
@@ -397,12 +422,12 @@ class PineconeDocumentStore:
 
     async def _embedding_retrieval_async(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         *,
         namespace: Optional[str] = None,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Asynchronously retrieves documents that are similar to the query embedding using a vector similarity metric.
 
@@ -435,7 +460,7 @@ class PineconeDocumentStore:
         return self._convert_query_result_to_documents(result)
 
     @staticmethod
-    def _convert_meta_to_int(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_meta_to_int(metadata: dict[str, Any]) -> dict[str, Any]:
         """
         Pinecone store numeric metadata values as `float`. Some specific metadata are used in Retrievers components and
         are expected to be `int`. This method converts them back to integers.
@@ -448,7 +473,7 @@ class PineconeDocumentStore:
 
         return metadata
 
-    def _convert_query_result_to_documents(self, query_result: Dict[str, Any]) -> List[Document]:
+    def _convert_query_result_to_documents(self, query_result: dict[str, Any]) -> list[Document]:
         pinecone_docs = query_result["matches"]
         documents = []
         for pinecone_doc in pinecone_docs:
@@ -499,7 +524,7 @@ class PineconeDocumentStore:
 
             document.meta = new_meta
 
-    def _convert_documents_to_pinecone_format(self, documents: List[Document]) -> List[Dict[str, Any]]:
+    def _convert_documents_to_pinecone_format(self, documents: list[Document]) -> list[dict[str, Any]]:
         documents_for_pinecone = []
         for document in documents:
             embedding = copy(document.embedding)
@@ -513,7 +538,7 @@ class PineconeDocumentStore:
             if document.meta:
                 self._discard_invalid_meta(document)
 
-            doc_for_pinecone: Dict[str, Any] = {"id": document.id, "values": embedding, "metadata": dict(document.meta)}
+            doc_for_pinecone: dict[str, Any] = {"id": document.id, "values": embedding, "metadata": dict(document.meta)}
 
             # we save content as metadata
             if document.content is not None:
@@ -538,8 +563,8 @@ class PineconeDocumentStore:
         return documents_for_pinecone
 
     def _prepare_documents_for_writing(
-        self, documents: List[Document], policy: DuplicatePolicy
-    ) -> List[Dict[str, Any]]:
+        self, documents: list[Document], policy: DuplicatePolicy
+    ) -> list[dict[str, Any]]:
         """
         Helper method to prepare documents for writing to Pinecone.
         """

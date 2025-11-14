@@ -4,7 +4,6 @@
 
 import os
 import random
-from typing import List
 
 import pytest
 from haystack import Document
@@ -13,7 +12,7 @@ from haystack.utils.auth import Secret
 from haystack_integrations.components.embedders.google_genai import GoogleGenAIDocumentEmbedder
 
 
-def mock_google_response(contents: List[str], model: str = "text-embedding-004", **kwargs) -> dict:
+def mock_google_response(contents: list[str], model: str = "text-embedding-004", **kwargs) -> dict:
     secure_random = random.SystemRandom()
     dict_response = {
         "embedding": [[secure_random.random() for _ in range(768)] for _ in contents],

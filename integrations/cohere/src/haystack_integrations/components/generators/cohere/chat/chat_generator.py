@@ -1,6 +1,7 @@
 import json
 import re
-from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional, Union, get_args
+from collections.abc import AsyncIterator, Iterator
+from typing import Any, Literal, Optional, Union, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
@@ -16,9 +17,10 @@ from haystack.dataclasses.streaming_chunk import (
 )
 from haystack.tools import (
     Tool,
-    Toolset,
+    ToolsType,
     _check_duplicate_tool_names,
     deserialize_tools_or_toolset_inplace,
+    flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
 )
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -54,7 +56,7 @@ ImageFormat = Literal["image/png", "image/jpeg", "image/webp", "image/gif"]
 IMAGE_SUPPORTED_FORMATS: list[ImageFormat] = list(get_args(ImageFormat))
 
 
-def _format_tool(tool: Tool) -> Dict[str, Any]:
+def _format_tool(tool: Tool) -> dict[str, Any]:
     """
     Formats a Haystack Tool into Cohere's function specification format.
 
@@ -146,7 +148,7 @@ def _format_message(
                     raise ValueError(msg)
 
         # Build multimodal content following Cohere's API specification
-        content_parts: List[Union[CohereTextContent, ImageUrlContent]] = []
+        content_parts: list[Union[CohereTextContent, ImageUrlContent]] = []
         for part in message._content:
             if isinstance(part, TextContent) and part.text:
                 text_content = CohereTextContent(text=part.text)
@@ -262,7 +264,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
     :returns:
         A StreamingChunk object representing the content of the chunk from the Cohere API.
     """
-    finish_reason_mapping: Dict[str, FinishReason] = {
+    finish_reason_mapping: dict[str, FinishReason] = {
         "COMPLETE": "stop",
         "MAX_TOKENS": "length",
         "TOOL_CALLS": "tool_calls",
@@ -274,7 +276,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
     start = False
     finish_reason = None
     tool_calls = None
-    meta: Dict[str, Any] = {"model": model}
+    meta: dict[str, Any] = {"model": model}
 
     if chunk.type == "content-delta" and chunk.delta and chunk.delta.message:
         if chunk.delta.message and chunk.delta.message.content and chunk.delta.message.content.text is not None:
@@ -490,7 +492,7 @@ def _parse_streaming_response(
 
     Loops through each stream object from Cohere and converts it into a StreamingChunk.
     """
-    chunks: List[StreamingChunk] = []
+    chunks: list[StreamingChunk] = []
     global_index = 0
 
     for chunk in response:
@@ -522,7 +524,7 @@ async def _parse_async_streaming_response(
     """
     Parses Cohere's async streaming chat response into a Haystack ChatMessage.
     """
-    chunks: List[StreamingChunk] = []
+    chunks: list[StreamingChunk] = []
     global_index = 0
 
     async for chunk in response:
@@ -647,8 +649,8 @@ class CohereChatGenerator:
         model: str = "command-r-08-2024",
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
+        tools: Optional[ToolsType] = None,
         **kwargs: Any,
     ):
         """
@@ -671,10 +673,11 @@ class CohereChatGenerator:
               `accurate` results or `fast` results.
             - 'temperature': A non-negative float that tunes the degree of randomness in generation. Lower temperatures
               mean less random generations.
-        :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset that the model can use.
+            Each tool should have a unique name.
 
         """
-        _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
+        _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
 
         if not api_base_url:
             api_base_url = "https://api.cohere.com"
@@ -698,13 +701,13 @@ class CohereChatGenerator:
             client_name="haystack",
         )
 
-    def _get_telemetry_data(self) -> Dict[str, Any]:
+    def _get_telemetry_data(self) -> dict[str, Any]:
         """
         Data that is sent to Posthog for usage analytics.
         """
         return {"model": self.model}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -723,7 +726,7 @@ class CohereChatGenerator:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CohereChatGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "CohereChatGenerator":
         """
         Deserializes the component from a dictionary.
 
@@ -740,14 +743,14 @@ class CohereChatGenerator:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: List[ChatMessage],
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        messages: list[ChatMessage],
+        generation_kwargs: Optional[dict[str, Any]] = None,
+        tools: Optional[ToolsType] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
-    ) -> Dict[str, List[ChatMessage]]:
+    ) -> dict[str, list[ChatMessage]]:
         """
         Invoke the chat endpoint based on the provided messages and generation parameters.
 
@@ -756,8 +759,8 @@ class CohereChatGenerator:
             potentially override the parameters passed in the __init__ method.
             For more details on the parameters supported by the Cohere API, refer to the
             Cohere [documentation](https://docs.cohere.com/reference/chat).
-        :param tools: A list of tools or a Toolset for which the model can prepare calls. If set, it will override
-            the `tools` parameter set during component initialization.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            If set, it will override the `tools` parameter set during component initialization.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
 
@@ -773,11 +776,10 @@ class CohereChatGenerator:
 
         # Handle tools
         tools = tools or self.tools
-        if isinstance(tools, Toolset):
-            tools = list(tools)
-        if tools:
-            _check_duplicate_tool_names(tools)
-            generation_kwargs["tools"] = [_format_tool(tool) for tool in tools]
+        flattened_tools = flatten_tools_or_toolsets(tools)
+        if flattened_tools:
+            _check_duplicate_tool_names(flattened_tools)
+            generation_kwargs["tools"] = [_format_tool(tool) for tool in flattened_tools]
 
         formatted_messages = [_format_message(message) for message in messages]
 
@@ -808,14 +810,14 @@ class CohereChatGenerator:
 
         return {"replies": [chat_message]}
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
-        messages: List[ChatMessage],
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        messages: list[ChatMessage],
+        generation_kwargs: Optional[dict[str, Any]] = None,
+        tools: Optional[ToolsType] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
-    ) -> Dict[str, List[ChatMessage]]:
+    ) -> dict[str, list[ChatMessage]]:
         """
         Asynchronously invoke the chat endpoint based on the provided messages and generation parameters.
 
@@ -824,8 +826,8 @@ class CohereChatGenerator:
             potentially override the parameters passed in the __init__ method.
             For more details on the parameters supported by the Cohere API, refer to the
             Cohere [documentation](https://docs.cohere.com/reference/chat).
-        :param tools: A list of tools for which the model can prepare calls. If set, it will override
-            the `tools` parameter set during component initialization.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            If set, it will override the `tools` parameter set during component initialization.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :returns: A dictionary with the following keys:
             - `replies`: a list of `ChatMessage` instances representing the generated responses.
@@ -839,11 +841,10 @@ class CohereChatGenerator:
 
         # Handle tools
         tools = tools or self.tools
-        if isinstance(tools, Toolset):
-            tools = list(tools)
-        if tools:
-            _check_duplicate_tool_names(tools)
-            generation_kwargs["tools"] = [_format_tool(tool) for tool in tools]
+        flattened_tools = flatten_tools_or_toolsets(tools)
+        if flattened_tools:
+            _check_duplicate_tool_names(flattened_tools)
+            generation_kwargs["tools"] = [_format_tool(tool) for tool in flattened_tools]
 
         formatted_messages = [_format_message(message) for message in messages]
 

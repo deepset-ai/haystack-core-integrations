@@ -1,9 +1,35 @@
 # Changelog
+
+## [integrations/anthropic-v4.5.1]
+
+### 🧹 Chores
+
+- Adopt PEP 585 type hinting
+
+
+## [integrations/anthropic-v4.5.0] - 2025-10-22
+
+### 🚀 Features
+
+- `AnthropicChatGenerator` update tools param to ToolsType  (#2417)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
 ## [integrations/anthropic-v4.4.0] - 2025-09-15
 
 ### 🚀 Features
 
-- Enable reasoning support in AnthropicChatGenerator (#2230)
+- `AnthropicChatGenerator`- refine reasoning support (#2230)
+
+
+### 🧹 Chores
+
+- Standardize readmes - part 1 (#2202)
+- Standardize readmes - part 2 (#2205)
+- Fix linting in Anthropic (#2251)
+
 ## [integrations/anthropic-v4.3.0] - 2025-08-18
 
 ### 🚀 Features
@@ -15,20 +41,25 @@
 
 ### 🐛 Bug Fixes
 
-- Add `input_tokens` in `meta["usage"]` of Anthropic messages (#2173)
+- Add `input_tokens` in usage of Anthropic messages (#2173)
 
 
 ## [integrations/anthropic-v4.2.0] - 2025-08-07
 
 ### 🐛 Bug Fixes
 
-- Fixed a bug to enable parallel tool calling (#2154)
+- Error in `ToolCallDelta.index` for parallel tool calling (#2154)
+
 
 ## [integrations/anthropic-v4.1.0] - 2025-08-05
 
 ### 🚀 Features
 
 - Adopt new `StreamingChunk` in Anthropic (#2096)
+
+### 🌀 Miscellaneous
+
+- Fix/prompt caching support (#2051)
 
 ## [integrations/anthropic-v3.1.0] - 2025-07-04
 

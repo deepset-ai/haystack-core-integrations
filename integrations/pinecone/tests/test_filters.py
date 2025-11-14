@@ -1,5 +1,4 @@
 import os
-from typing import List
 
 import pytest
 from haystack.dataclasses.document import Document
@@ -11,7 +10,7 @@ from haystack.testing.document_store import (
 @pytest.mark.integration
 @pytest.mark.skipif(not os.environ.get("PINECONE_API_KEY"), reason="PINECONE_API_KEY not set")
 class TestFilters(FilterDocumentsTest):
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         for doc in received:
             # Pinecone seems to convert integers to floats (undocumented behavior)
             # We convert them back to integers to compare them

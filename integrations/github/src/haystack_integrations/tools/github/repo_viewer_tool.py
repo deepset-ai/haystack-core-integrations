@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from haystack.core.serialization import generate_qualified_class_name
 from haystack.tools import ComponentTool
@@ -22,15 +22,15 @@ class GitHubRepoViewerTool(ComponentTool):
         *,
         name: Optional[str] = "repo_viewer",
         description: Optional[str] = REPO_VIEWER_PROMPT,
-        parameters: Optional[Dict[str, Any]] = REPO_VIEWER_SCHEMA,
+        parameters: Optional[dict[str, Any]] = REPO_VIEWER_SCHEMA,
         github_token: Optional[Secret] = None,
         repo: Optional[str] = None,
         branch: str = "main",
         raise_on_failure: bool = True,
         max_file_size: int = 1_000_000,  # 1MB default limit
-        outputs_to_string: Optional[Dict[str, Union[str, Callable[[Any], str]]]] = None,
-        inputs_from_state: Optional[Dict[str, str]] = None,
-        outputs_to_state: Optional[Dict[str, Dict[str, Union[str, Callable]]]] = None,
+        outputs_to_string: Optional[dict[str, Union[str, Callable[[Any], str]]]] = None,
+        inputs_from_state: Optional[dict[str, str]] = None,
+        outputs_to_state: Optional[dict[str, dict[str, Union[str, Callable]]]] = None,
     ):
         """
         Initialize the GitHub repository viewer tool.
@@ -95,7 +95,7 @@ class GitHubRepoViewerTool(ComponentTool):
             outputs_to_state=self.outputs_to_state,
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the tool to a dictionary.
 
@@ -120,7 +120,7 @@ class GitHubRepoViewerTool(ComponentTool):
         return {"type": generate_qualified_class_name(type(self)), "data": serialized}
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GitHubRepoViewerTool":
+    def from_dict(cls, data: dict[str, Any]) -> "GitHubRepoViewerTool":
         """
         Deserializes the tool from a dictionary.
 

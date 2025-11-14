@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import requests
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -65,7 +65,9 @@ class GitHubPRCreator:
         """
         headers = self.base_headers.copy()
         if self.github_token is not None:
-            headers["Authorization"] = f"Bearer {self.github_token.resolve_value()}"
+            token_value = self.github_token.resolve_value()
+            if token_value:
+                headers["Authorization"] = f"Bearer {token_value}"
         return headers
 
     def _parse_issue_url(self, issue_url: str) -> tuple[str, str, str]:
@@ -213,7 +215,7 @@ class GitHubPRCreator:
     @component.output_types(result=str)
     def run(
         self, issue_url: str, title: str, branch: str, base: str, body: str = "", draft: bool = False
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """
         Create a new pull request from your fork to the original repository, linked to the specified issue.
 
@@ -261,7 +263,7 @@ class GitHubPRCreator:
                 raise
             return {"result": f"Error: {e!s}"}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize the component to a dictionary."""
         return default_to_dict(
             self,
@@ -270,7 +272,7 @@ class GitHubPRCreator:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GitHubPRCreator":
+    def from_dict(cls, data: dict[str, Any]) -> "GitHubPRCreator":
         """Deserialize the component from a dictionary."""
         init_params = data["init_parameters"]
         deserialize_secrets_inplace(init_params, keys=["github_token"])

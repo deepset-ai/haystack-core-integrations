@@ -4,8 +4,8 @@
 
 import logging
 import operator
+import time
 import uuid
-from typing import List
 from unittest import mock
 
 import pytest
@@ -38,7 +38,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             get_func.return_value = embedding_function
             return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
 
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
         Assert that two lists of Documents are equal.
         This is used in every test, if a Document Store implementation has a different behaviour
@@ -244,7 +244,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         assert retrieved_doc.content == "test"
         assert retrieved_doc.blob is None
 
-    def test_contains(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_contains(self, document_store: ChromaDocumentStore, filterable_docs: list[Document]):
         document_store.write_documents(filterable_docs)
         filters = {"field": "content", "operator": "contains", "value": "FOO"}
         result = document_store.filter_documents(filters=filters)
@@ -253,7 +253,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             [doc for doc in filterable_docs if doc.content and "FOO" in doc.content],
         )
 
-    def test_multiple_contains(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_multiple_contains(self, document_store: ChromaDocumentStore, filterable_docs: list[Document]):
         document_store.write_documents(filterable_docs)
         filters = {
             "operator": "OR",
@@ -268,7 +268,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             [doc for doc in filterable_docs if doc.content and ("FOO" in doc.content or "BAR" not in doc.content)],
         )
 
-    def test_nested_logical_filters(self, document_store: ChromaDocumentStore, filterable_docs: List[Document]):
+    def test_nested_logical_filters(self, document_store: ChromaDocumentStore, filterable_docs: list[Document]):
         document_store.write_documents(filterable_docs)
         filters = {
             "operator": "OR",
@@ -381,3 +381,41 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         # check that empty filters behave as no filters
         result_empty_filters = document_store.search(["Third"], filters={}, top_k=1)
         assert result == result_empty_filters
+
+    def test_delete_all_documents_index_recreation(self, document_store: ChromaDocumentStore):
+        # write some documents
+        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
+        document_store.write_documents(docs)
+
+        # get the current document_store config
+        config_before = document_store._collection.get(document_store._collection_name)
+
+        # delete all documents with recreating the index
+        document_store.delete_all_documents(recreate_index=True)
+        assert document_store.count_documents() == 0
+
+        # assure that with the same config
+        config_after = document_store._collection.get(document_store._collection_name)
+
+        assert config_before == config_after
+
+        # ensure the collection still exists by writing documents again
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 2
+
+    def test_delete_all_documents_no_index_recreation(self, document_store: ChromaDocumentStore):
+        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 2
+
+        document_store.delete_all_documents()
+        time.sleep(2)  # need to wait for the deletion to be reflected in count_documents
+        assert document_store.count_documents() == 0
+
+        new_doc = Document(id="3", content="New document after delete all")
+        document_store.write_documents([new_doc])
+        assert document_store.count_documents() == 1
+
+        results = document_store.filter_documents()
+        assert len(results) == 1
+        assert results[0].content == "New document after delete all"

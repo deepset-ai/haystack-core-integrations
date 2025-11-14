@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import re
-from typing import Any, Dict
+from typing import Any
 
 import requests
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -67,7 +67,9 @@ class GitHubIssueCommenter:
         """
         headers = self.base_headers.copy()
         if self.github_token is not None:
-            headers["Authorization"] = f"Bearer {self.github_token.resolve_value()}"
+            token_value = self.github_token.resolve_value()
+            if token_value:
+                headers["Authorization"] = f"Bearer {token_value}"
         return headers
 
     def _parse_github_url(self, url: str) -> tuple[str, str, int]:
@@ -113,7 +115,7 @@ class GitHubIssueCommenter:
 
         return False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize the component to a dictionary.
 
@@ -127,7 +129,7 @@ class GitHubIssueCommenter:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GitHubIssueCommenter":
+    def from_dict(cls, data: dict[str, Any]) -> "GitHubIssueCommenter":
         """
         Deserialize the component from a dictionary.
 

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from base64 import b64decode, b64encode
 from enum import Enum
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional, Union
 
 import requests
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -115,7 +115,9 @@ class GitHubFileEditor:
         """
         headers = self.base_headers.copy()
         if self.github_token is not None:
-            headers["Authorization"] = f"Bearer {self.github_token.resolve_value()}"
+            token_value = self.github_token.resolve_value()
+            if token_value:
+                headers["Authorization"] = f"Bearer {token_value}"
         return headers
 
     def _get_file_content(self, owner: str, repo: str, path: str, branch: str) -> tuple[str, str]:
@@ -143,7 +145,7 @@ class GitHubFileEditor:
     def _check_last_commit(self, owner: str, repo: str, branch: str) -> bool:
         """Check if last commit was made by the current token user."""
         url = f"https://api.github.com/repos/{owner}/{repo}/commits"
-        params: Dict[str, Union[str, int]] = {"per_page": 1, "sha": branch}
+        params: dict[str, Union[str, int]] = {"per_page": 1, "sha": branch}
         response = requests.get(url, headers=self._get_request_headers(), params=params, timeout=10)
         response.raise_for_status()
         last_commit = response.json()[0]
@@ -156,7 +158,7 @@ class GitHubFileEditor:
 
         return commit_author == current_user
 
-    def _edit_file(self, owner: str, repo: str, payload: Dict[str, str], branch: str) -> str:
+    def _edit_file(self, owner: str, repo: str, payload: dict[str, str], branch: str) -> str:
         """Handle file editing."""
         try:
             content, sha = self._get_file_content(owner, repo, payload["path"], branch)
@@ -178,7 +180,7 @@ class GitHubFileEditor:
                 raise
             return f"Error: {e!s}"
 
-    def _undo_changes(self, owner: str, repo: str, payload: Dict[str, Any], branch: str) -> str:
+    def _undo_changes(self, owner: str, repo: str, payload: dict[str, Any], branch: str) -> str:
         """Handle undoing changes."""
         try:
             if not self._check_last_commit(owner, repo, branch):
@@ -189,7 +191,7 @@ class GitHubFileEditor:
             commits_url = f"https://api.github.com/repos/{owner}/{repo}/commits"
 
             # Get the previous commit SHA
-            params: Dict[str, Union[str, int]] = {"per_page": 2, "sha": branch}
+            params: dict[str, Union[str, int]] = {"per_page": 2, "sha": branch}
             commits = requests.get(commits_url, headers=self._get_request_headers(), params=params, timeout=10).json()
             previous_sha = commits[1]["sha"]
 
@@ -205,7 +207,7 @@ class GitHubFileEditor:
                 raise
             return f"Error: {e!s}"
 
-    def _create_file(self, owner: str, repo: str, payload: Dict[str, str], branch: str) -> str:
+    def _create_file(self, owner: str, repo: str, payload: dict[str, str], branch: str) -> str:
         """Handle file creation."""
         try:
             url = f"https://api.github.com/repos/{owner}/{repo}/contents/{payload['path']}"
@@ -222,7 +224,7 @@ class GitHubFileEditor:
                 raise
             return f"Error: {e!s}"
 
-    def _delete_file(self, owner: str, repo: str, payload: Dict[str, str], branch: str) -> str:
+    def _delete_file(self, owner: str, repo: str, payload: dict[str, str], branch: str) -> str:
         """Handle file deletion."""
         try:
             _, sha = self._get_file_content(owner, repo, payload["path"], branch)
@@ -243,10 +245,10 @@ class GitHubFileEditor:
     def run(
         self,
         command: Union[Command, str],
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         repo: Optional[str] = None,
         branch: Optional[str] = None,
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """
         Process GitHub file operations.
 
@@ -285,7 +287,7 @@ class GitHubFileEditor:
         result = command_handlers[command](owner, repo_name, payload, working_branch)
         return {"result": result}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize the component to a dictionary."""
         return default_to_dict(
             self,
@@ -296,7 +298,7 @@ class GitHubFileEditor:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GitHubFileEditor":
+    def from_dict(cls, data: dict[str, Any]) -> "GitHubFileEditor":
         """Deserialize the component from a dictionary."""
         init_params = data["init_parameters"]
         deserialize_secrets_inplace(init_params, keys=["github_token"])

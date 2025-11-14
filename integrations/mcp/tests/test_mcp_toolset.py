@@ -7,13 +7,23 @@ import tempfile
 import time
 from unittest.mock import patch
 
+import haystack
 import pytest
 import pytest_asyncio
 from haystack import logging
+from haystack.components.agents import Agent
+from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.core.pipeline import Pipeline
+from haystack.dataclasses import ChatMessage
 from haystack.tools import Tool
 
-from haystack_integrations.tools.mcp import MCPToolset
-from haystack_integrations.tools.mcp.mcp_tool import MCPConnectionError, SSEServerInfo, StreamableHttpServerInfo
+from haystack_integrations.tools.mcp import MCPToolset, StdioServerInfo
+from haystack_integrations.tools.mcp.mcp_tool import (
+    MCPConnectionError,
+    MCPToolNotFoundError,
+    SSEServerInfo,
+    StreamableHttpServerInfo,
+)
 
 # Import in-memory transport and fixtures
 from .mcp_memory_transport import InMemoryServerInfo
@@ -31,6 +41,7 @@ async def calculator_toolset(mcp_tool_cleanup):
         server_info=server_info,
         connection_timeout=45,
         invocation_timeout=60,
+        eager_connect=True,
     )
 
     return mcp_tool_cleanup(toolset)
@@ -45,6 +56,7 @@ async def echo_toolset(mcp_tool_cleanup):
         server_info=server_info,
         connection_timeout=45,
         invocation_timeout=60,
+        eager_connect=True,
     )
 
     return mcp_tool_cleanup(toolset)
@@ -60,6 +72,7 @@ async def calculator_toolset_with_tool_filter(mcp_tool_cleanup):
         tool_names=["add"],  # Only include the 'add' tool
         connection_timeout=45,
         invocation_timeout=60,
+        eager_connect=True,
     )
 
     return mcp_tool_cleanup(toolset)
@@ -204,7 +217,44 @@ class TestMCPToolset:
                 server_info=server_info,
                 connection_timeout=1.0,
                 invocation_timeout=1.0,
+                eager_connect=True,
             )
+
+    async def test_toolset_tool_not_found(self):
+        """Test that requesting a non-existent tool raises a MCPToolNotFoundError."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+
+        with pytest.raises(MCPToolNotFoundError, match=r"The following tools were not found.*"):
+            MCPToolset(
+                server_info=server_info,
+                tool_names=["non_existent_tool"],
+                connection_timeout=10,
+                invocation_timeout=10,
+                eager_connect=True,
+            )
+
+    @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
+    @pytest.mark.integration
+    async def test_pipeline_warmup_with_mcp_toolset(self):
+        """Test lazy connection with Pipeline.warm_up() - replicates time_pipeline.py."""
+
+        # Replicate time_pipeline.py using calculator instead of time server
+        server_info = StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=Europe/Berlin"])
+
+        # Create toolset with lazy connection (default behavior)
+        toolset = MCPToolset(server_info=server_info)
+        try:
+            # Build pipeline exactly like time_pipeline.py
+            agent = Agent(chat_generator=OpenAIChatGenerator(model="gpt-4.1-mini"), tools=toolset)
+            pipeline = Pipeline()
+            pipeline.add_component("agent", agent)
+
+            user_input_msg = ChatMessage.from_user(text="What is the time in New York?")
+            result = pipeline.run({"agent": {"messages": [user_input_msg]}})
+            assert "New York" in result["agent"]["messages"][3].text
+        finally:
+            if toolset:
+                toolset.close()
 
 
 @pytest.mark.integration
@@ -261,7 +311,7 @@ if __name__ == "__main__":
 
             # Create the toolset
             server_info = SSEServerInfo(base_url=f"http://127.0.0.1:{port}")
-            toolset = MCPToolset(server_info=server_info)
+            toolset = MCPToolset(server_info=server_info, eager_connect=True)
             # Verify we got both tools
             assert len(toolset) == 2
 
@@ -362,7 +412,7 @@ if __name__ == "__main__":
 
             # Create the toolset - note the /mcp endpoint for streamable-http
             server_info = StreamableHttpServerInfo(url=f"http://127.0.0.1:{port}/mcp")
-            toolset = MCPToolset(server_info=server_info)
+            toolset = MCPToolset(server_info=server_info, eager_connect=True)
 
             # Verify we got both tools
             assert len(toolset) == 2
@@ -413,3 +463,72 @@ if __name__ == "__main__":
             # Remove the temporary file
             if os.path.exists(server_script_path):
                 os.remove(server_script_path)
+
+    def test_pipeline_deserialization_fails_without_github_token(self, monkeypatch):
+        """
+        Test that pipeline deserialization + MCPToolset initialization fails when GitHub
+        token is not resolved during deserialization.
+
+        The issue:
+        - Setup: Agent pipeline template with MCPToolset with a token from env var (PERSONAL_ACCESS_TOKEN_GITHUB)
+        - MCPToolset tries to connect immediately during __init__ after validation
+        - Secrets get resolved during validation, after MCPToolset is initialized
+        - Connection fails because token can't be resolved in __init__
+        - Pipeline deserialization fails with DeserializationError
+
+        This test demonstrates why we need warmup for MCPToolset on first use rather than during deserialization.
+        """
+        pipeline_yaml = """
+components:
+  agent:
+    init_parameters:
+      chat_generator:
+        init_parameters:
+          api_base_url:
+          api_key:
+            env_vars:
+            - OPENAI_API_KEY
+            strict: false
+            type: env_var
+          generation_kwargs: {}
+          max_retries:
+          model: gpt-4o
+          organization:
+          streaming_callback:
+          timeout:
+          tools:
+          tools_strict: false
+        type: haystack.components.generators.chat.openai.OpenAIChatGenerator
+      exit_conditions:
+      - text
+      max_agent_steps: 100
+      raise_on_tool_invocation_failure: false
+      state_schema: {}
+      streaming_callback:
+      system_prompt: |-
+        You are an assistant that summarizes latest issues and PRs on a github repository
+        that happened within a certain time frame (e.g. last day or last week). Make sure
+        that you always use the current date as a basis for the time frame. Iterate over
+        issues and PRs where necessary to get a comprehensive overview.
+      tools:
+        data:
+          server_info:
+            type: haystack_integrations.tools.mcp.mcp_tool.StreamableHttpServerInfo
+            url: https://api.githubcopilot.com/mcp/
+            token:
+              env_vars:
+              - PERSONAL_ACCESS_TOKEN_GITHUB
+              strict: true
+              type: env_var
+            timeout: 10
+          tool_names: [get_issue, get_issue_comments]
+        type: haystack_integrations.tools.mcp.MCPToolset
+    type: haystack.components.agents.agent.Agent
+
+connections: []
+"""
+        monkeypatch.setenv("PERSONAL_ACCESS_TOKEN_GITHUB", "SOME_OBVIOUSLY_INVALID_TOKEN")
+        # Attempt to deserialize the pipeline - this will fail because MCPToolset
+        # tries to connect immediately and the token isn't available
+        with pytest.raises(haystack.core.errors.DeserializationError):
+            Pipeline.loads(pipeline_yaml)

@@ -57,7 +57,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install --upgrade hatch "click<8.3.0"
+        run: pip install --upgrade hatch
 
       - name: Lint
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
@@ -73,8 +73,8 @@ jobs:
       # Do not authenticate on PRs from forks and on PRs created by dependabot
       - name: AWS authentication
         id: aws-auth
-        if: github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.event.pull_request.head.ref, 'dependabot/')
-        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838
+        if: github.event_name == 'schedule' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.event.pull_request.head.ref, 'dependabot/'))
+        uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
@@ -86,14 +86,14 @@ jobs:
       - name: Run unit tests with lowest direct dependencies
         run: |
           hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
-          hatch run uv pip install -r requirements_lowest_direct.txt
+          hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
           hatch run test:unit
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
           hatch env prune
-          hatch run uv pip install git+https://github.com/deepset-ai/haystack.git@main
+          hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
           hatch run test:unit
 
       - name: Send event to Datadog for nightly failures

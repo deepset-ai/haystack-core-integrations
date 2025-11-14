@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal, Optional
 
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -64,7 +64,7 @@ class AmazonBedrockTextEmbedder:
         aws_session_token: Optional[Secret] = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
         aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
-        boto3_config: Optional[Dict[str, Any]] = None,
+        boto3_config: Optional[dict[str, Any]] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -127,8 +127,8 @@ class AmazonBedrockTextEmbedder:
             )
             raise AmazonBedrockConfigurationError(msg) from exception
 
-    @component.output_types(embedding=List[float])
-    def run(self, text: str) -> Dict[str, List[float]]:
+    @component.output_types(embedding=list[float])
+    def run(self, text: str) -> dict[str, list[float]]:
         """Embeds the input text using the Amazon Bedrock model.
 
         :param text: The input text to embed.
@@ -177,7 +177,7 @@ class AmazonBedrockTextEmbedder:
 
         return {"embedding": embedding}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -197,7 +197,7 @@ class AmazonBedrockTextEmbedder:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AmazonBedrockTextEmbedder":
+    def from_dict(cls, data: dict[str, Any]) -> "AmazonBedrockTextEmbedder":
         """
         Deserializes the component from a dictionary.
 

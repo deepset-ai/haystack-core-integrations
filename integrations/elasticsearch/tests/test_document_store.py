@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import random
-from typing import List
+import time
 from unittest.mock import Mock, patch
 
 import pytest
@@ -13,6 +13,8 @@ from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
+from haystack.utils import Secret
+from haystack.utils.auth import TokenSecret
 
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
@@ -46,6 +48,20 @@ def test_to_dict(_mock_elasticsearch_client):
     assert res == {
         "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
         "init_parameters": {
+            "api_key": {
+                "env_vars": [
+                    "ELASTIC_API_KEY",
+                ],
+                "strict": False,
+                "type": "env_var",
+            },
+            "api_key_id": {
+                "env_vars": [
+                    "ELASTIC_API_KEY_ID",
+                ],
+                "strict": False,
+                "type": "env_var",
+            },
             "hosts": "some hosts",
             "custom_mapping": None,
             "index": "default",
@@ -62,6 +78,8 @@ def test_from_dict(_mock_elasticsearch_client):
             "hosts": "some hosts",
             "custom_mapping": None,
             "index": "default",
+            "api_key": None,
+            "api_key_id": None,
             "embedding_similarity_function": "cosine",
         },
     }
@@ -69,7 +87,133 @@ def test_from_dict(_mock_elasticsearch_client):
     assert document_store._hosts == "some hosts"
     assert document_store._index == "default"
     assert document_store._custom_mapping is None
+    assert document_store._api_key is None
+    assert document_store._api_key_id is None
     assert document_store._embedding_similarity_function == "cosine"
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_to_dict_with_api_keys_env_vars(_mock_elasticsearch_client, monkeypatch):
+    monkeypatch.setenv("ELASTIC_API_KEY", "test-api-key")
+    monkeypatch.setenv("ELASTIC_API_KEY_ID", "test-api-key-id")
+    document_store = ElasticsearchDocumentStore(hosts="https://localhost:9200")
+    document_store.client()
+    res = document_store.to_dict()
+    assert res["init_parameters"]["api_key"] == {"type": "env_var", "env_vars": ["ELASTIC_API_KEY"], "strict": False}
+    assert res["init_parameters"]["api_key_id"] == {
+        "type": "env_var",
+        "env_vars": ["ELASTIC_API_KEY_ID"],
+        "strict": False,
+    }
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_to_dict_with_api_keys_as_secret(_mock_elasticsearch_client, monkeypatch):
+    monkeypatch.setenv("ELASTIC_API_KEY", "test-api-key")
+    monkeypatch.setenv("ELASTIC_API_KEY_ID", "test-api-key-id")
+    with pytest.raises(ValueError):
+        document_store = ElasticsearchDocumentStore(
+            hosts="https://localhost:9200",
+            api_key=TokenSecret(_token="test-api-key"),
+            api_key_id=TokenSecret(_token="test-api-key-id"),
+        )
+        document_store.client()
+        _ = document_store.to_dict()
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_from_dict_with_api_keys_env_vars(_mock_elasticsearch_client):
+    data = {
+        "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
+        "init_parameters": {
+            "hosts": "some hosts",
+            "custom_mapping": None,
+            "index": "default",
+            "api_key": {"type": "env_var", "env_vars": ["ELASTIC_API_KEY"], "strict": False},
+            "api_key_id": {"type": "env_var", "env_vars": ["ELASTIC_API_KEY_ID"], "strict": False},
+            "embedding_similarity_function": "cosine",
+        },
+    }
+
+    document_store = ElasticsearchDocumentStore.from_dict(data)
+    assert document_store._api_key == {"type": "env_var", "env_vars": ["ELASTIC_API_KEY"], "strict": False}
+    assert document_store._api_key_id == {"type": "env_var", "env_vars": ["ELASTIC_API_KEY_ID"], "strict": False}
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_api_key_validation_only_api_key(_mock_elasticsearch_client):
+    api_key = Secret.from_token("test_api_key")
+
+    document_store = ElasticsearchDocumentStore(hosts="https://localhost:9200", api_key=api_key)
+    document_store.client()
+    assert document_store._api_key == api_key
+    # not passing the api_key_id makes it default to reading from env var
+    assert document_store._api_key_id == Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False)
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_api_key_validation_only_api_key_id_raises_error(_mock_elasticsearch_client):
+    api_key_id = Secret.from_token("test_api_key_id")
+    with pytest.raises(ValueError, match="api_key_id is provided but api_key is missing"):
+        es = ElasticsearchDocumentStore(hosts="https://localhost:9200", api_key_id=api_key_id)
+        es.client()
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
+def test_client_initialization_with_api_key_tuple(_mock_async_es, _mock_es):
+    api_key = Secret.from_token("test_api_key")
+    api_key_id = Secret.from_token("test_api_key_id")
+
+    # Mock the client.info() call to avoid actual connection
+    mock_client = Mock()
+    mock_client.info.return_value = {"version": {"number": "8.0.0"}}
+    _mock_es.return_value = mock_client
+
+    document_store = ElasticsearchDocumentStore(hosts="https://localhost:9200", api_key=api_key, api_key_id=api_key_id)
+
+    # Access client to trigger initialization
+    _ = document_store.client
+
+    # Check that Elasticsearch was called with the correct api_key tuple
+    _mock_es.assert_called_once()
+    call_args = _mock_es.call_args
+    assert call_args[0][0] == "https://localhost:9200"  # hosts
+    assert call_args[1]["api_key"] == ("test_api_key_id", "test_api_key")
+
+    # Check that AsyncElasticsearch was called with the same api_key tuple
+    _mock_async_es.assert_called_once()
+    async_call_args = _mock_async_es.call_args
+    assert async_call_args[0][0] == "https://localhost:9200"  # hosts
+    assert async_call_args[1]["api_key"] == ("test_api_key_id", "test_api_key")
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
+def test_client_initialization_with_api_key_string(_mock_async_es, _mock_es):
+    api_key = Secret.from_token("test_api_key")
+
+    # Mock the client.info() call to avoid actual connection
+    mock_client = Mock()
+    mock_client.info.return_value = {"version": {"number": "8.0.0"}}
+    _mock_es.return_value = mock_client
+
+    document_store = ElasticsearchDocumentStore(hosts="testhost", api_key=api_key)
+
+    # Access client to trigger initialization
+    _ = document_store.client
+
+    # Check that Elasticsearch was called with the correct api_key string
+    _mock_es.assert_called_once()
+    call_args = _mock_es.call_args
+    assert call_args[0][0] == "testhost"  # hosts
+    assert call_args[1]["api_key"] == "test_api_key"
+
+    # Check that AsyncElasticsearch was called with the same api_key string
+    _mock_async_es.assert_called_once()
+    async_call_args = _mock_async_es.call_args
+    assert async_call_args[0][0] == "testhost"  # hosts
+    assert async_call_args[1]["api_key"] == "test_api_key"
 
 
 @pytest.mark.integration
@@ -100,7 +244,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         store.client.options(ignore_status=[400, 404]).indices.delete(index=index)
         store.client.close()
 
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
         The ElasticSearchDocumentStore.filter_documents() method returns a Documents with their score set.
         We don't want to compare the score, so we set it to None before comparing the documents.
@@ -339,6 +483,59 @@ class TestDocumentStore(DocumentStoreBaseTests):
             mappings=custom_mapping,
         )
 
+    def test_delete_all_documents_index_recreation(self, document_store: ElasticsearchDocumentStore):
+        # populate the index with some documents
+        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
+        document_store.write_documents(docs)
+
+        # capture index structure before deletion
+        assert document_store._client is not None
+        index_info_before = document_store._client.indices.get(index=document_store._index)
+        mappings_before = index_info_before[document_store._index]["mappings"]
+        settings_before = index_info_before[document_store._index]["settings"]
+
+        # delete all documents
+        document_store.delete_all_documents(recreate_index=True)
+        assert document_store.count_documents() == 0
+
+        # verify index structure is preserved
+        index_info_after = document_store._client.indices.get(index=document_store._index)
+        mappings_after = index_info_after[document_store._index]["mappings"]
+        assert mappings_after == mappings_before, "delete_all_documents should preserve index mappings"
+
+        settings_after = index_info_after[document_store._index]["settings"]
+        settings_after["index"].pop("uuid", None)
+        settings_after["index"].pop("creation_date", None)
+        settings_before["index"].pop("uuid", None)
+        settings_before["index"].pop("creation_date", None)
+        assert settings_after == settings_before, "delete_all_documents should preserve index settings"
+
+        # verify index can accept new documents and retrieve
+        new_doc = Document(id="4", content="New document after delete all")
+        document_store.write_documents([new_doc])
+        assert document_store.count_documents() == 1
+
+        results = document_store.filter_documents()
+        assert len(results) == 1
+        assert results[0].content == "New document after delete all"
+
+    def test_delete_all_documents_no_index_recreation(self, document_store: ElasticsearchDocumentStore):
+        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 2
+
+        document_store.delete_all_documents(recreate_index=False)
+        time.sleep(2)  # need to wait for the deletion to be reflected in count_documents
+        assert document_store.count_documents() == 0
+
+        new_doc = Document(id="3", content="New document after delete all")
+        document_store.write_documents([new_doc])
+        assert document_store.count_documents() == 1
+
+        results = document_store.filter_documents()
+        assert len(results) == 1
+        assert results[0].content == "New document after delete all"
+
 
 @pytest.mark.integration
 class TestElasticsearchDocumentStoreAsync:
@@ -487,3 +684,79 @@ class TestElasticsearchDocumentStoreAsync:
         assert len(results) == 1
         assert results[0].id == "1"
         assert not hasattr(results[0], "sparse_embedding") or results[0].sparse_embedding is None
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_async(self, document_store):
+        docs = [
+            Document(id="1", content="First document", meta={"category": "test"}),
+            Document(id="2", content="Second document", meta={"category": "test"}),
+            Document(id="3", content="Third document", meta={"category": "other"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+        # delete all documents
+        await document_store.delete_all_documents_async(recreate_index=False)
+        assert await document_store.count_documents_async() == 0
+
+        # verify index still exists and can accept new documents and retrieve
+        new_doc = Document(id="4", content="New document after delete all")
+        await document_store.write_documents_async([new_doc])
+        assert await document_store.count_documents_async() == 1
+
+        results = await document_store.filter_documents_async()
+        assert len(results) == 1
+        assert results[0].id == "4"
+        assert results[0].content == "New document after delete all"
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_async_index_recreation(self, document_store):
+        # populate the index with some documents
+        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
+        await document_store.write_documents_async(docs)
+
+        # capture index structure before deletion
+        assert document_store._async_client is not None
+        index_info_before = await document_store._async_client.indices.get(index=document_store._index)
+        mappings_before = index_info_before[document_store._index]["mappings"]
+        settings_before = index_info_before[document_store._index]["settings"]
+
+        # delete all documents with index recreation
+        await document_store.delete_all_documents_async(recreate_index=True)
+        assert await document_store.count_documents_async() == 0
+
+        # verify index structure is preserved
+        index_info_after = await document_store._async_client.indices.get(index=document_store._index)
+        mappings_after = index_info_after[document_store._index]["mappings"]
+        assert mappings_after == mappings_before, "delete_all_documents_async should preserve index mappings"
+
+        settings_after = index_info_after[document_store._index]["settings"]
+        settings_after["index"].pop("uuid", None)
+        settings_after["index"].pop("creation_date", None)
+        settings_before["index"].pop("uuid", None)
+        settings_before["index"].pop("creation_date", None)
+        assert settings_after == settings_before, "delete_all_documents_async should preserve index settings"
+
+        # verify index can accept new documents and retrieve
+        new_doc = Document(id="4", content="New document after delete all")
+        await document_store.write_documents_async([new_doc])
+        assert await document_store.count_documents_async() == 1
+
+        results = await document_store.filter_documents_async()
+        assert len(results) == 1
+        assert results[0].content == "New document after delete all"
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_async_no_index_recreation(self, document_store):
+        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 2
+
+        await document_store.delete_all_documents_async(recreate_index=False)
+        # Need to wait for the deletion to be reflected in count_documents
+        time.sleep(2)
+        assert await document_store.count_documents_async() == 0
+
+        new_doc = Document(id="3", content="New document after delete all")
+        await document_store.write_documents_async([new_doc])
+        assert await document_store.count_documents_async() == 1

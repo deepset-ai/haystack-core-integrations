@@ -1,5 +1,3 @@
-from typing import List
-
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
@@ -121,14 +119,14 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         assert retriever._group_by is None
         assert retriever._group_size is None
 
-    def test_run(self, filterable_docs: List[Document]):
+    def test_run(self, filterable_docs: list[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
 
         document_store.write_documents(filterable_docs)
 
         retriever = QdrantEmbeddingRetriever(document_store=document_store)
 
-        results: List[Document] = retriever.run(query_embedding=_random_embeddings(768))["documents"]
+        results: list[Document] = retriever.run(query_embedding=_random_embeddings(768))["documents"]
         assert len(results) == 10
 
         results = retriever.run(query_embedding=_random_embeddings(768), top_k=5, return_embedding=False)["documents"]
@@ -137,7 +135,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         for document in results:
             assert document.embedding is None
 
-    def test_run_filters(self, filterable_docs: List[Document]):
+    def test_run_filters(self, filterable_docs: list[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
 
         document_store.write_documents(filterable_docs)
@@ -148,7 +146,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
             filter_policy=FilterPolicy.MERGE,
         )
 
-        results: List[Document] = retriever.run(query_embedding=_random_embeddings(768))["documents"]
+        results: list[Document] = retriever.run(query_embedding=_random_embeddings(768))["documents"]
         assert len(results) == 3
 
         results = retriever.run(
@@ -187,14 +185,14 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         )["documents"]
         assert len(results) == 2
 
-    def test_run_with_sparse_activated(self, filterable_docs: List[Document]):
+    def test_run_with_sparse_activated(self, filterable_docs: list[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
         document_store.write_documents(filterable_docs)
 
         retriever = QdrantEmbeddingRetriever(document_store=document_store)
 
-        results: List[Document] = retriever.run(query_embedding=_random_embeddings(768))["documents"]
+        results: list[Document] = retriever.run(query_embedding=_random_embeddings(768))["documents"]
 
         assert len(results) == 10
 
@@ -205,7 +203,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         for document in results:
             assert document.embedding is None
 
-    def test_run_with_group_by(self, filterable_docs: List[Document]):
+    def test_run_with_group_by(self, filterable_docs: list[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
         # Add group_field metadata to documents
         for index, doc in enumerate(filterable_docs):
@@ -226,7 +224,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
             assert document.embedding is None
 
     @pytest.mark.asyncio
-    async def test_run_async(self, filterable_docs: List[Document]):
+    async def test_run_async(self, filterable_docs: list[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
 
         await document_store.write_documents_async(filterable_docs)
@@ -242,7 +240,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
             assert document.embedding is None
 
     @pytest.mark.asyncio
-    async def test_run_filters_async(self, filterable_docs: List[Document]):
+    async def test_run_filters_async(self, filterable_docs: list[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
 
         await document_store.write_documents_async(filterable_docs)
@@ -293,7 +291,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         assert len(result["documents"]) == 2
 
     @pytest.mark.asyncio
-    async def test_run_with_sparse_activated_async(self, filterable_docs: List[Document]):
+    async def test_run_with_sparse_activated_async(self, filterable_docs: list[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
         await document_store.write_documents_async(filterable_docs)
@@ -312,7 +310,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
             assert document.embedding is None
 
     @pytest.mark.asyncio
-    async def test_run_with_group_by_async(self, filterable_docs: List[Document]):
+    async def test_run_with_group_by_async(self, filterable_docs: list[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
         # Add group_field metadata to documents
         for index, doc in enumerate(filterable_docs):

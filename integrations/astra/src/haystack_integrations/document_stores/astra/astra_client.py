@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List, Optional, Union
+from typing import Any, Optional, Union
 from warnings import warn
 
 from astrapy import DataAPIClient as AstraDBClient
@@ -26,7 +26,7 @@ class Response:
 
 @dataclass
 class QueryResponse:
-    matches: List[Response]
+    matches: list[Response]
 
     def get(self, key):
         return self.__dict__[key]
@@ -145,8 +145,8 @@ class AstraClient:
     def query(
         self,
         *,
-        vector: Optional[List[float]] = None,
-        query_filter: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
+        vector: Optional[list[float]] = None,
+        query_filter: Optional[dict[str, Union[str, float, int, bool, list, dict]]] = None,
         top_k: Optional[int] = None,
         include_metadata: Optional[bool] = None,
         include_values: Optional[bool] = None,
@@ -253,7 +253,7 @@ class AstraClient:
 
         return find_result
 
-    def get_documents(self, ids: List[str], batch_size: int = 20) -> QueryResponse:
+    def get_documents(self, ids: list[str], batch_size: int = 20) -> QueryResponse:
         """
         Get documents from the Astra index by their ids.
 
@@ -278,7 +278,7 @@ class AstraClient:
 
         return formatted_docs
 
-    def insert(self, documents: List[Dict]) -> List[str]:
+    def insert(self, documents: list[dict]) -> list[str]:
         """
         Insert documents into the Astra index.
 
@@ -290,7 +290,7 @@ class AstraClient:
 
         return inserted_ids
 
-    def update_document(self, document: Dict, id_key: str) -> bool:
+    def update_document(self, document: dict, id_key: str) -> bool:
         """
         Update a document in the Astra index.
 
@@ -319,29 +319,34 @@ class AstraClient:
     def delete(
         self,
         *,
-        ids: Optional[List[str]] = None,
-        delete_all: Optional[bool] = None,
-        filters: Optional[Dict[str, Union[str, float, int, bool, List, dict]]] = None,
+        ids: Optional[list[str]] = None,
+        filters: Optional[dict[str, Union[str, float, int, bool, list, dict]]] = None,
     ) -> int:
         """Delete documents from the Astra index.
 
         :param ids: the ids of the documents to delete
-        :param delete_all: if `True`, delete all documents from the index
         :param filters: additional filters to apply when deleting documents
         :returns: the number of documents deleted
         """
-        if delete_all:
-            query = {"deleteMany": {}}  # type: dict
+        query: dict[str, dict[str, Any]] = {}
+
         if ids is not None:
             query = {"deleteMany": {"filter": {"_id": {"$in": ids}}}}
         if filters is not None:
             query = {"deleteMany": {"filter": filters}}
 
         filter_dict = {}
-        if "filter" in query["deleteMany"]:
-            filter_dict = query["deleteMany"]["filter"]
-
+        filter_dict = query.get("deleteMany", {}).get("filter", {})
         delete_result = self._astra_db_collection.delete_many(filter=filter_dict)
+
+        return delete_result.deleted_count
+
+    def delete_all_documents(self) -> int:
+        """
+        Delete all documents from the Astra index.
+        :returns: the number of documents deleted
+        """
+        delete_result = self._astra_db_collection.delete_many(filter={})
 
         return delete_result.deleted_count
 

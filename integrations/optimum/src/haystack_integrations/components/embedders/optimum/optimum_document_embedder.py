@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret
@@ -44,13 +44,13 @@ class OptimumDocumentEmbedder:
         normalize_embeddings: bool = True,
         onnx_execution_provider: str = "CPUExecutionProvider",
         pooling_mode: Optional[Union[str, OptimumEmbedderPooling]] = None,
-        model_kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[dict[str, Any]] = None,
         working_dir: Optional[str] = None,
         optimizer_settings: Optional[OptimumEmbedderOptimizationConfig] = None,
         quantizer_settings: Optional[OptimumEmbedderQuantizationConfig] = None,
         batch_size: int = 32,
         progress_bar: bool = True,
-        meta_fields_to_embed: Optional[List[str]] = None,
+        meta_fields_to_embed: Optional[list[str]] = None,
         embedding_separator: str = "\n",
     ):
         """
@@ -146,7 +146,7 @@ class OptimumDocumentEmbedder:
         self._backend.warm_up()
         self._initialized = True
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -159,7 +159,7 @@ class OptimumDocumentEmbedder:
         return default_to_dict(self, **init_params)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OptimumDocumentEmbedder":
+    def from_dict(cls, data: dict[str, Any]) -> "OptimumDocumentEmbedder":
         """
         Deserializes the component from a dictionary.
 
@@ -171,7 +171,7 @@ class OptimumDocumentEmbedder:
         _EmbedderParams.deserialize_inplace(data["init_parameters"])
         return default_from_dict(cls, data)
 
-    def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
+    def _prepare_texts_to_embed(self, documents: list[Document]) -> list[str]:
         """
         Prepare the texts to embed by concatenating the Document text with the metadata fields to embed.
         """
@@ -190,8 +190,8 @@ class OptimumDocumentEmbedder:
             texts_to_embed.append(text_to_embed)
         return texts_to_embed
 
-    @component.output_types(documents=List[Document])
-    def run(self, documents: List[Document]) -> Dict[str, List[Document]]:
+    @component.output_types(documents=list[Document])
+    def run(self, documents: list[Document]) -> dict[str, list[Document]]:
         """
         Embed a list of Documents.
         The embedding of each Document is stored in the `embedding` field of the Document.

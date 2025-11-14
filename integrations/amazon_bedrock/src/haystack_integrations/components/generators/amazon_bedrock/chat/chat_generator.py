@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional
 
 import aioboto3
 from botocore.config import Config
@@ -7,10 +7,10 @@ from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, ComponentInfo, StreamingCallbackT, select_streaming_callback
 from haystack.tools import (
-    Tool,
-    Toolset,
+    ToolsType,
     _check_duplicate_tool_names,
     deserialize_tools_or_toolset_inplace,
+    flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
 )
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
@@ -154,12 +154,12 @@ class AmazonBedrockChatGenerator:
         aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
         aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
-        boto3_config: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        boto3_config: Optional[dict[str, Any]] = None,
+        tools: Optional[ToolsType] = None,
         *,
-        guardrail_config: Optional[Dict[str, str]] = None,
+        guardrail_config: Optional[dict[str, str]] = None,
     ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
@@ -187,7 +187,8 @@ class AmazonBedrockChatGenerator:
             [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk) object and switches
             the streaming mode on.
         :param boto3_config: The configuration for the boto3 client.
-        :param tools: A list of Tool objects or a Toolset that the model can use. Each tool should have a unique name.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            Each tool should have a unique name.
         :param guardrail_config: Optional configuration for a guardrail that has been created in Amazon Bedrock.
             This must be provided as a dictionary matching either
             [GuardrailConfiguration](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_GuardrailConfiguration.html).
@@ -218,7 +219,7 @@ class AmazonBedrockChatGenerator:
         self.streaming_callback = streaming_callback
         self.boto3_config = boto3_config
 
-        _check_duplicate_tool_names(list(tools or []))  # handles Toolset as well
+        _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
         self.tools = tools
 
         _validate_guardrail_config(guardrail_config=guardrail_config, streaming=streaming_callback is not None)
@@ -288,7 +289,7 @@ class AmazonBedrockChatGenerator:
             )
             raise AmazonBedrockConfigurationError(msg) from exception
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -312,7 +313,7 @@ class AmazonBedrockChatGenerator:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AmazonBedrockChatGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "AmazonBedrockChatGenerator":
         """
         Deserializes the component from a dictionary.
 
@@ -339,12 +340,12 @@ class AmazonBedrockChatGenerator:
 
     def _prepare_request_params(
         self,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
+        tools: Optional[ToolsType] = None,
         requires_async: bool = False,
-    ) -> Tuple[Dict[str, Any], Optional[StreamingCallbackT]]:
+    ) -> tuple[dict[str, Any], Optional[StreamingCallbackT]]:
         """
         Prepares and formats parameters required to call the Amazon Bedrock Converse API.
 
@@ -358,7 +359,8 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
-        :param tools: Optional list of Tool objects or a Toolset that the model can use.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            Each tool should have a unique name.
         :param requires_async: Boolean flag to indicate if an async-compatible streaming callback function is needed.
 
         :returns:
@@ -380,14 +382,12 @@ class AmazonBedrockChatGenerator:
 
         # Handle tools - either toolConfig or Haystack Tool objects but not both
         tools = tools or self.tools
-        _check_duplicate_tool_names(list(tools or []))
+        flattened_tools = flatten_tools_or_toolsets(tools)
+        _check_duplicate_tool_names(flattened_tools)
         tool_config = merged_kwargs.pop("toolConfig", None)
-        if tools:
-            # Convert Toolset to list if needed
-            if isinstance(tools, Toolset):
-                tools = list(tools)
+        if flattened_tools:
             # Format Haystack tools to Bedrock format
-            tool_config = _format_tools(tools)
+            tool_config = _format_tools(flattened_tools)
 
         # Any remaining kwargs go to additionalModelRequestFields
         additional_fields = merged_kwargs if merged_kwargs else None
@@ -419,14 +419,14 @@ class AmazonBedrockChatGenerator:
 
         return params, callback
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
-    ) -> Dict[str, List[ChatMessage]]:
+        generation_kwargs: Optional[dict[str, Any]] = None,
+        tools: Optional[ToolsType] = None,
+    ) -> dict[str, list[ChatMessage]]:
         """
         Executes a synchronous inference call to the Amazon Bedrock model using the Converse API.
 
@@ -439,7 +439,8 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
-        :param tools: Optional list of Tools that the model may call during execution.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            Each tool should have a unique name.
 
         :returns:
             A dictionary containing the model-generated replies under the `"replies"` key.
@@ -479,14 +480,14 @@ class AmazonBedrockChatGenerator:
 
         return {"replies": replies}
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
-    ) -> Dict[str, List[ChatMessage]]:
+        generation_kwargs: Optional[dict[str, Any]] = None,
+        tools: Optional[ToolsType] = None,
+    ) -> dict[str, list[ChatMessage]]:
         """
         Executes an asynchronous inference call to the Amazon Bedrock model using the Converse API.
 
@@ -499,7 +500,8 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
-        :param tools: Optional list of Tool objects or a Toolset that the model can use.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            Each tool should have a unique name.
 
         :returns:
             A dictionary containing the model-generated replies under the `"replies"` key.

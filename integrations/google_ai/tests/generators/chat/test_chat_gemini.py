@@ -105,7 +105,7 @@ class TestGoogleAIGeminiChatGenerator:
                 tools=tools,
             )
         mock_genai_configure.assert_called_once_with(api_key="test")
-        assert gemini._model_name == "gemini-1.5-flash"
+        assert gemini._model_name == "gemini-2.0-flash"
         assert gemini._generation_config == generation_config
         assert gemini._safety_settings == safety_settings
         assert gemini._tools == tools
@@ -120,7 +120,7 @@ class TestGoogleAIGeminiChatGenerator:
             "type": TYPE,
             "init_parameters": {
                 "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "gemini-1.5-flash",
+                "model": "gemini-2.0-flash",
                 "generation_config": None,
                 "safety_settings": None,
                 "streaming_callback": None,
@@ -161,7 +161,7 @@ class TestGoogleAIGeminiChatGenerator:
             "type": TYPE,
             "init_parameters": {
                 "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "gemini-1.5-flash",
+                "model": "gemini-2.0-flash",
                 "generation_config": {
                     "temperature": 0.5,
                     "top_p": 0.5,
@@ -212,7 +212,7 @@ class TestGoogleAIGeminiChatGenerator:
                     "type": TYPE,
                     "init_parameters": {
                         "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
-                        "model": "gemini-1.5-flash",
+                        "model": "gemini-2.0-flash",
                         "generation_config": None,
                         "safety_settings": None,
                         "streaming_callback": None,
@@ -221,7 +221,7 @@ class TestGoogleAIGeminiChatGenerator:
                 }
             )
 
-        assert gemini._model_name == "gemini-1.5-flash"
+        assert gemini._model_name == "gemini-2.0-flash"
         assert gemini._generation_config is None
         assert gemini._safety_settings is None
         assert gemini._tools is None
@@ -236,7 +236,7 @@ class TestGoogleAIGeminiChatGenerator:
                     "type": TYPE,
                     "init_parameters": {
                         "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
-                        "model": "gemini-1.5-flash",
+                        "model": "gemini-2.0-flash",
                         "generation_config": {
                             "temperature": 0.5,
                             "top_p": 0.5,
@@ -262,7 +262,7 @@ class TestGoogleAIGeminiChatGenerator:
                 }
             )
 
-        assert gemini._model_name == "gemini-1.5-flash"
+        assert gemini._model_name == "gemini-2.0-flash"
         assert gemini._generation_config == GenerationConfig(
             candidate_count=1,
             stop_sequences=["stop"],
@@ -286,7 +286,7 @@ class TestGoogleAIGeminiChatGenerator:
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
 
         generator = GoogleAIGeminiChatGenerator(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash",
             generation_config=GenerationConfig(
                 temperature=0.6,
                 stop_sequences=["stop", "words"],
@@ -308,7 +308,7 @@ class TestGoogleAIGeminiChatGenerator:
                     "type": TYPE,
                     "init_parameters": {
                         "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
-                        "model": "gemini-1.5-flash",
+                        "model": "gemini-2.0-flash",
                         "generation_config": {
                             "temperature": 0.6,
                             "stop_sequences": ["stop", "words"],

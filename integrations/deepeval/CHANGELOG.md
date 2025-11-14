@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/deepeval-v1.0.0] - 2025-10-30
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Install dependencies in the `test` environment when testing with lowest direct dependencies and Haystack main (#2418)
+
+### 🧹 Chores
+
+- Standardize readmes - part 1 (#2202)
+
+### 🌀 Miscellaneous
+
+- Chore: Remove ruff excludes and fix linting for deepeval (#2253)
+- Test: Fix tests in deepeval (#2368)
+- Chore!: Upgrade to minimum version of python 3.10 (#2476)
+
 ## [integrations/deepeval-v0.3.0] - 2025-07-08
 
 ### 🚀 Features

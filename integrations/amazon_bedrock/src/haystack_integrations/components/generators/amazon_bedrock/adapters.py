@@ -1,6 +1,6 @@
 import json
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from botocore.eventstream import EventStream
 from haystack.dataclasses import StreamingChunk, SyncStreamingCallbackT
@@ -19,12 +19,12 @@ class BedrockModelAdapter(ABC):
         It will be overridden by the corresponding parameter in the `model_kwargs` if it is present.
     """
 
-    def __init__(self, model_kwargs: Dict[str, Any], max_length: Optional[int]) -> None:
+    def __init__(self, model_kwargs: dict[str, Any], max_length: Optional[int]) -> None:
         self.model_kwargs = model_kwargs
         self.max_length = max_length
 
     @abstractmethod
-    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> dict[str, Any]:
         """
         Prepares the body for the Amazon Bedrock request.
         Each subclass should implement this method to prepare the request body for the specific model.
@@ -34,7 +34,7 @@ class BedrockModelAdapter(ABC):
         :returns: A dictionary containing the body for the request.
         """
 
-    def get_responses(self, response_body: Dict[str, Any]) -> List[str]:
+    def get_responses(self, response_body: dict[str, Any]) -> list[str]:
         """
         Extracts the responses from the Amazon Bedrock response.
 
@@ -45,7 +45,7 @@ class BedrockModelAdapter(ABC):
         responses = [completion.lstrip() for completion in completions]
         return responses
 
-    def get_stream_responses(self, stream: EventStream, streaming_callback: SyncStreamingCallbackT) -> List[str]:
+    def get_stream_responses(self, stream: EventStream, streaming_callback: SyncStreamingCallbackT) -> list[str]:
         """
         Extracts the responses from the Amazon Bedrock streaming response.
 
@@ -53,7 +53,7 @@ class BedrockModelAdapter(ABC):
         :param streaming_callback: The handler for the streaming response.
         :returns: A list of string responses.
         """
-        streaming_chunks: List[StreamingChunk] = []
+        streaming_chunks: list[StreamingChunk] = []
         for event in stream:
             chunk = event.get("chunk")
             if chunk:
@@ -65,7 +65,7 @@ class BedrockModelAdapter(ABC):
         responses = ["".join(streaming_chunk.content for streaming_chunk in streaming_chunks).lstrip()]
         return responses
 
-    def _get_params(self, inference_kwargs: Dict[str, Any], default_params: Dict[str, Any]) -> Dict[str, Any]:
+    def _get_params(self, inference_kwargs: dict[str, Any], default_params: dict[str, Any]) -> dict[str, Any]:
         """
         Merges the default params with the inference kwargs and model kwargs.
 
@@ -83,7 +83,7 @@ class BedrockModelAdapter(ABC):
         }
 
     @abstractmethod
-    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+    def _extract_completions_from_response(self, response_body: dict[str, Any]) -> list[str]:
         """
         Extracts the responses from the Amazon Bedrock response.
 
@@ -92,7 +92,7 @@ class BedrockModelAdapter(ABC):
         """
 
     @abstractmethod
-    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
+    def _build_streaming_chunk(self, chunk: dict[str, Any]) -> StreamingChunk:
         """
         Extracts the content and meta from a streaming chunk.
 
@@ -115,7 +115,7 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
     :param max_length: Maximum length of generated text
     """
 
-    def __init__(self, model_kwargs: Dict[str, Any], max_length: Optional[int]) -> None:
+    def __init__(self, model_kwargs: dict[str, Any], max_length: Optional[int]) -> None:
         self.use_messages_api = model_kwargs.get("use_messages_api", True)
         self.include_thinking = model_kwargs.get("include_thinking", True)
         self.thinking_tag = model_kwargs.get("thinking_tag", "thinking")
@@ -123,7 +123,7 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
         self.thinking_tag_end = f"</{self.thinking_tag}>\n\n" if self.thinking_tag else "\n\n"
         super().__init__(model_kwargs, max_length)
 
-    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> dict[str, Any]:
         """
         Prepares the body for the Claude model
 
@@ -134,7 +134,7 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
             - specified inference parameters.
         """
         if self.use_messages_api:
-            default_params: Dict[str, Any] = {
+            default_params: dict[str, Any] = {
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": self.max_length,
                 "system": None,
@@ -160,7 +160,7 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
             body = {"prompt": f"\n\nHuman: {prompt}\n\nAssistant:", **params}
         return body
 
-    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+    def _extract_completions_from_response(self, response_body: dict[str, Any]) -> list[str]:
         """
         Extracts the responses from the Amazon Bedrock response.
 
@@ -181,7 +181,7 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
 
         return [response_body["completion"]]
 
-    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
+    def _build_streaming_chunk(self, chunk: dict[str, Any]) -> StreamingChunk:
         """
         Extracts the content and meta from a streaming chunk.
 
@@ -211,7 +211,7 @@ class MistralAdapter(BedrockModelAdapter):
     Adapter for the Mistral models.
     """
 
-    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> dict[str, Any]:
         """
         Prepares the body for the Mistral model
 
@@ -221,7 +221,7 @@ class MistralAdapter(BedrockModelAdapter):
             - `prompt`: The prompt to be sent to the model.
             - specified inference parameters.
         """
-        default_params: Dict[str, Any] = {
+        default_params: dict[str, Any] = {
             "max_tokens": self.max_length,
             "stop": [],
             "temperature": None,
@@ -233,7 +233,7 @@ class MistralAdapter(BedrockModelAdapter):
         formatted_prompt = f"<s>[INST] {prompt} [/INST]" if "INST" not in prompt else prompt
         return {"prompt": formatted_prompt, **params}
 
-    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+    def _extract_completions_from_response(self, response_body: dict[str, Any]) -> list[str]:
         """
         Extracts the responses from the Amazon Bedrock response.
 
@@ -242,7 +242,7 @@ class MistralAdapter(BedrockModelAdapter):
         """
         return [output.get("text", "") for output in response_body.get("outputs", [])]
 
-    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
+    def _build_streaming_chunk(self, chunk: dict[str, Any]) -> StreamingChunk:
         """
         Extracts the content and meta from a streaming chunk.
 
@@ -261,7 +261,7 @@ class CohereCommandAdapter(BedrockModelAdapter):
     Adapter for the Cohere Command model.
     """
 
-    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> dict[str, Any]:
         """
         Prepares the body for the Command model
 
@@ -288,7 +288,7 @@ class CohereCommandAdapter(BedrockModelAdapter):
         body = {"prompt": prompt, **params}
         return body
 
-    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+    def _extract_completions_from_response(self, response_body: dict[str, Any]) -> list[str]:
         """
         Extracts the responses from the Cohere Command model response.
 
@@ -298,7 +298,7 @@ class CohereCommandAdapter(BedrockModelAdapter):
         responses = [generation["text"] for generation in response_body["generations"]]
         return responses
 
-    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
+    def _build_streaming_chunk(self, chunk: dict[str, Any]) -> StreamingChunk:
         """
         Extracts the content and meta from a streaming chunk.
 
@@ -313,7 +313,7 @@ class CohereCommandRAdapter(BedrockModelAdapter):
     Adapter for the Cohere Command R models.
     """
 
-    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> dict[str, Any]:
         """
         Prepares the body for the Command model
 
@@ -347,7 +347,7 @@ class CohereCommandRAdapter(BedrockModelAdapter):
         body = {"message": prompt, **params}
         return body
 
-    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+    def _extract_completions_from_response(self, response_body: dict[str, Any]) -> list[str]:
         """
         Extracts the responses from the Cohere Command model response.
 
@@ -357,7 +357,7 @@ class CohereCommandRAdapter(BedrockModelAdapter):
         responses = [response_body["text"]]
         return responses
 
-    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
+    def _build_streaming_chunk(self, chunk: dict[str, Any]) -> StreamingChunk:
         """
         Extracts the content and meta from a streaming chunk.
 
@@ -373,7 +373,7 @@ class AI21LabsJurassic2Adapter(BedrockModelAdapter):
     Model adapter for AI21 Labs' Jurassic 2 models.
     """
 
-    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> dict[str, Any]:
         """Prepares the body for the Jurassic 2 model.
 
         :param prompt: The prompt to be sent to the model.
@@ -397,11 +397,11 @@ class AI21LabsJurassic2Adapter(BedrockModelAdapter):
         body = {"prompt": prompt, **params}
         return body
 
-    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+    def _extract_completions_from_response(self, response_body: dict[str, Any]) -> list[str]:
         responses = [completion["data"]["text"] for completion in response_body["completions"]]
         return responses
 
-    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
+    def _build_streaming_chunk(self, chunk: dict[str, Any]) -> StreamingChunk:
         msg = "Streaming is not supported for AI21 Jurassic 2 models."
         raise NotImplementedError(msg)
 
@@ -411,7 +411,7 @@ class AmazonTitanAdapter(BedrockModelAdapter):
     Adapter for Amazon's Titan models.
     """
 
-    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> dict[str, Any]:
         """
         Prepares the body for the Titan model
 
@@ -432,7 +432,7 @@ class AmazonTitanAdapter(BedrockModelAdapter):
         body = {"inputText": prompt, "textGenerationConfig": params}
         return body
 
-    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+    def _extract_completions_from_response(self, response_body: dict[str, Any]) -> list[str]:
         """
         Extracts the responses from the Titan model response.
 
@@ -442,7 +442,7 @@ class AmazonTitanAdapter(BedrockModelAdapter):
         responses = [result["outputText"] for result in response_body["results"]]
         return responses
 
-    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
+    def _build_streaming_chunk(self, chunk: dict[str, Any]) -> StreamingChunk:
         """
         Extracts the content and meta from a streaming chunk.
 
@@ -457,7 +457,7 @@ class MetaLlamaAdapter(BedrockModelAdapter):
     Adapter for Meta's Llama2 models.
     """
 
-    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> Dict[str, Any]:
+    def prepare_body(self, prompt: str, **inference_kwargs: Any) -> dict[str, Any]:
         """
         Prepares the body for the Llama2 model
 
@@ -477,7 +477,7 @@ class MetaLlamaAdapter(BedrockModelAdapter):
         body = {"prompt": prompt, **params}
         return body
 
-    def _extract_completions_from_response(self, response_body: Dict[str, Any]) -> List[str]:
+    def _extract_completions_from_response(self, response_body: dict[str, Any]) -> list[str]:
         """
         Extracts the responses from the Llama2 model response.
 
@@ -486,7 +486,7 @@ class MetaLlamaAdapter(BedrockModelAdapter):
         """
         return [response_body["generation"]]
 
-    def _build_streaming_chunk(self, chunk: Dict[str, Any]) -> StreamingChunk:
+    def _build_streaming_chunk(self, chunk: dict[str, Any]) -> StreamingChunk:
         """
         Extracts the content and meta from a streaming chunk.
 

@@ -1,5 +1,29 @@
 # Changelog
 
+## [integrations/pinecone-v5.4.0] - 2025-11-05
+
+### 🚀 Features
+
+- Add delete all documents to Pinecone DocumentStore (#2403)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### 🧪 Testing
+
+- Pinecone - relax flaky test (#2360)
+
+### ⚙️ CI
+
+- Install dependencies in the `test` environment when testing with lowest direct dependencies and Haystack main (#2418)
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+
 ## [integrations/pinecone-v5.3.0] - 2025-07-30
 
 ### 🚀 Features

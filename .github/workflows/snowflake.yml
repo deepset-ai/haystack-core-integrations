@@ -47,7 +47,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install --upgrade hatch "click<8.3.0"
+        run: pip install --upgrade hatch
 
       - name: Lint
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
@@ -63,14 +63,14 @@ jobs:
       - name: Run unit tests with lowest direct dependencies
         run: |
           hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
-          hatch run uv pip install -r requirements_lowest_direct.txt
+          hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
           hatch run test:unit
 
       - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
           hatch env prune
-          hatch run uv pip install git+https://github.com/deepset-ai/haystack.git@main
+          hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
           hatch run test:unit
 
       - name: Send event to Datadog for nightly failures

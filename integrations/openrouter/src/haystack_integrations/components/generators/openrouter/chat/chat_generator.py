@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage, StreamingCallbackT
-from haystack.tools import Tool, Toolset, _check_duplicate_tool_names
+from haystack.tools import ToolsType, _check_duplicate_tool_names, flatten_tools_or_toolsets, serialize_tools_or_toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
 
@@ -63,12 +63,12 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         model: str = "openai/gpt-4o-mini",
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = "https://openrouter.ai/api/v1",
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
+        tools: Optional[ToolsType] = None,
         timeout: Optional[float] = None,
-        extra_headers: Optional[Dict[str, Any]] = None,
+        extra_headers: Optional[dict[str, Any]] = None,
         max_retries: Optional[int] = None,
-        http_client_kwargs: Optional[Dict[str, Any]] = None,
+        http_client_kwargs: Optional[dict[str, Any]] = None,
     ):
         """
         Creates an instance of OpenRouterChatGenerator. Unless specified otherwise,
@@ -98,6 +98,14 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
                 events as they become available, with the stream terminated by a data: [DONE] message.
             - `safe_prompt`: Whether to inject a safety prompt before all conversations.
             - `random_seed`: The seed to use for random sampling.
+            - `response_format`: A JSON schema or a Pydantic model that enforces the structure of the model's response.
+                If provided, the output will always be validated against this
+                format (unless the model returns a tool call).
+                For details, see the [OpenAI Structured Outputs documentation](https://platform.openai.com/docs/guides/structured-outputs).
+                Notes:
+                - This parameter accepts Pydantic models and JSON schemas for latest models starting from GPT-4o.
+                - For structured outputs with streaming,
+                  the `response_format` must be a JSON schema and not a Pydantic model.
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
             list of `Tool` objects or a `Toolset` instance.
@@ -128,7 +136,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         )
         self.extra_headers = extra_headers
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize this component to a dictionary.
 
@@ -148,7 +156,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             api_base_url=self.api_base_url,
             generation_kwargs=self.generation_kwargs,
             api_key=self.api_key.to_dict(),
-            tools=[tool.to_dict() for tool in self.tools] if self.tools else None,
+            tools=serialize_tools_or_toolset(self.tools),
             extra_headers=self.extra_headers,
             timeout=self.timeout,
             max_retries=self.max_retries,
@@ -158,45 +166,64 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
     def _prepare_api_call(
         self,
         *,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        tools: Optional[Union[List[Tool], Toolset]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
+        tools: Optional[ToolsType] = None,
         tools_strict: Optional[bool] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         extra_headers = {**(self.extra_headers or {})}
 
-        # adapt ChatMessage(s) to the format expected by the OpenAI API
-        openai_formatted_messages = [message.to_openai_dict_format() for message in messages]
-
-        tools = tools or self.tools
-        if isinstance(tools, Toolset):
-            tools = list(tools)
-        tools_strict = tools_strict if tools_strict is not None else self.tools_strict
-        _check_duplicate_tool_names(list(tools or []))
-
-        openai_tools = {}
-        if tools:
-            tool_definitions = [
-                {"type": "function", "function": {**t.tool_spec, **({"strict": tools_strict} if tools_strict else {})}}
-                for t in tools
-            ]
-            openai_tools = {"tools": tool_definitions}
-
         is_streaming = streaming_callback is not None
         num_responses = generation_kwargs.pop("n", 1)
+
         if is_streaming and num_responses > 1:
             msg = "Cannot stream multiple responses, please set n=1."
             raise ValueError(msg)
+        response_format = generation_kwargs.pop("response_format", None)
 
-        return {
+        # adapt ChatMessage(s) to the format expected by the OpenAI API
+        openai_formatted_messages = [message.to_openai_dict_format() for message in messages]
+
+        flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
+        tools_strict = tools_strict if tools_strict is not None else self.tools_strict
+        _check_duplicate_tool_names(flattened_tools)
+
+        openai_tools = {}
+        if flattened_tools:
+            tool_definitions = []
+            for t in flattened_tools:
+                function_spec = {**t.tool_spec}
+                if tools_strict:
+                    function_spec["strict"] = True
+                    function_spec["parameters"]["additionalProperties"] = False
+                tool_definitions.append({"type": "function", "function": function_spec})
+            openai_tools = {"tools": tool_definitions}
+
+        base_args = {
             "model": self.model,
-            "messages": openai_formatted_messages,  # type: ignore[arg-type] # openai expects list of specific message types
-            "stream": streaming_callback is not None,
+            "messages": openai_formatted_messages,
             "n": num_responses,
             **openai_tools,
-            "extra_body": {**generation_kwargs},
             "extra_headers": {**extra_headers},
+            "extra_body": {**generation_kwargs},
         }
+
+        if response_format and not is_streaming:
+            # for structured outputs without streaming, we use openai's parse endpoint
+            # Note: `stream` cannot be passed to chat.completions.parse
+            # we pass a key `openai_endpoint` as a hint to the run method to use the parse endpoint
+            # this key will be removed before the API call is made
+            return {**base_args, "response_format": response_format, "openai_endpoint": "parse"}
+
+        # for structured outputs with streaming, we use openai's create endpoint
+        # we pass a key `openai_endpoint` as a hint to the run method to use the create endpoint
+        # this key will be removed before the API call is made
+        final_args = {**base_args, "stream": is_streaming, "openai_endpoint": "create"}
+
+        # We only set the response_format parameter if it's not None since None is not a valid value in the API.
+        if response_format:
+            final_args["response_format"] = response_format
+        return final_args

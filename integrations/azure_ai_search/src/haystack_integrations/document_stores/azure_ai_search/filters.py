@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 
 from dateutil import parser
 
@@ -7,7 +7,7 @@ from .errors import AzureAISearchDocumentStoreFilterError
 LOGICAL_OPERATORS = {"AND": "and", "OR": "or", "NOT": "not"}
 
 
-def _normalize_filters(filters: Dict[str, Any]) -> str:
+def _normalize_filters(filters: dict[str, Any]) -> str:
     """
     Converts Haystack filters in Azure AI Search compatible filters.
     """
@@ -21,7 +21,7 @@ def _normalize_filters(filters: Dict[str, Any]) -> str:
     return _parse_logical_condition(filters)
 
 
-def _parse_logical_condition(condition: Dict[str, Any]) -> str:
+def _parse_logical_condition(condition: dict[str, Any]) -> str:
     missing_keys = [key for key in ("operator", "conditions") if key not in condition]
     if missing_keys:
         msg = f"""Missing key(s) {missing_keys} in {condition}.
@@ -48,7 +48,7 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> str:
         return f" {LOGICAL_OPERATORS[operator]} ".join([f"({c})" for c in conditions])
 
 
-def _parse_comparison_condition(condition: Dict[str, Any]) -> str:
+def _parse_comparison_condition(condition: dict[str, Any]) -> str:
     missing_keys = [key for key in ("field", "operator", "value") if key not in condition]
     if missing_keys:
         msg = f"""Missing key(s) {missing_keys} in {condition}.

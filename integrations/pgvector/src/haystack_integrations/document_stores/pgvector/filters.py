@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from datetime import datetime
 from itertools import chain
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Literal, Optional
 
 from haystack.errors import FilterError
 from psycopg.sql import SQL, Composed
@@ -21,7 +21,7 @@ PYTHON_TYPES_TO_PG_TYPES = {
 NO_VALUE = "no_value"
 
 
-def _validate_filters(filters: Optional[Dict[str, Any]] = None) -> None:
+def _validate_filters(filters: Optional[dict[str, Any]] = None) -> None:
     """
     Validates the filters provided.
     """
@@ -35,8 +35,8 @@ def _validate_filters(filters: Optional[Dict[str, Any]] = None) -> None:
 
 
 def _convert_filters_to_where_clause_and_params(
-    filters: Dict[str, Any], operator: Literal["WHERE", "AND"] = "WHERE"
-) -> Tuple[Composed, Tuple]:
+    filters: dict[str, Any], operator: Literal["WHERE", "AND"] = "WHERE"
+) -> tuple[Composed, tuple]:
     """
     Convert Haystack filters to a WHERE clause and a tuple of params to query PostgreSQL.
     """
@@ -51,7 +51,7 @@ def _convert_filters_to_where_clause_and_params(
     return where_clause, params
 
 
-def _parse_logical_condition(condition: Dict[str, Any]) -> Tuple[str, List[Any]]:
+def _parse_logical_condition(condition: dict[str, Any]) -> tuple[str, list[Any]]:
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
         raise FilterError(msg)
@@ -91,7 +91,7 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Tuple[str, List[Any]]
     return sql_query, values
 
 
-def _parse_comparison_condition(condition: Dict[str, Any]) -> Tuple[str, List[Any]]:
+def _parse_comparison_condition(condition: dict[str, Any]) -> tuple[str, list[Any]]:
     field: str = condition["field"]
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
@@ -142,20 +142,20 @@ def _treat_meta_field(field: str, value: Any) -> str:
     return field
 
 
-def _equal(field: str, value: Any) -> Tuple[str, Any]:
+def _equal(field: str, value: Any) -> tuple[str, Any]:
     if value is None:
         # NO_VALUE is a placeholder that will be removed in _convert_filters_to_where_clause_and_params
         return f"{field} IS NULL", NO_VALUE
     return f"{field} = %s", value
 
 
-def _not_equal(field: str, value: Any) -> Tuple[str, Any]:
+def _not_equal(field: str, value: Any) -> tuple[str, Any]:
     # we use IS DISTINCT FROM to correctly handle NULL values
     # (not handled by !=)
     return f"{field} IS DISTINCT FROM %s", value
 
 
-def _greater_than(field: str, value: Any) -> Tuple[str, Any]:
+def _greater_than(field: str, value: Any) -> tuple[str, Any]:
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -172,7 +172,7 @@ def _greater_than(field: str, value: Any) -> Tuple[str, Any]:
     return f"{field} > %s", value
 
 
-def _greater_than_equal(field: str, value: Any) -> Tuple[str, Any]:
+def _greater_than_equal(field: str, value: Any) -> tuple[str, Any]:
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -189,7 +189,7 @@ def _greater_than_equal(field: str, value: Any) -> Tuple[str, Any]:
     return f"{field} >= %s", value
 
 
-def _less_than(field: str, value: Any) -> Tuple[str, Any]:
+def _less_than(field: str, value: Any) -> tuple[str, Any]:
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -206,7 +206,7 @@ def _less_than(field: str, value: Any) -> Tuple[str, Any]:
     return f"{field} < %s", value
 
 
-def _less_than_equal(field: str, value: Any) -> Tuple[str, Any]:
+def _less_than_equal(field: str, value: Any) -> tuple[str, Any]:
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -223,7 +223,7 @@ def _less_than_equal(field: str, value: Any) -> Tuple[str, Any]:
     return f"{field} <= %s", value
 
 
-def _not_in(field: str, value: Any) -> Tuple[str, List]:
+def _not_in(field: str, value: Any) -> tuple[str, list]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'not in' comparator in Pinecone"
         raise FilterError(msg)
@@ -231,7 +231,7 @@ def _not_in(field: str, value: Any) -> Tuple[str, List]:
     return f"{field} IS NULL OR {field} != ALL(%s)", [value]
 
 
-def _in(field: str, value: Any) -> Tuple[str, List]:
+def _in(field: str, value: Any) -> tuple[str, list]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' comparator in Pinecone"
         raise FilterError(msg)
@@ -240,14 +240,14 @@ def _in(field: str, value: Any) -> Tuple[str, List]:
     return f"{field} = ANY(%s)", [value]
 
 
-def _like(field: str, value: Any) -> Tuple[str, Any]:
+def _like(field: str, value: Any) -> tuple[str, Any]:
     if not isinstance(value, str):
         msg = f"{field}'s value must be a str when using 'LIKE' "
         raise FilterError(msg)
     return f"{field} LIKE %s", value
 
 
-def _not_like(field: str, value: Any) -> Tuple[str, Any]:
+def _not_like(field: str, value: Any) -> tuple[str, Any]:
     if not isinstance(value, str):
         msg = f"{field}'s value must be a str when using 'LIKE' "
         raise FilterError(msg)

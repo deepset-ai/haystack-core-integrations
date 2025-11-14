@@ -1,5 +1,3 @@
-from typing import List
-
 import pytest
 from haystack.dataclasses.document import Document
 from haystack.testing.document_store import FilterDocumentsTest
@@ -17,7 +15,7 @@ from haystack_integrations.document_stores.pgvector.filters import (
 
 @pytest.mark.integration
 class TestFilters(FilterDocumentsTest):
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
         This overrides the default assert_documents_are_equal from FilterDocumentsTest.
         It is needed because the embeddings are not exactly the same when they are retrieved from Postgres.

@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from typing import List
 from unittest.mock import Mock
 
 import pytest
@@ -200,7 +199,7 @@ class TestRetriever:
         assert results["documents"][0].content == "This is first document"
 
     def test_empty_query_embedding(self, document_store: AzureAISearchDocumentStore):
-        query_embedding: List[float] = []
+        query_embedding: list[float] = []
         with pytest.raises(ValueError):
             document_store._hybrid_retrieval(query="", query_embedding=query_embedding)
 

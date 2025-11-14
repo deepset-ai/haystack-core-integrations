@@ -1,4 +1,9 @@
 # Integrations
+integration:aimlapi:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/aimlapi/**/*"
+      - any-glob-to-any-file: ".github/workflows/aimlapi.yml"
+
 integration:amazon-bedrock:
   - changed-files:
       - any-glob-to-any-file: "integrations/amazon_bedrock/**/*"
@@ -33,6 +38,11 @@ integration:cohere:
   - changed-files:
       - any-glob-to-any-file: "integrations/cohere/**/*"
       - any-glob-to-any-file: ".github/workflows/cohere.yml"
+
+integration:cometapi:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/cometapi/**/*"
+      - any-glob-to-any-file: ".github/workflows/cometapi.yml"
 
 integration:deepeval:
   - changed-files:
@@ -168,6 +178,11 @@ integration:stackit:
   - changed-files:
       - any-glob-to-any-file: "integrations/stackit/**/*"
       - any-glob-to-any-file: ".github/workflows/stackit.yml"
+
+integration:togetherai:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/togetherai/**/*"
+      - any-glob-to-any-file: ".github/workflows/togetherai.yml"
 
 integration:unstructured-fileconverter:
   - changed-files:

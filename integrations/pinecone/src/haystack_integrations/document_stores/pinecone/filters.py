@@ -1,12 +1,12 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from haystack.errors import FilterError
 
 
-def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_filters(filters: dict[str, Any]) -> dict[str, Any]:
     """
     Converts Haystack filters in Pinecone compatible filters.
     Reference: https://docs.pinecone.io/docs/metadata-filtering
@@ -20,7 +20,7 @@ def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
     return _parse_logical_condition(filters)
 
 
-def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
+def _parse_logical_condition(condition: dict[str, Any]) -> dict[str, Any]:
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
         raise FilterError(msg)
@@ -38,7 +38,7 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     raise FilterError(msg)
 
 
-def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
+def _parse_comparison_condition(condition: dict[str, Any]) -> dict[str, Any]:
     if "field" not in condition:
         # 'field' key is only found in comparison dictionaries.
         # We assume this is a logic dictionary since it's not present.
@@ -64,7 +64,7 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     return COMPARISON_OPERATORS[operator](field, value)
 
 
-def _equal(field: str, value: Any) -> Dict[str, Any]:
+def _equal(field: str, value: Any) -> dict[str, Any]:
     supported_types = (str, int, float, bool)
     if not isinstance(value, supported_types):
         msg = (
@@ -76,7 +76,7 @@ def _equal(field: str, value: Any) -> Dict[str, Any]:
     return {field: {"$eq": value}}
 
 
-def _not_equal(field: str, value: Any) -> Dict[str, Any]:
+def _not_equal(field: str, value: Any) -> dict[str, Any]:
     supported_types = (str, int, float, bool)
     if not isinstance(value, supported_types):
         msg = (
@@ -88,7 +88,7 @@ def _not_equal(field: str, value: Any) -> Dict[str, Any]:
     return {field: {"$ne": value}}
 
 
-def _greater_than(field: str, value: Any) -> Dict[str, Any]:
+def _greater_than(field: str, value: Any) -> dict[str, Any]:
     supported_types = (int, float)
     if not isinstance(value, supported_types):
         msg = (
@@ -100,7 +100,7 @@ def _greater_than(field: str, value: Any) -> Dict[str, Any]:
     return {field: {"$gt": value}}
 
 
-def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
+def _greater_than_equal(field: str, value: Any) -> dict[str, Any]:
     supported_types = (int, float)
     if not isinstance(value, supported_types):
         msg = (
@@ -112,7 +112,7 @@ def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
     return {field: {"$gte": value}}
 
 
-def _less_than(field: str, value: Any) -> Dict[str, Any]:
+def _less_than(field: str, value: Any) -> dict[str, Any]:
     supported_types = (int, float)
     if not isinstance(value, supported_types):
         msg = (
@@ -124,7 +124,7 @@ def _less_than(field: str, value: Any) -> Dict[str, Any]:
     return {field: {"$lt": value}}
 
 
-def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
+def _less_than_equal(field: str, value: Any) -> dict[str, Any]:
     supported_types = (int, float)
     if not isinstance(value, supported_types):
         msg = (
@@ -136,7 +136,7 @@ def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
     return {field: {"$lte": value}}
 
 
-def _not_in(field: str, value: Any) -> Dict[str, Any]:
+def _not_in(field: str, value: Any) -> dict[str, Any]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'not in' comparator in Pinecone"
         raise FilterError(msg)
@@ -153,7 +153,7 @@ def _not_in(field: str, value: Any) -> Dict[str, Any]:
     return {field: {"$nin": value}}
 
 
-def _in(field: str, value: Any) -> Dict[str, Any]:
+def _in(field: str, value: Any) -> dict[str, Any]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' comparator in Pinecone"
         raise FilterError(msg)
@@ -181,7 +181,7 @@ COMPARISON_OPERATORS = {
 LOGICAL_OPERATORS = {"AND": "$and", "OR": "$or"}
 
 
-def _validate_filters(filters: Optional[Dict[str, Any]]) -> None:
+def _validate_filters(filters: Optional[dict[str, Any]]) -> None:
     """
     Helper method to validate filter syntax.
     """

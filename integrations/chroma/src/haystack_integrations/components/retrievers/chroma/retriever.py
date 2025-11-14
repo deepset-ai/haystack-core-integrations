@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
@@ -48,7 +48,7 @@ class ChromaQueryTextRetriever:
     def __init__(
         self,
         document_store: ChromaDocumentStore,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
@@ -65,13 +65,13 @@ class ChromaQueryTextRetriever:
             filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(
         self,
         query: str,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: Optional[int] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Run the retriever on the given input data.
 
@@ -90,13 +90,13 @@ class ChromaQueryTextRetriever:
         top_k = top_k or self.top_k
         return {"documents": self.document_store.search([query], top_k, filters)[0]}
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     async def run_async(
         self,
         query: str,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: Optional[int] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Asynchronously run the retriever on the given input data.
 
@@ -118,7 +118,7 @@ class ChromaQueryTextRetriever:
         return {"documents": (await self.document_store.search_async([query], top_k, filters))[0]}
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ChromaQueryTextRetriever":
+    def from_dict(cls, data: dict[str, Any]) -> "ChromaQueryTextRetriever":
         """
         Deserializes the component from a dictionary.
 
@@ -136,7 +136,7 @@ class ChromaQueryTextRetriever:
 
         return default_from_dict(cls, data)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -161,7 +161,7 @@ class ChromaEmbeddingRetriever:
     def __init__(
         self,
         document_store: ChromaDocumentStore,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
@@ -178,13 +178,13 @@ class ChromaEmbeddingRetriever:
             filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(
         self,
-        query_embedding: List[float],
-        filters: Optional[Dict[str, Any]] = None,
+        query_embedding: list[float],
+        filters: Optional[dict[str, Any]] = None,
         top_k: Optional[int] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Run the retriever on the given input data.
 
@@ -205,13 +205,13 @@ class ChromaEmbeddingRetriever:
         query_embeddings = [query_embedding]
         return {"documents": self.document_store.search_embeddings(query_embeddings, top_k, filters)[0]}
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     async def run_async(
         self,
-        query_embedding: List[float],
-        filters: Optional[Dict[str, Any]] = None,
+        query_embedding: list[float],
+        filters: Optional[dict[str, Any]] = None,
         top_k: Optional[int] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Asynchronously run the retriever on the given input data.
 
@@ -235,7 +235,7 @@ class ChromaEmbeddingRetriever:
         return {"documents": (await self.document_store.search_embeddings_async(query_embeddings, top_k, filters))[0]}
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ChromaEmbeddingRetriever":
+    def from_dict(cls, data: dict[str, Any]) -> "ChromaEmbeddingRetriever":
         """
         Deserializes the component from a dictionary.
 
@@ -253,7 +253,7 @@ class ChromaEmbeddingRetriever:
 
         return default_from_dict(cls, data)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 

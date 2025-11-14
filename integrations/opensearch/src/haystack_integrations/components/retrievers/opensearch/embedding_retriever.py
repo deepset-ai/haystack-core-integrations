@@ -4,7 +4,7 @@
 
 # ruff: noqa: FBT001  Boolean-typed positional argument in function definition
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -28,10 +28,10 @@ class OpenSearchEmbeddingRetriever:
         self,
         *,
         document_store: OpenSearchDocumentStore,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
-        custom_query: Optional[Dict[str, Any]] = None,
+        custom_query: Optional[dict[str, Any]] = None,
         raise_on_failure: bool = True,
         efficient_filtering: bool = False,
     ):
@@ -107,7 +107,7 @@ class OpenSearchEmbeddingRetriever:
         self._raise_on_failure = raise_on_failure
         self._efficient_filtering = efficient_filtering
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -126,7 +126,7 @@ class OpenSearchEmbeddingRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OpenSearchEmbeddingRetriever":
+    def from_dict(cls, data: dict[str, Any]) -> "OpenSearchEmbeddingRetriever":
         """
         Deserializes the component from a dictionary.
 
@@ -146,22 +146,23 @@ class OpenSearchEmbeddingRetriever:
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(
         self,
-        query_embedding: List[float],
-        filters: Optional[Dict[str, Any]] = None,
+        query_embedding: list[float],
+        filters: Optional[dict[str, Any]] = None,
         top_k: Optional[int] = None,
-        custom_query: Optional[Dict[str, Any]] = None,
+        custom_query: Optional[dict[str, Any]] = None,
         efficient_filtering: Optional[bool] = None,
-    ) -> Dict[str, List[Document]]:
+        document_store: Optional[OpenSearchDocumentStore] = None,
+    ) -> dict[str, list[Document]]:
         """
         Retrieve documents using a vector similarity metric.
 
         :param query_embedding: Embedding of the query.
         :param filters: Filters applied when fetching documents from the Document Store.
-            Filters are applied during the approximate kNN search to ensure the Retriever
-              returns `top_k` matching documents.
+            Filters are applied during the approximate kNN search to ensure the Retriever returns `top_k` matching
+            documents.
             The way runtime filters are applied depends on the `filter_policy` selected when initializing the Retriever.
         :param top_k: Maximum number of documents to return.
         :param custom_query: A custom OpenSearch query containing a mandatory `$query_embedding` and an
@@ -206,6 +207,7 @@ class OpenSearchEmbeddingRetriever:
 
         :param efficient_filtering: If `True`, the filter will be applied during the approximate kNN search.
             This is only supported for knn engines "faiss" and "lucene" and does not work with the default "nmslib".
+        :param document_store: Optional instance of OpenSearchDocumentStore to use with the Retriever.
 
         :returns:
             Dictionary with key "documents" containing the retrieved Documents.
@@ -222,10 +224,18 @@ class OpenSearchEmbeddingRetriever:
         if efficient_filtering is None:
             efficient_filtering = self._efficient_filtering
 
-        docs: List[Document] = []
+        docs: list[Document] = []
+
+        if document_store is not None:
+            if not isinstance(document_store, OpenSearchDocumentStore):
+                msg = "document_store must be an instance of OpenSearchDocumentStore"
+                raise ValueError(msg)
+            doc_store = document_store
+        else:
+            doc_store = self._document_store
 
         try:
-            docs = self._document_store._embedding_retrieval(
+            docs = doc_store._embedding_retrieval(
                 query_embedding=query_embedding,
                 filters=filters,
                 top_k=top_k,
@@ -245,15 +255,16 @@ class OpenSearchEmbeddingRetriever:
 
         return {"documents": docs}
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     async def run_async(
         self,
-        query_embedding: List[float],
-        filters: Optional[Dict[str, Any]] = None,
+        query_embedding: list[float],
+        filters: Optional[dict[str, Any]] = None,
         top_k: Optional[int] = None,
-        custom_query: Optional[Dict[str, Any]] = None,
+        custom_query: Optional[dict[str, Any]] = None,
         efficient_filtering: Optional[bool] = None,
-    ) -> Dict[str, List[Document]]:
+        document_store: Optional[OpenSearchDocumentStore] = None,
+    ) -> dict[str, list[Document]]:
         """
         Asynchronously retrieve documents using a vector similarity metric.
 
@@ -305,6 +316,7 @@ class OpenSearchEmbeddingRetriever:
 
         :param efficient_filtering: If `True`, the filter will be applied during the approximate kNN search.
             This is only supported for knn engines "faiss" and "lucene" and does not work with the default "nmslib".
+        :param document_store: Optional instance of OpenSearchDocumentStore to use with the Retriever.
 
         :returns:
             Dictionary with key "documents" containing the retrieved Documents.
@@ -321,10 +333,18 @@ class OpenSearchEmbeddingRetriever:
         if efficient_filtering is None:
             efficient_filtering = self._efficient_filtering
 
-        docs: List[Document] = []
+        docs: list[Document] = []
+
+        if document_store is not None:
+            if not isinstance(document_store, OpenSearchDocumentStore):
+                msg = "document_store must be an instance of OpenSearchDocumentStore"
+                raise ValueError(msg)
+            doc_store = document_store
+        else:
+            doc_store = self._document_store
 
         try:
-            docs = await self._document_store._embedding_retrieval_async(
+            docs = await doc_store._embedding_retrieval_async(
                 query_embedding=query_embedding,
                 filters=filters,
                 top_k=top_k,

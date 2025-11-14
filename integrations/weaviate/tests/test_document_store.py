@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import base64
+import logging
 import os
-from typing import List
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -68,7 +68,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         store.client.collections.delete(collection_settings["class"])
 
     @pytest.fixture
-    def filterable_docs(self) -> List[Document]:
+    def filterable_docs(self) -> list[Document]:
         """
         This fixture has been copied from haystack/testing/document_store.py and modified to
         use a different date format.
@@ -81,7 +81,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 documents[i].meta["date"] = f"{date}Z"
         return documents
 
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         assert len(received) == len(expected)
         received = sorted(received, key=lambda doc: doc.id)
         expected = sorted(expected, key=lambda doc: doc.id)
@@ -794,3 +794,41 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
     def test_connect_to_embedded(self):
         document_store = WeaviateDocumentStore(embedded_options=EmbeddedOptions())
         assert document_store.client
+
+    def test_delete_all_documents(self, document_store):
+        docs = [Document(content="test doc 1"), Document(content="test doc 2")]
+        assert document_store.write_documents(docs) == 2
+        assert document_store.count_documents() == 2
+        document_store.delete_all_documents()
+        assert document_store.count_documents() == 0
+
+    def test_delete_all_documents_recreate(self, document_store):
+        docs = [Document(content="test doc 1"), Document(content="test doc 2")]
+        assert document_store.write_documents(docs) == 2
+        assert document_store.count_documents() == 2
+
+        cls = document_store._collection_settings["class"]
+        collection = document_store.client.collections.get(cls)
+        previous_config = collection.config.get().to_dict()
+
+        document_store.delete_all_documents(recreate_index=True)
+        assert document_store.count_documents() == 0
+
+        new_config = document_store.client.collections.get(cls).config.get().to_dict()
+        assert previous_config == new_config
+
+    def test_delete_all_documents_batch_size(self, document_store):
+        docs = [Document(content=str(i)) for i in range(0, 5)]
+        assert document_store.write_documents(docs) == 5
+        document_store.delete_all_documents(batch_size=2)
+        assert document_store.count_documents() == 0
+
+    def test_delete_all_documents_excessive_batch_size(self, document_store, caplog):
+        """Test that the deletion is not complete if the batch size exceeds the QUERY_MAXIMUM_RESULTS."""
+        # assume QUERY_MAXIMUM_RESULTS == 10000 with standard deployment
+        docs = [Document(content=str(i)) for i in range(0, 10005)]
+        assert document_store.write_documents(docs) == 10005
+        with caplog.at_level(logging.WARNING):
+            document_store.delete_all_documents(batch_size=20000)
+        assert document_store.count_documents() == 5
+        assert "Not all documents have been deleted." in caplog.text

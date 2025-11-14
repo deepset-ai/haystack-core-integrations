@@ -5,7 +5,7 @@ import base64
 import datetime
 import json
 from dataclasses import asdict
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from haystack import logging
 from haystack.core.serialization import default_from_dict, default_to_dict
@@ -86,9 +86,9 @@ class WeaviateDocumentStore:
         self,
         *,
         url: Optional[str] = None,
-        collection_settings: Optional[Dict[str, Any]] = None,
+        collection_settings: Optional[dict[str, Any]] = None,
         auth_client_secret: Optional[AuthCredentials] = None,
-        additional_headers: Optional[Dict] = None,
+        additional_headers: Optional[dict] = None,
         embedded_options: Optional[EmbeddedOptions] = None,
         additional_config: Optional[AdditionalConfig] = None,
         grpc_port: int = 50051,
@@ -219,7 +219,7 @@ class WeaviateDocumentStore:
         self._collection = client.collections.get(self._collection_settings["class"])
         return self._collection
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -242,7 +242,7 @@ class WeaviateDocumentStore:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "WeaviateDocumentStore":
+    def from_dict(cls, data: dict[str, Any]) -> "WeaviateDocumentStore":
         """
         Deserializes the component from a dictionary.
 
@@ -269,7 +269,7 @@ class WeaviateDocumentStore:
         total = self.collection.aggregate.over_all(total_count=True).total_count
         return total if total else 0
 
-    def _to_data_object(self, document: Document) -> Dict[str, Any]:
+    def _to_data_object(self, document: Document) -> dict[str, Any]:
         """
         Converts a Document to a Weaviate data object ready to be saved.
         """
@@ -308,15 +308,15 @@ class WeaviateDocumentStore:
 
         return data
 
-    def _to_document(self, data: DataObject[Dict[str, Any], None]) -> Document:
+    def _to_document(self, data: DataObject[dict[str, Any], None]) -> Document:
         """
         Converts a data object read from Weaviate into a Document.
         """
         document_data = data.properties
         document_data["id"] = document_data.pop("_original_id")
-        if isinstance(data.vector, List):
+        if isinstance(data.vector, list):
             document_data["embedding"] = data.vector
-        elif isinstance(data.vector, Dict):
+        elif isinstance(data.vector, dict):
             document_data["embedding"] = data.vector.get("default")
         else:
             document_data["embedding"] = None
@@ -346,7 +346,7 @@ class WeaviateDocumentStore:
 
         return Document.from_dict(document_data)
 
-    def _query(self) -> List[DataObject[Dict[str, Any], None]]:
+    def _query(self) -> list[DataObject[dict[str, Any], None]]:
         properties = [p.name for p in self.collection.config.get().properties]
         try:
             result = self.collection.iterator(include_vector=True, return_properties=properties)
@@ -355,7 +355,7 @@ class WeaviateDocumentStore:
             raise DocumentStoreError(msg) from e
         return result
 
-    def _query_with_filters(self, filters: Dict[str, Any]) -> List[DataObject[Dict[str, Any], None]]:
+    def _query_with_filters(self, filters: dict[str, Any]) -> list[DataObject[dict[str, Any], None]]:
         properties = [p.name for p in self.collection.config.get().properties]
         # When querying with filters we need to paginate using limit and offset as using
         # a cursor with after is not possible. See the official docs:
@@ -386,7 +386,7 @@ class WeaviateDocumentStore:
             offset += DEFAULT_QUERY_LIMIT
         return result
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -407,7 +407,7 @@ class WeaviateDocumentStore:
             result = self._query()
         return [self._to_document(doc) for doc in result]
 
-    def _batch_write(self, documents: List[Document]) -> int:
+    def _batch_write(self, documents: list[Document]) -> int:
         """
         Writes document to Weaviate in batches.
         Documents with the same id will be overwritten.
@@ -448,7 +448,7 @@ class WeaviateDocumentStore:
         # So we assume that all Documents were written.
         return len(documents)
 
-    def _write(self, documents: List[Document], policy: DuplicatePolicy) -> int:
+    def _write(self, documents: list[Document], policy: DuplicatePolicy) -> int:
         """
         Writes documents to Weaviate using the specified policy.
         This doesn't uses the batch API, so it's slower than _batch_write.
@@ -482,7 +482,7 @@ class WeaviateDocumentStore:
             raise DuplicateDocumentError(msg)
         return written
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
+    def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes documents to Weaviate using the specified policy.
         We recommend using a OVERWRITE policy as it's faster than other policies for Weaviate since it uses
@@ -496,7 +496,7 @@ class WeaviateDocumentStore:
 
         return self._write(documents, policy)
 
-    def delete_documents(self, document_ids: List[str]) -> None:
+    def delete_documents(self, document_ids: list[str]) -> None:
         """
         Deletes all documents with matching document_ids from the DocumentStore.
 
@@ -505,9 +505,58 @@ class WeaviateDocumentStore:
         weaviate_ids = [generate_uuid5(doc_id) for doc_id in document_ids]
         self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(weaviate_ids))
 
+    def delete_all_documents(self, *, recreate_index: bool = False, batch_size: int = 1000) -> None:
+        """
+        Deletes all documents in a collection.
+
+        If recreate_index is False, it keeps the collection but deletes documents iteratively.
+        If recreate_index is True, the collection is dropped and faithfully recreated.
+        This is recommended for performance reasons.
+
+        :param recreate_index: Use drop and recreate strategy. (recommended for performance)
+        :param batch_size: Only relevant if recreate_index is false. Defines the deletion batch size.
+            Note that this parameter needs to be less or equal to the set `QUERY_MAXIMUM_RESULTS` variable
+            set for the weaviate deployment (default is 10000).
+            Reference: https://docs.weaviate.io/weaviate/manage-objects/delete#delete-all-objects
+        """
+
+        if recreate_index:
+            # get current up-to-date config from server, so we can recreate the collection faithfully
+            cfg = self.client.collections.get(self._collection_settings["class"]).config.get().to_dict()
+            class_name = cfg.get("class", self._collection_settings["class"])
+
+            self.client.collections.delete(class_name)
+            self.client.collections.create_from_dict(cfg)
+
+            self._collection_settings = cfg
+            self._collection = self.client.collections.get(class_name)
+            return
+
+        uuids = []
+        batch_size = max(1, int(batch_size))
+
+        for obj in self.collection.iterator(return_properties=[], include_vector=False):
+            uuids.append(obj.uuid)
+            if len(uuids) >= batch_size:
+                res = self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(uuids))
+                if res.successful < len(uuids):
+                    logger.warning(
+                        "Not all documents in the batch have been deleted. "
+                        "Make sure to specify a deletion `batch_size` which is less than `QUERY_MAXIMUM_RESULTS`.",
+                    )
+                uuids.clear()
+
+        if uuids:
+            res = self.collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(uuids))
+            if res.successful < len(uuids):
+                logger.warning(
+                    "Not all documents have been deleted. "
+                    "Make sure to specify a deletion `batch_size` which is less than `QUERY_MAXIMUM_RESULTS`.",
+                )
+
     def _bm25_retrieval(
-        self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
-    ) -> List[Document]:
+        self, query: str, filters: Optional[dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> list[Document]:
         properties = [p.name for p in self.collection.config.get().properties]
         result = self.collection.query.bm25(
             query=query,
@@ -523,12 +572,12 @@ class WeaviateDocumentStore:
 
     def _embedding_retrieval(
         self,
-        query_embedding: List[float],
-        filters: Optional[Dict[str, Any]] = None,
+        query_embedding: list[float],
+        filters: Optional[dict[str, Any]] = None,
         top_k: Optional[int] = None,
         distance: Optional[float] = None,
         certainty: Optional[float] = None,
-    ) -> List[Document]:
+    ) -> list[Document]:
         if distance is not None and certainty is not None:
             msg = "Can't use 'distance' and 'certainty' parameters together"
             raise ValueError(msg)
@@ -550,12 +599,12 @@ class WeaviateDocumentStore:
     def _hybrid_retrieval(
         self,
         query: str,
-        query_embedding: List[float],
-        filters: Optional[Dict[str, Any]] = None,
+        query_embedding: list[float],
+        filters: Optional[dict[str, Any]] = None,
         top_k: Optional[int] = None,
         alpha: Optional[float] = None,
         max_vector_distance: Optional[float] = None,
-    ) -> List[Document]:
+    ) -> list[Document]:
         properties = [p.name for p in self.collection.config.get().properties]
         result = self.collection.query.hybrid(
             query=query,

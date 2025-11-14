@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import List
 
 import pytest
 from haystack.dataclasses.document import Document
@@ -104,7 +103,7 @@ class TestEmbeddingRetrievalAsync:
         assert results[0].score > results[1].score > results[2].score
 
     async def test_empty_query_embedding_async(self, document_store: PgvectorDocumentStore):
-        query_embedding: List[float] = []
+        query_embedding: list[float] = []
         with pytest.raises(ValueError):
             await document_store._embedding_retrieval_async(query_embedding=query_embedding)
 

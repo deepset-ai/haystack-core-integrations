@@ -137,7 +137,7 @@ class TestUtils:
         assert observed.role == "assistant"
         assert observed.text == "Hello! How are you today?"
 
-        assert observed.meta == {
+        expected_data = {
             "finish_reason": "stop",
             "usage": {
                 "completion_tokens": 298,
@@ -152,6 +152,11 @@ class TestUtils:
             "done": True,
             "model": "some_model",
         }
+
+        if "logprobs" in observed.meta:
+            expected_data["logprobs"] = None
+
+        assert observed.meta == expected_data
 
     def test_convert_ollama_response_to_chatmessage_with_tools(self):
         model = "some_model"
@@ -328,18 +333,29 @@ class TestUtils:
         assert streaming_chunks[0].start is True
         assert streaming_chunks[1].start is True
         assert streaming_chunks[2].start is False
-        assert streaming_chunks[0].tool_calls[0].to_dict() == {
+        expected = {
             "index": 1,
             "arguments": '{"expression": "7 * (4 + 2)"}',
             "id": None,
             "tool_name": "calculator",
         }
-        assert streaming_chunks[1].tool_calls[0].to_dict() == {
+        # We add extra to the expected dict if it exists in the result for comparison
+        # This was added in PR https://github.com/deepset-ai/haystack/pull/10018 and released in Haystack 2.20.0
+        if "extra" in streaming_chunks[0].tool_calls[0].to_dict():
+            expected["extra"] = streaming_chunks[0].tool_calls[0].to_dict()["extra"]
+        assert streaming_chunks[0].tool_calls[0].to_dict() == expected
+
+        expected = {
             "index": 2,
             "tool_name": "factorial",
             "arguments": '{"n": 5}',
             "id": None,
         }
+        # We add extra to the expected dict if it exists in the result for comparison
+        # This was added in PR https://github.com/deepset-ai/haystack/pull/10018 and released in Haystack 2.20.0
+        if "extra" in streaming_chunks[1].tool_calls[0].to_dict():
+            expected["extra"] = streaming_chunks[1].tool_calls[0].to_dict()["extra"]
+        assert streaming_chunks[1].tool_calls[0].to_dict() == expected
         assert len(streaming_chunks[2].tool_calls) == 0
 
     def test_handle_streaming_response_tool_calls_with_thinking(self):
@@ -480,12 +496,18 @@ class TestUtils:
             else:
                 assert chunk.start is False
 
-        assert streaming_chunks[12].tool_calls[0].to_dict() == {
+        expected = {
             "index": 1,
             "arguments": '{"a": 2, "b": 2}',
             "id": None,
             "tool_name": "add_two_numbers",
         }
+        serialized_dict = streaming_chunks[12].tool_calls[0].to_dict()
+        # We add extra to the expected dict if it exists in the result for comparison
+        # This was added in PR https://github.com/deepset-ai/haystack/pull/10018 and released in Haystack 2.20.0
+        if "extra" in serialized_dict:
+            expected["extra"] = serialized_dict["extra"]
+        assert serialized_dict == expected
 
 
 class TestOllamaChatGeneratorInitSerializeDeserialize:
@@ -671,6 +693,58 @@ class TestOllamaChatGeneratorInitSerializeDeserialize:
             "type": "object",
             "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
         }
+
+    def test_init_with_mixed_tools(self, tools):
+        """Test that the OllamaChatGenerator can be initialized with mixed Tool and Toolset objects."""
+
+        @tool
+        def population(city: Annotated[str, "The city to get the population for"]) -> str:
+            """Get the population of a given city."""
+            return f"The population of {city} is 1 million"
+
+        population_toolset = Toolset([population])
+
+        # Mix individual Tool and Toolset
+        mixed_tools = [tools[0], population_toolset]
+        generator = OllamaChatGenerator(model="qwen3", tools=mixed_tools)
+
+        # The tools should be stored as the original ToolsType
+        assert isinstance(generator.tools, list)
+        assert len(generator.tools) == 2
+        # Check that we have a Tool and a Toolset
+        assert isinstance(generator.tools[0], Tool)
+        assert isinstance(generator.tools[1], Toolset)
+        assert generator.tools[0].name == "weather"
+        # Check that the Toolset contains the population tool
+        assert len(generator.tools[1]) == 1
+        assert generator.tools[1][0].name == "population"
+
+    def test_run_with_mixed_tools(self, tools):
+        """Test that the OllamaChatGenerator can run with mixed Tool and Toolset objects."""
+
+        @tool
+        def population(city: Annotated[str, "The city to get the population for"]) -> str:
+            """Get the population of a given city."""
+            return f"The population of {city} is 1 million"
+
+        population_toolset = Toolset([population])
+
+        # Mix individual Tool and Toolset
+        mixed_tools = [tools[0], population_toolset]
+        generator = OllamaChatGenerator(model="qwen3", tools=mixed_tools)
+
+        # Test that the tools are stored as the original ToolsType
+        tools_list = generator.tools
+        assert len(tools_list) == 2
+        # Check that we have a Tool and a Toolset
+        assert isinstance(tools_list[0], Tool)
+        assert isinstance(tools_list[1], Toolset)
+
+        # Verify tool names
+        assert tools_list[0].name == "weather"
+        # Check that the Toolset contains the population tool
+        assert len(tools_list[1]) == 1
+        assert tools_list[1][0].name == "population"
 
 
 class TestOllamaChatGeneratorRun:
@@ -1092,3 +1166,109 @@ class TestOllamaChatGeneratorLiveInference:
         assert "population" in response_data
         assert isinstance(response_data["population"], (int, float))
         assert response_data["capital"].lower() == "paris"
+
+    @pytest.mark.parametrize("streaming_callback", [None, Mock()])
+    def test_live_run_with_mixed_tools(self, tools, streaming_callback):
+        """Test live run with mixed Tool and Toolset objects."""
+
+        @tool
+        def population(city: Annotated[str, "The city to get the population for"]) -> str:
+            """Get the population of a given city."""
+            return f"The population of {city} is 1 million"
+
+        population_toolset = Toolset([population])
+
+        # Mix individual Tool and Toolset
+        mixed_tools = [tools[0], population_toolset]
+        component = OllamaChatGenerator(model="qwen3:0.6b", tools=mixed_tools, streaming_callback=streaming_callback)
+
+        message = ChatMessage.from_user("What is the weather and population in Paris?")
+        response = component.run([message])
+
+        assert len(response["replies"]) == 1
+        message = response["replies"][0]
+
+        assert message.tool_calls
+        tool_call = message.tool_call
+        assert isinstance(tool_call, ToolCall)
+        assert tool_call.tool_name in ["weather", "population"]
+        assert tool_call.arguments == {"city": "Paris"}
+
+        if streaming_callback:
+            streaming_callback.assert_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+class TestOllamaChatGeneratorAsync:
+    async def test_run_async_basic(self):
+        """Test basic async functionality."""
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b")
+        messages = [ChatMessage.from_user("What's 2+2?")]
+
+        response = await chat_generator.run_async(messages)
+
+        assert "replies" in response
+        assert len(response["replies"]) == 1
+        assert response["replies"][0].role == ChatRole.ASSISTANT
+        assert response["replies"][0].text  # Has some text
+
+    async def test_run_async_with_streaming(self):
+        """Test async with streaming callback."""
+        collected_chunks = []
+
+        async def async_callback(chunk: StreamingChunk) -> None:
+            collected_chunks.append(chunk)
+
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b", streaming_callback=async_callback)
+        messages = [ChatMessage.from_user("What's 2+2?")]
+
+        response = await chat_generator.run_async(messages)
+
+        assert len(collected_chunks) > 0
+        assert "replies" in response
+        assert response["replies"][0].text
+
+    async def test_run_async_with_tools(self, tools):
+        """Test async with tool calls."""
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b", tools=tools)
+        messages = [ChatMessage.from_user("What's the weather in Paris?")]
+
+        response = await chat_generator.run_async(messages)
+
+        assert "replies" in response
+        reply = response["replies"][0]
+        assert reply.tool_calls
+        assert reply.tool_call.tool_name == "weather"
+        assert reply.tool_call.arguments == {"city": "Paris"}
+
+    async def test_run_async_with_conversation_history(self):
+        """Test async with past conversation."""
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b")
+        messages = [
+            ChatMessage.from_user("Remember the number 42"),
+            ChatMessage.from_assistant("I'll remember the number 42"),
+            ChatMessage.from_user("What number did I ask you to remember?"),
+        ]
+
+        response = await chat_generator.run_async(messages)
+
+        assert "replies" in response
+        assert "42" in response["replies"][0].text
+
+    async def test_run_async_streaming_with_tools(self, tools):
+        """Test async streaming with tool calls."""
+        chunks_received = False
+
+        async def callback(_chunk: StreamingChunk) -> None:
+            nonlocal chunks_received
+            chunks_received = True
+
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b", tools=tools, streaming_callback=callback)
+        messages = [ChatMessage.from_user("What's the weather in Berlin?")]
+
+        response = await chat_generator.run_async(messages)
+
+        assert chunks_received
+        assert response["replies"][0].tool_calls
+        assert response["replies"][0].tool_call.tool_name == "weather"

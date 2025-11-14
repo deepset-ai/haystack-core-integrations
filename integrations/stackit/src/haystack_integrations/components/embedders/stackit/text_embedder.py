@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from haystack import component, default_to_dict
 from haystack.components.embedders import OpenAITextEmbedder
@@ -33,7 +33,7 @@ class STACKITTextEmbedder(OpenAITextEmbedder):
         *,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
-        http_client_kwargs: Optional[Dict[str, Any]] = None,
+        http_client_kwargs: Optional[dict[str, Any]] = None,
     ):
         """
         Creates a STACKITTextEmbedder component.
@@ -75,7 +75,7 @@ class STACKITTextEmbedder(OpenAITextEmbedder):
         self.timeout = timeout
         self.max_retries = max_retries
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
         :returns:

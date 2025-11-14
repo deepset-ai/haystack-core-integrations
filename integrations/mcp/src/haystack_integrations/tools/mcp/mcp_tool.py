@@ -34,6 +34,31 @@ from mcp.shared.message import SessionMessage
 logger = logging.getLogger(__name__)
 
 
+def _resolve_headers(headers: dict[str, str | Secret] | None) -> dict[str, str] | None:
+    """
+    Resolve Secret values in headers dictionary and warn about None values.
+
+    :param headers: Dictionary of headers, potentially containing Secret objects
+    :returns: Dictionary with resolved string values, or None if input is None
+    """
+    if not headers:
+        return None
+
+    resolved_headers = {}
+    for key, value in headers.items():
+        resolved_value = value.resolve_value() if isinstance(value, Secret) else value
+        if resolved_value is None:
+            logger.warning(
+                f"Header '{key}' resolved to None. This may indicate a misconfiguration. "
+                f"The header will be set to an empty string."
+            )
+            resolved_headers[key] = ""
+        else:
+            resolved_headers[key] = resolved_value
+
+    return resolved_headers
+
+
 class AsyncExecutor:
     """Thread-safe event loop executor for running async code from sync contexts."""
 
@@ -193,8 +218,7 @@ class MCPInvocationError(ToolInvocationError):
         :param tool_name: Name of the tool that was being invoked
         :param tool_args: Arguments that were passed to the tool
         """
-        super().__init__(message)
-        self.tool_name = tool_name
+        super().__init__(message=message, tool_name=tool_name)
         self.tool_args = tool_args or {}
 
 
@@ -438,11 +462,15 @@ class SSEClient(MCPClient):
         self.token: str | None = (
             server_info.token.resolve_value() if isinstance(server_info.token, Secret) else server_info.token
         )
+        # Resolve Secret values in headers dictionary
+        self.headers: dict[str, str] | None = _resolve_headers(server_info.headers)
         self.timeout: int = server_info.timeout
 
     async def connect(self) -> list[types.Tool]:
         """
         Connect to an MCP server using SSE transport.
+
+        Note: If both custom headers and token are provided, custom headers take precedence.
 
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
@@ -454,7 +482,13 @@ class SSEClient(MCPClient):
             )
             raise MCPConnectionError(message=message, operation="sse_connect")
 
-        headers = {"Authorization": f"Bearer {self.token}"} if self.token else None
+        # Use custom headers if provided, otherwise fall back to token-based Authorization
+        headers = None
+        if self.headers:
+            headers = self.headers
+        elif self.token:
+            headers = {"Authorization": f"Bearer {self.token}"}
+
         sse_transport = await self.exit_stack.enter_async_context(
             sse_client(self.url, headers=headers, timeout=self.timeout)
         )
@@ -486,11 +520,15 @@ class StreamableHttpClient(MCPClient):
         self.token: str | None = (
             server_info.token.resolve_value() if isinstance(server_info.token, Secret) else server_info.token
         )
+        # Resolve Secret values in headers dictionary
+        self.headers: dict[str, str] | None = _resolve_headers(server_info.headers)
         self.timeout: int = server_info.timeout
 
     async def connect(self) -> list[types.Tool]:
         """
         Connect to an MCP server using streamable HTTP transport.
+
+        Note: If both custom headers and token are provided, custom headers take precedence.
 
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
@@ -502,7 +540,13 @@ class StreamableHttpClient(MCPClient):
             )
             raise MCPConnectionError(message=message, operation="streamable_http_connect")
 
-        headers = {"Authorization": f"Bearer {self.token}"} if self.token else None
+        # Use custom headers if provided, otherwise fall back to token-based Authorization
+        headers = None
+        if self.headers:
+            headers = self.headers
+        elif self.token:
+            headers = {"Authorization": f"Bearer {self.token}"}
+
         streamablehttp_transport = await self.exit_stack.enter_async_context(
             streamablehttp_client(url=self.url, headers=headers, timeout=timedelta(seconds=self.timeout))
         )
@@ -600,15 +644,36 @@ class SSEServerInfo(MCPServerInfo):
     )
     ```
 
+    For custom headers (e.g., non-standard authentication):
+
+    ```python
+    # Single custom header with Secret
+    server_info = SSEServerInfo(
+        url="https://my-mcp-server.com",
+        headers={"X-API-Key": Secret.from_env_var("API_KEY")},
+    )
+
+    # Multiple headers (mix of Secret and plain strings)
+    server_info = SSEServerInfo(
+        url="https://my-mcp-server.com",
+        headers={
+            "X-API-Key": Secret.from_env_var("API_KEY"),
+            "X-Client-ID": "my-client-id",
+        },
+    )
+    ```
+
     :param url: Full URL of the MCP server (including /sse endpoint)
     :param base_url: Base URL of the MCP server (deprecated, use url instead)
-    :param token: Authentication token for the server (optional)
+    :param token: Authentication token for the server (optional, generates "Authorization: Bearer `<token>`" header)
+    :param headers: Custom HTTP headers (optional, takes precedence over token parameter if provided)
     :param timeout: Connection timeout in seconds
     """
 
     url: str | None = None
     base_url: str | None = None  # deprecated
     token: str | Secret | None = None
+    headers: dict[str, str | Secret] | None = None
     timeout: int = 30
     max_retries: int = 3
     base_delay: float = 1.0
@@ -667,13 +732,34 @@ class StreamableHttpServerInfo(MCPServerInfo):
     )
     ```
 
+    For custom headers (e.g., non-standard authentication):
+
+    ```python
+    # Single custom header with Secret
+    server_info = StreamableHttpServerInfo(
+        url="https://my-mcp-server.com",
+        headers={"X-API-Key": Secret.from_env_var("API_KEY")},
+    )
+
+    # Multiple headers (mix of Secret and plain strings)
+    server_info = StreamableHttpServerInfo(
+        url="https://my-mcp-server.com",
+        headers={
+            "X-API-Key": Secret.from_env_var("API_KEY"),
+            "X-Client-ID": "my-client-id",
+        },
+    )
+    ```
+
     :param url: Full URL of the MCP server (streamable HTTP endpoint)
-    :param token: Authentication token for the server (optional)
+    :param token: Authentication token for the server (optional, generates "Authorization: Bearer `<token>`" header)
+    :param headers: Custom HTTP headers (optional, takes precedence over token parameter if provided)
     :param timeout: Connection timeout in seconds
     """
 
     url: str
     token: str | Secret | None = None
+    headers: dict[str, str | Secret] | None = None
     timeout: int = 30
     max_retries: int = 3
     base_delay: float = 1.0
@@ -759,7 +845,28 @@ class MCPTool(Tool):
     - The JSON contains the structured response from the MCP server
     - Use json.loads() to parse the response into a dictionary
 
-    Example using HTTP:
+    State-mapping support:
+    - MCPTool supports state-mapping parameters (`outputs_to_string`, `inputs_from_state`, `outputs_to_state`)
+    - These enable integration with Agent state for automatic parameter injection and output handling
+    - See the `__init__` method documentation for details on each parameter
+
+    Example using Streamable HTTP:
+    ```python
+    import json
+    from haystack_integrations.tools.mcp import MCPTool, StreamableHttpServerInfo
+
+    # Create tool instance
+    tool = MCPTool(
+        name="multiply",
+        server_info=StreamableHttpServerInfo(url="http://localhost:8000/mcp")
+    )
+
+    # Use the tool and parse result
+    result_json = tool.invoke(a=5, b=3)
+    result = json.loads(result_json)
+    ```
+
+    Example using SSE (deprecated):
     ```python
     import json
     from haystack.tools import MCPTool, SSEServerInfo
@@ -799,6 +906,10 @@ class MCPTool(Tool):
         description: str | None = None,
         connection_timeout: int = 30,
         invocation_timeout: int = 30,
+        eager_connect: bool = False,
+        outputs_to_string: dict[str, Any] | None = None,
+        inputs_from_state: dict[str, str] | None = None,
+        outputs_to_state: dict[str, dict[str, Any]] | None = None,
     ):
         """
         Initialize the MCP tool.
@@ -808,6 +919,20 @@ class MCPTool(Tool):
         :param description: Custom description (if None, server description will be used)
         :param connection_timeout: Timeout in seconds for server connection
         :param invocation_timeout: Default timeout in seconds for tool invocations
+        :param eager_connect: If True, connect to server during initialization.
+                             If False (default), defer connection until warm_up or first tool use,
+                             whichever comes first.
+        :param outputs_to_string: Optional dictionary defining how tool outputs should be converted into a string.
+                                 If the source is provided only the specified output key is sent to the handler.
+                                 If the source is omitted the whole tool result is sent to the handler.
+                                 Example: `{"source": "docs", "handler": my_custom_function}`
+        :param inputs_from_state: Optional dictionary mapping state keys to tool parameter names.
+                                 Example: `{"repository": "repo"}` maps state's "repository" to tool's "repo" parameter.
+        :param outputs_to_state: Optional dictionary defining how tool outputs map to keys within state as well as
+                                optional handlers. If the source is provided only the specified output key is sent
+                                to the handler.
+                                Example with source: `{"documents": {"source": "docs", "handler": custom_handler}}`
+                                Example without source: `{"documents": {"handler": custom_handler}}`
         :raises MCPConnectionError: If connection to the server fails
         :raises MCPToolNotFoundError: If no tools are available or the requested tool is not found
         :raises TimeoutError: If connection times out
@@ -817,46 +942,57 @@ class MCPTool(Tool):
         self._server_info = server_info
         self._connection_timeout = connection_timeout
         self._invocation_timeout = invocation_timeout
+        self._eager_connect = eager_connect
+        self._outputs_to_string = outputs_to_string
+        self._inputs_from_state = inputs_from_state
+        self._outputs_to_state = outputs_to_state
+        self._client: MCPClient | None = None
+        self._worker: _MCPClientSessionManager | None = None
+        self._lock = threading.RLock()
+
+        # don't connect now; initialize permissively
+        if not eager_connect:
+            # Permissive placeholder JSON Schema so the Tool is valid
+            # without discovering the remote schema during validation.
+            # Tool parameters/schema will be replaced with the correct schema (from the MCP server) on first use.
+            params = {"type": "object", "properties": {}, "additionalProperties": True}
+            super().__init__(
+                name=name,
+                description=description or "",
+                parameters=params,
+                function=self._invoke_tool,
+                outputs_to_string=outputs_to_string,
+                inputs_from_state=inputs_from_state,
+                outputs_to_state=outputs_to_state,
+            )
+            return
 
         logger.debug(f"TOOL: Initializing MCPTool '{name}'")
 
         try:
-            # Create client and spin up a long-lived worker that keeps the
-            # connect/close lifecycle inside one coroutine.
-            self._client = server_info.create_client()
-            logger.debug(f"TOOL: Created client for MCPTool '{name}'")
-
-            # The worker starts immediately and blocks here until the connection
-            # is established (or fails), returning the tool list.
-            self._worker = _MCPClientSessionManager(self._client, timeout=connection_timeout)
-
-            tools = self._worker.tools()
-            # Handle no tools case
-            if not tools:
-                logger.debug(f"TOOL: No tools found for '{name}'")
-                message = "No tools available on server"
-                raise MCPToolNotFoundError(message, tool_name=name)
-
-            # Find the specified tool
-            tool_dict = {t.name: t for t in tools}
-            logger.debug(f"TOOL: Available tools: {list(tool_dict.keys())}")
-
-            tool_info: types.Tool | None = tool_dict.get(name)
-
-            if not tool_info:
-                available = list(tool_dict.keys())
-                logger.debug(f"TOOL: Tool '{name}' not found in available tools")
-                message = f"Tool '{name}' not found on server. Available tools: {', '.join(available)}"
-                raise MCPToolNotFoundError(message, tool_name=name, available_tools=available)
-
+            logger.debug(f"TOOL: Connecting to MCP server for '{name}'")
+            tool_info = self._connect_and_initialize(name)
             logger.debug(f"TOOL: Found tool '{name}', initializing Tool parent class")
+
             # Initialize the parent class
             super().__init__(
                 name=name,
                 description=description or tool_info.description or "",
                 parameters=tool_info.inputSchema,
                 function=self._invoke_tool,
+                outputs_to_string=outputs_to_string,
+                inputs_from_state=inputs_from_state,
+                outputs_to_state=outputs_to_state,
             )
+
+            # Remove inputs_from_state keys from parameters schema if present
+            # This matches the behavior of ComponentTool
+            if inputs_from_state and "properties" in self.parameters:
+                for key in inputs_from_state.values():
+                    self.parameters["properties"].pop(key, None)
+                    if "required" in self.parameters and key in self.parameters["required"]:
+                        self.parameters["required"].remove(key)
+
             logger.debug(f"TOOL: Initialization complete for '{name}'")
 
         except Exception as e:
@@ -882,6 +1018,36 @@ class MCPTool(Tool):
             message = f"Failed to initialize MCPTool '{name}': {error_message}"
             raise MCPConnectionError(message=message, server_info=server_info, operation="initialize") from e
 
+    def _connect_and_initialize(self, tool_name: str) -> types.Tool:
+        """
+        Connect to the MCP server and retrieve the tool schema.
+
+        :param tool_name: Name of the tool to look for
+        :returns: The tool schema for this tool
+        :raises MCPToolNotFoundError: If the tool is not found on the server
+        """
+        client = self._server_info.create_client()
+        worker = _MCPClientSessionManager(client, timeout=self._connection_timeout)
+        tools = worker.tools()
+
+        # Handle no tools case
+        if not tools:
+            message = "No tools available on server"
+            raise MCPToolNotFoundError(message, tool_name=tool_name)
+
+        # Find the specified tool
+        tool = next((t for t in tools if t.name == tool_name), None)
+        if tool is None:
+            available = [t.name for t in tools]
+            msg = f"Tool '{tool_name}' not found on server. Available tools: {', '.join(available)}"
+            raise MCPToolNotFoundError(msg, tool_name=tool_name, available_tools=available)
+
+        # Publish connection
+        self._client = client
+        self._worker = worker
+
+        return tool
+
     def _invoke_tool(self, **kwargs: Any) -> str:
         """
         Synchronous tool invocation.
@@ -891,12 +1057,13 @@ class MCPTool(Tool):
         """
         logger.debug(f"TOOL: Invoking tool '{self.name}' with args: {kwargs}")
         try:
+            # Connect on first use if eager_connect is turned off
+            self.warm_up()
 
             async def invoke():
                 logger.debug(f"TOOL: Inside invoke coroutine for '{self.name}'")
-                result = await asyncio.wait_for(
-                    self._client.call_tool(self.name, kwargs), timeout=self._invocation_timeout
-                )
+                client = cast(MCPClient, self._client)
+                result = await asyncio.wait_for(client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
                 logger.debug(f"TOOL: Invoke successful for '{self.name}'")
                 return result
 
@@ -924,7 +1091,9 @@ class MCPTool(Tool):
         :raises TimeoutError: If the operation times out
         """
         try:
-            return await asyncio.wait_for(self._client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
+            self.warm_up()
+            client = cast(MCPClient, self._client)
+            return await asyncio.wait_for(client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
         except asyncio.TimeoutError as e:
             message = f"Tool invocation timed out after {self._invocation_timeout} seconds"
             raise TimeoutError(message) from e
@@ -934,16 +1103,32 @@ class MCPTool(Tool):
             message = f"Failed to invoke tool '{self.name}' with args: {kwargs} , got error: {e!s}"
             raise MCPInvocationError(message, self.name, kwargs) from e
 
+    def warm_up(self) -> None:
+        """Connect and fetch the tool schema if eager_connect is turned off."""
+        with self._lock:
+            if self._client is not None:
+                return
+            tool = self._connect_and_initialize(self.name)
+            self.parameters = tool.inputSchema
+
+            # Remove inputs_from_state keys from parameters schema if present
+            # This matches the behavior of ComponentTool
+            if self._inputs_from_state and "properties" in self.parameters:
+                for key in self._inputs_from_state.values():
+                    self.parameters["properties"].pop(key, None)
+                    if "required" in self.parameters and key in self.parameters["required"]:
+                        self.parameters["required"].remove(key)
+
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the MCPTool to a dictionary.
 
         The serialization preserves all information needed to recreate the tool,
-        including server connection parameters and timeout settings. Note that the
-        active connection is not maintained.
+        including server connection parameters, timeout settings, and state-mapping parameters.
+        Note that the active connection is not maintained.
 
         :returns: Dictionary with serialized data in the format:
-                  {"type": fully_qualified_class_name, "data": {parameters}}
+                  `{"type": fully_qualified_class_name, "data": {parameters}}`
         """
         serialized = {
             "name": self.name,
@@ -951,6 +1136,10 @@ class MCPTool(Tool):
             "server_info": self._server_info.to_dict(),
             "connection_timeout": self._connection_timeout,
             "invocation_timeout": self._invocation_timeout,
+            "eager_connect": self._eager_connect,
+            "outputs_to_string": self._outputs_to_string,
+            "inputs_from_state": self._inputs_from_state,
+            "outputs_to_state": self._outputs_to_state,
         }
         return {
             "type": generate_qualified_class_name(type(self)),
@@ -963,8 +1152,8 @@ class MCPTool(Tool):
         Deserializes the MCPTool from a dictionary.
 
         This method reconstructs an MCPTool instance from a serialized dictionary,
-        including recreating the server_info object. A new connection will be established
-        to the MCP server during initialization.
+        including recreating the server_info object and state-mapping parameters.
+        A new connection will be established to the MCP server during initialization.
 
         :param data: Dictionary containing serialized tool data
         :returns: A fully initialized MCPTool instance
@@ -983,6 +1172,12 @@ class MCPTool(Tool):
         # Handle backward compatibility for timeout parameters
         connection_timeout = inner_data.get("connection_timeout", 30)
         invocation_timeout = inner_data.get("invocation_timeout", 30)
+        eager_connect = inner_data.get("eager_connect", False)  # because False is the default
+
+        # Handle state-mapping parameters
+        outputs_to_string = inner_data.get("outputs_to_string")
+        inputs_from_state = inner_data.get("inputs_from_state")
+        outputs_to_state = inner_data.get("outputs_to_state")
 
         # Create a new MCPTool instance with the deserialized parameters
         # This will establish a new connection to the MCP server
@@ -992,6 +1187,10 @@ class MCPTool(Tool):
             server_info=server_info,
             connection_timeout=connection_timeout,
             invocation_timeout=invocation_timeout,
+            eager_connect=eager_connect,
+            outputs_to_string=outputs_to_string,
+            inputs_from_state=inputs_from_state,
+            outputs_to_state=outputs_to_state,
         )
 
     def close(self):

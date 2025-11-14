@@ -28,7 +28,7 @@ class NvidiaDocumentEmbedder:
 
     doc = Document(content="I love pizza!")
 
-    text_embedder = NvidiaDocumentEmbedder(model="NV-Embed-QA", api_url="https://ai.api.nvidia.com/v1/retrieval/nvidia")
+    text_embedder = NvidiaDocumentEmbedder(model="nvidia/nv-embedqa-e5-v5", api_url="https://integrate.api.nvidia.com/v1")
     text_embedder.warm_up()
 
     result = document_embedder.run([doc])
@@ -61,7 +61,7 @@ class NvidiaDocumentEmbedder:
             API key for the NVIDIA NIM.
         :param api_url:
             Custom API URL for the NVIDIA NIM.
-            Format for API URL is http://host:port
+            Format for API URL is `http://host:port`
         :param prefix:
             A string to add to the beginning of each text.
         :param suffix:

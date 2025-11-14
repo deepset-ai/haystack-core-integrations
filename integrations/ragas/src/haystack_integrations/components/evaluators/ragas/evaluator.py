@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, List, Optional, Union, cast, get_args, get_origin
+from typing import Any, Optional, Union, cast, get_args, get_origin
 
 from haystack import Document, component
 from haystack.dataclasses import ChatMessage
@@ -54,7 +54,7 @@ class RagasEvaluator:
 
     def __init__(
         self,
-        ragas_metrics: List[Metric],
+        ragas_metrics: list[Metric],
         evaluator_llm: Optional[BaseRagasLLM] = None,
         evaluator_embedding: Optional[BaseRagasEmbeddings] = None,
     ):
@@ -72,7 +72,7 @@ class RagasEvaluator:
 
     def _validate_inputs(
         self,
-        metrics: List[Metric],
+        metrics: list[Metric],
         llm: Optional[BaseRagasLLM],
         embedding: Optional[BaseRagasEmbeddings],
     ) -> None:
@@ -100,13 +100,13 @@ class RagasEvaluator:
     def run(
         self,
         query: Optional[str] = None,
-        response: Optional[Union[List[ChatMessage], str]] = None,
-        documents: Optional[List[Union[Document, str]]] = None,
-        reference_contexts: Optional[List[str]] = None,
-        multi_responses: Optional[List[str]] = None,
+        response: Optional[Union[list[ChatMessage], str]] = None,
+        documents: Optional[list[Union[Document, str]]] = None,
+        reference_contexts: Optional[list[str]] = None,
+        multi_responses: Optional[list[str]] = None,
         reference: Optional[str] = None,
-        rubrics: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        rubrics: Optional[dict[str, str]] = None,
+    ) -> dict[str, Any]:
         """
         Evaluates the provided query against the documents and returns the evaluation result.
 
@@ -151,7 +151,7 @@ class RagasEvaluator:
 
         return {"result": result}
 
-    def _process_documents(self, documents: Union[List[Union[Document, str]], None]) -> Union[List[str], None]:
+    def _process_documents(self, documents: Union[list[Union[Document, str]], None]) -> Union[list[str], None]:
         """Process and validate input documents.
 
         :param documents: List of Documents or strings to process
@@ -171,7 +171,7 @@ class RagasEvaluator:
         error_message = "'documents' must be a list of either Documents or strings."
         raise ValueError(error_message)
 
-    def _process_response(self, response: Optional[Union[List[ChatMessage], str]]) -> Union[str, None]:
+    def _process_response(self, response: Optional[Union[list[ChatMessage], str]]) -> Union[str, None]:
         """Process response into expected format.
 
         :param response: Response to process

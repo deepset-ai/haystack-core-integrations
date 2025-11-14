@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union, overload
+from typing import Any, Literal, Optional, Union, overload
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses.document import Document
@@ -90,7 +90,7 @@ class PgvectorDocumentStore:
         recreate_table: bool = False,
         search_strategy: Literal["exact_nearest_neighbor", "hnsw"] = "exact_nearest_neighbor",
         hnsw_recreate_index_if_exists: bool = False,
-        hnsw_index_creation_kwargs: Optional[Dict[str, int]] = None,
+        hnsw_index_creation_kwargs: Optional[dict[str, int]] = None,
         hnsw_index_name: str = "haystack_hnsw_index",
         hnsw_ef_search: Optional[int] = None,
         keyword_index_name: str = "haystack_keyword_index",
@@ -180,7 +180,7 @@ class PgvectorDocumentStore:
         self._async_dict_cursor: Optional[AsyncCursor[DictRow]] = None
         self._table_initialized = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -207,7 +207,7 @@ class PgvectorDocumentStore:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PgvectorDocumentStore":
+    def from_dict(cls, data: dict[str, Any]) -> "PgvectorDocumentStore":
         """
         Deserializes the component from a dictionary.
 
@@ -740,7 +740,7 @@ class PgvectorDocumentStore:
             return result[0]
         return 0
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -777,7 +777,7 @@ class PgvectorDocumentStore:
         docs = _from_pg_to_haystack_documents(records)
         return docs
 
-    async def filter_documents_async(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    async def filter_documents_async(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
         """
         Asynchronously returns the documents that match the filters provided.
 
@@ -832,7 +832,7 @@ class PgvectorDocumentStore:
 
         return sql_insert
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
+    def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes documents to the document store.
 
@@ -888,7 +888,7 @@ class PgvectorDocumentStore:
         return written_docs
 
     async def write_documents_async(
-        self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
+        self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
     ) -> int:
         """
         Asynchronously writes documents to the document store.
@@ -939,7 +939,7 @@ class PgvectorDocumentStore:
 
         return written_docs
 
-    def delete_documents(self, document_ids: List[str]) -> None:
+    def delete_documents(self, document_ids: list[str]) -> None:
         """
         Deletes documents that match the provided `document_ids` from the document store.
 
@@ -962,7 +962,7 @@ class PgvectorDocumentStore:
             cursor=self._cursor, sql_query=delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore"
         )
 
-    async def delete_documents_async(self, document_ids: List[str]) -> None:
+    async def delete_documents_async(self, document_ids: list[str]) -> None:
         """
         Asynchronously deletes documents that match the provided `document_ids` from the document store.
 
@@ -987,9 +987,41 @@ class PgvectorDocumentStore:
             error_msg="Could not delete documents from PgvectorDocumentStore",
         )
 
+    def delete_all_documents(self) -> None:
+        """
+        Deletes all documents in the document store.
+        """
+        query = SQL("TRUNCATE TABLE {schema_name}.{table_name}").format(
+            schema_name=Identifier(self.schema_name),
+            table_name=Identifier(self.table_name),
+        )
+
+        self._ensure_db_setup()
+        assert self._cursor is not None
+        self._execute_sql(
+            cursor=self._cursor, sql_query=query, error_msg="Could not delete all documents from PgvectorDocumentStore"
+        )
+
+    async def delete_all_documents_async(self) -> None:
+        """
+        Asynchronously deletes all documents in the document store.
+        """
+        query = SQL("TRUNCATE TABLE {schema_name}.{table_name}").format(
+            schema_name=Identifier(self.schema_name),
+            table_name=Identifier(self.table_name),
+        )
+
+        await self._ensure_db_setup_async()
+        assert self._async_cursor is not None
+        await self._execute_sql_async(
+            cursor=self._async_cursor,
+            sql_query=query,
+            error_msg="Could not delete all documents from PgvectorDocumentStore",
+        )
+
     def _build_keyword_retrieval_query(
-        self, query: str, top_k: int, filters: Optional[Dict[str, Any]] = None
-    ) -> Tuple[Composed, tuple]:
+        self, query: str, top_k: int, filters: Optional[dict[str, Any]] = None
+    ) -> tuple[Composed, tuple]:
         """
         Builds the SQL query and the where parameters for keyword retrieval.
         """
@@ -1017,9 +1049,9 @@ class PgvectorDocumentStore:
         self,
         query: str,
         *,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Retrieves documents that are most similar to the query using a full-text search.
 
@@ -1052,9 +1084,9 @@ class PgvectorDocumentStore:
         self,
         query: str,
         *,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Retrieves documents that are most similar to the query using a full-text search asynchronously.
         """
@@ -1079,11 +1111,11 @@ class PgvectorDocumentStore:
 
     def _check_and_build_embedding_retrieval_query(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]],
         top_k: int,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[Composed, tuple]:
+        filters: Optional[dict[str, Any]] = None,
+    ) -> tuple[Composed, tuple]:
         """
         Performs checks and builds the SQL query and the where parameters for embedding retrieval.
         """
@@ -1142,12 +1174,12 @@ class PgvectorDocumentStore:
 
     def _embedding_retrieval(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         *,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
         vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]] = None,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
 
@@ -1176,12 +1208,12 @@ class PgvectorDocumentStore:
 
     async def _embedding_retrieval_async(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         *,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
         vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]] = None,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Asynchronously retrieves documents that are most similar to the query embedding using a
         vector similarity metric.
