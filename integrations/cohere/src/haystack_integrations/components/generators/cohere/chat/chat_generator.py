@@ -446,7 +446,7 @@ def _extract_reasoning_from_response(response_text: str) -> tuple[Optional[Reaso
     return None, response_text
 
 
-def _convert_streaming_chunks_to_chat_message_with_reasoning(chunks: List[StreamingChunk]) -> ChatMessage:
+def _convert_streaming_chunks_to_chat_message_with_reasoning(chunks: list[StreamingChunk]) -> ChatMessage:
     """
     Convert streaming chunks to ChatMessage with reasoning extraction support.
 
