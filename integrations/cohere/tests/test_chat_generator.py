@@ -7,13 +7,14 @@ from cohere.core import ApiError
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, ReasoningContent, ToolCall
 from haystack.dataclasses.streaming_chunk import StreamingChunk
 from haystack.tools import Tool, Toolset
 from haystack.utils import Secret
 
 from haystack_integrations.components.generators.cohere import CohereChatGenerator
 from haystack_integrations.components.generators.cohere.chat.chat_generator import (
+    _extract_reasoning_from_text,
     _format_message,
 )
 
@@ -444,11 +445,14 @@ class TestCohereChatGenerator:
 
         generator = CohereChatGenerator(api_key=Secret.from_token("test-api-key"))
 
-        # Mock the client's chat method
+        # Mock the client's chat method with proper content structure
         mock_response = MagicMock()
-        mock_response.message.content = [MagicMock()]
-        mock_response.message.content[0].text = "This is a test image response"
+        text_content = MagicMock()
+        text_content.type = "text"
+        text_content.text = "This is a test image response"
+        mock_response.message.content = [text_content]
         mock_response.message.tool_calls = None
+        mock_response.message.citations = None
         mock_response.finish_reason = "COMPLETE"
         mock_response.usage = None
 
@@ -727,6 +731,189 @@ class TestCohereChatGeneratorInference:
         assert isinstance(results["replies"][0], ChatMessage)
         assert len(results["replies"][0].text) > 0
 
+
+class TestReasoningTextExtraction:
+    """Test the fallback text-based reasoning extraction functionality."""
+
+    def test_extract_reasoning_with_thinking_tags(self):
+        """Test extraction of reasoning from <thinking> tags (fallback method)."""
+        response_text = """<thinking>
+I need to calculate the area of a circle.
+The formula is π * r².
+Given radius is 5, so area = π * 25 = 78.54
+</thinking>
+
+The area of a circle with radius 5 is approximately 78.54 square units."""
+
+        reasoning, cleaned = _extract_reasoning_from_text(response_text)
+
+        assert reasoning is not None
+        assert isinstance(reasoning, ReasoningContent)
+        assert "calculate the area of a circle" in reasoning.reasoning_text
+        assert cleaned.strip() == "The area of a circle with radius 5 is approximately 78.54 square units."
+
+    def test_extract_reasoning_no_reasoning_present(self):
+        """Test that no reasoning is extracted when none is present."""
+        response_text = "This is a simple response without any reasoning content."
+
+        reasoning, cleaned = _extract_reasoning_from_text(response_text)
+
+        assert reasoning is None
+        assert cleaned == response_text
+
+
+class TestCohereChatGeneratorReasoning:
+    """Integration tests for reasoning functionality in CohereChatGenerator."""
+
+    @pytest.mark.skipif(not os.environ.get("COHERE_API_KEY"), reason="COHERE_API_KEY not set")
+    @pytest.mark.integration
+    def test_reasoning_with_command_a_reasoning_model(self):
+        """Test reasoning extraction with Command A Reasoning model."""
+        generator = CohereChatGenerator(
+            model="command-a-reasoning-111b-2024-10-03",
+            generation_kwargs={"thinking": True},  # Enable reasoning
+        )
+
+        messages = [
+            ChatMessage.from_user("Solve this math problem step by step: What is the area of a circle with radius 7?")
+        ]
+
+        result = generator.run(messages=messages)
+
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+
+        reply = result["replies"][0]
+        assert isinstance(reply, ChatMessage)
+        assert reply.role == ChatRole.ASSISTANT
+
+        # Check if reasoning was extracted
+        if reply.reasoning:
+            assert isinstance(reply.reasoning, ReasoningContent)
+            assert len(reply.reasoning.reasoning_text) > 50  # Should have substantial reasoning
+
+            # The reasoning should contain mathematical thinking
+            reasoning_lower = reply.reasoning.reasoning_text.lower()
+            assert any(word in reasoning_lower for word in ["area", "circle", "radius", "formula", "π", "pi"])
+
+        # Check the main response content
+        assert len(reply.text) > 0
+        response_lower = reply.text.lower()
+        assert any(word in response_lower for word in ["area", "153.94", "154", "square"])
+
+    def test_reasoning_with_mock_response(self):
+        """Test reasoning extraction with mocked Cohere response using native API."""
+        generator = CohereChatGenerator(
+            model="command-a-reasoning-111b-2024-10-03", api_key=Secret.from_token("fake-api-key")
+        )
+
+        # Mock the Cohere client response using native API structure
+        mock_response = MagicMock()
+
+        # Create mock content items with thinking and text types
+        thinking_content = MagicMock()
+        thinking_content.type = "thinking"
+        thinking_content.thinking = """I need to solve for the area of a circle.
+The formula is A = πr²
+With radius 7: A = π * 7² = π * 49 ≈ 153.94"""
+
+        text_content = MagicMock()
+        text_content.type = "text"
+        text_content.text = "The area of a circle with radius 7 is approximately 153.94 square units."
+
+        mock_response.message.content = [thinking_content, text_content]
+        mock_response.message.tool_calls = None
+        mock_response.message.citations = None
+        mock_response.finish_reason = "COMPLETE"
+        mock_response.usage = None
+
+        generator.client.chat = MagicMock(return_value=mock_response)
+
+        messages = [ChatMessage.from_user("What is the area of a circle with radius 7?")]
+        result = generator.run(messages=messages)
+
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+
+        reply = result["replies"][0]
+        assert isinstance(reply, ChatMessage)
+        assert reply.role == ChatRole.ASSISTANT
+
+        # Check reasoning extraction via native API
+        assert reply.reasoning is not None
+        assert isinstance(reply.reasoning, ReasoningContent)
+        assert "formula is A = πr²" in reply.reasoning.reasoning_text
+        assert "π * 49 ≈ 153.94" in reply.reasoning.reasoning_text
+
+        # Check text content
+        assert reply.text.strip() == "The area of a circle with radius 7 is approximately 153.94 square units."
+
+    def test_reasoning_with_tool_calls_compatibility(self):
+        """Test that reasoning works with tool calls."""
+        weather_tool = Tool(
+            name="weather",
+            description="Get weather for a city",
+            parameters={
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"],
+            },
+            function=weather,
+        )
+
+        generator = CohereChatGenerator(
+            model="command-a-reasoning-111b-2024-10-03", tools=[weather_tool], api_key=Secret.from_token("fake-api-key")
+        )
+
+        # Mock response with both reasoning and tool calls using native API
+        mock_response = MagicMock()
+
+        # Create mock content items with thinking type
+        thinking_content = MagicMock()
+        thinking_content.type = "thinking"
+        thinking_content.thinking = (
+            "The user is asking about weather in Paris. I should use the weather tool to get accurate information."
+        )
+
+        mock_response.message.content = [thinking_content]
+
+        # Mock tool call
+        mock_tool_call = MagicMock()
+        mock_tool_call.function.name = "weather"
+        mock_tool_call.function.arguments = '{"city": "Paris"}'
+        mock_tool_call.id = "call_123"
+        mock_response.message.tool_calls = [mock_tool_call]
+        mock_response.message.tool_plan = "I'll check the weather in Paris for you."
+        mock_response.message.citations = None
+        mock_response.finish_reason = "TOOL_CALLS"
+        mock_response.usage = None
+
+        generator.client.chat = MagicMock(return_value=mock_response)
+
+        messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        result = generator.run(messages=messages)
+
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+
+        reply = result["replies"][0]
+        assert isinstance(reply, ChatMessage)
+
+        # Check reasoning extraction via native API
+        assert reply.reasoning is not None
+        assert isinstance(reply.reasoning, ReasoningContent)
+        assert "weather tool" in reply.reasoning.reasoning_text
+
+        # Check tool calls are preserved
+        assert reply.tool_calls is not None
+        assert len(reply.tool_calls) == 1
+        assert reply.tool_calls[0].tool_name == "weather"
+
+        # Check tool plan is used as text
+        assert "I'll check the weather in Paris" in reply.text
+
+    @pytest.mark.skipif(not os.environ.get("COHERE_API_KEY"), reason="COHERE_API_KEY not set")
+    @pytest.mark.integration
     def test_live_run_with_mixed_tools(self):
         """
         Integration test that verifies CohereChatGenerator works with mixed Tool and Toolset.
