@@ -22,7 +22,7 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  STACKIT: ${{ secrets.STACKIT_API_KEY }}
+  STACKIT_API_KEY: ${{ secrets.STACKIT_API_KEY }}
 
 jobs:
   run:
