@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
@@ -21,7 +21,7 @@ class WeaviateHybridRetriever:
         self,
         *,
         document_store: WeaviateDocumentStore,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
         alpha: Optional[float] = None,
         max_vector_distance: Optional[float] = None,
@@ -75,7 +75,7 @@ class WeaviateHybridRetriever:
             filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -93,7 +93,7 @@ class WeaviateHybridRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "WeaviateHybridRetriever":
+    def from_dict(cls, data: dict[str, Any]) -> "WeaviateHybridRetriever":
         """
         Deserializes the component from a dictionary.
 
@@ -111,16 +111,16 @@ class WeaviateHybridRetriever:
 
         return default_from_dict(cls, data)
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(
         self,
         query: str,
-        query_embedding: List[float],
-        filters: Optional[Dict[str, Any]] = None,
+        query_embedding: list[float],
+        filters: Optional[dict[str, Any]] = None,
         top_k: Optional[int] = None,
         alpha: Optional[float] = None,
         max_vector_distance: Optional[float] = None,
-    ) -> Dict[str, List[Document]]:
+    ) -> dict[str, list[Document]]:
         """
         Retrieves documents from Weaviate using hybrid search.
 

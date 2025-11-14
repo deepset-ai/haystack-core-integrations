@@ -4,7 +4,6 @@
 
 import random
 import time
-from typing import List
 from unittest.mock import patch
 
 import pytest
@@ -119,7 +118,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
     you can add more to this class.
     """
 
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
         The OpenSearchDocumentStore.filter_documents() method returns a Documents with their score set.
         We don't want to compare the score, so we set it to None before comparing the documents.
@@ -143,7 +142,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         document_store_readonly.create_index()
         assert document_store_readonly._client.indices.exists(index=document_store_readonly._index)
 
-    def test_bm25_retrieval(self, document_store: OpenSearchDocumentStore, test_documents: List[Document]):
+    def test_bm25_retrieval(self, document_store: OpenSearchDocumentStore, test_documents: list[Document]):
         document_store.write_documents(test_documents)
         res = document_store._bm25_retrieval("functional", top_k=3)
 
@@ -152,7 +151,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert "functional" in res[1].content
         assert "functional" in res[2].content
 
-    def test_bm25_retrieval_pagination(self, document_store: OpenSearchDocumentStore, test_documents: List[Document]):
+    def test_bm25_retrieval_pagination(self, document_store: OpenSearchDocumentStore, test_documents: list[Document]):
         """
         Test that handling of pagination works as expected, when the matching documents are > 10.
         """
@@ -163,7 +162,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert all("programming" in doc.content for doc in res)
 
     def test_bm25_retrieval_all_terms_must_match(
-        self, document_store: OpenSearchDocumentStore, test_documents: List[Document]
+        self, document_store: OpenSearchDocumentStore, test_documents: list[Document]
     ):
         document_store.write_documents(test_documents)
         res = document_store._bm25_retrieval("functional Haskell", top_k=3, all_terms_must_match=True)
@@ -172,7 +171,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert "Haskell is a functional programming language" in res[0].content
 
     def test_bm25_retrieval_all_terms_must_match_false(
-        self, document_store: OpenSearchDocumentStore, test_documents: List[Document]
+        self, document_store: OpenSearchDocumentStore, test_documents: list[Document]
     ):
         document_store.write_documents(test_documents)
         res = document_store._bm25_retrieval("functional Haskell", top_k=10, all_terms_must_match=False)
@@ -181,7 +180,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert all("functional" in doc.content for doc in res)
 
     def test_bm25_retrieval_with_fuzziness(
-        self, document_store: OpenSearchDocumentStore, test_documents: List[Document]
+        self, document_store: OpenSearchDocumentStore, test_documents: list[Document]
     ):
         document_store.write_documents(test_documents)
 
@@ -198,7 +197,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert "functional" in res[1].content
         assert "functional" in res[2].content
 
-    def test_bm25_retrieval_with_filters(self, document_store: OpenSearchDocumentStore, test_documents: List[Document]):
+    def test_bm25_retrieval_with_filters(self, document_store: OpenSearchDocumentStore, test_documents: list[Document]):
         document_store.write_documents(test_documents)
         res = document_store._bm25_retrieval(
             "programming",
@@ -210,7 +209,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert retrieved_ids == ["1", "2", "3", "4", "5"]
 
     def test_bm25_retrieval_with_custom_query(
-        self, document_store: OpenSearchDocumentStore, test_documents: List[Document]
+        self, document_store: OpenSearchDocumentStore, test_documents: list[Document]
     ):
         document_store.write_documents(test_documents)
 
@@ -235,7 +234,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert "3" == res[2].id
 
     def test_bm25_retrieval_with_custom_query_empty_filters(
-        self, document_store: OpenSearchDocumentStore, test_documents: List[Document]
+        self, document_store: OpenSearchDocumentStore, test_documents: list[Document]
     ):
         document_store.write_documents(test_documents)
 

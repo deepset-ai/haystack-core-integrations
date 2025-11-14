@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import Document, component
 from tqdm import tqdm
@@ -30,13 +30,13 @@ class OllamaDocumentEmbedder:
         self,
         model: str = "nomic-embed-text",
         url: str = "http://localhost:11434",
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         timeout: int = 120,
         keep_alive: Optional[Union[float, str]] = None,
         prefix: str = "",
         suffix: str = "",
         progress_bar: bool = True,
-        meta_fields_to_embed: Optional[List[str]] = None,
+        meta_fields_to_embed: Optional[list[str]] = None,
         embedding_separator: str = "\n",
         batch_size: int = 32,
     ):
@@ -87,7 +87,7 @@ class OllamaDocumentEmbedder:
         self._client = Client(host=self.url, timeout=self.timeout)
         self._async_client = AsyncClient(host=self.url, timeout=self.timeout)
 
-    def _prepare_input(self, documents: List[Document]) -> List[Document]:
+    def _prepare_input(self, documents: list[Document]) -> list[Document]:
         """
         Prepares the list of documents to embed by appropriate validation.
         """
@@ -100,7 +100,7 @@ class OllamaDocumentEmbedder:
 
         return documents
 
-    def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
+    def _prepare_texts_to_embed(self, documents: list[Document]) -> list[str]:
         """
         Prepares the texts to embed by concatenating the Document text with the metadata fields to embed.
         """
@@ -123,8 +123,8 @@ class OllamaDocumentEmbedder:
         return texts_to_embed
 
     def _embed_batch(
-        self, texts_to_embed: List[str], batch_size: int, generation_kwargs: Optional[Dict[str, Any]] = None
-    ) -> List[List[float]]:
+        self, texts_to_embed: list[str], batch_size: int, generation_kwargs: Optional[dict[str, Any]] = None
+    ) -> list[list[float]]:
         """
         Internal method to embed a batch of texts.
         """
@@ -146,8 +146,8 @@ class OllamaDocumentEmbedder:
         return all_embeddings
 
     async def _embed_batch_async(
-        self, texts_to_embed: List[str], batch_size: int, generation_kwargs: Optional[Dict[str, Any]] = None
-    ) -> List[List[float]]:
+        self, texts_to_embed: list[str], batch_size: int, generation_kwargs: Optional[dict[str, Any]] = None
+    ) -> list[list[float]]:
         """
         Internal method to embed a batch of texts asynchronously.
         """
@@ -175,10 +175,10 @@ class OllamaDocumentEmbedder:
 
         return all_embeddings
 
-    @component.output_types(documents=List[Document], meta=Dict[str, Any])
+    @component.output_types(documents=list[Document], meta=dict[str, Any])
     def run(
-        self, documents: List[Document], generation_kwargs: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Union[List[Document], Dict[str, Any]]]:
+        self, documents: list[Document], generation_kwargs: Optional[dict[str, Any]] = None
+    ) -> dict[str, Union[list[Document], dict[str, Any]]]:
         """
         Runs an Ollama Model to compute embeddings of the provided documents.
 
@@ -210,10 +210,10 @@ class OllamaDocumentEmbedder:
 
         return {"documents": documents, "meta": {"model": self.model}}
 
-    @component.output_types(documents=List[Document], meta=Dict[str, Any])
+    @component.output_types(documents=list[Document], meta=dict[str, Any])
     async def run_async(
-        self, documents: List[Document], generation_kwargs: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Union[List[Document], Dict[str, Any]]]:
+        self, documents: list[Document], generation_kwargs: Optional[dict[str, Any]] = None
+    ) -> dict[str, Union[list[Document], dict[str, Any]]]:
         """
         Asynchronously run an Ollama Model to compute embeddings of the provided documents.
 

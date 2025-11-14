@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict
+from typing import Any
 
 from optimum.onnxruntime.configuration import AutoOptimizationConfig, OptimizationConfig
 
@@ -77,7 +77,7 @@ class OptimumEmbedderOptimizationConfig:
             msg = f"Unknown optimization mode '{self.mode}'"
             raise ValueError(msg)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the configuration to a dictionary.
 
@@ -90,7 +90,7 @@ class OptimumEmbedderOptimizationConfig:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OptimumEmbedderOptimizationConfig":
+    def from_dict(cls, data: dict[str, Any]) -> "OptimumEmbedderOptimizationConfig":
         """
         Create an optimization configuration from a dictionary.
 

@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import time
-from typing import List
 
 import pytest
 from haystack.dataclasses import Document
@@ -18,7 +17,7 @@ class TestDocumentStoreAsync:
         assert await document_store.write_documents_async([Document(id="1")]) == 1
 
     @pytest.mark.asyncio
-    async def test_bm25_retrieval(self, document_store: OpenSearchDocumentStore, test_documents: List[Document]):
+    async def test_bm25_retrieval(self, document_store: OpenSearchDocumentStore, test_documents: list[Document]):
         document_store.write_documents(test_documents)
         res = await document_store._bm25_retrieval_async("functional", top_k=3)
 
@@ -29,7 +28,7 @@ class TestDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_bm25_retrieval_pagination(
-        self, document_store: OpenSearchDocumentStore, test_documents: List[Document]
+        self, document_store: OpenSearchDocumentStore, test_documents: list[Document]
     ):
         """
         Test that handling of pagination works as expected, when the matching documents are > 10.
@@ -43,7 +42,7 @@ class TestDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_bm25_retrieval_all_terms_must_match(
-        self, document_store: OpenSearchDocumentStore, test_documents: List[Document]
+        self, document_store: OpenSearchDocumentStore, test_documents: list[Document]
     ):
         document_store.write_documents(test_documents)
         res = await document_store._bm25_retrieval_async("functional Haskell", top_k=3, all_terms_must_match=True)
@@ -53,7 +52,7 @@ class TestDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_bm25_retrieval_all_terms_must_match_false(
-        self, document_store: OpenSearchDocumentStore, test_documents: List[Document]
+        self, document_store: OpenSearchDocumentStore, test_documents: list[Document]
     ):
         document_store.write_documents(test_documents)
         res = await document_store._bm25_retrieval_async("functional Haskell", top_k=10, all_terms_must_match=False)
@@ -63,7 +62,7 @@ class TestDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_bm25_retrieval_with_filters(
-        self, document_store: OpenSearchDocumentStore, test_documents: List[Document]
+        self, document_store: OpenSearchDocumentStore, test_documents: list[Document]
     ):
         document_store.write_documents(test_documents)
         res = await document_store._bm25_retrieval_async(
@@ -78,7 +77,7 @@ class TestDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_bm25_retrieval_with_custom_query(
-        self, document_store: OpenSearchDocumentStore, test_documents: List[Document]
+        self, document_store: OpenSearchDocumentStore, test_documents: list[Document]
     ):
         document_store.write_documents(test_documents)
 

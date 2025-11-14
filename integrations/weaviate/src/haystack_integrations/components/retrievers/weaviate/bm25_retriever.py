@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
@@ -31,7 +31,7 @@ class WeaviateBM25Retriever:
         self,
         *,
         document_store: WeaviateDocumentStore,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
@@ -53,7 +53,7 @@ class WeaviateBM25Retriever:
             filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -69,7 +69,7 @@ class WeaviateBM25Retriever:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "WeaviateBM25Retriever":
+    def from_dict(cls, data: dict[str, Any]) -> "WeaviateBM25Retriever":
         """
         Deserializes the component from a dictionary.
 
@@ -88,10 +88,10 @@ class WeaviateBM25Retriever:
 
         return default_from_dict(cls, data)
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(
-        self, query: str, filters: Optional[Dict[str, Any]] = None, top_k: Optional[int] = None
-    ) -> Dict[str, List[Document]]:
+        self, query: str, filters: Optional[dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> dict[str, list[Document]]:
         """
         Retrieves documents from Weaviate using the BM25 algorithm.
 

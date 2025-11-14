@@ -2,7 +2,7 @@ import copy
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union, overload
+from typing import Any, Optional, Union, overload
 
 import numpy as np
 import torch
@@ -36,12 +36,12 @@ class _EmbedderParams:
     batch_size: int
     progress_bar: bool
     pooling_mode: Optional[Union[str, OptimumEmbedderPooling]]
-    model_kwargs: Optional[Dict[str, Any]]
+    model_kwargs: Optional[dict[str, Any]]
     working_dir: Optional[str]
     optimizer_settings: Optional[OptimumEmbedderOptimizationConfig]
     quantizer_settings: Optional[OptimumEmbedderQuantizationConfig]
 
-    def serialize(self) -> Dict[str, Any]:
+    def serialize(self) -> dict[str, Any]:
         out = {}
         for field in self.__dataclass_fields__.keys():
             if field in [
@@ -66,7 +66,7 @@ class _EmbedderParams:
         return out
 
     @classmethod
-    def deserialize_inplace(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+    def deserialize_inplace(cls, data: dict[str, Any]) -> dict[str, Any]:
         data["pooling_mode"] = OptimumEmbedderPooling.from_str(data["pooling_mode"])
         if data["optimizer_settings"] is not None:
             data["optimizer_settings"] = OptimumEmbedderOptimizationConfig.from_dict(data["optimizer_settings"])
@@ -167,7 +167,7 @@ class _EmbedderBackend:
             pooling_mode_lasttoken=self.params.pooling_mode == OptimumEmbedderPooling.LAST_TOKEN,
         )
 
-    def _tokenize_and_generate_outputs(self, texts: List[str]) -> Tuple[Dict[str, Any], BaseModelOutput]:
+    def _tokenize_and_generate_outputs(self, texts: list[str]) -> tuple[dict[str, Any], BaseModelOutput]:
         assert self.model is not None
         assert self.tokenizer is not None
 
@@ -189,15 +189,15 @@ class _EmbedderBackend:
         return pooled_outputs["sentence_embedding"]
 
     @overload
-    def embed_texts(self, texts_to_embed: str) -> List[float]: ...
+    def embed_texts(self, texts_to_embed: str) -> list[float]: ...
 
     @overload
-    def embed_texts(self, texts_to_embed: List[str]) -> List[List[float]]: ...
+    def embed_texts(self, texts_to_embed: list[str]) -> list[list[float]]: ...
 
     def embed_texts(
         self,
-        texts_to_embed: Union[str, List[str]],
-    ) -> Union[List[List[float]], List[float]]:
+        texts_to_embed: Union[str, list[str]],
+    ) -> Union[list[list[float]], list[float]]:
         assert self.model is not None
         assert self.tokenizer is not None
 
@@ -231,7 +231,7 @@ class _EmbedderBackend:
         embeddings = embeddings.tolist()
 
         # Reorder embeddings according to original order
-        reordered_embeddings: List[List[float]] = [None] * len(texts)  # type: ignore
+        reordered_embeddings: list[list[float]] = [None] * len(texts)  # type: ignore
         for embedding, idx in zip(embeddings, length_sorted_idx):
             reordered_embeddings[idx] = embedding
 

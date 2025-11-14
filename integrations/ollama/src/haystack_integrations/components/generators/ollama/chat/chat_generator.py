@@ -1,5 +1,6 @@
 import json
-from typing import Any, AsyncIterator, Callable, Dict, Iterator, List, Literal, Optional, Union
+from collections.abc import AsyncIterator, Iterator
+from typing import Any, Callable, Literal, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import (
@@ -23,14 +24,14 @@ from pydantic.json_schema import JsonSchemaValue
 
 from ollama import AsyncClient, ChatResponse, Client
 
-FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
+FINISH_REASON_MAPPING: dict[str, FinishReason] = {
     "stop": "stop",
     "tool_calls": "tool_calls",
     # we skip load and unload reasons
 }
 
 
-def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any]:
+def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> dict[str, Any]:
     """
     Convert a ChatMessage to the format expected by the Ollama Chat API.
     """
@@ -48,7 +49,7 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any
         msg = "For Ollama compatibility, a `ChatMessage` can contain at most one `TextContent` or `ToolCallResult`."
         raise ValueError(msg)
 
-    ollama_msg: Dict[str, Any] = {"role": message.role.value}
+    ollama_msg: dict[str, Any] = {"role": message.role.value}
 
     if tool_call_results:
         # Ollama does not provide a way to communicate errors in tool invocations, so we ignore the error field
@@ -70,7 +71,7 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> Dict[str, Any
     return ollama_msg
 
 
-def _convert_ollama_meta_to_openai_format(input_response_dict: Dict) -> Dict[str, Any]:
+def _convert_ollama_meta_to_openai_format(input_response_dict: dict) -> dict[str, Any]:
     """
     Map Ollama metadata keys onto the OpenAI-compatible names Haystack expects.
     All fields that are not part of the OpenAI metadata are left unchanged in the returned dict.
@@ -129,7 +130,7 @@ def _convert_ollama_response_to_chatmessage(ollama_response: ChatResponse) -> Ch
     response_dict = ollama_response.model_dump()
     ollama_message = response_dict["message"]
     text = ollama_message["content"]
-    tool_calls: List[ToolCall] = []
+    tool_calls: list[ToolCall] = []
 
     if ollama_tool_calls := ollama_message.get("tool_calls"):
         for ollama_tc in ollama_tool_calls:
@@ -211,7 +212,7 @@ class OllamaChatGenerator:
         self,
         model: str = "qwen3:0.6b",
         url: str = "http://localhost:11434",
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         timeout: int = 120,
         keep_alive: Optional[Union[float, str]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
@@ -274,7 +275,7 @@ class OllamaChatGenerator:
         self._client = Client(host=self.url, timeout=self.timeout)
         self._async_client = AsyncClient(host=self.url, timeout=self.timeout)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -296,7 +297,7 @@ class OllamaChatGenerator:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OllamaChatGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "OllamaChatGenerator":
         """
         Deserializes the component from a dictionary.
 
@@ -315,7 +316,7 @@ class OllamaChatGenerator:
         self,
         response_iter: Iterator[ChatResponse],
         callback: Optional[SyncStreamingCallbackT],
-    ) -> Dict[str, List[ChatMessage]]:
+    ) -> dict[str, list[ChatMessage]]:
         """
         Merge an Ollama streaming response into a single ChatMessage, preserving
         tool calls.  Works even when arguments arrive piecemeal as str fragments
@@ -323,12 +324,12 @@ class OllamaChatGenerator:
         """
 
         component_info = ComponentInfo.from_component(self)
-        chunks: List[StreamingChunk] = []
+        chunks: list[StreamingChunk] = []
 
         # Accumulators
-        arg_by_id: Dict[str, str] = {}
-        name_by_id: Dict[str, str] = {}
-        id_order: List[str] = []
+        arg_by_id: dict[str, str] = {}
+        name_by_id: dict[str, str] = {}
+        id_order: list[str] = []
         tool_call_index: int = 0
 
         # Stream
@@ -399,18 +400,18 @@ class OllamaChatGenerator:
         self,
         response_iter: AsyncIterator[ChatResponse],
         callback: Optional[AsyncStreamingCallbackT],
-    ) -> Dict[str, List[ChatMessage]]:
+    ) -> dict[str, list[ChatMessage]]:
         """
         Merge an Ollama async streaming response into a single ChatMessage, preserving
         tool calls.  Works even when arguments arrive piecemeal as str fragments
         or as full JSON dicts."""
         component_info = ComponentInfo.from_component(self)
-        chunks: List[StreamingChunk] = []
+        chunks: list[StreamingChunk] = []
 
         # Accumulators
-        arg_by_id: Dict[str, str] = {}
-        name_by_id: Dict[str, str] = {}
-        id_order: List[str] = []
+        arg_by_id: dict[str, str] = {}
+        name_by_id: dict[str, str] = {}
+        id_order: list[str] = []
         tool_call_index: int = 0
 
         # Stream
@@ -466,15 +467,15 @@ class OllamaChatGenerator:
 
         return {"replies": [reply]}
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: List[ChatMessage],
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        messages: list[ChatMessage],
+        generation_kwargs: Optional[dict[str, Any]] = None,
         tools: Optional[ToolsType] = None,
         *,
         streaming_callback: Optional[StreamingCallbackT] = None,
-    ) -> Dict[str, List[ChatMessage]]:
+    ) -> dict[str, list[ChatMessage]]:
         """
         Runs an Ollama Model on a given chat history.
 
@@ -532,15 +533,15 @@ class OllamaChatGenerator:
         # non-stream path
         return {"replies": [_convert_ollama_response_to_chatmessage(ollama_response=response)]}
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
-        messages: List[ChatMessage],
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        messages: list[ChatMessage],
+        generation_kwargs: Optional[dict[str, Any]] = None,
         tools: Optional[ToolsType] = None,
         *,
         streaming_callback: Optional[StreamingCallbackT] = None,
-    ) -> Dict[str, List[ChatMessage]]:
+    ) -> dict[str, list[ChatMessage]]:
         """
         Async version of run. Runs an Ollama Model on a given chat history.
 

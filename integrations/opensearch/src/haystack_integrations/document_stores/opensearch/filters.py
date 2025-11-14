@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 from haystack.errors import FilterError
 
 
-def normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_filters(filters: dict[str, Any]) -> dict[str, Any]:
     """
     Converts Haystack filters in OpenSearch compatible filters.
     """
@@ -20,7 +20,7 @@ def normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
     return _parse_logical_condition(filters)
 
 
-def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
+def _parse_logical_condition(condition: dict[str, Any]) -> dict[str, Any]:
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
         raise FilterError(msg)
@@ -43,7 +43,7 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
         raise FilterError(msg)
 
 
-def _equal(field: str, value: Any) -> Dict[str, Any]:
+def _equal(field: str, value: Any) -> dict[str, Any]:
     if value is None:
         return {"bool": {"must_not": {"exists": {"field": field}}}}
 
@@ -62,7 +62,7 @@ def _equal(field: str, value: Any) -> Dict[str, Any]:
     return {"term": {field: value}}
 
 
-def _not_equal(field: str, value: Any) -> Dict[str, Any]:
+def _not_equal(field: str, value: Any) -> dict[str, Any]:
     if value is None:
         return {"exists": {"field": field}}
 
@@ -75,7 +75,7 @@ def _not_equal(field: str, value: Any) -> Dict[str, Any]:
     return {"bool": {"must_not": {"term": {field: value}}}}
 
 
-def _greater_than(field: str, value: Any) -> Dict[str, Any]:
+def _greater_than(field: str, value: Any) -> dict[str, Any]:
     if value is None:
         # When the value is None and '>' is used we create a filter that would return a Document
         # if it has a field set and not set at the same time.
@@ -97,7 +97,7 @@ def _greater_than(field: str, value: Any) -> Dict[str, Any]:
     return {"range": {field: {"gt": value}}}
 
 
-def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
+def _greater_than_equal(field: str, value: Any) -> dict[str, Any]:
     if value is None:
         # When the value is None and '>=' is used we create a filter that would return a Document
         # if it has a field set and not set at the same time.
@@ -119,7 +119,7 @@ def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
     return {"range": {field: {"gte": value}}}
 
 
-def _less_than(field: str, value: Any) -> Dict[str, Any]:
+def _less_than(field: str, value: Any) -> dict[str, Any]:
     if value is None:
         # When the value is None and '<' is used we create a filter that would return a Document
         # if it has a field set and not set at the same time.
@@ -141,7 +141,7 @@ def _less_than(field: str, value: Any) -> Dict[str, Any]:
     return {"range": {field: {"lt": value}}}
 
 
-def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
+def _less_than_equal(field: str, value: Any) -> dict[str, Any]:
     if value is None:
         # When the value is None and '<=' is used we create a filter that would return a Document
         # if it has a field set and not set at the same time.
@@ -163,14 +163,14 @@ def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
     return {"range": {field: {"lte": value}}}
 
 
-def _in(field: str, value: Any) -> Dict[str, Any]:
+def _in(field: str, value: Any) -> dict[str, Any]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' or 'not in' comparators"
         raise FilterError(msg)
     return {"terms": {field: value}}
 
 
-def _not_in(field: str, value: Any) -> Dict[str, Any]:
+def _not_in(field: str, value: Any) -> dict[str, Any]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' or 'not in' comparators"
         raise FilterError(msg)
@@ -189,7 +189,7 @@ COMPARISON_OPERATORS = {
 }
 
 
-def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
+def _parse_comparison_condition(condition: dict[str, Any]) -> dict[str, Any]:
     if "field" not in condition:
         # 'field' key is only found in comparison dictionaries.
         # We assume this is a logic dictionary since it's not present.
@@ -215,7 +215,7 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     return COMPARISON_OPERATORS[operator](field, value)
 
 
-def _normalize_ranges(conditions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _normalize_ranges(conditions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     Merges range conditions acting on a same field.
 
@@ -235,7 +235,7 @@ def _normalize_ranges(conditions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     range_conditions = [next(iter(c["range"].items())) for c in conditions if "range" in c]
     if range_conditions:
         conditions = [c for c in conditions if "range" not in c]
-        range_conditions_dict: Dict[str, Any] = {}
+        range_conditions_dict: dict[str, Any] = {}
         for field_name, comparison in range_conditions:
             if field_name not in range_conditions_dict:
                 range_conditions_dict[field_name] = {}

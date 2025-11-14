@@ -5,7 +5,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, fields
 from enum import Enum
-from typing import Any, Dict, Type
+from typing import Any
 
 from haystack.core.errors import DeserializationError
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
@@ -30,7 +30,7 @@ class SupportedAuthTypes(Enum):
         return self.value
 
     @staticmethod
-    def from_class(auth_class: Type["AuthCredentials"]) -> "SupportedAuthTypes":
+    def from_class(auth_class: type["AuthCredentials"]) -> "SupportedAuthTypes":
         auth_types = {
             AuthApiKey: SupportedAuthTypes.API_KEY,
             AuthBearerToken: SupportedAuthTypes.BEARER,
@@ -47,7 +47,7 @@ class AuthCredentials(ABC):
     Can be used to deserialize from dict any of the supported auth credentials.
     """
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Converts the object to a dictionary representation for serialization.
         """
@@ -61,7 +61,7 @@ class AuthCredentials(ABC):
         return {"type": str(SupportedAuthTypes.from_class(self.__class__)), "init_parameters": _fields}
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "AuthCredentials":
+    def from_dict(data: dict[str, Any]) -> "AuthCredentials":
         """
         Converts a dictionary representation to an auth credentials object.
         """
@@ -69,7 +69,7 @@ class AuthCredentials(ABC):
             msg = "Missing 'type' in serialization data"
             raise DeserializationError(msg)
 
-        auth_classes: Dict[str, Type[AuthCredentials]] = {
+        auth_classes: dict[str, type[AuthCredentials]] = {
             str(SupportedAuthTypes.API_KEY): AuthApiKey,
             str(SupportedAuthTypes.BEARER): AuthBearerToken,
             str(SupportedAuthTypes.CLIENT_CREDENTIALS): AuthClientCredentials,
@@ -80,7 +80,7 @@ class AuthCredentials(ABC):
 
     @classmethod
     @abstractmethod
-    def _from_dict(cls, data: Dict[str, Any]) -> "AuthCredentials":
+    def _from_dict(cls, data: dict[str, Any]) -> "AuthCredentials":
         """
         Internal method to convert a dictionary representation to an auth credentials object.
         All subclasses must implement this method.
@@ -104,7 +104,7 @@ class AuthApiKey(AuthCredentials):
     api_key: Secret = field(default_factory=lambda: Secret.from_env_var(["WEAVIATE_API_KEY"]))
 
     @classmethod
-    def _from_dict(cls, data: Dict[str, Any]) -> "AuthApiKey":
+    def _from_dict(cls, data: dict[str, Any]) -> "AuthApiKey":
         deserialize_secrets_inplace(data["init_parameters"], ["api_key"])
         return cls(**data["init_parameters"])
 
@@ -128,7 +128,7 @@ class AuthBearerToken(AuthCredentials):
     refresh_token: Secret = field(default_factory=lambda: Secret.from_env_var(["WEAVIATE_REFRESH_TOKEN"], strict=False))
 
     @classmethod
-    def _from_dict(cls, data: Dict[str, Any]) -> "AuthBearerToken":
+    def _from_dict(cls, data: dict[str, Any]) -> "AuthBearerToken":
         deserialize_secrets_inplace(data["init_parameters"], ["access_token", "refresh_token"])
         return cls(**data["init_parameters"])
 
@@ -159,7 +159,7 @@ class AuthClientCredentials(AuthCredentials):
     scope: Secret = field(default_factory=lambda: Secret.from_env_var(["WEAVIATE_SCOPE"], strict=False))
 
     @classmethod
-    def _from_dict(cls, data: Dict[str, Any]) -> "AuthClientCredentials":
+    def _from_dict(cls, data: dict[str, Any]) -> "AuthClientCredentials":
         deserialize_secrets_inplace(data["init_parameters"], ["client_secret", "scope"])
         return cls(**data["init_parameters"])
 
@@ -188,7 +188,7 @@ class AuthClientPassword(AuthCredentials):
     scope: Secret = field(default_factory=lambda: Secret.from_env_var(["WEAVIATE_SCOPE"], strict=False))
 
     @classmethod
-    def _from_dict(cls, data: Dict[str, Any]) -> "AuthClientPassword":
+    def _from_dict(cls, data: dict[str, Any]) -> "AuthClientPassword":
         deserialize_secrets_inplace(data["init_parameters"], ["username", "password", "scope"])
         return cls(**data["init_parameters"])
 
