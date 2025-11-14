@@ -1,6 +1,7 @@
 import json
+from collections.abc import Iterator
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
@@ -42,7 +43,7 @@ from llama_cpp.llama_tokenizer import LlamaHFTokenizer
 
 logger = logging.getLogger(__name__)
 
-FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
+FINISH_REASON_MAPPING: dict[str, FinishReason] = {
     "stop": "stop",
     "length": "length",
     "tool_calls": "tool_calls",
@@ -124,7 +125,7 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> ChatCompletionR
             result["content"] = text_contents[0]
 
         if tool_calls:
-            llamacpp_tool_calls: List[ChatCompletionMessageToolCall] = []
+            llamacpp_tool_calls: list[ChatCompletionMessageToolCall] = []
             for tc in tool_calls:
                 if tc.id is None:
                     msg = "`ToolCall` must have a non-null `id` attribute to be used with llama.cpp."
@@ -193,8 +194,8 @@ class LlamaCppChatGenerator:
         model: str,
         n_ctx: Optional[int] = 0,
         n_batch: Optional[int] = 512,
-        model_kwargs: Optional[Dict[str, Any]] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         *,
         tools: Optional[ToolsType] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
@@ -278,7 +279,7 @@ class LlamaCppChatGenerator:
 
         self._model = Llama(**kwargs)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -300,7 +301,7 @@ class LlamaCppChatGenerator:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "LlamaCppChatGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "LlamaCppChatGenerator":
         """
         Deserializes the component from a dictionary.
 
@@ -319,15 +320,15 @@ class LlamaCppChatGenerator:
             )
         return default_from_dict(cls, data)
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: List[ChatMessage],
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        messages: list[ChatMessage],
+        generation_kwargs: Optional[dict[str, Any]] = None,
         *,
         tools: Optional[ToolsType] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
-    ) -> Dict[str, List[ChatMessage]]:
+    ) -> dict[str, list[ChatMessage]]:
         """
         Run the text generation model on the given list of ChatMessages.
 
@@ -359,7 +360,7 @@ class LlamaCppChatGenerator:
         flattened_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flattened_tools)
 
-        llamacpp_tools: List[ChatCompletionTool] = []
+        llamacpp_tools: list[ChatCompletionTool] = []
         if flattened_tools:
             for t in flattened_tools:
                 llamacpp_tools.append(
@@ -408,7 +409,7 @@ class LlamaCppChatGenerator:
         response_stream: Iterator[CreateChatCompletionStreamResponse],
         streaming_callback: SyncStreamingCallbackT,
         component_info: ComponentInfo,
-    ) -> Dict[str, List[ChatMessage]]:
+    ) -> dict[str, list[ChatMessage]]:
         """
         Take streaming responses from llama.cpp, convert to Haystack StreamingChunk objects, stream them,
         and finally convert them to a ChatMessage.
@@ -434,7 +435,7 @@ class LlamaCppChatGenerator:
 
             if chunk.get("choices") and len(chunk["choices"]) > 0:
                 choice = chunk["choices"][0]
-                delta: Union[ChatCompletionStreamResponseDelta, ChatCompletionStreamResponseDeltaEmpty, Dict] = (
+                delta: Union[ChatCompletionStreamResponseDelta, ChatCompletionStreamResponseDeltaEmpty, dict] = (
                     choice.get("delta", {})
                 )
 

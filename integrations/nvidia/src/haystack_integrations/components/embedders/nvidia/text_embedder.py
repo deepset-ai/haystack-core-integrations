@@ -4,7 +4,7 @@
 
 import os
 import warnings
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -146,7 +146,7 @@ class NvidiaTextEmbedder:
             else:
                 self.default_model()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -165,14 +165,14 @@ class NvidiaTextEmbedder:
         )
 
     @property
-    def available_models(self) -> List[Model]:
+    def available_models(self) -> list[Model]:
         """
         Get a list of available models that work with NvidiaTextEmbedder.
         """
         return self.backend.models() if self.backend else []
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "NvidiaTextEmbedder":
+    def from_dict(cls, data: dict[str, Any]) -> "NvidiaTextEmbedder":
         """
         Deserializes the component from a dictionary.
 
@@ -186,8 +186,8 @@ class NvidiaTextEmbedder:
             deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    @component.output_types(embedding=List[float], meta=Dict[str, Any])
-    def run(self, text: str) -> Dict[str, Union[List[float], Dict[str, Any]]]:
+    @component.output_types(embedding=list[float], meta=dict[str, Any])
+    def run(self, text: str) -> dict[str, Union[list[float], dict[str, Any]]]:
         """
         Embed a string.
 

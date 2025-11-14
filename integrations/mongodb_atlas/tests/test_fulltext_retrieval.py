@@ -4,7 +4,7 @@
 
 import os
 from time import sleep
-from typing import List, Union
+from typing import Union
 from unittest.mock import MagicMock
 
 import pytest
@@ -157,7 +157,7 @@ class TestFullTextRetrieval:
         assert results[0].score >= results[1].score
 
     @pytest.mark.parametrize("query", ["", []])
-    def test_empty_query_raises_value_error(self, query: Union[str, List], document_store: MongoDBAtlasDocumentStore):
+    def test_empty_query_raises_value_error(self, query: Union[str, list], document_store: MongoDBAtlasDocumentStore):
         with pytest.raises(ValueError):
             document_store._fulltext_retrieval(query=query)
 

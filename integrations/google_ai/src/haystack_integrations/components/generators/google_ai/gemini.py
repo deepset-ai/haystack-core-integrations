@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 import google.generativeai as genai
 from google.ai.generativelanguage import Content, Part
@@ -77,8 +77,8 @@ class GoogleAIGeminiGenerator:
         *,
         api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),  # noqa: B008
         model: str = "gemini-2.0-flash",
-        generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
-        safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
+        generation_config: Optional[Union[GenerationConfig, dict[str, Any]]] = None,
+        safety_settings: Optional[dict[HarmCategory, HarmBlockThreshold]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
         """
@@ -107,7 +107,7 @@ class GoogleAIGeminiGenerator:
         self._model = GenerativeModel(self.model_name)
         self.streaming_callback = streaming_callback
 
-    def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
+    def _generation_config_to_dict(self, config: Union[GenerationConfig, dict[str, Any]]) -> dict[str, Any]:
         if isinstance(config, dict):
             return config
         return {
@@ -119,7 +119,7 @@ class GoogleAIGeminiGenerator:
             "stop_sequences": config.stop_sequences,
         }
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -142,7 +142,7 @@ class GoogleAIGeminiGenerator:
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GoogleAIGeminiGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "GoogleAIGeminiGenerator":
         """
         Deserializes the component from a dictionary.
 
@@ -180,7 +180,7 @@ class GoogleAIGeminiGenerator:
             msg = f"Unsupported type {type(part)} for part {part}"
             raise ValueError(msg)
 
-    @component.output_types(replies=List[str])
+    @component.output_types(replies=list[str])
     def run(
         self,
         parts: Variadic[Union[str, ByteStream, Part]],
@@ -212,7 +212,7 @@ class GoogleAIGeminiGenerator:
 
         return {"replies": replies}
 
-    def _get_response(self, response_body: GenerateContentResponse) -> List[str]:
+    def _get_response(self, response_body: GenerateContentResponse) -> list[str]:
         """
         Extracts the responses from the Google AI request.
         :param response_body: The response body from the Google AI request.
@@ -227,7 +227,7 @@ class GoogleAIGeminiGenerator:
 
     def _get_stream_response(
         self, stream: GenerateContentResponse, streaming_callback: Callable[[StreamingChunk], None]
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Extracts the responses from the Google AI streaming response.
         :param stream: The streaming response from the Google AI request.

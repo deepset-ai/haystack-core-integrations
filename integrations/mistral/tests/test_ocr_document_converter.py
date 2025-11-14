@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from typing import List
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -320,7 +319,7 @@ class TestMistralOCRDocumentConverter:
         # Define annotation schema
         class DocumentAnnotation(BaseModel):
             language: str = Field(..., description="Document language")
-            topics: List[str] = Field(..., description="Main topics")
+            topics: list[str] = Field(..., description="Main topics")
 
         # Create mock response with document annotation
         mock_page = MagicMock()

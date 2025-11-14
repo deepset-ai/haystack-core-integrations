@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import re
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses.document import Document
@@ -229,7 +229,7 @@ class MongoDBAtlasDocumentStore:
             database = self._connection_async[self.database_name]
             self._collection_async = database[self.collection_name]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -246,7 +246,7 @@ class MongoDBAtlasDocumentStore:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "MongoDBAtlasDocumentStore":
+    def from_dict(cls, data: dict[str, Any]) -> "MongoDBAtlasDocumentStore":
         """
         Deserializes the component from a dictionary.
 
@@ -278,7 +278,7 @@ class MongoDBAtlasDocumentStore:
         assert self._collection_async is not None
         return await self._collection_async.count_documents({})
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -294,7 +294,7 @@ class MongoDBAtlasDocumentStore:
         documents = list(self._collection.find(filters))
         return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
 
-    async def filter_documents_async(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    async def filter_documents_async(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
         """
         Asynchronously returns the documents that match the filters provided.
 
@@ -310,7 +310,7 @@ class MongoDBAtlasDocumentStore:
         documents = await self._collection_async.find(filters).to_list()
         return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
+    def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes documents into the MongoDB Atlas collection.
 
@@ -332,7 +332,7 @@ class MongoDBAtlasDocumentStore:
             policy = DuplicatePolicy.FAIL
 
         mongo_documents = [self._haystack_doc_to_mongo_doc(doc) for doc in documents]
-        operations: List[Union[UpdateOne, InsertOne, ReplaceOne]]
+        operations: list[Union[UpdateOne, InsertOne, ReplaceOne]]
         written_docs = len(documents)
 
         if policy == DuplicatePolicy.SKIP:
@@ -353,7 +353,7 @@ class MongoDBAtlasDocumentStore:
         return written_docs
 
     async def write_documents_async(
-        self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
+        self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
     ) -> int:
         """
         Writes documents into the MongoDB Atlas collection.
@@ -377,7 +377,7 @@ class MongoDBAtlasDocumentStore:
 
         mongo_documents = [self._haystack_doc_to_mongo_doc(doc) for doc in documents]
 
-        operations: List[Union[UpdateOne, InsertOne, ReplaceOne]]
+        operations: list[Union[UpdateOne, InsertOne, ReplaceOne]]
         written_docs = len(documents)
 
         if policy == DuplicatePolicy.SKIP:
@@ -399,7 +399,7 @@ class MongoDBAtlasDocumentStore:
 
         return written_docs
 
-    def delete_documents(self, document_ids: List[str]) -> None:
+    def delete_documents(self, document_ids: list[str]) -> None:
         """
         Deletes all documents with a matching document_ids from the document store.
 
@@ -411,7 +411,7 @@ class MongoDBAtlasDocumentStore:
             return
         self._collection.delete_many(filter={"id": {"$in": document_ids}})
 
-    async def delete_documents_async(self, document_ids: List[str]) -> None:
+    async def delete_documents_async(self, document_ids: list[str]) -> None:
         """
         Asynchronously deletes all documents with a matching document_ids from the document store.
 
@@ -423,7 +423,7 @@ class MongoDBAtlasDocumentStore:
             return
         await self._collection_async.delete_many(filter={"id": {"$in": document_ids}})
 
-    def delete_by_filter(self, filters: Dict[str, Any]) -> int:
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
         """
         Deletes all documents that match the provided filters.
 
@@ -448,7 +448,7 @@ class MongoDBAtlasDocumentStore:
             msg = f"Failed to delete documents by filter from MongoDB Atlas: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    async def delete_by_filter_async(self, filters: Dict[str, Any]) -> int:
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
         """
         Asynchronously deletes all documents that match the provided filters.
 
@@ -473,7 +473,7 @@ class MongoDBAtlasDocumentStore:
             msg = f"Failed to delete documents by filter from MongoDB Atlas: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    def update_by_filter(self, filters: Dict[str, Any], meta: Dict[str, Any]) -> int:
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
         """
         Updates the metadata of all documents that match the provided filters.
 
@@ -502,7 +502,7 @@ class MongoDBAtlasDocumentStore:
             msg = f"Failed to update documents by filter in MongoDB Atlas: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    async def update_by_filter_async(self, filters: Dict[str, Any], meta: Dict[str, Any]) -> int:
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
         """
         Asynchronously updates the metadata of all documents that match the provided filters.
 
@@ -635,10 +635,10 @@ class MongoDBAtlasDocumentStore:
 
     def _embedding_retrieval(
         self,
-        query_embedding: List[float],
-        filters: Optional[Dict[str, Any]] = None,
+        query_embedding: list[float],
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Find the documents that are most similar to the provided `query_embedding` by using a vector similarity metric.
 
@@ -657,7 +657,7 @@ class MongoDBAtlasDocumentStore:
 
         filters = _normalize_filters(filters) if filters else {}
 
-        pipeline: List[Dict[str, Any]] = [
+        pipeline: list[dict[str, Any]] = [
             {
                 "$vectorSearch": {
                     "index": self.vector_search_index,
@@ -686,8 +686,8 @@ class MongoDBAtlasDocumentStore:
         return documents
 
     async def _embedding_retrieval_async(
-        self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, top_k: int = 10
-    ) -> List[Document]:
+        self, query_embedding: list[float], filters: Optional[dict[str, Any]] = None, top_k: int = 10
+    ) -> list[Document]:
         """
         Asynchronously find the documents that are most similar to the provided `query_embedding` by using a vector
         similarity metric.
@@ -707,7 +707,7 @@ class MongoDBAtlasDocumentStore:
 
         filters = _normalize_filters(filters) if filters else {}
 
-        pipeline: List[Dict[str, Any]] = [
+        pipeline: list[dict[str, Any]] = [
             {
                 "$vectorSearch": {
                     "index": self.vector_search_index,
@@ -738,14 +738,14 @@ class MongoDBAtlasDocumentStore:
 
     def _fulltext_retrieval(
         self,
-        query: Union[str, List[str]],
-        fuzzy: Optional[Dict[str, int]] = None,
+        query: Union[str, list[str]],
+        fuzzy: Optional[dict[str, int]] = None,
         match_criteria: Optional[Literal["any", "all"]] = None,
-        score: Optional[Dict[str, Dict]] = None,
+        score: Optional[dict[str, dict]] = None,
         synonyms: Optional[str] = None,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Retrieve documents similar to the provided `query` using a full-text search.
 
@@ -792,7 +792,7 @@ class MongoDBAtlasDocumentStore:
         filters = _normalize_filters(filters) if filters else {}
 
         # Build the text search options
-        text_search: Dict[str, Any] = {"path": self.content_field or "content", "query": query}
+        text_search: dict[str, Any] = {"path": self.content_field or "content", "query": query}
         if match_criteria:
             text_search["matchCriteria"] = match_criteria
         if synonyms:
@@ -803,7 +803,7 @@ class MongoDBAtlasDocumentStore:
             text_search["score"] = score
 
         # Define the pipeline for MongoDB aggregation
-        pipeline: List[Dict[str, Any]] = [
+        pipeline: list[dict[str, Any]] = [
             {
                 "$search": {
                     "index": self.full_text_search_index,
@@ -831,14 +831,14 @@ class MongoDBAtlasDocumentStore:
 
     async def _fulltext_retrieval_async(
         self,
-        query: Union[str, List[str]],
-        fuzzy: Optional[Dict[str, int]] = None,
+        query: Union[str, list[str]],
+        fuzzy: Optional[dict[str, int]] = None,
         match_criteria: Optional[Literal["any", "all"]] = None,
-        score: Optional[Dict[str, Dict]] = None,
+        score: Optional[dict[str, dict]] = None,
         synonyms: Optional[str] = None,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Asynchronously retrieve documents similar to the provided `query` using a full-text search asynchronously.
 
@@ -885,7 +885,7 @@ class MongoDBAtlasDocumentStore:
         filters = _normalize_filters(filters) if filters else {}
 
         # Build the text search options
-        text_search: Dict[str, Any] = {"path": self.content_field or "content", "query": query}
+        text_search: dict[str, Any] = {"path": self.content_field or "content", "query": query}
         if match_criteria:
             text_search["matchCriteria"] = match_criteria
         if synonyms:
@@ -896,7 +896,7 @@ class MongoDBAtlasDocumentStore:
             text_search["score"] = score
 
         # Define the pipeline for MongoDB aggregation
-        pipeline: List[Dict[str, Any]] = [
+        pipeline: list[dict[str, Any]] = [
             {
                 "$search": {
                     "index": self.full_text_search_index,
@@ -923,7 +923,7 @@ class MongoDBAtlasDocumentStore:
 
         return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
 
-    def _mongo_doc_to_haystack_doc(self, mongo_doc: Dict[str, Any]) -> Document:
+    def _mongo_doc_to_haystack_doc(self, mongo_doc: dict[str, Any]) -> Document:
         """
         Converts the dictionary coming out of MongoDB into a Haystack document
 
@@ -937,7 +937,7 @@ class MongoDBAtlasDocumentStore:
             mongo_doc["embedding"] = mongo_doc.pop(self.embedding_field, None)
         return Document.from_dict(mongo_doc)
 
-    def _haystack_doc_to_mongo_doc(self, haystack_doc: Document) -> Dict[str, Any]:
+    def _haystack_doc_to_mongo_doc(self, haystack_doc: Document) -> dict[str, Any]:
         """
         Parses a Haystack Document to a MongoDB document.
 

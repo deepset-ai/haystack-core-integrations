@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from dataclasses import replace
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import requests
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -60,7 +60,7 @@ class JinaDocumentImageEmbedder:
         file_path_meta_field: str = "file_path",
         root_path: Optional[str] = None,
         embedding_dimension: Optional[int] = None,
-        image_size: Optional[Tuple[int, int]] = None,
+        image_size: Optional[tuple[int, int]] = None,
         batch_size: int = 5,
     ):
         """
@@ -103,13 +103,13 @@ class JinaDocumentImageEmbedder:
             }
         )
 
-    def _get_telemetry_data(self) -> Dict[str, Any]:
+    def _get_telemetry_data(self) -> dict[str, Any]:
         """
         Data that is sent to Posthog for usage analytics.
         """
         return {"model": self.model_name}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -128,7 +128,7 @@ class JinaDocumentImageEmbedder:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "JinaDocumentImageEmbedder":
+    def from_dict(cls, data: dict[str, Any]) -> "JinaDocumentImageEmbedder":
         """
         Deserializes the component from a dictionary.
 
@@ -140,7 +140,7 @@ class JinaDocumentImageEmbedder:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    def _extract_images_to_embed(self, documents: List[Document]) -> List[str]:
+    def _extract_images_to_embed(self, documents: list[Document]) -> list[str]:
         """
         Validates the input documents and extracts the images to embed in the format expected by the Jina API.
 
@@ -166,8 +166,8 @@ class JinaDocumentImageEmbedder:
             documents=documents, file_path_meta_field=self.file_path_meta_field, root_path=self.root_path
         )
 
-        images_to_embed: List[Optional[str]] = [None] * len(documents)
-        pdf_page_infos: List[_PDFPageInfo] = []
+        images_to_embed: list[Optional[str]] = [None] * len(documents)
+        pdf_page_infos: list[_PDFPageInfo] = []
 
         for doc_idx, image_source_info in enumerate(images_source_info):
             if image_source_info["mime_type"] == "application/pdf":
@@ -204,8 +204,8 @@ class JinaDocumentImageEmbedder:
         # tested above that image is not None, but mypy doesn't know that
         return images_to_embed  # type: ignore[return-value]
 
-    @component.output_types(documents=List[Document])
-    def run(self, documents: List[Document]) -> Dict[str, List[Document]]:
+    @component.output_types(documents=list[Document])
+    def run(self, documents: list[Document]) -> dict[str, list[Document]]:
         """
         Embed a list of image documents.
 
@@ -229,7 +229,7 @@ class JinaDocumentImageEmbedder:
             batch_images = images_to_embed[i : i + self.batch_size]
 
             # Prepare request parameters
-            parameters: Dict[str, Any] = {}
+            parameters: dict[str, Any] = {}
             if self.embedding_dimension is not None:
                 parameters["dimensions"] = self.embedding_dimension
 

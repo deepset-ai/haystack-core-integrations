@@ -1,4 +1,5 @@
-from typing import Any, Callable, Dict, Iterable, List, Optional, Union
+from collections.abc import Iterable
+from typing import Any, Callable, Optional, Union
 
 from haystack import logging
 from haystack.core.component import component
@@ -64,8 +65,8 @@ class VertexAIGeminiGenerator:
         model: str = "gemini-2.0-flash",
         project_id: Optional[str] = None,
         location: Optional[str] = None,
-        generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
-        safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
+        generation_config: Optional[Union[GenerationConfig, dict[str, Any]]] = None,
+        safety_settings: Optional[dict[HarmCategory, HarmBlockThreshold]] = None,
         system_instruction: Optional[Union[str, ByteStream, Part]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
     ):
@@ -118,7 +119,7 @@ class VertexAIGeminiGenerator:
             system_instruction=self._system_instruction,
         )
 
-    def _generation_config_to_dict(self, config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
+    def _generation_config_to_dict(self, config: Union[GenerationConfig, dict[str, Any]]) -> dict[str, Any]:
         if isinstance(config, dict):
             return config
         return {
@@ -130,7 +131,7 @@ class VertexAIGeminiGenerator:
             "stop_sequences": config._raw_generation_config.stop_sequences,
         }
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -155,7 +156,7 @@ class VertexAIGeminiGenerator:
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "VertexAIGeminiGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "VertexAIGeminiGenerator":
         """
         Deserializes the component from a dictionary.
 
@@ -182,7 +183,7 @@ class VertexAIGeminiGenerator:
             msg = f"Unsupported type {type(part)} for part {part}"
             raise ValueError(msg)
 
-    @component.output_types(replies=List[str])
+    @component.output_types(replies=list[str])
     def run(
         self,
         parts: Variadic[Union[str, ByteStream, Part]],
@@ -211,7 +212,7 @@ class VertexAIGeminiGenerator:
 
         return {"replies": replies}
 
-    def _get_response(self, response_body: GenerationResponse) -> List[str]:
+    def _get_response(self, response_body: GenerationResponse) -> list[str]:
         """
         Extracts the responses from the Vertex AI response.
 
@@ -228,7 +229,7 @@ class VertexAIGeminiGenerator:
 
     def _get_stream_response(
         self, stream: Iterable[GenerationResponse], streaming_callback: Callable[[StreamingChunk], None]
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Extracts the responses from the Vertex AI streaming response.
 
@@ -236,7 +237,7 @@ class VertexAIGeminiGenerator:
         :param streaming_callback: The handler for the streaming response.
         :returns: A list of string responses.
         """
-        streaming_chunks: List[StreamingChunk] = []
+        streaming_chunks: list[StreamingChunk] = []
 
         for chunk in stream:
             streaming_chunk = StreamingChunk(content=chunk.text, meta=chunk.to_dict())

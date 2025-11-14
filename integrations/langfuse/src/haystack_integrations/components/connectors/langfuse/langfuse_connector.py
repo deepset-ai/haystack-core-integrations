@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import httpx
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
@@ -124,7 +124,7 @@ class LangfuseConnector:
         span_handler: Optional[SpanHandler] = None,
         *,
         host: Optional[str] = None,
-        langfuse_client_kwargs: Optional[Dict[str, Any]] = None,
+        langfuse_client_kwargs: Optional[dict[str, Any]] = None,
     ) -> None:
         """
         Initialize the LangfuseConnector component.
@@ -172,7 +172,7 @@ class LangfuseConnector:
         tracing.enable_tracing(self.tracer)
 
     @component.output_types(name=str, trace_url=str, trace_id=str)
-    def run(self, invocation_context: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+    def run(self, invocation_context: Optional[dict[str, Any]] = None) -> dict[str, str]:
         """
         Runs the LangfuseConnector component.
 
@@ -191,7 +191,7 @@ class LangfuseConnector:
         )
         return {"name": self.name, "trace_url": self.tracer.get_trace_url(), "trace_id": self.tracer.get_trace_id()}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize this component to a dictionary.
 
@@ -218,7 +218,7 @@ class LangfuseConnector:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "LangfuseConnector":
+    def from_dict(cls, data: dict[str, Any]) -> "LangfuseConnector":
         """
         Deserialize this component from a dictionary.
 

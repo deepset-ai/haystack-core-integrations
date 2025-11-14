@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import requests
 from haystack import Document, component, default_from_dict, default_to_dict
@@ -70,7 +70,7 @@ class JinaRanker:
             }
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
         :returns:
@@ -85,7 +85,7 @@ class JinaRanker:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "JinaRanker":
+    def from_dict(cls, data: dict[str, Any]) -> "JinaRanker":
         """
         Deserializes the component from a dictionary.
         :param data:
@@ -96,17 +96,17 @@ class JinaRanker:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    def _get_telemetry_data(self) -> Dict[str, Any]:
+    def _get_telemetry_data(self) -> dict[str, Any]:
         """
         Data that is sent to Posthog for usage analytics.
         """
         return {"model": self.model}
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(
         self,
         query: str,
-        documents: List[Document],
+        documents: list[Document],
         top_k: Optional[int] = None,
         score_threshold: Optional[float] = None,
     ):
@@ -155,7 +155,7 @@ class JinaRanker:
 
         results = resp["results"]
 
-        ranked_docs: List[Document] = []
+        ranked_docs: list[Document] = []
         for result in results:
             index = result["index"]
             relevance_score = result["relevance_score"]

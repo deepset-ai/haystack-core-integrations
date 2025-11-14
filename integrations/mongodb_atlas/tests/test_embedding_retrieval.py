@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from typing import List
 
 import pytest
 from haystack.document_stores.errors import DocumentStoreError
@@ -65,7 +64,7 @@ class TestEmbeddingRetrieval:
             vector_search_index="cosine_index",
             full_text_search_index="full_text_index",
         )
-        query_embedding: List[float] = []
+        query_embedding: list[float] = []
         with pytest.raises(ValueError):
             document_store._embedding_retrieval(query_embedding=query_embedding)
 

@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 import google.generativeai as genai
 from google.ai.generativelanguage import Content, Part
@@ -146,9 +146,9 @@ class GoogleAIGeminiChatGenerator:
         *,
         api_key: Secret = Secret.from_env_var("GOOGLE_API_KEY"),  # noqa: B008
         model: str = "gemini-2.0-flash",
-        generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
-        safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
-        tools: Optional[List[Tool]] = None,
+        generation_config: Optional[Union[GenerationConfig, dict[str, Any]]] = None,
+        safety_settings: Optional[dict[HarmCategory, HarmBlockThreshold]] = None,
+        tools: Optional[list[Tool]] = None,
         tool_config: Optional[content_types.ToolConfigDict] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
     ):
@@ -192,7 +192,7 @@ class GoogleAIGeminiChatGenerator:
         self._model = GenerativeModel(self._model_name)
         self._streaming_callback = streaming_callback
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -218,7 +218,7 @@ class GoogleAIGeminiChatGenerator:
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GoogleAIGeminiChatGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "GoogleAIGeminiChatGenerator":
         """
         Deserializes the component from a dictionary.
 
@@ -255,13 +255,13 @@ class GoogleAIGeminiChatGenerator:
 
         return FunctionDeclaration(name=tool.name, description=tool.description, parameters=parameters)
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
         *,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[list[Tool]] = None,
     ):
         """
         Generates text based on the provided messages.
@@ -308,13 +308,13 @@ class GoogleAIGeminiChatGenerator:
 
         return {"replies": replies}
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
         *,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[list[Tool]] = None,
     ):
         """
         Async version of the run method. Generates text based on the provided messages.
@@ -367,7 +367,7 @@ class GoogleAIGeminiChatGenerator:
     @staticmethod
     def _convert_response_to_messages(
         response_body: Union[GenerateContentResponse, AsyncGenerateContentResponse],
-    ) -> List[ChatMessage]:
+    ) -> list[ChatMessage]:
         """
         Converts the Google AI response to a list of `ChatMessage` instances.
 
@@ -408,7 +408,7 @@ class GoogleAIGeminiChatGenerator:
     @staticmethod
     def _stream_response_and_convert_to_messages(
         stream: GenerateContentResponse, streaming_callback: StreamingCallbackT
-    ) -> List[ChatMessage]:
+    ) -> list[ChatMessage]:
         """
         Streams the Google AI response and converts it to a list of `ChatMessage` instances.
 
@@ -461,7 +461,7 @@ class GoogleAIGeminiChatGenerator:
     @staticmethod
     async def _stream_response_and_convert_to_messages_async(
         stream: AsyncGenerateContentResponse, streaming_callback: AsyncStreamingCallbackT
-    ) -> List[ChatMessage]:
+    ) -> list[ChatMessage]:
         """
         Streams the Google AI response and converts it to a list of `ChatMessage` instances.
 
