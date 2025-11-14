@@ -145,7 +145,6 @@ class TestUtils:
                 "total_tokens": 324,
             },
             "completion_start_time": "2023-12-12T14:13:43.416799Z",
-            "logprobs": None,
             "load_duration": 2154458,
             "total_duration": 5191566416,
             "eval_duration": 4799921000,
