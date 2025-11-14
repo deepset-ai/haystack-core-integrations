@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret
@@ -40,7 +40,7 @@ class OptimumTextEmbedder:
         normalize_embeddings: bool = True,
         onnx_execution_provider: str = "CPUExecutionProvider",
         pooling_mode: Optional[Union[str, OptimumEmbedderPooling]] = None,
-        model_kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[dict[str, Any]] = None,
         working_dir: Optional[str] = None,
         optimizer_settings: Optional[OptimumEmbedderOptimizationConfig] = None,
         quantizer_settings: Optional[OptimumEmbedderQuantizationConfig] = None,
@@ -127,7 +127,7 @@ class OptimumTextEmbedder:
         self._backend.warm_up()
         self._initialized = True
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -141,7 +141,7 @@ class OptimumTextEmbedder:
         return default_to_dict(self, **init_params)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OptimumTextEmbedder":
+    def from_dict(cls, data: dict[str, Any]) -> "OptimumTextEmbedder":
         """
         Deserializes the component from a dictionary.
 
@@ -153,8 +153,8 @@ class OptimumTextEmbedder:
         _EmbedderParams.deserialize_inplace(data["init_parameters"])
         return default_from_dict(cls, data)
 
-    @component.output_types(embedding=List[float])
-    def run(self, text: str) -> Dict[str, List[float]]:
+    @component.output_types(embedding=list[float])
+    def run(self, text: str) -> dict[str, list[float]]:
         """
         Embed a string.
 

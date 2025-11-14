@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Literal, Optional
 from urllib.parse import quote_plus
 
 import polars as pl
@@ -180,14 +180,14 @@ class SnowflakeTableRetriever:
 
         self._warmed_up = True
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
         :returns:
             Dictionary with serialized data.
         """
-        data: Dict[str, Any] = {
+        data: dict[str, Any] = {
             "user": self.user,
             "account": self.account,
             "database": self.database,
@@ -207,7 +207,7 @@ class SnowflakeTableRetriever:
         return default_to_dict(self, **data)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SnowflakeTableRetriever":
+    def from_dict(cls, data: dict[str, Any]) -> "SnowflakeTableRetriever":
         """
         Deserializes the component from a dictionary.
 
@@ -346,7 +346,7 @@ class SnowflakeTableRetriever:
         """
         try:
             # Build connection parameters
-            conn_params: Dict[str, Any] = {
+            conn_params: dict[str, Any] = {
                 "user": self.user,
                 "account": self.account,
                 "authenticator": self.authenticator.lower(),
@@ -400,7 +400,7 @@ class SnowflakeTableRetriever:
             return None
 
     @staticmethod
-    def _empty_response() -> Dict[str, Any]:
+    def _empty_response() -> dict[str, Any]:
         """Returns a standardized empty response.
 
         :returns:
@@ -411,7 +411,7 @@ class SnowflakeTableRetriever:
         return {"dataframe": DataFrame(), "table": ""}
 
     @component.output_types(dataframe=DataFrame, table=str)
-    def run(self, query: str, return_markdown: Optional[bool] = None) -> Dict[str, Any]:
+    def run(self, query: str, return_markdown: Optional[bool] = None) -> dict[str, Any]:
         """
         Executes a SQL query against a Snowflake database using ADBC and Polars.
 

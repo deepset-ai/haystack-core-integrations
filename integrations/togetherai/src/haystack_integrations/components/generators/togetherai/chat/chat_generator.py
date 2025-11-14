@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -63,11 +63,11 @@ class TogetherAIChatGenerator(OpenAIChatGenerator):
         model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo",
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = "https://api.together.xyz/v1",
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         tools: Optional[ToolsType] = None,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
-        http_client_kwargs: Optional[Dict[str, Any]] = None,
+        http_client_kwargs: Optional[dict[str, Any]] = None,
     ):
         """
         Creates an instance of TogetherAIChatGenerator. Unless specified otherwise,
@@ -123,7 +123,7 @@ class TogetherAIChatGenerator(OpenAIChatGenerator):
             http_client_kwargs=http_client_kwargs,
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize this component to a dictionary.
 

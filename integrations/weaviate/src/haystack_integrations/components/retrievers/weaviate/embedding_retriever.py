@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
@@ -21,7 +21,7 @@ class WeaviateEmbeddingRetriever:
         self,
         *,
         document_store: WeaviateDocumentStore,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
         distance: Optional[float] = None,
         certainty: Optional[float] = None,
@@ -60,7 +60,7 @@ class WeaviateEmbeddingRetriever:
             filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -78,7 +78,7 @@ class WeaviateEmbeddingRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "WeaviateEmbeddingRetriever":
+    def from_dict(cls, data: dict[str, Any]) -> "WeaviateEmbeddingRetriever":
         """
         Deserializes the component from a dictionary.
 
@@ -98,15 +98,15 @@ class WeaviateEmbeddingRetriever:
 
         return default_from_dict(cls, data)
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(
         self,
-        query_embedding: List[float],
-        filters: Optional[Dict[str, Any]] = None,
+        query_embedding: list[float],
+        filters: Optional[dict[str, Any]] = None,
         top_k: Optional[int] = None,
         distance: Optional[float] = None,
         certainty: Optional[float] = None,
-    ) -> Dict[str, List[Document]]:
+    ) -> dict[str, list[Document]]:
         """
         Retrieves documents from Weaviate using the vector search.
 

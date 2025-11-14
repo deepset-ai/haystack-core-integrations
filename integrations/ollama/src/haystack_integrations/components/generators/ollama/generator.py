@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk
@@ -7,7 +7,7 @@ from haystack.utils.callable_serialization import deserialize_callable, serializ
 from ollama import Client, GenerateResponse
 
 
-def _convert_ollama_meta_to_openai_format(intput_response_dict: Dict) -> Dict:
+def _convert_ollama_meta_to_openai_format(intput_response_dict: dict) -> dict:
     """
     Converts Ollama metadata format to OpenAI-metadata format for standardization.
 
@@ -98,7 +98,7 @@ class OllamaGenerator:
         self,
         model: str = "orca-mini",
         url: str = "http://localhost:11434",
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         system_prompt: Optional[str] = None,
         template: Optional[str] = None,
         raw: bool = False,
@@ -148,7 +148,7 @@ class OllamaGenerator:
 
         self._client = Client(host=self.url, timeout=self.timeout)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -170,7 +170,7 @@ class OllamaGenerator:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OllamaGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "OllamaGenerator":
         """
         Deserializes the component from a dictionary.
 
@@ -185,7 +185,7 @@ class OllamaGenerator:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
-    def _convert_to_response(self, ollama_response: GenerateResponse) -> Dict[str, List[Any]]:
+    def _convert_to_response(self, ollama_response: GenerateResponse) -> dict[str, list[Any]]:
         """
         Converts a response from the Ollama API to the required Haystack format.
         """
@@ -195,7 +195,7 @@ class OllamaGenerator:
 
         return {"replies": [reply], "meta": [meta]}
 
-    def _convert_to_streaming_response(self, chunks: List[StreamingChunk]) -> Dict[str, List[Any]]:
+    def _convert_to_streaming_response(self, chunks: list[StreamingChunk]) -> dict[str, list[Any]]:
         """
         Converts a list of chunks response required Haystack format.
         """
@@ -209,11 +209,11 @@ class OllamaGenerator:
 
     def _handle_streaming_response(
         self, response: Any, streaming_callback: Optional[Callable[[StreamingChunk], None]]
-    ) -> List[StreamingChunk]:
+    ) -> list[StreamingChunk]:
         """
         Handles Streaming response cases
         """
-        chunks: List[StreamingChunk] = []
+        chunks: list[StreamingChunk] = []
         for chunk in response:
             chunk_delta: StreamingChunk = self._build_chunk(chunk)
             chunks.append(chunk_delta)
@@ -232,14 +232,14 @@ class OllamaGenerator:
         chunk_message = StreamingChunk(content, meta)
         return chunk_message
 
-    @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
+    @component.output_types(replies=list[str], meta=list[dict[str, Any]])
     def run(
         self,
         prompt: str,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         *,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-    ) -> Dict[str, List[Any]]:
+    ) -> dict[str, list[Any]]:
         """
         Runs an Ollama Model on the given prompt.
 
@@ -269,7 +269,7 @@ class OllamaGenerator:
         )
 
         if stream:
-            chunks: List[StreamingChunk] = self._handle_streaming_response(response, resolved_streaming_callback)
+            chunks: list[StreamingChunk] = self._handle_streaming_response(response, resolved_streaming_callback)
             return self._convert_to_streaming_response(chunks)
 
         return self._convert_to_response(response)

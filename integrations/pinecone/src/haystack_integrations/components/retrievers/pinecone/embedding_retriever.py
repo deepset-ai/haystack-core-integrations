@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -55,7 +55,7 @@ class PineconeEmbeddingRetriever:
         self,
         *,
         document_store: PineconeDocumentStore,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
@@ -78,7 +78,7 @@ class PineconeEmbeddingRetriever:
             filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
         :returns:
@@ -93,7 +93,7 @@ class PineconeEmbeddingRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PineconeEmbeddingRetriever":
+    def from_dict(cls, data: dict[str, Any]) -> "PineconeEmbeddingRetriever":
         """
         Deserializes the component from a dictionary.
         :param data:
@@ -110,13 +110,13 @@ class PineconeEmbeddingRetriever:
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
         return default_from_dict(cls, data)
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(
         self,
-        query_embedding: List[float],
-        filters: Optional[Dict[str, Any]] = None,
+        query_embedding: list[float],
+        filters: Optional[dict[str, Any]] = None,
         top_k: Optional[int] = None,
-    ) -> Dict[str, List[Document]]:
+    ) -> dict[str, list[Document]]:
         """
         Retrieve documents from the `PineconeDocumentStore`, based on their dense embeddings.
 
@@ -139,13 +139,13 @@ class PineconeEmbeddingRetriever:
         )
         return {"documents": docs}
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     async def run_async(
         self,
-        query_embedding: List[float],
-        filters: Optional[Dict[str, Any]] = None,
+        query_embedding: list[float],
+        filters: Optional[dict[str, Any]] = None,
         top_k: Optional[int] = None,
-    ) -> Dict[str, List[Document]]:
+    ) -> dict[str, list[Document]]:
         """
         Asynchronously retrieve documents from the `PineconeDocumentStore`, based on their dense embeddings.
 

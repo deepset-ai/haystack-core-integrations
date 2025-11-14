@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from haystack import component, default_to_dict
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -42,11 +42,11 @@ class STACKITChatGenerator(OpenAIChatGenerator):
         api_key: Secret = Secret.from_env_var("STACKIT_API_KEY"),
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1",
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         *,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
-        http_client_kwargs: Optional[Dict[str, Any]] = None,
+        http_client_kwargs: Optional[dict[str, Any]] = None,
     ):
         """
         Creates an instance of STACKITChatGenerator class.
@@ -96,7 +96,7 @@ class STACKITChatGenerator(OpenAIChatGenerator):
             http_client_kwargs=http_client_kwargs,
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize this component to a dictionary.
 

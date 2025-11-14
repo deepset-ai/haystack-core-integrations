@@ -4,7 +4,7 @@
 
 # ruff: noqa: FBT001  Boolean-typed positional argument in function definition
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -28,13 +28,13 @@ class OpenSearchBM25Retriever:
         self,
         *,
         document_store: OpenSearchDocumentStore,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         fuzziness: Union[int, str] = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
-        custom_query: Optional[Dict[str, Any]] = None,
+        custom_query: Optional[dict[str, Any]] = None,
         raise_on_failure: bool = True,
     ):
         """
@@ -114,7 +114,7 @@ class OpenSearchBM25Retriever:
         self._custom_query = custom_query
         self._raise_on_failure = raise_on_failure
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -134,7 +134,7 @@ class OpenSearchBM25Retriever:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OpenSearchBM25Retriever":
+    def from_dict(cls, data: dict[str, Any]) -> "OpenSearchBM25Retriever":
         """
         Deserializes the component from a dictionary.
 
@@ -158,13 +158,13 @@ class OpenSearchBM25Retriever:
         self,
         *,
         query: str,
-        filters: Optional[Dict[str, Any]],
+        filters: Optional[dict[str, Any]],
         all_terms_must_match: Optional[bool],
         top_k: Optional[int],
         fuzziness: Optional[Union[str, int]],
         scale_score: Optional[bool],
-        custom_query: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        custom_query: Optional[dict[str, Any]],
+    ) -> dict[str, Any]:
         filters = apply_filter_policy(self._filter_policy, self._filters, filters)
 
         if filters is None:
@@ -190,18 +190,18 @@ class OpenSearchBM25Retriever:
             "custom_query": custom_query,
         }
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(
         self,
         query: str,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         all_terms_must_match: Optional[bool] = None,
         top_k: Optional[int] = None,
         fuzziness: Optional[Union[int, str]] = None,
         scale_score: Optional[bool] = None,
-        custom_query: Optional[Dict[str, Any]] = None,
+        custom_query: Optional[dict[str, Any]] = None,
         document_store: Optional[OpenSearchDocumentStore] = None,
-    ) -> Dict[str, List[Document]]:
+    ) -> dict[str, list[Document]]:
         """
         Retrieve documents using BM25 retrieval.
 
@@ -256,7 +256,7 @@ class OpenSearchBM25Retriever:
 
 
         """
-        docs: List[Document] = []
+        docs: list[Document] = []
 
         bm25_args = self._prepare_bm25_args(
             query=query,
@@ -290,18 +290,18 @@ class OpenSearchBM25Retriever:
 
         return {"documents": docs}
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     async def run_async(  # pylint: disable=too-many-positional-arguments
         self,
         query: str,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         all_terms_must_match: Optional[bool] = None,
         top_k: Optional[int] = None,
         fuzziness: Optional[Union[int, str]] = None,
         scale_score: Optional[bool] = None,
-        custom_query: Optional[Dict[str, Any]] = None,
+        custom_query: Optional[dict[str, Any]] = None,
         document_store: Optional[OpenSearchDocumentStore] = None,
-    ) -> Dict[str, List[Document]]:
+    ) -> dict[str, list[Document]]:
         """
         Asynchronously retrieve documents using BM25 retrieval.
 
@@ -324,7 +324,7 @@ class OpenSearchBM25Retriever:
             - documents: List of retrieved Documents.
 
         """
-        docs: List[Document] = []
+        docs: list[Document] = []
         bm25_args = self._prepare_bm25_args(
             query=query,
             filters=filters,

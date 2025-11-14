@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import List
-
 import pytest
 from haystack.dataclasses.document import Document
 from numpy.random import rand
@@ -101,7 +99,7 @@ class TestEmbeddingRetrieval:
         assert results[0].score > results[1].score > results[2].score
 
     def test_empty_query_embedding(self, document_store: PgvectorDocumentStore):
-        query_embedding: List[float] = []
+        query_embedding: list[float] = []
         with pytest.raises(ValueError):
             document_store._embedding_retrieval(query_embedding=query_embedding)
 

@@ -84,7 +84,7 @@ known-first-party = ["haystack_integrations"]
 
 
 [tool.ruff]
-target-version = "py38"
+target-version = "py39"
 line-length = 120
 
 [tool.ruff.lint]

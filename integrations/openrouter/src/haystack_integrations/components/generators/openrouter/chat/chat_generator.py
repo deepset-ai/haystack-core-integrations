@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -63,12 +63,12 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         model: str = "openai/gpt-4o-mini",
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = "https://openrouter.ai/api/v1",
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         tools: Optional[ToolsType] = None,
         timeout: Optional[float] = None,
-        extra_headers: Optional[Dict[str, Any]] = None,
+        extra_headers: Optional[dict[str, Any]] = None,
         max_retries: Optional[int] = None,
-        http_client_kwargs: Optional[Dict[str, Any]] = None,
+        http_client_kwargs: Optional[dict[str, Any]] = None,
     ):
         """
         Creates an instance of OpenRouterChatGenerator. Unless specified otherwise,
@@ -136,7 +136,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         )
         self.extra_headers = extra_headers
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize this component to a dictionary.
 
