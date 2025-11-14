@@ -1,7 +1,7 @@
 import glob
 import io
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from unittest.mock import patch
 
 import pytest
@@ -62,7 +62,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
             )
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
-    def test_to_dict(self, mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]):
+    def test_to_dict(self, mock_boto3_session: Any, boto3_config: Optional[dict[str, Any]]):
         embedder = AmazonBedrockDocumentImageEmbedder(
             model="cohere.embed-english-v3",
             embedding_types=["float"],
@@ -90,7 +90,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
         assert embedder.to_dict() == expected_dict
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
-    def test_from_dict(self, mock_boto3_session: Any, boto3_config: Optional[Dict[str, Any]]):
+    def test_from_dict(self, mock_boto3_session: Any, boto3_config: Optional[dict[str, Any]]):
         data = {
             "type": TYPE,
             "init_parameters": {

@@ -4,7 +4,7 @@
 
 import json
 from dataclasses import replace
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Literal, Optional
 
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -79,9 +79,9 @@ class AmazonBedrockDocumentImageEmbedder:
         aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         file_path_meta_field: str = "file_path",
         root_path: Optional[str] = None,
-        image_size: Optional[Tuple[int, int]] = None,
+        image_size: Optional[tuple[int, int]] = None,
         progress_bar: bool = True,
-        boto3_config: Optional[Dict[str, Any]] = None,
+        boto3_config: Optional[dict[str, Any]] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -296,7 +296,7 @@ class AmazonBedrockDocumentImageEmbedder:
 
         return {"documents": docs_with_embeddings}
 
-    def _embed_titan(self, images: List[str]) -> List[List[float]]:
+    def _embed_titan(self, images: list[str]) -> list[list[float]]:
         """
         Internal method to embed base64 images using Amazon Titan models.
 
@@ -326,7 +326,7 @@ class AmazonBedrockDocumentImageEmbedder:
 
         return all_embeddings
 
-    def _embed_cohere(self, image_uris: List[str]) -> List[List[float]]:
+    def _embed_cohere(self, image_uris: list[str]) -> list[list[float]]:
         """
         Internal method to embed base64 images using Cohere models.
 
