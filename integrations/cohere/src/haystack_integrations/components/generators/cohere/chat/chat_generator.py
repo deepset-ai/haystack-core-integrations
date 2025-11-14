@@ -185,6 +185,7 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
     Extracts and organizes various response components including:
     - Text content
     - Tool calls
+    - Reasoning content (via native Cohere API with text-based fallback)
     - Usage statistics
     - Citations
     - Metadata
@@ -193,6 +194,29 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
     :param model: The name of the model that generated the response.
     :return: A Haystack ChatMessage containing the formatted response.
     """
+    # Try to extract reasoning content using Cohere's native API (preferred method)
+    reasoning_content = None
+    text_content = ""
+
+    if chat_response.message.content:
+        for content_item in chat_response.message.content:
+            # Access thinking content via native Cohere API
+            if hasattr(content_item, "type") and content_item.type == "thinking":
+                if hasattr(content_item, "thinking") and content_item.thinking:
+                    reasoning_content = ReasoningContent(reasoning_text=content_item.thinking)
+            # Access text content
+            elif hasattr(content_item, "type") and content_item.type == "text":
+                if hasattr(content_item, "text") and content_item.text:
+                    text_content = content_item.text
+
+    # Fallback: If reasoning wasn't found via native API but text contains reasoning markers,
+    # extract it from text (for backward compatibility)
+    if reasoning_content is None and text_content:
+        fallback_reasoning, cleaned_text = _extract_reasoning_from_text(text_content)
+        if fallback_reasoning is not None:
+            reasoning_content = fallback_reasoning
+            text_content = cleaned_text
+
     if chat_response.message.tool_calls:
         tool_calls = []
         for tc in chat_response.message.tool_calls:
@@ -205,20 +229,11 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
                     )
                 )
 
-        # Extract reasoning from content if present, even with tool calls
-        reasoning_content = None
-        if chat_response.message.content and hasattr(chat_response.message.content[0], "text"):
-            raw_content = chat_response.message.content[0].text
-            reasoning_content, _ = _extract_reasoning_from_response(raw_content)
-
         # Create message with tool plan as text and tool calls in the format Haystack expects
         tool_plan = chat_response.message.tool_plan or ""
         message = ChatMessage.from_assistant(text=tool_plan, tool_calls=tool_calls, reasoning=reasoning_content)
-    elif chat_response.message.content and hasattr(chat_response.message.content[0], "text"):
-        raw_content = chat_response.message.content[0].text
-        # Extract reasoning content if present
-        reasoning_content, cleaned_content = _extract_reasoning_from_response(raw_content)
-        message = ChatMessage.from_assistant(cleaned_content, reasoning=reasoning_content)
+    elif text_content:
+        message = ChatMessage.from_assistant(text_content, reasoning=reasoning_content)
     else:
         # Handle the case where neither tool_calls nor content exists
         logger.warning(f"Received empty response from Cohere API: {chat_response.message}")
@@ -362,20 +377,18 @@ def _convert_cohere_chunk_to_streaming_chunk(
     )
 
 
-def _extract_reasoning_from_response(response_text: str) -> tuple[Optional[ReasoningContent], str]:
+def _extract_reasoning_from_text(response_text: str) -> tuple[Optional[ReasoningContent], str]:
     """
-    Extract reasoning content from Cohere's response if present.
+    Extract reasoning content from text as a fallback method.
 
-    Cohere's reasoning-capable models (like Command A Reasoning) may include reasoning content
-    in various formats. This function attempts to identify and extract such content.
+    This is used when reasoning is not available via native Cohere API
+    (e.g., in streaming mode or for backward compatibility).
 
     :param response_text: The raw response text from Cohere
     :returns: A tuple of (ReasoningContent or None, cleaned_response_text)
     """
     if not response_text or not isinstance(response_text, str):
         return None, response_text
-
-    # Check for reasoning markers that Cohere might use
 
     # Pattern 1: Look for thinking/reasoning tags
     thinking_patterns = [
@@ -390,23 +403,17 @@ def _extract_reasoning_from_response(response_text: str) -> tuple[Optional[Reaso
         if match:
             reasoning_text = match.group(1).strip()
             cleaned_content = re.sub(pattern, "", response_text, flags=re.DOTALL | re.IGNORECASE).strip()
-            # Apply minimum length threshold for tag-based reasoning
             min_reasoning_length = 30
             if len(reasoning_text) > min_reasoning_length:
                 return ReasoningContent(reasoning_text=reasoning_text), cleaned_content
             else:
-                # Content too short, but still clean the tags
                 return None, cleaned_content
 
     # Pattern 2: Look for step-by-step reasoning at start
     lines = response_text.split("\n")
-    reasoning_lines = []
-    content_lines = []
-    found_separator = False
-
+    max_lines_to_check = 10
     for i, line in enumerate(lines):
         stripped_line = line.strip()
-        # Look for reasoning indicators at the beginning of lines (more precise)
         if (
             stripped_line.startswith(("Step ", "First,", "Let me think", "I need to solve", "To solve"))
             or stripped_line.startswith(("## Reasoning", "## Thinking", "## My reasoning"))
@@ -416,8 +423,7 @@ def _extract_reasoning_from_response(response_text: str) -> tuple[Optional[Reaso
                 and ("reasoning" in stripped_line.lower() or "thinking" in stripped_line.lower())
             )
         ):
-            # Look for a clear separator to determine where reasoning ends
-            reasoning_end = len(lines)  # Default to end of text
+            reasoning_end = len(lines)
             for j in range(i + 1, len(lines)):
                 next_line = lines[j].strip()
                 if next_line.startswith(
@@ -428,21 +434,16 @@ def _extract_reasoning_from_response(response_text: str) -> tuple[Optional[Reaso
 
             reasoning_lines = lines[:reasoning_end]
             content_lines = lines[reasoning_end:]
-            found_separator = True
-            break
-        # Stop looking after first few lines
-        max_lines_to_check = 10
-        if i > max_lines_to_check:
+            reasoning_text = "\n".join(reasoning_lines).strip()
+            cleaned_content = "\n".join(content_lines).strip()
+            min_reasoning_length = 30
+            if len(reasoning_text) > min_reasoning_length:
+                return ReasoningContent(reasoning_text=reasoning_text), cleaned_content
             break
 
-    if found_separator and reasoning_lines:
-        reasoning_text = "\n".join(reasoning_lines).strip()
-        cleaned_content = "\n".join(content_lines).strip()
-        min_reasoning_length = 30
-        if len(reasoning_text) > min_reasoning_length:  # Minimum threshold
-            return ReasoningContent(reasoning_text=reasoning_text), cleaned_content
+        if i > max_lines_to_check:  # Stop looking after first few lines
+            break
 
-    # No reasoning detected
     return None, response_text
 
 
@@ -450,27 +451,19 @@ def _convert_streaming_chunks_to_chat_message_with_reasoning(chunks: list[Stream
     """
     Convert streaming chunks to ChatMessage with reasoning extraction support.
 
-    This is a custom version of the core utility function that adds reasoning content
-    extraction for Cohere responses.
+    For streaming, reasoning might not come via native API, so we use text-based extraction.
     """
-    # Use the core utility to get the base ChatMessage
     base_message = _convert_streaming_chunks_to_chat_message(chunks=chunks)
 
-    # Extract text content to check for reasoning
     if not base_message.text:
         return base_message
 
-    # Use the text property for reasoning extraction
-    combined_text = base_message.text
-
-    # Extract reasoning if present
-    reasoning_content, cleaned_text = _extract_reasoning_from_response(combined_text)
+    # Try to extract reasoning from text (fallback for streaming)
+    reasoning_content, cleaned_text = _extract_reasoning_from_text(base_message.text)
 
     if reasoning_content is None:
-        # No reasoning found, return original message
         return base_message
 
-    # Create new message with reasoning support
     new_message = ChatMessage.from_assistant(
         text=cleaned_text,
         reasoning=reasoning_content,
