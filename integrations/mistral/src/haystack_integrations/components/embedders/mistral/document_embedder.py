@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from haystack import component, default_to_dict
 from haystack.components.embedders import OpenAIDocumentEmbedder
@@ -39,12 +39,12 @@ class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
         suffix: str = "",
         batch_size: int = 32,
         progress_bar: bool = True,
-        meta_fields_to_embed: Optional[List[str]] = None,
+        meta_fields_to_embed: Optional[list[str]] = None,
         embedding_separator: str = "\n",
         *,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
-        http_client_kwargs: Optional[Dict[str, Any]] = None,
+        http_client_kwargs: Optional[dict[str, Any]] = None,
     ):
         """
         Creates a MistralDocumentEmbedder component.
@@ -98,7 +98,7 @@ class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
         self.timeout = timeout
         self.max_retries = max_retries
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 

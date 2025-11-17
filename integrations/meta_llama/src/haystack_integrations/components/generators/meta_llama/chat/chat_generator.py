@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -61,7 +61,7 @@ class MetaLlamaChatGenerator(OpenAIChatGenerator):
         model: str = "Llama-4-Scout-17B-16E-Instruct-FP8",
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = "https://api.llama.com/compat/v1/",
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         tools: Optional[ToolsType] = None,
     ):
         """
@@ -134,7 +134,7 @@ class MetaLlamaChatGenerator(OpenAIChatGenerator):
             api_args.pop("response_format")
         return api_args
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize this component to a dictionary.
 

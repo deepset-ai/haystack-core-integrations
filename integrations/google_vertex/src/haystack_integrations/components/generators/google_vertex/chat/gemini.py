@@ -1,5 +1,6 @@
 import json
-from typing import Any, AsyncIterable, Dict, Iterable, List, Optional, Union
+from collections.abc import AsyncIterable, Iterable
+from typing import Any, Optional, Union
 
 from haystack import logging
 from haystack.core.component import component
@@ -146,9 +147,9 @@ class VertexAIGeminiChatGenerator:
         model: str = "gemini-1.5-flash",
         project_id: Optional[str] = None,
         location: Optional[str] = None,
-        generation_config: Optional[Union[GenerationConfig, Dict[str, Any]]] = None,
-        safety_settings: Optional[Dict[HarmCategory, HarmBlockThreshold]] = None,
-        tools: Optional[List[Tool]] = None,
+        generation_config: Optional[Union[GenerationConfig, dict[str, Any]]] = None,
+        safety_settings: Optional[dict[HarmCategory, HarmBlockThreshold]] = None,
+        tools: Optional[list[Tool]] = None,
         tool_config: Optional[ToolConfig] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
     ):
@@ -205,14 +206,14 @@ class VertexAIGeminiChatGenerator:
         )
 
     @staticmethod
-    def _generation_config_to_dict(config: Union[GenerationConfig, Dict[str, Any]]) -> Dict[str, Any]:
+    def _generation_config_to_dict(config: Union[GenerationConfig, dict[str, Any]]) -> dict[str, Any]:
         """Converts the GenerationConfig object to a dictionary."""
         if isinstance(config, dict):
             return config
         return config.to_dict()
 
     @staticmethod
-    def _tool_config_to_dict(tool_config: ToolConfig) -> Dict[str, Any]:
+    def _tool_config_to_dict(tool_config: ToolConfig) -> dict[str, Any]:
         """Serializes the ToolConfig object into a dictionary."""
         mode = tool_config._gapic_tool_config.function_calling_config.mode
         allowed_function_names = tool_config._gapic_tool_config.function_calling_config.allowed_function_names
@@ -223,7 +224,7 @@ class VertexAIGeminiChatGenerator:
 
         return config_dict
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -250,7 +251,7 @@ class VertexAIGeminiChatGenerator:
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "VertexAIGeminiChatGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "VertexAIGeminiChatGenerator":
         """
         Deserializes the component from a dictionary.
 
@@ -260,7 +261,7 @@ class VertexAIGeminiChatGenerator:
             Deserialized component.
         """
 
-        def _tool_config_from_dict(config_dict: Dict[str, Any]) -> ToolConfig:
+        def _tool_config_from_dict(config_dict: dict[str, Any]) -> ToolConfig:
             """Deserializes the ToolConfig object from a dictionary."""
             function_calling_config = config_dict["function_calling_config"]
             return ToolConfig(
@@ -280,7 +281,7 @@ class VertexAIGeminiChatGenerator:
         return default_from_dict(cls, data)
 
     @staticmethod
-    def _convert_to_vertex_tools(tools: List[Tool]) -> List[VertexTool]:
+    def _convert_to_vertex_tools(tools: list[Tool]) -> list[VertexTool]:
         """
         Converts a list of Haystack `Tool` to a list of Vertex `Tool` objects.
 
@@ -301,13 +302,13 @@ class VertexAIGeminiChatGenerator:
             )
         return [VertexTool(function_declarations=function_declarations)]
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
         *,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[list[Tool]] = None,
     ):
         """
         :param messages:
@@ -360,13 +361,13 @@ class VertexAIGeminiChatGenerator:
 
         return {"replies": replies}
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
         *,
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[list[Tool]] = None,
     ):
         """
         Async version of the run method. Generates text based on the provided messages.
@@ -424,14 +425,14 @@ class VertexAIGeminiChatGenerator:
         return {"replies": replies}
 
     @staticmethod
-    def _convert_response_to_messages(response_body: GenerationResponse) -> List[ChatMessage]:
+    def _convert_response_to_messages(response_body: GenerationResponse) -> list[ChatMessage]:
         """
         Converts the Google Vertex AI response to a list of `ChatMessage` instances.
 
         :param response_body: The response from Google AI request.
         :returns: List of `ChatMessage` instances.
         """
-        replies: List[ChatMessage] = []
+        replies: list[ChatMessage] = []
 
         usage_metadata = response_body.usage_metadata
         openai_usage = {
@@ -464,7 +465,7 @@ class VertexAIGeminiChatGenerator:
 
     def _stream_response_and_convert_to_messages(
         self, stream: Iterable[GenerationResponse], streaming_callback: StreamingCallbackT
-    ) -> List[ChatMessage]:
+    ) -> list[ChatMessage]:
         """
         Streams the Google Vertex AI response and converts it to a list of `ChatMessage` instances.
 
@@ -518,7 +519,7 @@ class VertexAIGeminiChatGenerator:
     @staticmethod
     async def _stream_response_and_convert_to_messages_async(
         stream: AsyncIterable[GenerationResponse], streaming_callback: AsyncStreamingCallbackT
-    ) -> List[ChatMessage]:
+    ) -> list[ChatMessage]:
         """
         Streams the Google Vertex AI response and converts it to a list of `ChatMessage` instances.
 

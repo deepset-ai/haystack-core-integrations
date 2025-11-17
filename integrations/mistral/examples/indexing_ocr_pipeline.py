@@ -9,7 +9,6 @@
 # You can customize the ImageAnnotation and DocumentAnnotation schemas below
 # to extract different structured information from your documents.
 
-from typing import List
 
 from haystack import Pipeline
 from haystack.components.writers import DocumentWriter
@@ -34,8 +33,8 @@ class ImageAnnotation(BaseModel):
 # Define schema for structured document annotations
 class DocumentAnnotation(BaseModel):
     language: str = Field(..., description="Primary language of the document")
-    urls: List[str] = Field(..., description="URLs found in the document")
-    topics: List[str] = Field(..., description="Main topics covered in the document")
+    urls: list[str] = Field(..., description="URLs found in the document")
+    topics: list[str] = Field(..., description="Main topics covered in the document")
 
 
 # Initialize document store

@@ -28,9 +28,10 @@ def mock_vertex_init_and_model():
     """
     Fixture to mock vertexai.init and TextEmbeddingModel.from_pretrained
     """
-    with patch("vertexai.init") as mock_init, patch(
-        "vertexai.language_models.TextEmbeddingModel.from_pretrained"
-    ) as mock_from_pretrained:
+    with (
+        patch("vertexai.init") as mock_init,
+        patch("vertexai.language_models.TextEmbeddingModel.from_pretrained") as mock_from_pretrained,
+    ):
         mock_embedder = MagicMock(spec=TextEmbeddingModel)
         mock_embedder.get_embeddings.return_value = [MockTextEmbeddingResponse([0.1] * 768)]
         mock_embedder.count_tokens.return_value = MockCountTokensResponse(total_tokens=10)
