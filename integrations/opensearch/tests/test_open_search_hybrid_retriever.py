@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from copy import deepcopy
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
@@ -18,7 +18,7 @@ from haystack_integrations.document_stores.opensearch import OpenSearchDocumentS
 @component
 class MockedTextEmbedder:
     @component.output_types(embedding=list[float])
-    def run(self, text: str, param_a: str = "default", param_b: str = "another_default") -> Dict[str, Any]:
+    def run(self, text: str, param_a: str = "default", param_b: str = "another_default") -> dict[str, Any]:
         return {"embedding": [0.1, 0.2, 0.3], "metadata": {"text": text, "param_a": param_a, "param_b": param_b}}
 
 

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import re
-from typing import Any, Dict
+from typing import Any
 
 import requests
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -115,7 +115,7 @@ class GitHubIssueCommenter:
 
         return False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize the component to a dictionary.
 
@@ -129,7 +129,7 @@ class GitHubIssueCommenter:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GitHubIssueCommenter":
+    def from_dict(cls, data: dict[str, Any]) -> "GitHubIssueCommenter":
         """
         Deserialize the component from a dictionary.
 

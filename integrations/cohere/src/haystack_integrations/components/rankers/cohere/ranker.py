@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -37,7 +37,7 @@ class CohereRanker:
         top_k: int = 10,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
         api_base_url: str = "https://api.cohere.com",
-        meta_fields_to_embed: Optional[List[str]] = None,
+        meta_fields_to_embed: Optional[list[str]] = None,
         meta_data_separator: str = "\n",
         max_tokens_per_doc: int = 4096,
     ):
@@ -66,7 +66,7 @@ class CohereRanker:
             api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -85,7 +85,7 @@ class CohereRanker:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CohereRanker":
+    def from_dict(cls, data: dict[str, Any]) -> "CohereRanker":
         """
         Deserializes the component from a dictionary.
 
@@ -102,7 +102,7 @@ class CohereRanker:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    def _prepare_cohere_input_docs(self, documents: List[Document]) -> List[str]:
+    def _prepare_cohere_input_docs(self, documents: list[Document]) -> list[str]:
         """
         Prepare the input by concatenating the document text with the metadata fields specified.
         :param documents: The list of Document objects.
@@ -119,8 +119,8 @@ class CohereRanker:
 
         return concatenated_input_list
 
-    @component.output_types(documents=List[Document])
-    def run(self, query: str, documents: List[Document], top_k: Optional[int] = None) -> Dict[str, List[Document]]:
+    @component.output_types(documents=list[Document])
+    def run(self, query: str, documents: list[Document], top_k: Optional[int] = None) -> dict[str, list[Document]]:
         """
         Use the Cohere Reranker to re-rank the list of documents based on the query.
 

@@ -1,7 +1,7 @@
 import base64
 import json
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 from botocore.eventstream import EventStream
 from haystack import logging
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 IMAGE_SUPPORTED_FORMATS = ["png", "jpeg", "gif", "webp"]
 
 # see https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_MessageStopEvent.html
-FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
+FINISH_REASON_MAPPING: dict[str, FinishReason] = {
     "end_turn": "stop",
     "stop_sequence": "stop",
     "max_tokens": "length",
@@ -40,7 +40,7 @@ FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
 
 
 # Haystack to Bedrock util methods
-def _format_tools(tools: Optional[List[Tool]] = None) -> Optional[Dict[str, Any]]:
+def _format_tools(tools: Optional[list[Tool]] = None) -> Optional[dict[str, Any]]:
     """
     Format Haystack Tool(s) to Amazon Bedrock toolConfig format.
 
@@ -60,7 +60,7 @@ def _format_tools(tools: Optional[List[Tool]] = None) -> Optional[Dict[str, Any]
     return {"tools": tool_specs} if tool_specs else None
 
 
-def _format_tool_call_message(tool_call_message: ChatMessage) -> Dict[str, Any]:
+def _format_tool_call_message(tool_call_message: ChatMessage) -> dict[str, Any]:
     """
     Format a Haystack ChatMessage containing tool calls into Bedrock format.
 
@@ -68,7 +68,7 @@ def _format_tool_call_message(tool_call_message: ChatMessage) -> Dict[str, Any]:
     :returns:
         Dictionary representing the tool call message in Bedrock's expected format
     """
-    content: List[Dict[str, Any]] = []
+    content: list[dict[str, Any]] = []
 
     # tool call messages can contain reasoning content
     if reasoning_content := tool_call_message.reasoning:
@@ -85,7 +85,7 @@ def _format_tool_call_message(tool_call_message: ChatMessage) -> Dict[str, Any]:
     return {"role": tool_call_message.role.value, "content": content}
 
 
-def _format_tool_result_message(tool_call_result_message: ChatMessage) -> Dict[str, Any]:
+def _format_tool_result_message(tool_call_result_message: ChatMessage) -> dict[str, Any]:
     """
     Format a Haystack ChatMessage containing tool call results into Bedrock format.
 
@@ -114,7 +114,7 @@ def _format_tool_result_message(tool_call_result_message: ChatMessage) -> Dict[s
     return {"role": "user", "content": tool_results}
 
 
-def _repair_tool_result_messages(bedrock_formatted_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _repair_tool_result_messages(bedrock_formatted_messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     Repair and reorganize tool result messages to maintain proper ordering and grouping.
 
@@ -135,7 +135,7 @@ def _repair_tool_result_messages(bedrock_formatted_messages: List[Dict[str, Any]
                 tool_result_messages.append((idx, msg))
 
     # Determine the tool call IDs for each tool call message
-    group_to_tool_call_ids: Dict[int, Any] = {idx: [] for idx, _ in tool_call_messages}
+    group_to_tool_call_ids: dict[int, Any] = {idx: [] for idx, _ in tool_call_messages}
     for idx, tool_call in tool_call_messages:
         tool_use_contents = [c for c in tool_call["content"] if "toolUse" in c]
         for content in tool_use_contents:
@@ -162,7 +162,7 @@ def _repair_tool_result_messages(bedrock_formatted_messages: List[Dict[str, Any]
             repaired_tool_result_prompts.append((original_idx, {"role": "user", "content": regrouped_tool_result}))
 
     # Remove the tool result messages from bedrock_formatted_messages
-    bedrock_formatted_messages_minus_tool_results: List[Tuple[int, Any]] = []
+    bedrock_formatted_messages_minus_tool_results: list[tuple[int, Any]] = []
     for idx, msg in enumerate(bedrock_formatted_messages):
         # Assumes the content of tool result messages only contains 'toolResult': {...} objects (e.g. no 'text')
         if msg.get("content") and "toolResult" not in msg["content"][0]:
@@ -176,7 +176,7 @@ def _repair_tool_result_messages(bedrock_formatted_messages: List[Dict[str, Any]
     return [msg for _, msg in repaired_bedrock_formatted_messages]
 
 
-def _format_reasoning_content(reasoning_content: ReasoningContent) -> List[Dict[str, Any]]:
+def _format_reasoning_content(reasoning_content: ReasoningContent) -> list[dict[str, Any]]:
     """
     Format ReasoningContent to match Bedrock's expected structure.
 
@@ -194,7 +194,7 @@ def _format_reasoning_content(reasoning_content: ReasoningContent) -> List[Dict[
     return formatted_contents
 
 
-def _format_text_image_message(message: ChatMessage) -> Dict[str, Any]:
+def _format_text_image_message(message: ChatMessage) -> dict[str, Any]:
     """
     Format a Haystack ChatMessage containing text and optional image content into Bedrock format.
 
@@ -204,7 +204,7 @@ def _format_text_image_message(message: ChatMessage) -> Dict[str, Any]:
     """
     content_parts = message._content
 
-    bedrock_content_blocks: List[Dict[str, Any]] = []
+    bedrock_content_blocks: list[dict[str, Any]] = []
     # Add reasoning content if available as the first content block
     if message.reasoning:
         bedrock_content_blocks.extend(_format_reasoning_content(reasoning_content=message.reasoning))
@@ -231,7 +231,7 @@ def _format_text_image_message(message: ChatMessage) -> Dict[str, Any]:
     return {"role": message.role.value, "content": bedrock_content_blocks}
 
 
-def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+def _format_messages(messages: list[ChatMessage]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Format a list of Haystack ChatMessages to the format expected by Bedrock API.
 
@@ -262,7 +262,7 @@ def _format_messages(messages: List[ChatMessage]) -> Tuple[List[Dict[str, Any]],
     return system_prompts, repaired_bedrock_formatted_messages
 
 
-def _parse_completion_response(response_body: Dict[str, Any], model: str) -> List[ChatMessage]:
+def _parse_completion_response(response_body: dict[str, Any], model: str) -> list[ChatMessage]:
     """
     Parse a Bedrock API response into Haystack ChatMessage objects.
 
@@ -346,7 +346,7 @@ def _parse_completion_response(response_body: Dict[str, Any], model: str) -> Lis
 
 
 def _convert_event_to_streaming_chunk(
-    event: Dict[str, Any], model: str, component_info: ComponentInfo
+    event: dict[str, Any], model: str, component_info: ComponentInfo
 ) -> StreamingChunk:
     """
     Convert a Bedrock streaming event to a Haystack StreamingChunk.
@@ -433,7 +433,7 @@ def _convert_event_to_streaming_chunk(
 
     elif "metadata" in event:
         event_meta = event["metadata"]
-        chunk_meta: Dict[str, Any] = {**base_meta}
+        chunk_meta: dict[str, Any] = {**base_meta}
 
         if "usage" in event_meta:
             usage = event_meta["usage"]
@@ -454,7 +454,7 @@ def _convert_event_to_streaming_chunk(
     return streaming_chunk
 
 
-def _process_reasoning_contents(chunks: List[StreamingChunk]) -> Optional[ReasoningContent]:
+def _process_reasoning_contents(chunks: list[StreamingChunk]) -> Optional[ReasoningContent]:
     """
     Process reasoning contents from a list of StreamingChunk objects into the Bedrock expected format.
 
@@ -536,7 +536,7 @@ def _parse_streaming_response(
     streaming_callback: SyncStreamingCallbackT,
     model: str,
     component_info: ComponentInfo,
-) -> List[ChatMessage]:
+) -> list[ChatMessage]:
     """
     Parse a streaming response from Bedrock.
 
@@ -547,7 +547,7 @@ def _parse_streaming_response(
     :return: List of ChatMessage objects
     """
     content_block_idxs = set()
-    chunks: List[StreamingChunk] = []
+    chunks: list[StreamingChunk] = []
     for event in response_stream:
         streaming_chunk = _convert_event_to_streaming_chunk(event=event, model=model, component_info=component_info)
         content_block_idx = streaming_chunk.index
@@ -581,7 +581,7 @@ async def _parse_streaming_response_async(
     streaming_callback: AsyncStreamingCallbackT,
     model: str,
     component_info: ComponentInfo,
-) -> List[ChatMessage]:
+) -> list[ChatMessage]:
     """
     Parse a streaming response from Bedrock.
 
@@ -592,7 +592,7 @@ async def _parse_streaming_response_async(
     :return: List of ChatMessage objects
     """
     content_block_idxs = set()
-    chunks: List[StreamingChunk] = []
+    chunks: list[StreamingChunk] = []
     async for event in response_stream:
         streaming_chunk = _convert_event_to_streaming_chunk(event=event, model=model, component_info=component_info)
         content_block_idx = streaming_chunk.index
@@ -613,7 +613,7 @@ async def _parse_streaming_response_async(
     return [reply]
 
 
-def _validate_guardrail_config(guardrail_config: Optional[Dict[str, str]] = None, streaming: bool = False) -> None:
+def _validate_guardrail_config(guardrail_config: Optional[dict[str, str]] = None, streaming: bool = False) -> None:
     """
     Validate the guardrail configuration.
 

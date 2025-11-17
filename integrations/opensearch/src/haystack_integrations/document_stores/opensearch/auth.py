@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field, fields
-from typing import Any, Dict, Optional, Type, TypeVar
+from typing import Any, Optional, TypeVar
 
 from haystack import default_from_dict, default_to_dict
 from haystack.document_stores.errors import DocumentStoreError
@@ -99,7 +99,7 @@ class AWSAuth:
         """
         self._urllib3_aws_v4_signer_auth = self._get_aws_v4_signer_auth(Urllib3AWSV4SignerAuth)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Converts the object to a dictionary representation for serialization.
         """
@@ -114,7 +114,7 @@ class AWSAuth:
         return default_to_dict(self, **_fields)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> Optional["AWSAuth"]:
+    def from_dict(cls, data: dict[str, Any]) -> Optional["AWSAuth"]:
         """
         Converts a dictionary representation to an AWSAuth object.
         """
@@ -125,7 +125,7 @@ class AWSAuth:
         )
         return default_from_dict(cls, data)
 
-    def __call__(self, method: str, url: str, body: Any) -> Dict[str, str]:
+    def __call__(self, method: str, url: str, body: Any) -> dict[str, str]:
         """
         Signs the request and returns headers.
 
@@ -139,7 +139,7 @@ class AWSAuth:
         """
         return self._urllib3_aws_v4_signer_auth(method, url, body)
 
-    def _get_aws_v4_signer_auth(self, signer_auth_class: Type[TSignerAuth]) -> TSignerAuth:
+    def _get_aws_v4_signer_auth(self, signer_auth_class: type[TSignerAuth]) -> TSignerAuth:
         try:
             region_name = _resolve_secret(self.aws_region_name)
             session = _get_aws_session(
@@ -184,7 +184,7 @@ class AsyncAWSAuth:
         self.aws_auth = aws_auth
         self._async_aws_v4_signer_auth = self.aws_auth._get_aws_v4_signer_auth(AWSV4SignerAsyncAuth)
 
-    def __call__(self, method: str, url: str, query_string: str, body: Any) -> Dict[str, str]:
+    def __call__(self, method: str, url: str, query_string: str, body: Any) -> dict[str, str]:
         """
         Signs the request and returns headers.
 

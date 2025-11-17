@@ -2,13 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from haystack import Document
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
 
-def message_handler(documents: List[Document], max_length: int = 150_000) -> str:
+def message_handler(documents: list[Document], max_length: int = 150_000) -> str:
     """
     Handles the tool output before conversion to ChatMessage.
 
@@ -32,9 +32,9 @@ def message_handler(documents: List[Document], max_length: int = 150_000) -> str
 
 
 def serialize_handlers(
-    serialized: Dict[str, Any],
-    outputs_to_state: Optional[Dict[str, Dict[str, Union[str, Callable]]]],
-    outputs_to_string: Optional[Dict[str, Union[str, Callable[[Any], str]]]],
+    serialized: dict[str, Any],
+    outputs_to_state: Optional[dict[str, dict[str, Union[str, Callable]]]],
+    outputs_to_string: Optional[dict[str, Union[str, Callable[[Any], str]]]],
 ) -> None:
     """
     Serializes callable handlers in outputs_to_state and outputs_to_string.
@@ -64,7 +64,7 @@ def serialize_handlers(
         serialized["outputs_to_string"] = serialized_string
 
 
-def deserialize_handlers(data: Dict[str, Any]) -> None:
+def deserialize_handlers(data: dict[str, Any]) -> None:
     """
     Deserializes callable handlers in outputs_to_state and outputs_to_string.
 

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import re
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import requests
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -221,7 +221,7 @@ class GitHubRepoForker:
         fork_data = response.json()
         return f"{fork_data['owner']['login']}/{fork_data['name']}"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize the component to a dictionary.
 
@@ -239,7 +239,7 @@ class GitHubRepoForker:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GitHubRepoForker":
+    def from_dict(cls, data: dict[str, Any]) -> "GitHubRepoForker":
         """
         Deserialize the component from a dictionary.
 

@@ -5,7 +5,6 @@
 import base64
 import logging
 import os
-from typing import List
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -69,7 +68,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         store.client.collections.delete(collection_settings["class"])
 
     @pytest.fixture
-    def filterable_docs(self) -> List[Document]:
+    def filterable_docs(self) -> list[Document]:
         """
         This fixture has been copied from haystack/testing/document_store.py and modified to
         use a different date format.
@@ -82,7 +81,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 documents[i].meta["date"] = f"{date}Z"
         return documents
 
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         assert len(received) == len(expected)
         received = sorted(received, key=lambda doc: doc.id)
         expected = sorted(expected, key=lambda doc: doc.id)

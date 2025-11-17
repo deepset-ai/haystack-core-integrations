@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -43,7 +43,7 @@ class MongoDBAtlasFullTextRetriever:
         self,
         *,
         document_store: MongoDBAtlasDocumentStore,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
         filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
@@ -69,7 +69,7 @@ class MongoDBAtlasFullTextRetriever:
             filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -85,7 +85,7 @@ class MongoDBAtlasFullTextRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "MongoDBAtlasFullTextRetriever":
+    def from_dict(cls, data: dict[str, Any]) -> "MongoDBAtlasFullTextRetriever":
         """
         Deserializes the component from a dictionary.
 
@@ -100,17 +100,17 @@ class MongoDBAtlasFullTextRetriever:
 
         return default_from_dict(cls, data)
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(
         self,
-        query: Union[str, List[str]],
-        fuzzy: Optional[Dict[str, int]] = None,
+        query: Union[str, list[str]],
+        fuzzy: Optional[dict[str, int]] = None,
         match_criteria: Optional[Literal["any", "all"]] = None,
-        score: Optional[Dict[str, Dict]] = None,
+        score: Optional[dict[str, dict]] = None,
         synonyms: Optional[str] = None,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
-    ) -> Dict[str, List[Document]]:
+    ) -> dict[str, list[Document]]:
         """
         Retrieve documents from the MongoDBAtlasDocumentStore by full-text search.
 
@@ -150,17 +150,17 @@ class MongoDBAtlasFullTextRetriever:
 
         return {"documents": docs}
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     async def run_async(
         self,
-        query: Union[str, List[str]],
-        fuzzy: Optional[Dict[str, int]] = None,
+        query: Union[str, list[str]],
+        fuzzy: Optional[dict[str, int]] = None,
         match_criteria: Optional[Literal["any", "all"]] = None,
-        score: Optional[Dict[str, Dict]] = None,
+        score: Optional[dict[str, dict]] = None,
         synonyms: Optional[str] = None,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
-    ) -> Dict[str, List[Document]]:
+    ) -> dict[str, list[Document]]:
         """
         Asynchronously retrieve documents from the MongoDBAtlasDocumentStore by full-text search.
 

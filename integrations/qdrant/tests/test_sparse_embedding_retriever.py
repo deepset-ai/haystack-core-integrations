@@ -1,5 +1,3 @@
-from typing import List
-
 import pytest
 from haystack.dataclasses import Document, SparseEmbedding
 from haystack.document_stores.types import FilterPolicy
@@ -149,7 +147,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert retriever._group_by is None
         assert retriever._group_size is None
 
-    def test_run(self, filterable_docs: List[Document], generate_sparse_embedding):
+    def test_run(self, filterable_docs: list[Document], generate_sparse_embedding):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
         # Add fake sparse embedding to documents
@@ -160,7 +158,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
 
-        results: List[Document] = retriever.run(query_sparse_embedding=sparse_embedding)["documents"]
+        results: list[Document] = retriever.run(query_sparse_embedding=sparse_embedding)["documents"]
         assert len(results) == 10
 
         results = retriever.run(query_sparse_embedding=sparse_embedding, top_k=5, return_embedding=True)["documents"]
@@ -169,7 +167,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         for document in results:
             assert document.sparse_embedding
 
-    def test_run_with_group_by(self, filterable_docs: List[Document], generate_sparse_embedding):
+    def test_run_with_group_by(self, filterable_docs: list[Document], generate_sparse_embedding):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
         # Add fake sparse embedding to documents
@@ -193,7 +191,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
             assert document.sparse_embedding
 
     @pytest.mark.asyncio
-    async def test_run_async(self, filterable_docs: List[Document], generate_sparse_embedding):
+    async def test_run_async(self, filterable_docs: list[Document], generate_sparse_embedding):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
         # Add fake sparse embedding to documents
@@ -214,7 +212,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
             assert document.sparse_embedding
 
     @pytest.mark.asyncio
-    async def test_run_with_group_by_async(self, filterable_docs: List[Document], generate_sparse_embedding):
+    async def test_run_with_group_by_async(self, filterable_docs: list[Document], generate_sparse_embedding):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
         # Add fake sparse embedding to documents

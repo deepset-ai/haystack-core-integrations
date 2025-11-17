@@ -7,11 +7,12 @@ import os
 import sys
 from abc import ABC, abstractmethod
 from collections import Counter
+from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, Literal, Optional, cast
+from typing import Any, Literal, Optional, cast
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage
@@ -43,11 +44,11 @@ ObservationSpanType = Literal["tool", "agent", "retriever", "embedding", "genera
 
 # External session metadata for trace correlation (Haystack system)
 # Stores trace_id, user_id, session_id, tags, version for root trace creation
-tracing_context_var: ContextVar[Dict[Any, Any]] = ContextVar("tracing_context")
+tracing_context_var: ContextVar[dict[Any, Any]] = ContextVar("tracing_context")
 
 # Internal span execution hierarchy for our tracer
 # Manages parent-child relationships and prevents cross-request span interleaving
-span_stack_var: ContextVar[Optional[List["LangfuseSpan"]]] = ContextVar("span_stack", default=None)
+span_stack_var: ContextVar[Optional[list["LangfuseSpan"]]] = ContextVar("span_stack", default=None)
 
 
 class LangfuseSpan(Span):
@@ -64,7 +65,7 @@ class LangfuseSpan(Span):
         `langfuse.get_client().start_as_current_observation`.
         """
         self._span = context_manager.__enter__()
-        self._data: Dict[str, Any] = {}
+        self._data: dict[str, Any] = {}
         self._context_manager = context_manager
 
     def set_tag(self, key: str, value: Any) -> None:
@@ -115,7 +116,7 @@ class LangfuseSpan(Span):
         """
         return self._span
 
-    def get_data(self) -> Dict[str, Any]:
+    def get_data(self) -> dict[str, Any]:
         """
         Return the data associated with the span.
 
@@ -123,7 +124,7 @@ class LangfuseSpan(Span):
         """
         return self._data
 
-    def get_correlation_data_for_logs(self) -> Dict[str, Any]:
+    def get_correlation_data_for_logs(self) -> dict[str, Any]:
         return {}
 
 
@@ -150,7 +151,7 @@ class SpanContext:
     name: str
     operation_name: str
     component_type: Optional[str]
-    tags: Dict[str, Any]
+    tags: dict[str, Any]
     parent_span: Optional[Span]
     trace_name: str = "Haystack"
     public: bool = False
@@ -232,14 +233,14 @@ class SpanHandler(ABC):
         pass
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SpanHandler":
+    def from_dict(cls, data: dict[str, Any]) -> "SpanHandler":
         return default_from_dict(cls, data)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return default_to_dict(self)
 
 
-def _sanitize_usage_data(usage: Dict[str, Any]) -> Dict[str, Any]:
+def _sanitize_usage_data(usage: dict[str, Any]) -> dict[str, Any]:
     """
     Sanitize usage data for Langfuse by flattening to a single-level dictionary.
 
@@ -254,9 +255,9 @@ def _sanitize_usage_data(usage: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(usage, dict):
         return {}
 
-    sanitized: Dict[str, Any] = {}
+    sanitized: dict[str, Any] = {}
 
-    def _flatten(data: Dict[str, Any], prefix: str = "") -> None:
+    def _flatten(data: dict[str, Any], prefix: str = "") -> None:
         """Recursively flatten nested dictionaries."""
         for key, value in data.items():
             full_key = f"{prefix}.{key}" if prefix else key
@@ -357,7 +358,7 @@ class DefaultSpanHandler(SpanHandler):
             span.raw_span().update_trace(input=coerced_input, output=coerced_output)
         # special case for ToolInvoker (to update the span name to be: `original_component_name - [tool_names]`)
         if component_type == "ToolInvoker":
-            tool_names: List[str] = []
+            tool_names: list[str] = []
             messages = span.get_data().get(_COMPONENT_INPUT_KEY, {}).get("messages", [])
             for message in messages:
                 if isinstance(message, ChatMessage) and message.tool_calls:
@@ -427,7 +428,7 @@ class LangfuseTracer(Tracer):
             )
         self._tracer = tracer
         # Keep _context as deprecated shim to avoid AttributeError if anyone uses it
-        self._context: List[LangfuseSpan] = []
+        self._context: list[LangfuseSpan] = []
         self._name = name
         self._public = public
         self.enforce_flush = os.getenv(HAYSTACK_LANGFUSE_ENFORCE_FLUSH_ENV_VAR, "true").lower() == "true"
@@ -436,10 +437,7 @@ class LangfuseTracer(Tracer):
 
     @contextlib.contextmanager
     def trace(
-        self,
-        operation_name: str,
-        tags: Optional[Dict[str, Any]] = None,
-        parent_span: Optional[Span] = None,
+        self, operation_name: str, tags: Optional[dict[str, Any]] = None, parent_span: Optional[Span] = None
     ) -> Iterator[Span]:
         tags = tags or {}
         span_name = tags.get(_COMPONENT_NAME_KEY, operation_name)

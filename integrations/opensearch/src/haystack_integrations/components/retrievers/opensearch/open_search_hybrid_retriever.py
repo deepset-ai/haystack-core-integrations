@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from haystack import Document, Pipeline, default_from_dict, default_to_dict, logging, super_component
 from haystack.components.embedders.types import TextEmbedder
@@ -92,21 +92,21 @@ class OpenSearchHybridRetriever:
         *,
         embedder: TextEmbedder,
         # OpenSearchBM25Retriever
-        filters_bm25: Optional[Dict[str, Any]] = None,
+        filters_bm25: Optional[dict[str, Any]] = None,
         fuzziness: Union[int, str] = "AUTO",
         top_k_bm25: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
         filter_policy_bm25: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
-        custom_query_bm25: Optional[Dict[str, Any]] = None,
+        custom_query_bm25: Optional[dict[str, Any]] = None,
         # OpenSearchEmbeddingRetriever
-        filters_embedding: Optional[Dict[str, Any]] = None,
+        filters_embedding: Optional[dict[str, Any]] = None,
         top_k_embedding: int = 10,
         filter_policy_embedding: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
-        custom_query_embedding: Optional[Dict[str, Any]] = None,
+        custom_query_embedding: Optional[dict[str, Any]] = None,
         # DocumentJoiner
         join_mode: Union[str, JoinMode] = JoinMode.RECIPROCAL_RANK_FUSION,
-        weights: Optional[List[float]] = None,
+        weights: Optional[list[float]] = None,
         top_k: Optional[int] = None,
         sort_by_score: bool = True,
         # extra kwargs
@@ -192,7 +192,7 @@ class OpenSearchHybridRetriever:
         self.top_k = top_k
         self.sort_by_score = sort_by_score
 
-        init_args: Dict[str, Any] = {
+        init_args: dict[str, Any] = {
             "bm25_retriever": {
                 "document_store": self.document_store,
                 "filters": self.filters_bm25,
@@ -242,11 +242,11 @@ class OpenSearchHybridRetriever:
         def run(
             self,
             query: str,
-            filters_bm25: Optional[Dict[str, Any]] = None,
-            filters_embedding: Optional[Dict[str, Any]] = None,
+            filters_bm25: Optional[dict[str, Any]] = None,
+            filters_embedding: Optional[dict[str, Any]] = None,
             top_k_bm25: Optional[int] = None,
             top_k_embedding: Optional[int] = None,
-        ) -> Dict[str, List[Document]]: ...
+        ) -> dict[str, list[Document]]: ...
 
     def _create_pipeline(self, data: dict[str, Any]) -> Pipeline:
         """

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from haystack import component
 
@@ -25,7 +25,7 @@ class OllamaTextEmbedder:
         self,
         model: str = "nomic-embed-text",
         url: str = "http://localhost:11434",
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         timeout: int = 120,
         keep_alive: Optional[Union[float, str]] = None,
     ):
@@ -58,10 +58,10 @@ class OllamaTextEmbedder:
         self._client = Client(host=self.url, timeout=self.timeout)
         self._async_client = AsyncClient(host=self.url, timeout=self.timeout)
 
-    @component.output_types(embedding=List[float], meta=Dict[str, Any])
+    @component.output_types(embedding=list[float], meta=dict[str, Any])
     def run(
-        self, text: str, generation_kwargs: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Union[List[float], Dict[str, Any]]]:
+        self, text: str, generation_kwargs: Optional[dict[str, Any]] = None
+    ) -> dict[str, Union[list[float], dict[str, Any]]]:
         """
         Runs an Ollama Model to compute embeddings of the provided text.
 
@@ -85,10 +85,10 @@ class OllamaTextEmbedder:
 
         return result
 
-    @component.output_types(embedding=List[float], meta=Dict[str, Any])
+    @component.output_types(embedding=list[float], meta=dict[str, Any])
     async def run_async(
-        self, text: str, generation_kwargs: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Union[List[float], Dict[str, Any]]]:
+        self, text: str, generation_kwargs: Optional[dict[str, Any]] = None
+    ) -> dict[str, Union[list[float], dict[str, Any]]]:
         """
         Asynchronously run an Ollama Model to compute embeddings of the provided text.
 

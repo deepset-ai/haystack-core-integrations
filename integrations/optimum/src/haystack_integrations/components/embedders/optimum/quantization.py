@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict
+from typing import Any
 
 from optimum.onnxruntime.configuration import AutoQuantizationConfig, QuantizationConfig
 
@@ -77,7 +77,7 @@ class OptimumEmbedderQuantizationConfig:
             msg = f"Unknown quantization mode '{self.mode}'"
             raise ValueError(msg)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the configuration to a dictionary.
 
@@ -90,7 +90,7 @@ class OptimumEmbedderQuantizationConfig:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OptimumEmbedderQuantizationConfig":
+    def from_dict(cls, data: dict[str, Any]) -> "OptimumEmbedderQuantizationConfig":
         """
         Create a configuration from a dictionary.
 

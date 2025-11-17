@@ -1,9 +1,13 @@
-from typing import Any, Dict, List, Union
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+from typing import Any, Union
 
 
 def remove_key_from_schema(
-    schema: Union[Dict[str, Any], List[Any], Any], target_key: str
-) -> Union[Dict[str, Any], List[Any], Any]:
+    schema: Union[dict[str, Any], list[Any], Any], target_key: str
+) -> Union[dict[str, Any], list[Any], Any]:
     """
     Recursively traverse a schema and remove all occurrences of the target key.
 

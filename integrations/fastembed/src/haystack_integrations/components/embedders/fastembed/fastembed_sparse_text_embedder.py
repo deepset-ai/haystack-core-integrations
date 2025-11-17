@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from haystack import component, default_to_dict
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
@@ -35,7 +35,7 @@ class FastembedSparseTextEmbedder:
         progress_bar: bool = True,
         parallel: Optional[int] = None,
         local_files_only: bool = False,
-        model_kwargs: Optional[Dict[str, Any]] = None,
+        model_kwargs: Optional[dict[str, Any]] = None,
     ):
         """
         Create a FastembedSparseTextEmbedder component.
@@ -62,7 +62,7 @@ class FastembedSparseTextEmbedder:
         self.local_files_only = local_files_only
         self.model_kwargs = model_kwargs
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -94,7 +94,7 @@ class FastembedSparseTextEmbedder:
             )
 
     @component.output_types(sparse_embedding=SparseEmbedding)
-    def run(self, text: str) -> Dict[str, SparseEmbedding]:
+    def run(self, text: str) -> dict[str, SparseEmbedding]:
         """
         Embeds text using the Fastembed model.
 

@@ -4,8 +4,9 @@
 
 import base64
 import json
+from collections.abc import AsyncIterator, Iterator
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Dict, Iterator, List, Literal, Optional
+from typing import Any, Literal, Optional
 
 from google.genai import types
 from haystack import logging
@@ -40,7 +41,7 @@ from haystack_integrations.components.common.google_genai.utils import _get_clie
 from haystack_integrations.components.generators.google_genai.chat.utils import remove_key_from_schema
 
 # Mapping from Google GenAI finish reasons to Haystack FinishReason values
-FINISH_REASON_MAPPING: Dict[str, FinishReason] = {
+FINISH_REASON_MAPPING: dict[str, FinishReason] = {
     "STOP": "stop",
     "MAX_TOKENS": "length",
     "SAFETY": "content_filter",
@@ -91,7 +92,7 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
 
         # Reconstruct parts with their original thought signatures
         for sig_info in thought_signatures:
-            part_dict: Dict[str, Any] = {}
+            part_dict: dict[str, Any] = {}
 
             # Check what type of content this part had
             if sig_info.get("has_text"):
@@ -207,7 +208,7 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
     return types.Content(role=role, parts=parts)
 
 
-def _sanitize_tool_schema(tool_schema: Dict[str, Any]) -> Dict[str, Any]:
+def _sanitize_tool_schema(tool_schema: dict[str, Any]) -> dict[str, Any]:
     """
     Sanitizes a tool schema to remove any keys that are not supported by Google Gen AI.
 
@@ -231,7 +232,7 @@ def _sanitize_tool_schema(tool_schema: Dict[str, Any]) -> Dict[str, Any]:
     return final_schema
 
 
-def _convert_tools_to_google_genai_format(tools: ToolsType) -> List[types.Tool]:
+def _convert_tools_to_google_genai_format(tools: ToolsType) -> list[types.Tool]:
     """
     Converts a list of Haystack Tools, Toolsets, or a mix to Google Gen AI Tool format.
 
@@ -241,7 +242,7 @@ def _convert_tools_to_google_genai_format(tools: ToolsType) -> List[types.Tool]:
     # Flatten Tools and Toolsets into a single list of Tools
     flattened_tools = flatten_tools_or_toolsets(tools)
 
-    function_declarations: List[types.FunctionDeclaration] = []
+    function_declarations: list[types.FunctionDeclaration] = []
     for tool in flattened_tools:
         parameters = _sanitize_tool_schema(tool.parameters)
         function_declarations.append(
@@ -321,7 +322,7 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
         usage["thoughts_token_count"] = usage_metadata.thoughts_token_count
 
         # Create meta with reasoning content and thought signatures if available
-    meta: Dict[str, Any] = {
+    meta: dict[str, Any] = {
         "model": model,
         "finish_reason": FINISH_REASON_MAPPING.get(finish_reason or ""),
         "usage": usage,
@@ -458,8 +459,8 @@ class GoogleGenAIChatGenerator:
         vertex_ai_project: Optional[str] = None,
         vertex_ai_location: Optional[str] = None,
         model: str = "gemini-2.0-flash",
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        safety_settings: Optional[List[Dict[str, Any]]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
+        safety_settings: Optional[list[dict[str, Any]]] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
         tools: Optional[ToolsType] = None,
     ):
@@ -506,7 +507,7 @@ class GoogleGenAIChatGenerator:
         self._streaming_callback = streaming_callback
         self._tools = tools
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -528,7 +529,7 @@ class GoogleGenAIChatGenerator:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GoogleGenAIChatGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "GoogleGenAIChatGenerator":
         """
         Deserializes the component from a dictionary.
 
@@ -556,10 +557,10 @@ class GoogleGenAIChatGenerator:
         :returns: A StreamingChunk object.
         """
         content = ""
-        tool_calls: List[ToolCallDelta] = []
+        tool_calls: list[ToolCallDelta] = []
         finish_reason = None
-        reasoning_deltas: List[Dict[str, str]] = []
-        thought_signature_deltas: List[Dict[str, Any]] = []  # Track thought signatures in streaming
+        reasoning_deltas: list[dict[str, str]] = []
+        thought_signature_deltas: list[dict[str, Any]] = []  # Track thought signatures in streaming
 
         if chunk.candidates:
             candidate = chunk.candidates[0]
@@ -620,7 +621,7 @@ class GoogleGenAIChatGenerator:
         start = index == 0 or len(tool_calls) > 0
 
         # Create meta with reasoning deltas and thought signatures if available
-        meta: Dict[str, Any] = {
+        meta: dict[str, Any] = {
             "received_at": datetime.now(timezone.utc).isoformat(),
             "model": self._model,
             "usage": usage,
@@ -644,7 +645,7 @@ class GoogleGenAIChatGenerator:
             meta=meta,
         )
 
-    def _aggregate_streaming_chunks_with_reasoning(self, chunks: List[StreamingChunk]) -> ChatMessage:
+    def _aggregate_streaming_chunks_with_reasoning(self, chunks: list[StreamingChunk]) -> ChatMessage:
         """
         Aggregate streaming chunks into a final ChatMessage with reasoning content and thought signatures.
 
@@ -660,7 +661,7 @@ class GoogleGenAIChatGenerator:
 
         # Now enhance with Google-specific features: reasoning content, thinking token usage, and thought signatures
         reasoning_text_parts: list[str] = []
-        thought_signatures: List[Dict[str, Any]] = []
+        thought_signatures: list[dict[str, Any]] = []
         thoughts_token_count = None
 
         for chunk in chunks:
@@ -708,7 +709,7 @@ class GoogleGenAIChatGenerator:
 
     def _handle_streaming_response(
         self, response_stream: Iterator[types.GenerateContentResponse], streaming_callback: StreamingCallbackT
-    ) -> Dict[str, List[ChatMessage]]:
+    ) -> dict[str, list[ChatMessage]]:
         """
         Handle streaming response from Google Gen AI generate_content_stream.
         :param response_stream: The streaming response from generate_content_stream.
@@ -740,7 +741,7 @@ class GoogleGenAIChatGenerator:
 
     async def _handle_streaming_response_async(
         self, response_stream: AsyncIterator[types.GenerateContentResponse], streaming_callback: AsyncStreamingCallbackT
-    ) -> Dict[str, List[ChatMessage]]:
+    ) -> dict[str, list[ChatMessage]]:
         """
         Handle async streaming response from Google Gen AI generate_content_stream.
         :param response_stream: The async streaming response from generate_content_stream.
@@ -773,7 +774,7 @@ class GoogleGenAIChatGenerator:
             msg = f"Error in async streaming response: {e}"
             raise RuntimeError(msg) from e
 
-    def _process_thinking_config(self, generation_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    def _process_thinking_config(self, generation_kwargs: dict[str, Any]) -> dict[str, Any]:
         """
         Process thinking configuration from generation_kwargs.
 
@@ -796,15 +797,15 @@ class GoogleGenAIChatGenerator:
 
         return generation_kwargs
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: List[ChatMessage],
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        safety_settings: Optional[List[Dict[str, Any]]] = None,
+        messages: list[ChatMessage],
+        generation_kwargs: Optional[dict[str, Any]] = None,
+        safety_settings: Optional[list[dict[str, Any]]] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
         tools: Optional[ToolsType] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Run the Google Gen AI chat generator on the given input data.
 
@@ -851,7 +852,7 @@ class GoogleGenAIChatGenerator:
             chat_messages = messages[1:]
 
         # Convert messages to Google Gen AI Content format
-        contents: List[types.ContentUnionDict] = []
+        contents: list[types.ContentUnionDict] = []
         for msg in chat_messages:
             contents.append(_convert_message_to_google_genai_format(msg))
 
@@ -904,15 +905,15 @@ class GoogleGenAIChatGenerator:
             error_msg = f"Error in Google Gen AI chat generation: {e}"
             raise RuntimeError(error_msg) from e
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
-        messages: List[ChatMessage],
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        safety_settings: Optional[List[Dict[str, Any]]] = None,
+        messages: list[ChatMessage],
+        generation_kwargs: Optional[dict[str, Any]] = None,
+        safety_settings: Optional[list[dict[str, Any]]] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
         tools: Optional[ToolsType] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Async version of the run method. Run the Google Gen AI chat generator on the given input data.
 
@@ -960,7 +961,7 @@ class GoogleGenAIChatGenerator:
             chat_messages = messages[1:]
 
         # Convert messages to Google Gen AI Content format
-        contents: List[types.ContentUnion] = []
+        contents: list[types.ContentUnion] = []
         for msg in chat_messages:
             contents.append(_convert_message_to_google_genai_format(msg))
 

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -60,12 +60,12 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         api_base_url: str = "http://localhost:8321/v1/openai/v1",
         organization: Optional[str] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         timeout: Optional[int] = None,
         tools: Optional[ToolsType] = None,
         tools_strict: bool = False,
         max_retries: Optional[int] = None,
-        http_client_kwargs: Optional[Dict[str, Any]] = None,
+        http_client_kwargs: Optional[dict[str, Any]] = None,
     ):
         """
         Creates an instance of LlamaStackChatGenerator. To use this chat generator,
@@ -129,7 +129,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
             http_client_kwargs=http_client_kwargs,
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize this component to a dictionary.
 
@@ -152,7 +152,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "LlamaStackChatGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "LlamaStackChatGenerator":
         """
         Deserialize this component from a dictionary.
 

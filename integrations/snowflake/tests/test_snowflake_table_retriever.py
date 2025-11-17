@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from unittest.mock import Mock
 from urllib.parse import quote_plus
 
@@ -40,7 +40,7 @@ def retriever(mocker: Mock) -> SnowflakeTableRetriever:
 
 
 @pytest.fixture
-def empty_response() -> Dict[str, Any]:
+def empty_response() -> dict[str, Any]:
     return SnowflakeTableRetriever._empty_response()
 
 
@@ -253,7 +253,7 @@ class TestSnowflakeTableRetriever:
         exception: Exception,
         expected_log_level: str,
         expected_log_msg: str,
-        empty_response: Dict[str, Any],
+        empty_response: dict[str, Any],
     ) -> None:
         mocker.patch("polars.read_database_uri", side_effect=exception)
 
@@ -286,7 +286,7 @@ class TestSnowflakeTableRetriever:
         mocker: Mock,
         exception: Exception,
         expected_error_msg: str,
-        empty_response: Dict[str, Any],
+        empty_response: dict[str, Any],
         toy_polars_df: pl.DataFrame,
     ) -> None:
         mocker.patch.object(toy_polars_df, "to_pandas", side_effect=exception)
@@ -316,18 +316,18 @@ class TestSnowflakeTableRetriever:
         assert result["dataframe"].equals(toy_pandas_df)
         assert result["table"] == expected_markdown
 
-    def test_empty_query(self, retriever: SnowflakeTableRetriever, empty_response: Dict[str, Any]) -> None:
+    def test_empty_query(self, retriever: SnowflakeTableRetriever, empty_response: dict[str, Any]) -> None:
         result = retriever.run(query="")
         assert result["dataframe"].equals(empty_response["dataframe"])
         assert result["table"] == empty_response["table"]
 
-    def test_non_string_query(self, retriever: SnowflakeTableRetriever, empty_response: Dict[str, Any]) -> None:
+    def test_non_string_query(self, retriever: SnowflakeTableRetriever, empty_response: dict[str, Any]) -> None:
         result = retriever.run(query=123)
         assert result["dataframe"].equals(empty_response["dataframe"])
         assert result["table"] == empty_response["table"]
 
     def test_empty_dataframe_result(
-        self, retriever: SnowflakeTableRetriever, mocker: Mock, empty_response: Dict[str, Any]
+        self, retriever: SnowflakeTableRetriever, mocker: Mock, empty_response: dict[str, Any]
     ) -> None:
         empty_df = pl.DataFrame()
         mocker.patch("polars.read_database_uri", return_value=empty_df)
@@ -338,7 +338,7 @@ class TestSnowflakeTableRetriever:
         assert result["table"] == empty_response["table"]
 
     def test_uri_construction_error(
-        self, retriever: SnowflakeTableRetriever, mocker: Mock, empty_response: Dict[str, Any]
+        self, retriever: SnowflakeTableRetriever, mocker: Mock, empty_response: dict[str, Any]
     ) -> None:
         mocker.patch.object(
             SnowflakeTableRetriever, "_snowflake_uri_constructor", side_effect=RuntimeError("Failed to construct URI")

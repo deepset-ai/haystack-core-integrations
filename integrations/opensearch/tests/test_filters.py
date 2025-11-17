@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import List
 
 import pytest
 from haystack.dataclasses import Document
@@ -228,7 +227,7 @@ def test_normalize_ranges():
 
 @pytest.mark.integration
 class TestFilters(FilterDocumentsTest):
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
         The OpenSearchDocumentStore.filter_documents() method returns a Documents with their score set.
         We don't want to compare the score, so we set it to None before comparing the documents.

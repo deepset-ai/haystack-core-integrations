@@ -4,7 +4,6 @@
 
 import random
 import time
-from typing import List
 from unittest.mock import Mock, patch
 
 import pytest
@@ -245,7 +244,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         store.client.options(ignore_status=[400, 404]).indices.delete(index=index)
         store.client.close()
 
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
         The ElasticSearchDocumentStore.filter_documents() method returns a Documents with their score set.
         We don't want to compare the score, so we set it to None before comparing the documents.

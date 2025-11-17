@@ -5,7 +5,7 @@
 import json
 import os
 import time
-from typing import Any, Dict, List
+from typing import Any
 from urllib.parse import urlparse
 
 import pytest
@@ -137,8 +137,8 @@ def test_tracing_with_sub_pipelines():
             self.sub_pipeline = Pipeline()
             self.sub_pipeline.add_component("llm", OpenAIChatGenerator())
 
-        @component.output_types(replies=List[ChatMessage])
-        def run(self, messages: List[ChatMessage]) -> Dict[str, Any]:
+        @component.output_types(replies=list[ChatMessage])
+        def run(self, messages: list[ChatMessage]) -> dict[str, Any]:
             return {"replies": self.sub_pipeline.run(data={"llm": {"messages": messages}})["llm"]["replies"]}
 
     @component
@@ -149,8 +149,8 @@ def test_tracing_with_sub_pipelines():
             self.sub_pipeline.add_component("sub_llm", SubGenerator())
             self.sub_pipeline.connect("prompt_builder.prompt", "sub_llm.messages")
 
-        @component.output_types(replies=List[ChatMessage])
-        def run(self, messages: List[ChatMessage]) -> Dict[str, Any]:
+        @component.output_types(replies=list[ChatMessage])
+        def run(self, messages: list[ChatMessage]) -> dict[str, Any]:
             return {
                 "replies": self.sub_pipeline.run(
                     data={"prompt_builder": {"template": messages, "template_variables": {"location": "Berlin"}}}

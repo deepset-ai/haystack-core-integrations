@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import replace
-from typing import Any, Optional, Tuple
+from typing import Any, Optional
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.image.image_utils import (
@@ -64,7 +64,7 @@ class CohereDocumentImageEmbedder:
         *,
         file_path_meta_field: str = "file_path",
         root_path: Optional[str] = None,
-        image_size: Optional[Tuple[int, int]] = None,
+        image_size: Optional[tuple[int, int]] = None,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
         model: str = "embed-v4.0",
         api_base_url: str = "https://api.cohere.com",

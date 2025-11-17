@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 from tqdm import tqdm
 
@@ -12,12 +12,12 @@ from .embedding_types import EmbeddingTypes
 
 async def get_async_response(
     cohere_async_client: AsyncClientV2,
-    texts: List[str],
+    texts: list[str],
     model_name: str,
     input_type: str,
     truncate: str,
     embedding_type: Optional[EmbeddingTypes] = None,
-) -> Tuple[List[List[float]], Dict[str, Any]]:
+) -> tuple[list[list[float]], dict[str, Any]]:
     """Embeds a list of texts asynchronously using the Cohere API.
 
     :param cohere_async_client: the Cohere `AsyncClient`
@@ -32,8 +32,8 @@ async def get_async_response(
 
     :raises ValueError: If an error occurs while querying the Cohere API.
     """
-    all_embeddings: List[List[float]] = []
-    metadata: Dict[str, Any] = {}
+    all_embeddings: list[list[float]] = []
+    metadata: dict[str, Any] = {}
 
     embedding_type = embedding_type or EmbeddingTypes.FLOAT
     response = await cohere_async_client.embed(
@@ -58,14 +58,14 @@ async def get_async_response(
 
 def get_response(
     cohere_client: ClientV2,
-    texts: List[str],
+    texts: list[str],
     model_name: str,
     input_type: str,
     truncate: str,
     batch_size: int = 32,
     progress_bar: bool = False,
     embedding_type: Optional[EmbeddingTypes] = None,
-) -> Tuple[List[List[float]], Dict[str, Any]]:
+) -> tuple[list[list[float]], dict[str, Any]]:
     """Embeds a list of texts using the Cohere API.
 
     :param cohere_client: the Cohere `Client`
@@ -83,8 +83,8 @@ def get_response(
     :raises ValueError: If an error occurs while querying the Cohere API.
     """
 
-    all_embeddings: List[List[float]] = []
-    metadata: Dict[str, Any] = {}
+    all_embeddings: list[list[float]] = []
+    metadata: dict[str, Any] = {}
     embedding_type = embedding_type or EmbeddingTypes.FLOAT
 
     for i in tqdm(

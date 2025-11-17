@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any
 
 from haystack import logging
 from haystack.dataclasses import ByteStream, Document
@@ -7,7 +7,7 @@ from psycopg.types.json import Jsonb
 logger = logging.getLogger(__name__)
 
 
-def _from_haystack_to_pg_documents(documents: List[Document]) -> List[Dict[str, Any]]:
+def _from_haystack_to_pg_documents(documents: list[Document]) -> list[dict[str, Any]]:
     """
     Internal method to convert a list of Haystack Documents to a list of dictionaries that can be used to insert
     documents into the PgvectorDocumentStore.
@@ -38,7 +38,7 @@ def _from_haystack_to_pg_documents(documents: List[Document]) -> List[Dict[str, 
     return db_documents
 
 
-def _from_pg_to_haystack_documents(documents: List[Dict[str, Any]]) -> List[Document]:
+def _from_pg_to_haystack_documents(documents: list[dict[str, Any]]) -> list[Document]:
     """
     Internal method to convert a list of dictionaries from pgvector to a list of Haystack Documents.
     """

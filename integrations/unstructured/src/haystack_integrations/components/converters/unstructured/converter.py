@@ -5,7 +5,7 @@ import copy
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.utils import normalize_metadata
@@ -52,7 +52,7 @@ class UnstructuredFileConverter:
             "one-doc-per-file", "one-doc-per-page", "one-doc-per-element"
         ] = "one-doc-per-file",
         separator: str = "\n\n",
-        unstructured_kwargs: Optional[Dict[str, Any]] = None,
+        unstructured_kwargs: Optional[dict[str, Any]] = None,
         progress_bar: bool = True,  # noqa: FBT001, FBT002
     ):
         """
@@ -91,7 +91,7 @@ class UnstructuredFileConverter:
             )
             raise ValueError(msg)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -110,7 +110,7 @@ class UnstructuredFileConverter:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "UnstructuredFileConverter":
+    def from_dict(cls, data: dict[str, Any]) -> "UnstructuredFileConverter":
         """
         Deserializes the component from a dictionary.
         :param data:
@@ -121,12 +121,12 @@ class UnstructuredFileConverter:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(
         self,
-        paths: Union[List[str], List[os.PathLike]],
-        meta: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
-    ) -> Dict[str, List[Document]]:
+        paths: Union[list[str], list[os.PathLike]],
+        meta: Optional[Union[dict[str, Any], list[dict[str, Any]]]] = None,
+    ) -> dict[str, list[Document]]:
         """
         Convert files to Haystack Documents using the Unstructured API.
 
@@ -178,11 +178,11 @@ class UnstructuredFileConverter:
     @staticmethod
     def _create_documents(
         filepath: Path,
-        elements: List[Element],
+        elements: list[Element],
         document_creation_mode: Literal["one-doc-per-file", "one-doc-per-page", "one-doc-per-element"],
         separator: str,
-        meta: Dict[str, Any],
-    ) -> List[Document]:
+        meta: dict[str, Any],
+    ) -> list[Document]:
         """
         Create Haystack Documents from the elements returned by Unstructured.
         """
@@ -222,7 +222,7 @@ class UnstructuredFileConverter:
                 docs.append(doc)
         return docs
 
-    def _partition_file_into_elements(self, filepath: Path) -> List[Element]:
+    def _partition_file_into_elements(self, filepath: Path) -> list[Element]:
         """
         Partition a file into elements using the Unstructured API.
         """

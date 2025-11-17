@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from botocore.exceptions import ClientError
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -68,7 +68,7 @@ class AmazonBedrockRanker:
         aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         max_chunks_per_doc: Optional[int] = None,
-        meta_fields_to_embed: Optional[List[str]] = None,
+        meta_fields_to_embed: Optional[list[str]] = None,
         meta_data_separator: str = "\n",
     ) -> None:
         if not model:
@@ -122,7 +122,7 @@ class AmazonBedrockRanker:
             )
             raise AmazonBedrockConfigurationError(msg) from exception
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -144,7 +144,7 @@ class AmazonBedrockRanker:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AmazonBedrockRanker":
+    def from_dict(cls, data: dict[str, Any]) -> "AmazonBedrockRanker":
         """
         Deserializes the component from a dictionary.
 
@@ -159,7 +159,7 @@ class AmazonBedrockRanker:
         )
         return default_from_dict(cls, data)
 
-    def _prepare_bedrock_input_docs(self, documents: List[Document]) -> List[str]:
+    def _prepare_bedrock_input_docs(self, documents: list[Document]) -> list[str]:
         """
         Prepare the input by concatenating the document text with the metadata fields specified.
         :param documents: The list of Document objects.
@@ -176,8 +176,8 @@ class AmazonBedrockRanker:
 
         return concatenated_input_list
 
-    @component.output_types(documents=List[Document])
-    def run(self, query: str, documents: List[Document], top_k: Optional[int] = None) -> Dict[str, List[Document]]:
+    @component.output_types(documents=list[Document])
+    def run(self, query: str, documents: list[Document], top_k: Optional[int] = None) -> dict[str, list[Document]]:
         """
         Use the Amazon Bedrock Reranker to re-rank the list of documents based on the query.
 

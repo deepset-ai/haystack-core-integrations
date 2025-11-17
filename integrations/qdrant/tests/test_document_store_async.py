@@ -1,4 +1,3 @@
-from typing import List
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -74,7 +73,7 @@ class TestQdrantDocumentStore:
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
         embedding = [0.1] * 768
 
-        results: List[Document] = await document_store._query_hybrid_async(
+        results: list[Document] = await document_store._query_hybrid_async(
             query_sparse_embedding=sparse_embedding, query_embedding=embedding, top_k=10, return_embedding=True
         )
         assert len(results) == 10
@@ -103,7 +102,7 @@ class TestQdrantDocumentStore:
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
         embedding = [0.1] * 768
 
-        results: List[Document] = await document_store._query_hybrid_async(
+        results: list[Document] = await document_store._query_hybrid_async(
             query_sparse_embedding=sparse_embedding,
             query_embedding=embedding,
             top_k=3,
@@ -151,8 +150,9 @@ class TestQdrantDocumentStore:
         mock_collection_info.config.params.vectors.distance = rest.Distance.COSINE
         mock_collection_info.config.params.vectors.size = 512
 
-        with patch.object(document_store._async_client, "collection_exists", return_value=True), patch.object(
-            document_store._async_client, "get_collection", return_value=mock_collection_info
+        with (
+            patch.object(document_store._async_client, "collection_exists", return_value=True),
+            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
         ):
             with pytest.raises(ValueError, match="different vector size"):
                 await document_store._set_up_collection_async("test_collection", 768, False, "cosine", False, False)
@@ -165,8 +165,9 @@ class TestQdrantDocumentStore:
         mock_collection_info = MagicMock()
         mock_collection_info.config.params.vectors = {"some_other_vector": MagicMock()}
 
-        with patch.object(document_store._async_client, "collection_exists", return_value=True), patch.object(
-            document_store._async_client, "get_collection", return_value=mock_collection_info
+        with (
+            patch.object(document_store._async_client, "collection_exists", return_value=True),
+            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
         ):
             with pytest.raises(QdrantStoreError, match="created outside of Haystack"):
                 await document_store._set_up_collection_async("test_collection", 768, False, "cosine", True, False)
@@ -181,8 +182,9 @@ class TestQdrantDocumentStore:
         mock_collection_info = MagicMock()
         mock_collection_info.config.params.vectors = MagicMock(spec=rest.VectorsConfig)
 
-        with patch.object(document_store._async_client, "collection_exists", return_value=True), patch.object(
-            document_store._async_client, "get_collection", return_value=mock_collection_info
+        with (
+            patch.object(document_store._async_client, "collection_exists", return_value=True),
+            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
         ):
             with pytest.raises(QdrantStoreError, match="without sparse embedding vectors"):
                 await document_store._set_up_collection_async("test_collection", 768, False, "cosine", True, False)
@@ -196,8 +198,9 @@ class TestQdrantDocumentStore:
         mock_collection_info = MagicMock()
         mock_collection_info.config.params.vectors = {DENSE_VECTORS_NAME: MagicMock()}
 
-        with patch.object(document_store._async_client, "collection_exists", return_value=True), patch.object(
-            document_store._async_client, "get_collection", return_value=mock_collection_info
+        with (
+            patch.object(document_store._async_client, "collection_exists", return_value=True),
+            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
         ):
             with pytest.raises(QdrantStoreError, match="with sparse embedding vectors"):
                 await document_store._set_up_collection_async("test_collection", 768, False, "cosine", False, False)
@@ -213,8 +216,9 @@ class TestQdrantDocumentStore:
         mock_collection_info.config.params.vectors.distance = rest.Distance.DOT
         mock_collection_info.config.params.vectors.size = 768
 
-        with patch.object(document_store._async_client, "collection_exists", return_value=True), patch.object(
-            document_store._async_client, "get_collection", return_value=mock_collection_info
+        with (
+            patch.object(document_store._async_client, "collection_exists", return_value=True),
+            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
         ):
             with pytest.raises(ValueError, match="different similarity"):
                 await document_store._set_up_collection_async("test_collection", 768, False, "cosine", False, False)

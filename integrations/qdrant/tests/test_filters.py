@@ -1,5 +1,3 @@
-from typing import List
-
 import pytest
 from haystack import Document
 from haystack.testing.document_store import FilterDocumentsTest
@@ -34,7 +32,7 @@ class TestQdrantStoreBaseTests(FilterDocumentsTest):
             [d for d in filterable_docs if (d.meta.get("number") != 100 and d.meta.get("name") != "name_0")],
         )
 
-    def assert_documents_are_equal(self, received: List[Document], expected: List[Document]):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
         Assert that two lists of Documents are equal.
         This is used in every test.

@@ -137,7 +137,7 @@ class TestUtils:
         assert observed.role == "assistant"
         assert observed.text == "Hello! How are you today?"
 
-        assert observed.meta == {
+        expected_data = {
             "finish_reason": "stop",
             "usage": {
                 "completion_tokens": 298,
@@ -152,6 +152,11 @@ class TestUtils:
             "done": True,
             "model": "some_model",
         }
+
+        if "logprobs" in observed.meta:
+            expected_data["logprobs"] = None
+
+        assert observed.meta == expected_data
 
     def test_convert_ollama_response_to_chatmessage_with_tools(self):
         model = "some_model"

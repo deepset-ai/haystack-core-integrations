@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import vertexai
 from haystack import logging
@@ -71,7 +71,7 @@ class VertexAICodeGenerator:
 
         self._model = CodeGenerationModel.from_pretrained(self._model_name)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -83,7 +83,7 @@ class VertexAICodeGenerator:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "VertexAICodeGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "VertexAICodeGenerator":
         """
         Deserializes the component from a dictionary.
 
@@ -94,7 +94,7 @@ class VertexAICodeGenerator:
         """
         return default_from_dict(cls, data)
 
-    @component.output_types(replies=List[str])
+    @component.output_types(replies=list[str])
     def run(self, prefix: str, suffix: Optional[str] = None):
         """
         Generate code using a Google Vertex AI model.

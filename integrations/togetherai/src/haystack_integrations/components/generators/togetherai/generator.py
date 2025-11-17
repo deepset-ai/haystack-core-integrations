@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, Optional, Union, cast
+from typing import Any, Optional, Union, cast
 
 from haystack import component, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, StreamingCallbackT
@@ -38,7 +38,7 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
         api_base_url: Optional[str] = "https://api.together.xyz/v1",
         streaming_callback: Optional[StreamingCallbackT] = None,
         system_prompt: Optional[str] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
     ):
@@ -99,7 +99,7 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
         )
         self.system_prompt = system_prompt
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize this component to a dictionary.
 
