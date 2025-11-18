@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/qdrant-v9.4.0] - 2025-11-18
+
+### 🧹 Chores
+
+- [**breaking**] Qdrant - remove `init_from` init parameter for compatibility with `qdrant-client==1.16.0` (#2531)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 5) (#2528)
+
 ## [integrations/qdrant-v9.3.0] - 2025-11-11
 
 ### 🚀 Features
