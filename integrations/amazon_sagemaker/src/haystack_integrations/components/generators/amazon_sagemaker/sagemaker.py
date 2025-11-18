@@ -1,5 +1,5 @@
 import json
-from typing import Any, ClassVar, Dict, List, Optional, Union
+from typing import Any, ClassVar, Optional, Union
 
 import boto3
 import requests
@@ -56,8 +56,8 @@ class SagemakerGenerator:
         aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
         aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
         aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
-        aws_custom_attributes: Optional[Dict[str, Any]] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        aws_custom_attributes: Optional[dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
     ):
         """
         Instantiates the session with SageMaker.
@@ -114,7 +114,7 @@ class SagemakerGenerator:
             )
             raise AWSConfigurationError(msg) from e
 
-    def _get_telemetry_data(self) -> Dict[str, Any]:
+    def _get_telemetry_data(self) -> dict[str, Any]:
         """
         Returns data that is sent to Posthog for usage analytics.
         :returns: A dictionary with the following keys:
@@ -122,7 +122,7 @@ class SagemakerGenerator:
         """
         return {"model": self.model}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -142,7 +142,7 @@ class SagemakerGenerator:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SagemakerGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "SagemakerGenerator":
         """
         Deserializes the component from a dictionary.
 
@@ -191,10 +191,10 @@ class SagemakerGenerator:
             msg = f"Failed to initialize the session with provided AWS credentials: {e}."
             raise AWSConfigurationError(msg) from e
 
-    @component.output_types(replies=List[str], meta=List[Dict[str, Any]])
+    @component.output_types(replies=list[str], meta=list[dict[str, Any]])
     def run(
-        self, prompt: str, generation_kwargs: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Union[List[str], List[Dict[str, Any]]]]:
+        self, prompt: str, generation_kwargs: Optional[dict[str, Any]] = None
+    ) -> dict[str, Union[list[str], list[dict[str, Any]]]]:
         """
         Invoke the text generation inference based on the provided prompt and generation parameters.
 
@@ -222,10 +222,10 @@ class SagemakerGenerator:
                 CustomAttributes=custom_attributes,
             )
             response_json = response.get("Body").read().decode("utf-8")
-            output: Dict[str, Dict[str, Any]] = json.loads(response_json)
+            output: dict[str, dict[str, Any]] = json.loads(response_json)
 
             # The output might be either a list of dictionaries or a single dictionary
-            list_output: List[Dict[str, Any]]
+            list_output: list[dict[str, Any]]
             if output and isinstance(output, dict):
                 list_output = [output]
             elif isinstance(output, list) and all(isinstance(o, dict) for o in output):

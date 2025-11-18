@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/google_vertex-v5.3.0.post1] - 2025-11-18
+
+### 🧹 Chores
+
+- archive google-ai and google-vertex integrations, migrate to google-genai (#2521)
+
 ## [integrations/google_vertex-v5.3.0] - 2025-07-29
 
 ### 🐛 Bug Fixes
