@@ -69,7 +69,6 @@ class TestQdrantHybridRetriever:
                         "optimizers_config": None,
                         "wal_config": None,
                         "quantization_config": None,
-                        "init_from": None,
                         "wait_result_from_api": True,
                         "metadata": {},
                         "write_batch_size": 100,

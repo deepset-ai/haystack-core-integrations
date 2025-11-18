@@ -128,7 +128,6 @@ class QdrantDocumentStore:
         optimizers_config: Optional[dict] = None,
         wal_config: Optional[dict] = None,
         quantization_config: Optional[dict] = None,
-        init_from: Optional[dict] = None,
         wait_result_from_api: bool = True,
         metadata: Optional[dict] = None,
         write_batch_size: int = 100,
@@ -210,8 +209,6 @@ class QdrantDocumentStore:
             Params for Write-Ahead-Log.
         :param quantization_config:
             Params for quantization. If `None`, quantization will be disabled.
-        :param init_from:
-            Use data stored in another collection to initialize this collection.
         :param wait_result_from_api:
             Whether to wait for the result from the API after each request.
         :param metadata:
@@ -251,7 +248,6 @@ class QdrantDocumentStore:
         self.optimizers_config = optimizers_config
         self.wal_config = wal_config
         self.quantization_config = quantization_config
-        self.init_from = init_from
         self.wait_result_from_api = wait_result_from_api
         self.recreate_index = recreate_index
         self.payload_fields_to_index = payload_fields_to_index
@@ -1644,7 +1640,6 @@ class QdrantDocumentStore:
             "optimizers_config": self.optimizers_config,
             "wal_config": self.wal_config,
             "quantization_config": self.quantization_config,
-            "init_from": self.init_from,
         }
 
     def _prepare_client_params(self) -> dict[str, Any]:
