@@ -492,12 +492,6 @@ class LangfuseTracer(Tracer):
                     operation_name=operation_name,
                     cleanup_error=cleanup_error,
                 )
-            finally:
-                # Restore previous span stack using saved token - ensures proper cleanup
-                span_stack_var.reset(token)
-
-            if self.enforce_flush:
-                self.flush()
 
             # Re-raise the original exception
             raise
@@ -524,9 +518,9 @@ class LangfuseTracer(Tracer):
                     operation_name=operation_name,
                     cleanup_error=cleanup_error,
                 )
-            finally:
-                # Restore previous span stack using saved token - ensures proper cleanup
-                span_stack_var.reset(token)
+        finally:
+            # Restore previous span stack using saved token
+            span_stack_var.reset(token)
 
             if self.enforce_flush:
                 self.flush()
