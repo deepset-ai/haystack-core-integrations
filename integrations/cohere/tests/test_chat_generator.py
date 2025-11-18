@@ -13,10 +13,7 @@ from haystack.tools import Tool, Toolset
 from haystack.utils import Secret
 
 from haystack_integrations.components.generators.cohere import CohereChatGenerator
-from haystack_integrations.components.generators.cohere.chat.chat_generator import (
-    _extract_reasoning_from_text,
-    _format_message,
-)
+from haystack_integrations.components.generators.cohere.chat.chat_generator import _format_message
 
 
 def weather(city: str) -> str:
@@ -730,36 +727,6 @@ class TestCohereChatGeneratorInference:
         assert len(results["replies"]) == 1
         assert isinstance(results["replies"][0], ChatMessage)
         assert len(results["replies"][0].text) > 0
-
-
-class TestReasoningTextExtraction:
-    """Test the fallback text-based reasoning extraction functionality."""
-
-    def test_extract_reasoning_with_thinking_tags(self):
-        """Test extraction of reasoning from <thinking> tags (fallback method)."""
-        response_text = """<thinking>
-I need to calculate the area of a circle.
-The formula is π * r².
-Given radius is 5, so area = π * 25 = 78.54
-</thinking>
-
-The area of a circle with radius 5 is approximately 78.54 square units."""
-
-        reasoning, cleaned = _extract_reasoning_from_text(response_text)
-
-        assert reasoning is not None
-        assert isinstance(reasoning, ReasoningContent)
-        assert "calculate the area of a circle" in reasoning.reasoning_text
-        assert cleaned.strip() == "The area of a circle with radius 5 is approximately 78.54 square units."
-
-    def test_extract_reasoning_no_reasoning_present(self):
-        """Test that no reasoning is extracted when none is present."""
-        response_text = "This is a simple response without any reasoning content."
-
-        reasoning, cleaned = _extract_reasoning_from_text(response_text)
-
-        assert reasoning is None
-        assert cleaned == response_text
 
 
 class TestCohereChatGeneratorReasoning:

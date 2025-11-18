@@ -37,7 +37,9 @@ class CohereDocumentImageEmbedder:
     ### Usage example
     ```python
     from haystack import Document
-    from haystack_integrations.components.embedders.cohere import CohereDocumentImageEmbedder
+    from haystack_integrations.components.embedders.cohere import (
+        CohereDocumentImageEmbedder,
+    )
 
     embedder = CohereDocumentImageEmbedder(model="embed-v4.0")
 

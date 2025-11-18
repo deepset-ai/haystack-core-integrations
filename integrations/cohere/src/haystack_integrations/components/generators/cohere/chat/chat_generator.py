@@ -1,5 +1,4 @@
 import json
-import re
 from collections.abc import AsyncIterator, Iterator
 from typing import Any, Literal, Optional, Union, get_args
 
@@ -185,7 +184,7 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
     Extracts and organizes various response components including:
     - Text content
     - Tool calls
-    - Reasoning content (via native Cohere API with text-based fallback)
+    - Reasoning content (via native Cohere API)
     - Usage statistics
     - Citations
     - Metadata
@@ -194,7 +193,7 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
     :param model: The name of the model that generated the response.
     :return: A Haystack ChatMessage containing the formatted response.
     """
-    # Try to extract reasoning content using Cohere's native API (preferred method)
+    # Extract reasoning content using Cohere's native API
     reasoning_content = None
     text_content = ""
 
@@ -208,14 +207,6 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
             elif hasattr(content_item, "type") and content_item.type == "text":
                 if hasattr(content_item, "text") and content_item.text:
                     text_content = content_item.text
-
-    # Fallback: If reasoning wasn't found via native API but text contains reasoning markers,
-    # extract it from text (for backward compatibility)
-    if reasoning_content is None and text_content:
-        fallback_reasoning, cleaned_text = _extract_reasoning_from_text(text_content)
-        if fallback_reasoning is not None:
-            reasoning_content = fallback_reasoning
-            text_content = cleaned_text
 
     if chat_response.message.tool_calls:
         tool_calls = []
@@ -377,103 +368,6 @@ def _convert_cohere_chunk_to_streaming_chunk(
     )
 
 
-def _extract_reasoning_from_text(response_text: str) -> tuple[Optional[ReasoningContent], str]:
-    """
-    Extract reasoning content from text as a fallback method.
-
-    This is used when reasoning is not available via native Cohere API
-    (e.g., in streaming mode or for backward compatibility).
-
-    :param response_text: The raw response text from Cohere
-    :returns: A tuple of (ReasoningContent or None, cleaned_response_text)
-    """
-    if not response_text or not isinstance(response_text, str):
-        return None, response_text
-
-    # Pattern 1: Look for thinking/reasoning tags
-    thinking_patterns = [
-        r"<thinking>(.*?)</thinking>",
-        r"<reasoning>(.*?)</reasoning>",
-        r"## Reasoning\s*\n(.*?)(?=\n## |$)",
-        r"## Thinking\s*\n(.*?)(?=\n## |$)",
-    ]
-
-    for pattern in thinking_patterns:
-        match = re.search(pattern, response_text, re.DOTALL | re.IGNORECASE)
-        if match:
-            reasoning_text = match.group(1).strip()
-            cleaned_content = re.sub(pattern, "", response_text, flags=re.DOTALL | re.IGNORECASE).strip()
-            min_reasoning_length = 30
-            if len(reasoning_text) > min_reasoning_length:
-                return ReasoningContent(reasoning_text=reasoning_text), cleaned_content
-            else:
-                return None, cleaned_content
-
-    # Pattern 2: Look for step-by-step reasoning at start
-    lines = response_text.split("\n")
-    max_lines_to_check = 10
-    for i, line in enumerate(lines):
-        stripped_line = line.strip()
-        if (
-            stripped_line.startswith(("Step ", "First,", "Let me think", "I need to solve", "To solve"))
-            or stripped_line.startswith(("## Reasoning", "## Thinking", "## My reasoning"))
-            or (
-                len(stripped_line) > 0
-                and stripped_line.endswith(":")
-                and ("reasoning" in stripped_line.lower() or "thinking" in stripped_line.lower())
-            )
-        ):
-            reasoning_end = len(lines)
-            for j in range(i + 1, len(lines)):
-                next_line = lines[j].strip()
-                if next_line.startswith(
-                    ("Based on", "Therefore", "In conclusion", "So,", "Thus,", "## Solution", "## Answer")
-                ):
-                    reasoning_end = j
-                    break
-
-            reasoning_lines = lines[:reasoning_end]
-            content_lines = lines[reasoning_end:]
-            reasoning_text = "\n".join(reasoning_lines).strip()
-            cleaned_content = "\n".join(content_lines).strip()
-            min_reasoning_length = 30
-            if len(reasoning_text) > min_reasoning_length:
-                return ReasoningContent(reasoning_text=reasoning_text), cleaned_content
-            break
-
-        if i > max_lines_to_check:  # Stop looking after first few lines
-            break
-
-    return None, response_text
-
-
-def _convert_streaming_chunks_to_chat_message_with_reasoning(chunks: list[StreamingChunk]) -> ChatMessage:
-    """
-    Convert streaming chunks to ChatMessage with reasoning extraction support.
-
-    For streaming, reasoning might not come via native API, so we use text-based extraction.
-    """
-    base_message = _convert_streaming_chunks_to_chat_message(chunks=chunks)
-
-    if not base_message.text:
-        return base_message
-
-    # Try to extract reasoning from text (fallback for streaming)
-    reasoning_content, cleaned_text = _extract_reasoning_from_text(base_message.text)
-
-    if reasoning_content is None:
-        return base_message
-
-    new_message = ChatMessage.from_assistant(
-        text=cleaned_text,
-        reasoning=reasoning_content,
-        tool_calls=base_message.tool_calls,
-        meta=base_message.meta,
-    )
-
-    return new_message
-
-
 def _parse_streaming_response(
     response: Iterator[StreamedChatResponseV2],
     model: str,
@@ -505,7 +399,7 @@ def _parse_streaming_response(
         chunks.append(streaming_chunk)
         streaming_callback(streaming_chunk)
 
-    return _convert_streaming_chunks_to_chat_message_with_reasoning(chunks=chunks)
+    return _convert_streaming_chunks_to_chat_message(chunks=chunks)
 
 
 async def _parse_async_streaming_response(
@@ -533,7 +427,7 @@ async def _parse_async_streaming_response(
         chunks.append(streaming_chunk)
         await streaming_callback(streaming_chunk)
 
-    return _convert_streaming_chunks_to_chat_message_with_reasoning(chunks=chunks)
+    return _convert_streaming_chunks_to_chat_message(chunks=chunks)
 
 
 @component
@@ -559,9 +453,13 @@ class CohereChatGenerator:
     ```python
     from haystack.dataclasses import ChatMessage
     from haystack.utils import Secret
-    from haystack_integrations.components.generators.cohere import CohereChatGenerator
+    from haystack_integrations.components.generators.cohere import (
+        CohereChatGenerator,
+    )
 
-    client = CohereChatGenerator(model="command-r-08-2024", api_key=Secret.from_env_var("COHERE_API_KEY"))
+    client = CohereChatGenerator(
+        model="command-r-08-2024", api_key=Secret.from_env_var("COHERE_API_KEY")
+    )
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
     client.run(messages)
 
@@ -573,16 +471,25 @@ class CohereChatGenerator:
     ```python
     from haystack.dataclasses import ChatMessage, ImageContent
     from haystack.utils import Secret
-    from haystack_integrations.components.generators.cohere import CohereChatGenerator
+    from haystack_integrations.components.generators.cohere import (
+        CohereChatGenerator,
+    )
 
     # Create an image from file path or base64
     image_content = ImageContent.from_file_path("path/to/your/image.jpg")
 
     # Create a multimodal message with both text and image
-    messages = [ChatMessage.from_user(content_parts=["What's in this image?", image_content])]
+    messages = [
+        ChatMessage.from_user(
+            content_parts=["What's in this image?", image_content]
+        )
+    ]
 
     # Use a multimodal model like Command A Vision
-    client = CohereChatGenerator(model="command-a-vision-07-2025", api_key=Secret.from_env_var("COHERE_API_KEY"))
+    client = CohereChatGenerator(
+        model="command-a-vision-07-2025",
+        api_key=Secret.from_env_var("COHERE_API_KEY"),
+    )
     response = client.run(messages)
     print(response)
     ```
@@ -597,11 +504,15 @@ class CohereChatGenerator:
     from haystack.dataclasses import ChatMessage
     from haystack.components.tools import ToolInvoker
     from haystack.tools import Tool
-    from haystack_integrations.components.generators.cohere import CohereChatGenerator
+    from haystack_integrations.components.generators.cohere import (
+        CohereChatGenerator,
+    )
+
 
     # Create a weather tool
     def weather(city: str) -> str:
         return f"The weather in {city} is sunny and 32°C"
+
 
     weather_tool = Tool(
         name="weather",
@@ -621,13 +532,22 @@ class CohereChatGenerator:
 
     # Create and set up the pipeline
     pipeline = Pipeline()
-    pipeline.add_component("generator", CohereChatGenerator(model="command-r-08-2024", tools=[weather_tool]))
+    pipeline.add_component(
+        "generator",
+        CohereChatGenerator(model="command-r-08-2024", tools=[weather_tool]),
+    )
     pipeline.add_component("tool_invoker", ToolInvoker(tools=[weather_tool]))
     pipeline.connect("generator", "tool_invoker")
 
     # Run the pipeline with a weather query
     results = pipeline.run(
-        data={"generator": {"messages": [ChatMessage.from_user("What's the weather like in Paris?")]}}
+        data={
+            "generator": {
+                "messages": [
+                    ChatMessage.from_user("What's the weather like in Paris?")
+                ]
+            }
+        }
     )
 
     # The tool result will be available in the pipeline output
