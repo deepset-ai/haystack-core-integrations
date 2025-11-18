@@ -11,7 +11,6 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 from numpy import exp
-from qdrant_client import grpc
 from qdrant_client.http import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
 from tqdm import tqdm
@@ -681,8 +680,11 @@ class QdrantDocumentStore:
                 with_vectors=True,
             )
             stop_scrolling = next_offset is None or (
-                isinstance(next_offset, grpc.PointId) and next_offset.num == 0 and next_offset.uuid == ""  # type: ignore[union-attr]
-            )  # grpc.PointId always has num and uuid
+                hasattr(next_offset, "num")
+                and hasattr(next_offset, "uuid")
+                and next_offset.num == 0
+                and next_offset.uuid == ""
+            )  # PointId always has num and uuid
 
             for record in records:
                 yield convert_qdrant_point_to_haystack_document(
@@ -718,8 +720,11 @@ class QdrantDocumentStore:
                 with_vectors=True,
             )
             stop_scrolling = next_offset is None or (
-                isinstance(next_offset, grpc.PointId) and next_offset.num == 0 and next_offset.uuid == ""  # type: ignore[union-attr]
-            )  # grpc.PointId always has num and uuid
+                hasattr(next_offset, "num")
+                and hasattr(next_offset, "uuid")
+                and next_offset.num == 0
+                and next_offset.uuid == ""
+            )  # PointId always has num and uuid
 
             for record in records:
                 yield convert_qdrant_point_to_haystack_document(
