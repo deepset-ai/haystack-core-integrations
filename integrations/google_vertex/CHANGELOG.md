@@ -2,22 +2,9 @@
 
 ## [integrations/google_vertex-v5.3.0.post1] - 2025-11-18
 
-### 📚 Documentation
-
-- Add pydoc configurations for Docusaurus (#2411)
-
-### ⚙️ CI
-
-- Change pytest command (#2475)
-
 ### 🧹 Chores
 
-- Standardize readmes - part 2 (#2205)
-
-### 🌀 Miscellaneous
-
-- Enhancement: Adopt PEP 585 type hinting (part 4) (#2527)
-- Chore: archive google-ai and google-vertex integrations, migrate to google-genai (#2521)
+- archive google-ai and google-vertex integrations, migrate to google-genai (#2521)
 
 ## [integrations/google_vertex-v5.3.0] - 2025-07-29
 
