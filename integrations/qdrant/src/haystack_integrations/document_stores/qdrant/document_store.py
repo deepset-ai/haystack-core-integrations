@@ -11,7 +11,6 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 from numpy import exp
-from qdrant_client import grpc
 from qdrant_client.http import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
 from tqdm import tqdm
@@ -128,7 +127,6 @@ class QdrantDocumentStore:
         optimizers_config: Optional[dict] = None,
         wal_config: Optional[dict] = None,
         quantization_config: Optional[dict] = None,
-        init_from: Optional[dict] = None,
         wait_result_from_api: bool = True,
         metadata: Optional[dict] = None,
         write_batch_size: int = 100,
@@ -210,8 +208,6 @@ class QdrantDocumentStore:
             Params for Write-Ahead-Log.
         :param quantization_config:
             Params for quantization. If `None`, quantization will be disabled.
-        :param init_from:
-            Use data stored in another collection to initialize this collection.
         :param wait_result_from_api:
             Whether to wait for the result from the API after each request.
         :param metadata:
@@ -251,7 +247,6 @@ class QdrantDocumentStore:
         self.optimizers_config = optimizers_config
         self.wal_config = wal_config
         self.quantization_config = quantization_config
-        self.init_from = init_from
         self.wait_result_from_api = wait_result_from_api
         self.recreate_index = recreate_index
         self.payload_fields_to_index = payload_fields_to_index
@@ -685,8 +680,11 @@ class QdrantDocumentStore:
                 with_vectors=True,
             )
             stop_scrolling = next_offset is None or (
-                isinstance(next_offset, grpc.PointId) and next_offset.num == 0 and next_offset.uuid == ""  # type: ignore[union-attr]
-            )  # grpc.PointId always has num and uuid
+                hasattr(next_offset, "num")
+                and hasattr(next_offset, "uuid")
+                and next_offset.num == 0
+                and next_offset.uuid == ""
+            )  # PointId always has num and uuid
 
             for record in records:
                 yield convert_qdrant_point_to_haystack_document(
@@ -722,8 +720,11 @@ class QdrantDocumentStore:
                 with_vectors=True,
             )
             stop_scrolling = next_offset is None or (
-                isinstance(next_offset, grpc.PointId) and next_offset.num == 0 and next_offset.uuid == ""  # type: ignore[union-attr]
-            )  # grpc.PointId always has num and uuid
+                hasattr(next_offset, "num")
+                and hasattr(next_offset, "uuid")
+                and next_offset.num == 0
+                and next_offset.uuid == ""
+            )  # PointId always has num and uuid
 
             for record in records:
                 yield convert_qdrant_point_to_haystack_document(
@@ -1644,7 +1645,6 @@ class QdrantDocumentStore:
             "optimizers_config": self.optimizers_config,
             "wal_config": self.wal_config,
             "quantization_config": self.quantization_config,
-            "init_from": self.init_from,
         }
 
     def _prepare_client_params(self) -> dict[str, Any]:
