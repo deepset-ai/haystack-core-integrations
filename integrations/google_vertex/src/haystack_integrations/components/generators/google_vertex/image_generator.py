@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import vertexai
 from haystack import logging
@@ -61,7 +61,7 @@ class VertexAIImageGenerator:
 
         self._model = ImageGenerationModel.from_pretrained(self._model_name)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -73,7 +73,7 @@ class VertexAIImageGenerator:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "VertexAIImageGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "VertexAIImageGenerator":
         """
         Deserializes the component from a dictionary.
 
@@ -84,7 +84,7 @@ class VertexAIImageGenerator:
         """
         return default_from_dict(cls, data)
 
-    @component.output_types(images=List[ByteStream])
+    @component.output_types(images=list[ByteStream])
     def run(self, prompt: str, negative_prompt: Optional[str] = None):
         """Produces images based on the given prompt.
 

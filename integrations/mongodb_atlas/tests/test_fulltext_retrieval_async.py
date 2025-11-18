@@ -4,7 +4,7 @@
 
 import os
 from time import sleep
-from typing import List, Union
+from typing import Union
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -116,7 +116,7 @@ class TestFullTextRetrieval:
 
     @pytest.mark.parametrize("query", ["", []])
     async def test_empty_query_raises_value_error_async(
-        self, query: Union[str, List], document_store: MongoDBAtlasDocumentStore
+        self, query: Union[str, list], document_store: MongoDBAtlasDocumentStore
     ):
         with pytest.raises(ValueError):
             await document_store._fulltext_retrieval_async(query=query)

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 import vertexai
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -84,8 +84,8 @@ class VertexAITextEmbedder:
         self.embedder = TextEmbeddingModel.from_pretrained(self.model)
         self.task_type = task_type
 
-    @component.output_types(embedding=List[float])
-    def run(self, text: Union[List[Document], List[str], str]):
+    @component.output_types(embedding=list[float])
+    def run(self, text: Union[list[Document], list[str], str]):
         """
         Processes text in batches while adhering to the API's token limit per request.
 
@@ -106,7 +106,7 @@ class VertexAITextEmbedder:
         embeddings = self.embedder.get_embeddings(text_embed_input)[0].values
         return {"embedding": embeddings}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -121,7 +121,7 @@ class VertexAITextEmbedder:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "VertexAITextEmbedder":
+    def from_dict(cls, data: dict[str, Any]) -> "VertexAITextEmbedder":
         """
         Deserializes the component from a dictionary.
 

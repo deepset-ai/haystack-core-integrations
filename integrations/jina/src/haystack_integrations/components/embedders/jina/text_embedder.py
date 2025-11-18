@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import requests
 from haystack import component, default_from_dict, default_to_dict
@@ -82,19 +82,19 @@ class JinaTextEmbedder:
         self.dimensions = dimensions
         self.late_chunking = late_chunking
 
-    def _get_telemetry_data(self) -> Dict[str, Any]:
+    def _get_telemetry_data(self) -> dict[str, Any]:
         """
         Data that is sent to Posthog for usage analytics.
         """
         return {"model": self.model_name}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
         :returns:
             Dictionary with serialized data.
         """
-        kwargs: Dict[str, Any] = {
+        kwargs: dict[str, Any] = {
             "api_key": self.api_key.to_dict(),
             "model": self.model_name,
             "prefix": self.prefix,
@@ -110,7 +110,7 @@ class JinaTextEmbedder:
         return default_to_dict(self, **kwargs)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "JinaTextEmbedder":
+    def from_dict(cls, data: dict[str, Any]) -> "JinaTextEmbedder":
         """
         Deserializes the component from a dictionary.
         :param data:
@@ -121,8 +121,8 @@ class JinaTextEmbedder:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    @component.output_types(embedding=List[float], meta=Dict[str, Any])
-    def run(self, text: str) -> Dict[str, Any]:
+    @component.output_types(embedding=list[float], meta=dict[str, Any])
+    def run(self, text: str) -> dict[str, Any]:
         """
         Embed a string.
 
@@ -141,7 +141,7 @@ class JinaTextEmbedder:
 
         text_to_embed = self.prefix + text + self.suffix
 
-        parameters: Dict[str, Any] = {}
+        parameters: dict[str, Any] = {}
         if self.task is not None:
             parameters["task"] = self.task
         if self.dimensions is not None:

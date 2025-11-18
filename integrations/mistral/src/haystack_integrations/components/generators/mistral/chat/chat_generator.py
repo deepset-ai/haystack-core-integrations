@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -65,12 +65,12 @@ class MistralChatGenerator(OpenAIChatGenerator):
         model: str = "mistral-small-latest",
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = "https://api.mistral.ai/v1",
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         tools: Optional[ToolsType] = None,
         *,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
-        http_client_kwargs: Optional[Dict[str, Any]] = None,
+        http_client_kwargs: Optional[dict[str, Any]] = None,
     ):
         """
         Creates an instance of MistralChatGenerator. Unless specified otherwise in the `model`, this is for Mistral's
@@ -155,7 +155,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
             api_args.pop("response_format")
         return api_args
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize this component to a dictionary.
 

@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 from haystack.errors import FilterError
 
 UNSUPPORTED_TYPES_FOR_COMPARISON = (list,)
 
 
-def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_filters(filters: dict[str, Any]) -> dict[str, Any]:
     """
     Converts Haystack filters to MongoDB filters.
     """
@@ -26,7 +26,7 @@ def _normalize_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
     return _parse_logical_condition(filters)
 
 
-def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
+def _parse_logical_condition(condition: dict[str, Any]) -> dict[str, Any]:
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
         raise FilterError(msg)
@@ -56,7 +56,7 @@ def _parse_logical_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     raise FilterError(msg)
 
 
-def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
+def _parse_comparison_condition(condition: dict[str, Any]) -> dict[str, Any]:
     field: str = condition["field"]
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
@@ -70,11 +70,11 @@ def _parse_comparison_condition(condition: Dict[str, Any]) -> Dict[str, Any]:
     return COMPARISON_OPERATORS[operator](field, value)
 
 
-def _equal(field: str, value: Any) -> Dict[str, Any]:
+def _equal(field: str, value: Any) -> dict[str, Any]:
     return {field: {"$eq": value}}
 
 
-def _not_equal(field: str, value: Any) -> Dict[str, Any]:
+def _not_equal(field: str, value: Any) -> dict[str, Any]:
     return {field: {"$ne": value}}
 
 
@@ -90,12 +90,12 @@ def _validate_type_for_comparison(value: Any) -> None:
             raise FilterError(msg) from exc
 
 
-def _greater_than(field: str, value: Any) -> Dict[str, Any]:
+def _greater_than(field: str, value: Any) -> dict[str, Any]:
     _validate_type_for_comparison(value)
     return {field: {"$gt": value}}
 
 
-def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
+def _greater_than_equal(field: str, value: Any) -> dict[str, Any]:
     if value is None:
         # we want {field: {"$gte": null}} to return an empty result
         # $gte with null values in MongoDB returns a non-empty result, while $gt aligns with our expectations
@@ -105,12 +105,12 @@ def _greater_than_equal(field: str, value: Any) -> Dict[str, Any]:
     return {field: {"$gte": value}}
 
 
-def _less_than(field: str, value: Any) -> Dict[str, Any]:
+def _less_than(field: str, value: Any) -> dict[str, Any]:
     _validate_type_for_comparison(value)
     return {field: {"$lt": value}}
 
 
-def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
+def _less_than_equal(field: str, value: Any) -> dict[str, Any]:
     if value is None:
         # we want {field: {"$lte": null}} to return an empty result
         # $lte with null values in MongoDB returns a non-empty result, while $lt aligns with our expectations
@@ -120,7 +120,7 @@ def _less_than_equal(field: str, value: Any) -> Dict[str, Any]:
     return {field: {"$lte": value}}
 
 
-def _not_in(field: str, value: Any) -> Dict[str, Any]:
+def _not_in(field: str, value: Any) -> dict[str, Any]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'not in' comparator in Pinecone"
         raise FilterError(msg)
@@ -128,7 +128,7 @@ def _not_in(field: str, value: Any) -> Dict[str, Any]:
     return {field: {"$nin": value}}
 
 
-def _in(field: str, value: Any) -> Dict[str, Any]:
+def _in(field: str, value: Any) -> dict[str, Any]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' comparator in Pinecone"
         raise FilterError(msg)

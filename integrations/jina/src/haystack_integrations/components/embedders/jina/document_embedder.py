@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import requests
 from haystack import Document, component, default_from_dict, default_to_dict
@@ -43,7 +43,7 @@ class JinaDocumentEmbedder:
         suffix: str = "",
         batch_size: int = 32,
         progress_bar: bool = True,
-        meta_fields_to_embed: Optional[List[str]] = None,
+        meta_fields_to_embed: Optional[list[str]] = None,
         embedding_separator: str = "\n",
         task: Optional[str] = None,
         dimensions: Optional[int] = None,
@@ -95,13 +95,13 @@ class JinaDocumentEmbedder:
         self.dimensions = dimensions
         self.late_chunking = late_chunking
 
-    def _get_telemetry_data(self) -> Dict[str, Any]:
+    def _get_telemetry_data(self) -> dict[str, Any]:
         """
         Data that is sent to Posthog for usage analytics.
         """
         return {"model": self.model_name}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
         :returns:
@@ -128,7 +128,7 @@ class JinaDocumentEmbedder:
         return default_to_dict(self, **kwargs)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "JinaDocumentEmbedder":
+    def from_dict(cls, data: dict[str, Any]) -> "JinaDocumentEmbedder":
         """
         Deserializes the component from a dictionary.
         :param data:
@@ -139,7 +139,7 @@ class JinaDocumentEmbedder:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    def _prepare_texts_to_embed(self, documents: List[Document]) -> List[str]:
+    def _prepare_texts_to_embed(self, documents: list[Document]) -> list[str]:
         """
         Prepare the texts to embed by concatenating the Document text with the metadata fields to embed.
         """
@@ -156,8 +156,8 @@ class JinaDocumentEmbedder:
         return texts_to_embed
 
     def _embed_batch(
-        self, texts_to_embed: List[str], batch_size: int, parameters: Optional[Dict] = None
-    ) -> Tuple[List[List[float]], Dict[str, Any]]:
+        self, texts_to_embed: list[str], batch_size: int, parameters: Optional[dict] = None
+    ) -> tuple[list[list[float]], dict[str, Any]]:
         """
         Embed a list of texts in batches.
         """
@@ -189,8 +189,8 @@ class JinaDocumentEmbedder:
 
         return all_embeddings, metadata
 
-    @component.output_types(documents=List[Document], meta=Dict[str, Any])
-    def run(self, documents: List[Document]) -> Dict[str, Any]:
+    @component.output_types(documents=list[Document], meta=dict[str, Any])
+    def run(self, documents: list[Document]) -> dict[str, Any]:
         """
         Compute the embeddings for a list of Documents.
 
@@ -208,7 +208,7 @@ class JinaDocumentEmbedder:
             raise TypeError(msg)
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
-        parameters: Dict[str, Any] = {}
+        parameters: dict[str, Any] = {}
         if self.task is not None:
             parameters["task"] = self.task
         if self.dimensions is not None:
