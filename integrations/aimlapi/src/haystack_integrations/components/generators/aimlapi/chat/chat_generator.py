@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -65,12 +65,12 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         model: str = "openai/gpt-5-chat-latest",
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = "https://api.aimlapi.com/v1",
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         tools: Optional[ToolsType] = None,
         timeout: Optional[float] = None,
-        extra_headers: Optional[Dict[str, Any]] = None,
+        extra_headers: Optional[dict[str, Any]] = None,
         max_retries: Optional[int] = None,
-        http_client_kwargs: Optional[Dict[str, Any]] = None,
+        http_client_kwargs: Optional[dict[str, Any]] = None,
     ):
         """
         Creates an instance of AIMLAPIChatGenerator. Unless specified otherwise,
@@ -128,7 +128,7 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         )
         self.extra_headers = extra_headers
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize this component to a dictionary.
 
@@ -154,18 +154,18 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
     def _prepare_api_call(
         self,
         *,
-        messages: List[ChatMessage],
+        messages: list[ChatMessage],
         streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        generation_kwargs: Optional[dict[str, Any]] = None,
         tools: Optional[ToolsType] = None,
         tools_strict: Optional[bool] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         extra_headers = {**AIMLAPI_HEADERS, **(self.extra_headers or {})}
 
         # adapt ChatMessage(s) to the format expected by the OpenAI API (AIMLAPI uses the same format)
-        aimlapi_formatted_messages: List[Dict[str, Any]] = [message.to_openai_dict_format() for message in messages]
+        aimlapi_formatted_messages: list[dict[str, Any]] = [message.to_openai_dict_format() for message in messages]
 
         tools_strict = tools_strict if tools_strict is not None else self.tools_strict
         flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
