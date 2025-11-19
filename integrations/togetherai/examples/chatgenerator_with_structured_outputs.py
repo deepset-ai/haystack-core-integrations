@@ -32,4 +32,4 @@ chat_messages = [
 component = TogetherAIChatGenerator(generation_kwargs={"response_format": NobelPrizeInfo})
 results = component.run(chat_messages)
 
-#print(results)
+# print(results)
