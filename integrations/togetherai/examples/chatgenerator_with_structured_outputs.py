@@ -3,15 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-# This example demonstrates how to use the MistralChatGenerator component
+# This example demonstrates how to use the TogetherAIChatGenerator component
 # with structured outputs.
 # To run this example, you will need to
-# set `MISTRAL_API_KEY` environment variable
+# set `TOGETHER_API_KEY` environment variable
 
 from haystack.dataclasses import ChatMessage
 from pydantic import BaseModel
 
-from haystack_integrations.components.generators.mistral import MistralChatGenerator
+from haystack_integrations.components.generators.togetherai import TogetherAIChatGenerator
 
 
 class NobelPrizeInfo(BaseModel):
@@ -29,7 +29,7 @@ chat_messages = [
         " senses temperature and touch."
     )
 ]
-component = MistralChatGenerator(generation_kwargs={"response_format": NobelPrizeInfo})
+component = TogetherAIChatGenerator(generation_kwargs={"response_format": NobelPrizeInfo})
 results = component.run(chat_messages)
 
-# print(results)
+#print(results)
