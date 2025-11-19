@@ -430,7 +430,7 @@ class TestLlamaStackChatGenerator:
         }
 
         chat_messages = [ChatMessage.from_user("What's the capital of France?")]
-        comp = LlamaStackChatGenerator(generation_kwargs={"response_format": response_schema})
+        comp = LlamaStackChatGenerator(model="ollama/llama3.2:3b", generation_kwargs={"response_format": response_schema})
         results = comp.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
@@ -445,7 +445,7 @@ class TestLlamaStackChatGenerator:
         chat_messages = [
             ChatMessage.from_user("The marketing summit takes place on October12th at the Hilton Hotel downtown.")
         ]
-        component = LlamaStackChatGenerator(generation_kwargs={"response_format": calendar_event_model})
+        component = LlamaStackChatGenerator(model="ollama/llama3.2:3b",generation_kwargs={"response_format": calendar_event_model})
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
