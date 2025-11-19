@@ -114,14 +114,18 @@ class TestSTACKITChatGenerator:
         for key, value in expected_params.items():
             assert data["init_parameters"][key] == value
 
-    def test_to_dict_with_parameters(self, monkeypatch):
+    def test_to_dict_with_parameters(self, monkeypatch, calendar_event_model):
         monkeypatch.setenv("ENV_VAR", "test-api-key")
         component = STACKITChatGenerator(
             api_key=Secret.from_env_var("ENV_VAR"),
             model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
-            generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
+            generation_kwargs={
+                "max_tokens": 10,
+                "some_test_param": "test-params",
+                "response_format": calendar_event_model,
+            },
             timeout=10.0,
             max_retries=2,
             http_client_kwargs={"proxy": "https://proxy.example.com:8080"},
@@ -138,7 +142,28 @@ class TestSTACKITChatGenerator:
             "model": "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
             "api_base_url": "test-base-url",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-            "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+            "generation_kwargs": {
+                "max_tokens": 10,
+                "some_test_param": "test-params",
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "CalendarEvent",
+                        "strict": True,
+                        "schema": {
+                            "properties": {
+                                "event_name": {"title": "Event Name", "type": "string"},
+                                "event_date": {"title": "Event Date", "type": "string"},
+                                "event_location": {"title": "Event Location", "type": "string"},
+                            },
+                            "required": ["event_name", "event_date", "event_location"],
+                            "title": "CalendarEvent",
+                            "type": "object",
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+            },
             "timeout": 10.0,
             "max_retries": 2,
             "http_client_kwargs": {"proxy": "https://proxy.example.com:8080"},
