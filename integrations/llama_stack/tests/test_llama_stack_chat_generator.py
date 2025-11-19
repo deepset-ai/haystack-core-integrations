@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from unittest.mock import patch
 
@@ -407,3 +408,48 @@ class TestLlamaStackChatGenerator:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
+
+    @pytest.mark.integration
+    def test_live_run_with_response_format_json_schema(self):
+        response_schema = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "CapitalCity",
+                "strict": True,
+                "schema": {
+                    "title": "CapitalCity",
+                    "type": "object",
+                    "properties": {
+                        "city": {"title": "City", "type": "string"},
+                        "country": {"title": "Country", "type": "string"},
+                    },
+                    "required": ["city", "country"],
+                    "additionalProperties": False,
+                },
+            },
+        }
+
+        chat_messages = [ChatMessage.from_user("What's the capital of France?")]
+        comp = LlamaStackChatGenerator(generation_kwargs={"response_format": response_schema})
+        results = comp.run(chat_messages)
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        msg = json.loads(message.text)
+        assert "Paris" in msg["city"]
+        assert isinstance(msg["country"], str)
+        assert "France" in msg["country"]
+        assert message.meta["finish_reason"] == "stop"
+
+    @pytest.mark.integration
+    def test_live_run_with_response_format_pydantic_model(self, calendar_event_model):
+        chat_messages = [
+            ChatMessage.from_user("The marketing summit takes place on October12th at the Hilton Hotel downtown.")
+        ]
+        component = LlamaStackChatGenerator(generation_kwargs={"response_format": calendar_event_model})
+        results = component.run(chat_messages)
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        msg = json.loads(message.text)
+        assert "Marketing Summit" in msg["event_name"]
+        assert isinstance(msg["event_date"], str)
+        assert isinstance(msg["event_location"], str)
