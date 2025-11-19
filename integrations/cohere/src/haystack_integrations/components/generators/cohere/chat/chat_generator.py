@@ -282,11 +282,19 @@ def _convert_cohere_chunk_to_streaming_chunk(
     start = False
     finish_reason = None
     tool_calls = None
+    reasoning = None
     meta: dict[str, Any] = {"model": model}
 
     if chunk.type == "content-delta" and chunk.delta and chunk.delta.message:
-        if chunk.delta.message and chunk.delta.message.content and chunk.delta.message.content.text is not None:
-            content = chunk.delta.message.content.text
+        if chunk.delta.message and chunk.delta.message.content:
+            # Handle thinking/reasoning content (prioritize over text if both exist)
+            # Note: StreamingChunk can only have ONE of content/tool_calls/reasoning set
+            thinking_text = getattr(chunk.delta.message.content, "thinking", None)
+            if thinking_text is not None and isinstance(thinking_text, str):
+                reasoning = ReasoningContent(reasoning_text=thinking_text)
+            # Handle text content (only if no reasoning)
+            elif chunk.delta.message.content.text is not None:
+                content = chunk.delta.message.content.text
 
     elif chunk.type == "tool-plan-delta" and chunk.delta and chunk.delta.message:
         if chunk.delta.message and chunk.delta.message.tool_plan is not None:
@@ -362,6 +370,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
         component_info=component_info,
         index=index,
         tool_calls=tool_calls,
+        reasoning=reasoning,
         start=start,
         finish_reason=finish_reason,
         meta=meta,

@@ -728,12 +728,6 @@ class TestCohereChatGeneratorInference:
         assert isinstance(results["replies"][0], ChatMessage)
         assert len(results["replies"][0].text) > 0
 
-
-class TestCohereChatGeneratorReasoning:
-    """Integration tests for reasoning functionality in CohereChatGenerator."""
-
-    @pytest.mark.skipif(not os.environ.get("COHERE_API_KEY"), reason="COHERE_API_KEY not set")
-    @pytest.mark.integration
     def test_reasoning_with_command_a_reasoning_model(self):
         """Test reasoning extraction with Command A Reasoning model."""
         generator = CohereChatGenerator(
@@ -879,8 +873,64 @@ With radius 7: A = π * 7² = π * 49 ≈ 153.94"""
         # Check tool plan is used as text
         assert "I'll check the weather in Paris" in reply.text
 
-    @pytest.mark.skipif(not os.environ.get("COHERE_API_KEY"), reason="COHERE_API_KEY not set")
-    @pytest.mark.integration
+    def test_streaming_reasoning_with_mock_chunks(self):
+        """Test that reasoning content is captured during streaming."""
+        generator = CohereChatGenerator(
+            model="command-a-reasoning-111b-2024-10-03", api_key=Secret.from_token("fake-api-key")
+        )
+
+        # Mock streaming chunks with thinking content
+        thinking_chunk = MagicMock()
+        thinking_chunk.type = "content-delta"
+        thinking_chunk.delta.message.content.thinking = "Let me calculate the area step by step. "
+        thinking_chunk.delta.message.content.text = None
+
+        thinking_chunk2 = MagicMock()
+        thinking_chunk2.type = "content-delta"
+        thinking_chunk2.delta.message.content.thinking = "Using formula A = πr²."
+        thinking_chunk2.delta.message.content.text = None
+
+        text_chunk = MagicMock()
+        text_chunk.type = "content-delta"
+        text_chunk.delta.message.content.text = "The area is "
+        text_chunk.delta.message.content.thinking = None
+
+        text_chunk2 = MagicMock()
+        text_chunk2.type = "content-delta"
+        text_chunk2.delta.message.content.text = "78.54 square units."
+        text_chunk2.delta.message.content.thinking = None
+
+        end_chunk = MagicMock()
+        end_chunk.type = "message-end"
+        end_chunk.delta.finish_reason = "COMPLETE"
+        end_chunk.delta.usage = None
+
+        mock_stream = iter([thinking_chunk, thinking_chunk2, text_chunk, text_chunk2, end_chunk])
+
+        generator.client.chat_stream = MagicMock(return_value=mock_stream)
+
+        messages = [ChatMessage.from_user("What is the area of a circle with radius 5?")]
+        streaming_chunks = []
+
+        def callback(chunk: StreamingChunk):
+            streaming_chunks.append(chunk)
+
+        result = generator.run(messages=messages, streaming_callback=callback)
+
+        # Verify streaming chunks include reasoning
+        thinking_chunks = [c for c in streaming_chunks if c.reasoning is not None]
+        assert len(thinking_chunks) == 2
+        assert "step by step" in thinking_chunks[0].reasoning.reasoning_text
+        assert "formula" in thinking_chunks[1].reasoning.reasoning_text.lower()
+
+        # Verify final message has reasoning
+        assert "replies" in result
+        reply = result["replies"][0]
+        assert reply.reasoning is not None
+        assert "step by step" in reply.reasoning.reasoning_text
+        assert "formula" in reply.reasoning.reasoning_text.lower()
+        assert reply.text == "The area is 78.54 square units."
+
     def test_live_run_with_mixed_tools(self):
         """
         Integration test that verifies CohereChatGenerator works with mixed Tool and Toolset.
