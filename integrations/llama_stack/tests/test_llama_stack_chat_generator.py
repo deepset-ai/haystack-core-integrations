@@ -9,8 +9,20 @@ from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool, Toolset
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
+from pydantic import BaseModel
 
 from haystack_integrations.components.generators.llama_stack.chat.chat_generator import LlamaStackChatGenerator
+
+
+class CalendarEvent(BaseModel):
+    event_name: str
+    event_date: str
+    event_location: str
+
+
+@pytest.fixture
+def calendar_event_model():
+    return CalendarEvent
 
 
 @pytest.fixture
@@ -136,12 +148,17 @@ class TestLlamaStackChatGenerator:
 
     def test_to_dict_with_parameters(
         self,
+        calendar_event_model,
     ):
         component = LlamaStackChatGenerator(
             model="ollama/llama3.2:3b",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
-            generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
+            generation_kwargs={
+                "max_tokens": 10,
+                "some_test_param": "test-params",
+                "response_format": calendar_event_model,
+            },
             timeout=10,
             max_retries=10,
             tools=None,
@@ -159,7 +176,28 @@ class TestLlamaStackChatGenerator:
             "model": "ollama/llama3.2:3b",
             "api_base_url": "test-base-url",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-            "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+            "generation_kwargs": {
+                "max_tokens": 10,
+                "some_test_param": "test-params",
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "CalendarEvent",
+                        "strict": True,
+                        "schema": {
+                            "properties": {
+                                "event_name": {"title": "Event Name", "type": "string"},
+                                "event_date": {"title": "Event Date", "type": "string"},
+                                "event_location": {"title": "Event Location", "type": "string"},
+                            },
+                            "required": ["event_name", "event_date", "event_location"],
+                            "title": "CalendarEvent",
+                            "type": "object",
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+            },
             "timeout": 10,
             "max_retries": 10,
             "tools": None,
