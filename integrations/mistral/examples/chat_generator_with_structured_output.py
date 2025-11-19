@@ -32,4 +32,4 @@ chat_messages = [
 component = MistralChatGenerator(generation_kwargs={"response_format": NobelPrizeInfo})
 results = component.run(chat_messages)
 
-# print(results)
+print(results)
