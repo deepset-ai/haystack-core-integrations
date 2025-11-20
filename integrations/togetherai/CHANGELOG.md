@@ -2,21 +2,12 @@
 
 ## [integrations/togetherai-v2.1.0] - 2025-11-19
 
-### 🧪 Testing
-
-- Update together ai tests to use more reliable model (#2485)
-
-### ⚙️ CI
-
-- Change pytest command (#2475)
-- Add pytest reruns to nightly tests for flaky tests (#2486)
+### 🚀 Features
+- Support for structured outputs
 
 ### 🌀 Miscellaneous
 
 - Enhancement: Adopt PEP 585 type hinting (part 5) (#2528)
-- Support for structured outputs
-- Add an example
-- Fix linting
 
 ## [integrations/togetherai-v2.0.0] - 2025-10-23
 
