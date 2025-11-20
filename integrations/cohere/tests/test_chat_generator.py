@@ -7,15 +7,13 @@ from cohere.core import ApiError
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, ReasoningContent, ToolCall
 from haystack.dataclasses.streaming_chunk import StreamingChunk
 from haystack.tools import Tool, Toolset
 from haystack.utils import Secret
 
 from haystack_integrations.components.generators.cohere import CohereChatGenerator
-from haystack_integrations.components.generators.cohere.chat.chat_generator import (
-    _format_message,
-)
+from haystack_integrations.components.generators.cohere.chat.chat_generator import _format_message
 
 
 def weather(city: str) -> str:
@@ -444,11 +442,14 @@ class TestCohereChatGenerator:
 
         generator = CohereChatGenerator(api_key=Secret.from_token("test-api-key"))
 
-        # Mock the client's chat method
+        # Mock the client's chat method with proper content structure
         mock_response = MagicMock()
-        mock_response.message.content = [MagicMock()]
-        mock_response.message.content[0].text = "This is a test image response"
+        text_content = MagicMock()
+        text_content.type = "text"
+        text_content.text = "This is a test image response"
+        mock_response.message.content = [text_content]
         mock_response.message.tool_calls = None
+        mock_response.message.citations = None
         mock_response.finish_reason = "COMPLETE"
         mock_response.usage = None
 
@@ -726,6 +727,209 @@ class TestCohereChatGeneratorInference:
         assert len(results["replies"]) == 1
         assert isinstance(results["replies"][0], ChatMessage)
         assert len(results["replies"][0].text) > 0
+
+    def test_reasoning_with_command_a_reasoning_model(self):
+        """Test reasoning extraction with Command A Reasoning model."""
+        generator = CohereChatGenerator(
+            model="command-a-reasoning-111b-2024-10-03",
+            generation_kwargs={"thinking": True},  # Enable reasoning
+        )
+
+        messages = [
+            ChatMessage.from_user("Solve this math problem step by step: What is the area of a circle with radius 7?")
+        ]
+
+        result = generator.run(messages=messages)
+
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+
+        reply = result["replies"][0]
+        assert isinstance(reply, ChatMessage)
+        assert reply.role == ChatRole.ASSISTANT
+
+        # Check if reasoning was extracted
+        if reply.reasoning:
+            assert isinstance(reply.reasoning, ReasoningContent)
+            assert len(reply.reasoning.reasoning_text) > 50  # Should have substantial reasoning
+
+            # The reasoning should contain mathematical thinking
+            reasoning_lower = reply.reasoning.reasoning_text.lower()
+            assert any(word in reasoning_lower for word in ["area", "circle", "radius", "formula", "π", "pi"])
+
+        # Check the main response content
+        assert len(reply.text) > 0
+        response_lower = reply.text.lower()
+        assert any(word in response_lower for word in ["area", "153.94", "154", "square"])
+
+    def test_reasoning_with_mock_response(self):
+        """Test reasoning extraction with mocked Cohere response using native API."""
+        generator = CohereChatGenerator(
+            model="command-a-reasoning-111b-2024-10-03", api_key=Secret.from_token("fake-api-key")
+        )
+
+        # Mock the Cohere client response using native API structure
+        mock_response = MagicMock()
+
+        # Create mock content items with thinking and text types
+        thinking_content = MagicMock()
+        thinking_content.type = "thinking"
+        thinking_content.thinking = """I need to solve for the area of a circle.
+The formula is A = πr²
+With radius 7: A = π * 7² = π * 49 ≈ 153.94"""
+
+        text_content = MagicMock()
+        text_content.type = "text"
+        text_content.text = "The area of a circle with radius 7 is approximately 153.94 square units."
+
+        mock_response.message.content = [thinking_content, text_content]
+        mock_response.message.tool_calls = None
+        mock_response.message.citations = None
+        mock_response.finish_reason = "COMPLETE"
+        mock_response.usage = None
+
+        generator.client.chat = MagicMock(return_value=mock_response)
+
+        messages = [ChatMessage.from_user("What is the area of a circle with radius 7?")]
+        result = generator.run(messages=messages)
+
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+
+        reply = result["replies"][0]
+        assert isinstance(reply, ChatMessage)
+        assert reply.role == ChatRole.ASSISTANT
+
+        # Check reasoning extraction via native API
+        assert reply.reasoning is not None
+        assert isinstance(reply.reasoning, ReasoningContent)
+        assert "formula is A = πr²" in reply.reasoning.reasoning_text
+        assert "π * 49 ≈ 153.94" in reply.reasoning.reasoning_text
+
+        # Check text content
+        assert reply.text.strip() == "The area of a circle with radius 7 is approximately 153.94 square units."
+
+    def test_reasoning_with_tool_calls_compatibility(self):
+        """Test that reasoning works with tool calls."""
+        weather_tool = Tool(
+            name="weather",
+            description="Get weather for a city",
+            parameters={
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"],
+            },
+            function=weather,
+        )
+
+        generator = CohereChatGenerator(
+            model="command-a-reasoning-111b-2024-10-03", tools=[weather_tool], api_key=Secret.from_token("fake-api-key")
+        )
+
+        # Mock response with both reasoning and tool calls using native API
+        mock_response = MagicMock()
+
+        # Create mock content items with thinking type
+        thinking_content = MagicMock()
+        thinking_content.type = "thinking"
+        thinking_content.thinking = (
+            "The user is asking about weather in Paris. I should use the weather tool to get accurate information."
+        )
+
+        mock_response.message.content = [thinking_content]
+
+        # Mock tool call
+        mock_tool_call = MagicMock()
+        mock_tool_call.function.name = "weather"
+        mock_tool_call.function.arguments = '{"city": "Paris"}'
+        mock_tool_call.id = "call_123"
+        mock_response.message.tool_calls = [mock_tool_call]
+        mock_response.message.tool_plan = "I'll check the weather in Paris for you."
+        mock_response.message.citations = None
+        mock_response.finish_reason = "TOOL_CALLS"
+        mock_response.usage = None
+
+        generator.client.chat = MagicMock(return_value=mock_response)
+
+        messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        result = generator.run(messages=messages)
+
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+
+        reply = result["replies"][0]
+        assert isinstance(reply, ChatMessage)
+
+        # Check reasoning extraction via native API
+        assert reply.reasoning is not None
+        assert isinstance(reply.reasoning, ReasoningContent)
+        assert "weather tool" in reply.reasoning.reasoning_text
+
+        # Check tool calls are preserved
+        assert reply.tool_calls is not None
+        assert len(reply.tool_calls) == 1
+        assert reply.tool_calls[0].tool_name == "weather"
+
+        # Check tool plan is used as text
+        assert "I'll check the weather in Paris" in reply.text
+
+    def test_streaming_reasoning_with_mock_chunks(self):
+        """Test that reasoning content is captured during streaming."""
+        generator = CohereChatGenerator(
+            model="command-a-reasoning-111b-2024-10-03", api_key=Secret.from_token("fake-api-key")
+        )
+
+        # Mock streaming chunks with thinking content
+        thinking_chunk = MagicMock()
+        thinking_chunk.type = "content-delta"
+        thinking_chunk.delta.message.content.thinking = "Let me calculate the area step by step. "
+        thinking_chunk.delta.message.content.text = None
+
+        thinking_chunk2 = MagicMock()
+        thinking_chunk2.type = "content-delta"
+        thinking_chunk2.delta.message.content.thinking = "Using formula A = πr²."
+        thinking_chunk2.delta.message.content.text = None
+
+        text_chunk = MagicMock()
+        text_chunk.type = "content-delta"
+        text_chunk.delta.message.content.text = "The area is "
+        text_chunk.delta.message.content.thinking = None
+
+        text_chunk2 = MagicMock()
+        text_chunk2.type = "content-delta"
+        text_chunk2.delta.message.content.text = "78.54 square units."
+        text_chunk2.delta.message.content.thinking = None
+
+        end_chunk = MagicMock()
+        end_chunk.type = "message-end"
+        end_chunk.delta.finish_reason = "COMPLETE"
+        end_chunk.delta.usage = None
+
+        mock_stream = iter([thinking_chunk, thinking_chunk2, text_chunk, text_chunk2, end_chunk])
+
+        generator.client.chat_stream = MagicMock(return_value=mock_stream)
+
+        messages = [ChatMessage.from_user("What is the area of a circle with radius 5?")]
+        streaming_chunks = []
+
+        def callback(chunk: StreamingChunk):
+            streaming_chunks.append(chunk)
+
+        result = generator.run(messages=messages, streaming_callback=callback)
+
+        # Verify streaming chunks include reasoning
+        thinking_chunks = [c for c in streaming_chunks if c.reasoning is not None]
+        assert len(thinking_chunks) == 2
+        assert "step by step" in thinking_chunks[0].reasoning.reasoning_text
+        assert "formula" in thinking_chunks[1].reasoning.reasoning_text.lower()
+
+        # Verify final message has reasoning
+        assert "replies" in result
+        reply = result["replies"][0]
+        assert reply.reasoning is not None
+        assert "step by step" in reply.reasoning.reasoning_text
+        assert "formula" in reply.reasoning.reasoning_text.lower()
+        assert reply.text == "The area is 78.54 square units."
 
     def test_live_run_with_mixed_tools(self):
         """

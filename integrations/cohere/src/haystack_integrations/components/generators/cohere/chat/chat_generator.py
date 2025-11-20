@@ -4,7 +4,7 @@ from typing import Any, Literal, Optional, Union, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
-from haystack.dataclasses import ChatMessage, ComponentInfo, ImageContent, TextContent, ToolCall
+from haystack.dataclasses import ChatMessage, ComponentInfo, ImageContent, ReasoningContent, TextContent, ToolCall
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
     FinishReason,
@@ -184,6 +184,7 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
     Extracts and organizes various response components including:
     - Text content
     - Tool calls
+    - Reasoning content (via native Cohere API)
     - Usage statistics
     - Citations
     - Metadata
@@ -192,6 +193,21 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
     :param model: The name of the model that generated the response.
     :return: A Haystack ChatMessage containing the formatted response.
     """
+    # Extract reasoning content using Cohere's native API
+    reasoning_content = None
+    text_content = ""
+
+    if chat_response.message.content:
+        for content_item in chat_response.message.content:
+            # Access thinking content via native Cohere API
+            if hasattr(content_item, "type") and content_item.type == "thinking":
+                if hasattr(content_item, "thinking") and content_item.thinking:
+                    reasoning_content = ReasoningContent(reasoning_text=content_item.thinking)
+            # Access text content
+            elif hasattr(content_item, "type") and content_item.type == "text":
+                if hasattr(content_item, "text") and content_item.text:
+                    text_content = content_item.text
+
     if chat_response.message.tool_calls:
         tool_calls = []
         for tc in chat_response.message.tool_calls:
@@ -206,9 +222,9 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
 
         # Create message with tool plan as text and tool calls in the format Haystack expects
         tool_plan = chat_response.message.tool_plan or ""
-        message = ChatMessage.from_assistant(text=tool_plan, tool_calls=tool_calls)
-    elif chat_response.message.content and hasattr(chat_response.message.content[0], "text"):
-        message = ChatMessage.from_assistant(chat_response.message.content[0].text)
+        message = ChatMessage.from_assistant(text=tool_plan, tool_calls=tool_calls, reasoning=reasoning_content)
+    elif text_content:
+        message = ChatMessage.from_assistant(text_content, reasoning=reasoning_content)
     else:
         # Handle the case where neither tool_calls nor content exists
         logger.warning(f"Received empty response from Cohere API: {chat_response.message}")
@@ -266,11 +282,19 @@ def _convert_cohere_chunk_to_streaming_chunk(
     start = False
     finish_reason = None
     tool_calls = None
+    reasoning = None
     meta: dict[str, Any] = {"model": model}
 
     if chunk.type == "content-delta" and chunk.delta and chunk.delta.message:
-        if chunk.delta.message and chunk.delta.message.content and chunk.delta.message.content.text is not None:
-            content = chunk.delta.message.content.text
+        if chunk.delta.message and chunk.delta.message.content:
+            # Handle thinking/reasoning content (prioritize over text if both exist)
+            # Note: StreamingChunk can only have ONE of content/tool_calls/reasoning set
+            thinking_text = getattr(chunk.delta.message.content, "thinking", None)
+            if thinking_text is not None and isinstance(thinking_text, str):
+                reasoning = ReasoningContent(reasoning_text=thinking_text)
+            # Handle text content (only if no reasoning)
+            elif chunk.delta.message.content.text is not None:
+                content = chunk.delta.message.content.text
 
     elif chunk.type == "tool-plan-delta" and chunk.delta and chunk.delta.message:
         if chunk.delta.message and chunk.delta.message.tool_plan is not None:
@@ -346,6 +370,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
         component_info=component_info,
         index=index,
         tool_calls=tool_calls,
+        reasoning=reasoning,
         start=start,
         finish_reason=finish_reason,
         meta=meta,
@@ -437,9 +462,13 @@ class CohereChatGenerator:
     ```python
     from haystack.dataclasses import ChatMessage
     from haystack.utils import Secret
-    from haystack_integrations.components.generators.cohere import CohereChatGenerator
+    from haystack_integrations.components.generators.cohere import (
+        CohereChatGenerator,
+    )
 
-    client = CohereChatGenerator(model="command-r-08-2024", api_key=Secret.from_env_var("COHERE_API_KEY"))
+    client = CohereChatGenerator(
+        model="command-r-08-2024", api_key=Secret.from_env_var("COHERE_API_KEY")
+    )
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
     client.run(messages)
 
@@ -451,16 +480,25 @@ class CohereChatGenerator:
     ```python
     from haystack.dataclasses import ChatMessage, ImageContent
     from haystack.utils import Secret
-    from haystack_integrations.components.generators.cohere import CohereChatGenerator
+    from haystack_integrations.components.generators.cohere import (
+        CohereChatGenerator,
+    )
 
     # Create an image from file path or base64
     image_content = ImageContent.from_file_path("path/to/your/image.jpg")
 
     # Create a multimodal message with both text and image
-    messages = [ChatMessage.from_user(content_parts=["What's in this image?", image_content])]
+    messages = [
+        ChatMessage.from_user(
+            content_parts=["What's in this image?", image_content]
+        )
+    ]
 
     # Use a multimodal model like Command A Vision
-    client = CohereChatGenerator(model="command-a-vision-07-2025", api_key=Secret.from_env_var("COHERE_API_KEY"))
+    client = CohereChatGenerator(
+        model="command-a-vision-07-2025",
+        api_key=Secret.from_env_var("COHERE_API_KEY"),
+    )
     response = client.run(messages)
     print(response)
     ```
@@ -475,11 +513,15 @@ class CohereChatGenerator:
     from haystack.dataclasses import ChatMessage
     from haystack.components.tools import ToolInvoker
     from haystack.tools import Tool
-    from haystack_integrations.components.generators.cohere import CohereChatGenerator
+    from haystack_integrations.components.generators.cohere import (
+        CohereChatGenerator,
+    )
+
 
     # Create a weather tool
     def weather(city: str) -> str:
         return f"The weather in {city} is sunny and 32°C"
+
 
     weather_tool = Tool(
         name="weather",
@@ -499,13 +541,22 @@ class CohereChatGenerator:
 
     # Create and set up the pipeline
     pipeline = Pipeline()
-    pipeline.add_component("generator", CohereChatGenerator(model="command-r-08-2024", tools=[weather_tool]))
+    pipeline.add_component(
+        "generator",
+        CohereChatGenerator(model="command-r-08-2024", tools=[weather_tool]),
+    )
     pipeline.add_component("tool_invoker", ToolInvoker(tools=[weather_tool]))
     pipeline.connect("generator", "tool_invoker")
 
     # Run the pipeline with a weather query
     results = pipeline.run(
-        data={"generator": {"messages": [ChatMessage.from_user("What's the weather like in Paris?")]}}
+        data={
+            "generator": {
+                "messages": [
+                    ChatMessage.from_user("What's the weather like in Paris?")
+                ]
+            }
+        }
     )
 
     # The tool result will be available in the pipeline output
