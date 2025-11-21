@@ -37,7 +37,7 @@ jobs:
         python-version: ["3.9", "3.13"]  
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v5
 
       - name: Install and run Ollama
         uses: nick-fields/retry@v3

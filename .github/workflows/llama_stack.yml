@@ -34,7 +34,7 @@ jobs:
         python-version: ["3.12", "3.13"]  
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v5
 
       - name: Install and run Ollama Server as inference provider (needed for Llama Stack Server)
         uses: nick-fields/retry@v3
