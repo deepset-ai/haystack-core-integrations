@@ -690,3 +690,54 @@ class TestLangfuseTracer:
         assert task2_spans[1][2] == task2_inner  # current_span during inner
         assert task2_spans[2][2] == task2_outer  # current_span after inner
         assert task2_spans[3][2] is None  # current_span after outer
+
+    def test_trace_exception_handling(self):
+        """
+        Test that exceptions are properly captured and passed to span __exit__.
+
+        This verifies the new exception handling behavior where:
+        - Exception case: __exit__() receives (exc_type, exc_val, exc_tb)
+        - Success case: __exit__() receives (None, None, None)
+        """
+        # Create a mock context manager that tracks how __exit__ was called
+        mock_exit_calls = []
+
+        class TrackingContextManager:
+            def __init__(self):
+                self._span = MockSpan()
+
+            def __enter__(self):
+                return self._span
+
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                # Track what was passed to __exit__
+                mock_exit_calls.append((exc_type, exc_val, exc_tb))
+                return False  # Don't suppress exceptions
+
+        mock_client = MockLangfuseClient()
+        mock_client._mock_context_manager = TrackingContextManager()
+
+        tracer = LangfuseTracer(tracer=mock_client, name="Test", public=False)
+
+        # Test 1: Exception case - __exit__ should receive exception info
+        mock_exit_calls.clear()
+        error_msg = "test error"
+        with pytest.raises(ValueError, match="test error"):
+            with tracer.trace("test_operation"):
+                raise ValueError(error_msg)
+
+        assert len(mock_exit_calls) == 1
+        assert mock_exit_calls[0][0] is ValueError  # exc_type
+        assert str(mock_exit_calls[0][1]) == error_msg  # exc_val
+        assert mock_exit_calls[0][2] is not None  # exc_tb (traceback)
+
+        # Test 2: Success case - __exit__ should receive (None, None, None)
+        mock_exit_calls.clear()
+        with tracer.trace("test_operation"):
+            pass  # No exception
+
+        assert len(mock_exit_calls) == 1
+        assert mock_exit_calls[0] == (None, None, None)
+
+        # Test 3: Verify span stack is cleaned up after exception
+        assert tracer.current_span() is None
