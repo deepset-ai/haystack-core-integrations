@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/langfuse-v3.3.0] - 2025-11-21
+
+### 🚀 Features
+
+- *(langfuse)* Embedder, retriever and generator as obs. type (#2497)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 4) (#2527)
+- *(langfuse)* Log levels (#2522)
+
 ## [integrations/langfuse-v3.2.1] - 2025-11-07
 
 ### 🌀 Miscellaneous
