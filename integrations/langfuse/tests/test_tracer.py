@@ -411,6 +411,91 @@ class TestDefaultSpanHandler:
         # Verify start_as_current_span was called for the actual span creation (not just parent)
         assert mock_client.start_as_current_span.call_count == 2  # Once for parent, once for the span
 
+    def test_handle_embedder_with_openai_format(self):
+        """Test that embedder usage is extracted in OpenAI format."""
+        mock_span = Mock()
+        mock_span.raw_span.return_value = mock_span
+        mock_span.get_data.return_value = {
+            "haystack.component.type": "OpenAITextEmbedder",
+            "haystack.component.output": {
+                "embedding": [0.1, 0.2, 0.3],
+                "meta": {"model": "custom-model", "usage": {"prompt_tokens": 15, "total_tokens": 15}},
+            },
+        }
+
+        handler = DefaultSpanHandler()
+        handler.handle(mock_span, component_type="OpenAITextEmbedder")
+
+        assert mock_span.update.call_count == 1
+        assert mock_span.update.call_args_list[0][1] == {
+            "usage_details": {"prompt_tokens": 15, "total_tokens": 15},
+            "model": "custom-model",
+        }
+
+    def test_handle_embedder_with_cohere_format(self):
+        """Test that embedder usage is extracted in Cohere billed_units format."""
+        mock_span = Mock()
+        mock_span.raw_span.return_value = mock_span
+        mock_span.get_data.return_value = {
+            "haystack.component.type": "CohereTextEmbedder",
+            "haystack.component.output": {
+                "embedding": [0.1, 0.2, 0.3],
+                "meta": {"api_version": {"version": "1"}, "billed_units": {"input_tokens": 4}},
+            },
+        }
+
+        handler = DefaultSpanHandler()
+        handler.handle(mock_span, component_type="CohereTextEmbedder")
+
+        assert mock_span.update.call_count == 1
+        assert mock_span.update.call_args_list[0][1] == {"usage_details": {"input_tokens": 4}}
+
+    def test_handle_embedder_without_usage(self):
+        """Test that embedders without usage data are handled gracefully."""
+        mock_span = Mock()
+        mock_span.raw_span.return_value = mock_span
+        mock_span.get_data.return_value = {
+            "haystack.component.type": "SentenceTransformersTextEmbedder",
+            "haystack.component.output": {
+                "embedding": [0.1, 0.2, 0.3],
+                "meta": {},  # No usage data
+            },
+        }
+
+        handler = DefaultSpanHandler()
+        handler.handle(mock_span, component_type="SentenceTransformersTextEmbedder")
+
+        # Should not call update when no usage data is available
+        assert mock_span.update.call_count == 0
+
+    def test_handle_embedder_with_nested_usage(self):
+        """Test that embedders with nested usage data are sanitized correctly."""
+        mock_span = Mock()
+        mock_span.raw_span.return_value = mock_span
+        mock_span.get_data.return_value = {
+            "haystack.component.type": "CustomEmbedder",
+            "haystack.component.output": {
+                "embedding": [0.1, 0.2, 0.3],
+                "meta": {
+                    "model": "custom-model",
+                    "usage": {
+                        "cache_creation": {"input_tokens": 10},
+                        "cache_read": {"input_tokens": 5},
+                        "total_tokens": 15,
+                    },
+                },
+            },
+        }
+
+        handler = DefaultSpanHandler()
+        handler.handle(mock_span, component_type="CustomEmbedder")
+
+        assert mock_span.update.call_count == 1
+        assert mock_span.update.call_args_list[0][1] == {
+            "usage_details": {"cache_creation.input_tokens": 10, "cache_read.input_tokens": 5, "total_tokens": 15},
+            "model": "custom-model",
+        }
+
 
 class TestCustomSpanHandler:
     def test_handle(self):
