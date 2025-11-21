@@ -1,5 +1,14 @@
 # Changelog
 
+## [integrations/togetherai-v2.1.0] - 2025-11-19
+
+### 🚀 Features
+- Support for structured outputs
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 5) (#2528)
+
 ## [integrations/togetherai-v2.0.0] - 2025-10-23
 
 ### 🌀 Miscellaneous
