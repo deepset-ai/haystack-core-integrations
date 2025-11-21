@@ -43,7 +43,7 @@ jobs:
         hs-docs-version: ${{ fromJSON(needs.get-versions.outputs.versions) }}
     steps:
       - name: Checkout this repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v6
