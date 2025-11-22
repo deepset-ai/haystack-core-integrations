@@ -401,25 +401,24 @@ class DefaultSpanHandler(SpanHandler):
             meta = output.get("meta")
 
             if meta and isinstance(meta, dict):
+                # Build update parameters with available data
+                update_params: dict[str, Any] = {}
+
                 # Try both common formats: 'usage' (OpenAI) or 'billed_units' (Cohere)
                 usage = meta.get("usage") or meta.get("billed_units")
-
-                # Only process if we found usage data
                 if usage:
                     sanitized_usage = _sanitize_usage_data(usage)
-
-                    # Build update parameters only with available data
-                    update_params = {}
                     if sanitized_usage:
                         update_params["usage_details"] = sanitized_usage
 
-                    # Some embedders may provide model information
-                    if model := meta.get("model"):
-                        update_params["model"] = model
+                # Some embedders may provide model information
+                model = meta.get("model")
+                if model and isinstance(model, str):
+                    update_params["model"] = model
 
-                    # Single update call if we have data to update
-                    if update_params:
-                        span.raw_span().update(**update_params)
+                # Single update call if we have data to update
+                if update_params:
+                    span.raw_span().update(**update_params)
 
 
 class LangfuseTracer(Tracer):
