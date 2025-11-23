@@ -6,11 +6,6 @@
 
 - Support structured outputs in `LlamaStackChatGenerator` (#2535)
 
-### ⚙️ CI
-
-- Change pytest command (#2475)
-- Add pytest reruns to nightly tests for flaky tests (#2486)
-
 ### 🌀 Miscellaneous
 
 - Enhancement: Adopt PEP 585 type hinting (part 4) (#2527)
