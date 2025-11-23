@@ -483,7 +483,7 @@ class TestLlamaStackChatGenerator:
     @pytest.mark.integration
     def test_live_run_with_response_format_pydantic_model(self, calendar_event_model):
         chat_messages = [
-            ChatMessage.from_user("The marketing summit takes place on October12th at the Hilton Hotel downtown.")
+            ChatMessage.from_user("The marketing summit takes place on October 12th at the Hilton Hotel downtown.")
         ]
         component = LlamaStackChatGenerator(
             model="ollama/llama3.2:3b", generation_kwargs={"response_format": calendar_event_model}
