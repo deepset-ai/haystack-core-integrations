@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/llama_stack-v1.3.0] - 2025-11-23
+
+### 🚀 Features
+
+- Support structured outputs in `LlamaStackChatGenerator` (#2535)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 4) (#2527)
+
 ## [integrations/llama_stack-v1.2.0] - 2025-10-24
 
 ### 🚀 Features
