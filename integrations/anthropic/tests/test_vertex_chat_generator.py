@@ -208,7 +208,7 @@ class TestAnthropicVertexChatGeneratorAsync:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "claude-sonnet-4-20250514" in message.meta["model"]
+        assert "claude-sonnet-4-5" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     # Anthropic messages API is similar for AnthropicVertex and Anthropic endpoint,
