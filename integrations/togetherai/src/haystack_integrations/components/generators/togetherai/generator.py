@@ -34,7 +34,7 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("TOGETHER_API_KEY"),
-        model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        model: str = "meta-llama/Llama-4-Scout-17B-16E-Instruct-FP8",
         api_base_url: Optional[str] = "https://api.together.xyz/v1",
         streaming_callback: Optional[StreamingCallbackT] = None,
         system_prompt: Optional[str] = None,

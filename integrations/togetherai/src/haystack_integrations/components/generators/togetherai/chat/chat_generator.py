@@ -53,7 +53,7 @@ class TogetherAIChatGenerator(OpenAIChatGenerator):
     >>{'replies': [ChatMessage(_content='Natural Language Processing (NLP) is a branch of artificial intelligence
     >>that focuses on enabling computers to understand, interpret, and generate human language in a way that is
     >>meaningful and useful.', _role=<ChatRole.ASSISTANT: 'assistant'>, _name=None,
-    >>_meta={'model': 'meta-llama/Llama-3.3-70B-Instruct-Turbo', 'index': 0, 'finish_reason': 'stop',
+    >>_meta={'model': 'meta-llama/Llama-4-Scout-17B-16E-Instruct-FP8', 'index': 0, 'finish_reason': 'stop',
     >>'usage': {'prompt_tokens': 15, 'completion_tokens': 36, 'total_tokens': 51}})]}
     ```
     """
@@ -62,7 +62,7 @@ class TogetherAIChatGenerator(OpenAIChatGenerator):
         self,
         *,
         api_key: Secret = Secret.from_env_var("TOGETHER_API_KEY"),
-        model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        model: str = "meta-llama/Llama-4-Scout-17B-16E-Instruct-FP8",
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = "https://api.together.xyz/v1",
         generation_kwargs: Optional[dict[str, Any]] = None,
@@ -73,7 +73,7 @@ class TogetherAIChatGenerator(OpenAIChatGenerator):
     ):
         """
         Creates an instance of TogetherAIChatGenerator. Unless specified otherwise,
-        the default model is `meta-llama/Llama-3.3-70B-Instruct-Turbo`.
+        the default model is `meta-llama/Llama-4-Scout-17B-16E-Instruct-FP8`.
 
         :param api_key:
             The Together API key.
