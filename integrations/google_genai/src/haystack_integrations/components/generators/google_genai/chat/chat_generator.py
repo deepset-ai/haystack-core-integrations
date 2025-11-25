@@ -377,7 +377,7 @@ class GoogleGenAIChatGenerator:
     from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
 
     # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
-    chat_generator = GoogleGenAIChatGenerator()
+    chat_generator = GoogleGenAIChatGenerator(model="gemini-2.5-flash")
     ```
 
     **2. Vertex AI (Application Default Credentials)**

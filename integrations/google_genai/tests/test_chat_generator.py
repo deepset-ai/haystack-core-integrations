@@ -412,6 +412,7 @@ class TestGoogleGenAIChatGenerator:
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key-from-env")
         component = GoogleGenAIChatGenerator(
             api_key=Secret.from_token("test-api-key-from-env"),
+            model="gemini-2.5-flash",
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"temperature": 0.5, "max_output_tokens": 100},
             safety_settings=[{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}],
