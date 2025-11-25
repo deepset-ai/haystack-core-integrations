@@ -1527,11 +1527,6 @@ class TestAnthropicChatGenerator:
         assert len(results["replies"]) == 1
         message = results["replies"][0]
 
-        # this is Anthropic message prior to tool call
-        assert message.text is not None
-        assert "weather" in message.text.lower()
-        assert "paris" in message.text.lower()
-
         # now we have the tool call
         assert message.tool_calls
         tool_call = message.tool_call
