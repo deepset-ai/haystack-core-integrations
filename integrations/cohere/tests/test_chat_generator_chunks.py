@@ -373,6 +373,7 @@ class TestCohereChunkConversion:
         for cohere_chunk, haystack_chunk in zip(cohere_chunks, expected_streaming_chunks):
             stream_chunk = _convert_cohere_chunk_to_streaming_chunk(
                 chunk=cohere_chunk,
+                model="command-a-03-2025",
             )
             assert stream_chunk == haystack_chunk
 
