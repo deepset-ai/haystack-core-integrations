@@ -389,6 +389,7 @@ class GoogleGenAIChatGenerator:
         api="vertex",
         vertex_ai_project="my-project",
         vertex_ai_location="us-central1",
+        model="gemini-2.5-flash",
     )
     ```
 
@@ -399,6 +400,7 @@ class GoogleGenAIChatGenerator:
     # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
     chat_generator = GoogleGenAIChatGenerator(
         api="vertex",
+        model="gemini-2.5-flash",
     )
     ```
 
