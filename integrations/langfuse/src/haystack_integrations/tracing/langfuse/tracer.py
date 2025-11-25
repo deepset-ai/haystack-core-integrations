@@ -395,6 +395,30 @@ class DefaultSpanHandler(SpanHandler):
                 usage = meta[0].get("usage")
                 sanitized_usage = _sanitize_usage_data(usage) if usage else None
                 span.raw_span().update(usage_details=sanitized_usage, model=meta[0].get("model"))
+        elif component_type and component_type.endswith("Embedder"):
+            # Extract usage data from embedder output
+            output = span.get_data().get(_COMPONENT_OUTPUT_KEY, {})
+            meta = output.get("meta")
+
+            if meta and isinstance(meta, dict):
+                # Build update parameters with available data
+                update_params: dict[str, Any] = {}
+
+                # Try both common formats: 'usage' (OpenAI) or 'billed_units' (Cohere)
+                usage = meta.get("usage") or meta.get("billed_units")
+                if usage:
+                    sanitized_usage = _sanitize_usage_data(usage)
+                    if sanitized_usage:
+                        update_params["usage_details"] = sanitized_usage
+
+                # Some embedders may provide model information
+                model = meta.get("model")
+                if model and isinstance(model, str):
+                    update_params["model"] = model
+
+                # Single update call if we have data to update
+                if update_params:
+                    span.raw_span().update(**update_params)
 
 
 class LangfuseTracer(Tracer):
