@@ -115,13 +115,12 @@ class TestOpenRouterChatGenerator:
     def test_init_with_parameters(self):
         component = OpenRouterChatGenerator(
             api_key=Secret.from_token("test-api-key"),
-            model="openai/gpt-4o-mini",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
         assert component.client.api_key == "test-api-key"
-        assert component.model == "openai/gpt-4o-mini"
+        assert component.model == "openai/gpt-5-mini"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
@@ -155,7 +154,6 @@ class TestOpenRouterChatGenerator:
         monkeypatch.setenv("ENV_VAR", "test-api-key")
         component = OpenRouterChatGenerator(
             api_key=Secret.from_env_var("ENV_VAR"),
-            model="openai/gpt-4o-mini",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
@@ -174,7 +172,7 @@ class TestOpenRouterChatGenerator:
 
         expected_params = {
             "api_key": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
-            "model": "openai/gpt-4o-mini",
+            "model": "openai/gpt-5-mini",
             "api_base_url": "test-base-url",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -506,7 +504,6 @@ class TestOpenRouterChatGenerator:
 
         # Create generator with specific configuration
         generator = OpenRouterChatGenerator(
-            model="openai/gpt-5-mini",
             generation_kwargs={"temperature": 0.7},
             streaming_callback=print_streaming_chunk,
             tools=[tool],
