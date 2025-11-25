@@ -103,7 +103,7 @@ def mock_chat_completion():
     with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
         completion = ChatCompletion(
             id="foo",
-            model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            model="deepseek-ai/DeepSeek-V3",
             object="chat.completion",
             choices=[
                 Choice(
@@ -126,7 +126,7 @@ class TestTogetherAIChatGenerator:
         monkeypatch.setenv("ENV_VAR", "test-api-key")
         component = TogetherAIChatGenerator(api_key=Secret.from_env_var("ENV_VAR"))
         assert component.client.api_key == "test-api-key"
-        assert component.model == "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+        assert component.model == "deepseek-ai/DeepSeek-V3"
         assert component.api_base_url == "https://api.together.xyz/v1"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
@@ -161,7 +161,7 @@ class TestTogetherAIChatGenerator:
 
         expected_params = {
             "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
-            "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            "model": "deepseek-ai/DeepSeek-V3",
             "streaming_callback": None,
             "api_base_url": "https://api.together.xyz/v1",
             "generation_kwargs": {},
@@ -242,7 +242,7 @@ class TestTogetherAIChatGenerator:
             ),
             "init_parameters": {
                 "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                "model": "deepseek-ai/DeepSeek-V3",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -253,7 +253,7 @@ class TestTogetherAIChatGenerator:
             },
         }
         component = TogetherAIChatGenerator.from_dict(data)
-        assert component.model == "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+        assert component.model == "deepseek-ai/DeepSeek-V3"
         assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -271,7 +271,7 @@ class TestTogetherAIChatGenerator:
             ),
             "init_parameters": {
                 "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo ",
+                "model": "deepseek-ai/DeepSeek-V3 ",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -322,7 +322,7 @@ class TestTogetherAIChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "meta-llama/Llama-3.3-70B-Instruct-Turbo" in message.meta["model"]
+        assert "deepseek-ai/DeepSeek-V3" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -358,7 +358,7 @@ class TestTogetherAIChatGenerator:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "meta-llama/Llama-3.3-70B-Instruct-Turbo" in message.meta["model"]
+        assert "deepseek-ai/DeepSeek-V3" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
@@ -585,7 +585,7 @@ class TestTogetherAIChatGenerator:
                     "type": "haystack_integrations.components.generators.togetherai.chat.chat_generator.TogetherAIChatGenerator",  # noqa: E501
                     "init_parameters": {
                         "api_key": {"type": "env_var", "env_vars": ["ENV_VAR"], "strict": True},
-                        "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                        "model": "deepseek-ai/DeepSeek-V3",
                         "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                         "api_base_url": "https://api.together.xyz/v1",
                         "generation_kwargs": {"temperature": 0.7},
@@ -666,7 +666,7 @@ class TestTogetherAIChatGenerator:
         toolset = Toolset([population_tool])
 
         generator = TogetherAIChatGenerator(
-            model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            model="deepseek-ai/DeepSeek-V3",
             tools=[weather_tool, toolset],
         )
 
@@ -746,7 +746,7 @@ class TestChatCompletionChunkConversion:
                     ChoiceChunk(delta=ChoiceDelta(content="", role="assistant"), index=0, native_finish_reason=None)
                 ],
                 created=1750162525,
-                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                model="deepseek-ai/DeepSeek-V3",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -771,7 +771,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                model="deepseek-ai/DeepSeek-V3",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -795,7 +795,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                model="deepseek-ai/DeepSeek-V3",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -819,7 +819,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                model="deepseek-ai/DeepSeek-V3",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -843,7 +843,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                model="deepseek-ai/DeepSeek-V3",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -867,7 +867,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                model="deepseek-ai/DeepSeek-V3",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -892,7 +892,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                model="deepseek-ai/DeepSeek-V3",
                 object="chat.completion.chunk",
                 service_tier=None,
                 system_fingerprint="fp_34a54ae93c",
@@ -919,7 +919,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                model="deepseek-ai/DeepSeek-V3",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -943,7 +943,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                model="deepseek-ai/DeepSeek-V3",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -967,7 +967,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                model="deepseek-ai/DeepSeek-V3",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -991,7 +991,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                model="deepseek-ai/DeepSeek-V3",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -1007,7 +1007,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                model="deepseek-ai/DeepSeek-V3",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -1022,7 +1022,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                model="deepseek-ai/DeepSeek-V3",
                 object="chat.completion.chunk",
                 usage=CompletionUsage(
                     completion_tokens=42,
@@ -1052,7 +1052,7 @@ class TestChatCompletionChunkConversion:
         assert result.tool_calls[1].arguments == {"city": "Berlin"}
 
         # Verify meta information
-        assert result.meta["model"] == "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+        assert result.meta["model"] == "deepseek-ai/DeepSeek-V3"
         assert result.meta["finish_reason"] == "tool_calls"
         assert result.meta["index"] == 0
         assert result.meta["completion_start_time"] is not None

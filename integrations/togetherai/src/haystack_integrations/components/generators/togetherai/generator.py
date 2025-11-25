@@ -34,7 +34,7 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("TOGETHER_API_KEY"),
-        model: str = "meta-llama/Llama-4-Scout-17B-16E-Instruct-FP8",
+        model: str = "deepseek-ai/DeepSeek-V3",
         api_base_url: Optional[str] = "https://api.together.xyz/v1",
         streaming_callback: Optional[StreamingCallbackT] = None,
         system_prompt: Optional[str] = None,
@@ -43,7 +43,8 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
         max_retries: Optional[int] = None,
     ):
         """
-        Initialize the TogetherAIGenerator.
+        Initialize the TogetherAIGenerator. Unless specified otherwise,
+        the default model is `deepseek-ai/DeepSeek-V3`.
 
         :param api_key: The Together API key.
         :param model: The name of the model to use.

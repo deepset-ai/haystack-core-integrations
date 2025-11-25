@@ -60,7 +60,7 @@ def mock_async_chat_completion():
     ) as mock_chat_completion_create:
         completion = ChatCompletion(
             id="foo",
-            model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            model="deepseek-ai/DeepSeek-V3",
             object="chat.completion",
             choices=[
                 Choice(
@@ -136,7 +136,7 @@ class TestTogetherAIChatGeneratorAsync:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "meta-llama/Llama-3.3-70B-Instruct-Turbo" in message.meta["model"]
+        assert "deepseek-ai/DeepSeek-V3" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -162,7 +162,7 @@ class TestTogetherAIChatGeneratorAsync:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "meta-llama/Llama-3.3-70B-Instruct-Turbo" in message.meta["model"]
+        assert "deepseek-ai/DeepSeek-V3" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert counter > 1

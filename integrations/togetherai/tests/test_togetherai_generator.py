@@ -27,7 +27,7 @@ def mock_chat_completion():
     with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
         completion = ChatCompletion(
             id="foo",
-            model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            model="deepseek-ai/DeepSeek-V3",
             object="chat.completion",
             choices=[
                 Choice(
@@ -54,7 +54,7 @@ class TestTogetherAIGenerator:
         monkeypatch.setenv("TOGETHER_API_KEY", "test-api-key")
         component = TogetherAIGenerator()
         assert component.client.api_key == "test-api-key"
-        assert component.model == "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+        assert component.model == "deepseek-ai/DeepSeek-V3"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
         assert component.client.timeout == 30
@@ -70,7 +70,7 @@ class TestTogetherAIGenerator:
         monkeypatch.setenv("OPENAI_MAX_RETRIES", "10")
         component = TogetherAIGenerator(
             api_key=Secret.from_token("test-api-key"),
-            model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            model="deepseek-ai/DeepSeek-V3",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
@@ -78,7 +78,7 @@ class TestTogetherAIGenerator:
             max_retries=1,
         )
         assert component.client.api_key == "test-api-key"
-        assert component.model == "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+        assert component.model == "deepseek-ai/DeepSeek-V3"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
         assert component.client.timeout == 40.0
@@ -95,7 +95,7 @@ class TestTogetherAIGenerator:
             "type": "haystack_integrations.components.generators.togetherai.generator.TogetherAIGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                "model": "deepseek-ai/DeepSeek-V3",
                 "streaming_callback": None,
                 "system_prompt": None,
                 "api_base_url": "https://api.together.xyz/v1",
@@ -221,7 +221,7 @@ class TestTogetherAIGenerator:
         assert "Paris" in response
 
         metadata = results["meta"][0]
-        assert "meta-llama/Llama-3.3-70B-Instruct-Turbo" in metadata["model"]
+        assert "deepseek-ai/DeepSeek-V3" in metadata["model"]
         assert metadata["finish_reason"] == "stop"
 
         assert "usage" in metadata
@@ -281,7 +281,7 @@ class TestTogetherAIGenerator:
 
         # Metadata validation
         metadata = results["meta"][0]
-        assert "meta-llama/Llama-3.3-70B-Instruct-Turbo" in metadata["model"]
+        assert "deepseek-ai/DeepSeek-V3" in metadata["model"]
         assert metadata["finish_reason"] == "stop"
 
         # Basic usage validation
