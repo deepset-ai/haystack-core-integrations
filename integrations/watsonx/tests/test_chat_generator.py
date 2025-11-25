@@ -102,11 +102,11 @@ class TestWatsonxChatGenerator:
         generator = WatsonxChatGenerator(project_id=Secret.from_token("fake-project-id"))
 
         _, kwargs = mock_watsonx["model"].call_args
-        assert kwargs["model_id"] == "ibm/granite-4.0-h-small"
+        assert kwargs["model_id"] == "ibm/granite-4-h-small"
         assert kwargs["project_id"] == "fake-project-id"
         assert kwargs["verify"] is None
 
-        assert generator.model == "ibm/granite-4.0-h-small"
+        assert generator.model == "ibm/granite-4-h-small"
         assert isinstance(generator.project_id, Secret)
         assert generator.project_id.resolve_value() == "fake-project-id"
         assert generator.api_base_url == "https://us-south.ml.cloud.ibm.com"
@@ -121,7 +121,7 @@ class TestWatsonxChatGenerator:
         )
 
         _, kwargs = mock_watsonx["model"].call_args
-        assert kwargs["model_id"] == "ibm/granite-4.0-h-small"
+        assert kwargs["model_id"] == "ibm/granite-4-h-small"
         assert kwargs["project_id"] == "test-project"
         assert kwargs["verify"] is False
 
@@ -146,7 +146,7 @@ class TestWatsonxChatGenerator:
             "type": "haystack_integrations.components.generators.watsonx.chat.chat_generator.WatsonxChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "ibm/granite-4.0-h-small",
+                "model": "ibm/granite-4-h-small",
                 "project_id": {"env_vars": ["WATSONX_PROJECT_ID"], "strict": True, "type": "env_var"},
                 "api_base_url": "https://us-south.ml.cloud.ibm.com",
                 "generation_kwargs": {"max_tokens": 100},
@@ -171,7 +171,7 @@ class TestWatsonxChatGenerator:
             "type": "haystack_integrations.components.generators.watsonx.chat.chat_generator.WatsonxChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "ibm/granite-4.0-h-small",
+                "model": "ibm/granite-4-h-small",
                 "project_id": {"env_vars": ["WATSONX_PROJECT_ID"], "strict": True, "type": "env_var"},
                 "api_base_url": "https://us-south.ml.cloud.ibm.com",
                 "generation_kwargs": {"max_tokens": 100},
@@ -189,14 +189,14 @@ class TestWatsonxChatGenerator:
             "type": "haystack_integrations.components.generators.watsonx.chat.chat_generator.WatsonxChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "ibm/granite-4.0-h-small",
+                "model": "ibm/granite-4-h-small",
                 "project_id": {"env_vars": ["WATSONX_PROJECT_ID"], "strict": True, "type": "env_var"},
                 "generation_kwargs": {"max_tokens": 100},
             },
         }
 
         generator = WatsonxChatGenerator.from_dict(data)
-        assert generator.model == "ibm/granite-4.0-h-small"
+        assert generator.model == "ibm/granite-4-h-small"
         assert isinstance(generator.project_id, Secret)
         assert generator.project_id.resolve_value() == "fake-project-id"
         assert generator.generation_kwargs == {"max_tokens": 100}
@@ -207,7 +207,7 @@ class TestWatsonxChatGenerator:
             "type": "haystack_integrations.components.generators.watsonx.chat.chat_generator.WatsonxChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "ibm/granite-4.0-h-small",
+                "model": "ibm/granite-4-h-small",
                 "project_id": {"env_vars": ["WATSONX_PROJECT_ID"], "strict": True, "type": "env_var"},
                 "streaming_callback": callback_str,
             },
