@@ -237,7 +237,7 @@ class TestStreamingChunkConversion:
         assert streaming_chunk1.finish_reason is None
         assert streaming_chunk1.index == 0
         assert "received_at" in streaming_chunk1.meta
-        assert streaming_chunk1.meta["model"] == "gemini-2.0-flash"
+        assert streaming_chunk1.meta["model"] == "gemini-2.5-flash"
         assert "usage" in streaming_chunk1.meta
         assert streaming_chunk1.meta["usage"]["prompt_tokens"] == 217
         assert streaming_chunk1.meta["usage"]["completion_tokens"] is None
@@ -284,7 +284,7 @@ class TestStreamingChunkConversion:
         assert streaming_chunk2.finish_reason is None
         assert streaming_chunk2.index == 1
         assert "received_at" in streaming_chunk2.meta
-        assert streaming_chunk2.meta["model"] == "gemini-2.0-flash"
+        assert streaming_chunk2.meta["model"] == "gemini-2.5-flash"
         assert "usage" in streaming_chunk2.meta
         assert streaming_chunk2.meta["usage"]["prompt_tokens"] == 217
         assert streaming_chunk2.meta["usage"]["completion_tokens"] is None
@@ -346,7 +346,7 @@ class TestStreamingChunkConversion:
         assert streaming_chunk.finish_reason == "stop"
         assert streaming_chunk.index == 2
         assert "received_at" in streaming_chunk.meta
-        assert streaming_chunk.meta["model"] == "gemini-2.0-flash"
+        assert streaming_chunk.meta["model"] == "gemini-2.5-flash"
         assert streaming_chunk.component_info == component_info
         assert "usage" in streaming_chunk.meta
         assert streaming_chunk.meta["usage"]["prompt_tokens"] == 144
@@ -428,13 +428,13 @@ class TestGoogleGenAIChatGenerator:
     def test_init_with_toolset(self, tools, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         toolset = Toolset(tools)
-        generator = GoogleGenAIChatGenerator(model="gemini-2.0-flash", tools=toolset)
+        generator = GoogleGenAIChatGenerator(tools=toolset)
         assert generator._tools == toolset
 
     def test_to_dict_with_toolset(self, tools, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         toolset = Toolset(tools)
-        generator = GoogleGenAIChatGenerator(model="gemini-2.0-flash", tools=toolset)
+        generator = GoogleGenAIChatGenerator(tools=toolset)
         data = generator.to_dict()
 
         assert data["init_parameters"]["tools"]["type"] == "haystack.tools.toolset.Toolset"
@@ -444,7 +444,7 @@ class TestGoogleGenAIChatGenerator:
     def test_from_dict_with_toolset(self, tools, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         toolset = Toolset(tools)
-        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash", tools=toolset)
+        component = GoogleGenAIChatGenerator(tools=toolset)
         data = component.to_dict()
 
         deserialized_component = GoogleGenAIChatGenerator.from_dict(data)
@@ -479,7 +479,7 @@ class TestGoogleGenAIChatGenerator:
         toolset1 = Toolset([tool2])
 
         # Initialize with mixed list: Tool, Toolset, Tool
-        generator = GoogleGenAIChatGenerator(model="gemini-2.0-flash", tools=[tool1, toolset1, tool3])
+        generator = GoogleGenAIChatGenerator(tools=[tool1, toolset1, tool3])
 
         assert generator._tools == [tool1, toolset1, tool3]
         assert isinstance(generator._tools, list)
@@ -507,7 +507,7 @@ class TestGoogleGenAIChatGenerator:
 
         toolset1 = Toolset([tool2])
 
-        generator = GoogleGenAIChatGenerator(model="gemini-2.0-flash", tools=[tool1, toolset1])
+        generator = GoogleGenAIChatGenerator(tools=[tool1, toolset1])
         data = generator.to_dict()
 
         # Verify serialization preserves structure
@@ -736,7 +736,7 @@ class TestGoogleGenAIChatGenerator:
     @pytest.mark.integration
     def test_live_run(self) -> None:
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash")
+        component = GoogleGenAIChatGenerator()
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
@@ -1154,7 +1154,7 @@ class TestGoogleGenAIChatGenerator:
         # Verify the error message is helpful and mentions thinking configuration
         error_message = str(exc_info.value)
         assert "Thinking configuration error" in error_message
-        assert "gemini-2.0" in error_message
+        assert "gemini-2.5" in error_message
         assert "thinking_budget" in error_message or "thinking features" in error_message
         assert "Try removing" in error_message or "use a different model" in error_message
 
@@ -1260,7 +1260,7 @@ class TestAsyncGoogleGenAIChatGenerator:
         # Verify the error message is helpful and mentions thinking configuration
         error_message = str(exc_info.value)
         assert "Thinking configuration error" in error_message
-        assert "gemini-2.0" in error_message
+        assert "gemini-2.5" in error_message
         assert "thinking_budget" in error_message or "thinking features" in error_message
         assert "Try removing" in error_message or "use a different model" in error_message
 
