@@ -9,7 +9,6 @@ from haystack.dataclasses import ChatMessage
 from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
 
 generator = GoogleGenAIChatGenerator(
-    model="gemini-2.0-flash",
     # model-specific inference parameters
     generation_kwargs={
         "temperature": 0.7,
