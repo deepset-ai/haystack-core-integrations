@@ -674,7 +674,7 @@ class TestChatCompletionChunkConversion:
                     ChoiceChunk(delta=ChoiceDelta(content="", role="assistant"), index=0, native_finish_reason=None)
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -699,7 +699,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -723,7 +723,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -747,7 +747,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -771,7 +771,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -795,7 +795,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -820,7 +820,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 service_tier=None,
                 system_fingerprint="fp_34a54ae93c",
@@ -847,7 +847,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -871,7 +871,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -895,7 +895,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -919,7 +919,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -935,7 +935,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -950,7 +950,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 usage=CompletionUsage(
                     completion_tokens=42,
