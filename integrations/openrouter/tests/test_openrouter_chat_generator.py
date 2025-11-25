@@ -506,7 +506,7 @@ class TestOpenRouterChatGenerator:
 
         # Create generator with specific configuration
         generator = OpenRouterChatGenerator(
-            model="openai/gpt-4o-mini",
+            model="openai/gpt-5-mini",
             generation_kwargs={"temperature": 0.7},
             streaming_callback=print_streaming_chunk,
             tools=[tool],
