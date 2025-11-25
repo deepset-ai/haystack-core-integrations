@@ -137,7 +137,7 @@ class TestCohereChatGeneratorAsyncInference:
 
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
         component = CohereChatGenerator(
-  # Cohere's model that supports tools
+            # Cohere's model that supports tools
             tools=[weather_tool],
             streaming_callback=print_streaming_chunk_async,
         )
