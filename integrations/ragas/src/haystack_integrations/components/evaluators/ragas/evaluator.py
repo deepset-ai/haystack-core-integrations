@@ -29,7 +29,7 @@ class RagasEvaluator:
     from ragas.metrics import ContextPrecision
     from ragas.llms import HaystackLLMWrapper
 
-    llm = OpenAIGenerator(model="gpt-5-mini")
+    llm = OpenAIGenerator(model="gpt-4o-mini")
     evaluator_llm = HaystackLLMWrapper(llm)
 
     evaluator = RagasEvaluator(

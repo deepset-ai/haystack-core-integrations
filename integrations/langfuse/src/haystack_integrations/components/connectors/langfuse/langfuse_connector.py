@@ -71,7 +71,7 @@ class LangfuseConnector:
     pipe = Pipeline()
     pipe.add_component("tracer", LangfuseConnector("Chat example"))
     pipe.add_component("prompt_builder", ChatPromptBuilder())
-    pipe.add_component("llm", OpenAIChatGenerator(model="gpt-5-mini"))
+    pipe.add_component("llm", OpenAIChatGenerator(model="gpt-4o-mini"))
 
     pipe.connect("prompt_builder.prompt", "llm.messages")
 
