@@ -316,7 +316,7 @@ class TestOpenRouterChatGenerator:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "openai/gpt-4o-mini" in message.meta["model"]
+        assert "openai/gpt-5-mini" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
