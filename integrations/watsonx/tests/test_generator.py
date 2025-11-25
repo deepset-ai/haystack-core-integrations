@@ -382,9 +382,7 @@ class TestWatsonxGeneratorIntegration:
         reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
     )
     def test_live_run_streaming(self):
-        generator = WatsonxGenerator(
- project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
-        )
+        generator = WatsonxGenerator(project_id=Secret.from_env_var("WATSONX_PROJECT_ID"))
 
         collected_chunks = []
 
@@ -410,9 +408,7 @@ class TestWatsonxGeneratorIntegration:
         reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
     )
     async def test_live_run_async(self):
-        generator = WatsonxGenerator(
- project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
-        )
+        generator = WatsonxGenerator(project_id=Secret.from_env_var("WATSONX_PROJECT_ID"))
 
         result = await generator.run_async(prompt="What's the capital of Germany? Answer concisely.")
 
