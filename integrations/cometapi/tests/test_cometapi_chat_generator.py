@@ -103,6 +103,7 @@ class TestCometAPIChatGenerator:
     def test_init_with_parameters(self):
         component = CometAPIChatGenerator(
             api_key=Secret.from_token("test-api-key"),
+            model="gpt-5-mini",
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
@@ -140,6 +141,7 @@ class TestCometAPIChatGenerator:
         monkeypatch.setenv("ENV_VAR", "test-api-key")
         component = CometAPIChatGenerator(
             api_key=Secret.from_env_var("ENV_VAR"),
+            model="gpt-5-mini",
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
             timeout=10,
