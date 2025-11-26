@@ -51,7 +51,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
     >>{'replies': [ChatMessage(_content='Natural Language Processing (NLP) is a branch of artificial intelligence
     >>that focuses on enabling computers to understand, interpret, and generate human language in a way that is
     >>meaningful and useful.', _role=<ChatRole.ASSISTANT: 'assistant'>, _name=None,
-    >>_meta={'model': 'openai/gpt-4o-mini', 'index': 0, 'finish_reason': 'stop',
+    >>_meta={'model': 'openai/gpt-5-mini', 'index': 0, 'finish_reason': 'stop',
     >>'usage': {'prompt_tokens': 15, 'completion_tokens': 36, 'total_tokens': 51}})]}
     ```
     """
@@ -60,7 +60,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         self,
         *,
         api_key: Secret = Secret.from_env_var("OPENROUTER_API_KEY"),
-        model: str = "openai/gpt-4o-mini",
+        model: str = "openai/gpt-5-mini",
         streaming_callback: Optional[StreamingCallbackT] = None,
         api_base_url: Optional[str] = "https://openrouter.ai/api/v1",
         generation_kwargs: Optional[dict[str, Any]] = None,
@@ -72,7 +72,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
     ):
         """
         Creates an instance of OpenRouterChatGenerator. Unless specified otherwise,
-        the default model is `openai/gpt-4o-mini`.
+        the default model is `openai/gpt-5-mini`.
 
         :param api_key:
             The OpenRouter API key.
