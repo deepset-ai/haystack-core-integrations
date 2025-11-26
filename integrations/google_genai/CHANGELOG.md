@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/google_genai-v2.3.0] - 2025-11-26
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Update GoogleGenAIChatGenerator default model to gemini-2.5-flash (#2554)
+
+### 🌀 Miscellaneous
+
+- Adopt PEP 585 type hinting (part 3) (#2510)
+
 ## [integrations/google_genai-v2.2.0] - 2025-10-22
 
 ### 🚀 Features
