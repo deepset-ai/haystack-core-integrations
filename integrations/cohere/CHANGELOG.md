@@ -1,5 +1,15 @@
 # Changelog
 
+## [unreleased]
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🌀 Miscellaneous
+
+- Adopt PEP 585 type hinting (part 2) (#2508)
+
 ## [integrations/cohere-v6.1.0] - 2025-10-22
 
 ### 🚀 Features
