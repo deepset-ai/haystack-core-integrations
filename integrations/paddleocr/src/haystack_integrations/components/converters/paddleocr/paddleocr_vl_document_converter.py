@@ -14,7 +14,7 @@ from haystack.components.converters.utils import (
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret, deserialize_secrets_inplace
 from paddlex.inference.serving.schemas.paddleocr_vl import InferRequest as PaddleOCRVLInferRequest  # type: ignore
-from paddlex.inference.serving.schemas.paddleocr_vl import InferResult as PaddleOCRVLInferResult
+from paddlex.inference.serving.schemas.paddleocr_vl import InferResult as PaddleOCRVLInferResult  # type: ignore
 from paddlex.inference.serving.schemas.shared.ocr import FileType  # type: ignore
 from typing_extensions import Self, TypeAlias
 
