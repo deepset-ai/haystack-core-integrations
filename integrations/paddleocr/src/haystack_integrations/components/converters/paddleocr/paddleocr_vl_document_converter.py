@@ -29,12 +29,9 @@ _IMAGE_EXTENSIONS = {
     ".jpeg",
     ".png",
     ".bmp",
-    ".gif",
     ".tiff",
     ".tif",
     ".webp",
-    ".ico",
-    ".svg",
 }
 # Supported PDF file extensions
 _PDF_EXTENSIONS = {".pdf"}
