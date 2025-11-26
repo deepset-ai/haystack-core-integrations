@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/watsonx-v1.1.0] - 2025-11-26
+
+### 🧹 Chores
+
+- Update WatsonxChatGenerator default model to ibm/granite-4-h-small (#2558)
+
+
 ## [integrations/watsonx-v1.0.0] - 2025-11-12
 
 ### 🐛 Bug Fixes
