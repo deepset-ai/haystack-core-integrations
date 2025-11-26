@@ -485,11 +485,10 @@ class QdrantDocumentStore:
         self._initialize_client()
         assert self._client is not None
 
-        ids = [convert_id(_id) for _id in document_ids]
         try:
             self._client.delete(
                 collection_name=self.index,
-                points_selector=ids,
+                points_selector=rest.PointIdsList(points=[convert_id(_id) for _id in document_ids]),
                 wait=self.wait_result_from_api,
             )
         except KeyError:
@@ -507,11 +506,10 @@ class QdrantDocumentStore:
         await self._initialize_async_client()
         assert self._async_client is not None
 
-        ids = [convert_id(_id) for _id in document_ids]
         try:
             await self._async_client.delete(
                 collection_name=self.index,
-                points_selector=ids,
+                points_selector=rest.PointIdsList(points=[convert_id(_id) for _id in document_ids]),
                 wait=self.wait_result_from_api,
             )
         except KeyError:
