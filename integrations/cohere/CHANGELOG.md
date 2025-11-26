@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/cohere-v6.3.0] - 2025-11-26
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Update CohereChatGenerator default model to command-a-03-2025 (#2553)
+
+### 🌀 Miscellaneous
+
+- Adopt PEP 585 type hinting (part 2) (#2508)
+
 ## [integrations/cohere-v6.1.0] - 2025-10-22
 
 ### 🚀 Features
