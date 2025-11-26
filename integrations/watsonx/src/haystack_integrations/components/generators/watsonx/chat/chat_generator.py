@@ -59,7 +59,7 @@ class WatsonxChatGenerator:
 
     client = WatsonxChatGenerator(
         api_key=Secret.from_env_var("WATSONX_API_KEY"),
-        model="ibm/granite-13b-chat-v2",
+        model="ibm/granite-4-h-small",
         project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
     )
     response = client.run(messages)
@@ -92,7 +92,7 @@ class WatsonxChatGenerator:
         self,
         *,
         api_key: Secret = Secret.from_env_var("WATSONX_API_KEY"),  # noqa: B008
-        model: str = "ibm/granite-3-3-8b-instruct",
+        model: str = "ibm/granite-4-h-small",
         project_id: Secret = Secret.from_env_var("WATSONX_PROJECT_ID"),  # noqa: B008
         api_base_url: str = "https://us-south.ml.cloud.ibm.com",
         generation_kwargs: dict[str, Any] | None = None,
@@ -110,7 +110,7 @@ class WatsonxChatGenerator:
 
         :param api_key: IBM Cloud API key for watsonx.ai access.
             Can be set via `WATSONX_API_KEY` environment variable or passed directly.
-        :param model: The model ID to use for completions. Defaults to "ibm/granite-13b-chat-v2".
+        :param model: The model ID to use for completions. Defaults to "ibm/granite-4-h-small".
             Available models can be found in your IBM Cloud account.
         :param project_id: IBM Cloud project ID
         :param api_base_url: Custom base URL for the API endpoint.
