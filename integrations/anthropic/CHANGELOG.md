@@ -1,11 +1,19 @@
 # Changelog
 
-## [integrations/anthropic-v4.5.1]
+## [integrations/anthropic-v4.6.0] - 2025-11-26
+
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
 
 ### 🧹 Chores
 
-- Adopt PEP 585 type hinting
+- Update anthropic default model (#2551)
 
+### 🌀 Miscellaneous
+
+- Adopt PEP 585 type hinting (part 1) (#2509)
 
 ## [integrations/anthropic-v4.5.0] - 2025-10-22
 
