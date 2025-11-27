@@ -421,7 +421,12 @@ class TestOpenRouterChatGenerator:
             assert tool_call.tool_name == "weather"
 
         arguments = [tool_call.arguments for tool_call in tool_calls]
-        assert sorted(arguments, key=lambda x: x["city"]) == [{"city": "Berlin"}, {"city": "Paris"}]
+        # Extract city names and check they contain the expected cities
+        # (LLM may return "Paris, France" or "Berlin, Germany" instead of just city names)
+        cities = [arg["city"].lower() for arg in arguments]
+        assert len(cities) == 2
+        assert any("berlin" in city for city in cities), f"Expected 'berlin' in one of {cities}"
+        assert any("paris" in city for city in cities), f"Expected 'paris' in one of {cities}"
         assert tool_message.meta["finish_reason"] == "tool_calls"
 
     @pytest.mark.skipif(
