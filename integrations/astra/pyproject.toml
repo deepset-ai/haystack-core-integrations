@@ -45,7 +45,7 @@ git_describe_command = 'git describe --tags --match="integrations/astra-v[0-9]*"
 installer = "uv"
 dependencies = ["haystack-pydoc-tools", "ruff"]
 [tool.hatch.envs.default.scripts]
-docs = ["pydoc-markdown pydoc/config.yml"]
+docs = ["pydoc-markdown pydoc/config_docusaurus.yml"]
 fmt = "ruff check --fix {args} && ruff format {args}"
 fmt-check = "ruff check {args} && ruff format --check {args}"
 
