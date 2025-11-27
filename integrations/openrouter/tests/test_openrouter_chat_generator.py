@@ -79,7 +79,7 @@ def mock_chat_completion():
     with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
         completion = ChatCompletion(
             id="foo",
-            model="openai/gpt-4o-mini",
+            model="openai/gpt-5-mini",
             object="chat.completion",
             choices=[
                 Choice(
@@ -102,7 +102,7 @@ class TestOpenRouterChatGenerator:
         monkeypatch.setenv("OPENROUTER_API_KEY", "test-api-key")
         component = OpenRouterChatGenerator()
         assert component.client.api_key == "test-api-key"
-        assert component.model == "openai/gpt-4o-mini"
+        assert component.model == "openai/gpt-5-mini"
         assert component.api_base_url == "https://openrouter.ai/api/v1"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
@@ -115,13 +115,13 @@ class TestOpenRouterChatGenerator:
     def test_init_with_parameters(self):
         component = OpenRouterChatGenerator(
             api_key=Secret.from_token("test-api-key"),
-            model="openai/gpt-4o-mini",
+            model="openai/gpt-5",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
         assert component.client.api_key == "test-api-key"
-        assert component.model == "openai/gpt-4o-mini"
+        assert component.model == "openai/gpt-5"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
@@ -137,7 +137,7 @@ class TestOpenRouterChatGenerator:
 
         expected_params = {
             "api_key": {"env_vars": ["OPENROUTER_API_KEY"], "strict": True, "type": "env_var"},
-            "model": "openai/gpt-4o-mini",
+            "model": "openai/gpt-5-mini",
             "streaming_callback": None,
             "api_base_url": "https://openrouter.ai/api/v1",
             "generation_kwargs": {},
@@ -155,7 +155,7 @@ class TestOpenRouterChatGenerator:
         monkeypatch.setenv("ENV_VAR", "test-api-key")
         component = OpenRouterChatGenerator(
             api_key=Secret.from_env_var("ENV_VAR"),
-            model="openai/gpt-4o-mini",
+            model="openai/gpt-5",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
@@ -174,7 +174,7 @@ class TestOpenRouterChatGenerator:
 
         expected_params = {
             "api_key": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
-            "model": "openai/gpt-4o-mini",
+            "model": "openai/gpt-5",
             "api_base_url": "test-base-url",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -196,7 +196,7 @@ class TestOpenRouterChatGenerator:
             ),
             "init_parameters": {
                 "api_key": {"env_vars": ["OPENROUTER_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "openai/gpt-4o-mini",
+                "model": "openai/gpt-5-mini",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -208,7 +208,7 @@ class TestOpenRouterChatGenerator:
             },
         }
         component = OpenRouterChatGenerator.from_dict(data)
-        assert component.model == "openai/gpt-4o-mini"
+        assert component.model == "openai/gpt-5-mini"
         assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -227,7 +227,7 @@ class TestOpenRouterChatGenerator:
             ),
             "init_parameters": {
                 "api_key": {"env_vars": ["OPENROUTER_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "openai/gpt-4o-mini",
+                "model": "openai/gpt-5-mini",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -280,7 +280,7 @@ class TestOpenRouterChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "openai/gpt-4o-mini" in message.meta["model"]
+        assert "openai/gpt-5-mini" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -316,7 +316,7 @@ class TestOpenRouterChatGenerator:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "openai/gpt-4o-mini" in message.meta["model"]
+        assert "openai/gpt-5-mini" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
@@ -506,7 +506,6 @@ class TestOpenRouterChatGenerator:
 
         # Create generator with specific configuration
         generator = OpenRouterChatGenerator(
-            model="openai/gpt-4o-mini",
             generation_kwargs={"temperature": 0.7},
             streaming_callback=print_streaming_chunk,
             tools=[tool],
@@ -527,7 +526,7 @@ class TestOpenRouterChatGenerator:
                     "type": "haystack_integrations.components.generators.openrouter.chat.chat_generator.OpenRouterChatGenerator",  # noqa: E501
                     "init_parameters": {
                         "api_key": {"type": "env_var", "env_vars": ["OPENROUTER_API_KEY"], "strict": True},
-                        "model": "openai/gpt-4o-mini",
+                        "model": "openai/gpt-5-mini",
                         "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                         "api_base_url": "https://openrouter.ai/api/v1",
                         "generation_kwargs": {"temperature": 0.7},
@@ -677,7 +676,7 @@ class TestChatCompletionChunkConversion:
                     ChoiceChunk(delta=ChoiceDelta(content="", role="assistant"), index=0, native_finish_reason=None)
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -702,7 +701,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -726,7 +725,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -750,7 +749,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -774,7 +773,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -798,7 +797,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -823,7 +822,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 service_tier=None,
                 system_fingerprint="fp_34a54ae93c",
@@ -850,7 +849,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -874,7 +873,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -898,7 +897,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -922,7 +921,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -938,7 +937,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 system_fingerprint="fp_34a54ae93c",
                 provider="OpenAI",
@@ -953,7 +952,7 @@ class TestChatCompletionChunkConversion:
                     )
                 ],
                 created=1750162525,
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5-mini",
                 object="chat.completion.chunk",
                 usage=CompletionUsage(
                     completion_tokens=42,
@@ -983,7 +982,7 @@ class TestChatCompletionChunkConversion:
         assert result.tool_calls[1].arguments == {"city": "Berlin"}
 
         # Verify meta information
-        assert result.meta["model"] == "openai/gpt-4o-mini"
+        assert result.meta["model"] == "openai/gpt-5-mini"
         assert result.meta["finish_reason"] == "tool_calls"
         assert result.meta["index"] == 0
         assert result.meta["completion_start_time"] is not None

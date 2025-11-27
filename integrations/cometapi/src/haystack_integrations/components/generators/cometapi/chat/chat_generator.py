@@ -16,8 +16,8 @@ class CometAPIChatGenerator(OpenAIChatGenerator):
 
     :param api_key: The API key for authenticating with the CometAPI. Defaults to
                     loading from the "COMET_API_KEY" environment variable.
-    :param model: The name of the model to use for chat generation (e.g., "gpt-4o-mini", "grok-3-mini").
-                  Defaults to "gpt-4o-mini".
+    :param model: The name of the model to use for chat generation (e.g., "gpt-5-mini", "grok-3-mini").
+                  Defaults to "gpt-5-mini".
     :param streaming_callback: An optional callable that will be called with each chunk of
                                 a streaming response.
     :param generation_kwargs: Optional keyword arguments to pass to the underlying generation
@@ -33,7 +33,7 @@ class CometAPIChatGenerator(OpenAIChatGenerator):
         self,
         *,
         api_key: Secret = Secret.from_env_var("COMET_API_KEY"),
-        model: str = "gpt-4o-mini",
+        model: str = "gpt-5-mini",
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[dict[str, Any]] = None,
         timeout: Optional[int] = None,

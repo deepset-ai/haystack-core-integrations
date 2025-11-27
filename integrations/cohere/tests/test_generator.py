@@ -19,7 +19,7 @@ class TestCohereGenerator:
         monkeypatch.setenv("COHERE_API_KEY", "foo")
         component = CohereGenerator()
         assert component.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
-        assert component.model == "command-r-08-2024"
+        assert component.model == "command-a-03-2025"
         assert component.streaming_callback is None
         assert component.api_base_url == COHERE_API_URL
         assert component.model_parameters == {}
@@ -47,7 +47,7 @@ class TestCohereGenerator:
         assert data == {
             "type": "haystack_integrations.components.generators.cohere.generator.CohereGenerator",
             "init_parameters": {
-                "model": "command-r-08-2024",
+                "model": "command-a-03-2025",
                 "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
                 "streaming_callback": None,
                 "api_base_url": COHERE_API_URL,
@@ -86,7 +86,7 @@ class TestCohereGenerator:
         data = {
             "type": "haystack_integrations.components.generators.cohere.generator.CohereGenerator",
             "init_parameters": {
-                "model": "command-r-08-2024",
+                "model": "command-a-03-2025",
                 "max_tokens": 10,
                 "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
                 "some_test_param": "test-params",
@@ -97,7 +97,7 @@ class TestCohereGenerator:
         }
         component: CohereGenerator = CohereGenerator.from_dict(data)
         assert component.api_key == Secret.from_env_var("ENV_VAR", strict=False)
-        assert component.model == "command-r-08-2024"
+        assert component.model == "command-a-03-2025"
         assert component.streaming_callback == print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.model_parameters == {"max_tokens": 10, "some_test_param": "test-params"}

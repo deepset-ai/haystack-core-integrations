@@ -60,7 +60,7 @@ def mock_async_chat_completion():
     ) as mock_chat_completion_create:
         completion = ChatCompletion(
             id="foo",
-            model="openai/gpt-4o-mini",
+            model="openai/gpt-5-mini",
             object="chat.completion",
             choices=[
                 Choice(
@@ -139,7 +139,7 @@ class TestCometAPIChatGeneratorAsync:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "gpt-4o-mini" in message.meta["model"]
+        assert "gpt-5-mini" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -165,7 +165,7 @@ class TestCometAPIChatGeneratorAsync:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "gpt-4o-mini" in message.meta["model"]
+        assert "gpt-5-mini" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert counter > 1

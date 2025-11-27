@@ -64,7 +64,6 @@ class AnthropicChatGenerator:
     from haystack.dataclasses import ChatMessage
 
     generator = AnthropicChatGenerator(
-        model="claude-sonnet-4-20250514",
         generation_kwargs={
             "max_tokens": 1000,
             "temperature": 0.7,
@@ -113,7 +112,7 @@ class AnthropicChatGenerator:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("ANTHROPIC_API_KEY"),  # noqa: B008
-        model: str = "claude-sonnet-4-20250514",
+        model: str = "claude-sonnet-4-5",
         streaming_callback: Optional[StreamingCallbackT] = None,
         generation_kwargs: Optional[dict[str, Any]] = None,
         ignore_tools_thinking_messages: bool = True,

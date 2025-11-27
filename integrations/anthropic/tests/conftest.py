@@ -14,7 +14,7 @@ def mock_chat_completion():
         completion = Message(
             id="foo",
             content=[{"type": "text", "text": "Hello, world!"}],
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-5",
             role="assistant",
             type="message",
             usage={"input_tokens": 57, "output_tokens": 40},
@@ -36,7 +36,7 @@ def mock_chat_completion_extended_thinking():
                 {"type": "thinking", "thinking": "This is a thinking part!", "signature": ""},
                 {"type": "text", "text": "Hello, world!"},
             ],
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-5",
             role="assistant",
             type="message",
             usage={"input_tokens": 57, "output_tokens": 40},

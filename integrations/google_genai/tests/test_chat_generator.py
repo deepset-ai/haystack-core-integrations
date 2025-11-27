@@ -221,7 +221,7 @@ class TestStreamingChunkConversion:
         chunk1 = types.GenerateContentResponse(
             candidates=[chunk1_candidate],
             usage_metadata=chunk1_usage,
-            model_version="gemini-2.0-flash",
+            model_version="gemini-2.5-flash",
             response_id=None,
             create_time=None,
             prompt_feedback=None,
@@ -237,7 +237,7 @@ class TestStreamingChunkConversion:
         assert streaming_chunk1.finish_reason is None
         assert streaming_chunk1.index == 0
         assert "received_at" in streaming_chunk1.meta
-        assert streaming_chunk1.meta["model"] == "gemini-2.0-flash"
+        assert streaming_chunk1.meta["model"] == "gemini-2.5-flash"
         assert "usage" in streaming_chunk1.meta
         assert streaming_chunk1.meta["usage"]["prompt_tokens"] == 217
         assert streaming_chunk1.meta["usage"]["completion_tokens"] is None
@@ -268,7 +268,7 @@ class TestStreamingChunkConversion:
         chunk2 = types.GenerateContentResponse(
             candidates=[chunk2_candidate],
             usage_metadata=chunk2_usage,
-            model_version="gemini-2.0-flash",
+            model_version="gemini-2.5-flash",
             response_id=None,
             create_time=None,
             prompt_feedback=None,
@@ -284,7 +284,7 @@ class TestStreamingChunkConversion:
         assert streaming_chunk2.finish_reason is None
         assert streaming_chunk2.index == 1
         assert "received_at" in streaming_chunk2.meta
-        assert streaming_chunk2.meta["model"] == "gemini-2.0-flash"
+        assert streaming_chunk2.meta["model"] == "gemini-2.5-flash"
         assert "usage" in streaming_chunk2.meta
         assert streaming_chunk2.meta["usage"]["prompt_tokens"] == 217
         assert streaming_chunk2.meta["usage"]["completion_tokens"] is None
@@ -329,7 +329,7 @@ class TestStreamingChunkConversion:
         chunk = types.GenerateContentResponse(
             candidates=[candidate],
             usage_metadata=usage_metadata,
-            model_version="gemini-2.0-flash",
+            model_version="gemini-2.5-flash",
             response_id=None,
             create_time=None,
             prompt_feedback=None,
@@ -346,7 +346,7 @@ class TestStreamingChunkConversion:
         assert streaming_chunk.finish_reason == "stop"
         assert streaming_chunk.index == 2
         assert "received_at" in streaming_chunk.meta
-        assert streaming_chunk.meta["model"] == "gemini-2.0-flash"
+        assert streaming_chunk.meta["model"] == "gemini-2.5-flash"
         assert streaming_chunk.component_info == component_info
         assert "usage" in streaming_chunk.meta
         assert streaming_chunk.meta["usage"]["prompt_tokens"] == 144
@@ -388,7 +388,7 @@ class TestGoogleGenAIChatGenerator:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         component = GoogleGenAIChatGenerator()
-        assert component._model == "gemini-2.0-flash"
+        assert component._model == "gemini-2.5-flash"
         assert component._generation_kwargs == {}
         assert component._safety_settings == []
         assert component._streaming_callback is None
@@ -412,13 +412,13 @@ class TestGoogleGenAIChatGenerator:
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key-from-env")
         component = GoogleGenAIChatGenerator(
             api_key=Secret.from_token("test-api-key-from-env"),
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"temperature": 0.5, "max_output_tokens": 100},
             safety_settings=[{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}],
             tools=[tool],
         )
-        assert component._model == "gemini-2.0-flash"
+        assert component._model == "gemini-2.5-flash"
         assert component._streaming_callback is print_streaming_chunk
         assert component._generation_kwargs == {"temperature": 0.5, "max_output_tokens": 100}
         assert component._safety_settings == [
@@ -429,13 +429,13 @@ class TestGoogleGenAIChatGenerator:
     def test_init_with_toolset(self, tools, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         toolset = Toolset(tools)
-        generator = GoogleGenAIChatGenerator(model="gemini-2.0-flash", tools=toolset)
+        generator = GoogleGenAIChatGenerator(tools=toolset)
         assert generator._tools == toolset
 
     def test_to_dict_with_toolset(self, tools, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         toolset = Toolset(tools)
-        generator = GoogleGenAIChatGenerator(model="gemini-2.0-flash", tools=toolset)
+        generator = GoogleGenAIChatGenerator(tools=toolset)
         data = generator.to_dict()
 
         assert data["init_parameters"]["tools"]["type"] == "haystack.tools.toolset.Toolset"
@@ -445,7 +445,7 @@ class TestGoogleGenAIChatGenerator:
     def test_from_dict_with_toolset(self, tools, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         toolset = Toolset(tools)
-        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash", tools=toolset)
+        component = GoogleGenAIChatGenerator(tools=toolset)
         data = component.to_dict()
 
         deserialized_component = GoogleGenAIChatGenerator.from_dict(data)
@@ -480,7 +480,7 @@ class TestGoogleGenAIChatGenerator:
         toolset1 = Toolset([tool2])
 
         # Initialize with mixed list: Tool, Toolset, Tool
-        generator = GoogleGenAIChatGenerator(model="gemini-2.0-flash", tools=[tool1, toolset1, tool3])
+        generator = GoogleGenAIChatGenerator(tools=[tool1, toolset1, tool3])
 
         assert generator._tools == [tool1, toolset1, tool3]
         assert isinstance(generator._tools, list)
@@ -508,7 +508,7 @@ class TestGoogleGenAIChatGenerator:
 
         toolset1 = Toolset([tool2])
 
-        generator = GoogleGenAIChatGenerator(model="gemini-2.0-flash", tools=[tool1, toolset1])
+        generator = GoogleGenAIChatGenerator(tools=[tool1, toolset1])
         data = generator.to_dict()
 
         # Verify serialization preserves structure
@@ -737,12 +737,12 @@ class TestGoogleGenAIChatGenerator:
     @pytest.mark.integration
     def test_live_run(self) -> None:
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash")
+        component = GoogleGenAIChatGenerator()
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
-        assert "gemini-2.0-flash" in message.meta["model"]
+        assert "gemini-2.5-flash" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -846,7 +846,7 @@ class TestGoogleGenAIChatGenerator:
         assert tool_message is not None, "No message with tool call found"
         assert tool_message.tool_calls is not None, "Tool message has no tool calls"
         assert len(tool_message.tool_calls) == 1, "Tool message has multiple tool calls"
-        # Google Gen AI (gemini-2.0-flash and gemini-2.5-pro-preview-05-06) does not provide ids for tool calls although
+        # Google Gen AI (gemini-2.5-flash and gemini-2.5-pro-preview-05-06) does not provide ids for tool calls although
         # it is in the response schema, revisit in future to see if there are changes and id is provided
         # assert tool_message.tool_calls[0].id is not None, "Tool call has no id"
         assert tool_message.tool_calls[0].tool_name == "weather"
@@ -880,7 +880,7 @@ class TestGoogleGenAIChatGenerator:
         assert message.tool_calls is not None, "Message has no tool calls"
         assert len(message.tool_calls) == 1, "Message has multiple tool calls and it should only have one"
         tool_call = message.tool_calls[0]
-        # Google Gen AI (gemini-2.0-flash and gemini-2.5-pro-preview-05-06) does not provide ids for tool calls although
+        # Google Gen AI (gemini-2.5-flash and gemini-2.5-pro-preview-05-06) does not provide ids for tool calls although
         # it is in the response schema, revisit in future to see if there are changes and id is provided
         # assert tool_call.id is not None, "Tool call has no id"
         assert message.meta["finish_reason"] == "stop"
@@ -1144,7 +1144,7 @@ class TestGoogleGenAIChatGenerator:
         """
         Integration test to verify that thinking configuration fails fast with unsupported models.
         """
-        # gemini-2.0-flash is known to not support thinking
+        # gemini-2.0-flash does not support thinking
         chat_messages = [ChatMessage.from_user("Why is the sky blue?")]
         component = GoogleGenAIChatGenerator(model="gemini-2.0-flash", generation_kwargs={"thinking_budget": 1024})
 
@@ -1177,7 +1177,7 @@ class TestAsyncGoogleGenAIChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
-        assert "gemini-2.0-flash" in message.meta["model"]
+        assert "gemini-2.5-flash" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     async def test_live_run_async_streaming(self):
@@ -1250,7 +1250,7 @@ class TestAsyncGoogleGenAIChatGenerator:
         Async integration test to verify that thinking configuration fails fast with unsupported models.
         This tests the fail-fast principle - no silent fallbacks.
         """
-        # Use a model that does NOT support thinking features
+        # Use a model that does NOT support thinking features (gemini-2.0-flash)
         chat_messages = [ChatMessage.from_user("Why is the sky blue?")]
         component = GoogleGenAIChatGenerator(model="gemini-2.0-flash", generation_kwargs={"thinking_budget": 1024})
 

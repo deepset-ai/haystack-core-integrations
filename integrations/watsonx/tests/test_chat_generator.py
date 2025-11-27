@@ -99,16 +99,14 @@ class TestWatsonxChatGenerator:
             yield {"model": mock_model, "model_instance": mock_model_instance, "select_callback": mock_select_callback}
 
     def test_init_default(self, mock_watsonx):
-        generator = WatsonxChatGenerator(
-            model="ibm/granite-3-3-8b-instruct", project_id=Secret.from_token("fake-project-id")
-        )
+        generator = WatsonxChatGenerator(project_id=Secret.from_token("fake-project-id"))
 
         _, kwargs = mock_watsonx["model"].call_args
-        assert kwargs["model_id"] == "ibm/granite-3-3-8b-instruct"
+        assert kwargs["model_id"] == "ibm/granite-4-h-small"
         assert kwargs["project_id"] == "fake-project-id"
         assert kwargs["verify"] is None
 
-        assert generator.model == "ibm/granite-3-3-8b-instruct"
+        assert generator.model == "ibm/granite-4-h-small"
         assert isinstance(generator.project_id, Secret)
         assert generator.project_id.resolve_value() == "fake-project-id"
         assert generator.api_base_url == "https://us-south.ml.cloud.ibm.com"
@@ -123,7 +121,7 @@ class TestWatsonxChatGenerator:
         )
 
         _, kwargs = mock_watsonx["model"].call_args
-        assert kwargs["model_id"] == "ibm/granite-3-3-8b-instruct"
+        assert kwargs["model_id"] == "ibm/granite-4-h-small"
         assert kwargs["project_id"] == "test-project"
         assert kwargs["verify"] is False
 
@@ -148,7 +146,7 @@ class TestWatsonxChatGenerator:
             "type": "haystack_integrations.components.generators.watsonx.chat.chat_generator.WatsonxChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "ibm/granite-3-3-8b-instruct",
+                "model": "ibm/granite-4-h-small",
                 "project_id": {"env_vars": ["WATSONX_PROJECT_ID"], "strict": True, "type": "env_var"},
                 "api_base_url": "https://us-south.ml.cloud.ibm.com",
                 "generation_kwargs": {"max_tokens": 100},
@@ -173,7 +171,7 @@ class TestWatsonxChatGenerator:
             "type": "haystack_integrations.components.generators.watsonx.chat.chat_generator.WatsonxChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "ibm/granite-3-3-8b-instruct",
+                "model": "ibm/granite-4-h-small",
                 "project_id": {"env_vars": ["WATSONX_PROJECT_ID"], "strict": True, "type": "env_var"},
                 "api_base_url": "https://us-south.ml.cloud.ibm.com",
                 "generation_kwargs": {"max_tokens": 100},
@@ -191,14 +189,14 @@ class TestWatsonxChatGenerator:
             "type": "haystack_integrations.components.generators.watsonx.chat.chat_generator.WatsonxChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "ibm/granite-3-3-8b-instruct",
+                "model": "ibm/granite-4-h-small",
                 "project_id": {"env_vars": ["WATSONX_PROJECT_ID"], "strict": True, "type": "env_var"},
                 "generation_kwargs": {"max_tokens": 100},
             },
         }
 
         generator = WatsonxChatGenerator.from_dict(data)
-        assert generator.model == "ibm/granite-3-3-8b-instruct"
+        assert generator.model == "ibm/granite-4-h-small"
         assert isinstance(generator.project_id, Secret)
         assert generator.project_id.resolve_value() == "fake-project-id"
         assert generator.generation_kwargs == {"max_tokens": 100}
@@ -209,7 +207,7 @@ class TestWatsonxChatGenerator:
             "type": "haystack_integrations.components.generators.watsonx.chat.chat_generator.WatsonxChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["WATSONX_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "ibm/granite-3-3-8b-instruct",
+                "model": "ibm/granite-4-h-small",
                 "project_id": {"env_vars": ["WATSONX_PROJECT_ID"], "strict": True, "type": "env_var"},
                 "streaming_callback": callback_str,
             },
@@ -253,9 +251,7 @@ class TestWatsonxChatGenerator:
 
     def test_run_with_streaming(self, mock_watsonx):
         """Test streaming with callback through parent class"""
-        generator = WatsonxChatGenerator(
-            model="ibm/granite-13b-instruct-v2", project_id=Secret.from_token("test-project")
-        )
+        generator = WatsonxChatGenerator(project_id=Secret.from_token("test-project"))
 
         mock_callback = MagicMock()
         messages = [ChatMessage.from_user("Test prompt")]
@@ -540,7 +536,6 @@ class TestWatsonxChatGeneratorIntegration:
     )
     def test_live_run(self):
         generator = WatsonxChatGenerator(
-            model="ibm/granite-3-3-8b-instruct",
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             generation_kwargs={"max_tokens": 50, "temperature": 0.7, "top_p": 0.9},
         )
@@ -560,9 +555,7 @@ class TestWatsonxChatGeneratorIntegration:
         reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
     )
     def test_live_run_streaming(self):
-        generator = WatsonxChatGenerator(
-            model="ibm/granite-3-3-8b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
-        )
+        generator = WatsonxChatGenerator(project_id=Secret.from_env_var("WATSONX_PROJECT_ID"))
         collected_chunks = []
 
         def callback(chunk: StreamingChunk):
@@ -585,9 +578,7 @@ class TestWatsonxChatGeneratorIntegration:
         reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
     )
     async def test_live_run_async(self):
-        generator = WatsonxChatGenerator(
-            model="ibm/granite-3-3-8b-instruct", project_id=Secret.from_env_var("WATSONX_PROJECT_ID")
-        )
+        generator = WatsonxChatGenerator(project_id=Secret.from_env_var("WATSONX_PROJECT_ID"))
         messages = [ChatMessage.from_user("What's the capital of Germany? Answer concisely.")]
         results = await generator.run_async(messages=messages)
 

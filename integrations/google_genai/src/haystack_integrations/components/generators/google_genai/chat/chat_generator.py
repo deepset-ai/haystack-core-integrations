@@ -349,7 +349,7 @@ class GoogleGenAIChatGenerator:
     """
     A component for generating chat completions using Google's Gemini models via the Google Gen AI SDK.
 
-    Supports models like gemini-2.0-flash and other Gemini variants. For Gemini 2.5 series models,
+    Supports models like gemini-2.5-flash and other Gemini variants. For Gemini 2.5 series models,
     enables thinking features via `generation_kwargs={"thinking_budget": value}`.
 
     ### Thinking Support (Gemini 2.5 Series)
@@ -377,7 +377,7 @@ class GoogleGenAIChatGenerator:
     from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
 
     # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
-    chat_generator = GoogleGenAIChatGenerator(model="gemini-2.0-flash")
+    chat_generator = GoogleGenAIChatGenerator(model="gemini-2.5-flash")
     ```
 
     **2. Vertex AI (Application Default Credentials)**
@@ -389,7 +389,7 @@ class GoogleGenAIChatGenerator:
         api="vertex",
         vertex_ai_project="my-project",
         vertex_ai_location="us-central1",
-        model="gemini-2.0-flash"
+        model="gemini-2.5-flash",
     )
     ```
 
@@ -400,7 +400,7 @@ class GoogleGenAIChatGenerator:
     # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
     chat_generator = GoogleGenAIChatGenerator(
         api="vertex",
-        model="gemini-2.0-flash"
+        model="gemini-2.5-flash",
     )
     ```
 
@@ -458,7 +458,7 @@ class GoogleGenAIChatGenerator:
         api: Literal["gemini", "vertex"] = "gemini",
         vertex_ai_project: Optional[str] = None,
         vertex_ai_location: Optional[str] = None,
-        model: str = "gemini-2.0-flash",
+        model: str = "gemini-2.5-flash",
         generation_kwargs: Optional[dict[str, Any]] = None,
         safety_settings: Optional[list[dict[str, Any]]] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
@@ -476,7 +476,7 @@ class GoogleGenAIChatGenerator:
             Application Default Credentials.
         :param vertex_ai_location: Google Cloud location for Vertex AI (e.g., "us-central1", "europe-west1").
             Required when using Vertex AI with Application Default Credentials.
-        :param model: Name of the model to use (e.g., "gemini-2.0-flash")
+        :param model: Name of the model to use (e.g., "gemini-2.5-flash")
         :param generation_kwargs: Configuration for generation (temperature, max_tokens, etc.).
             For Gemini 2.5 series, supports `thinking_budget` to configure thinking behavior:
             - `thinking_budget`: int, controls thinking token allocation

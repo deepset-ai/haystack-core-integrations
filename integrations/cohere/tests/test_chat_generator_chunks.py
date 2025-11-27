@@ -136,7 +136,7 @@ def expected_streaming_chunks():
             finish_reason=None,
             tool_calls=None,
             meta={
-                "model": "command-r-08-2024",
+                "model": "command-a-03-2025",
             },
         ),
         # Chunk 2: Tool plan delta
@@ -147,7 +147,7 @@ def expected_streaming_chunks():
             finish_reason=None,
             tool_calls=None,
             meta={
-                "model": "command-r-08-2024",
+                "model": "command-a-03-2025",
             },
         ),
         # Chunk 3: Tool call start
@@ -165,7 +165,7 @@ def expected_streaming_chunks():
                 )
             ],
             meta={
-                "model": "command-r-08-2024",
+                "model": "command-a-03-2025",
                 "tool_call_id": "call_weather_paris_123",
             },
         ),
@@ -183,7 +183,7 @@ def expected_streaming_chunks():
                 )
             ],
             meta={
-                "model": "command-r-08-2024",
+                "model": "command-a-03-2025",
             },
         ),
         # Chunk 5: Tool call delta - more arguments
@@ -200,7 +200,7 @@ def expected_streaming_chunks():
                 )
             ],
             meta={
-                "model": "command-r-08-2024",
+                "model": "command-a-03-2025",
             },
         ),
         # Chunk 6: Tool call delta - city name
@@ -217,7 +217,7 @@ def expected_streaming_chunks():
                 )
             ],
             meta={
-                "model": "command-r-08-2024",
+                "model": "command-a-03-2025",
             },
         ),
         # Chunk 7: Tool call delta - closing brace
@@ -234,7 +234,7 @@ def expected_streaming_chunks():
                 )
             ],
             meta={
-                "model": "command-r-08-2024",
+                "model": "command-a-03-2025",
             },
         ),
         # Chunk 8: Tool call end
@@ -245,7 +245,7 @@ def expected_streaming_chunks():
             finish_reason=None,
             tool_calls=None,
             meta={
-                "model": "command-r-08-2024",
+                "model": "command-a-03-2025",
             },
         ),
         # Chunk 9: Tool call start - second tool
@@ -263,7 +263,7 @@ def expected_streaming_chunks():
                 )
             ],
             meta={
-                "model": "command-r-08-2024",
+                "model": "command-a-03-2025",
                 "tool_call_id": "call_weather_berlin_456",
             },
         ),
@@ -281,7 +281,7 @@ def expected_streaming_chunks():
                 )
             ],
             meta={
-                "model": "command-r-08-2024",
+                "model": "command-a-03-2025",
             },
         ),
         # Chunk 11: Tool call delta - more second tool arguments
@@ -298,7 +298,7 @@ def expected_streaming_chunks():
                 )
             ],
             meta={
-                "model": "command-r-08-2024",
+                "model": "command-a-03-2025",
             },
         ),
         # Chunk 12: Tool call delta - second city name
@@ -315,7 +315,7 @@ def expected_streaming_chunks():
                 )
             ],
             meta={
-                "model": "command-r-08-2024",
+                "model": "command-a-03-2025",
             },
         ),
         # Chunk 13: Tool call delta - closing brace for second tool
@@ -332,7 +332,7 @@ def expected_streaming_chunks():
                 )
             ],
             meta={
-                "model": "command-r-08-2024",
+                "model": "command-a-03-2025",
             },
         ),
         # Chunk 14: Tool call end - second tool
@@ -343,7 +343,7 @@ def expected_streaming_chunks():
             finish_reason=None,
             tool_calls=None,
             meta={
-                "model": "command-r-08-2024",
+                "model": "command-a-03-2025",
             },
         ),
         # Chunk 15: Message end with finish reason and usage
@@ -354,7 +354,7 @@ def expected_streaming_chunks():
             finish_reason="tool_calls",
             tool_calls=None,
             meta={
-                "model": "command-r-08-2024",
+                "model": "command-a-03-2025",
                 "finish_reason": "TOOL_CALLS",
                 "usage": {
                     "prompt_tokens": 9,
@@ -373,7 +373,7 @@ class TestCohereChunkConversion:
         for cohere_chunk, haystack_chunk in zip(cohere_chunks, expected_streaming_chunks):
             stream_chunk = _convert_cohere_chunk_to_streaming_chunk(
                 chunk=cohere_chunk,
-                model="command-r-08-2024",
+                model="command-a-03-2025",
             )
             assert stream_chunk == haystack_chunk
 

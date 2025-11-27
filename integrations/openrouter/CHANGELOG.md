@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/openrouter-v0.4.0] - 2025-11-26
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Update OpenRouterChatGenerator default model to openai/gpt-5-mini (#2555)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 5) (#2528)
+
 ## [integrations/openrouter-v0.3.0] - 2025-10-23
 
 ### 🚀 Features
