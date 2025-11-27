@@ -8,6 +8,8 @@ from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import StreamingCallbackT
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
+from openai.lib._pydantic import to_strict_json_schema
+from pydantic import BaseModel
 
 
 @component
@@ -74,6 +76,13 @@ class STACKITChatGenerator(OpenAIChatGenerator):
                 events as they become available, with the stream terminated by a data: [DONE] message.
             - `safe_prompt`: Whether to inject a safety prompt before all conversations.
             - `random_seed`: The seed to use for random sampling.
+            - `response_format`: A JSON schema or a Pydantic model that enforces the structure of the model's response.
+                If provided, the output will always be validated against this
+                format (unless the model returns a tool call).
+                For details, see the [OpenAI Structured Outputs documentation](https://platform.openai.com/docs/guides/structured-outputs).
+                Notes:
+                - For structured outputs with streaming,
+                  the `response_format` must be a JSON schema and not a Pydantic model.
         :param timeout:
             Timeout for STACKIT client calls. If not set, it defaults to either the `OPENAI_TIMEOUT` environment
             variable, or 30 seconds.
@@ -104,6 +113,21 @@ class STACKITChatGenerator(OpenAIChatGenerator):
             The serialized component as a dictionary.
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+        generation_kwargs = self.generation_kwargs.copy()
+        response_format = generation_kwargs.get("response_format")
+        # If the response format is a Pydantic model, it's converted to openai's json schema format
+        # If it's already a json schema, it's left as is
+        if response_format and isinstance(response_format, type) and issubclass(response_format, BaseModel):
+            json_schema = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": response_format.__name__,
+                    "strict": True,
+                    "schema": to_strict_json_schema(response_format),
+                },
+            }
+
+            generation_kwargs["response_format"] = json_schema
 
         # if we didn't implement the to_dict method here then the to_dict method of the superclass would be used
         # which would serialiaze some fields that we don't want to serialize (e.g. the ones we don't have in
@@ -114,7 +138,7 @@ class STACKITChatGenerator(OpenAIChatGenerator):
             model=self.model,
             streaming_callback=callback_name,
             api_base_url=self.api_base_url,
-            generation_kwargs=self.generation_kwargs,
+            generation_kwargs=generation_kwargs,
             api_key=self.api_key.to_dict(),
             timeout=self.timeout,
             max_retries=self.max_retries,

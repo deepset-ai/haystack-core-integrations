@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime
 from unittest.mock import patch
@@ -11,8 +12,20 @@ from openai import OpenAIError
 from openai.types import CompletionUsage
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
+from pydantic import BaseModel
 
 from haystack_integrations.components.generators.stackit.chat.chat_generator import STACKITChatGenerator
+
+
+class CalendarEvent(BaseModel):
+    event_name: str
+    event_date: str
+    event_location: str
+
+
+@pytest.fixture
+def calendar_event_model():
+    return CalendarEvent
 
 
 @pytest.fixture
@@ -101,14 +114,18 @@ class TestSTACKITChatGenerator:
         for key, value in expected_params.items():
             assert data["init_parameters"][key] == value
 
-    def test_to_dict_with_parameters(self, monkeypatch):
+    def test_to_dict_with_parameters(self, monkeypatch, calendar_event_model):
         monkeypatch.setenv("ENV_VAR", "test-api-key")
         component = STACKITChatGenerator(
             api_key=Secret.from_env_var("ENV_VAR"),
             model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
-            generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
+            generation_kwargs={
+                "max_tokens": 10,
+                "some_test_param": "test-params",
+                "response_format": calendar_event_model,
+            },
             timeout=10.0,
             max_retries=2,
             http_client_kwargs={"proxy": "https://proxy.example.com:8080"},
@@ -125,7 +142,28 @@ class TestSTACKITChatGenerator:
             "model": "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
             "api_base_url": "test-base-url",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-            "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+            "generation_kwargs": {
+                "max_tokens": 10,
+                "some_test_param": "test-params",
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "CalendarEvent",
+                        "strict": True,
+                        "schema": {
+                            "properties": {
+                                "event_name": {"title": "Event Name", "type": "string"},
+                                "event_date": {"title": "Event Date", "type": "string"},
+                                "event_location": {"title": "Event Location", "type": "string"},
+                            },
+                            "required": ["event_name", "event_date", "event_location"],
+                            "title": "CalendarEvent",
+                            "type": "object",
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+            },
             "timeout": 10.0,
             "max_retries": 2,
             "http_client_kwargs": {"proxy": "https://proxy.example.com:8080"},
@@ -254,3 +292,61 @@ class TestSTACKITChatGenerator:
 
         assert callback.counter > 1
         assert "Paris" in callback.responses
+
+    @pytest.mark.skipif(
+        not os.environ.get("STACKIT_API_KEY", None),
+        reason="Export an env var called STACKIT_API_KEY containing the STACKIT API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_response_format_json_schema(self):
+        response_schema = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "CapitalCity",
+                "strict": True,
+                "schema": {
+                    "title": "CapitalCity",
+                    "type": "object",
+                    "properties": {
+                        "city": {"title": "City", "type": "string"},
+                        "country": {"title": "Country", "type": "string"},
+                    },
+                    "required": ["city", "country"],
+                    "additionalProperties": False,
+                },
+            },
+        }
+
+        chat_messages = [ChatMessage.from_user("What's the capital of France?")]
+        comp = STACKITChatGenerator(
+            model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8", generation_kwargs={"response_format": response_schema}
+        )
+        results = comp.run(chat_messages)
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        msg = json.loads(message.text)
+        assert "Paris" in msg["city"]
+        assert isinstance(msg["country"], str)
+        assert "France" in msg["country"]
+        assert message.meta["finish_reason"] == "stop"
+
+    @pytest.mark.skipif(
+        not os.environ.get("STACKIT_API_KEY", None),
+        reason="Export an env var called STACKIT_API_KEY containing the STACKIT API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_response_format_pydantic_model(self, calendar_event_model):
+        chat_messages = [
+            ChatMessage.from_user("The marketing summit takes place on October12th at the Hilton Hotel downtown.")
+        ]
+        component = STACKITChatGenerator(
+            model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
+            generation_kwargs={"response_format": calendar_event_model},
+        )
+        results = component.run(chat_messages)
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        msg = json.loads(message.text)
+        assert "Marketing Summit" in msg["event_name"]
+        assert isinstance(msg["event_date"], str)
+        assert isinstance(msg["event_location"], str)
