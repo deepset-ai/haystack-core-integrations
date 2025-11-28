@@ -1,8 +1,7 @@
 from typing import Any, Optional
 
-from haystack import Document, component, default_from_dict, default_to_dict, logging
-
 from fastembed.rerank.cross_encoder import TextCrossEncoder
+from haystack import Document, component, default_from_dict, default_to_dict, logging
 
 logger = logging.getLogger(__name__)
 
