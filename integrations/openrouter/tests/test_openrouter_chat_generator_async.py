@@ -198,7 +198,7 @@ class TestOpenRouterChatGeneratorAsync:
         tool_call = tool_message.tool_call
         assert tool_call.id, "Tool call does not contain value for 'id' key"
         assert tool_call.tool_name == "weather"
-        assert tool_call.arguments == {"city": "Paris"}
+        assert "paris" in tool_call.arguments["city"].lower(), f"Expected 'paris' in city: {tool_call.arguments}"
         assert tool_message.meta["finish_reason"] == "tool_calls"
 
         new_messages = [
@@ -260,7 +260,7 @@ class TestOpenRouterChatGeneratorAsync:
         tool_call = tool_message.tool_call
         assert tool_call.id, "Tool call does not contain value for 'id' key"
         assert tool_call.tool_name == "weather"
-        assert tool_call.arguments == {"city": "Paris"}
+        assert "paris" in tool_call.arguments["city"].lower(), f"Expected 'paris' in city: {tool_call.arguments}"
         assert tool_message.meta["finish_reason"] == "tool_calls"
 
     @pytest.mark.skipif(
@@ -314,7 +314,7 @@ class TestOpenRouterChatGeneratorAsync:
 
         # Pass mixed list: echo_tool (individual) and toolset (weather + time) at runtime
         # This tests that both individual tools and toolsets can be combined
-        messages = [ChatMessage.from_user("Echo this: Hello World")]
+        messages = [ChatMessage.from_user("Echo this via tool: Hello World")]
         results = await component.run_async(messages, tools=[echo_tool, toolset])
 
         assert len(results["replies"]) == 1

@@ -339,7 +339,7 @@ class TestOpenRouterChatGenerator:
         tool_call = message.tool_call
         assert isinstance(tool_call, ToolCall)
         assert tool_call.tool_name == "weather"
-        assert tool_call.arguments == {"city": "Paris"}
+        assert "paris" in tool_call.arguments["city"].lower(), f"Expected 'paris' in city: {tool_call.arguments}"
         assert message.meta["finish_reason"] == "tool_calls"
 
     @pytest.mark.skipif(
@@ -371,7 +371,12 @@ class TestOpenRouterChatGenerator:
             assert tool_call.tool_name == "weather"
 
         arguments = [tool_call.arguments for tool_call in tool_calls]
-        assert sorted(arguments, key=lambda x: x["city"]) == [{"city": "Berlin"}, {"city": "Paris"}]
+        # Extract city names and check they contain the expected cities
+        # (LLM may return "Paris, France" or "Berlin, Germany" instead of just city names)
+        cities = [arg["city"].lower() for arg in arguments]
+        assert len(cities) == 2
+        assert any("berlin" in city for city in cities), f"Expected 'berlin' in one of {cities}"
+        assert any("paris" in city for city in cities), f"Expected 'paris' in one of {cities}"
         assert tool_message.meta["finish_reason"] == "tool_calls"
 
         new_messages = [
@@ -453,10 +458,9 @@ class TestOpenRouterChatGenerator:
             }
         )
 
-        assert (
-            "The weather in Paris is sunny and 32°C"
-            == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
-        )
+        result = results["tool_invoker"]["tool_messages"][0].tool_call_result.result
+        assert "paris" in result.lower(), f"Expected 'paris' in result: {result}"
+        assert "sunny and 32°c" in result.lower(), f"Expected 'sunny and 32°c' in result: {result}"
 
     @pytest.mark.skipif(
         not os.environ.get("OPENROUTER_API_KEY", None),
