@@ -6,22 +6,8 @@
 
 - Support structured outputs in `STACKITChatGenerator` (#2536)
 
-### 📚 Documentation
-
-- Add pydoc configurations for Docusaurus (#2411)
-
-### ⚙️ CI
-
-- Change pytest command (#2475)
-
-### 🧹 Chores
-
-- Standardize readmes - part 2 (#2205)
-- Remove Readme API CI workflow and configs (#2573)
-
 ### 🌀 Miscellaneous
 
-- Chore: Fix linting in tests for stackit integration (#2260)
 - Enhancement: Adopt PEP 585 type hinting (part 5) (#2528)
 
 ## [integrations/stackit-v1.2.0] - 2025-06-30
