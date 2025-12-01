@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/stackit-v1.3.0] - 2025-11-27
+
+### 🚀 Features
+
+- Support structured outputs in `STACKITChatGenerator` (#2536)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 5) (#2528)
+
 ## [integrations/stackit-v1.2.0] - 2025-06-30
 
 ### 🧹 Chores
