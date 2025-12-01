@@ -149,14 +149,14 @@ class WeaveTracer(Tracer):
             output={key: coerce_tag_value(value) for key, value in pipeline_output.items()},
         )
 
+    # the current implementation violates the Liskov Substitution Principle by using WeaveSpan instead of Span
+    # unfortunately, it seems hard to fix without rewriting the Tracer
     @contextlib.contextmanager
-    def trace(
+    def trace(  # type: ignore[override]
         self,
         operation_name: str,
         tags: Optional[dict[str, Any]] = None,
-        # the current implementation violates the Liskov Substitution Principle by using WeaveSpan instead of Span
-        # unfortunately, it seems hard to fix without rewriting the Tracer
-        parent_span: Optional[WeaveSpan] = None,  # type: ignore[override]
+        parent_span: Optional[WeaveSpan] = None,
     ) -> Iterator[WeaveSpan]:
         """
         A context manager that creates and manages spans for tracking operations in Weights & Biases Weave.
