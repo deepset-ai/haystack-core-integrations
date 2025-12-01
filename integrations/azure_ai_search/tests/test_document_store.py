@@ -294,7 +294,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         docs = [Document(content="first doc"), Document(content="second doc")]
         document_store.write_documents(docs)
         assert document_store.count_documents() == 2
-
         document_store.delete_all_documents()
         assert document_store.count_documents() == 0
 
