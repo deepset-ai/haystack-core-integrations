@@ -48,6 +48,7 @@ def document_store(request):
     # Override some methods to wait for the documents to be available
     original_write_documents = store.write_documents
     original_delete_documents = store.delete_documents
+    original_delete_all_documents = store.delete_all_documents
 
     def write_documents_and_wait(documents, policy=DuplicatePolicy.OVERWRITE):
         written_docs = original_write_documents(documents, policy)
@@ -56,6 +57,10 @@ def document_store(request):
 
     def delete_documents_and_wait(filters):
         original_delete_documents(filters)
+        time.sleep(SLEEP_TIME_IN_SECONDS)
+
+    def delete_all_documents_and_wait():
+        original_delete_all_documents()
         time.sleep(SLEEP_TIME_IN_SECONDS)
 
     # Helper function to wait for the index to be deleted, needed to cover latency
@@ -69,6 +74,7 @@ def document_store(request):
 
     store.write_documents = write_documents_and_wait
     store.delete_documents = delete_documents_and_wait
+    store.delete_all_documents = delete_all_documents_and_wait
 
     yield store
     try:

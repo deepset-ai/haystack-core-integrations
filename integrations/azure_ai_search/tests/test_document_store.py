@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 import random
-from time import sleep
 from datetime import datetime, timezone
 from unittest.mock import patch
 
@@ -295,7 +294,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         docs = [Document(content="first doc"), Document(content="second doc")]
         document_store.write_documents(docs)
         assert document_store.count_documents() == 2
-        sleep(5)
         document_store.delete_all_documents()
         assert document_store.count_documents() == 0
 
