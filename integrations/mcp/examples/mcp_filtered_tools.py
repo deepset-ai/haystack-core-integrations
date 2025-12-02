@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from haystack_integrations.tools.mcp import MCPToolset, SSEServerInfo
+from haystack_integrations.tools.mcp import MCPToolset, StreamableHttpServerInfo
 
-# This example demonstrates using MCPToolset with SSE transport
+# This example demonstrates using MCPToolset with streamable-http transport
 # and filtering tools by name
-# Run this client after running the server mcp_server.py with sse transport
+# Run this client after running the server mcp_server.py
 # It shows how MCPToolset can selectively include only specific tools
 
 
@@ -19,7 +19,8 @@ def main():
         print("Creating toolset with all available tools:")
         # Create a toolset with all available tools
         full_toolset = MCPToolset(
-            server_info=SSEServerInfo(url="http://localhost:8000/sse"),
+            server_info=StreamableHttpServerInfo(url="http://localhost:8000/mcp"),
+            eager_connect=True,
         )
 
         # Print all discovered tools
@@ -31,8 +32,9 @@ def main():
         # Create a toolset with only specific tools
         # In this example, we're only including the 'add' tool
         filtered_toolset = MCPToolset(
-            server_info=SSEServerInfo(url="http://localhost:8000/sse"),
+            server_info=StreamableHttpServerInfo(url="http://localhost:8000/mcp"),
             tool_names=["add"],  # Only include the 'add' tool
+            eager_connect=True,
         )
 
         # Print filtered tools
@@ -44,7 +46,7 @@ def main():
         if len(filtered_toolset) > 0:
             add_tool = filtered_toolset.tools[0]  # The only tool should be 'add'
             result = add_tool.invoke(a=10, b=5)
-            print(f"\nInvoking {add_tool.name}: 10 + 5 = {result.content[0].text}")
+            print(f"\nInvoking {add_tool.name}: 10 + 5 = {result}")
         else:
             print("No tools available in the filtered toolset")
 
