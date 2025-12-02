@@ -102,7 +102,8 @@ class PgvectorDocumentStore:
 
         :param connection_string: The connection string to use to connect to the PostgreSQL database, defined as an
             environment variable. Supported formats:
-            - URI, e.g. `postgresql://USER:PASSWORD@HOST:PORT/DB_NAME` (use percent-encoding for special characters)
+            - URI, e.g. `PG_CONN_STR="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"` (use percent-encoding for special 
+                characters)
             - keyword/value format, e.g. `PG_CONN_STR="host=HOST port=PORT dbname=DBNAME user=USER password=PASSWORD"`
             See [PostgreSQL Documentation](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING)
             for more details.
