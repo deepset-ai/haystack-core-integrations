@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+import unittest
+
 from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -161,7 +163,7 @@ class TestGitHubFileEditorTool:
                         "chat_generator": {
                             "type": "haystack.components.generators.chat.openai.OpenAIChatGenerator",
                             "init_parameters": {
-                                "model": "gpt-4o-mini",
+                                "model": unittest.mock.ANY,
                                 "streaming_callback": None,
                                 "api_base_url": None,
                                 "organization": None,
