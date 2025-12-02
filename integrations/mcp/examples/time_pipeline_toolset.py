@@ -35,7 +35,7 @@ def main():
             print("For now, demonstrating direct tool usage:")
 
         pipeline = Pipeline()
-        pipeline.add_component("llm", OpenAIChatGenerator(model="gpt-4o-mini", tools=mcp_toolset))
+        pipeline.add_component("llm", OpenAIChatGenerator(model="gpt-4.1-mini", tools=mcp_toolset))
         pipeline.add_component("tool_invoker", ToolInvoker(tools=mcp_toolset))
         pipeline.add_component(
             "adapter",
@@ -45,7 +45,7 @@ def main():
                 unsafe=True,
             ),
         )
-        pipeline.add_component("response_llm", OpenAIChatGenerator(model="gpt-4o-mini"))
+        pipeline.add_component("response_llm", OpenAIChatGenerator(model="gpt-4.1-mini"))
         pipeline.connect("llm.replies", "tool_invoker.messages")
         pipeline.connect("llm.replies", "adapter.initial_tool_messages")
         pipeline.connect("tool_invoker.tool_messages", "adapter.tool_messages")

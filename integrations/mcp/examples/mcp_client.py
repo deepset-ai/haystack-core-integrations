@@ -2,10 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import argparse
 import logging
 
-from haystack_integrations.tools.mcp import MCPTool, SSEServerInfo, StreamableHttpServerInfo
+from haystack_integrations.tools.mcp import MCPTool, StreamableHttpServerInfo
 
 # Setup targeted logging - only show debug logs from our package
 logging.basicConfig(level=logging.WARNING)  # Set root logger to WARNING
@@ -19,28 +18,13 @@ if not mcp_logger.handlers:
     mcp_logger.propagate = False  # Prevent propagation to root logger
 
 # Run this client after running the server mcp_server.py
-# It shows how easy it is to use the MCPTool with different transport options
+# It shows how easy it is to use the MCPTool with streamable-http transport
 
 
 def main():
     """Example of MCPTool usage with server connection."""
 
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(description="Run an MCP client to connect to the server")
-    parser.add_argument(
-        "--transport",
-        type=str,
-        default="sse",
-        choices=["sse", "streamable-http"],
-        help="Transport mechanism for the MCP client (default: sse)",
-    )
-    args = parser.parse_args()
-
-    # Construct the appropriate URL based on transport type
-    if args.transport == "sse":
-        server_info = SSEServerInfo(url="http://localhost:8000/sse")
-    else:  # streamable-http
-        server_info = StreamableHttpServerInfo(url="http://localhost:8000/mcp")
+    server_info = StreamableHttpServerInfo(url="http://localhost:8000/mcp")
     tool = None
     tool_subtract = None
     try:
