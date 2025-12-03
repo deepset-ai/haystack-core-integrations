@@ -17,18 +17,6 @@ from haystack_integrations.components.converters.paddleocr import (
 )
 
 
-def download_test_file(url, dest_path, timeout=30):
-    """Download a test file from URL to destination path."""
-    try:
-        response = requests.get(url, timeout=timeout)
-        response.raise_for_status()
-        dest_path.write_bytes(response.content)
-        return True
-    except Exception as e:
-        pytest.skip(f"Failed to download test file from {url}: {e}")
-        return False
-
-
 def create_empty_pdf(tmp_path, filename="test.pdf"):
     """Create an empty PDF file using pypdfium2."""
     pdf = pdfium.PdfDocument.new()
@@ -125,7 +113,7 @@ class TestPaddleOCRVLDocumentConverter:
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("AISTUDIO_ACCESS_TOKEN", "test-access-token")
-        converter = PaddleOCRVLDocumentConverter("http://test-api-url.com")
+        converter = PaddleOCRVLDocumentConverter(api_url="http://test-api-url.com")
         converter_dict = converter.to_dict()
 
         assert converter_dict == {
@@ -389,11 +377,6 @@ class TestPaddleOCRVLDocumentConverter:
         }
         return mock_response
 
-    @pytest.fixture
-    def integration_enabled(self):
-        """Check if integration tests should run."""
-        return bool(os.environ.get("PADDLEOCR_VL_API_URL") and os.environ.get("AISTUDIO_ACCESS_TOKEN"))
-
     @pytest.mark.parametrize(
         "source_type",
         ["file_path_str", "path_object", "bytestream"],
@@ -640,7 +623,7 @@ class TestPaddleOCRVLDocumentConverter:
         converter = PaddleOCRVLDocumentConverter(
             api_url="http://test-api-url.com",
             access_token=Secret.from_token("test-access-token"),
-            file_type=1,  # Manually specify as image (numeric)
+            file_type="image",  # Manually specify as image
         )
 
         # Create a PDF file (which would normally auto-detect as PDF)
@@ -725,53 +708,34 @@ class TestPaddleOCRVLDocumentConverter:
     )
     @pytest.mark.integration
     @pytest.mark.parametrize(
-        "test_files,expected_docs",
+        "source_files,expected_docs",
         [
             (
                 [
-                    (
-                        "https://paddle-model-ecology.bj.bcebos.com/paddlex/serving/pipeline_data/ppchatocr/contract.pdf",
-                        "contract.pdf",
-                    )
+                    "sample_pdf.pdf",
                 ],
                 1,
             ),
             (
                 [
-                    (
-                        "https://paddle-model-ecology.bj.bcebos.com/paddlex/imgs/demo_image/general_ocr_002.png",
-                        "general_ocr_002.png",
-                    )
+                    "newspaper.png",
                 ],
                 1,
             ),
             (
                 [
-                    (
-                        "https://paddle-model-ecology.bj.bcebos.com/paddlex/serving/pipeline_data/ppchatocr/contract.pdf",
-                        "contract.pdf",
-                    ),
-                    (
-                        "https://paddle-model-ecology.bj.bcebos.com/paddlex/imgs/demo_image/general_ocr_002.png",
-                        "general_ocr_002.png",
-                    ),
+                    "sample_pdf.pdf",
+                    "newspaper.png",
                 ],
                 2,
             ),
         ],
         ids=["pdf_only", "image_only", "mixed_pdf_image"],
     )
-    def test_integration_run_with_files(self, tmp_path, test_files, expected_docs):
+    def test_integration_run_with_files(self, test_files_path, source_files, expected_docs):
         """Integration test with real API call using various file types"""
-        # Download all test files
-        source_files = []
-        for url, filename in test_files:
-            file_path = tmp_path / filename
-            if download_test_file(url, file_path):
-                source_files.append(str(file_path))
 
-        if not source_files:
-            pytest.skip("Failed to download any test files")
+        source_files = [test_files_path / file for file in source_files]
 
         converter = PaddleOCRVLDocumentConverter(api_url=os.environ["PADDLEOCR_VL_API_URL"])
 

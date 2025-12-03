@@ -21,7 +21,7 @@ from typing_extensions import Self, TypeAlias
 logger = logging.getLogger(__name__)
 
 
-FileTypeInput: TypeAlias = Union[Literal["pdf", "image", 0, 1], None]
+FileTypeInput: TypeAlias = Union[Literal["pdf", "image"], None]
 
 # Supported image file extensions
 _IMAGE_EXTENSIONS = {
@@ -37,14 +37,17 @@ _IMAGE_EXTENSIONS = {
 _PDF_EXTENSIONS = {".pdf"}
 
 
-def _infer_file_type_from_source(source: Union[str, Path, ByteStream], bytestream: ByteStream) -> Optional[FileType]:
+def _infer_file_type_from_source(
+    source: Union[str, Path, ByteStream],
+    mime_type: Optional[str] = None,
+) -> Optional[FileType]:
     """
     Infer file type from file extension or MIME type.
 
     :param source:
         Original source (file path, Path object, or ByteStream).
-    :param bytestream:
-        ByteStream object containing file metadata.
+    :param mime_type:
+        MIME type of the source.
     :returns:
         Inferred file type: 0 for PDF, 1 for image, or None if cannot be
         determined.
@@ -55,12 +58,9 @@ def _infer_file_type_from_source(source: Union[str, Path, ByteStream], bytestrea
     # Check if source is a file path
     if isinstance(source, (str, Path)):
         file_path = str(source)
-    # Check if source is ByteStream and has file_path in metadata
+    # Check if source is `ByteStream` and has `file_path` in metadata
     elif isinstance(source, ByteStream) and source.meta:
         file_path = source.meta.get("file_path")
-    # Check ByteStream metadata for file_path
-    if file_path is None and isinstance(bytestream, ByteStream) and bytestream.meta:
-        file_path = bytestream.meta.get("file_path")
 
     # Try to infer from file extension
     if file_path:
@@ -73,11 +73,11 @@ def _infer_file_type_from_source(source: Union[str, Path, ByteStream], bytestrea
             return 1
 
     # Try to infer from MIME type if available
-    if hasattr(bytestream, "mime_type") and bytestream.mime_type:
-        mime_type = bytestream.mime_type.lower()
-        if mime_type == "application/pdf":
+    if mime_type:
+        mime_type_lower = mime_type.lower()
+        if mime_type_lower == "application/pdf":
             return 0
-        if mime_type.startswith("image/"):
+        if mime_type_lower.startswith("image/"):
             return 1
 
     return None
@@ -141,6 +141,7 @@ class PaddleOCRVLDocumentConverter:
 
     def __init__(
         self,
+        *,
         api_url: str,
         access_token: Secret = Secret.from_env_var("AISTUDIO_ACCESS_TOKEN"),
         file_type: Optional[FileTypeInput] = None,
@@ -459,7 +460,8 @@ class PaddleOCRVLDocumentConverter:
             if self.file_type is not None:
                 file_type = self.file_type
             else:
-                file_type = _infer_file_type_from_source(source, bytestream)
+                mime_type = bytestream.mime_type if hasattr(bytestream, "mime_type") and bytestream.mime_type else None
+                file_type = _infer_file_type_from_source(source, mime_type)
             if file_type is None:
                 logger.warning(
                     f"Could not determine file type for {source}. Skipping it.",
