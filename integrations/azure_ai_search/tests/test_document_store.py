@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import os
 import random
 from datetime import datetime, timezone
@@ -301,6 +302,104 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert document_store.count_documents() == 0
         document_store.delete_all_documents()
         assert document_store.count_documents() == 0
+
+    def test_delete_by_filter(self, document_store: AzureAISearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "A"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 3
+
+        # Delete documents with category="A"
+        deleted_count = document_store.delete_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert deleted_count == 2
+        assert document_store.count_documents() == 1
+
+        # Verify only category B remains
+        remaining_docs = document_store.filter_documents()
+        assert len(remaining_docs) == 1
+        assert remaining_docs[0].meta["category"] == "B"
+
+    def test_delete_by_filter_no_matches(self, document_store: AzureAISearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 2
+
+        # Try to delete documents with category="C" (no matches)
+        deleted_count = document_store.delete_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "C"}
+        )
+        assert deleted_count == 0
+        assert document_store.count_documents() == 2
+
+    def test_update_by_filter(self, document_store: AzureAISearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "draft"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "draft"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 3
+
+        # Update status for category="A" documents
+        updated_count = document_store.update_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "A"},
+            fields={"status": "published"},
+        )
+        assert updated_count == 2
+
+        # Verify the updates
+        published_docs = document_store.filter_documents(
+            filters={"field": "meta.status", "operator": "==", "value": "published"}
+        )
+        assert len(published_docs) == 2
+        for doc in published_docs:
+            assert doc.meta["category"] == "A"
+            assert doc.meta["status"] == "published"
+
+        # Verify category B still has draft status
+        draft_docs = document_store.filter_documents(
+            filters={"field": "meta.status", "operator": "==", "value": "draft"}
+        )
+        assert len(draft_docs) == 1
+        assert draft_docs[0].meta["category"] == "B"
+
+    def test_update_by_filter_no_matches(self, document_store: AzureAISearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "draft"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 2
+
+        # Try to update documents with category="C" (no matches)
+        updated_count = document_store.update_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "C"},
+            fields={"status": "published"},
+        )
+        assert updated_count == 0
+
+    def test_update_by_filter_invalid_field(self, document_store: AzureAISearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
+        ]
+        document_store.write_documents(docs)
+
+        # Try to update a field that doesn't exist in the schema
+        with pytest.raises(ValueError) as exc_info:
+            document_store.update_by_filter(
+                filters={"field": "meta.category", "operator": "==", "value": "A"},
+                fields={"nonexistent_field": "value"},
+            )
+        assert "nonexistent_field" in str(exc_info.value)
+        assert "not defined in the index schema" in str(exc_info.value)
 
 
 def _random_embeddings(n):

@@ -423,6 +423,105 @@ class AzureAISearchDocumentStore:
             msg = f"Failed to delete all documents from Azure AI Search: {e!s}"
             raise HttpResponseError(msg) from e
 
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Deletes all documents that match the provided filters.
+
+        Azure AI Search does not support server-side delete by query, so this method
+        first searches for matching documents, then deletes them in a batch operation.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        try:
+            normalized_filters = _normalize_filters(filters)
+
+            # Search for all documents matching the filter (only need the id field)
+            results = list(self.client.search(
+                search_text="*",
+                filter=normalized_filters,
+                select=["id"],
+                top=100000
+            ))
+
+            if not results:
+                return 0
+
+            # Prepare documents for deletion
+            documents_to_delete = [{"id": doc["id"]} for doc in results]
+
+            # Delete the documents
+            self.client.delete_documents(documents=documents_to_delete)
+
+            logger.info(
+                "Deleted {n_docs} documents from index '{idx_name}' using filters.",
+                n_docs=len(documents_to_delete),
+                idx_name=self._index_name,
+            )
+            return len(documents_to_delete)
+
+        except Exception as e:
+            msg = f"Failed to delete documents by filter from Azure AI Search: {e!s}"
+            raise HttpResponseError(msg) from e
+
+    def update_by_filter(self, filters: dict[str, Any], fields: dict[str, Any]) -> int:
+        """
+        Updates the fields of all documents that match the provided filters.
+
+        Azure AI Search does not support server-side update by query, so this method
+        first searches for matching documents, then updates them using merge operations.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param fields: The fields to update. These fields must exist in the index schema.
+        :returns: The number of documents updated.
+        """
+        try:
+            # Validate that fields to update exist in the index schema
+            invalid_fields = [key for key in fields.keys() if key not in self._index_fields]
+            if invalid_fields:
+                msg = f"Fields {invalid_fields} are not defined in index schema. Available fields: {self._index_fields}"
+                raise ValueError(msg)
+
+            normalized_filters = _normalize_filters(filters)
+
+            # Search for all documents matching the filter (only need the id field)
+            results = list(self.client.search(
+                search_text="*",
+                filter=normalized_filters,
+                select=["id"],
+                top=100000
+            ))
+
+            if not results:
+                return 0
+
+            # Prepare documents for merge (partial update)
+            # Each document needs its id plus the fields to update
+            documents_to_update = []
+            for doc in results:
+                update_doc = {"id": doc["id"]}
+                update_doc.update(fields)
+                documents_to_update.append(update_doc)
+
+            # Use merge_documents for partial updates
+            self.client.merge_documents(documents=documents_to_update)
+
+            logger.info(
+                "Updated {n_docs} documents in index '{idx_name}' using filters.",
+                n_docs=len(documents_to_update),
+                idx_name=self._index_name,
+            )
+            return len(documents_to_update)
+
+        except ValueError:
+            # Re-raise ValueError for invalid fields without wrapping
+            raise
+        except Exception as e:
+            msg = f"Failed to update documents by filter in Azure AI Search: {e!s}"
+            raise HttpResponseError(msg) from e
+
     def get_documents_by_id(self, document_ids: list[str]) -> list[Document]:
         return self._convert_search_result_to_documents(self._get_raw_documents_by_id(document_ids))
 
