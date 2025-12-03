@@ -13,15 +13,19 @@ from haystack.components.converters.utils import (
 )
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret, deserialize_secrets_inplace
-from paddlex.inference.serving.schemas.paddleocr_vl import InferRequest as PaddleOCRVLInferRequest  # type: ignore[import-untyped]
-from paddlex.inference.serving.schemas.paddleocr_vl import InferResult as PaddleOCRVLInferResult  # type: ignore[import-untyped]
+from paddlex.inference.serving.schemas.paddleocr_vl import (  # type: ignore[import-untyped]
+    InferRequest as PaddleOCRVLInferRequest,
+)
+from paddlex.inference.serving.schemas.paddleocr_vl import (  # type: ignore[import-untyped]
+    InferResult as PaddleOCRVLInferResult,
+)
 from paddlex.inference.serving.schemas.shared.ocr import FileType  # type: ignore[import-untyped]
-from typing_extensions import Self, TypeAlias
+from typing_extensions import Self
 
 logger = logging.getLogger(__name__)
 
 
-FileTypeInput: TypeAlias = Union[Literal["pdf", "image"], None]
+FileTypeInput = Union[Literal["pdf", "image"], None]
 
 # Supported image file extensions
 _IMAGE_EXTENSIONS = {
