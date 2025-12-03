@@ -277,7 +277,7 @@ class TestPaddleOCRVLDocumentConverter:
                     "strict": True,
                     "type": "env_var",
                 },
-                "file_type": 0,
+                "file_type": "pdf",
                 "use_doc_orientation_classify": True,
                 "use_doc_unwarping": False,
                 "use_layout_detection": True,

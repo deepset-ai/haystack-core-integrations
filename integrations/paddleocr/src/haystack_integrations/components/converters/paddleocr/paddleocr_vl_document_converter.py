@@ -13,9 +13,9 @@ from haystack.components.converters.utils import (
 )
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret, deserialize_secrets_inplace
-from paddlex.inference.serving.schemas.paddleocr_vl import InferRequest as PaddleOCRVLInferRequest  # type: ignore
-from paddlex.inference.serving.schemas.paddleocr_vl import InferResult as PaddleOCRVLInferResult  # type: ignore
-from paddlex.inference.serving.schemas.shared.ocr import FileType  # type: ignore
+from paddlex.inference.serving.schemas.paddleocr_vl import InferRequest as PaddleOCRVLInferRequest  # type: ignore[import-untyped]
+from paddlex.inference.serving.schemas.paddleocr_vl import InferResult as PaddleOCRVLInferResult  # type: ignore[import-untyped]
+from paddlex.inference.serving.schemas.shared.ocr import FileType  # type: ignore[import-untyped]
 from typing_extensions import Self, TypeAlias
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,7 @@ def _normalize_file_type(file_type: Optional[FileTypeInput]) -> Optional[FileTyp
     Normalize file type input to the numeric format expected by the API.
 
     :param file_type:
-        File type input. Can be "pdf" or 0 for PDF, "image" or 1 for image,
+        File type input. Can be "pdf" for PDF, "image" for image,
         or `None` for auto-detection.
     :returns:
         Normalized file type: 0 for PDF, 1 for image, or `None` for
@@ -103,9 +103,7 @@ def _normalize_file_type(file_type: Optional[FileTypeInput]) -> Optional[FileTyp
             return 1
         msg = f"Invalid `file_type` string: {file_type}. Must be 'pdf' or 'image'."
         raise ValueError(msg)
-    if file_type in (0, 1):
-        return file_type
-    msg = f"Invalid `file_type` value: {file_type}. Must be 0, 1, 'pdf', 'image', or `None`."
+    msg = f"Invalid `file_type` value: {file_type}. Must be 'pdf', 'image', or `None`."
     raise ValueError(msg)
 
 
