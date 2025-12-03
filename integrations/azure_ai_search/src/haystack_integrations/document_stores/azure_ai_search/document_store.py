@@ -438,12 +438,7 @@ class AzureAISearchDocumentStore:
             normalized_filters = _normalize_filters(filters)
 
             # Search for all documents matching the filter (only need the id field)
-            results = list(self.client.search(
-                search_text="*",
-                filter=normalized_filters,
-                select=["id"],
-                top=100000
-            ))
+            results = list(self.client.search(search_text="*", filter=normalized_filters, select=["id"], top=100000))
 
             if not results:
                 return 0
@@ -487,12 +482,7 @@ class AzureAISearchDocumentStore:
             normalized_filters = _normalize_filters(filters)
 
             # Search for all documents matching the filter (only need the id field)
-            results = list(self.client.search(
-                search_text="*",
-                filter=normalized_filters,
-                select=["id"],
-                top=100000
-            ))
+            results = list(self.client.search(search_text="*", filter=normalized_filters, select=["id"], top=100000))
 
             if not results:
                 return 0
