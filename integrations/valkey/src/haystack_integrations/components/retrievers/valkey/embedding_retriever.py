@@ -1,4 +1,6 @@
-from typing import Any, Optional, Union
+from __future__ import annotations
+
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -11,7 +13,16 @@ from haystack_integrations.document_stores.valkey import ValkeyDocumentStore
 @component
 class ValkeyEmbeddingRetriever:
     """
-    Retrieves documents from the `ValkeyDocumentStore`, based on their dense embeddings.
+    A component for retrieving documents from a ValkeyDocumentStore using vector similarity search.
+
+    This retriever uses dense embeddings to find semantically similar documents. It supports
+    filtering by metadata fields and configurable similarity thresholds.
+
+    Key features:
+    - Vector similarity search using HNSW algorithm
+    - Metadata filtering with tag and numeric field support
+    - Configurable top-k results
+    - Filter policy management for runtime filter application
 
     Usage example:
     ```python
@@ -50,9 +61,9 @@ class ValkeyEmbeddingRetriever:
         self,
         *,
         document_store: ValkeyDocumentStore,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
+        filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ):
         """
         :param document_store: The Valkey Document Store.
@@ -88,7 +99,7 @@ class ValkeyEmbeddingRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ValkeyEmbeddingRetriever":
+    def from_dict(cls, data: dict[str, Any]) -> ValkeyEmbeddingRetriever:
         """
         Deserializes the component from a dictionary.
         :param data:
@@ -109,8 +120,8 @@ class ValkeyEmbeddingRetriever:
     def run(
         self,
         query_embedding: list[float],
-        filters: Optional[dict[str, Any]] = None,
-        top_k: Optional[int] = None,
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
     ) -> dict[str, list[Document]]:
         """
         Retrieve documents from the `ValkeyDocumentStore`, based on their dense embeddings.
