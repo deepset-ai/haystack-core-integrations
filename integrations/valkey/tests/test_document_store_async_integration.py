@@ -1,8 +1,12 @@
+# ruff: noqa: S110
+
+import uuid
+
 import pytest
 import pytest_asyncio
-import uuid
-from haystack.dataclasses import Document, ByteStream
-from haystack_integrations.document_stores.valkey import ValkeyDocumentStore, ValkeyDocumentStoreError
+from haystack.dataclasses import ByteStream, Document
+
+from haystack_integrations.document_stores.valkey import ValkeyDocumentStore
 
 
 @pytest.mark.integration

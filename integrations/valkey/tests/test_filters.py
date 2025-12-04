@@ -43,12 +43,12 @@ filters_data = [
     # IN operator for TagField
     (
         {"operator": "AND", "conditions": [{"field": "meta.status", "operator": "in", "value": ["active", "pending"]}]},
-        "(@meta_status:{active | pending})",
+        "((@meta_status:{active} | @meta_status:{pending}))",
     ),
     # IN operator for NumericField
     (
         {"operator": "AND", "conditions": [{"field": "meta.priority", "operator": "in", "value": [1, 2, 3]}]},
-        "(@meta_priority:[1 1 | 2 2 | 3 3])",
+        "((@meta_priority:[1 1] | @meta_priority:[2 2] | @meta_priority:[3 3]))",
     ),
     # NOT EQUAL for TagField
     (
