@@ -1,7 +1,9 @@
+# ruff: noqa: S110
 import pytest
 from haystack.dataclasses import Document
 from haystack.dataclasses.byte_stream import ByteStream
-from haystack_integrations.document_stores.valkey import ValkeyDocumentStore, ValkeyDocumentStoreError
+
+from haystack_integrations.document_stores.valkey import ValkeyDocumentStore
 
 
 @pytest.mark.integration
@@ -13,7 +15,7 @@ class TestValkeyDocumentStoreIntegration:
         # Cleanup
         try:
             store.close()
-        except:
+        except Exception:
             pass
 
     @pytest.fixture(autouse=True)

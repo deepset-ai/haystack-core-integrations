@@ -1,4 +1,38 @@
-from typing import Any, Optional
+"""Valkey document store filtering utilities.
+
+This module provides filter conversion from Haystack's filter format to Valkey Search query syntax.
+It supports both tag-based exact matching and numeric range filtering with logical operators.
+
+Supported filter operations:
+- TagField filters: ==, !=, in, not in (exact string matches)
+- NumericField filters: ==, !=, >, >=, <, <=, in, not in (numeric comparisons)
+- Logical operators: AND, OR for combining conditions
+
+Filter syntax examples:
+```python
+# Simple equality filter
+filters = {"field": "meta.category", "operator": "==", "value": "tech"}
+
+# Numeric range filter
+filters = {"field": "meta.priority", "operator": ">=", "value": 5}
+
+# List membership filter
+filters = {"field": "meta.status", "operator": "in", "value": ["active", "pending"]}
+
+# Complex logical filter
+filters = {
+    "operator": "AND",
+    "conditions": [
+        {"field": "meta.category", "operator": "==", "value": "tech"},
+        {"field": "meta.priority", "operator": ">=", "value": 3}
+    ]
+}
+```
+"""
+
+from __future__ import annotations
+
+from typing import Any
 
 from haystack.errors import FilterError
 
@@ -6,6 +40,9 @@ from haystack.errors import FilterError
 def _normalize_filters(filters: dict[str, Any]) -> str:
     """
     Converts Haystack filters to Valkey Search query syntax.
+
+    Transforms Haystack's filter format into Valkey FT.SEARCH compatible query strings.
+    Supports both simple field comparisons and complex logical combinations.
 
     Valkey Search supports:
     - TagField: exact matches (==, !=, in, not in)
@@ -18,6 +55,10 @@ def _normalize_filters(filters: dict[str, Any]) -> str:
     - meta_priority (NumericField): numeric comparisons
     - meta_score (NumericField): score filtering
     - meta_timestamp (NumericField): date/time filtering
+
+    :param filters: Haystack filter dictionary.
+    :return: Valkey Search query string.
+    :raises FilterError: If filter format is invalid or unsupported.
     """
     if not isinstance(filters, dict):
         msg = "Filters must be a dictionary"
@@ -76,7 +117,8 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> str:
 
     # Validate operator for field type
     if operator not in FIELD_TYPE_OPERATORS[field_type]:
-        msg = f"Operator '{operator}' not supported for {field_type} field '{field}'. Supported: {FIELD_TYPE_OPERATORS[field_type]}"
+        supported_ops = FIELD_TYPE_OPERATORS[field_type]
+        msg = f"Operator '{operator}' not supported for {field_type} field '{field}'. Supported: {supported_ops}"
         raise FilterError(msg)
 
     return COMPARISON_OPERATORS[operator](field, value, field_type)
@@ -159,7 +201,7 @@ def _in(field: str, value: Any, field_type: str) -> str:
                 msg = f"TagField '{field}' requires string values in list, got {type(v)}"
                 raise FilterError(msg)
         escaped_values = [_escape_value(v) for v in value]
-        # Use OR syntax for multiple tag values (workaround)
+        # Use OR syntax for multiple tag values
         conditions = [f"@{field}:{{{val}}}" for val in escaped_values]
         return f"({' | '.join(conditions)})"
     else:  # numeric
@@ -167,8 +209,9 @@ def _in(field: str, value: Any, field_type: str) -> str:
             if not isinstance(v, (int, float)):
                 msg = f"NumericField '{field}' requires numeric values in list, got {type(v)}"
                 raise FilterError(msg)
-        ranges = [f"{v} {v}" for v in value]
-        return f"@{field}:[{' | '.join(ranges)}]"
+        # For numeric fields, use OR with separate range queries for each value
+        conditions = [f"@{field}:[{v} {v}]" for v in value]
+        return f"({' | '.join(conditions)})"
 
 
 def _not_in(field: str, value: Any, field_type: str) -> str:
@@ -188,8 +231,9 @@ def _not_in(field: str, value: Any, field_type: str) -> str:
             if not isinstance(v, (int, float)):
                 msg = f"NumericField '{field}' requires numeric values in list, got {type(v)}"
                 raise FilterError(msg)
-        ranges = [f"{v} {v}" for v in value]
-        return f"-@{field}:[{' | '.join(ranges)}]"
+        # For numeric fields, use negated OR with separate range queries
+        conditions = [f"@{field}:[{v} {v}]" for v in value]
+        return f"-({' | '.join(conditions)})"
 
 
 def _escape_value(value: str) -> str:
@@ -255,7 +299,7 @@ COMPARISON_OPERATORS = {
 }
 
 
-def _validate_filters(filters: Optional[dict[str, Any]]) -> None:
+def _validate_filters(filters: dict[str, Any] | None) -> None:
     """
     Helper method to validate filter syntax.
     """
