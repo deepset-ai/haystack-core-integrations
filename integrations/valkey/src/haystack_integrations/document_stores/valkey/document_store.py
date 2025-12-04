@@ -69,10 +69,10 @@ class ValkeyDocumentStoreError(DocumentStoreError):
 
 class ValkeyDocumentStore(DocumentStore):
     """
-    A document store implementation using Valkey (Redis-compatible) with vector search capabilities.
+    A document store implementation using Valkey with vector search capabilities.
 
     This document store provides persistent storage for documents with embeddings and supports
-    vector similarity search using the FT.SEARCH module. It's designed for high-performance
+    vector similarity search using the Valkey Search module. It's designed for high-performance
     retrieval applications requiring both semantic search and metadata filtering.
 
     Key features:
@@ -83,7 +83,7 @@ class ValkeyDocumentStore(DocumentStore):
     - Both synchronous and asynchronous operations
     - Cluster and standalone mode support
 
-    Supported filterable metadata fields:
+    Supported filterable Document metadata fields:
     - meta_category (TagField): exact string matches
     - meta_status (TagField): status filtering
     - meta_priority (NumericField): numeric comparisons
@@ -685,7 +685,6 @@ class ValkeyDocumentStore(DocumentStore):
         ```
         """
         client = self._get_connection()
-        assert client is not None
 
         keys: list[str | bytes] = [f"{self._index_name}:{doc_id}" for doc_id in document_ids]
         try:

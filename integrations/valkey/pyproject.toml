@@ -7,7 +7,7 @@ name = "valkey-haystack"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
-requires-python = ">=3.9,<3.14"
+requires-python = ">=3.9,<3.13"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "John Doe", email = "jd@example.com" }]
