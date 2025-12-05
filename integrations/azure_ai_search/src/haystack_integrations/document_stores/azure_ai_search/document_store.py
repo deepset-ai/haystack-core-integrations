@@ -438,16 +438,12 @@ class AzureAISearchDocumentStore:
         try:
             normalized_filters = _normalize_filters(filters)
 
-            # Search for all documents matching the filter (only need the id field)
             results = list(self.client.search(search_text="*", filter=normalized_filters, select=["id"], top=100000))
 
             if not results:
                 return 0
 
-            # Prepare documents for deletion
             documents_to_delete = [{"id": doc["id"]} for doc in results]
-
-            # Delete the documents
             self.client.delete_documents(documents=documents_to_delete)
 
             logger.info(
@@ -474,7 +470,7 @@ class AzureAISearchDocumentStore:
         :returns: The number of documents updated.
         """
         try:
-            # Validate that fields to update exist in the index schema
+            # validate that fields to update exist in the index schema
             invalid_fields = [key for key in fields.keys() if key not in self._index_fields]
             if invalid_fields:
                 msg = f"Fields {invalid_fields} are not defined in index schema. Available fields: {self._index_fields}"
@@ -482,21 +478,17 @@ class AzureAISearchDocumentStore:
 
             normalized_filters = _normalize_filters(filters)
 
-            # Search for all documents matching the filter (only need the id field)
             results = list(self.client.search(search_text="*", filter=normalized_filters, select=["id"], top=100000))
 
             if not results:
                 return 0
 
-            # Prepare documents for merge (partial update)
-            # Each document needs its id plus the fields to update
             documents_to_update = []
             for doc in results:
                 update_doc = {"id": doc["id"]}
                 update_doc.update(fields)
                 documents_to_update.append(update_doc)
 
-            # Use merge_documents for partial updates
             self.client.merge_documents(documents=documents_to_update)
 
             logger.info(
