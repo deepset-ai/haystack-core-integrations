@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """Valkey document store filtering utilities.
 
 This module provides filter conversion from Haystack's filter format to Valkey Search query syntax.
