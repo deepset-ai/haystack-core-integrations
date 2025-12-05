@@ -155,7 +155,7 @@ class AzureAISearchDocumentStore:
         self._index_name = index_name
         self._embedding_dimension = embedding_dimension
         self._dummy_vector = [-10.0] * self._embedding_dimension
-        self._metadata_fields = self._normalize_metadata_index_fields(metadata_fields)
+        self._metadata_fields = AzureAISearchDocumentStore._normalize_metadata_index_fields(metadata_fields)
         self._vector_search_configuration = vector_search_configuration or DEFAULT_VECTOR_SEARCH
         self._include_search_metadata = include_search_metadata
         self._index_creation_kwargs = index_creation_kwargs
@@ -199,8 +199,8 @@ class AzureAISearchDocumentStore:
 
         return self._client
 
-    def _normalize_metadata_index_fields(
-        self, metadata_fields: Optional[dict[str, Union[SearchField, type]]]
+    @staticmethod
+    def _normalize_metadata_index_fields(metadata_fields: Optional[dict[str, Union[SearchField, type]]]
     ) -> dict[str, SearchField]:
         """Create a list of index fields for storing metadata values."""
 
