@@ -7,7 +7,7 @@ from unittest.mock import patch
 import psycopg
 import pytest
 from haystack.dataclasses.document import ByteStream, Document
-from haystack.document_stores.errors import DuplicateDocumentError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret
 from psycopg.sql import SQL
@@ -100,6 +100,13 @@ class TestDocumentStoreAsync:
         assert document_store.count_documents() == 0
         document_store.write_documents([Document(id="1")])
         assert document_store.count_documents() == 1
+
+    async def test_invalid_connection_string(self, monkeypatch):
+        monkeypatch.setenv("PG_CONN_STR", "invalid_connection_string")
+        document_store = PgvectorDocumentStore()
+        with pytest.raises(DocumentStoreError) as e:
+            await document_store._ensure_db_setup_async()
+        assert "Failed to connect to PostgreSQL database" in str(e)
 
 
 @pytest.mark.integration
