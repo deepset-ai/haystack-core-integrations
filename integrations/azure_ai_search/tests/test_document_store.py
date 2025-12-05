@@ -303,6 +303,11 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         document_store.delete_all_documents()
         assert document_store.count_documents() == 0
 
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": {"category": str}}],
+        indirect=True,
+    )
     def test_delete_by_filter(self, document_store: AzureAISearchDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A"}),
@@ -324,6 +329,11 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert len(remaining_docs) == 1
         assert remaining_docs[0].meta["category"] == "B"
 
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": {"category": str}}],
+        indirect=True,
+    )
     def test_delete_by_filter_no_matches(self, document_store: AzureAISearchDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A"}),
@@ -339,6 +349,11 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert deleted_count == 0
         assert document_store.count_documents() == 2
 
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": {"category": str, "status": str}}],
+        indirect=True,
+    )
     def test_update_by_filter(self, document_store: AzureAISearchDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
@@ -371,6 +386,11 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert len(draft_docs) == 1
         assert draft_docs[0].meta["category"] == "B"
 
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": {"category": str, "status": str}}],
+        indirect=True,
+    )
     def test_update_by_filter_no_matches(self, document_store: AzureAISearchDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
@@ -386,6 +406,11 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         )
         assert updated_count == 0
 
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": {"category": str, "status": str}}],
+        indirect=True,
+    )
     def test_update_by_filter_invalid_field(self, document_store: AzureAISearchDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
@@ -399,7 +424,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
                 fields={"nonexistent_field": "value"},
             )
         assert "nonexistent_field" in str(exc_info.value)
-        assert "not defined in the index schema" in str(exc_info.value)
+        assert "not defined in index schema" in str(exc_info.value)
 
 
 def _random_embeddings(n):
