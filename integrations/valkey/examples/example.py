@@ -6,7 +6,7 @@
 # git clone https://github.com/anakin87/neural-search-pills
 
 # Run example
-# uv run examples/pipeline_example.py
+# uv run examples/example.py
 
 # Create the indexing Pipeline and index some documents
 

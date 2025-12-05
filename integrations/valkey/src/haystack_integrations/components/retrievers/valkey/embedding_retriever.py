@@ -1,6 +1,8 @@
-from __future__ import annotations
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
 
-from typing import Any
+from typing import Any, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -61,9 +63,9 @@ class ValkeyEmbeddingRetriever:
         self,
         *,
         document_store: ValkeyDocumentStore,
-        filters: dict[str, Any] | None = None,
+        filters: Optional[dict[str, Any]] = None,
         top_k: int = 10,
-        filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
+        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
     ):
         """
         :param document_store: The Valkey Document Store.
@@ -99,7 +101,7 @@ class ValkeyEmbeddingRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> ValkeyEmbeddingRetriever:
+    def from_dict(cls, data: dict[str, Any]) -> "ValkeyEmbeddingRetriever":
         """
         Deserializes the component from a dictionary.
         :param data:
@@ -120,8 +122,8 @@ class ValkeyEmbeddingRetriever:
     def run(
         self,
         query_embedding: list[float],
-        filters: dict[str, Any] | None = None,
-        top_k: int | None = None,
+        filters: Optional[dict[str, Any]] = None,
+        top_k: Optional[int] = None,
     ) -> dict[str, list[Document]]:
         """
         Retrieve documents from the `ValkeyDocumentStore`, based on their dense embeddings.
