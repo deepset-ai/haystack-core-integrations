@@ -101,9 +101,10 @@ class PgvectorDocumentStore:
         A specific table to store Haystack documents will be created if it doesn't exist yet.
 
         :param connection_string: The connection string to use to connect to the PostgreSQL database, defined as an
-            environment variable. It can be provided in either URI format
-            e.g.: `PG_CONN_STR="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"`, or keyword/value format
-            e.g.: `PG_CONN_STR="host=HOST port=PORT dbname=DBNAME user=USER password=PASSWORD"`
+            environment variable. Supported formats:
+            - URI, e.g. `PG_CONN_STR="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"` (use percent-encoding for special
+                characters)
+            - keyword/value format, e.g. `PG_CONN_STR="host=HOST port=PORT dbname=DBNAME user=USER password=PASSWORD"`
             See [PostgreSQL Documentation](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING)
             for more details.
         :param create_extension: Whether to create the pgvector extension if it doesn't exist.
@@ -360,7 +361,15 @@ class PgvectorDocumentStore:
                 logger.debug("Failed to close connection: {e}", e=str(e))
 
         conn_str = self.connection_string.resolve_value() or ""
-        connection = Connection.connect(conn_str)
+        try:
+            connection = Connection.connect(conn_str)
+        except Error as e:
+            msg = (
+                "Failed to connect to PostgreSQL database.  Ensure the connection string follows the "
+                "PostgreSQL connection specification: "
+                "https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING."
+            )
+            raise DocumentStoreError(msg) from e
         connection.autocommit = True
         if self.create_extension:
             connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
@@ -394,7 +403,15 @@ class PgvectorDocumentStore:
             await self._async_connection.close()
 
         conn_str = self.connection_string.resolve_value() or ""
-        async_connection = await AsyncConnection.connect(conn_str)
+        try:
+            async_connection = await AsyncConnection.connect(conn_str)
+        except Error as e:
+            msg = (
+                "Failed to connect to PostgreSQL database.  Ensure the connection string follows the "
+                "PostgreSQL connection specification: "
+                "https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING."
+            )
+            raise DocumentStoreError(msg) from e
         await async_connection.set_autocommit(True)
         if self.create_extension:
             await async_connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
