@@ -200,7 +200,8 @@ class AzureAISearchDocumentStore:
         return self._client
 
     @staticmethod
-    def _normalize_metadata_index_fields(metadata_fields: Optional[dict[str, Union[SearchField, type]]]
+    def _normalize_metadata_index_fields(
+        metadata_fields: Optional[dict[str, Union[SearchField, type]]],
     ) -> dict[str, SearchField]:
         """Create a list of index fields for storing metadata values."""
 
