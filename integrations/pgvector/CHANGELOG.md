@@ -1,5 +1,24 @@
 # Changelog
 
+## [integrations/pgvector-v5.4.0] - 2025-12-05
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+- Pgvector - document expected connection string and raise informative error (#2583)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 5) (#2528)
+
 ## [integrations/pgvector-v5.3.0] - 2025-10-17
 
 ### 🚀 Features
