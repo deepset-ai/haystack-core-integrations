@@ -67,7 +67,7 @@ dependencies = [
 [tool.hatch.envs.test.scripts]
 unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
-all = 'pytest --reruns 3 --reruns-delay 30 {args:tests}'
+all = 'pytest {args:tests}'
 cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x {args:tests}'
 
 types = """mypy -p haystack_integrations.document_stores.weaviate \
