@@ -663,7 +663,7 @@ class TestOpenRouterChatGenerator:
 
         # Pass mixed list: echo_tool (individual) and toolset (weather + time) at runtime
         # This tests that both individual tools and toolsets can be combined
-        messages = [ChatMessage.from_user("Echo this: Hello World")]
+        messages = [ChatMessage.from_user("Echo this via tool: Hello World")]
         results = component.run(messages, tools=[echo_tool, toolset])
 
         assert len(results["replies"]) == 1
