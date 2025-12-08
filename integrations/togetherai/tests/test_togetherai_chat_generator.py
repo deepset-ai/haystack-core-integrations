@@ -394,7 +394,7 @@ class TestTogetherAIChatGenerator:
         Integration test that the TogetherAIChatGenerator component can run with tools and get a response.
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
-        component = TogetherAIChatGenerator(model="openai/gpt-oss-20b", tools=tools)
+        component = TogetherAIChatGenerator(model="openai/gpt-oss-120b", tools=tools)
         results = component.run(messages=initial_messages, generation_kwargs={"tool_choice": "auto"})
 
         assert len(results["replies"]) == 1
