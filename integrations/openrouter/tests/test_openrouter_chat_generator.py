@@ -494,7 +494,9 @@ class TestOpenRouterChatGenerator:
                 "You must respond with a JSON object containing 'city' and 'country' fields."
             )
         ]
-        comp = OpenRouterChatGenerator(generation_kwargs={"response_format": response_schema})
+        comp = OpenRouterChatGenerator(
+            model="openai/gpt-5-mini", generation_kwargs={"response_format": response_schema}
+        )
         results = comp.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
@@ -627,7 +629,9 @@ class TestOpenRouterChatGenerator:
                 "'event_name', 'event_date', and 'event_location' fields."
             )
         ]
-        component = OpenRouterChatGenerator(generation_kwargs={"response_format": calendar_event_model})
+        component = OpenRouterChatGenerator(
+            model="openai/gpt-5-mini", generation_kwargs={"response_format": calendar_event_model}
+        )
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
