@@ -486,15 +486,33 @@ class TestOpenRouterChatGenerator:
             },
         }
 
-        chat_messages = [ChatMessage.from_user("What's the capital of France?")]
+        # Use a more explicit prompt that emphasizes JSON structure requirement
+        # gpt-5-mini is very rarely flaky but to harden CI we'll be more explicit
+        chat_messages = [
+            ChatMessage.from_user(
+                "What's the capital of France? "
+                "You must respond with a JSON object containing 'city' and 'country' fields."
+            )
+        ]
         comp = OpenRouterChatGenerator(generation_kwargs={"response_format": response_schema})
         results = comp.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        msg = json.loads(message.text)
-        assert "Paris" in msg["city"]
-        assert isinstance(msg["country"], str)
-        assert "France" in msg["country"]
+        try:
+            msg = json.loads(message.text)
+        except json.JSONDecodeError as e:
+            pytest.fail(
+                f"Failed to parse response as JSON. "
+                f"Expected JSON with 'city' and 'country' fields, but got: {message.text!r}. "
+                f"Error: {e}"
+            )
+
+        # Validate JSON structure with descriptive error messages
+        assert "city" in msg, f"Response JSON missing 'city' field. Got: {msg}"
+        assert "country" in msg, f"Response JSON missing 'country' field. Got: {msg}"
+        assert "paris" in msg["city"].lower(), f"Expected 'Paris' in city field, got: {msg['city']}"
+        assert isinstance(msg["country"], str), f"Expected country to be string, got: {type(msg['country'])}"
+        assert "france" in msg["country"].lower(), f"Expected 'France' in country field, got: {msg['country']}"
         assert message.meta["finish_reason"] == "stop"
 
     def test_serde_in_pipeline(self, monkeypatch):
@@ -601,17 +619,40 @@ class TestOpenRouterChatGenerator:
     )
     @pytest.mark.integration
     def test_live_run_with_response_format_pydantic_model(self, calendar_event_model):
+        # Use a more explicit prompt that emphasizes JSON structure requirement
         chat_messages = [
-            ChatMessage.from_user("The marketing summit takes place on October12th at the Hilton Hotel downtown.")
+            ChatMessage.from_user(
+                "The marketing summit takes place on October12th at the Hilton Hotel downtown. "
+                "Extract the event information and respond with a JSON object containing "
+                "'event_name', 'event_date', and 'event_location' fields."
+            )
         ]
         component = OpenRouterChatGenerator(generation_kwargs={"response_format": calendar_event_model})
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        msg = json.loads(message.text)
-        assert "Marketing Summit" in msg["event_name"]
-        assert isinstance(msg["event_date"], str)
-        assert isinstance(msg["event_location"], str)
+
+        # Add better error message if JSON parsing fails
+        try:
+            msg = json.loads(message.text)
+        except json.JSONDecodeError as e:
+            pytest.fail(
+                f"Failed to parse response as JSON. "
+                f"Expected JSON with 'event_name', 'event_date', and 'event_location' fields, "
+                f"but got: {message.text!r}. Error: {e}"
+            )
+
+        # Validate JSON structure with descriptive error messages
+        assert "event_name" in msg, f"Response JSON missing 'event_name' field. Got: {msg}"
+        assert "event_date" in msg, f"Response JSON missing 'event_date' field. Got: {msg}"
+        assert "event_location" in msg, f"Response JSON missing 'event_location' field. Got: {msg}"
+        assert "marketing summit" in msg["event_name"].lower(), (
+            f"Expected 'Marketing Summit' in event_name, got: {msg['event_name']}"
+        )
+        assert isinstance(msg["event_date"], str), f"Expected event_date to be string, got: {type(msg['event_date'])}"
+        assert isinstance(msg["event_location"], str), (
+            f"Expected event_location to be string, got: {type(msg['event_location'])}"
+        )
 
     @pytest.mark.skipif(
         not os.environ.get("OPENROUTER_API_KEY", None),
