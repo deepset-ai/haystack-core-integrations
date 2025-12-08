@@ -74,7 +74,7 @@ jobs:
         run: |
           hatch env prune
           hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
-          hatch run test:all
+          hatch run test:cov-retry
 
       - name: Send event to Datadog for nightly failures
         if: failure() && github.event_name == 'schedule'
