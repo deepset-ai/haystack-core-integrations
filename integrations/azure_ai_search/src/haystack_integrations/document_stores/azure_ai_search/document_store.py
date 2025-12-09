@@ -47,7 +47,7 @@ from .errors import AzureAISearchDocumentStoreConfigError
 from .filters import _normalize_filters
 
 USER_AGENT = "haystack-integrations/azure-ai-search"
-BIG_TOP_K=100000
+BIG_TOP_K = 100000
 
 type_mapping = {
     str: "Edm.String",

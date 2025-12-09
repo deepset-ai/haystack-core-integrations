@@ -211,6 +211,7 @@ def test_init_is_lazy(_mock_azure_search_client):
     AzureAISearchDocumentStore(azure_endpoint=Secret.from_token("test_endpoint"))
     _mock_azure_search_client.assert_not_called()
 
+
 # @patch("haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore")
 def test_init():
     document_store = AzureAISearchDocumentStore(
