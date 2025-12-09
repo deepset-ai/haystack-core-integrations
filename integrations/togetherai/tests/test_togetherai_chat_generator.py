@@ -394,7 +394,7 @@ class TestTogetherAIChatGenerator:
         Integration test that the TogetherAIChatGenerator component can run with tools and get a response.
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
-        component = TogetherAIChatGenerator(tools=tools)
+        component = TogetherAIChatGenerator(model="openai/gpt-oss-120b", tools=tools)
         results = component.run(messages=initial_messages, generation_kwargs={"tool_choice": "auto"})
 
         assert len(results["replies"]) == 1
@@ -685,7 +685,7 @@ class TestTogetherAIChatGenerator:
         initial_messages = [
             ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
         ]
-        component = TogetherAIChatGenerator(model="meta-llama/Llama-3.3-70B-Instruct-Turbo", tools=mixed_tools)
+        component = TogetherAIChatGenerator(model="openai/gpt-oss-120b", tools=mixed_tools)
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"
