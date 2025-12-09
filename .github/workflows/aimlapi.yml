@@ -67,12 +67,13 @@ jobs:
           hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
           hatch run test:unit
 
-      - name: Nightly - run unit tests with Haystack main branch
+      # Since this integration inherits from OpenAIChatGenerator, we run ALL tests with Haystack main branch to catch regressions
+      - name: Nightly - run tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
           hatch env prune
           hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
-          hatch run test:unit
+          hatch run test:cov-retry
 
       - name: Send event to Datadog for nightly failures
         if: failure() && github.event_name == 'schedule'
