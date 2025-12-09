@@ -2,13 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-MistralAgentGenerator - A Haystack component for Mistral's Agents API.
-
-This component interacts with pre-configured Mistral AI Agents via the
-/v1/agents/completions endpoint.
-"""
-
 import json
 from datetime import datetime
 from typing import Any, Literal, Optional, Union
