@@ -204,16 +204,16 @@ class TestSanitizeUsageData:
             "completion_tokens": 449,
         }
         result = _sanitize_usage_data(usage)
-        assert "input_tokens" in result and result["input_tokens"] > 0
-        assert "output_tokens" in result and result["output_tokens"] > 0
+        assert result["input_tokens"] == 25
+        assert result["output_tokens"] == 449
 
     def test_openai_usage_preserved(self):
         """Test OpenAI/Cohere flat dict with only numeric values works unchanged"""
         usage = {"prompt_tokens": 29, "completion_tokens": 267, "total_tokens": 296}
         result = _sanitize_usage_data(usage)
-        assert "input_tokens" in result and result["input_tokens"] > 0
-        assert "output_tokens" in result and result["output_tokens"] > 0
-        assert "total_tokens" in result and result["total_tokens"] > 0
+        assert result["input_tokens"] == 29
+        assert result["output_tokens"] == 267
+        assert result["total_tokens"] == 296
 
     def test_empty_and_invalid_input(self):
         """Test edge cases return empty dict"""
@@ -425,9 +425,7 @@ class TestDefaultSpanHandler:
         assert mock_span.update.call_count == 1
         update_args = mock_span.update.call_args_list[0][1]
         assert update_args["model"] == "custom-model"
-        usage_details = update_args["usage_details"]
-        assert "input_tokens" in usage_details and usage_details["input_tokens"] > 0
-        assert "total_tokens" in usage_details and usage_details["total_tokens"] > 0
+        assert update_args["usage_details"] == {"input_tokens": 15, "total_tokens": 15}
 
     def test_handle_embedder_with_cohere_format(self):
         """Test that embedder usage is extracted in Cohere billed_units format."""
