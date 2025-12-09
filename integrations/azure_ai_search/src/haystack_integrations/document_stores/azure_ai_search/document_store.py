@@ -47,6 +47,7 @@ from .errors import AzureAISearchDocumentStoreConfigError
 from .filters import _normalize_filters
 
 USER_AGENT = "haystack-integrations/azure-ai-search"
+BIG_TOP_K=100000
 
 type_mapping = {
     str: "Edm.String",
@@ -412,7 +413,7 @@ class AzureAISearchDocumentStore:
                     return
 
                 # Search for all documents (pagination handled by Azure SDK)
-                all_docs = list(self.client.search(search_text="*", select=["id"], top=100000))
+                all_docs = list(self.client.search(search_text="*", select=["id"], top=BIG_TOP_K))
 
                 if all_docs:
                     self.client.delete_documents(all_docs)
@@ -439,7 +440,7 @@ class AzureAISearchDocumentStore:
         try:
             normalized_filters = _normalize_filters(filters)
 
-            results = list(self.client.search(search_text="*", filter=normalized_filters, select=["id"], top=100000))
+            results = list(self.client.search(search_text="*", filter=normalized_filters, select=["id"], top=BIG_TOP_K))
 
             if not results:
                 return 0
@@ -447,18 +448,14 @@ class AzureAISearchDocumentStore:
             documents_to_delete = [{"id": doc["id"]} for doc in results]
             self.client.delete_documents(documents=documents_to_delete)
 
-            logger.info(
-                "Deleted {n_docs} documents from index '{idx_name}' using filters.",
-                n_docs=len(documents_to_delete),
-                idx_name=self._index_name,
-            )
             return len(documents_to_delete)
 
         except Exception as e:
             msg = f"Failed to delete documents by filter from Azure AI Search: {e!s}"
-            raise HttpResponseError(msg) from e
+            logger.error(msg)
+            raise
 
-    def update_by_filter(self, filters: dict[str, Any], fields: dict[str, Any]) -> int:
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
         """
         Updates the fields of all documents that match the provided filters.
 
@@ -467,19 +464,19 @@ class AzureAISearchDocumentStore:
 
         :param filters: The filters to apply to select documents for updating.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
-        :param fields: The fields to update. These fields must exist in the index schema.
+        :param meta: The fields to update. These fields must exist in the index schema.
         :returns: The number of documents updated.
         """
         try:
             # validate that fields to update exist in the index schema
-            invalid_fields = [key for key in fields.keys() if key not in self._index_fields]
+            invalid_fields = [key for key in meta.keys() if key not in self._index_fields]
             if invalid_fields:
                 msg = f"Fields {invalid_fields} are not defined in index schema. Available fields: {self._index_fields}"
                 raise ValueError(msg)
 
             normalized_filters = _normalize_filters(filters)
 
-            results = list(self.client.search(search_text="*", filter=normalized_filters, select=["id"], top=100000))
+            results = list(self.client.search(search_text="*", filter=normalized_filters, select=["id"], top=BIG_TOP_K))
 
             if not results:
                 return 0
@@ -487,7 +484,7 @@ class AzureAISearchDocumentStore:
             documents_to_update = []
             for doc in results:
                 update_doc = {"id": doc["id"]}
-                update_doc.update(fields)
+                update_doc.update(meta)
                 documents_to_update.append(update_doc)
 
             self.client.merge_documents(documents=documents_to_update)
