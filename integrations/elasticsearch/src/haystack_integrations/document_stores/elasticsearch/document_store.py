@@ -742,7 +742,6 @@ class ElasticsearchDocumentStore:
             normalized_filters = _normalize_filters(filters)
             # Build the update script to modify metadata fields
             # Documents are stored with flattened metadata, so update fields directly in ctx._source
-
             update_script = """
             for (entry in params.entrySet()) {
                 ctx._source[entry.getKey()] = entry.getValue();
@@ -781,15 +780,17 @@ class ElasticsearchDocumentStore:
             normalized_filters = _normalize_filters(filters)
             # Build the update script to modify metadata fields
             # Documents are stored with flattened metadata, so update fields directly in ctx._source
-            update_script_lines = []
-            for key in meta.keys():
-                update_script_lines.append(f"ctx._source.{key} = params.{key};")
-            update_script = " ".join(update_script_lines)
+            update_script = """
+            for (entry in params.entrySet()) {
+                ctx._source[entry.getKey()] = entry.getValue();
+            }
+            """
 
             body = {
                 "query": {"bool": {"filter": normalized_filters}},
                 "script": {"source": update_script, "params": meta, "lang": "painless"},
             }
+
             result = await self.async_client.update_by_query(index=self._index, body=body)  # type: ignore
             updated_count = result.get("updated", 0)
             logger.info(

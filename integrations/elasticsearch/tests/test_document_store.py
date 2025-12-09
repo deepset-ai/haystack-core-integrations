@@ -850,7 +850,7 @@ class TestElasticsearchDocumentStoreAsync:
         updated_count = await document_store.update_by_filter_async(
             filters={"field": "category", "operator": "==", "value": "A"}, meta={"status": "published"}
         )
-        time.sleep(2)  # wait for update to be reflected
+        await asyncio.sleep(2)  # wait for update to be reflected
         assert updated_count == 2
 
         # Verify the updates
