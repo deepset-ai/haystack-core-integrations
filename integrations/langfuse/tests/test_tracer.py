@@ -537,13 +537,22 @@ class TestLangfuseTracer:
         mock_raw_span.metadata = {"tag1": "value1", "tag2": "value2"}
 
         with patch("haystack_integrations.tracing.langfuse.tracer.LangfuseSpan") as mock_langfuse_span:
-            mock_span_instance = mock_langfuse_span.return_value
-            mock_span_instance.raw_span.return_value = mock_raw_span
-
             mock_context_manager = MockContextManager()
             mock_context_manager._span = mock_raw_span
+
+            mock_span_instance = mock_langfuse_span.return_value
+            mock_span_instance.raw_span.return_value = mock_raw_span
+            # Return a proper dict to prevent MagicMock from being truthy in handle() checks.
+            # When get_data() returns a MagicMock, `span.get_data().get(key) is not None` is True
+            # because MagicMock().get() returns another MagicMock (truthy). This triggers
+            # tracing_utils.coerce_tag_value() with MagicMock objects, which can hang on
+            # Linux Python 3.9/3.13 due to platform-specific MagicMock iteration behavior.
+            mock_span_instance.get_data.return_value = {}
+            mock_span_instance._context_manager = mock_context_manager
+
             mock_tracer = MagicMock()
             mock_tracer.start_as_current_span.return_value = mock_context_manager
+            mock_tracer.start_as_current_observation.return_value = mock_context_manager
 
             tracer = LangfuseTracer(tracer=mock_tracer, name="Haystack", public=False)
 
