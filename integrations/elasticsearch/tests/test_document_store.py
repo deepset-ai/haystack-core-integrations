@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import random
 import time
 from unittest.mock import Mock, patch
@@ -804,7 +805,7 @@ class TestElasticsearchDocumentStoreAsync:
 
         await document_store.delete_all_documents_async(recreate_index=False)
         # Need to wait for the deletion to be reflected in count_documents
-        time.sleep(2)
+        await asyncio.sleep(2)
         assert await document_store.count_documents_async() == 0
 
         new_doc = Document(id="3", content="New document after delete all")
@@ -825,7 +826,8 @@ class TestElasticsearchDocumentStoreAsync:
         deleted_count = await document_store.delete_by_filter_async(
             filters={"field": "category", "operator": "==", "value": "A"}
         )
-        time.sleep(2)  # wait for deletion to be reflected
+        await asyncio.sleep(2)  # wait for deletion to be reflected
+
         assert deleted_count == 2
         assert await document_store.count_documents_async() == 1
 
