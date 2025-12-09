@@ -35,7 +35,7 @@ ToolChoiceType = Union[
 
 
 @component
-class MistralAgentGenerator:
+class MistralAgent:
     """
     Generates text using Mistral AI Agents.
 
@@ -47,11 +47,11 @@ class MistralAgentGenerator:
     [Mistral Agents API](https://docs.mistral.ai/api/endpoint/agents)
 
     Usage example:
-    from haystack_integrations.components.generators.mistral import MistralAgentGenerator
+    from haystack_integrations.components.generators.mistral import MistralAgent
     from haystack.dataclasses import ChatMessage
 
     # Initialize with your agent ID
-    generator = MistralAgentGenerator(agent_id="your-agent-id")
+    generator = MistralAgent(agent_id="your-agent-id")
 
     messages = [ChatMessage.from_user("What can you help me with?")]
     response = generator.run(messages)
@@ -73,7 +73,7 @@ class MistralAgentGenerator:
         max_retries: int = 3,
     ):
         """
-        Creates an instance of MistralAgentGenerator.
+        Creates an instance of MistralAgent.
 
         :param agent_id:
             The ID of the Mistral Agent to use. This is required and can be found
@@ -157,15 +157,31 @@ class MistralAgentGenerator:
         merged_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
         # Convert messages to API format
-        api_messages = [msg.to_openai_dict_format() for msg in messages]
+        # Mistral expects: {"role": "user", "content": "..."} format
+        api_messages = []
+        for msg in messages:
+            openai_format = msg.to_openai_dict_format()
+            # Ensure content is a string (not a list of content blocks)
+            if isinstance(openai_format.get("content"), list):
+                # Extract text from content blocks
+                text_parts = []
+                for block in openai_format["content"]:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        text_parts.append(block.get("text", ""))
+                    elif isinstance(block, str):
+                        text_parts.append(block)
+                openai_format["content"] = "".join(text_parts)
+            api_messages.append(openai_format)
 
-        # Build base payload
+        # Build base payload - only required fields
         payload: dict[str, Any] = {
             "agent_id": self.agent_id,
             "messages": api_messages,
-            "stream": streaming_callback is not None,
-            "parallel_tool_calls": self.parallel_tool_calls,
         }
+
+        # Only add stream if True (don't send stream: false)
+        if streaming_callback is not None:
+            payload["stream"] = True
 
         # Add tools if provided
         flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
@@ -174,10 +190,12 @@ class MistralAgentGenerator:
                 {"type": "function", "function": t.tool_spec}
                 for t in flattened_tools
             ]
+            # Only add parallel_tool_calls when tools are present
+            payload["parallel_tool_calls"] = self.parallel_tool_calls
 
-        # Add tool_choice
+        # Add tool_choice only if tools are present
         effective_tool_choice = tool_choice or self.tool_choice
-        if effective_tool_choice is not None:
+        if effective_tool_choice is not None and flattened_tools:
             payload["tool_choice"] = effective_tool_choice
 
         # Add generation kwargs
@@ -393,9 +411,23 @@ class MistralAgentGenerator:
 
             except httpx.HTTPStatusError as e:
                 last_error = e
+                # Log the actual error response for debugging
+                error_detail = ""
+                try:
+                    error_detail = e.response.text
+                except Exception:
+                    pass
+                logger.error(
+                    "Mistral Agent API error: {status_code} - {detail}",
+                    status_code=e.response.status_code,
+                    detail=error_detail,
+                )
                 if e.response.status_code >= 500:
                     continue  # Retry on server errors
-                raise
+                # Re-raise with more context for client errors
+                raise ValueError(
+                    f"Mistral Agent API error ({e.response.status_code}): {error_detail}"
+                ) from e
             except httpx.RequestError as e:
                 last_error = e
                 if attempt < self.max_retries - 1:
@@ -486,7 +518,7 @@ class MistralAgentGenerator:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "MistralAgentGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "MistralAgent":
         """Deserialize this component from a dictionary."""
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")

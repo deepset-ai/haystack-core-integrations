@@ -1,3 +1,3 @@
-from .mistral.agent import MistralAgentGenerator
+from .mistral.agent import MistralAgent
 
-__all__ = ["MistralAgentGenerator"]
+__all__ = ["MistralAgent"]
