@@ -242,41 +242,30 @@ class SpanHandler(ABC):
 
 def _sanitize_usage_data(usage: dict[str, Any]) -> dict[str, Any]:
     """
-    Sanitize usage data for Langfuse by flattening to a single-level dictionary.
+    Sanitize usage data for Langfuse by converting provider-specific keys to Langfuse standard keys.
 
-    Langfuse's usage_details must be a flat dictionary with only numeric values. This function:
-    - Flattens nested dictionaries using dot notation (e.g., cache_creation.input_tokens)
-    - Keeps int and float values
-    - Skips None, boolean, string, and other non-numeric types
+    Langfuse expects usage_details with standard keys: input_tokens, output_tokens, and total_tokens.
+    This function converts provider-specific keys to Langfuse's expected format:
+    - prompt_tokens -> input_tokens
+    - completion_tokens -> output_tokens
+    - total_tokens -> total_tokens (preserved as-is)
 
     :param usage: Raw usage dictionary from the provider.
-    :returns: Flat dictionary with only numeric values (int or float).
+    :returns: Dictionary with Langfuse standard keys (input_tokens, output_tokens, total_tokens).
     """
     if not isinstance(usage, dict):
         return {}
 
-    sanitized: dict[str, Any] = {}
+    # Start with Langfuse standard keys from usage if present
+    sanitized: dict[str, Any] = {
+        k: v for k, v in usage.items() if k in ("input_tokens", "output_tokens", "total_tokens")
+    }
+    # Convert provider format to Langfuse standard keys if not already present
+    if "input_tokens" not in sanitized and "prompt_tokens" in usage:
+        sanitized["input_tokens"] = usage["prompt_tokens"]
+    if "output_tokens" not in sanitized and "completion_tokens" in usage:
+        sanitized["output_tokens"] = usage["completion_tokens"]
 
-    def _flatten(data: dict[str, Any], prefix: str = "") -> None:
-        """Recursively flatten nested dictionaries."""
-        for key, value in data.items():
-            full_key = f"{prefix}.{key}" if prefix else key
-
-            if value is None:
-                # Skip None values (e.g., Anthropic's server_tool_use)
-                continue
-            elif isinstance(value, bool):
-                # Skip boolean values
-                continue
-            elif isinstance(value, (int, float)):
-                # Keep numeric values
-                sanitized[full_key] = value
-            elif isinstance(value, dict):
-                # Recursively flatten nested dicts
-                _flatten(value, full_key)
-            # Skip strings and other non-numeric types (e.g., Anthropic's service_tier)
-
-    _flatten(usage)
     return sanitized
 
 

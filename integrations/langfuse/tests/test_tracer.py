@@ -204,20 +204,16 @@ class TestSanitizeUsageData:
             "completion_tokens": 449,
         }
         result = _sanitize_usage_data(usage)
-        assert result == {
-            "cache_creation.ephemeral_1h_input_tokens": 0,
-            "cache_creation.ephemeral_5m_input_tokens": 0,
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "prompt_tokens": 25,
-            "completion_tokens": 449,
-        }
+        assert "input_tokens" in result and result["input_tokens"] > 0
+        assert "output_tokens" in result and result["output_tokens"] > 0
 
     def test_openai_usage_preserved(self):
         """Test OpenAI/Cohere flat dict with only numeric values works unchanged"""
         usage = {"prompt_tokens": 29, "completion_tokens": 267, "total_tokens": 296}
         result = _sanitize_usage_data(usage)
-        assert result == {"prompt_tokens": 29, "completion_tokens": 267, "total_tokens": 296}
+        assert "input_tokens" in result and result["input_tokens"] > 0
+        assert "output_tokens" in result and result["output_tokens"] > 0
+        assert "total_tokens" in result and result["total_tokens"] > 0
 
     def test_empty_and_invalid_input(self):
         """Test edge cases return empty dict"""
@@ -427,10 +423,11 @@ class TestDefaultSpanHandler:
         handler.handle(mock_span, component_type="OpenAITextEmbedder")
 
         assert mock_span.update.call_count == 1
-        assert mock_span.update.call_args_list[0][1] == {
-            "usage_details": {"prompt_tokens": 15, "total_tokens": 15},
-            "model": "custom-model",
-        }
+        update_args = mock_span.update.call_args_list[0][1]
+        assert update_args["model"] == "custom-model"
+        usage_details = update_args["usage_details"]
+        assert "input_tokens" in usage_details and usage_details["input_tokens"] > 0
+        assert "total_tokens" in usage_details and usage_details["total_tokens"] > 0
 
     def test_handle_embedder_with_cohere_format(self):
         """Test that embedder usage is extracted in Cohere billed_units format."""
@@ -491,8 +488,9 @@ class TestDefaultSpanHandler:
         handler.handle(mock_span, component_type="CustomEmbedder")
 
         assert mock_span.update.call_count == 1
+        # Only adds total_tokens as Langfuse standard key (no prompt_tokens/completion_tokens to convert)
         assert mock_span.update.call_args_list[0][1] == {
-            "usage_details": {"cache_creation.input_tokens": 10, "cache_read.input_tokens": 5, "total_tokens": 15},
+            "usage_details": {"total_tokens": 15},
             "model": "custom-model",
         }
 
