@@ -743,6 +743,7 @@ class ElasticsearchDocumentStore:
             # Build the update script to modify metadata fields
             # Documents are stored with flattened metadata, so update fields directly in ctx._source
 
+
             script_source = """
             for (entry in params. updates.entrySet()) {
                 ctx._source[entry.getKey()] = entry.getValue();
@@ -751,7 +752,7 @@ class ElasticsearchDocumentStore:
 
             body = {
                 "query": {"bool": {"filter": normalized_filters}},
-                "script": {"source": script_source, "params": {"updates": meta}, "lang": "painless"},
+                "script": {"source": update_script, "params": meta, "lang": "painless"},
             }
 
             result = self.client.update_by_query(index=self._index, body=body)  # type: ignore
