@@ -499,8 +499,8 @@ class AzureAISearchDocumentStore:
             # Re-raise ValueError for invalid fields without wrapping
             raise
         except Exception as e:
-            msg = f"Failed to update documents by filter in Azure AI Search: {e!s}"
-            raise HttpResponseError(msg) from e
+            msg = f"Failed to delete documents by filter from Azure AI Search: {e!s}"
+            raise AzureAISearchDocumentStoreError(msg) from e
 
     def get_documents_by_id(self, document_ids: list[str]) -> list[Document]:
         return self._convert_search_result_to_documents(self._get_raw_documents_by_id(document_ids))
