@@ -43,6 +43,7 @@ UPDATE_SCRIPT = """
             }
             """
 
+
 class ElasticsearchDocumentStore:
     """
     An ElasticsearchDocumentStore instance that works with Elastic Cloud or your own
