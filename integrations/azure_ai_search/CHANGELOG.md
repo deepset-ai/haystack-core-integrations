@@ -4,7 +4,7 @@
 
 ### 🚀 Features
 
-- Adding updated/delete by filter + tests to `AzureAISearchDocument Store` (#2586)
+- Adding `update_by_filter()` and `delete_by_filter()` to `AzureAISearchDocument Store` (#2586)
 
 
 ### 🧪 Testing
