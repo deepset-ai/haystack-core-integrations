@@ -452,8 +452,7 @@ class AzureAISearchDocumentStore:
 
         except Exception as e:
             msg = f"Failed to delete documents by filter from Azure AI Search: {e!s}"
-            logger.error(msg)
-            raise
+            raise AzureAISearchDocumentStoreError(msg) from e
 
     def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
         """
