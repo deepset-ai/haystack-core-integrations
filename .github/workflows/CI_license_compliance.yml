@@ -13,7 +13,7 @@ on:
 env:
   CORE_DATADOG_API_KEY: ${{ secrets.CORE_DATADOG_API_KEY }}
   PYTHON_VERSION: "3.10"
-  EXCLUDE_PACKAGES: "(?i)^(azure-identity|fastembed|ragas|tqdm|psycopg|mistralai).*"
+  EXCLUDE_PACKAGES: "(?i)^(azure-identity|fastembed|ragas|tqdm|psycopg|mistralai|pgvector).*"
 
   # Exclusions must be explicitly motivated
   #
@@ -21,6 +21,7 @@ env:
   # - fastembed is Apache 2.0 but the license on PyPI is unclear ("Other/Proprietary License (Apache License)")
   # - ragas is Apache 2.0 but the license is not available on PyPI
   # - mistralai is Apache 2.0 but the license is not available on PyPI
+  # - pgvector is MIT but the license is not available on PyPI
 
   # - tqdm is MLP but there are no better alternatives
   # - psycopg is LGPL-3.0 but FOSSA is fine with it

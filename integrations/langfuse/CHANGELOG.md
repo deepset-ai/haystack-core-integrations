@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/langfuse-v3.3.1] - 2025-12-10
+
+### 🚀 Features
+
+- *(langfuse)* Add embedder usage metrics for langfuse (#2542)
+
+### 🐛 Bug Fixes
+
+- Correct token usage accounting, fix trace polling in tests (#2594)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+
+
 ## [integrations/langfuse-v3.3.0] - 2025-11-21
 
 ### 🚀 Features

@@ -176,7 +176,7 @@ class TestTogetherAIChatGeneratorAsync:
     @pytest.mark.asyncio
     async def test_live_run_with_tools_and_response_async(self, tools):
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = TogetherAIChatGenerator(tools=tools)
+        component = TogetherAIChatGenerator(model="openai/gpt-oss-20b", tools=tools)
         results = await component.run_async(messages=initial_messages, generation_kwargs={"tool_choice": "auto"})
 
         assert len(results["replies"]) > 0, "No replies received"
