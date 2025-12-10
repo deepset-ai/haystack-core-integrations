@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import logging as python_logging
 from datetime import datetime
 from typing import Any, Optional, Union
@@ -42,10 +43,11 @@ from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from .errors import AzureAISearchDocumentStoreConfigError
+from .errors import AzureAISearchDocumentStoreConfigError, AzureAISearchDocumentStoreError
 from .filters import _normalize_filters
 
 USER_AGENT = "haystack-integrations/azure-ai-search"
+BIG_TOP_K = 100000
 
 type_mapping = {
     str: "Edm.String",
@@ -154,7 +156,7 @@ class AzureAISearchDocumentStore:
         self._index_name = index_name
         self._embedding_dimension = embedding_dimension
         self._dummy_vector = [-10.0] * self._embedding_dimension
-        self._metadata_fields = self._normalize_metadata_index_fields(metadata_fields)
+        self._metadata_fields = AzureAISearchDocumentStore._normalize_metadata_index_fields(metadata_fields)
         self._vector_search_configuration = vector_search_configuration or DEFAULT_VECTOR_SEARCH
         self._include_search_metadata = include_search_metadata
         self._index_creation_kwargs = index_creation_kwargs
@@ -198,8 +200,9 @@ class AzureAISearchDocumentStore:
 
         return self._client
 
+    @staticmethod
     def _normalize_metadata_index_fields(
-        self, metadata_fields: Optional[dict[str, Union[SearchField, type]]]
+        metadata_fields: Optional[dict[str, Union[SearchField, type]]],
     ) -> dict[str, SearchField]:
         """Create a list of index fields for storing metadata values."""
 
@@ -410,7 +413,7 @@ class AzureAISearchDocumentStore:
                     return
 
                 # Search for all documents (pagination handled by Azure SDK)
-                all_docs = list(self.client.search(search_text="*", select=["id"], top=100000))
+                all_docs = list(self.client.search(search_text="*", select=["id"], top=BIG_TOP_K))
 
                 if all_docs:
                     self.client.delete_documents(all_docs)
@@ -422,6 +425,82 @@ class AzureAISearchDocumentStore:
         except Exception as e:
             msg = f"Failed to delete all documents from Azure AI Search: {e!s}"
             raise HttpResponseError(msg) from e
+
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Deletes all documents that match the provided filters.
+
+        Azure AI Search does not support server-side delete by query, so this method
+        first searches for matching documents, then deletes them in a batch operation.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        try:
+            normalized_filters = _normalize_filters(filters)
+
+            results = list(self.client.search(search_text="*", filter=normalized_filters, select=["id"], top=BIG_TOP_K))
+
+            if not results:
+                return 0
+
+            documents_to_delete = [{"id": doc["id"]} for doc in results]
+            self.client.delete_documents(documents=documents_to_delete)
+
+            return len(documents_to_delete)
+
+        except Exception as e:
+            msg = f"Failed to delete documents by filter from Azure AI Search: {e!s}"
+            raise AzureAISearchDocumentStoreError(msg) from e
+
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Updates the fields of all documents that match the provided filters.
+
+        Azure AI Search does not support server-side update by query, so this method
+        first searches for matching documents, then updates them using merge operations.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The fields to update. These fields must exist in the index schema.
+        :returns: The number of documents updated.
+        """
+        try:
+            # validate that fields to update exist in the index schema
+            invalid_fields = [key for key in meta.keys() if key not in self._index_fields]
+            if invalid_fields:
+                msg = f"Fields {invalid_fields} are not defined in index schema. Available fields: {self._index_fields}"
+                raise ValueError(msg)
+
+            normalized_filters = _normalize_filters(filters)
+
+            results = list(self.client.search(search_text="*", filter=normalized_filters, select=["id"], top=BIG_TOP_K))
+
+            if not results:
+                return 0
+
+            documents_to_update = []
+            for doc in results:
+                update_doc = {"id": doc["id"]}
+                update_doc.update(meta)
+                documents_to_update.append(update_doc)
+
+            self.client.merge_documents(documents=documents_to_update)
+
+            logger.info(
+                "Updated {n_docs} documents in index '{idx_name}' using filters.",
+                n_docs=len(documents_to_update),
+                idx_name=self._index_name,
+            )
+            return len(documents_to_update)
+
+        except ValueError:
+            # Re-raise ValueError for invalid fields without wrapping
+            raise
+        except Exception as e:
+            msg = f"Failed to delete documents by filter from Azure AI Search: {e!s}"
+            raise AzureAISearchDocumentStoreError(msg) from e
 
     def get_documents_by_id(self, document_ids: list[str]) -> list[Document]:
         return self._convert_search_result_to_documents(self._get_raw_documents_by_id(document_ids))

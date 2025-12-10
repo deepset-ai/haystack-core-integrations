@@ -3,47 +3,53 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "meta-llama-haystack"
+name = "paddleocr-haystack"
 dynamic = ["version"]
-description = 'Use Llama models via Llama API'
+description = 'An integration of PaddleOCR with Haystack'
 readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"
 keywords = []
-authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
+authors = [
+  { name = "deepset GmbH", email = "info@deepset.ai" },
+]
 classifiers = [
-  "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.19.0"]
+dependencies = [
+  "haystack-ai>=2.19.0",
+  "paddleocr>=3.3.2",
+  "paddlex[serving]>=3.3.10",
+  "requests>=2.25.0",
+]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/meta_llama#readme"
-Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/meta_llama"
+Documentation = "https://github.com/haystack-core-integrations/tree/main/integrations/paddleocr#readme"
+Issues = "https://github.com/haystack-core-integrations/issues"
+Source = "https://github.com/haystack-core-integrations/tree/main/integrations/paddleocr"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/meta_llama-v(?P<version>.*)'
+tag-pattern = 'integrations\/paddleocr-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/meta_llama-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/paddleocr-v[0-9]*"'
 
 [tool.hatch.envs.default]
 installer = "uv"
 dependencies = ["haystack-pydoc-tools", "ruff"]
+
 [tool.hatch.envs.default.scripts]
 docs = ["pydoc-markdown pydoc/config_docusaurus.yml"]
 fmt = "ruff check --fix {args} && ruff format {args}"
@@ -51,22 +57,21 @@ fmt-check = "ruff check {args} && ruff format --check {args}"
 
 [tool.hatch.envs.test]
 dependencies = [
+    "mypy",
+    "pillow",
+    "pip",
+    "pypdfium2",
     "pytest",
-    "pytest-asyncio",
     "pytest-cov",
     "pytest-rerunfailures",
-    "mypy",
-    "pip",
-    "pytz"
 ]
 
 [tool.hatch.envs.test.scripts]
 unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
-cov-retry = 'pytest --cov="haystack_integrations" --reruns 3 --reruns-delay 30 -x {args:tests}'
-
-types = "mypy -p haystack_integrations.components.generators.meta_llama {args}"
+cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x {args:tests}'
+types = "mypy -p haystack_integrations.components.converters.paddleocr {args}"
 
 [tool.mypy]
 install_types = true
@@ -141,7 +146,6 @@ ban-relative-imports = "parents"
 source = ["haystack_integrations"]
 branch = true
 parallel = false
-
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]

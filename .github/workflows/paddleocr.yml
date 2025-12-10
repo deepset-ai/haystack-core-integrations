@@ -1,28 +1,29 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / cometapi
+name: Test / paddleocr
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/cometapi/**"
-      - "!integrations/cometapi/*.md"
-      - ".github/workflows/cometapi.yml"
+      - "integrations/paddleocr/**"
+      - "!integrations/paddleocr/*.md"
+      - ".github/workflows/paddleocr.yml"
 
 defaults:
   run:
-    working-directory: integrations/cometapi
+    working-directory: integrations/paddleocr
 
 concurrency:
-  group: cometapi-${{ github.head_ref }}
+  group: paddleocr-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  COMET_API_KEY: "${{ secrets.COMET_API_KEY }}"
+  AISTUDIO_ACCESS_TOKEN: ${{ secrets.AISTUDIO_ACCESS_TOKEN }}
+  PADDLEOCR_VL_API_URL: ${{ secrets.PADDLEOCR_VL_API_URL }}
 
 jobs:
   run:
@@ -32,8 +33,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.9", "3.13"]
-      max-parallel: 2  # to avoid "429 Resource has been exhausted"
+        python-version: ["3.9", "3.12"]
 
     steps:
       - name: Support longpaths
@@ -50,13 +50,10 @@ jobs:
 
       - name: Install Hatch
         run: pip install --upgrade hatch
+
       - name: Lint
         if: matrix.python-version == '3.9' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
-
-      - name: Generate docs
-        if: matrix.python-version == '3.9' && runner.os == 'Linux'
-        run: hatch run docs
 
       - name: Run tests
         run: hatch run test:cov-retry
@@ -67,13 +64,12 @@ jobs:
           hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
           hatch run test:unit
 
-      # Since this integration inherits from OpenAIChatGenerator, we run ALL tests with Haystack main branch to catch regressions
-      - name: Nightly - run tests with Haystack main branch
+      - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
           hatch env prune
           hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
-          hatch run test:cov-retry
+          hatch run test:unit
 
       - name: Send event to Datadog for nightly failures
         if: failure() && github.event_name == 'schedule'
@@ -81,4 +77,4 @@ jobs:
         with:
           title: |
             Core integrations nightly tests failure: ${{ github.workflow }}
-          api-key: ${{ secrets.CORE_DATADOG_API_KEY }} 
+          api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
