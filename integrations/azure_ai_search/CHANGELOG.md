@@ -1,14 +1,38 @@
 # Changelog
 
+## [integrations/azure_ai_search-v2.3.3] - 2025-12-10
+
+### 🚀 Features
+
+- Adding `update_by_filter()` and `delete_by_filter()` to `AzureAISearchDocument Store` (#2586)
+
+
+### 🧪 Testing
+
+- Fix the failing test for Azure AI (#2579)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+
+### 🌀 Miscellaneous
+
+- Adopt PEP 585 type hinting (part 1) (#2509)
+
 ## [integrations/azure_ai_search-v2.3.2] - 2025-11-11
 
 ### 🚀 Features
 
 - Delete all documents for AzureAISearch DocumentStore (#2404)
 
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+- Fix docstrings to avoid errors in API reference generation (#2423)
+
 ### ⚙️ CI
 
-- Adopt PEP 585 type hinting (#2475)
+- Change pytest command (#2475)
 
 
 ## [integrations/azure_ai_search-v2.3.1] - 2025-10-10
