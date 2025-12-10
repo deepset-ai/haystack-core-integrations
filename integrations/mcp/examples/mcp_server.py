@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import argparse
-
 from mcp.server.fastmcp import FastMCP
 
 # run this server first before running the client mcp_filtered_tools.py or mcp_client.py
@@ -27,16 +25,4 @@ def subtract(a: int, b: int) -> int:
 
 
 if __name__ == "__main__":
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(
-        description="Run an MCP server with different transport options (sse or streamable-http)"
-    )
-    parser.add_argument(
-        "--transport",
-        type=str,
-        default="sse",
-        choices=["sse", "streamable-http"],
-        help="Transport mechanism for the MCP server (default: sse)",
-    )
-    args = parser.parse_args()
-    mcp.run(transport=args.transport)
+    mcp.run(transport="streamable-http")
