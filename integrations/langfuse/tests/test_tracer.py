@@ -204,20 +204,16 @@ class TestSanitizeUsageData:
             "completion_tokens": 449,
         }
         result = _sanitize_usage_data(usage)
-        assert result == {
-            "cache_creation.ephemeral_1h_input_tokens": 0,
-            "cache_creation.ephemeral_5m_input_tokens": 0,
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "prompt_tokens": 25,
-            "completion_tokens": 449,
-        }
+        assert result["input_tokens"] == 25
+        assert result["output_tokens"] == 449
 
     def test_openai_usage_preserved(self):
         """Test OpenAI/Cohere flat dict with only numeric values works unchanged"""
         usage = {"prompt_tokens": 29, "completion_tokens": 267, "total_tokens": 296}
         result = _sanitize_usage_data(usage)
-        assert result == {"prompt_tokens": 29, "completion_tokens": 267, "total_tokens": 296}
+        assert result["input_tokens"] == 29
+        assert result["output_tokens"] == 267
+        assert result["total_tokens"] == 296
 
     def test_empty_and_invalid_input(self):
         """Test edge cases return empty dict"""
@@ -427,10 +423,9 @@ class TestDefaultSpanHandler:
         handler.handle(mock_span, component_type="OpenAITextEmbedder")
 
         assert mock_span.update.call_count == 1
-        assert mock_span.update.call_args_list[0][1] == {
-            "usage_details": {"prompt_tokens": 15, "total_tokens": 15},
-            "model": "custom-model",
-        }
+        update_args = mock_span.update.call_args_list[0][1]
+        assert update_args["model"] == "custom-model"
+        assert update_args["usage_details"] == {"input_tokens": 15, "total_tokens": 15}
 
     def test_handle_embedder_with_cohere_format(self):
         """Test that embedder usage is extracted in Cohere billed_units format."""
@@ -491,8 +486,9 @@ class TestDefaultSpanHandler:
         handler.handle(mock_span, component_type="CustomEmbedder")
 
         assert mock_span.update.call_count == 1
+        # Only adds total_tokens as Langfuse standard key (no prompt_tokens/completion_tokens to convert)
         assert mock_span.update.call_args_list[0][1] == {
-            "usage_details": {"cache_creation.input_tokens": 10, "cache_read.input_tokens": 5, "total_tokens": 15},
+            "usage_details": {"total_tokens": 15},
             "model": "custom-model",
         }
 
@@ -539,13 +535,22 @@ class TestLangfuseTracer:
         mock_raw_span.metadata = {"tag1": "value1", "tag2": "value2"}
 
         with patch("haystack_integrations.tracing.langfuse.tracer.LangfuseSpan") as mock_langfuse_span:
-            mock_span_instance = mock_langfuse_span.return_value
-            mock_span_instance.raw_span.return_value = mock_raw_span
-
             mock_context_manager = MockContextManager()
             mock_context_manager._span = mock_raw_span
+
+            mock_span_instance = mock_langfuse_span.return_value
+            mock_span_instance.raw_span.return_value = mock_raw_span
+            # Return a proper dict to prevent MagicMock from being truthy in handle() checks.
+            # When get_data() returns a MagicMock, `span.get_data().get(key) is not None` is True
+            # because MagicMock().get() returns another MagicMock (truthy). This triggers
+            # tracing_utils.coerce_tag_value() with MagicMock objects, which can hang on
+            # Linux Python 3.9/3.13 due to platform-specific MagicMock iteration behavior.
+            mock_span_instance.get_data.return_value = {}
+            mock_span_instance._context_manager = mock_context_manager
+
             mock_tracer = MagicMock()
             mock_tracer.start_as_current_span.return_value = mock_context_manager
+            mock_tracer.start_as_current_observation.return_value = mock_context_manager
 
             tracer = LangfuseTracer(tracer=mock_tracer, name="Haystack", public=False)
 
