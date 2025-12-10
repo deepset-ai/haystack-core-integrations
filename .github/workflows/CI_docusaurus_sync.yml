@@ -118,3 +118,4 @@ jobs:
             docs-website
           body: |
             This PR syncs the Core Integrations API reference (${{ env.INTEGRATION_NAME }}) on Docusaurus. Just approve and merge it.
+          reviewers: "${{ github.actor }}"

@@ -83,4 +83,5 @@ jobs:
             A good changelog diff simply lists these latest changes on top of the CHANGELOG.md file.
             If there are some diffs that seem out of place, please adjust the CHANGELOG.md file manually.
             Either way, please merge this PR as soon as possible.
+          reviewers: "${{ github.actor }}"
 
