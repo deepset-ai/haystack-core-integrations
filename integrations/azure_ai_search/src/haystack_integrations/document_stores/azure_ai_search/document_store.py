@@ -43,7 +43,7 @@ from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from .errors import AzureAISearchDocumentStoreConfigError
+from .errors import AzureAISearchDocumentStoreConfigError, AzureAISearchDocumentStoreError
 from .filters import _normalize_filters
 
 USER_AGENT = "haystack-integrations/azure-ai-search"
