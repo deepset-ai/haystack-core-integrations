@@ -4,7 +4,7 @@
 
 ### 🚀 Features
 
-- Adding update and delete by filter to `ElasticsearchDocumentStore` (#2582)
+- Adding `update_by_filter()` and `delete_by_filter()` to `ElasticsearchDocumentStore` (#2582)
 
 ### 📚 Documentation
 
