@@ -20,7 +20,6 @@ from paddlex.inference.serving.schemas.paddleocr_vl import (  # type: ignore[imp
     InferResult as PaddleOCRVLInferResult,
 )
 from paddlex.inference.serving.schemas.shared.ocr import FileType  # type: ignore[import-untyped]
-from typing_extensions import Self
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +179,7 @@ class PaddleOCRVLDocumentConverter:
             AI Studio access token. You can obtain it from [this
             page](https://aistudio.baidu.com/account/accessToken).
         :param file_type:
-            File type. Can be "pdf" or 0 for PDF files, "image" or 1 for
+            File type. Can be "pdf" for PDF files, "image" for
             image files, or `None` for auto-detection. If not specified, the
             file type will be inferred from the file extension.
         :param use_doc_orientation_classify:
@@ -286,7 +285,7 @@ class PaddleOCRVLDocumentConverter:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> Self:
+    def from_dict(cls, data: dict[str, Any]) -> "PaddleOCRVLDocumentConverter":
         """
         Deserialize the component from a dictionary.
 

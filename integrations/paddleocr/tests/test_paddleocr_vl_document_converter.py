@@ -718,14 +718,14 @@ class TestPaddleOCRVLDocumentConverter:
             ),
             (
                 [
-                    "newspaper.png",
+                    "sample_img.jpg",
                 ],
                 1,
             ),
             (
                 [
                     "sample_pdf.pdf",
-                    "newspaper.png",
+                    "sample_img.jpg",
                 ],
                 2,
             ),

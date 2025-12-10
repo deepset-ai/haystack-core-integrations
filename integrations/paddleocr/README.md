@@ -3,8 +3,6 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/paddleocr-haystack.svg)](https://pypi.org/project/paddleocr-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/paddleocr-haystack.svg)](https://pypi.org/project/paddleocr-haystack)
 
-PaddleOCR integration for Haystack, providing components for text recognition and document parsing.
-
 - [Integration page](https://haystack.deepset.ai/integrations/paddleocr)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/paddleocr/CHANGELOG.md)
 

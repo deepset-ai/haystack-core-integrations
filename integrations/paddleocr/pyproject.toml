@@ -28,7 +28,6 @@ dependencies = [
   "paddleocr>=3.3.2",
   "paddlex[serving]>=3.3.10",
   "requests>=2.25.0",
-  "typing-extensions",
 ]
 
 [project.urls]

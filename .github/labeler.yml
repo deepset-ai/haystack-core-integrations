@@ -149,6 +149,11 @@ integration:optimum:
       - any-glob-to-any-file: "integrations/optimum/**/*"
       - any-glob-to-any-file: ".github/workflows/optimum.yml"
 
+integration:paddleocr:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/paddleocr/**/*"
+      - any-glob-to-any-file: ".github/workflows/paddleocr.yml"
+
 integration:pgvector:
   - changed-files:
       - any-glob-to-any-file: "integrations/pgvector/**/*"
