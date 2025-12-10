@@ -37,6 +37,12 @@ Hosts = Union[str, list[Union[str, Mapping[str, Union[str, int]], NodeConfig]]]
 BM25_SCALING_FACTOR = 8
 DOC_ALREADY_EXISTS = 409
 
+UPDATE_SCRIPT = """
+            for (entry in params.entrySet()) {
+                ctx._source[entry.getKey()] = entry.getValue();
+            }
+            """
+
 
 class ElasticsearchDocumentStore:
     """
@@ -675,6 +681,120 @@ class ElasticsearchDocumentStore:
 
         except Exception as e:
             msg = f"Failed to delete all documents from Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        self._ensure_initialized()
+
+        try:
+            normalized_filters = _normalize_filters(filters)
+            body = {"query": {"bool": {"filter": normalized_filters}}}
+            result = self.client.delete_by_query(index=self._index, body=body)  # type: ignore
+            deleted_count = result.get("deleted", 0)
+            logger.info(
+                "Deleted {n_docs} documents from index '{index}' using filters.",
+                n_docs=deleted_count,
+                index=self._index,
+            )
+            return deleted_count
+        except Exception as e:
+            msg = f"Failed to delete documents by filter from Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        self._ensure_initialized()
+
+        try:
+            normalized_filters = _normalize_filters(filters)
+            body = {"query": {"bool": {"filter": normalized_filters}}}
+            result = await self.async_client.delete_by_query(index=self._index, body=body)  # type: ignore
+            deleted_count = result.get("deleted", 0)
+            logger.info(
+                "Deleted {n_docs} documents from index '{index}' using filters.",
+                n_docs=deleted_count,
+                index=self._index,
+            )
+            return deleted_count
+        except Exception as e:
+            msg = f"Failed to delete documents by filter from Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Updates the metadata of all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update.
+        :returns: The number of documents updated.
+        """
+        self._ensure_initialized()
+
+        try:
+            normalized_filters = _normalize_filters(filters)
+            # Build the update script to modify metadata fields
+            # Documents are stored with flattened metadata, so update fields directly in ctx._source
+            body = {
+                "query": {"bool": {"filter": normalized_filters}},
+                "script": {"source": UPDATE_SCRIPT, "params": meta, "lang": "painless"},
+            }
+
+            result = self.client.update_by_query(index=self._index, body=body)  # type: ignore
+            updated_count = result.get("updated", 0)
+            logger.info(
+                "Updated {n_docs} documents in index '{index}' using filters.",
+                n_docs=updated_count,
+                index=self._index,
+            )
+            return updated_count
+        except Exception as e:
+            msg = f"Failed to update documents by filter in Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Asynchronously updates the metadata of all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update.
+        :returns: The number of documents updated.
+        """
+        self._ensure_initialized()
+
+        try:
+            normalized_filters = _normalize_filters(filters)
+            # Build the update script to modify metadata fields
+            # Documents are stored with flattened metadata, so update fields directly in ctx._source
+            body = {
+                "query": {"bool": {"filter": normalized_filters}},
+                "script": {"source": UPDATE_SCRIPT, "params": meta, "lang": "painless"},
+            }
+
+            result = await self.async_client.update_by_query(index=self._index, body=body)  # type: ignore
+            updated_count = result.get("updated", 0)
+            logger.info(
+                "Updated {n_docs} documents in index '{index}' using filters.",
+                n_docs=updated_count,
+                index=self._index,
+            )
+            return updated_count
+        except Exception as e:
+            msg = f"Failed to update documents by filter in Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
     def _bm25_retrieval(
