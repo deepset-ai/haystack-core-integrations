@@ -37,6 +37,11 @@ Hosts = Union[str, list[Union[str, Mapping[str, Union[str, int]], NodeConfig]]]
 BM25_SCALING_FACTOR = 8
 DOC_ALREADY_EXISTS = 409
 
+UPDATE_SCRIPT = """
+            for (entry in params.entrySet()) {
+                ctx._source[entry.getKey()] = entry.getValue();
+            }
+            """
 
 class ElasticsearchDocumentStore:
     """
@@ -742,15 +747,9 @@ class ElasticsearchDocumentStore:
             normalized_filters = _normalize_filters(filters)
             # Build the update script to modify metadata fields
             # Documents are stored with flattened metadata, so update fields directly in ctx._source
-            update_script = """
-            for (entry in params.entrySet()) {
-                ctx._source[entry.getKey()] = entry.getValue();
-            }
-            """
-
             body = {
                 "query": {"bool": {"filter": normalized_filters}},
-                "script": {"source": update_script, "params": meta, "lang": "painless"},
+                "script": {"source": UPDATE_SCRIPT, "params": meta, "lang": "painless"},
             }
 
             result = self.client.update_by_query(index=self._index, body=body)  # type: ignore
@@ -780,15 +779,9 @@ class ElasticsearchDocumentStore:
             normalized_filters = _normalize_filters(filters)
             # Build the update script to modify metadata fields
             # Documents are stored with flattened metadata, so update fields directly in ctx._source
-            update_script = """
-            for (entry in params.entrySet()) {
-                ctx._source[entry.getKey()] = entry.getValue();
-            }
-            """
-
             body = {
                 "query": {"bool": {"filter": normalized_filters}},
-                "script": {"source": update_script, "params": meta, "lang": "painless"},
+                "script": {"source": UPDATE_SCRIPT, "params": meta, "lang": "painless"},
             }
 
             result = await self.async_client.update_by_query(index=self._index, body=body)  # type: ignore
