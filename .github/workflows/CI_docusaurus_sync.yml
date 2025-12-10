@@ -105,7 +105,7 @@ jobs:
           os.remove(artifact_filename)
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         env:
           INTEGRATION_NAME: ${{ needs.generate-api-reference.outputs.integration_name }}
         with:
