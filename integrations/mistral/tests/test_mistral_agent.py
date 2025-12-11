@@ -13,12 +13,8 @@ from haystack.utils.auth import Secret
 
 from haystack_integrations.components.agents.mistral.agent import MistralAgent
 
-
-class MockUsage:
-    def __init__(self, prompt_tokens: int = 10, completion_tokens: int = 20, total_tokens: int = 30):
-        self.prompt_tokens = prompt_tokens
-        self.completion_tokens = completion_tokens
-        self.total_tokens = total_tokens
+# Import shared mocks
+from tests.agent_mocks import MockChoice, MockMessage, MockResponse, MockUsage
 
 
 class MockFunction:
@@ -32,32 +28,6 @@ class MockToolCall:
         self.id = call_id
         self.type = call_type
         self.function = MockFunction(name=name, arguments=arguments)
-
-
-class MockMessage:
-    """Mock message object from Mistral SDK response."""
-
-    def __init__(self, content: str = "", tool_calls: Optional[list] = None):
-        self.content = content
-        self.tool_calls = tool_calls or []
-
-
-class MockChoice:
-    def __init__(
-        self, message: MockMessage, index: int = 0, finish_reason: str = "stop"
-    ):
-        self.message = message
-        self.index = index
-        self.finish_reason = finish_reason
-
-
-class MockResponse:
-    def __init__(
-        self, choices: list, model: str = "agent-model", usage: Optional[MockUsage] = None
-    ):
-        self.choices = choices
-        self.model = model
-        self.usage = usage or MockUsage()
 
 
 class MockDelta:
@@ -74,8 +44,6 @@ class MockStreamChoice:
 
 
 class MockStreamData:
-    """Mock streaming data object."""
-
     def __init__(self, choices: list, model: str = "agent-model", usage: Optional[MockUsage] = None):
         self.choices = choices
         self.model = model
@@ -83,18 +51,13 @@ class MockStreamData:
 
 
 class MockStreamChunk:
-    """Mock streaming chunk from SDK."""
-
     def __init__(self, data: MockStreamData):
         self.data = data
 
 
-@pytest.fixture
-def chat_messages():
-    return [
-        ChatMessage.from_system("You are a helpful assistant"),
-        ChatMessage.from_user("What's the capital of France?"),
-    ]
+# =============================================================================
+# FIXTURES (not shared)
+# =============================================================================
 
 
 @pytest.fixture
@@ -121,23 +84,7 @@ def tools(mock_tool_function):
 
 
 @pytest.fixture
-def mock_sdk_response():
-    return MockResponse(
-        choices=[
-            MockChoice(
-                message=MockMessage(content="The capital of France is Paris."),
-                finish_reason="stop",
-                index=0,
-            )
-        ],
-        model="mistral-agent-model",
-        usage=MockUsage(prompt_tokens=15, completion_tokens=25, total_tokens=40),
-    )
-
-
-@pytest.fixture
 def mock_sdk_response_with_tool_call():
-    """Create a mock SDK response with tool calls."""
     tool_call = MockToolCall(
         call_id="call_123",
         name="weather",
@@ -219,9 +166,7 @@ class TestMistralAgent:
             )
 
     def test_init_with_toolset(self, mock_tool_function, monkeypatch):
-        """Test initialization with a Toolset."""
         monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
-
         tool1 = Tool(
             name="tool1",
             description="First tool",
@@ -235,13 +180,10 @@ class TestMistralAgent:
             function=mock_tool_function,
         )
         toolset = Toolset([tool1, tool2])
-
         agent = MistralAgent(agent_id="ag-test", tools=[toolset])
-
         assert agent.tools == [toolset]
 
     def test_convert_simple_user_message(self, monkeypatch):
-        """Test converting a simple user message."""
         monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
         agent = MistralAgent(agent_id="ag-test")
 
@@ -288,9 +230,7 @@ class TestMistralAgent:
         assert result[0]["tool_call_id"] == "call_123"
 
     @patch("haystack_integrations.components.agents.mistral.agent.MistralAgent.warm_up")
-    def test_run_basic(
-        self, chat_messages, mock_sdk_response, monkeypatch
-    ):
+    def test_run_basic(self, chat_messages, mock_sdk_response, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
 
         agent = MistralAgent(agent_id="ag-test-123")
