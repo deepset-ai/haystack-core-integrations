@@ -3,10 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
-from datetime import datetime
 from typing import Any, Literal, Optional, Union
 
-import httpx
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import (
     ChatMessage,
@@ -14,9 +12,8 @@ from haystack.dataclasses import (
     StreamingChunk,
     ToolCall,
 )
+from haystack.lazy_imports import LazyImport
 from haystack.tools import (
-    Tool,
-    Toolset,
     ToolsType,
     _check_duplicate_tool_names,
     deserialize_tools_or_toolset_inplace,
@@ -25,63 +22,79 @@ from haystack.tools import (
 )
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 
+with LazyImport(message="Run 'pip install mistralai'") as mistralai_import:
+    from mistralai import Mistral, models
+
 logger = logging.getLogger(__name__)
 
-# Type alias for tool_choice parameter
 ToolChoiceType = Union[
     Literal["auto", "none", "any", "required"],
-    dict[str, Any],  # {"type": "function", "function": {"name": "my_function"}}
+    dict[str, Any],
 ]
 
 
 @component
 class MistralAgent:
     """
-    Generates text using Mistral AI Agents.
+    Generates text using Mistral AI Agents via the official Mistral Python SDK.
 
-    This component interacts with pre-configured Mistral Agents via the Agents API.
-    Unlike MistralChatGenerator, this requires an `agent_id` instead of a `model` parameter,
-    as the model and base configuration are pre-defined in the agent.
+    NOTE:
+    If you get the error message:
+
+        "Cannot set function calling tools in the request and have tools in the agent"
+
+    This is a Mistral API limitation - if your agent in the Mistral console already has tools configured, you cannot
+    pass additional tools in the API request. They are mutually exclusive.
 
     For more information on Mistral Agents, see:
     [Mistral Agents API](https://docs.mistral.ai/api/endpoint/agents)
 
     Usage example:
-    from haystack_integrations.components.generators.mistral import MistralAgent
+    ```python
+    from haystack_integrations.components.agents.mistral import MistralAgent
     from haystack.dataclasses import ChatMessage
 
-    # Initialize with your agent ID
-    generator = MistralAgent(agent_id="your-agent-id")
+    # Initialize with your agent ID from the Mistral console
+    agent = MistralAgent(agent_id="your-agent-id")
 
     messages = [ChatMessage.from_user("What can you help me with?")]
-    response = generator.run(messages)
+    response = agent.run(messages)
     print(response["replies"][0].text)
-        """
+    ```
+
+    Streaming example:
+    ```python
+    def my_callback(chunk):
+        print(chunk.content, end="", flush=True)
+
+    agent = MistralAgent(
+        agent_id="your-agent-id",
+        streaming_callback=my_callback
+    )
+    response = agent.run([ChatMessage.from_user("Tell me a story")])
+    ```
+    """
 
     def __init__(
         self,
         agent_id: str,
         api_key: Secret = Secret.from_env_var("MISTRAL_API_KEY"),
-        api_base_url: str = "https://api.mistral.ai/v1",
         streaming_callback: Optional[StreamingCallbackT] = None,
         tools: Optional[ToolsType] = None,
         tool_choice: Optional[ToolChoiceType] = None,
         parallel_tool_calls: bool = True,
         generation_kwargs: Optional[dict[str, Any]] = None,
         *,
-        timeout: Optional[float] = 30.0,
-        max_retries: int = 3,
+        timeout_ms: Optional[int] = 30000,
     ):
         """
         Creates an instance of MistralAgent.
 
         :param agent_id:
-            The ID of the Mistral Agent to use. This is required and can be found
-            in the Mistral AI platform after creating an agent.
+            The ID of the Mistral Agent to use. Required. Get this from the
+            Mistral AI console after creating an agent.
         :param api_key:
             The Mistral API key. Defaults to environment variable `MISTRAL_API_KEY`.
-        :param api_base_url:
-            The base URL for the Mistral API.
         :param streaming_callback:
             A callback function called when a new token is received from the stream.
         :param tools:
@@ -94,8 +107,7 @@ class MistralAgent:
             - "any" or "required": Must call one or more tools
             - {"type": "function", "function": {"name": "..."}}: Force specific tool
         :param parallel_tool_calls:
-            Whether to enable parallel function calling. When True, the model can
-            call multiple tools in parallel. Defaults to True.
+            Whether to enable parallel function calling. Defaults to True.
         :param generation_kwargs:
             Additional parameters for the API call. Supported parameters:
             - `max_tokens`: Maximum tokens to generate
@@ -107,137 +119,119 @@ class MistralAgent:
             - `response_format`: Output format (text/json_object/json_schema)
             - `prediction`: Expected completion for optimization
             - `prompt_mode`: Set to "reasoning" for reasoning models
-        :param timeout:
-            Request timeout in seconds. Defaults to 30.
-        :param max_retries:
-            Maximum number of retries on failure. Defaults to 3.
+        :param timeout_ms:
+            Request timeout in milliseconds. Defaults to 30000 (30 seconds).
         """
         self.agent_id = agent_id
         self.api_key = api_key
-        self.api_base_url = api_base_url.rstrip("/")
         self.streaming_callback = streaming_callback
         self.tools = tools
         self.tool_choice = tool_choice
         self.parallel_tool_calls = parallel_tool_calls
         self.generation_kwargs = generation_kwargs or {}
-        self.timeout = timeout
-        self.max_retries = max_retries
+        self.timeout_ms = timeout_ms
 
-        # Validate tools
         _check_duplicate_tool_names(flatten_tools_or_toolsets(self.tools))
 
-        # Initialize HTTP client
-        self._client: Optional[httpx.Client] = None
-        self._async_client: Optional[httpx.AsyncClient] = None
+        self._client = None
+        self._async_client = None
 
     def warm_up(self):
-        """Initialize the HTTP clients."""
-        if self._client is None:
-            self._client = httpx.Client(timeout=self.timeout)
-        if self._async_client is None:
-            self._async_client = httpx.AsyncClient(timeout=self.timeout)
+        if self._client:
+            return
+        mistralai_import.check()
+        self._client = Mistral(api_key=self.api_key.resolve_value(),timeout_ms=self.timeout_ms)
 
-    def _get_headers(self) -> dict[str, str]:
-        """Get request headers with authentication."""
-        return {
-            "Authorization": f"Bearer {self.api_key.resolve_value()}",
-            "Content-Type": "application/json",
-        }
+    @staticmethod
+    def _convert_messages(messages: list[ChatMessage]) -> list[dict[str, Any]]:
 
-    def _build_request_payload(
-        self,
-        messages: list[ChatMessage],
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        tools: Optional[ToolsType] = None,
-        tool_choice: Optional[ToolChoiceType] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
-        """Build the request payload for the Agents API."""
-        # Merge generation kwargs
-        merged_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
+        sdk_messages = []
 
-        # Convert messages to API format
-        # Mistral expects: {"role": "user", "content": "..."} format
-        api_messages = []
         for msg in messages:
+            # OpenAI format is compatible with Mistral
             openai_format = msg.to_openai_dict_format()
+
             # Ensure content is a string (not a list of content blocks)
-            if isinstance(openai_format.get("content"), list):
+            content = openai_format.get("content", "")
+            if isinstance(content, list):
                 # Extract text from content blocks
                 text_parts = []
-                for block in openai_format["content"]:
+                for block in content:
                     if isinstance(block, dict) and block.get("type") == "text":
                         text_parts.append(block.get("text", ""))
                     elif isinstance(block, str):
                         text_parts.append(block)
-                openai_format["content"] = "".join(text_parts)
-            api_messages.append(openai_format)
+                content = "".join(text_parts)
 
-        # Build base payload - only required fields
-        payload: dict[str, Any] = {
-            "agent_id": self.agent_id,
-            "messages": api_messages,
-        }
+            sdk_message = {
+                "role": openai_format.get("role", "user"),
+                "content": content,
+            }
 
-        # Only add stream if True (don't send stream: false)
-        if streaming_callback is not None:
-            payload["stream"] = True
+            # Include tool_call_id for tool messages
+            if openai_format.get("tool_call_id"):
+                sdk_message["tool_call_id"] = openai_format["tool_call_id"]
 
-        # Add tools if provided
+            # Include tool_calls for assistant messages
+            if openai_format.get("tool_calls"):
+                sdk_message["tool_calls"] = openai_format["tool_calls"]
+
+            sdk_messages.append(sdk_message)
+
+        return sdk_messages
+
+    def _build_tools(self, tools: Optional[ToolsType] = None) -> Optional[list[dict[str, Any]]]:
+        """Convert Haystack tools to Mistral format."""
         flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
-        if flattened_tools:
-            payload["tools"] = [
-                {"type": "function", "function": t.tool_spec}
-                for t in flattened_tools
-            ]
-            # Only add parallel_tool_calls when tools are present
-            payload["parallel_tool_calls"] = self.parallel_tool_calls
-
-        # Add tool_choice only if tools are present
-        effective_tool_choice = tool_choice or self.tool_choice
-        if effective_tool_choice is not None and flattened_tools:
-            payload["tool_choice"] = effective_tool_choice
-
-        # Add generation kwargs
-        for key, value in merged_kwargs.items():
-            if value is not None:
-                payload[key] = value
-
-        return payload
+        if not flattened_tools:
+            return None
+        return [
+            {"type": "function", "function": tool.tool_spec}
+            for tool in flattened_tools
+        ]
 
     @staticmethod
-    def _parse_response(response_data: dict[str, Any]) -> list[ChatMessage]:
-        """Parse the API response into ChatMessages."""
+    def _parse_response(response: Any) -> list[ChatMessage]:
+        """
+        Parse the Mistral response into Haystack ChatMessages.
+
+        :param response: The response from mistral.agents.complete()
+        :returns:
+            List of ChatMessage objects
+        """
         messages = []
 
-        for choice in response_data.get("choices", []):
-            message_data = choice.get("message", {})
-            content = message_data.get("content", "")
+        for choice in response.choices:
+            message = choice.message
+            content = message.content or ""
 
             # Parse tool calls if present
             tool_calls = []
-            if message_data.get("tool_calls"):
-                for tc in message_data["tool_calls"]:
-                    if tc.get("type") == "function":
-                        func = tc["function"]
+            if message.tool_calls:
+                for tc in message.tool_calls:
+                    if tc.type == "function":
                         try:
-                            arguments = json.loads(func.get("arguments", "{}"))
+                            arguments = json.loads(tc.function.arguments or "{}")
                         except json.JSONDecodeError:
                             arguments = {}
                         tool_calls.append(
                             ToolCall(
-                                id=tc.get("id"),
-                                tool_name=func.get("name"),
+                                id=tc.id,
+                                tool_name=tc.function.name,
                                 arguments=arguments,
                             )
                         )
 
             # Build metadata
             meta = {
-                "model": response_data.get("model"),
-                "index": choice.get("index", 0),
-                "finish_reason": choice.get("finish_reason"),
-                "usage": response_data.get("usage"),
+                "model": response.model,
+                "index": choice.index,
+                "finish_reason": choice.finish_reason,
+                "usage": {
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens,
+                } if response.usage else None,
             }
 
             chat_message = ChatMessage.from_assistant(
@@ -250,76 +244,70 @@ class MistralAgent:
         return messages
 
     @staticmethod
-    def _handle_streaming(
-        response: httpx.Response,
-        callback: StreamingCallbackT,
-    ) -> list[ChatMessage]:
-        """Handle streaming response."""
+    def _handle_streaming(stream_response: Any, callback: StreamingCallbackT,) -> list[ChatMessage]:
+        """
+        Handle streaming response from the Mistral SDK.
+
+        :param stream_response: The streaming response iterator
+        :param callback: The callback to invoke for each chunk
+        :returns:
+            List containing the final assembled ChatMessage
+        """
         collected_content = ""
         collected_tool_calls: dict[int, dict] = {}
         meta: dict[str, Any] = {}
 
-        for line in response.iter_lines():
-            if not line or line.startswith(":"):
-                continue
+        for chunk in stream_response:
+            # Extract metadata from response (model is on chunk.data, not chunk)
+            if not meta and chunk.data.model:
+                meta["model"] = chunk.data.model
 
-            if line.startswith("data: "):
-                data_str = line[6:]  # Remove "data: " prefix
+            for choice in chunk.data.choices:
+                delta = choice.delta
 
-                if data_str.strip() == "[DONE]":
-                    break
+                # Handle text content
+                if delta.content:
+                    collected_content += delta.content
+                    streaming_chunk = StreamingChunk(
+                        content=delta.content,
+                        meta={
+                            "model": chunk.data.model,
+                            "index": choice.index,
+                            "finish_reason": choice.finish_reason,
+                        },
+                    )
+                    callback(streaming_chunk)
 
-                try:
-                    chunk_data = json.loads(data_str)
-                except json.JSONDecodeError:
-                    continue
+                # Handle tool calls
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index if hasattr(tc, "index") else 0
+                        if idx not in collected_tool_calls:
+                            collected_tool_calls[idx] = {
+                                "id": "",
+                                "name": "",
+                                "arguments": "",
+                            }
+                        if tc.id:
+                            collected_tool_calls[idx]["id"] = tc.id
+                        if hasattr(tc, "function") and tc.function:
+                            if tc.function.name:
+                                collected_tool_calls[idx]["name"] = tc.function.name
+                            if tc.function.arguments:
+                                collected_tool_calls[idx]["arguments"] += tc.function.arguments
 
-                # Extract metadata from first chunk
-                if not meta:
-                    meta = {
-                        "model": chunk_data.get("model"),
-                        "usage": chunk_data.get("usage"),
-                    }
+                # Capture finish reason
+                if choice.finish_reason:
+                    meta["finish_reason"] = choice.finish_reason
+                    meta["index"] = choice.index
 
-                for choice in chunk_data.get("choices", []):
-                    delta = choice.get("delta", {})
-
-                    # Handle content
-                    content = delta.get("content", "")
-                    if content:
-                        collected_content += content
-                        chunk = StreamingChunk(
-                            content=content,
-                            meta={
-                                "model": chunk_data.get("model"),
-                                "index": choice.get("index", 0),
-                                "finish_reason": choice.get("finish_reason"),
-                                "received_at": datetime.now().isoformat(),
-                            },
-                        )
-                        callback(chunk)
-
-                    # Handle tool calls
-                    if delta.get("tool_calls"):
-                        for tc in delta["tool_calls"]:
-                            idx = tc.get("index", 0)
-                            if idx not in collected_tool_calls:
-                                collected_tool_calls[idx] = {
-                                    "id": tc.get("id", ""),
-                                    "name": "",
-                                    "arguments": "",
-                                }
-                            if tc.get("function"):
-                                func = tc["function"]
-                                if func.get("name"):
-                                    collected_tool_calls[idx]["name"] = func["name"]
-                                if func.get("arguments"):
-                                    collected_tool_calls[idx]["arguments"] += func["arguments"]
-
-                    # Update finish reason
-                    if choice.get("finish_reason"):
-                        meta["finish_reason"] = choice["finish_reason"]
-                        meta["index"] = choice.get("index", 0)
+            # Capture usage from final chunk
+            if chunk.data.usage:
+                meta["usage"] = {
+                    "prompt_tokens": chunk.data.usage.prompt_tokens,
+                    "completion_tokens": chunk.data.usage.completion_tokens,
+                    "total_tokens": chunk.data.usage.total_tokens,
+                }
 
         # Build final tool calls
         tool_calls = []
@@ -380,61 +368,62 @@ class MistralAgent:
         # Select streaming callback
         effective_callback = streaming_callback or self.streaming_callback
 
-        # Build request payload
-        payload = self._build_request_payload(
-            messages=messages,
-            streaming_callback=effective_callback,
-            tools=tools,
-            tool_choice=tool_choice,
-            generation_kwargs=generation_kwargs,
-        )
+        # Convert messages
+        sdk_messages = MistralAgent._convert_messages(messages)
 
-        url = f"{self.api_base_url}/agents/completions"
-        headers = self._get_headers()
+        # Merge generation kwargs
+        merged_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
-        # Make request with retries
-        last_error = None
-        for attempt in range(self.max_retries):
-            try:
-                if effective_callback:
-                    # Streaming request
-                    with self._client.stream("POST", url, json=payload, headers=headers) as response:
-                        response.raise_for_status()
-                        replies = self._handle_streaming(response, effective_callback)
-                else:
-                    # Non-streaming request
-                    response = self._client.post(url, json=payload, headers=headers)
-                    response.raise_for_status()
-                    replies = self._parse_response(response.json())
+        # Build request kwargs
+        request_kwargs: dict[str, Any] = {
+            "agent_id": self.agent_id,
+            "messages": sdk_messages,
+        }
 
-                return {"replies": replies}
+        # Add tools if provided
+        sdk_tools = self._build_tools(tools)
+        if sdk_tools:
+            request_kwargs["tools"] = sdk_tools
+            request_kwargs["parallel_tool_calls"] = self.parallel_tool_calls
 
-            except httpx.HTTPStatusError as e:
-                last_error = e
-                # Log the actual error response for debugging
-                error_detail = ""
-                try:
-                    error_detail = e.response.text
-                except Exception:
-                    pass
-                logger.error(
-                    "Mistral Agent API error: {status_code} - {detail}",
-                    status_code=e.response.status_code,
-                    detail=error_detail,
-                )
-                if e.response.status_code >= 500:
-                    continue  # Retry on server errors
-                # Re-raise with more context for client errors
-                raise ValueError(
-                    f"Mistral Agent API error ({e.response.status_code}): {error_detail}"
-                ) from e
-            except httpx.RequestError as e:
-                last_error = e
-                if attempt < self.max_retries - 1:
-                    continue
-                raise
+            # Add tool_choice only when tools are present
+            effective_tool_choice = tool_choice or self.tool_choice
+            if effective_tool_choice:
+                request_kwargs["tool_choice"] = effective_tool_choice
 
-        raise last_error
+        # Add generation kwargs
+        for key, value in merged_kwargs.items():
+            if value is not None:
+                request_kwargs[key] = value
+
+        try:
+            if effective_callback:
+                # Streaming request
+                request_kwargs["stream"] = True
+                stream_response = self._client.agents.stream(**request_kwargs)
+                replies = MistralAgent._handle_streaming(stream_response, effective_callback)
+            else:
+                # Non-streaming request
+                response = self._client.agents.complete(**request_kwargs)
+                replies = self._parse_response(response)
+
+            return {"replies": replies}
+
+        except Exception as e:
+            if isinstance(e, models.HTTPValidationError):
+                msg = "Mistral validation error: {detail}"
+                logger.error(msg, detail=e.data.detail if hasattr(e, "data") else str(e))
+                error_msg = f"Mistral validation error: {e}"
+                raise ValueError(error_msg) from e
+
+            elif isinstance(e, models.MistralError):
+                msg = "Mistral API error: {status_code} - {message}"
+                logger.error(msg, status_code=e.status_code, message=e.message)
+                error_msg = f"Mistral API error ({e.status_code}): {e.message}"
+                raise ValueError(error_msg) from e
+
+            raise
+
 
     @component.output_types(replies=list[ChatMessage])
     async def run_async(
@@ -456,70 +445,151 @@ class MistralAgent:
             return {"replies": []}
 
         effective_callback = streaming_callback or self.streaming_callback
+        sdk_messages = self._convert_messages(messages)
+        merged_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
-        payload = self._build_request_payload(
-            messages=messages,
-            streaming_callback=effective_callback,
-            tools=tools,
-            tool_choice=tool_choice,
-            generation_kwargs=generation_kwargs,
-        )
+        request_kwargs: dict[str, Any] = {
+            "agent_id": self.agent_id,
+            "messages": sdk_messages,
+        }
 
-        url = f"{self.api_base_url}/agents/completions"
-        headers = self._get_headers()
+        sdk_tools = self._build_tools(tools)
+        if sdk_tools:
+            request_kwargs["tools"] = sdk_tools
+            request_kwargs["parallel_tool_calls"] = self.parallel_tool_calls
+            effective_tool_choice = tool_choice or self.tool_choice
+            if effective_tool_choice:
+                request_kwargs["tool_choice"] = effective_tool_choice
 
-        last_error = None
-        for attempt in range(self.max_retries):
+        for key, value in merged_kwargs.items():
+            if value is not None:
+                request_kwargs[key] = value
+
+        try:
+            if effective_callback:
+                # Async streaming
+                request_kwargs["stream"] = True
+                stream_response = await self._client.agents.stream_async(**request_kwargs)
+                # Note: For full async streaming, we'd need an async callback
+                # This is a simplified version
+                replies = await Mistral._handle_async_streaming(stream_response, effective_callback)
+            else:
+                response = await self._client.agents.complete_async(**request_kwargs)
+                replies = self._parse_response(response)
+
+            return {"replies": replies}
+
+        except Exception as e:
+            if isinstance(e, (models.HTTPValidationError, models.MistralError)):
+                error_msg = f"Mistral API error: {e}"
+                raise ValueError(error_msg) from e
+            raise
+
+    @staticmethod
+    async def _handle_async_streaming(
+        stream_response: Any,
+        callback: StreamingCallbackT,
+    ) -> list[ChatMessage]:
+        """Handle async streaming response."""
+        collected_content = ""
+        collected_tool_calls: dict[int, dict] = {}
+        meta: dict[str, Any] = {}
+
+        async for chunk in stream_response:
+            if not meta and chunk.data.model:
+                meta["model"] = chunk.data.model
+
+            for choice in chunk.data.choices:
+                delta = choice.delta
+
+                if delta.content:
+                    collected_content += delta.content
+                    streaming_chunk = StreamingChunk(
+                        content=delta.content,
+                        meta={
+                            "model": chunk.data.model,
+                            "index": choice.index,
+                            "finish_reason": choice.finish_reason,
+                        },
+                    )
+                    # For async streaming, callback should be awaitable
+                    if callable(callback):
+                        result = callback(streaming_chunk)
+                        if hasattr(result, "__await__"):
+                            await result
+
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index if hasattr(tc, "index") else 0
+                        if idx not in collected_tool_calls:
+                            collected_tool_calls[idx] = {"id": "", "name": "", "arguments": ""}
+                        if tc.id:
+                            collected_tool_calls[idx]["id"] = tc.id
+                        if hasattr(tc, "function") and tc.function:
+                            if tc.function.name:
+                                collected_tool_calls[idx]["name"] = tc.function.name
+                            if tc.function.arguments:
+                                collected_tool_calls[idx]["arguments"] += tc.function.arguments
+
+                if choice.finish_reason:
+                    meta["finish_reason"] = choice.finish_reason
+                    meta["index"] = choice.index
+
+            if chunk.data.usage:
+                meta["usage"] = {
+                    "prompt_tokens": chunk.data.usage.prompt_tokens,
+                    "completion_tokens": chunk.data.usage.completion_tokens,
+                    "total_tokens": chunk.data.usage.total_tokens,
+                }
+
+        tool_calls = []
+        for idx in sorted(collected_tool_calls.keys()):
+            tc_data = collected_tool_calls[idx]
             try:
-                if effective_callback:
-                    async with self._async_client.stream("POST", url, json=payload, headers=headers) as response:
-                        response.raise_for_status()
-                        # Note: Async streaming would need async callback handling
-                        # Simplified here - full implementation would iterate async
-                        content = await response.aread()
-                        # Parse SSE format...
-                        replies = self._parse_response(json.loads(content))
-                else:
-                    response = await self._async_client.post(url, json=payload, headers=headers)
-                    response.raise_for_status()
-                    replies = self._parse_response(response.json())
+                arguments = json.loads(tc_data["arguments"]) if tc_data["arguments"] else {}
+            except json.JSONDecodeError:
+                arguments = {}
+            tool_calls.append(
+                ToolCall(id=tc_data["id"], tool_name=tc_data["name"], arguments=arguments)
+            )
 
-                return {"replies": replies}
-
-            except httpx.HTTPStatusError as e:
-                last_error = e
-                if e.response.status_code >= 500:
-                    continue
-                raise
-            except httpx.RequestError as e:
-                last_error = e
-                if attempt < self.max_retries - 1:
-                    continue
-                raise
-
-        raise last_error
+        return [
+            ChatMessage.from_assistant(
+                text=collected_content if collected_content else None,
+                tool_calls=tool_calls if tool_calls else None,
+                meta=meta,
+            )
+        ]
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize this component to a dictionary."""
+        """
+        Serialize this component to a dictionary.
+
+        :returns: A dictionary representation of the component.
+        """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
 
         return default_to_dict(
             self,
             agent_id=self.agent_id,
             api_key=self.api_key.to_dict(),
-            api_base_url=self.api_base_url,
             streaming_callback=callback_name,
             tools=serialize_tools_or_toolset(self.tools),
             tool_choice=self.tool_choice,
             parallel_tool_calls=self.parallel_tool_calls,
             generation_kwargs=self.generation_kwargs,
-            timeout=self.timeout,
-            max_retries=self.max_retries,
+            timeout_ms=self.timeout_ms,
         )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "MistralAgent":
-        """Deserialize this component from a dictionary."""
+        """
+        Deserialize this component from a dictionary.
+
+        :param data: The dictionary representation of the component.
+        :returns:
+            An instance of MistralAgent
+        """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
 
