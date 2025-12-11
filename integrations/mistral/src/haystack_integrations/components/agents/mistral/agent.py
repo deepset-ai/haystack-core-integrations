@@ -145,13 +145,13 @@ class MistralAgent:
     @staticmethod
     def _convert_messages(messages: list[ChatMessage]) -> list[dict[str, Any]]:
 
-        sdk_messages = []
+        mistral_messages = []
 
         for msg in messages:
             # OpenAI format is compatible with Mistral
             openai_format = msg.to_openai_dict_format()
 
-            # Ensure content is a string (not a list of content blocks)
+            # ensure content is a string (not a list of content blocks)
             content = openai_format.get("content", "")
             if isinstance(content, list):
                 # Extract text from content blocks
@@ -163,22 +163,22 @@ class MistralAgent:
                         text_parts.append(block)
                 content = "".join(text_parts)
 
-            sdk_message = {
+            mistral_message = {
                 "role": openai_format.get("role", "user"),
                 "content": content,
             }
 
-            # Include tool_call_id for tool messages
+            # include tool_call_id for tool messages
             if openai_format.get("tool_call_id"):
-                sdk_message["tool_call_id"] = openai_format["tool_call_id"]
+                mistral_message["tool_call_id"] = openai_format["tool_call_id"]
 
-            # Include tool_calls for assistant messages
+            # include tool_calls for assistant messages
             if openai_format.get("tool_calls"):
-                sdk_message["tool_calls"] = openai_format["tool_calls"]
+                mistral_message["tool_calls"] = openai_format["tool_calls"]
 
-            sdk_messages.append(sdk_message)
+            mistral_messages.append(mistral_message)
 
-        return sdk_messages
+        return mistral_messages
 
     def _build_tools(self, tools: Optional[ToolsType] = None) -> Optional[list[dict[str, Any]]]:
         """Convert Haystack tools to Mistral format."""
@@ -246,7 +246,7 @@ class MistralAgent:
     @staticmethod
     def _handle_streaming(stream_response: Any, callback: StreamingCallbackT,) -> list[ChatMessage]:
         """
-        Handle streaming response from the Mistral SDK.
+        Handle streaming response from the Mistral.
 
         :param stream_response: The streaming response iterator
         :param callback: The callback to invoke for each chunk
@@ -365,45 +365,39 @@ class MistralAgent:
         if not messages:
             return {"replies": []}
 
-        # Select streaming callback
         effective_callback = streaming_callback or self.streaming_callback
-
-        # Convert messages
-        sdk_messages = MistralAgent._convert_messages(messages)
-
-        # Merge generation kwargs
+        mistral_messages = MistralAgent._convert_messages(messages)
         merged_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
-        # Build request kwargs
         request_kwargs: dict[str, Any] = {
             "agent_id": self.agent_id,
-            "messages": sdk_messages,
+            "messages": mistral_messages,
         }
 
-        # Add tools if provided
-        sdk_tools = self._build_tools(tools)
-        if sdk_tools:
-            request_kwargs["tools"] = sdk_tools
+        # add tools if provided
+        mistral_tools = self._build_tools(tools)
+        if mistral_tools:
+            request_kwargs["tools"] = mistral_tools
             request_kwargs["parallel_tool_calls"] = self.parallel_tool_calls
 
-            # Add tool_choice only when tools are present
+            # add tool_choice only when tools are present
             effective_tool_choice = tool_choice or self.tool_choice
             if effective_tool_choice:
                 request_kwargs["tool_choice"] = effective_tool_choice
 
-        # Add generation kwargs
+        # add generation kwargs
         for key, value in merged_kwargs.items():
             if value is not None:
                 request_kwargs[key] = value
 
         try:
             if effective_callback:
-                # Streaming request
+                # streaming
                 request_kwargs["stream"] = True
                 stream_response = self._client.agents.stream(**request_kwargs)
                 replies = MistralAgent._handle_streaming(stream_response, effective_callback)
             else:
-                # Non-streaming request
+                # non-streaming
                 response = self._client.agents.complete(**request_kwargs)
                 replies = self._parse_response(response)
 
