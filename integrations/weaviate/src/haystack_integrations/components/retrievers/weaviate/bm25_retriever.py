@@ -108,3 +108,24 @@ class WeaviateBM25Retriever:
         top_k = top_k or self._top_k
         documents = self._document_store._bm25_retrieval(query=query, filters=filters, top_k=top_k)
         return {"documents": documents}
+
+    @component.output_types(documents=list[Document])
+    async def run_async(
+        self, query: str, filters: Optional[dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> dict[str, list[Document]]:
+        """
+        Asynchronously retrieves documents from Weaviate using the BM25 algorithm.
+
+        :param query:
+            The query text.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
+                        details.
+        :param top_k:
+            The maximum number of documents to return.
+        """
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+
+        top_k = top_k or self._top_k
+        documents = await self._document_store._bm25_retrieval_async(query=query, filters=filters, top_k=top_k)
+        return {"documents": documents}
