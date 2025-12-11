@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/elasticsearch-v4.1.1] - 2025-12-10
+
+### 🚀 Features
+
+- Adding `update_by_filter()` and `delete_by_filter()` to `ElasticsearchDocumentStore` (#2582)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+
+### 🌀 Miscellaneous
+
+- Adopt PEP 585 type hinting (part 3) (#2510)
+
 ## [integrations/elasticsearch-v4.1.0] - 2025-10-09
 
 ### 🚀 Features
