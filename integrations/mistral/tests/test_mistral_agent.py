@@ -64,6 +64,7 @@ class MockStreamChunk:
 def mock_tool_function():
     def weather(city: str) -> str:
         return f"Weather in {city}: Sunny, 22°C"
+
     return weather
 
 
@@ -104,7 +105,6 @@ def mock_sdk_response_with_tool_call():
 
 
 class TestMistralAgent:
-
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
 
@@ -119,7 +119,6 @@ class TestMistralAgent:
         assert agent.timeout_ms == 30000
 
     def test_init_with_custom_parameters(self, tools):
-
         def my_callback(chunk):
             pass
 
@@ -263,7 +262,6 @@ class TestMistralAgent:
         tools,
         monkeypatch,
     ):
-
         monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
 
         agent = MistralAgent(agent_id="ag-test", tools=tools)
@@ -283,13 +281,10 @@ class TestMistralAgent:
         assert reply.meta["finish_reason"] == "tool_calls"
 
     @patch("haystack_integrations.components.agents.mistral.agent.MistralAgent.warm_up")
-    def test_run_with_generation_kwargs(self,  chat_messages, mock_sdk_response, monkeypatch):
-
+    def test_run_with_generation_kwargs(self, chat_messages, mock_sdk_response, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
 
-        agent = MistralAgent(
-            agent_id="ag-test", generation_kwargs={"max_tokens": 100}
-        )
+        agent = MistralAgent(agent_id="ag-test", generation_kwargs={"max_tokens": 100})
         agent._client = MagicMock()
         agent._client.agents.complete.return_value = mock_sdk_response
 
@@ -301,9 +296,7 @@ class TestMistralAgent:
         assert call_kwargs["max_tokens"] == 100
         assert call_kwargs["random_seed"] == 42
 
-    @patch(
-        "haystack_integrations.components.agents.mistral.agent.MistralAgent.warm_up"
-    )
+    @patch("haystack_integrations.components.agents.mistral.agent.MistralAgent.warm_up")
     def test_run_with_tool_choice(self, chat_messages, mock_sdk_response, tools, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
 
@@ -342,15 +335,9 @@ class TestMistralAgent:
             ),
             MockStreamChunk(
                 data=MockStreamData(
-                    choices=[
-                        MockStreamChoice(
-                            delta=MockDelta(content="is Paris."), finish_reason="stop"
-                        )
-                    ],
+                    choices=[MockStreamChoice(delta=MockDelta(content="is Paris."), finish_reason="stop")],
                     model="agent-model",
-                    usage=MockUsage(
-                        prompt_tokens=10, completion_tokens=5, total_tokens=15
-                    ),
+                    usage=MockUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
                 )
             ),
         ]

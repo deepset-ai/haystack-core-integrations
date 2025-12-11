@@ -140,11 +140,10 @@ class MistralAgent:
         if self._client:
             return
         mistralai_import.check()
-        self._client = Mistral(api_key=self.api_key.resolve_value(),timeout_ms=self.timeout_ms)
+        self._client = Mistral(api_key=self.api_key.resolve_value(), timeout_ms=self.timeout_ms)
 
     @staticmethod
     def _convert_messages(messages: list[ChatMessage]) -> list[dict[str, Any]]:
-
         mistral_messages = []
 
         for msg in messages:
@@ -185,10 +184,7 @@ class MistralAgent:
         flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
         if not flattened_tools:
             return None
-        return [
-            {"type": "function", "function": tool.tool_spec}
-            for tool in flattened_tools
-        ]
+        return [{"type": "function", "function": tool.tool_spec} for tool in flattened_tools]
 
     @staticmethod
     def _parse_response(response: Any) -> list[ChatMessage]:
@@ -231,7 +227,9 @@ class MistralAgent:
                     "prompt_tokens": response.usage.prompt_tokens,
                     "completion_tokens": response.usage.completion_tokens,
                     "total_tokens": response.usage.total_tokens,
-                } if response.usage else None,
+                }
+                if response.usage
+                else None,
             }
 
             chat_message = ChatMessage.from_assistant(
@@ -244,7 +242,10 @@ class MistralAgent:
         return messages
 
     @staticmethod
-    def _handle_streaming(stream_response: Any, callback: StreamingCallbackT,) -> list[ChatMessage]:
+    def _handle_streaming(
+        stream_response: Any,
+        callback: StreamingCallbackT,
+    ) -> list[ChatMessage]:
         """
         Handle streaming response from the Mistral.
 
@@ -418,7 +419,6 @@ class MistralAgent:
 
             raise
 
-
     @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
@@ -543,9 +543,7 @@ class MistralAgent:
                 arguments = json.loads(tc_data["arguments"]) if tc_data["arguments"] else {}
             except json.JSONDecodeError:
                 arguments = {}
-            tool_calls.append(
-                ToolCall(id=tc_data["id"], tool_name=tc_data["name"], arguments=arguments)
-            )
+            tool_calls.append(ToolCall(id=tc_data["id"], tool_name=tc_data["name"], arguments=arguments))
 
         return [
             ChatMessage.from_assistant(
@@ -589,8 +587,6 @@ class MistralAgent:
 
         init_params = data.get("init_parameters", {})
         if init_params.get("streaming_callback"):
-            data["init_parameters"]["streaming_callback"] = deserialize_callable(
-                init_params["streaming_callback"]
-            )
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(init_params["streaming_callback"])
 
         return default_from_dict(cls, data)

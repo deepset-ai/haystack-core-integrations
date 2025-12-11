@@ -32,4 +32,3 @@ class MockResponse:
         self.choices = choices
         self.model = model
         self.usage = usage or MockUsage()
-

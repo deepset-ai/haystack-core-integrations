@@ -11,7 +11,6 @@ from haystack_integrations.components.agents.mistral.agent import MistralAgent
 
 @pytest.mark.asyncio
 class TestMistralAgentAsync:
-
     @patch("haystack_integrations.components.agents.mistral.agent.MistralAgent.warm_up")
     async def test_run_async_basic(self, _mock_warm_up, chat_messages, mock_sdk_response, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
