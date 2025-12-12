@@ -181,7 +181,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
             generation_kwargs["response_format"] = json_schema
 
         # if we didn't implement the to_dict method here then the to_dict method of the superclass would be used
-        # which would serialiaze some fields that we don't want to serialize (e.g. the ones we don't have in
+        # which would serialize some fields that we don't want to serialize (e.g. the ones we don't have in
         # the __init__)
         return default_to_dict(
             self,

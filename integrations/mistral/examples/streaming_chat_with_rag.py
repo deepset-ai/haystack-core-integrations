@@ -1,4 +1,4 @@
-# To run this example, you will need an to set a `MISTRAL_API_KEY` environment variable.
+# To run this example, you will need to set a `MISTRAL_API_KEY` environment variable.
 # This example streams chat replies to the console.
 
 from haystack import Pipeline
