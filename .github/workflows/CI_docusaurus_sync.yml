@@ -18,7 +18,7 @@ env:
 
 jobs:
   generate-api-reference:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       integration_name: ${{ steps.pathfinder.outputs.integration_name }}
 
@@ -61,7 +61,7 @@ jobs:
 
 
   sync-api-reference:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     needs: generate-api-reference
     
     steps:
