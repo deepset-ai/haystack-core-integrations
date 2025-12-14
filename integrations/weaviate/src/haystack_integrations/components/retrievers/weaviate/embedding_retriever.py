@@ -134,7 +134,7 @@ class WeaviateEmbeddingRetriever:
         distance = distance or self._distance
         certainty = certainty or self._certainty
         if distance is not None and certainty is not None:
-            msg = "Can't use 'distance' and 'certainty' parameters together"
+            msg = f"Can't use 'distance' ({distance}) and 'certainty' ({certainty}) parameters together"
             raise ValueError(msg)
 
         documents = self._document_store._embedding_retrieval(
@@ -182,7 +182,7 @@ class WeaviateEmbeddingRetriever:
         distance = distance or self._distance
         certainty = certainty or self._certainty
         if distance is not None and certainty is not None:
-            msg = "Can't use 'distance' and 'certainty' parameters together"
+            msg = f"Can't use 'distance' ({distance}) and 'certainty' ({certainty}) parameters together"
             raise ValueError(msg)
 
         documents = await self._document_store._embedding_retrieval_async(
