@@ -38,5 +38,5 @@ async def test_run_async_distance_and_certainty_error():
     mock_document_store = Mock(spec=WeaviateDocumentStore)
     retriever = WeaviateEmbeddingRetriever(document_store=mock_document_store)
 
-    with pytest.raises(ValueError, match="Can't use 'distance' and 'certainty' parameters together"):
+    with pytest.raises(ValueError, match=r"Can't use 'distance' \(0.5\) and 'certainty' \(0.8\) parameters together"):
         await retriever.run_async(query_embedding=[0.1, 0.2, 0.3], distance=0.5, certainty=0.8)

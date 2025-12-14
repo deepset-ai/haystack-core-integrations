@@ -48,7 +48,7 @@ class WeaviateEmbeddingRetriever:
             `distance` and `certainty` parameters.
         """
         if distance is not None and certainty is not None:
-            msg = "Can't use 'distance' and 'certainty' parameters together"
+            msg = f"Can't use 'distance' ({distance}) and 'certainty' ({certainty}) parameters together"
             raise ValueError(msg)
 
         self._document_store = document_store
