@@ -159,6 +159,8 @@ class WeaviateHybridRetriever:
             See the official Weaviate docs on Hybrid Search parameters for more details:
             - `Hybrid search parameters <https://weaviate.io/developers/weaviate/search/hybrid#parameters>`_
             - `Hybrid Search <https://docs.weaviate.io/weaviate/concepts/search/hybrid-search>`_
+        :returns: A dictionary with the following keys:
+            - `documents`: List of documents returned by the search engine.
         """
         filters = apply_filter_policy(self._filter_policy, self._filters, filters)
         top_k = self._top_k if top_k is None else top_k
@@ -223,6 +225,8 @@ class WeaviateHybridRetriever:
             See the official Weaviate docs on Hybrid Search parameters for more details:
             - `Hybrid search parameters <https://weaviate.io/developers/weaviate/search/hybrid#parameters>`_
             - `Hybrid Search <https://docs.weaviate.io/weaviate/concepts/search/hybrid-search>`_
+        :returns: A dictionary with the following keys:
+            - `documents`: List of documents returned by the search engine.
         """
         filters = apply_filter_policy(self._filter_policy, self._filters, filters)
         top_k = self._top_k if top_k is None else top_k

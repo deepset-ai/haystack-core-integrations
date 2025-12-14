@@ -121,6 +121,8 @@ class WeaviateEmbeddingRetriever:
             The maximum allowed distance between Documents' embeddings.
         :param certainty:
             Normalized distance between the result item and the search vector.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of documents returned by the search engine.
         :raises ValueError:
             If both `distance` and `certainty` are provided.
             See https://weaviate.io/developers/weaviate/api/graphql/search-operators#variables to learn more about
@@ -167,6 +169,8 @@ class WeaviateEmbeddingRetriever:
             The maximum allowed distance between Documents' embeddings.
         :param certainty:
             Normalized distance between the result item and the search vector.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of documents returned by the search engine.
         :raises ValueError:
             If both `distance` and `certainty` are provided.
             See https://weaviate.io/developers/weaviate/api/graphql/search-operators#variables to learn more about

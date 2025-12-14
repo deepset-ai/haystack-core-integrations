@@ -102,6 +102,8 @@ class WeaviateBM25Retriever:
                         details.
         :param top_k:
             The maximum number of documents to return.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of documents returned by the search engine.
         """
         filters = apply_filter_policy(self._filter_policy, self._filters, filters)
 
@@ -123,6 +125,8 @@ class WeaviateBM25Retriever:
                         details.
         :param top_k:
             The maximum number of documents to return.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of documents returned by the search engine.
         """
         filters = apply_filter_policy(self._filter_policy, self._filters, filters)
 
