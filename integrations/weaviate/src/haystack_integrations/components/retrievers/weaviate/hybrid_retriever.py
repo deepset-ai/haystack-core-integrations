@@ -66,6 +66,10 @@ class WeaviateHybridRetriever:
             Policy to determine how filters are applied.
         """
 
+        if alpha is not None and not 0.0 <= alpha <= 1.0:
+            msg = "alpha must be in the range [0.0, 1.0]"
+            raise ValueError(msg)
+
         self._document_store = document_store
         self._filters = filters or {}
         self._top_k = top_k
@@ -167,6 +171,10 @@ class WeaviateHybridRetriever:
         alpha = self._alpha if alpha is None else alpha
         max_vector_distance = self._max_vector_distance if max_vector_distance is None else max_vector_distance
 
+        if alpha is not None and not 0.0 <= alpha <= 1.0:
+            msg = "alpha must be in the range [0.0, 1.0]"
+            raise ValueError(msg)
+
         documents = self._document_store._hybrid_retrieval(
             query=query,
             query_embedding=query_embedding,
@@ -232,6 +240,10 @@ class WeaviateHybridRetriever:
         top_k = self._top_k if top_k is None else top_k
         alpha = self._alpha if alpha is None else alpha
         max_vector_distance = self._max_vector_distance if max_vector_distance is None else max_vector_distance
+
+        if alpha is not None and not 0.0 <= alpha <= 1.0:
+            msg = "alpha must be in the range [0.0, 1.0]"
+            raise ValueError(msg)
 
         documents = await self._document_store._hybrid_retrieval_async(
             query=query,
