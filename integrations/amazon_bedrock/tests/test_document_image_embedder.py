@@ -145,13 +145,20 @@ class TestAmazonBedrockDocumentImageEmbedder:
             with pytest.raises(AmazonBedrockInferenceError):
                 embedder.run(documents=docs)
 
-    def test_embed_cohere(self, mock_boto3_session, test_files_path):
+    @pytest.mark.parametrize(
+        "response_body",
+        [
+            '{"embeddings": [[0.1, 0.2, 0.3]]}',  # embeddings as list of lists
+            '{"embeddings": {"float": [[0.1, 0.2, 0.3]]}}',  # dict with embedding type as key
+        ],
+    )
+    def test_embed_cohere(self, mock_boto3_session, test_files_path, response_body):
         embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3", embedding_types=["float"])
         image_paths = glob.glob(str(test_files_path / "*.*"))
 
         with patch.object(embedder, "_client") as mock_client:
             mock_client.invoke_model.return_value = {
-                "body": io.StringIO('{"embeddings": {"float": [[0.1, 0.2, 0.3]]}}'),
+                "body": io.StringIO(response_body),
             }
             docs = [Document(content="some text", meta={"file_path": image_paths[0]})]
             base64_images = []

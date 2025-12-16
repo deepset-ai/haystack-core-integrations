@@ -172,7 +172,7 @@ class TestAmazonBedrockDocumentEmbedder:
         "response_body",
         [
             '{"embeddings": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]}',  # embeddings as list of lists
-            '{"embeddings": {"float": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]}}',  # embeddings as dict with embedding type as key
+            '{"embeddings": {"float": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]}}',  # dict with embedding type as key
         ],
     )
     def test_embed_cohere(self, mock_boto3_session, response_body):
