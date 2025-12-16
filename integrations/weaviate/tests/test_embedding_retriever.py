@@ -30,7 +30,7 @@ def test_init_default():
 
 def test_init_with_distance_and_certainty():
     mock_document_store = Mock(spec=WeaviateDocumentStore)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"Can't use 'distance' \(0.1\) and 'certainty' \(0.8\) parameters together"):
         WeaviateEmbeddingRetriever(document_store=mock_document_store, distance=0.1, certainty=0.8)
 
 
@@ -164,3 +164,10 @@ def test_run(mock_document_store):
     mock_document_store._embedding_retrieval.assert_called_once_with(
         query_embedding=query_embedding, filters=filters, top_k=5, distance=0.1, certainty=None
     )
+
+
+def test_run_with_distance_and_certainty():
+    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    retriever = WeaviateEmbeddingRetriever(document_store=mock_document_store)
+    with pytest.raises(ValueError, match=r"Can't use 'distance' \(0.5\) and 'certainty' \(0.8\) parameters together"):
+        retriever.run(query_embedding=[0.1, 0.2, 0.3], distance=0.5, certainty=0.8)

@@ -113,7 +113,7 @@ class WeaviateDocumentStore:
             for your use case.
             Another option is relying on the automatic schema generation, but that's not recommended for
             production use.
-            See the official `Weaviate documentation<https://weaviate.io/developers/weaviate/manage-data/collections>`_
+            See the official [Weaviate documentation](https://weaviate.io/developers/weaviate/manage-data/collections)
             for more information on collections and their properties.
         :param auth_client_secret:
             Authentication credentials. Can be one of the following types depending on the authentication mode:
@@ -145,7 +145,9 @@ class WeaviateDocumentStore:
         self._grpc_port = grpc_port
         self._grpc_secure = grpc_secure
         self._client: Optional[weaviate.WeaviateClient] = None
+        self._async_client: Optional[weaviate.WeaviateAsyncClient] = None
         self._collection: Optional[weaviate.Collection] = None
+        self._async_collection: Optional[weaviate.AsyncCollection] = None
         # Store the connection settings dictionary
         self._collection_settings = collection_settings or {
             "class": "Default",
@@ -211,6 +213,51 @@ class WeaviateDocumentStore:
         return self._client
 
     @property
+    async def async_client(self):
+        if self._async_client:
+            return self._async_client
+
+        if self._url and self._url.endswith((".weaviate.network", ".weaviate.cloud")):
+            # If we detect that the URL is a Weaviate Cloud URL, we use the utility function to connect
+            # instead of using WeaviateAsyncClient directly like in other cases.
+            # Among other things, the utility function takes care of parsing the URL.
+            if not self._auth_client_secret:
+                msg = "Auth credentials are required for Weaviate Cloud Services"
+                raise ValueError(msg)
+            self._async_client = weaviate.use_async_with_weaviate_cloud(
+                self._url,
+                auth_credentials=self._auth_client_secret.resolve_value(),
+                headers=self._additional_headers,
+                additional_config=self._additional_config,
+            )
+        else:
+            # Embedded, local Docker deployment or custom connection.
+            # proxies, timeout_config, trust_env are part of additional_config now
+            # startup_period has been removed
+            self._async_client = weaviate.WeaviateAsyncClient(
+                connection_params=(
+                    weaviate.connect.base.ConnectionParams.from_url(
+                        url=self._url, grpc_port=self._grpc_port, grpc_secure=self._grpc_secure
+                    )
+                    if self._url
+                    else None
+                ),
+                auth_client_secret=self._auth_client_secret.resolve_value() if self._auth_client_secret else None,
+                additional_config=self._additional_config,
+                additional_headers=self._additional_headers,
+                embedded_options=self._embedded_options,
+                skip_init_checks=False,
+            )
+
+        await self._async_client.connect()
+        # Test connection, it will raise an exception if it fails.
+        await self._async_client.collections.list_all(simple=True)
+        if not await self._async_client.collections.exists(self._collection_settings["class"]):
+            await self._async_client.collections.create_from_dict(self._collection_settings)
+
+        return self._async_client
+
+    @property
     def collection(self):
         if self._collection:
             return self._collection
@@ -218,6 +265,15 @@ class WeaviateDocumentStore:
         client = self.client
         self._collection = client.collections.get(self._collection_settings["class"])
         return self._collection
+
+    @property
+    async def async_collection(self):
+        if self._async_collection:
+            return self._async_collection
+
+        async_client = await self.async_client
+        self._async_collection = async_client.collections.get(self._collection_settings["class"])
+        return self._async_collection
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -570,6 +626,24 @@ class WeaviateDocumentStore:
 
         return [self._to_document(doc) for doc in result.objects]
 
+    async def _bm25_retrieval_async(
+        self, query: str, filters: Optional[dict[str, Any]] = None, top_k: Optional[int] = None
+    ) -> list[Document]:
+        collection = await self.async_collection
+        config = await collection.config.get()
+        properties = [p.name for p in config.properties]
+        result = await collection.query.bm25(
+            query=query,
+            filters=convert_filters(filters) if filters else None,
+            limit=top_k,
+            include_vector=True,
+            query_properties=["content"],
+            return_properties=properties,
+            return_metadata=["score"],
+        )
+
+        return [self._to_document(doc) for doc in result.objects]
+
     def _embedding_retrieval(
         self,
         query_embedding: list[float],
@@ -596,6 +670,34 @@ class WeaviateDocumentStore:
 
         return [self._to_document(doc) for doc in result.objects]
 
+    async def _embedding_retrieval_async(
+        self,
+        query_embedding: list[float],
+        filters: Optional[dict[str, Any]] = None,
+        top_k: Optional[int] = None,
+        distance: Optional[float] = None,
+        certainty: Optional[float] = None,
+    ) -> list[Document]:
+        if distance is not None and certainty is not None:
+            msg = "Can't use 'distance' and 'certainty' parameters together"
+            raise ValueError(msg)
+
+        collection = await self.async_collection
+        config = await collection.config.get()
+        properties = [p.name for p in config.properties]
+        result = await collection.query.near_vector(
+            near_vector=query_embedding,
+            distance=distance,
+            certainty=certainty,
+            include_vector=True,
+            filters=convert_filters(filters) if filters else None,
+            limit=top_k,
+            return_properties=properties,
+            return_metadata=["certainty"],
+        )
+
+        return [self._to_document(doc) for doc in result.objects]
+
     def _hybrid_retrieval(
         self,
         query: str,
@@ -607,6 +709,33 @@ class WeaviateDocumentStore:
     ) -> list[Document]:
         properties = [p.name for p in self.collection.config.get().properties]
         result = self.collection.query.hybrid(
+            query=query,
+            vector=query_embedding,
+            alpha=alpha,
+            filters=convert_filters(filters) if filters else None,
+            limit=top_k,
+            max_vector_distance=max_vector_distance,
+            include_vector=True,
+            query_properties=["content"],
+            return_properties=properties,
+            return_metadata=["score"],
+        )
+
+        return [self._to_document(doc) for doc in result.objects]
+
+    async def _hybrid_retrieval_async(
+        self,
+        query: str,
+        query_embedding: list[float],
+        filters: Optional[dict[str, Any]] = None,
+        top_k: Optional[int] = None,
+        alpha: Optional[float] = None,
+        max_vector_distance: Optional[float] = None,
+    ) -> list[Document]:
+        collection = await self.async_collection
+        config = await collection.config.get()
+        properties = [p.name for p in config.properties]
+        result = await collection.query.hybrid(
             query=query,
             vector=query_embedding,
             alpha=alpha,
