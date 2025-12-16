@@ -113,7 +113,7 @@ class WeaviateDocumentStore:
             for your use case.
             Another option is relying on the automatic schema generation, but that's not recommended for
             production use.
-            See the official `Weaviate documentation<https://weaviate.io/developers/weaviate/manage-data/collections>`_
+            See the official [Weaviate documentation](https://weaviate.io/developers/weaviate/manage-data/collections)
             for more information on collections and their properties.
         :param auth_client_secret:
             Authentication credentials. Can be one of the following types depending on the authentication mode:
