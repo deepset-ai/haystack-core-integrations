@@ -170,12 +170,12 @@ class AmazonBedrockTextEmbedder:
         response_body = json.loads(response.get("body").read())
 
         if "cohere" in self.model:
-            embeddings = response_body["embeddings"]
+            cohere_embeddings = response_body["embeddings"]
             # depending on the model, Cohere returns a dict with the embedding types as keys or a list of lists
-            if isinstance(embeddings, dict):
-                embedding = next(iter(embeddings.values()))[0]
-            else:
-                embedding = embeddings[0]
+            embeddings_list = (
+                next(iter(cohere_embeddings.values())) if isinstance(cohere_embeddings, dict) else cohere_embeddings
+            )
+            embedding = embeddings_list[0]
         elif "titan" in self.model:
             embedding = response_body["embedding"]
         else:

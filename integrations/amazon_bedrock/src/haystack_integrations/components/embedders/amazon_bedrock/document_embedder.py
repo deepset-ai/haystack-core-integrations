@@ -193,14 +193,12 @@ class AmazonBedrockDocumentEmbedder:
                 msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
                 raise AmazonBedrockInferenceError(msg) from exception
 
-            response_body = json.loads(response.get("body").read())
-            embeddings = response_body["embeddings"]
+            cohere_embeddings = json.loads(response.get("body").read())["embeddings"]
             # depending on the model, Cohere returns a dict with the embedding types as keys or a list of lists
-            if isinstance(embeddings, dict):
-                for embedding in embeddings.values():
-                    all_embeddings.extend(embedding)
-            else:
-                all_embeddings.extend(embeddings)
+            embeddings_list = (
+                next(iter(cohere_embeddings.values())) if isinstance(cohere_embeddings, dict) else cohere_embeddings
+            )
+            all_embeddings.extend(embeddings_list)
 
         for doc, emb in zip(documents, all_embeddings):
             doc.embedding = emb
