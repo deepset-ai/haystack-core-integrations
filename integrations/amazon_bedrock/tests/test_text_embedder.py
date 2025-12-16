@@ -1,4 +1,5 @@
 import io
+import os
 from unittest.mock import patch
 
 import pytest
@@ -146,3 +147,20 @@ class TestAmazonBedrockTextEmbedder:
 
             with pytest.raises(AmazonBedrockInferenceError):
                 embedder.run(text="some text")
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.getenv("AWS_ACCESS_KEY_ID")
+        or not os.getenv("AWS_SECRET_ACCESS_KEY")
+        or not os.getenv("AWS_DEFAULT_REGION"),
+        reason="AWS credentials are not set",
+    )
+    @pytest.mark.parametrize("model", ["cohere.embed-v4:0", "cohere.embed-english-v3", "amazon.titan-embed-text-v1"])
+    def test_live_run(self, model):
+        embedder = AmazonBedrockTextEmbedder(model=model)
+
+        embedding = embedder.run(text="some text")["embedding"]
+
+        assert isinstance(embedding, list)
+        assert len(embedding) > 1000
+        assert all(isinstance(embedding, float) for embedding in embedding)

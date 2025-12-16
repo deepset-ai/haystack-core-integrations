@@ -27,7 +27,12 @@ from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_EMBEDDING_MODELS = ["amazon.titan-embed-image-v1", "cohere.embed-english-v3", "cohere.embed-multilingual-v3"]
+SUPPORTED_EMBEDDING_MODELS = [
+    "amazon.titan-embed-image-v1",
+    "cohere.embed-english-v3",
+    "cohere.embed-multilingual-v3",
+    "cohere.embed-v4:0",
+]
 
 
 @component
@@ -69,7 +74,12 @@ class AmazonBedrockDocumentImageEmbedder:
     def __init__(
         self,
         *,
-        model: Literal["amazon.titan-embed-image-v1", "cohere.embed-english-v3", "cohere.embed-multilingual-v3"],
+        model: Literal[
+            "amazon.titan-embed-image-v1",
+            "cohere.embed-english-v3",
+            "cohere.embed-multilingual-v3",
+            "cohere.embed-v4:0",
+        ],
         aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
             "AWS_SECRET_ACCESS_KEY", strict=False
@@ -93,6 +103,7 @@ class AmazonBedrockDocumentImageEmbedder:
             - "amazon.titan-embed-image-v1"
             - "cohere.embed-english-v3"
             - "cohere.embed-multilingual-v3"
+            - "cohere.embed-v4:0"
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
         :param aws_session_token: AWS session token.

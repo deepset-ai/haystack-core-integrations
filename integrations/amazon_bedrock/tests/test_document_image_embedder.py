@@ -220,8 +220,9 @@ class TestAmazonBedrockDocumentImageEmbedder:
         or not os.getenv("AWS_DEFAULT_REGION"),
         reason="AWS credentials are not set",
     )
-    def test_live_run_with_cohere(self, test_files_path):
-        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3", embedding_types=["int8"])
+    @pytest.mark.parametrize("model", ["cohere.embed-v4:0", "cohere.embed-english-v3"])
+    def test_live_run_with_cohere(self, test_files_path, model):
+        embedder = AmazonBedrockDocumentImageEmbedder(model=model, embedding_types=["int8"])
 
         image_paths = glob.glob(str(test_files_path / "*.*"))
         documents = []

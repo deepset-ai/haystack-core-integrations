@@ -1,4 +1,5 @@
 import io
+import os
 from typing import Any, Optional
 from unittest.mock import patch
 
@@ -248,3 +249,25 @@ class TestAmazonBedrockDocumentEmbedder:
         for i, doc in enumerate(result):
             assert doc.content == docs[i].content
             assert doc.embedding == [0.1, 0.2, 0.3]
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.getenv("AWS_ACCESS_KEY_ID")
+        or not os.getenv("AWS_SECRET_ACCESS_KEY")
+        or not os.getenv("AWS_DEFAULT_REGION"),
+        reason="AWS credentials are not set",
+    )
+    @pytest.mark.parametrize("model", ["cohere.embed-v4:0", "cohere.embed-english-v3", "amazon.titan-embed-text-v1"])
+    def test_live_run(self, model):
+        embedder = AmazonBedrockDocumentEmbedder(model=model)
+
+        documents = [Document(content="this is a test document"), Document(content="I love pizza")]
+
+        docs_with_embeddings = embedder.run(documents=documents)["documents"]
+
+        assert docs_with_embeddings[0].content == "this is a test document"
+        assert docs_with_embeddings[1].content == "I love pizza"
+        for doc in docs_with_embeddings:
+            assert isinstance(doc.embedding, list)
+            assert all(isinstance(embedding, float) for embedding in doc.embedding)
+            assert len(doc.embedding) > 1000

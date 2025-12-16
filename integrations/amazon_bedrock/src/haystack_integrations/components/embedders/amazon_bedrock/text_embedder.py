@@ -16,10 +16,11 @@ logger = logging.getLogger(__name__)
 
 SUPPORTED_EMBEDDING_MODELS = [
     "amazon.titan-embed-text-v1",
-    "cohere.embed-english-v3",
-    "cohere.embed-multilingual-v3",
     "amazon.titan-embed-text-v2:0",
     "amazon.titan-embed-image-v1",
+    "cohere.embed-english-v3",
+    "cohere.embed-multilingual-v3",
+    "cohere.embed-v4:0",
 ]
 
 
@@ -52,10 +53,11 @@ class AmazonBedrockTextEmbedder:
         self,
         model: Literal[
             "amazon.titan-embed-text-v1",
-            "cohere.embed-english-v3",
-            "cohere.embed-multilingual-v3",
             "amazon.titan-embed-text-v2:0",
             "amazon.titan-embed-image-v1",
+            "cohere.embed-english-v3",
+            "cohere.embed-multilingual-v3",
+            "cohere.embed-v4:0",
         ],
         aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
@@ -168,7 +170,13 @@ class AmazonBedrockTextEmbedder:
         response_body = json.loads(response.get("body").read())
 
         if "cohere" in self.model:
-            embedding = response_body["embeddings"][0]
+            embeddings = response_body["embeddings"]
+            # depending on the model, Cohere returns a dict with the embedding types as keys
+            # or a nested list of float embeddings
+            if isinstance(embeddings, dict):
+                embedding = next(iter(embeddings.values()))[0]
+            else:
+                embedding = embeddings[0]
         elif "titan" in self.model:
             embedding = response_body["embedding"]
         else:
