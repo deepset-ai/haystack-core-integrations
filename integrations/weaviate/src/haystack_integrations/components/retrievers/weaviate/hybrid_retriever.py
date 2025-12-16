@@ -208,7 +208,7 @@ class WeaviateHybridRetriever:
         :param top_k:
             The maximum number of documents to return.
         :param alpha:
-            Blending factor for hybrid retrieval in Weaviate. Must be in the range ``[0.0, 1.0]``.
+            Blending factor for hybrid retrieval in Weaviate. Must be in the range `[0.0, 1.0]`.
 
             Weaviate hybrid search combines keyword (BM25) and vector scores into a single ranking. ``alpha`` controls
             how much each part contributes to the final score:
@@ -220,7 +220,7 @@ class WeaviateHybridRetriever:
             If ``None``, the Weaviate server default is used.
 
             See the official Weaviate docs on Hybrid Search parameters for more details:
-            `Hybrid search parameters <https://weaviate.io/developers/weaviate/search/hybrid#parameters>`_
+            - [Hybrid search parameters](https://weaviate.io/developers/weaviate/search/hybrid#parameters)`
             `Hybrid Search <https://docs.weaviate.io/weaviate/concepts/search/hybrid-search>`_
         :param max_vector_distance:
             Optional threshold that restricts the vector part of the hybrid search to candidates within a maximum
