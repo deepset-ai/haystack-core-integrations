@@ -171,8 +171,7 @@ class AmazonBedrockTextEmbedder:
 
         if "cohere" in self.model:
             embeddings = response_body["embeddings"]
-            # depending on the model, Cohere returns a dict with the embedding types as keys
-            # or a nested list of float embeddings
+            # depending on the model, Cohere returns a dict with the embedding types as keys or a list of lists
             if isinstance(embeddings, dict):
                 embedding = next(iter(embeddings.values()))[0]
             else:

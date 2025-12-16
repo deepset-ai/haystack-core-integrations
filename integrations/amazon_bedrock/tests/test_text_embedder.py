@@ -100,12 +100,19 @@ class TestAmazonBedrockTextEmbedder:
         with pytest.raises(TypeError):
             embedder.run(text=123)
 
-    def test_cohere_invocation(self, mock_boto3_session):
+    @pytest.mark.parametrize(
+        "response_body",
+        [
+            '{"embeddings": [[0.1, 0.2, 0.3]]}',  # embeddings as list of lists
+            '{"embeddings": {"float": [[0.1, 0.2, 0.3]]}}',  # embeddings as dict with embedding type as key
+        ],
+    )
+    def test_cohere_invocation(self, mock_boto3_session, response_body):
         embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
 
         with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
             mock_invoke_model.return_value = {
-                "body": io.StringIO('{"embeddings": [[0.1, 0.2, 0.3]]}'),
+                "body": io.StringIO(response_body),
             }
             result = embedder.run(text="some text")
 

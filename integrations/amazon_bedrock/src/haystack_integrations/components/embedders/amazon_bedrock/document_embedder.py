@@ -195,8 +195,7 @@ class AmazonBedrockDocumentEmbedder:
 
             response_body = json.loads(response.get("body").read())
             embeddings = response_body["embeddings"]
-            # depending on the model, Cohere returns a dict with the embedding types as keys
-            # or a nested list of float embeddings
+            # depending on the model, Cohere returns a dict with the embedding types as keys or a list of lists
             if isinstance(embeddings, dict):
                 for embedding in embeddings.values():
                     all_embeddings.extend(embedding)

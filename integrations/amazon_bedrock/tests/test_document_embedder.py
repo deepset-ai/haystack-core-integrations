@@ -168,12 +168,19 @@ class TestAmazonBedrockDocumentEmbedder:
             "meta_value 4 | document number 4: content",
         ]
 
-    def test_embed_cohere(self, mock_boto3_session):
+    @pytest.mark.parametrize(
+        "response_body",
+        [
+            '{"embeddings": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]}',  # embeddings as list of lists
+            '{"embeddings": {"float": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]}}',  # embeddings as dict with embedding type as key
+        ],
+    )
+    def test_embed_cohere(self, mock_boto3_session, response_body):
         embedder = AmazonBedrockDocumentEmbedder(model="cohere.embed-english-v3")
 
         with patch.object(embedder, "_client") as mock_client:
             mock_client.invoke_model.return_value = {
-                "body": io.StringIO('{"embeddings": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]}'),
+                "body": io.StringIO(response_body),
             }
 
             docs = [Document(content="some text"), Document(content="some other text")]
