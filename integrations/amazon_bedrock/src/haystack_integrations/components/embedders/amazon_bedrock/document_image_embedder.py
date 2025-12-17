@@ -27,7 +27,12 @@ from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_EMBEDDING_MODELS = ["amazon.titan-embed-image-v1", "cohere.embed-english-v3", "cohere.embed-multilingual-v3"]
+SUPPORTED_EMBEDDING_MODELS = [
+    "amazon.titan-embed-image-v1",
+    "cohere.embed-english-v3",
+    "cohere.embed-multilingual-v3",
+    "cohere.embed-v4:0",
+]
 
 
 @component
@@ -69,7 +74,12 @@ class AmazonBedrockDocumentImageEmbedder:
     def __init__(
         self,
         *,
-        model: Literal["amazon.titan-embed-image-v1", "cohere.embed-english-v3", "cohere.embed-multilingual-v3"],
+        model: Literal[
+            "amazon.titan-embed-image-v1",
+            "cohere.embed-english-v3",
+            "cohere.embed-multilingual-v3",
+            "cohere.embed-v4:0",
+        ],
         aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
             "AWS_SECRET_ACCESS_KEY", strict=False
@@ -93,6 +103,7 @@ class AmazonBedrockDocumentImageEmbedder:
             - "amazon.titan-embed-image-v1"
             - "cohere.embed-english-v3"
             - "cohere.embed-multilingual-v3"
+            - "cohere.embed-v4:0"
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
         :param aws_session_token: AWS session token.
@@ -135,14 +146,14 @@ class AmazonBedrockDocumentImageEmbedder:
         self.kwargs = kwargs
         self.embedding_types = None
 
-        if emmbedding_types := self.kwargs.get("embedding_types"):
-            if len(emmbedding_types) > 1:
+        if embedding_types := self.kwargs.get("embedding_types"):
+            if len(embedding_types) > 1:
                 msg = (
                     "You have provided multiple embedding_types for Cohere model. "
                     "AmazonBedrockDocumentImageEmbedder only supports one embedding_type at a time."
                 )
                 raise ValueError(msg)
-            self.embedding_types = emmbedding_types
+            self.embedding_types = embedding_types
 
         def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
             return secret.resolve_value() if secret else None
@@ -351,15 +362,13 @@ class AmazonBedrockDocumentImageEmbedder:
                 raise AmazonBedrockInferenceError(msg) from exception
 
             response_body = json.loads(response.get("body").read())
-            embeddings = response_body["embeddings"]
+            cohere_embeddings = response_body["embeddings"]
 
-            # if embedding_types is specified, cohere returns a dict with the embedding types as keys
-            if isinstance(embeddings, dict):
-                for embedding in embeddings.values():
-                    all_embeddings.append(embedding[0])
-            else:
-                # if embedding_types is not specified, cohere returns
-                # a nested list of float embeddings
-                all_embeddings.append(embeddings[0])
+            # depending on the model and embedding_types, Cohere returns a dict with the embedding types as keys
+            # or a list of lists
+            embeddings_list = (
+                next(iter(cohere_embeddings.values())) if isinstance(cohere_embeddings, dict) else cohere_embeddings
+            )
+            all_embeddings.extend(embeddings_list)
 
         return all_embeddings
