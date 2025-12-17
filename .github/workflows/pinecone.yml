@@ -33,7 +33,7 @@ jobs:
       matrix:
         # Pinecone tests are time expensive, so only test on Ubuntu
         os: [ubuntu-latest]
-        python-version: ["3.9", "3.13"]
+        python-version: ["3.10", "3.13"]
         # the INDEX_NAME is used in test_serverless_index_creation_from_scratch
         include:
           - python-version: "3.9"
@@ -55,11 +55,11 @@ jobs:
       # TODO: Once this integration is properly typed, use hatch run test:types
       # https://github.com/deepset-ai/haystack-core-integrations/issues/1771
       - name: Lint
-        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
       - name: Generate docs
-        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run docs
 
       - name: Run tests
