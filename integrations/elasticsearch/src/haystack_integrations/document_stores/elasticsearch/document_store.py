@@ -431,6 +431,7 @@ class ElasticsearchDocumentStore:
             - `True`: Force refresh immediately after the operation.
             - `False`: Do not refresh (better performance for bulk operations).
             - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
+            For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         :raises ValueError: If `documents` is not a list of `Document`s.
         :raises DuplicateDocumentError: If a document with the same ID already exists in the document store and
             `policy` is set to `DuplicatePolicy.FAIL` or `DuplicatePolicy.NONE`.
@@ -517,6 +518,7 @@ class ElasticsearchDocumentStore:
             - `True`: Force refresh immediately after the operation.
             - `False`: Do not refresh (better performance for bulk operations).
             - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
+            For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         :raises ValueError: If `documents` is not a list of `Document`s.
         :raises DuplicateDocumentError: If a document with the same ID already exists in the document store and
             `policy` is set to `DuplicatePolicy.FAIL` or `DuplicatePolicy.NONE`.
@@ -587,6 +589,7 @@ class ElasticsearchDocumentStore:
             - `True`: Force refresh immediately after the operation.
             - `False`: Do not refresh (better performance for bulk operations).
             - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
+            For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         """
         helpers.bulk(
             client=self.client,
@@ -613,6 +616,7 @@ class ElasticsearchDocumentStore:
             - `True`: Force refresh immediately after the operation.
             - `False`: Do not refresh (better performance for bulk operations).
             - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
+            For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         """
         self._ensure_initialized()
 
@@ -639,6 +643,7 @@ class ElasticsearchDocumentStore:
             - `True`: Force refresh immediately after the operation (default).
             - `False`: Do not refresh (better performance for bulk operations).
             - `"wait_for"`: Wait for the next refresh cycle.
+            For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         """
         self._ensure_initialized()  # _ensure_initialized ensures _client is not None and an index exists
 
@@ -682,6 +687,7 @@ class ElasticsearchDocumentStore:
             - `True`: Force refresh immediately after the operation (default).
             - `False`: Do not refresh (better performance for bulk operations).
             - `"wait_for"`: Wait for the next refresh cycle.
+            For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         """
         self._ensure_initialized()  # ensures _async_client is not None
 
@@ -731,6 +737,7 @@ class ElasticsearchDocumentStore:
             - `True`: Force refresh immediately after the operation.
             - `False`: Do not refresh (better performance for bulk operations).
             - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
+            For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         :returns: The number of documents deleted.
         """
         self._ensure_initialized()
@@ -760,6 +767,7 @@ class ElasticsearchDocumentStore:
             - `True`: Force refresh immediately after the operation.
             - `False`: Do not refresh (better performance for bulk operations).
             - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
+            For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         :returns: The number of documents deleted.
         """
         self._ensure_initialized()
@@ -790,6 +798,7 @@ class ElasticsearchDocumentStore:
             - `True`: Force refresh immediately after the operation.
             - `False`: Do not refresh (better performance for bulk operations).
             - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
+            For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         :returns: The number of documents updated.
         """
         self._ensure_initialized()
@@ -828,6 +837,7 @@ class ElasticsearchDocumentStore:
             - `True`: Force refresh immediately after the operation.
             - `False`: Do not refresh (better performance for bulk operations).
             - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
+            For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         :returns: The number of documents updated.
         """
         self._ensure_initialized()
