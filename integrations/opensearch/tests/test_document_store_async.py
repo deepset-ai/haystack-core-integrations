@@ -299,6 +299,45 @@ class TestDocumentStoreAsync:
         assert len(results) == 1
         assert results[0].content == "New document after delete all"
 
+    @pytest.mark.asyncio
+    async def test_write_with_routing(self, document_store: OpenSearchDocumentStore):
+        """Test async writing documents with routing metadata"""
+        docs = [
+            Document(id="1", content="User A doc", meta={"_routing": "user_a", "category": "test"}),
+            Document(id="2", content="User B doc", meta={"_routing": "user_b"}),
+            Document(id="3", content="No routing"),
+        ]
+
+        written = await document_store.write_documents_async(docs)
+        assert written == 3
+        assert await document_store.count_documents_async() == 3
+
+        # Verify _routing not stored in metadata
+        retrieved = await document_store.filter_documents_async()
+        retrieved_by_id = {doc.id: doc for doc in retrieved}
+
+        # Check _routing is not stored for any document
+        for doc in retrieved:
+            assert "_routing" not in doc.meta
+
+        assert retrieved_by_id["1"].meta["category"] == "test"
+        assert retrieved_by_id["2"].meta == {}
+        assert retrieved_by_id["3"].meta == {}
+
+    @pytest.mark.asyncio
+    async def test_delete_with_routing(self, document_store: OpenSearchDocumentStore):
+        """Test async deleting documents with routing"""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"_routing": "user_a"}),
+            Document(id="2", content="Doc 2", meta={"_routing": "user_b"}),
+            Document(id="3", content="Doc 3"),
+        ]
+        await document_store.write_documents_async(docs)
+
+        routing_map = {"1": "user_a", "2": "user_b"}
+        await document_store.delete_documents_async(["1", "2"], routing=routing_map)
+        assert await document_store.count_documents_async() == 1
+
     async def test_delete_by_filter_async(self, document_store: OpenSearchDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A"}),
