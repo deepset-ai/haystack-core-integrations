@@ -813,9 +813,7 @@ class ElasticsearchDocumentStore:
             msg = f"Failed to update documents by filter in Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    async def update_by_filter_async(
-        self, filters: dict[str, Any], meta: dict[str, Any], refresh: bool = True
-    ) -> int:
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any], refresh: bool = True) -> int:
         """
         Asynchronously updates the metadata of all documents that match the provided filters.
 
