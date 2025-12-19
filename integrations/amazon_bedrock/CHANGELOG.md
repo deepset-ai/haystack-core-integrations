@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v5.3.1] - 2025-12-19
+
+### 🐛 Bug Fixes
+
+- Relax model name validation for Bedrock Embedders (#2625)
+
+
 ## [integrations/amazon_bedrock-v5.3.0] - 2025-12-17
 
 ### 🚀 Features
