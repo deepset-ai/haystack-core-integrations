@@ -1,5 +1,5 @@
 import json
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -13,15 +13,6 @@ from haystack_integrations.common.amazon_bedrock.errors import (
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 
 logger = logging.getLogger(__name__)
-
-SUPPORTED_EMBEDDING_MODELS = [
-    "amazon.titan-embed-text-v1",
-    "amazon.titan-embed-text-v2:0",
-    "amazon.titan-embed-image-v1",
-    "cohere.embed-english-v3",
-    "cohere.embed-multilingual-v3",
-    "cohere.embed-v4:0",
-]
 
 
 @component
@@ -51,14 +42,7 @@ class AmazonBedrockTextEmbedder:
 
     def __init__(
         self,
-        model: Literal[
-            "amazon.titan-embed-text-v1",
-            "amazon.titan-embed-text-v2:0",
-            "amazon.titan-embed-image-v1",
-            "cohere.embed-english-v3",
-            "cohere.embed-multilingual-v3",
-            "cohere.embed-v4:0",
-        ],
+        model: str,
         aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
             "AWS_SECRET_ACCESS_KEY", strict=False
@@ -79,8 +63,13 @@ class AmazonBedrockTextEmbedder:
         constructor. Aside from model, three required parameters are `aws_access_key_id`, `aws_secret_access_key`,
          and `aws_region_name`.
 
-        :param model: The embedding model to use. The model has to be specified in the format outlined in the Amazon
-            Bedrock [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html).
+        :param model: The embedding model to use.
+            Amazon Titan and Cohere embedding models are supported, for example:
+            "amazon.titan-embed-text-v1", "amazon.titan-embed-text-v2:0", "amazon.titan-embed-image-v1",
+            "cohere.embed-english-v3", "cohere.embed-multilingual-v3", "cohere.embed-v4:0".
+            To find all supported models, refer to the Amazon Bedrock
+            [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html) and
+            filter for "embedding", then select models from the Amazon Titan and Cohere series.
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
         :param aws_session_token: AWS session token.
@@ -92,10 +81,8 @@ class AmazonBedrockTextEmbedder:
         :raises ValueError: If the model is not supported.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly.
         """
-        if not model or model not in SUPPORTED_EMBEDDING_MODELS:
-            msg = "Please provide a valid model from the list of supported models: " + ", ".join(
-                SUPPORTED_EMBEDDING_MODELS
-            )
+        if "titan" not in model and "cohere" not in model:
+            msg = f"Model {model} is not supported. Only Amazon Titan and Cohere embedding models are supported."
             raise ValueError(msg)
 
         self.model = model
@@ -179,7 +166,7 @@ class AmazonBedrockTextEmbedder:
         elif "titan" in self.model:
             embedding = response_body["embedding"]
         else:
-            msg = f"Unsupported model {self.model}. Supported models are: {', '.join(SUPPORTED_EMBEDDING_MODELS)}"
+            msg = f"Model {self.model} is not supported. Only Amazon Titan and Cohere embedding models are supported."
             raise ValueError(msg)
 
         return {"embedding": embedding}
