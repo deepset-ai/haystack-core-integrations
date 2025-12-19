@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 # - True: Refresh immediately (force refresh)
 # - False: Don't refresh (best for bulk performance)
 # - "wait_for": Wait for next refresh cycle to make docs visible
-RefreshType = Union[bool, Literal["wait_for"]]
 
 Hosts = Union[str, list[Union[str, Mapping[str, Union[str, int]], NodeConfig]]]
 
@@ -639,7 +638,9 @@ class ElasticsearchDocumentStore:
 
         :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
             settings. If False, all documents will be deleted using the `delete_by_query` API.
-        :param refresh: If True, Elasticsearch refreshes all shards involved in the delete by query after the request completes. If False, no refresh is performed. For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
+        :param refresh: If True, Elasticsearch refreshes all shards involved in the delete by query after the request
+            completes. If False, no refresh is performed. For more details, see the
+            [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         """
         self._ensure_initialized()  # _ensure_initialized ensures _client is not None and an index exists
 
@@ -679,7 +680,9 @@ class ElasticsearchDocumentStore:
         A fast way to clear all documents from the document store while preserving any index settings and mappings.
         :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
             settings. If False, all documents will be deleted using the `delete_by_query` API.
-        :param refresh: If True, Elasticsearch refreshes all shards involved in the delete by query after the request completes. If False, no refresh is performed. For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
+        :param refresh: If True, Elasticsearch refreshes all shards involved in the delete by query after the request
+            completes. If False, no refresh is performed. For more details, see the
+            [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         """
         self._ensure_initialized()  # ensures _async_client is not None
 
@@ -725,7 +728,9 @@ class ElasticsearchDocumentStore:
 
         :param filters: The filters to apply to select documents for deletion.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
-        :param refresh: If True, Elasticsearch refreshes all shards involved in the delete by query after the request completes. If False, no refresh is performed. For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
+        :param refresh: If True, Elasticsearch refreshes all shards involved in the delete by query after the request
+            completes. If False, no refresh is performed. For more details, see the
+            [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         :returns: The number of documents deleted.
         """
         self._ensure_initialized()
@@ -751,7 +756,9 @@ class ElasticsearchDocumentStore:
 
         :param filters: The filters to apply to select documents for deletion.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
-        :param refresh: If True, Elasticsearch refreshes all shards involved in the delete by query after the request completes. If False, no refresh is performed. For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
+        :param refresh: If True, Elasticsearch refreshes all shards involved in the delete by query after the request
+            completes. If False, no refresh is performed. For more details, see the
+            [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         :returns: The number of documents deleted.
         """
         self._ensure_initialized()
@@ -778,7 +785,9 @@ class ElasticsearchDocumentStore:
         :param filters: The filters to apply to select documents for updating.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :param meta: The metadata fields to update.
-        :param refresh: If True, Elasticsearch refreshes all shards involved in the update by query after the request completes. If False, no refresh is performed. For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
+        :param refresh: If True, Elasticsearch refreshes all shards involved in the update by query after the request
+            completes. If False, no refresh is performed. For more details, see the
+            [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         :returns: The number of documents updated.
         """
         self._ensure_initialized()
@@ -813,7 +822,9 @@ class ElasticsearchDocumentStore:
         :param filters: The filters to apply to select documents for updating.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :param meta: The metadata fields to update.
-        :param refresh: If True, Elasticsearch refreshes all shards involved in the update by query after the request completes. If False, no refresh is performed. For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
+        :param refresh: If True, Elasticsearch refreshes all shards involved in the update by query after the request
+            completes. If False, no refresh is performed. For more details, see the
+            [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         :returns: The number of documents updated.
         """
         self._ensure_initialized()
