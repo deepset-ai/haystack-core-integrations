@@ -25,10 +25,6 @@ from .filters import _normalize_filters
 
 logger = logging.getLogger(__name__)
 
-# Type alias for the refresh parameter
-# - True: Refresh immediately (force refresh)
-# - False: Don't refresh (best for bulk performance)
-# - "wait_for": Wait for next refresh cycle to make docs visible
 
 Hosts = Union[str, list[Union[str, Mapping[str, Union[str, int]], NodeConfig]]]
 
