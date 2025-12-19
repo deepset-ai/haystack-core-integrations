@@ -766,9 +766,7 @@ class OpenSearchDocumentStore:
             msg = f"Failed to update documents by filter in OpenSearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    async def update_by_filter_async(
-        self, filters: dict[str, Any], meta: dict[str, Any], refresh: bool = False
-    ) -> int:
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any], refresh: bool = False) -> int:
         """
         Asynchronously updates the metadata of all documents that match the provided filters.
 
