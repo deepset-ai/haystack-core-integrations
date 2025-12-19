@@ -575,7 +575,9 @@ class ElasticsearchDocumentStore:
             msg = f"Failed to write documents to Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    def delete_documents(self, document_ids: list[str], refresh: bool = True) -> None:
+    def delete_documents(
+        self, document_ids: list[str], refresh: Literal["wait_for", True, False] = "wait_for"
+    ) -> None:
         """
         Deletes all documents with a matching document_ids from the document store.
 
