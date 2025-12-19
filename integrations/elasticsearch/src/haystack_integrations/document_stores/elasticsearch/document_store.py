@@ -631,7 +631,7 @@ class ElasticsearchDocumentStore:
             msg = f"Failed to delete documents from Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    def delete_all_documents(self, recreate_index: bool = False, refresh: RefreshType = True) -> None:
+    def delete_all_documents(self, recreate_index: bool = False, refresh: bool = True) -> None:
         """
         Deletes all documents in the document store.
 
@@ -639,11 +639,7 @@ class ElasticsearchDocumentStore:
 
         :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
             settings. If False, all documents will be deleted using the `delete_by_query` API.
-        :param refresh: Controls when changes are made visible to search operations.
-            - `True`: Force refresh immediately after the operation (default).
-            - `False`: Do not refresh (better performance for bulk operations).
-            - `"wait_for"`: Wait for the next refresh cycle.
-            For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
+        :param refresh: If True, Elasticsearch refreshes all shards involved in the delete by query after the request completes. If False, no refresh is performed. For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         """
         self._ensure_initialized()  # _ensure_initialized ensures _client is not None and an index exists
 
@@ -676,18 +672,14 @@ class ElasticsearchDocumentStore:
                 n_docs=result["deleted"],
             )
 
-    async def delete_all_documents_async(self, recreate_index: bool = False, refresh: RefreshType = True) -> None:
+    async def delete_all_documents_async(self, recreate_index: bool = False, refresh: bool = True) -> None:
         """
         Asynchronously deletes all documents in the document store.
 
         A fast way to clear all documents from the document store while preserving any index settings and mappings.
         :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
             settings. If False, all documents will be deleted using the `delete_by_query` API.
-        :param refresh: Controls when changes are made visible to search operations.
-            - `True`: Force refresh immediately after the operation (default).
-            - `False`: Do not refresh (better performance for bulk operations).
-            - `"wait_for"`: Wait for the next refresh cycle.
-            For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
+        :param refresh: If True, Elasticsearch refreshes all shards involved in the delete by query after the request completes. If False, no refresh is performed. For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         """
         self._ensure_initialized()  # ensures _async_client is not None
 
@@ -727,17 +719,13 @@ class ElasticsearchDocumentStore:
             msg = f"Failed to delete all documents from Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    def delete_by_filter(self, filters: dict[str, Any], refresh: RefreshType = "wait_for") -> int:
+    def delete_by_filter(self, filters: dict[str, Any], refresh: bool = True) -> int:
         """
         Deletes all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for deletion.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
-        :param refresh: Controls when changes are made visible to search operations.
-            - `True`: Force refresh immediately after the operation.
-            - `False`: Do not refresh (better performance for bulk operations).
-            - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
-            For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
+        :param refresh: If True, Elasticsearch refreshes all shards involved in the delete by query after the request completes. If False, no refresh is performed. For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         :returns: The number of documents deleted.
         """
         self._ensure_initialized()
@@ -757,17 +745,13 @@ class ElasticsearchDocumentStore:
             msg = f"Failed to delete documents by filter from Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    async def delete_by_filter_async(self, filters: dict[str, Any], refresh: RefreshType = "wait_for") -> int:
+    async def delete_by_filter_async(self, filters: dict[str, Any], refresh: bool = True) -> int:
         """
         Asynchronously deletes all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for deletion.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
-        :param refresh: Controls when changes are made visible to search operations.
-            - `True`: Force refresh immediately after the operation.
-            - `False`: Do not refresh (better performance for bulk operations).
-            - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
-            For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
+        :param refresh: If True, Elasticsearch refreshes all shards involved in the delete by query after the request completes. If False, no refresh is performed. For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         :returns: The number of documents deleted.
         """
         self._ensure_initialized()
@@ -787,18 +771,14 @@ class ElasticsearchDocumentStore:
             msg = f"Failed to delete documents by filter from Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any], refresh: RefreshType = "wait_for") -> int:
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any], refresh: bool = True) -> int:
         """
         Updates the metadata of all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for updating.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :param meta: The metadata fields to update.
-        :param refresh: Controls when changes are made visible to search operations.
-            - `True`: Force refresh immediately after the operation.
-            - `False`: Do not refresh (better performance for bulk operations).
-            - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
-            For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
+        :param refresh: If True, Elasticsearch refreshes all shards involved in the update by query after the request completes. If False, no refresh is performed. For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         :returns: The number of documents updated.
         """
         self._ensure_initialized()
@@ -825,7 +805,7 @@ class ElasticsearchDocumentStore:
             raise DocumentStoreError(msg) from e
 
     async def update_by_filter_async(
-        self, filters: dict[str, Any], meta: dict[str, Any], refresh: RefreshType = "wait_for"
+        self, filters: dict[str, Any], meta: dict[str, Any], refresh: bool = True
     ) -> int:
         """
         Asynchronously updates the metadata of all documents that match the provided filters.
@@ -833,11 +813,7 @@ class ElasticsearchDocumentStore:
         :param filters: The filters to apply to select documents for updating.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :param meta: The metadata fields to update.
-        :param refresh: Controls when changes are made visible to search operations.
-            - `True`: Force refresh immediately after the operation.
-            - `False`: Do not refresh (better performance for bulk operations).
-            - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
-            For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
+        :param refresh: If True, Elasticsearch refreshes all shards involved in the update by query after the request completes. If False, no refresh is performed. For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         :returns: The number of documents updated.
         """
         self._ensure_initialized()
