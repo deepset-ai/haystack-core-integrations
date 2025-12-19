@@ -383,7 +383,12 @@ class OpenSearchDocumentStore:
         return await self._search_documents_async(self._prepare_filter_search_request(filters))
 
     def _prepare_bulk_write_request(
-        self, *, documents: list[Document], policy: DuplicatePolicy, is_async: bool, refresh: Literal["wait_for", True, False]
+        self,
+        *,
+        documents: list[Document],
+        policy: DuplicatePolicy,
+        is_async: bool,
+        refresh: Literal["wait_for", True, False],
     ) -> dict[str, Any]:
         if len(documents) > 0 and not isinstance(documents[0], Document):
             msg = "param 'documents' must contain a list of objects of type Document"
@@ -551,7 +556,11 @@ class OpenSearchDocumentStore:
 
         bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=False, refresh=refresh))
 
-    async def delete_documents_async(self, document_ids: list[str], refresh: Literal["wait_for", True, False] = "wait_for") -> None:
+    async def delete_documents_async(
+        self,
+        document_ids: list[str],
+        refresh: Literal["wait_for", True, False] = "wait_for",
+    ) -> None:
         """
         Asynchronously deletes documents that match the provided `document_ids` from the document store.
 
