@@ -1,10 +1,17 @@
 # Changelog
 
+## [integrations/elasticsearch-v4.2.0] - 2025-12-19
+
+### 🚀 Features
+
+- Expose refresh parameter in ElasticsearchDocumentStore (#2622)
+
+
 ## [integrations/elasticsearch-v4.1.1] - 2025-12-10
 
 ### 🚀 Features
 
-- Adding `update_by_filter()` and `delete_by_filter()` to `ElasticsearchDocumentStore` (#2582)
+- Adding update and delete by filter to `ElasticsearchDocumentStore` (#2582)
 
 ### 📚 Documentation
 
