@@ -33,7 +33,11 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+<<<<<<< HEAD
         python-version: ['3.10', '3.13']
+=======
+        python-version: ["3.10", "3.13"]
+>>>>>>> main
 
     steps:
       - uses: actions/checkout@v6
