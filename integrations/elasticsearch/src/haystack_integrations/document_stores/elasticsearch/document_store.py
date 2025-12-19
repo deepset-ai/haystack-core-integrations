@@ -419,7 +419,7 @@ class ElasticsearchDocumentStore:
         self,
         documents: list[Document],
         policy: DuplicatePolicy = DuplicatePolicy.NONE,
-        refresh: RefreshType = "wait_for",
+        refresh: Literal["wait_for", True, False] = "wait_for",
     ) -> int:
         """
         Writes `Document`s to Elasticsearch.
@@ -506,7 +506,7 @@ class ElasticsearchDocumentStore:
         self,
         documents: list[Document],
         policy: DuplicatePolicy = DuplicatePolicy.NONE,
-        refresh: RefreshType = "wait_for",
+        refresh: Literal["wait_for", True, False] = "wait_for",
     ) -> int:
         """
         Asynchronously writes `Document`s to Elasticsearch.
@@ -579,7 +579,7 @@ class ElasticsearchDocumentStore:
             msg = f"Failed to write documents to Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    def delete_documents(self, document_ids: list[str], refresh: RefreshType = "wait_for") -> None:
+    def delete_documents(self, document_ids: list[str], refresh: bool = True) -> None:
         """
         Deletes all documents with a matching document_ids from the document store.
 
@@ -598,7 +598,7 @@ class ElasticsearchDocumentStore:
             raise_on_error=False,
         )
 
-    def _prepare_delete_all_request(self, *, is_async: bool, refresh: RefreshType) -> dict[str, Any]:
+    def _prepare_delete_all_request(self, *, is_async: bool, refresh: bool) -> dict[str, Any]:
         return {
             "index": self._index,
             "body": {"query": {"match_all": {}}},  # Delete all documents
@@ -606,7 +606,7 @@ class ElasticsearchDocumentStore:
             "refresh": refresh,
         }
 
-    async def delete_documents_async(self, document_ids: list[str], refresh: RefreshType = "wait_for") -> None:
+    async def delete_documents_async(self, document_ids: list[str], refresh: bool = True) -> None:
         """
         Asynchronously deletes all documents with a matching document_ids from the document store.
 
@@ -640,7 +640,7 @@ class ElasticsearchDocumentStore:
             settings. If False, all documents will be deleted using the `delete_by_query` API.
         :param refresh: If True, Elasticsearch refreshes all shards involved in the delete by query after the request
             completes. If False, no refresh is performed. For more details, see the
-            [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
+            [Elasticsearch delete_by_query refresh documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-by-query#operation-delete-by-query-refresh).
         """
         self._ensure_initialized()  # _ensure_initialized ensures _client is not None and an index exists
 
@@ -682,7 +682,7 @@ class ElasticsearchDocumentStore:
             settings. If False, all documents will be deleted using the `delete_by_query` API.
         :param refresh: If True, Elasticsearch refreshes all shards involved in the delete by query after the request
             completes. If False, no refresh is performed. For more details, see the
-            [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
+            [Elasticsearch delete_by_query refresh documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-by-query#operation-delete-by-query-refresh).
         """
         self._ensure_initialized()  # ensures _async_client is not None
 
@@ -730,7 +730,7 @@ class ElasticsearchDocumentStore:
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :param refresh: If True, Elasticsearch refreshes all shards involved in the delete by query after the request
             completes. If False, no refresh is performed. For more details, see the
-            [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
+            [Elasticsearch delete_by_query refresh documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-by-query#operation-delete-by-query-refresh).
         :returns: The number of documents deleted.
         """
         self._ensure_initialized()
@@ -787,7 +787,7 @@ class ElasticsearchDocumentStore:
         :param meta: The metadata fields to update.
         :param refresh: If True, Elasticsearch refreshes all shards involved in the update by query after the request
             completes. If False, no refresh is performed. For more details, see the
-            [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
+            [Elasticsearch update_by_query refresh documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update-by-query#operation-update-by-query-refresh).
         :returns: The number of documents updated.
         """
         self._ensure_initialized()
@@ -824,7 +824,7 @@ class ElasticsearchDocumentStore:
         :param meta: The metadata fields to update.
         :param refresh: If True, Elasticsearch refreshes all shards involved in the update by query after the request
             completes. If False, no refresh is performed. For more details, see the
-            [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
+            [Elasticsearch update_by_query refresh documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update-by-query#operation-update-by-query-refresh).
         :returns: The number of documents updated.
         """
         self._ensure_initialized()
