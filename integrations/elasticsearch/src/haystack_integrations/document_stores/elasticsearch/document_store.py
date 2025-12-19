@@ -602,7 +602,9 @@ class ElasticsearchDocumentStore:
             "refresh": refresh,
         }
 
-    async def delete_documents_async(self, document_ids: list[str], refresh: bool = True) -> None:
+    async def delete_documents_async(
+        self, document_ids: list[str], refresh: Literal["wait_for", True, False] = "wait_for"
+    ) -> None:
         """
         Asynchronously deletes all documents with a matching document_ids from the document store.
 
