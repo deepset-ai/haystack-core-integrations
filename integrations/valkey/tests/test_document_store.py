@@ -586,6 +586,7 @@ class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             assert "score" in doc.meta  # User metadata score
             assert doc.meta["score"] >= 0.7
 
+
 class TestValkeyDocumentStoreStaticMethods:
     """Test static methods that were refactored from instance methods."""
 
@@ -612,7 +613,7 @@ class TestValkeyDocumentStoreStaticMethods:
         assert len(result) == len(vec) * 4
 
         # Verify correct values by unpacking
-        unpacked = [struct.unpack("<f", result[i : i + 4])[0] for i in range(0, len(result), 4)]
+        unpacked = [struct.unpack("<f", result[i: i + 4])[0] for i in range(0, len(result), 4)]
         assert unpacked == pytest.approx(vec, rel=1e-6)
 
     def test_verify_node_list_valid(self):
@@ -773,6 +774,7 @@ class TestValkeyDocumentStoreStaticMethods:
         ValkeyDocumentStore._build_credentials(Secret.from_token("user"), Secret.from_token("pass"))
         ValkeyDocumentStore._validate_documents([Document(id="1", content="test")])
         ValkeyDocumentStore._validate_policy(DuplicatePolicy.NONE)
+
 
 class TestValkeyDocumentStoreConverters:
     def test_to_dict(self):

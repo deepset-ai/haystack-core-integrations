@@ -1,4 +1,4 @@
-#Dependencies
+# Dependencies
 # [dependency-groups]
 # examples = [
 #    "markdown-it-py",

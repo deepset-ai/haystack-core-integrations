@@ -135,26 +135,26 @@ class ValkeyDocumentStore(DocumentStore):
     _DUMMY_VALUE = -10.0
 
     def __init__(
-        self,
-        # Connection configuration
-        nodes_list: list[tuple[str, int]] | None = None,
-        *,
-        cluster_mode: bool = False,
-        # Security and authentication configuration
-        use_tls: bool = False,
-        username: Secret | None = Secret.from_env_var("VALKEY_USERNAME", strict=False), # noqa: B008
-        password: Secret | None = Secret.from_env_var("VALKEY_PASSWORD", strict=False), # noqa: B008
-        # Client timeout and retry configuration
-        request_timeout: int = 500,
-        retry_attempts: int = 3,
-        retry_base_delay_ms: int = 1000,
-        retry_exponent_base: int = 2,
-        # Document store operation configuration
-        batch_size: int = 100,
-        # Index and vector configuration
-        index_name: str = "haystack_document",
-        distance_metric: Literal["l2", "cosine", "ip"] = "cosine",
-        embedding_dim: int = 768,
+            self,
+            # Connection configuration
+            nodes_list: list[tuple[str, int]] | None = None,
+            *,
+            cluster_mode: bool = False,
+            # Security and authentication configuration
+            use_tls: bool = False,
+            username: Secret | None = Secret.from_env_var("VALKEY_USERNAME", strict=False),  # noqa: B008
+            password: Secret | None = Secret.from_env_var("VALKEY_PASSWORD", strict=False),  # noqa: B008
+            # Client timeout and retry configuration
+            request_timeout: int = 500,
+            retry_attempts: int = 3,
+            retry_base_delay_ms: int = 1000,
+            retry_exponent_base: int = 2,
+            # Document store operation configuration
+            batch_size: int = 100,
+            # Index and vector configuration
+            index_name: str = "haystack_document",
+            distance_metric: Literal["l2", "cosine", "ip"] = "cosine",
+            embedding_dim: int = 768,
     ):
         self._index_name = index_name
         self._distance_metric = self._parse_metric(distance_metric)
@@ -605,7 +605,7 @@ class ValkeyDocumentStore(DocumentStore):
         return written_count
 
     async def write_documents_async(
-        self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
+            self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
     ) -> int:
         """
         Asynchronously write documents to the document store.
@@ -658,7 +658,7 @@ class ValkeyDocumentStore(DocumentStore):
 
         written_count = 0
         for i in range(0, len(documents), self._batch_size):
-            batch = documents[i : i + self._batch_size]
+            batch = documents[i: i + self._batch_size]
             try:
                 await asyncio.gather(*[write_single_doc(doc) for doc in batch])
                 written_count += len(batch)
@@ -807,12 +807,12 @@ class ValkeyDocumentStore(DocumentStore):
             raise ValkeyDocumentStoreError(msg) from e
 
     def _embedding_retrieval(
-        self,
-        embedding: list[float],
-        filters: dict[str, Any] | None = None,
-        limit: int = 10,
-        *,
-        with_embedding: bool = True,
+            self,
+            embedding: list[float],
+            filters: dict[str, Any] | None = None,
+            limit: int = 10,
+            *,
+            with_embedding: bool = True,
     ) -> list[Document]:
         """
         Retrieve documents using vector similarity.
@@ -882,12 +882,12 @@ class ValkeyDocumentStore(DocumentStore):
             raise ValkeyDocumentStoreError(msg) from e
 
     async def _embedding_retrieval_async(
-        self,
-        embedding: list[float],
-        filters: dict[str, Any] | None = None,
-        limit: int = 10,
-        *,
-        with_embedding: bool = True,
+            self,
+            embedding: list[float],
+            filters: dict[str, Any] | None = None,
+            limit: int = 10,
+            *,
+            with_embedding: bool = True,
     ) -> list[Document]:
         """
         Asynchronously retrieve documents using vector similarity.
@@ -1027,7 +1027,7 @@ class ValkeyDocumentStore(DocumentStore):
 
     @staticmethod
     def _build_search_query_and_options(
-        embedding: list[float], filters: dict[str, Any] | None, limit: int, *, with_embedding: bool
+            embedding: list[float], filters: dict[str, Any] | None, limit: int, *, with_embedding: bool
     ) -> tuple[str, FtSearchOptions]:
         # Validate and normalize filters
         if filters:
