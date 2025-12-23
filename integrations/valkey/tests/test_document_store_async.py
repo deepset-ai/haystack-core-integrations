@@ -11,12 +11,12 @@ from haystack_integrations.document_stores.valkey import ValkeyDocumentStore
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-class TestValkeyDocumentStoreAsyncIntegration:
+class TestValkeyDocumentStoreAsync:
     @pytest_asyncio.fixture
     async def document_store(self):
         store = ValkeyDocumentStore(index_name="test_async_haystack_document", embedding_dim=3, batch_size=5)
         yield store
-        await store.async_close()
+        await store.close_async()
 
     @pytest_asyncio.fixture(autouse=True)
     async def cleanup_after_test(self, document_store):
@@ -35,10 +35,10 @@ class TestValkeyDocumentStoreAsyncIntegration:
             Document(id=f"async3_{test_id}", content="async test doc 3"),  # No embedding
         ]
 
-        result = await document_store.async_write_documents(docs)
+        result = await document_store.write_documents_async(docs)
         assert result == 3
 
-        count = await document_store.async_count_documents()
+        count = await document_store.count_documents_async()
         assert count == 3
 
     async def test_async_write_exceed_batch_size(self, document_store):
@@ -52,10 +52,10 @@ class TestValkeyDocumentStoreAsyncIntegration:
             Document(id=f"async6_{test_id}", content="async test doc 6"),  # No embedding
         ]
 
-        result = await document_store.async_write_documents(docs)
+        result = await document_store.write_documents_async(docs)
         assert result == 6
 
-        count = await document_store.async_count_documents()
+        count = await document_store.count_documents_async()
         assert count == 6
 
     async def test_async_write_exact_batch_size(self, document_store):
@@ -63,10 +63,10 @@ class TestValkeyDocumentStoreAsyncIntegration:
         test_id = str(uuid.uuid4())[:8]
         docs = [Document(id=f"exact_{i}_{test_id}", content=f"doc {i}") for i in range(5)]
 
-        result = await document_store.async_write_documents(docs)
+        result = await document_store.write_documents_async(docs)
         assert result == 5
 
-        count = await document_store.async_count_documents()
+        count = await document_store.count_documents_async()
         assert count == 5
 
     async def test_async_write_multiple_full_batches(self, document_store):
@@ -74,10 +74,10 @@ class TestValkeyDocumentStoreAsyncIntegration:
         test_id = str(uuid.uuid4())[:8]
         docs = [Document(id=f"multi_{i}_{test_id}", content=f"doc {i}") for i in range(11)]
 
-        result = await document_store.async_write_documents(docs)
+        result = await document_store.write_documents_async(docs)
         assert result == 11
 
-        count = await document_store.async_count_documents()
+        count = await document_store.count_documents_async()
         assert count == 11
 
     async def test_async_write_and_delete_documents(self, document_store):
@@ -87,25 +87,25 @@ class TestValkeyDocumentStoreAsyncIntegration:
             Document(id=f"async_del2_{test_id}", content="async delete me too", embedding=[0.4, 0.5, 0.6]),
         ]
 
-        await document_store.async_write_documents(docs)
-        count = await document_store.async_count_documents()
+        await document_store.write_documents_async(docs)
+        count = await document_store.count_documents_async()
         assert count == 2
 
-        await document_store.async_delete_documents([f"async_del1_{test_id}", f"async_del2_{test_id}"])
-        count = await document_store.async_count_documents()
+        await document_store.delete_documents_async([f"async_del1_{test_id}", f"async_del2_{test_id}"])
+        count = await document_store.count_documents_async()
         assert count == 0
 
     async def test_async_overwrite_documents(self, document_store):
         test_id = str(uuid.uuid4())[:8]
         doc1 = Document(id=f"async_overwrite_{test_id}", content="async original", embedding=[0.1, 0.2, 0.3])
 
-        await document_store.async_write_documents([doc1])
+        await document_store.write_documents_async([doc1])
 
         doc2 = Document(id=f"async_overwrite_{test_id}", content="async updated", embedding=[0.4, 0.5, 0.6])
-        result = await document_store.async_write_documents([doc2])
+        result = await document_store.write_documents_async([doc2])
 
         assert result == 1
-        count = await document_store.async_count_documents()
+        count = await document_store.count_documents_async()
         assert count == 1
 
     async def test_async_search_by_embedding_no_limit(self, document_store):
@@ -135,15 +135,15 @@ class TestValkeyDocumentStoreAsyncIntegration:
             Document(id=f"search4_{test_id}", content="another content", meta={"category": "test", "priority": 3}),
         ]
 
-        await document_store.async_write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         # Verify documents are written
-        count = await document_store.async_count_documents()
+        count = await document_store.count_documents_async()
         assert count == 4
 
         # Search with embedding similar to first document
         query_embedding = [0.1, 0.2, 0.3]
-        results = await document_store.async_search(query_embedding, limit=100)
+        results = await document_store._embedding_retrieval_async(query_embedding, limit=100)
 
         assert len(results) == 4
         assert results[0].id == f"search1_{test_id}"  # Most similar should be first
@@ -176,15 +176,15 @@ class TestValkeyDocumentStoreAsyncIntegration:
             Document(id=f"search4_{test_id}", content="another content", meta={"category": "test", "priority": 3}),
         ]
 
-        await document_store.async_write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         # Verify documents are written
-        count = await document_store.async_count_documents()
+        count = await document_store.count_documents_async()
         assert count == 4
 
         # Search with embedding similar to first document
         query_embedding = [0.1, 0.2, 0.3]
-        results = await document_store.async_search(query_embedding, limit=2)
+        results = await document_store._embedding_retrieval_async(query_embedding, limit=2)
 
         assert len(results) == 2
         assert results[0].id == f"search1_{test_id}"  # Most similar should be first
@@ -217,16 +217,16 @@ class TestValkeyDocumentStoreAsyncIntegration:
             Document(id=f"search4_{test_id}", content="another content", meta={"category": "test3", "priority": 3}),
         ]
 
-        await document_store.async_write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         # Verify documents are written
-        count = await document_store.async_count_documents()
+        count = await document_store.count_documents_async()
         assert count == 4
 
         # Search with embedding similar to first document
         query_embedding = [0.1, 0.2, 0.3]
         filters = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "test"}]}
-        results = await document_store.async_search(query_embedding, filters, limit=2)
+        results = await document_store._embedding_retrieval_async(query_embedding, filters, limit=2)
 
         assert len(results) == 1
         assert results[0].id == f"search1_{test_id}"  # Most similar should be first
@@ -244,11 +244,11 @@ class TestValkeyDocumentStoreAsyncIntegration:
                 id=f"n3_{test_id}", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"priority": 10, "score": 0.7}
             ),
         ]
-        await document_store.async_write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         query_embedding = [0.1, 0.2, 0.3]
         filters = {"operator": "AND", "conditions": [{"field": "meta.priority", "operator": ">=", "value": 5}]}
-        results = await document_store.async_search(query_embedding, filters, limit=10)
+        results = await document_store._embedding_retrieval_async(query_embedding, filters, limit=10)
 
         assert len(results) == 2
         assert {doc.id for doc in results} == {f"n2_{test_id}", f"n3_{test_id}"}
@@ -277,7 +277,7 @@ class TestValkeyDocumentStoreAsyncIntegration:
                 meta={"status": "inactive", "category": "news"},
             ),
         ]
-        await document_store.async_write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         query_embedding = [0.1, 0.2, 0.3]
         filters = {
@@ -287,7 +287,7 @@ class TestValkeyDocumentStoreAsyncIntegration:
                 {"field": "meta.category", "operator": "==", "value": "sports"},
             ],
         }
-        results = await document_store.async_search(query_embedding, filters, limit=10)
+        results = await document_store._embedding_retrieval_async(query_embedding, filters, limit=10)
 
         assert len(results) == 2
         assert {doc.id for doc in results} == {f"o1_{test_id}", f"o2_{test_id}"}
@@ -302,14 +302,14 @@ class TestValkeyDocumentStoreAsyncIntegration:
             Document(id=f"i3_{test_id}", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"status": "inactive"}),
             Document(id=f"i4_{test_id}", content="doc 4", embedding=[0.9, 0.8, 0.7], meta={"status": "archived"}),
         ]
-        await document_store.async_write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         query_embedding = [0.1, 0.2, 0.3]
         filters = {
             "operator": "AND",
             "conditions": [{"field": "meta.status", "operator": "in", "value": ["active", "pending"]}],
         }
-        results = await document_store.async_search(query_embedding, filters, limit=10)
+        results = await document_store._embedding_retrieval_async(query_embedding, filters, limit=10)
 
         assert len(results) == 2
         assert {doc.id for doc in results} == {f"i1_{test_id}", f"i2_{test_id}"}
@@ -323,17 +323,17 @@ class TestValkeyDocumentStoreAsyncIntegration:
             Document(id="del3", content="doc 3", embedding=[0.7, 0.8, 0.9]),
         ]
 
-        await document_store.async_write_documents(docs)
-        assert await document_store.async_count_documents() == 3
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
 
-        await document_store.async_delete_all_documents()
-        assert await document_store.async_count_documents() == 0
+        await document_store.delete_all_documents_async()
+        assert await document_store.count_documents_async() == 0
 
     async def test_async_delete_all_documents_empty_store(self, document_store):
-        assert await document_store.async_count_documents() == 0
+        assert await document_store.count_documents_async() == 0
 
-        await document_store.async_delete_all_documents()
-        assert await document_store.async_count_documents() == 0
+        await document_store.delete_all_documents_async()
+        assert await document_store.count_documents_async() == 0
 
     async def test_async_write_large_batch_performance(self, document_store):
         """Test writing large number of documents to verify batching performance"""
@@ -341,10 +341,10 @@ class TestValkeyDocumentStoreAsyncIntegration:
         # 23 documents = 4 full batches (5 each) + 1 partial batch (3)
         docs = [Document(id=f"perf_{i}_{test_id}", content=f"performance doc {i}") for i in range(23)]
 
-        result = await document_store.async_write_documents(docs)
+        result = await document_store.write_documents_async(docs)
         assert result == 23
 
-        count = await document_store.async_count_documents()
+        count = await document_store.count_documents_async()
         assert count == 23
 
     async def test_async_similarity_scores_are_set_correctly(self, document_store):
@@ -357,11 +357,11 @@ class TestValkeyDocumentStoreAsyncIntegration:
             Document(id=f"sim4_{test_id}", content="opposite vector", embedding=[-1.0, 0.0, 0.0]),
         ]
 
-        await document_store.async_write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         # Search with query identical to first document
         query_embedding = [1.0, 0.0, 0.0]
-        results = await document_store.async_search(query_embedding, limit=10)
+        results = await document_store._embedding_retrieval_async(query_embedding, limit=10)
 
         # All documents should have similarity scores set
         assert len(results) == 4
@@ -408,11 +408,11 @@ class TestValkeyDocumentStoreAsyncIntegration:
                 id=f"ms4_{test_id}", content="doc 4", embedding=[0.4, 0.5, 0.6], meta={"score": 0.8, "category": "high"}
             ),
         ]
-        await document_store.async_write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         # Filter by meta.score >= 0.7
         filters = {"operator": "AND", "conditions": [{"field": "meta.score", "operator": ">=", "value": 0.7}]}
-        results = await document_store.async_filter_documents(filters)
+        results = await document_store.filter_documents_async(filters)
 
         assert len(results) == 2
         result_ids = {doc.id for doc in results}
@@ -446,12 +446,12 @@ class TestValkeyDocumentStoreAsyncIntegration:
                 meta={"score": 0.95, "quality": "excellent"},
             ),
         ]
-        await document_store.async_write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         # Search with query similar to first document, but filter by meta.score
         query_embedding = [1.0, 0.0, 0.0]
         filters = {"operator": "AND", "conditions": [{"field": "meta.score", "operator": ">=", "value": 0.7}]}
-        results = await document_store.async_search(query_embedding, filters, limit=10)
+        results = await document_store._embedding_retrieval_async(query_embedding, filters, limit=10)
 
         # Should return documents with meta.score >= 0.7, ordered by vector similarity
         assert len(results) == 3
