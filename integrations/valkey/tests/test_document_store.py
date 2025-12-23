@@ -613,7 +613,7 @@ class TestValkeyDocumentStoreStaticMethods:
         assert len(result) == len(vec) * 4
 
         # Verify correct values by unpacking
-        unpacked = [struct.unpack("<f", result[i: i + 4])[0] for i in range(0, len(result), 4)]
+        unpacked = [struct.unpack("<f", result[i : i + 4])[0] for i in range(0, len(result), 4)]
         assert unpacked == pytest.approx(vec, rel=1e-6)
 
     def test_verify_node_list_valid(self):
