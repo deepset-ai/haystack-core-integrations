@@ -1,66 +1,45 @@
 # ruff: noqa: S110
+import struct
+
 import pytest
+from glide_shared.commands.server_modules.ft_options.ft_create_options import DistanceMetricType
+from glide_shared.commands.server_modules.ft_options.ft_search_options import FtSearchOptions
 from haystack.dataclasses import Document
 from haystack.dataclasses.byte_stream import ByteStream
+from haystack.document_stores.types import DuplicatePolicy
+from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
+from haystack.utils import Secret
 
 from haystack_integrations.document_stores.valkey import ValkeyDocumentStore
 
 
 @pytest.mark.integration
-class TestValkeyDocumentStoreIntegration:
+class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
     @pytest.fixture
     def document_store(self):
         store = ValkeyDocumentStore(index_name="test_haystack_document", embedding_dim=3)
         yield store
-        # Cleanup
         try:
+            store._client.flushdb()
             store.close()
         except Exception:
             pass
 
-    @pytest.fixture(autouse=True)
-    def cleanup_after_test(self, document_store):
-        yield
-        # Clean up all data after each test
-        try:
-            document_store._client.flushdb()
-        except Exception:
-            pass
-
-    def test_write_and_count_documents(self, document_store):
-        docs = [
-            Document(id="1", content="test doc 1", embedding=[0.1, 0.2, 0.3]),
-            Document(id="2", content="test doc 2", embedding=[0.4, 0.5, 0.6]),
-            Document(id="3", content="test doc 3"),  # No embedding
-        ]
-
-        result = document_store.write_documents(docs)
-        assert result == 3
-
-        count = document_store.count_documents()
-        assert count == 3
-
-    def test_write_and_delete_documents(self, document_store):
-        docs = [
-            Document(id="del1", content="delete me", embedding=[0.1, 0.2, 0.3]),
-            Document(id="del2", content="delete me too", embedding=[0.4, 0.5, 0.6]),
-        ]
-
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 2
-
-        document_store.delete_documents(["del1", "del2"])
-        assert document_store.count_documents() == 0
-
-    def test_overwrite_documents(self, document_store):
-        doc1 = Document(id="overwrite", content="original", embedding=[0.1, 0.2, 0.3])
-        document_store.write_documents([doc1])
-
-        doc2 = Document(id="overwrite", content="updated", embedding=[0.4, 0.5, 0.6])
-        result = document_store.write_documents([doc2])
-
-        assert result == 1
+    def test_write_documents(self, document_store):
+        """Test default write_documents() behavior (OVERWRITE by default)."""
+        docs = [Document(id="1", content="test doc 1")]
+        assert document_store.write_documents(docs) == 1
+        # Valkey overwrites by default
+        assert document_store.write_documents(docs) == 1
         assert document_store.count_documents() == 1
+
+    def test_write_documents_duplicate_fail(self, document_store):
+        """Valkey only supports OVERWRITE policy, skip FAIL test."""
+        pytest.skip("Valkey only supports DuplicatePolicy.OVERWRITE")
+
+    def test_write_documents_duplicate_skip(self, document_store):
+        """Valkey only supports OVERWRITE policy, skip SKIP test."""
+        pytest.skip("Valkey only supports DuplicatePolicy.OVERWRITE")
 
     def test_search_by_embedding_no_limit(self, document_store):
         docs = [
@@ -95,7 +74,7 @@ class TestValkeyDocumentStoreIntegration:
 
         # Search with embedding similar to first document
         query_embedding = [0.1, 0.2, 0.3]
-        results = document_store.search(query_embedding, limit=100)
+        results = document_store._embedding_retrieval(query_embedding, limit=100)
 
         assert len(results) == 4, f"Expected 2 results, got {len(results)}"
         assert results[0].id == "search1"  # Most similar should be first
@@ -134,7 +113,7 @@ class TestValkeyDocumentStoreIntegration:
 
         # Search with embedding similar to first document
         query_embedding = [0.1, 0.2, 0.3]
-        results = document_store.search(query_embedding, limit=2)
+        results = document_store._embedding_retrieval(query_embedding, limit=2)
 
         assert len(results) == 2, f"Expected 2 results, got {len(results)}"
         assert results[0].id == "search1"  # Most similar should be first
@@ -174,7 +153,7 @@ class TestValkeyDocumentStoreIntegration:
         # Search with embedding similar to first document
         query_embedding = [0.1, 0.2, 0.3]
         filters = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "test"}]}
-        results = document_store.search(query_embedding, filters, limit=2)
+        results = document_store._embedding_retrieval(query_embedding, filters, limit=2)
 
         assert len(results) == 1, f"Expected 1 result, got {len(results)}"
         assert results[0].id == "search1"  # Most similar should be first
@@ -189,7 +168,7 @@ class TestValkeyDocumentStoreIntegration:
 
         query_embedding = [0.1, 0.2, 0.3]
         filters = {"operator": "AND", "conditions": [{"field": "meta.priority", "operator": ">=", "value": 5}]}
-        results = document_store.search(query_embedding, filters, limit=10)
+        results = document_store._embedding_retrieval(query_embedding, filters, limit=10)
 
         assert len(results) == 2
         assert {doc.id for doc in results} == {"n2", "n3"}
@@ -218,7 +197,7 @@ class TestValkeyDocumentStoreIntegration:
                 {"field": "meta.category", "operator": "==", "value": "sports"},
             ],
         }
-        results = document_store.search(query_embedding, filters, limit=10)
+        results = document_store._embedding_retrieval(query_embedding, filters, limit=10)
 
         assert len(results) == 2
         assert {doc.id for doc in results} == {"o1", "o2"}
@@ -239,7 +218,7 @@ class TestValkeyDocumentStoreIntegration:
             "operator": "AND",
             "conditions": [{"field": "meta.status", "operator": "in", "value": ["active", "pending"]}],
         }
-        results = document_store.search(query_embedding, filters, limit=10)
+        results = document_store._embedding_retrieval(query_embedding, filters, limit=10)
 
         assert len(results) == 2
         assert {doc.id for doc in results} == {"i1", "i2"}
@@ -289,7 +268,7 @@ class TestValkeyDocumentStoreIntegration:
                 },
             ],
         }
-        results = document_store.search(query_embedding, filters, limit=10)
+        results = document_store._embedding_retrieval(query_embedding, filters, limit=10)
 
         assert len(results) == 2
         assert {doc.id for doc in results} == {"c1", "c2"}
@@ -306,7 +285,7 @@ class TestValkeyDocumentStoreIntegration:
 
         query_embedding = [0.1, 0.2, 0.3]
         filters = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "!=", "value": "spam"}]}
-        results = document_store.search(query_embedding, filters, limit=10)
+        results = document_store._embedding_retrieval(query_embedding, filters, limit=10)
 
         assert len(results) == 2
         assert {doc.id for doc in results} == {"ne1", "ne2"}
@@ -330,7 +309,7 @@ class TestValkeyDocumentStoreIntegration:
                 {"field": "meta.priority", "operator": "<=", "value": 8},
             ],
         }
-        results = document_store.search(query_embedding, filters, limit=10)
+        results = document_store._embedding_retrieval(query_embedding, filters, limit=10)
 
         assert len(results) == 1
         assert {doc.id for doc in results} == {"r2"}
@@ -349,7 +328,7 @@ class TestValkeyDocumentStoreIntegration:
             "operator": "AND",
             "conditions": [{"field": "meta.category", "operator": "==", "value": "nonexistent"}],
         }
-        results = document_store.search(query_embedding, filters, limit=10)
+        results = document_store._embedding_retrieval(query_embedding, filters, limit=10)
 
         assert len(results) == 0
 
@@ -525,7 +504,7 @@ class TestValkeyDocumentStoreIntegration:
 
         # Search with query identical to first document
         query_embedding = [1.0, 0.0, 0.0]
-        results = document_store.search(query_embedding, limit=10)
+        results = document_store._embedding_retrieval(query_embedding, limit=10)
 
         # All documents should have similarity scores set
         assert len(results) == 4
@@ -591,7 +570,7 @@ class TestValkeyDocumentStoreIntegration:
         # Search with query similar to first document, but filter by meta.score
         query_embedding = [1.0, 0.0, 0.0]
         filters = {"operator": "AND", "conditions": [{"field": "meta.score", "operator": ">=", "value": 0.7}]}
-        results = document_store.search(query_embedding, filters, limit=10)
+        results = document_store._embedding_retrieval(query_embedding, filters, limit=10)
 
         # Should return documents with meta.score >= 0.7, ordered by vector similarity
         assert len(results) == 3
@@ -606,3 +585,238 @@ class TestValkeyDocumentStoreIntegration:
             assert doc.score is not None  # Vector similarity score
             assert "score" in doc.meta  # User metadata score
             assert doc.meta["score"] >= 0.7
+
+class TestValkeyDocumentStoreStaticMethods:
+    """Test static methods that were refactored from instance methods."""
+
+    def test_parse_metric_valid_metrics(self):
+        """Test _parse_metric static method with valid metrics."""
+        assert ValkeyDocumentStore._parse_metric("l2") == DistanceMetricType.L2
+        assert ValkeyDocumentStore._parse_metric("cosine") == DistanceMetricType.COSINE
+        assert ValkeyDocumentStore._parse_metric("ip") == DistanceMetricType.IP
+
+    def test_parse_metric_invalid_metric(self):
+        """Test _parse_metric static method with invalid metric."""
+        with pytest.raises(ValueError, match="Unsupported metric: invalid"):
+            ValkeyDocumentStore._parse_metric("invalid")
+
+    def test_to_float32_bytes(self):
+        """Test _to_float32_bytes static method."""
+        vec = [1.0, 2.5, -3.7]
+        result = ValkeyDocumentStore._to_float32_bytes(vec)
+
+        # Verify it's bytes
+        assert isinstance(result, bytes)
+
+        # Verify correct length (4 bytes per float)
+        assert len(result) == len(vec) * 4
+
+        # Verify correct values by unpacking
+        unpacked = [struct.unpack("<f", result[i : i + 4])[0] for i in range(0, len(result), 4)]
+        assert unpacked == pytest.approx(vec, rel=1e-6)
+
+    def test_verify_node_list_valid(self):
+        """Test _verify_node_list static method with valid node list."""
+        # Should not raise any exception
+        ValkeyDocumentStore._verify_node_list([("localhost", 6379)])
+        ValkeyDocumentStore._verify_node_list([("host1", 6379), ("host2", 6380)])
+
+    def test_verify_node_list_empty(self):
+        """Test _verify_node_list static method with empty node list."""
+        with pytest.raises(Exception, match="Node list is empty"):
+            ValkeyDocumentStore._verify_node_list([])
+
+        with pytest.raises(Exception, match="Node list is empty"):
+            ValkeyDocumentStore._verify_node_list(None)
+
+    def test_build_credentials_with_username_and_password(self):
+        """Test _build_credentials static method with both username and password."""
+        creds = ValkeyDocumentStore._build_credentials(Secret.from_token("user"), Secret.from_token("pass"))
+        assert creds is not None
+        assert creds.username == "user"
+        assert creds.password == "pass"
+
+    def test_build_credentials_with_username_only(self):
+        """Test _build_credentials static method with username only."""
+        # ServerCredentials requires password, so username-only should return None
+        creds = ValkeyDocumentStore._build_credentials(Secret.from_token("user"), None)
+        assert creds is None
+
+    def test_build_credentials_with_password_only(self):
+        """Test _build_credentials static method with password only."""
+        creds = ValkeyDocumentStore._build_credentials(None, Secret.from_token("pass"))
+        assert creds is not None
+        # Username should default to None (ServerCredentials will use "default")
+        assert creds.password == "pass"
+
+    def test_build_credentials_with_neither(self):
+        """Test _build_credentials static method with neither username nor password."""
+        creds = ValkeyDocumentStore._build_credentials(None, None)
+        assert creds is None
+
+    def test_validate_documents_valid(self):
+        """Test _validate_documents static method with valid documents."""
+        docs = [
+            Document(id="1", content="test"),
+            Document(id="2", content="test2"),
+        ]
+        # Should not raise any exception
+        ValkeyDocumentStore._validate_documents(docs)
+
+    def test_validate_documents_invalid_type(self):
+        """Test _validate_documents static method with invalid document type."""
+        with pytest.raises(ValueError, match="expects a list of Documents"):
+            ValkeyDocumentStore._validate_documents([Document(id="1", content="test"), "not_a_document"])
+
+    def test_validate_policy_valid(self):
+        """Test _validate_policy static method with valid policies."""
+        # Should not raise any exception, but may log warnings
+        ValkeyDocumentStore._validate_policy(DuplicatePolicy.NONE)
+        ValkeyDocumentStore._validate_policy(DuplicatePolicy.OVERWRITE)
+
+    def test_build_search_query_and_options_basic(self):
+        """Test _build_search_query_and_options static method with basic parameters."""
+        embedding = [0.1, 0.2, 0.3]
+        filters = None
+        limit = 10
+        with_embedding = True
+
+        query, options = ValkeyDocumentStore._build_search_query_and_options(
+            embedding, filters, limit, with_embedding=with_embedding
+        )
+
+        assert isinstance(query, str)
+        assert isinstance(options, FtSearchOptions)
+        assert "KNN 10" in query
+        assert "query_vector" in query
+        assert "query_vector" in options.params
+
+    def test_build_search_query_and_options_with_filters(self):
+        """Test _build_search_query_and_options static method with filters."""
+        embedding = [0.1, 0.2, 0.3]
+        filters = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "news"}]}
+        limit = 5
+        with_embedding = False
+
+        query, options = ValkeyDocumentStore._build_search_query_and_options(
+            embedding, filters, limit, with_embedding=with_embedding
+        )
+
+        assert "meta_category:{news}" in query
+        assert "KNN 5" in query
+        # Should not include vector field when with_embedding=False
+        vector_fields = [
+            field for field in options.return_fields if hasattr(field, "alias") and field.alias == "vector"
+        ]
+        assert len(vector_fields) == 0
+
+    def test_build_search_query_and_options_with_embedding_return(self):
+        """Test _build_search_query_and_options static method with embedding return."""
+        embedding = [0.1, 0.2, 0.3]
+        filters = None
+        limit = 10
+
+        _, options = ValkeyDocumentStore._build_search_query_and_options(embedding, filters, limit, with_embedding=True)
+
+        # Should have vector field when with_embedding=True
+        vector_fields = [
+            field for field in options.return_fields if hasattr(field, "alias") and field.alias == "vector"
+        ]
+        assert len(vector_fields) == 1, "Should have exactly one vector field when with_embedding=True"
+
+        # Should have more return fields when with_embedding=True vs False
+        _, options_no_embed = ValkeyDocumentStore._build_search_query_and_options(
+            embedding, filters, limit, with_embedding=False
+        )
+
+        vector_fields = [
+            field for field in options_no_embed.return_fields if hasattr(field, "alias") and field.alias == "vector"
+        ]
+        assert len(vector_fields) == 0, "Should have no vector field with_embedding=False"
+
+    def test_parse_documents_from_ft_empty_results(self):
+        """Test _parse_documents_from_ft static method with empty results."""
+        raw_results = [0, {}]  # Empty results format
+        with_embedding = True
+
+        docs = ValkeyDocumentStore._parse_documents_from_ft(raw_results, with_embedding=with_embedding)
+        assert docs == []
+
+    def test_parse_documents_from_ft_no_results(self):
+        """Test _parse_documents_from_ft static method with no results."""
+        raw_results = None
+        with_embedding = True
+
+        docs = ValkeyDocumentStore._parse_documents_from_ft(raw_results, with_embedding=with_embedding)
+        assert docs == []
+
+    def test_class_constants_accessible(self):
+        """Test that class constants are accessible and have correct values."""
+        assert ValkeyDocumentStore._DUMMY_VALUE == -10.0
+        assert "l2" in ValkeyDocumentStore._METRIC_MAP
+        assert "cosine" in ValkeyDocumentStore._METRIC_MAP
+        assert "ip" in ValkeyDocumentStore._METRIC_MAP
+        assert ValkeyDocumentStore._METRIC_MAP["cosine"] == DistanceMetricType.COSINE
+
+    def test_dummy_vector_consistency(self):
+        """Test that dummy vector uses the class constant consistently."""
+        store = ValkeyDocumentStore(embedding_dim=5)
+        expected_dummy = [ValkeyDocumentStore._DUMMY_VALUE] * 5
+        assert store._dummy_vector == expected_dummy
+
+    def test_static_methods_dont_need_instance(self):
+        """Test that static methods can be called without creating an instance."""
+        # These should all work without instantiating ValkeyDocumentStore
+        ValkeyDocumentStore._parse_metric("cosine")
+        ValkeyDocumentStore._to_float32_bytes([1.0, 2.0])
+        ValkeyDocumentStore._verify_node_list([("localhost", 6379)])
+        ValkeyDocumentStore._build_credentials(Secret.from_token("user"), Secret.from_token("pass"))
+        ValkeyDocumentStore._validate_documents([Document(id="1", content="test")])
+        ValkeyDocumentStore._validate_policy(DuplicatePolicy.NONE)
+
+class TestValkeyDocumentStoreConverters:
+    def test_to_dict(self):
+        document_store = ValkeyDocumentStore(
+            nodes_list=[{"host": "localhost", "port": 6379}],
+            cluster_mode=False,
+            username=Secret.from_token("test_user"),
+            password=Secret.from_token("test_pass"),
+            request_timeout=30,
+            index_name="test_index",
+            distance_metric="cosine",
+            embedding_dim=512,
+        )
+
+        result = document_store.to_dict()
+
+        assert result["type"] == "haystack_integrations.document_stores.valkey.document_store.ValkeyDocumentStore"
+        assert result["init_parameters"]["nodes_list"] == [{"host": "localhost", "port": 6379}]
+        assert result["init_parameters"]["cluster_mode"] is False
+        assert result["init_parameters"]["request_timeout"] == 30
+        assert result["init_parameters"]["index_name"] == "test_index"
+        assert result["init_parameters"]["distance_metric"] == "cosine"
+        assert result["init_parameters"]["embedding_dim"] == 512
+
+    def test_from_dict(self):
+        data = {
+            "type": "haystack_integrations.document_stores.valkey.document_store.ValkeyDocumentStore",
+            "init_parameters": {
+                "nodes_list": [{"host": "localhost", "port": 6379}],
+                "cluster_mode": True,
+                "username": {"type": "env_var", "env_vars": ["TEST_USER"], "strict": False},
+                "password": {"type": "env_var", "env_vars": ["TEST_PASS"], "strict": False},
+                "request_timeout": 60,
+                "index_name": "custom_index",
+                "distance_metric": "l2",
+                "embedding_dim": 768,
+            },
+        }
+
+        document_store = ValkeyDocumentStore.from_dict(data)
+
+        assert document_store._nodes_list == [{"host": "localhost", "port": 6379}]
+        assert document_store._cluster_mode is True
+        assert document_store._request_timeout == 60
+        assert document_store._index_name == "custom_index"
+        assert document_store._distance_metric.name.lower() == "l2"
+        assert document_store._embedding_dim == 768

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -63,9 +63,9 @@ class ValkeyEmbeddingRetriever:
         self,
         *,
         document_store: ValkeyDocumentStore,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
+        filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ):
         """
         :param document_store: The Valkey Document Store.
@@ -112,8 +112,6 @@ class ValkeyEmbeddingRetriever:
         data["init_parameters"]["document_store"] = ValkeyDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
-        # Pipelines serialized with old versions of the component might not
-        # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
         return default_from_dict(cls, data)
@@ -122,8 +120,8 @@ class ValkeyEmbeddingRetriever:
     def run(
         self,
         query_embedding: list[float],
-        filters: Optional[dict[str, Any]] = None,
-        top_k: Optional[int] = None,
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
     ) -> dict[str, list[Document]]:
         """
         Retrieve documents from the `ValkeyDocumentStore`, based on their dense embeddings.
@@ -140,7 +138,36 @@ class ValkeyEmbeddingRetriever:
 
         top_k = top_k or self.top_k
 
-        docs = self.document_store.search(
+        docs = self.document_store._embedding_retrieval(
+            embedding=query_embedding,
+            filters=filters,
+            limit=top_k,
+        )
+        return {"documents": docs}
+
+    @component.output_types(documents=list[Document])
+    async def run_async(
+        self,
+        query_embedding: list[float],
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+    ) -> dict[str, list[Document]]:
+        """
+        Asynchronously retrieve documents from the `ValkeyDocumentStore`, based on their dense embeddings.
+
+        :param query_embedding: Embedding of the query.
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
+                        details.
+        :param top_k: Maximum number of `Document`s to return.
+
+        :returns: List of Document similar to `query_embedding`.
+        """
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
+
+        top_k = top_k or self.top_k
+
+        docs = await self.document_store._embedding_retrieval_async(
             embedding=query_embedding,
             filters=filters,
             limit=top_k,

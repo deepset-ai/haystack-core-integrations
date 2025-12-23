@@ -61,6 +61,7 @@ from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
+from haystack.utils import Secret
 
 from haystack_integrations.document_stores.valkey.filters import _normalize_filters, _validate_filters
 
@@ -118,7 +119,7 @@ class ValkeyDocumentStore(DocumentStore):
     document_store.write_documents(documents)
 
     # Search with filters
-    results = document_store.search(
+    results = document_store._embedding_retrival(
         embedding=[0.1, 0.15, ...],
         filters={"field": "meta.category", "operator": "==", "value": "database"},
         limit=10
@@ -141,8 +142,8 @@ class ValkeyDocumentStore(DocumentStore):
         cluster_mode: bool = False,
         # Security and authentication configuration
         use_tls: bool = False,
-        username: str | None = None,
-        password: str | None = None,
+        username: Secret | None = Secret.from_env_var("VALKEY_USERNAME", strict=False), # noqa: B008
+        password: Secret | None = Secret.from_env_var("VALKEY_PASSWORD", strict=False), # noqa: B008
         # Client timeout and retry configuration
         request_timeout: int = 500,
         retry_attempts: int = 3,
@@ -163,8 +164,8 @@ class ValkeyDocumentStore(DocumentStore):
         self._nodes_list: list[tuple[str, int]] = nodes_list or [("localhost", 6379)]
         self._cluster_mode: bool = cluster_mode
         self._use_tls: bool = use_tls
-        self._username: str | None = username
-        self._password: str | None = password
+        self._username: Secret | None = username
+        self._password: Secret | None = password
         self._request_timeout: int = request_timeout
         self._retry_attempts: int = retry_attempts
         self._retry_base_delay_ms: int = retry_base_delay_ms
@@ -211,7 +212,7 @@ class ValkeyDocumentStore(DocumentStore):
             logger.error(msg)
             raise ValkeyDocumentStoreError(msg) from e
 
-    async def _get_async_connection(self) -> GlideClient | GlideClusterClient:
+    async def _get_connection_async(self) -> GlideClient | GlideClusterClient:
         if self._async_client:
             return self._async_client
 
@@ -258,7 +259,7 @@ class ValkeyDocumentStore(DocumentStore):
                 pass
         self._client = None
 
-    async def async_close(self) -> None:
+    async def close_async(self) -> None:
         if self._async_client:
             try:
                 await self._async_client.close()
@@ -277,8 +278,8 @@ class ValkeyDocumentStore(DocumentStore):
             logger.info(f"Valkey index check failed for {self._index_name}, {e}")
             return False
 
-    async def _async_has_index(self) -> bool:
-        client = await self._get_async_connection()
+    async def _has_index_async(self) -> bool:
+        client = await self._get_connection_async()
 
         try:
             await ft.info(client, self._index_name)
@@ -327,11 +328,11 @@ class ValkeyDocumentStore(DocumentStore):
             logger.error(msg)
             raise ValkeyDocumentStoreError(msg) from e
 
-    async def _async_create_index(self) -> None:
+    async def _create_index_async(self) -> None:
         try:
-            client = await self._get_async_connection()
+            client = await self._get_connection_async()
 
-            if await self._async_has_index():
+            if await self._has_index_async():
                 logger.info(f"Index {self._index_name} already exists")
                 return
 
@@ -410,7 +411,7 @@ class ValkeyDocumentStore(DocumentStore):
             logger.error(msg)
             raise ValkeyDocumentStoreError(msg) from e
 
-    async def async_count_documents(self) -> int:
+    async def count_documents_async(self) -> int:
         """
         Asynchronously return the number of documents stored in the document store.
 
@@ -423,13 +424,13 @@ class ValkeyDocumentStore(DocumentStore):
         Example:
         ```python
         document_store = ValkeyDocumentStore()
-        count = await document_store.async_count_documents()
+        count = await document_store.count_documents_async()
         print(f"Total documents: {count}")
         ```
         """
-        client = await self._get_async_connection()
+        client = await self._get_connection_async()
 
-        if not await self._async_has_index():
+        if not await self._has_index_async():
             logger.info(f"Index {self._index_name} does not exist")
             return 0
 
@@ -480,7 +481,7 @@ class ValkeyDocumentStore(DocumentStore):
             # Valkey only performs vector similarity search
             # here we are querying with a dummy vector and the current number of documents as limit
             limit = self.count_documents()
-            documents = self.search(self._dummy_vector, filters, limit)
+            documents = self._embedding_retrieval(self._dummy_vector, filters, limit)
 
             # when simply filtering, we don't want to return any scores
             # furthermore, we are querying with a dummy vector, so the scores are meaningless
@@ -494,7 +495,7 @@ class ValkeyDocumentStore(DocumentStore):
             logger.error(msg)
             raise ValkeyDocumentStoreError(msg) from e
 
-    async def async_filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
+    async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Asynchronously filter documents by metadata without vector search.
 
@@ -514,12 +515,12 @@ class ValkeyDocumentStore(DocumentStore):
         Example:
         ```python
         # Filter by category
-        docs = await document_store.async_filter_documents(
+        docs = await document_store.filter_documents_async(
             filters={"field": "meta.category", "operator": "==", "value": "news"}
         )
 
         # Filter by numeric range
-        docs = await document_store.async_filter_documents(
+        docs = await document_store.filter_documents_async(
             filters={"field": "meta.priority", "operator": ">=", "value": 5}
         )
         ```
@@ -529,8 +530,8 @@ class ValkeyDocumentStore(DocumentStore):
         try:
             # Valkey only performs vector similarity search
             # here we are querying with a dummy vector and the max compatible limit
-            limit = self.count_documents()
-            documents = await self.async_search(self._dummy_vector, filters, limit)
+            limit = await self.count_documents_async()
+            documents = await self._embedding_retrieval_async(self._dummy_vector, filters, limit)
 
             # when simply filtering, we don't want to return any scores
             # furthermore, we are querying with a dummy vector, so the scores are meaningless
@@ -603,7 +604,7 @@ class ValkeyDocumentStore(DocumentStore):
 
         return written_count
 
-    async def async_write_documents(
+    async def write_documents_async(
         self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
     ) -> int:
         """
@@ -637,18 +638,18 @@ class ValkeyDocumentStore(DocumentStore):
                 meta={"category": "blog", "priority": 2}
             )
         ]
-        count = await document_store.async_write_documents(documents)
+        count = await document_store.write_documents_async(documents)
         print(f"Wrote {count} documents")
         ```
         """
         self._validate_documents(documents)
         if len(documents) == 0:
-            logger.warning("Calling ValkeyDocumentStore.write_documents() with empty list")
+            logger.warning("Calling ValkeyDocumentStore.write_documents_async() with empty list")
             return 0
         self._validate_policy(policy)
 
-        client = await self._get_async_connection()
-        await self._async_create_index()
+        client = await self._get_connection_async()
+        await self._create_index_async()
 
         def write_single_doc(doc: Document) -> Any:
             doc_dict = self._prepare_document_dict(doc)
@@ -700,7 +701,7 @@ class ValkeyDocumentStore(DocumentStore):
             msg = f"Failed to delete documents: {e}"
             raise ValkeyDocumentStoreError(msg) from e
 
-    async def async_delete_documents(self, document_ids: list[str]) -> None:
+    async def delete_documents_async(self, document_ids: list[str]) -> None:
         """
         Asynchronously delete documents from the document store by their IDs.
 
@@ -715,13 +716,13 @@ class ValkeyDocumentStore(DocumentStore):
         Example:
         ```python
         # Delete specific documents
-        await document_store.async_delete_documents(["doc1", "doc2", "doc3"])
+        await document_store.delete_documents_async(["doc1", "doc2", "doc3"])
 
         # Delete a single document
-        await document_store.async_delete_documents(["single_doc_id"])
+        await document_store.delete_documents_async(["single_doc_id"])
         ```
         """
-        client = await self._get_async_connection()
+        client = await self._get_connection_async()
 
         keys: list[str | bytes] = [f"{self._index_name}:{doc_id}" for doc_id in document_ids]
         try:
@@ -769,7 +770,7 @@ class ValkeyDocumentStore(DocumentStore):
             msg = f"Failed to delete all documents: {e}"
             raise ValkeyDocumentStoreError(msg) from e
 
-    async def async_delete_all_documents(self) -> None:
+    async def delete_all_documents_async(self) -> None:
         """
         Asynchronously delete all documents from the document store.
 
@@ -785,16 +786,16 @@ class ValkeyDocumentStore(DocumentStore):
         Example:
         ```python
         # Clear all documents from the store
-        await document_store.async_delete_all_documents()
+        await document_store.delete_all_documents_async()
 
         # The index will be automatically recreated on next write operation
-        await document_store.async_write_documents(new_documents)
+        await document_store.write_documents_async(new_documents)
         ```
         """
-        client = await self._get_async_connection()
+        client = await self._get_connection_async()
 
         try:
-            if await self._async_has_index():
+            if await self._has_index_async():
                 # Drop the existing index
                 await ft.dropindex(client, self._index_name)
                 logger.info(f"Dropped index {self._index_name} and all its documents")
@@ -805,7 +806,7 @@ class ValkeyDocumentStore(DocumentStore):
             msg = f"Failed to delete all documents: {e}"
             raise ValkeyDocumentStoreError(msg) from e
 
-    def search(
+    def _embedding_retrieval(
         self,
         embedding: list[float],
         filters: dict[str, Any] | None = None,
@@ -814,7 +815,7 @@ class ValkeyDocumentStore(DocumentStore):
         with_embedding: bool = True,
     ) -> list[Document]:
         """
-        Search for documents using vector similarity.
+        Retrieve documents using vector similarity.
 
         This method performs vector similarity search using the configured distance metric
         (cosine, L2, or inner product).
@@ -838,14 +839,14 @@ class ValkeyDocumentStore(DocumentStore):
 
         Example:
         ```python
-        # Basic vector search
-        results = document_store.search(
+        # Basic vector retrieval
+        results = document_store._embedding_retrieval(
             embedding=[0.1, 0.2, 0.3],
             limit=5
         )
 
-        # Search with metadata filters
-        results = document_store.search(
+        # Retrieve with metadata filters
+        results = document_store._embedding_retrieval(
             embedding=[0.1, 0.2, 0.3],
             filters={"field": "meta.category", "operator": "==", "value": "news"},
             limit=10,
@@ -880,7 +881,7 @@ class ValkeyDocumentStore(DocumentStore):
             msg = f"Failed to retrieve documents by embedding: {e}"
             raise ValkeyDocumentStoreError(msg) from e
 
-    async def async_search(
+    async def _embedding_retrieval_async(
         self,
         embedding: list[float],
         filters: dict[str, Any] | None = None,
@@ -889,9 +890,9 @@ class ValkeyDocumentStore(DocumentStore):
         with_embedding: bool = True,
     ) -> list[Document]:
         """
-        Asynchronously search for documents using vector similarity.
+        Asynchronously retrieve documents using vector similarity.
 
-        This is the async version of search(). It performs vector similarity search using the configured
+        This is the async version of _embedding_retrieval(). It performs vector similarity search using the configured
         distance metric (cosine, L2, or inner product). Results are ranked by similarity score and can be
         filtered by metadata. If the search index doesn't exist, an empty list is returned with a warning logged.
 
@@ -912,14 +913,14 @@ class ValkeyDocumentStore(DocumentStore):
 
         Example:
         ```python
-        # Basic vector search
-        results = await document_store.async_search(
+        # Basic vector retrieval
+        results = await document_store._embedding_retrieval_async(
             embedding=[0.1, 0.2, 0.3],
             limit=5
         )
 
-        # Search with metadata filters
-        results = await document_store.async_search(
+        # Retrieval with metadata filters
+        results = await document_store._embedding_retrieval_async(
             embedding=[0.1, 0.2, 0.3],
             filters={"field": "meta.category", "operator": "==", "value": "news"},
             limit=10,
@@ -931,9 +932,9 @@ class ValkeyDocumentStore(DocumentStore):
             print(f"Document: {doc.content}, Score: {doc.score}")
         ```
         """
-        client = await self._get_async_connection()
+        client = await self._get_connection_async()
 
-        if not await self._async_has_index():
+        if not await self._has_index_async():
             logger.warning(f"Index {self._index_name} does not exist, returning empty results")
             return []
 
@@ -1083,10 +1084,12 @@ class ValkeyDocumentStore(DocumentStore):
             raise DocumentStoreError(msg) from None
 
     @staticmethod
-    def _build_credentials(username: str | None, password: str | None) -> ServerCredentials | None:
+    def _build_credentials(username: Secret | None, password: Secret | None) -> ServerCredentials | None:
         # Setup credentials if password is provided (username is optional, defaults to "default")
-        if password:
-            return ServerCredentials(username=username, password=password)
+        if password and password.resolve_value():
+            username_str = username.resolve_value() if username else None
+            password_str = password.resolve_value()
+            return ServerCredentials(username=username_str, password=password_str)
         return None
 
     @staticmethod

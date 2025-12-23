@@ -1,3 +1,15 @@
+#Dependencies
+# [dependency-groups]
+# examples = [
+#    "markdown-it-py",
+#    "mdit_plain",
+#    "haystack-ai>=2.11.0",
+#    "numpy<2.0.0",
+#    "torch==2.2.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+#    "torch>=2.0.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+#    "sentence-transformers>=5.0.0",
+# ]
+
 # Install the Valkey integration with example dependencies:
 # uv sync --group examples
 # or with pip: pip install -e ".[examples]"

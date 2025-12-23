@@ -53,7 +53,7 @@ print(f"Total documents in store: {total_docs}")
 # Search by embedding similarity
 print("\n--- Embedding Search ---")
 query_embedding = [0.15, 0.25, 0.35] + [0.0] * 381
-search_results = document_store.search(query_embedding, limit=2)
+search_results = document_store._embedding_retrieval(query_embedding, limit=2)
 
 for i, doc in enumerate(search_results, 1):
     print(f"{i}. {doc.content}")
@@ -73,7 +73,7 @@ for doc in filtered_docs:
 print("\n--- Search with Filters ---")
 filters = {"operator": "AND", "conditions": [{"field": "meta.priority", "operator": "<=", "value": 2}]}
 
-filtered_search = document_store.search(query_embedding, filters=filters, limit=3)
+filtered_search = document_store._embedding_retrieval(query_embedding, filters=filters, limit=3)
 print(f"Found {len(filtered_search)} documents with priority <= 2:")
 for doc in filtered_search:
     print(f"- {doc.content} (Priority: {doc.meta.get('priority')})")

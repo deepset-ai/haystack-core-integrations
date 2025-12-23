@@ -33,17 +33,17 @@ async def main():
     try:
         # Async write operations (will be batched automatically)
         print("Writing documents asynchronously...")
-        written_count = await document_store.async_write_documents(documents)
+        written_count = await document_store.write_documents_async(documents)
         print(f"Successfully wrote {written_count} documents")
 
         # Async count documents
-        total_docs = await document_store.async_count_documents()
+        total_docs = await document_store.count_documents_async()
         print(f"Total documents in store: {total_docs}")
 
         # Async search by embedding
         print("\n--- Async Embedding Search ---")
         query_embedding = [0.5, 1.0, 1.5] + [0.0] * 253
-        search_results = await document_store.async_search(query_embedding, limit=3)
+        search_results = await document_store._embedding_retrieval_async(query_embedding, limit=3)
 
         for i, doc in enumerate(search_results, 1):
             print(f"{i}. {doc.content}")
@@ -59,7 +59,7 @@ async def main():
             ],
         }
 
-        filtered_docs = await document_store.async_filter_documents(filters)
+        filtered_docs = await document_store.filter_documents_async(filters)
         print(f"Found {len(filtered_docs)} async documents with priority >= 2:")
         for doc in filtered_docs[:3]:  # Show first 3
             print(f"- {doc.content} (Priority: {doc.meta.get('priority')})")
@@ -67,9 +67,9 @@ async def main():
         # Async delete specific documents
         print("\n--- Async Document Deletion ---")
         docs_to_delete = [f"async_doc_{i}" for i in range(0, 5)]
-        await document_store.async_delete_documents(docs_to_delete)
+        await document_store.delete_documents_async(docs_to_delete)
 
-        remaining_docs = await document_store.async_count_documents()
+        remaining_docs = await document_store.count_documents_async()
         print(f"Documents remaining after deletion: {remaining_docs}")
 
         # Async search with filters
@@ -79,7 +79,9 @@ async def main():
             "conditions": [{"field": "meta.priority", "operator": "in", "value": [1, 3]}],
         }
 
-        filtered_search = await document_store.async_search(query_embedding, filters=priority_filter, limit=5)
+        filtered_search = await document_store._embedding_retrieval_async(
+            query_embedding, filters=priority_filter, limit=5
+        )
         print(f"Found {len(filtered_search)} documents with priority 1 or 3:")
         for doc in filtered_search:
             print(f"- ID: {doc.id}, Priority: {doc.meta.get('priority')}")
@@ -87,12 +89,12 @@ async def main():
     finally:
         # Clean up - delete all documents
         print("\n--- Cleanup ---")
-        await document_store.async_delete_all_documents()
-        final_count = await document_store.async_count_documents()
+        await document_store.delete_all_documents_async()
+        final_count = await document_store.count_documents_async()
         print(f"Documents after cleanup: {final_count}")
 
         # Close the async connection
-        await document_store.async_close()
+        await document_store.close_async()
         print("Async connection closed")
 
     print("\nAsync example completed successfully!")
