@@ -1013,3 +1013,5 @@ class GoogleGenAIChatGenerator:
 
             error_msg = f"Error in async Google Gen AI chat generation: {e}"
             raise RuntimeError(error_msg) from e
+        finally:
+            await self._client.aio.aclose()
