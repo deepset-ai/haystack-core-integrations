@@ -1300,17 +1300,14 @@ def test_aggregate_streaming_chunks_with_reasoning(monkeypatch):
     chunk1.tool_calls = []
     chunk1.meta = {"usage": {"prompt_tokens": 10, "completion_tokens": 5}}
     chunk1.component_info = component_info
+    chunk1.reasoning = None
 
     chunk2 = Mock()
     chunk2.content = " world"
     chunk2.tool_calls = []
     chunk2.meta = {"usage": {"prompt_tokens": 10, "completion_tokens": 8}}
     chunk2.component_info = component_info
-
-    # Mock the reasoning content that would be extracted
-    mock_reasoning = Mock()
-    mock_reasoning.reasoning_text = "I should greet the user politely"
-    mock_reasoning.reasoning_type = "REASONING_TYPE_UNSPECIFIED"
+    chunk2.reasoning = None
 
     # Mock the final chunk with reasoning
     final_chunk = Mock()
@@ -1321,6 +1318,7 @@ def test_aggregate_streaming_chunks_with_reasoning(monkeypatch):
         "model": "gemini-2.5-pro",
     }
     final_chunk.component_info = component_info
+    final_chunk.reasoning = ReasoningContent(reasoning_text="I should greet the user politely")
 
     # Add reasoning deltas to the final chunk meta (this is how the real method works)
     final_chunk.meta["reasoning_deltas"] = [{"type": "reasoning", "content": "I should greet the user politely"}]
