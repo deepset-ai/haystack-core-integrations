@@ -34,7 +34,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]  # to test on other Operating Systems, we need to install Ollama differently
-        python-version: ["3.9", "3.13"]  
+        python-version: ["3.10", "3.13"]  
 
     steps:
       - uses: actions/checkout@v6
@@ -89,11 +89,11 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
       - name: Generate docs
-        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run docs
 
       - name: Run tests

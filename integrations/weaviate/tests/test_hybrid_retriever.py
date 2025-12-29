@@ -405,3 +405,20 @@ def test_run_with_max_vector_distance_zero_init_and_none_runtime():
         alpha=None,
         max_vector_distance=0.0,
     )
+
+
+def test_init_with_invalid_alpha():
+    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    with pytest.raises(ValueError, match=r"alpha \(-0.1\) must be in the range \[0.0, 1.0\]"):
+        WeaviateHybridRetriever(document_store=mock_document_store, alpha=-0.1)
+    with pytest.raises(ValueError, match=r"alpha \(1.5\) must be in the range \[0.0, 1.0\]"):
+        WeaviateHybridRetriever(document_store=mock_document_store, alpha=1.5)
+
+
+def test_run_with_invalid_alpha():
+    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    retriever = WeaviateHybridRetriever(document_store=mock_document_store)
+    with pytest.raises(ValueError, match=r"alpha \(-0.1\) must be in the range \[0.0, 1.0\]"):
+        retriever.run(query="q", query_embedding=[0.1], alpha=-0.1)
+    with pytest.raises(ValueError, match=r"alpha \(1.5\) must be in the range \[0.0, 1.0\]"):
+        retriever.run(query="q", query_embedding=[0.1], alpha=1.5)

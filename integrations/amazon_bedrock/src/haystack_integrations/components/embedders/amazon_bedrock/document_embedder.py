@@ -1,5 +1,5 @@
 import json
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -15,14 +15,6 @@ from haystack_integrations.common.amazon_bedrock.errors import (
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 
 logger = logging.getLogger(__name__)
-
-SUPPORTED_EMBEDDING_MODELS = [
-    "amazon.titan-embed-text-v1",
-    "cohere.embed-english-v3",
-    "cohere.embed-multilingual-v3",
-    "amazon.titan-embed-text-v2:0",
-    "amazon.titan-embed-image-v1",
-]
 
 
 @component
@@ -57,13 +49,7 @@ class AmazonBedrockDocumentEmbedder:
 
     def __init__(
         self,
-        model: Literal[
-            "amazon.titan-embed-text-v1",
-            "cohere.embed-english-v3",
-            "cohere.embed-multilingual-v3",
-            "amazon.titan-embed-text-v2:0",
-            "amazon.titan-embed-image-v1",
-        ],
+        model: str,
         aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
         aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
             "AWS_SECRET_ACCESS_KEY", strict=False
@@ -88,8 +74,13 @@ class AmazonBedrockDocumentEmbedder:
         constructor. Aside from model, three required parameters are `aws_access_key_id`, `aws_secret_access_key`,
          and `aws_region_name`.
 
-        :param model: The embedding model to use. The model has to be specified in the format outlined in the Amazon
-            Bedrock [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html).
+        :param model: The embedding model to use.
+            Amazon Titan and Cohere embedding models are supported, for example:
+            "amazon.titan-embed-text-v1", "amazon.titan-embed-text-v2:0", "amazon.titan-embed-image-v1",
+            "cohere.embed-english-v3", "cohere.embed-multilingual-v3", "cohere.embed-v4:0".
+            To find all supported models, refer to the Amazon Bedrock
+            [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html) and
+            filter for "embedding", then select models from the Amazon Titan and Cohere series.
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
         :param aws_session_token: AWS session token.
@@ -107,11 +98,8 @@ class AmazonBedrockDocumentEmbedder:
         :raises ValueError: If the model is not supported.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly.
         """
-
-        if not model or model not in SUPPORTED_EMBEDDING_MODELS:
-            msg = "Please provide a valid model from the list of supported models: " + ", ".join(
-                SUPPORTED_EMBEDDING_MODELS
-            )
+        if "titan" not in model and "cohere" not in model:
+            msg = f"Model {model} is not supported. Only Amazon Titan and Cohere embedding models are supported."
             raise ValueError(msg)
 
         self.model = model
@@ -191,8 +179,12 @@ class AmazonBedrockDocumentEmbedder:
                 msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
                 raise AmazonBedrockInferenceError(msg) from exception
 
-            response_body = json.loads(response.get("body").read())
-            all_embeddings.extend(response_body["embeddings"])
+            cohere_embeddings = json.loads(response.get("body").read())["embeddings"]
+            # depending on the model, Cohere returns a dict with the embedding types as keys or a list of lists
+            embeddings_list = (
+                next(iter(cohere_embeddings.values())) if isinstance(cohere_embeddings, dict) else cohere_embeddings
+            )
+            all_embeddings.extend(embeddings_list)
 
         for doc, emb in zip(documents, all_embeddings):
             doc.embedding = emb
@@ -248,7 +240,7 @@ class AmazonBedrockDocumentEmbedder:
         elif "titan" in self.model:
             documents_with_embeddings = self._embed_titan(documents=documents)
         else:
-            msg = f"Model {self.model} is not supported. Supported models are: {', '.join(SUPPORTED_EMBEDDING_MODELS)}."
+            msg = f"Model {self.model} is not supported. Only Amazon Titan and Cohere embedding models are supported."
             raise ValueError(msg)
 
         return {"documents": documents_with_embeddings}
