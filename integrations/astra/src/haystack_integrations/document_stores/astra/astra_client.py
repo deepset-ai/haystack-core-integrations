@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present Anant Corporation <support@anant.us>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import json
 from typing import Any, Optional, Union
 from warnings import warn
@@ -356,3 +360,23 @@ class AstraClient:
         :returns: the number of documents in the index
         """
         return self._astra_db_collection.count_documents({}, upper_bound=upper_bound)
+
+    def update_many(
+        self,
+        *,
+        filter_condition: dict[str, Union[str, float, int, bool, list, dict]],
+        update: dict[str, Any],
+    ) -> int:
+        """
+        Update multiple documents in the Astra index that match the filter.
+
+        :param filter_condition: the filter to match documents to update
+        :param update: the update operations to apply (e.g., {"$set": {...}})
+
+        :returns:
+            The number of documents updated
+        """
+        update_result = self._astra_db_collection.update_many(filter=filter_condition, update=update, upsert=False)
+
+        return update_result.update_info['nModified']
+
