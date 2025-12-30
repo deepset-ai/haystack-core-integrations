@@ -485,4 +485,5 @@ class AstraDocumentStore:
         update_count = self.index.update_many(filter_condition=converted_filters, update=update_operation)
 
         logger.info(f"{update_count} documents updated by filter")
+
         return update_count
