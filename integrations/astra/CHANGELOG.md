@@ -1,11 +1,23 @@
 # Changelog
 
-## [integrations/astra-v3.0.1]
+## [integrations/astra-v3.1.0] - 2025-12-30
+
+### 🚀 Features
+
+- Adding `delete_by_filter` and `update_by_filter` (#2631)
+
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
 
 ### 🧹 Chores
 
-- Adopt PEP 585 type hinting
+- Remove Readme API CI workflow and configs (#2573)
 
+### 🌀 Miscellaneous
+
+- Adopt PEP 585 type hinting (part 1) (#2509)
 
 ## [integrations/astra-v3.0.0] - 2025-10-21
 
