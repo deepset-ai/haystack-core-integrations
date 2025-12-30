@@ -379,4 +379,3 @@ class AstraClient:
         update_result = self._astra_db_collection.update_many(filter=filter_condition, update=update, upsert=False)
 
         return update_result.update_info["nModified"]
-

@@ -217,9 +217,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert initial_count > 0
 
         # count documents that match the filter before deletion
-        matching_docs = [
-            d for d in filterable_docs if d.meta.get("chapter") == "intro"
-        ]
+        matching_docs = [d for d in filterable_docs if d.meta.get("chapter") == "intro"]
         expected_deleted_count = len(matching_docs)
 
         # delete all documents with chapter="intro"
