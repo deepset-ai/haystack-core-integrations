@@ -482,7 +482,7 @@ class AstraDocumentStore:
         # use dot notation to update nested fields in the meta-object - ensures fields are created if they don't exist
         update_fields = {f"meta.{key}": value for key, value in meta.items()}
         update_operation = {"$set": update_fields}
-        update_count = self.index.update(filter_condition=converted_filters, update=update_operation)  # type: ignore
+        update_count = self.index.update(filters=converted_filters, update=update_operation)  # type: ignore
 
         logger.info(f"{update_count} documents updated by filter")
 
