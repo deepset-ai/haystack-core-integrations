@@ -685,7 +685,7 @@ class TestTogetherAIChatGenerator:
         initial_messages = [
             ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
         ]
-        component = TogetherAIChatGenerator(model="openai/gpt-oss-120b", tools=mixed_tools)
+        component = TogetherAIChatGenerator(model="moonshotai/kimi-k2-thinking", tools=mixed_tools)
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"
