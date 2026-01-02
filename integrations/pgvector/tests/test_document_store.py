@@ -260,3 +260,223 @@ def test_delete_table_first_call(document_store):
     without triggering errors due to an uninitialized state.
     """
     document_store.delete_table()  # if throw error, test fails
+
+
+@pytest.mark.integration
+def test_delete_by_filter(document_store: PgvectorDocumentStore):
+    docs = [
+        Document(content="Doc 1", meta={"category": "A", "year": 2023}),
+        Document(content="Doc 2", meta={"category": "B", "year": 2023}),
+        Document(content="Doc 3", meta={"category": "A", "year": 2024}),
+    ]
+    document_store.write_documents(docs)
+    assert document_store.count_documents() == 3
+
+    deleted_count = document_store.delete_by_filter(filters={"field": "meta.category", "operator": "==", "value": "A"})
+    assert deleted_count == 2
+    assert document_store.count_documents() == 1
+
+    remaining_docs = document_store.filter_documents()
+    assert len(remaining_docs) == 1
+    assert remaining_docs[0].meta["category"] == "B"
+
+    deleted_count = document_store.delete_by_filter(filters={"field": "meta.year", "operator": "==", "value": 2023})
+    assert deleted_count == 1
+    assert document_store.count_documents() == 0
+
+
+@pytest.mark.integration
+def test_delete_by_filter_no_matches(document_store: PgvectorDocumentStore):
+    docs = [
+        Document(content="Doc 1", meta={"category": "A"}),
+        Document(content="Doc 2", meta={"category": "B"}),
+    ]
+    document_store.write_documents(docs)
+    assert document_store.count_documents() == 2
+
+    deleted_count = document_store.delete_by_filter(filters={"field": "meta.category", "operator": "==", "value": "C"})
+    assert deleted_count == 0
+    assert document_store.count_documents() == 2
+
+
+@pytest.mark.integration
+def test_delete_by_filter_advanced_filters(document_store: PgvectorDocumentStore):
+    docs = [
+        Document(content="Doc 1", meta={"category": "A", "year": 2023, "status": "draft"}),
+        Document(content="Doc 2", meta={"category": "A", "year": 2024, "status": "published"}),
+        Document(content="Doc 3", meta={"category": "B", "year": 2023, "status": "draft"}),
+    ]
+    document_store.write_documents(docs)
+    assert document_store.count_documents() == 3
+
+    # AND condition
+    deleted_count = document_store.delete_by_filter(
+        filters={
+            "operator": "AND",
+            "conditions": [
+                {"field": "meta.category", "operator": "==", "value": "A"},
+                {"field": "meta.year", "operator": "==", "value": 2023},
+            ],
+        }
+    )
+    assert deleted_count == 1
+    assert document_store.count_documents() == 2
+
+    # OR condition
+    deleted_count = document_store.delete_by_filter(
+        filters={
+            "operator": "OR",
+            "conditions": [
+                {"field": "meta.category", "operator": "==", "value": "B"},
+                {"field": "meta.status", "operator": "==", "value": "published"},
+            ],
+        }
+    )
+    assert deleted_count == 2
+    assert document_store.count_documents() == 0
+
+
+@pytest.mark.integration
+def test_update_by_filter(document_store: PgvectorDocumentStore):
+    docs = [
+        Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
+        Document(content="Doc 2", meta={"category": "B", "status": "draft"}),
+        Document(content="Doc 3", meta={"category": "A", "status": "draft"}),
+    ]
+    document_store.write_documents(docs)
+    assert document_store.count_documents() == 3
+
+    # update status for category="A" documents
+    updated_count = document_store.update_by_filter(
+        filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
+    )
+    assert updated_count == 2
+
+    # verify
+    published_docs = document_store.filter_documents(
+        filters={"field": "meta.status", "operator": "==", "value": "published"}
+    )
+    assert len(published_docs) == 2
+    for doc in published_docs:
+        assert doc.meta["category"] == "A"
+        assert doc.meta["status"] == "published"
+
+    # Verify category B still has draft status
+    draft_docs = document_store.filter_documents(filters={"field": "meta.status", "operator": "==", "value": "draft"})
+    assert len(draft_docs) == 1
+    assert draft_docs[0].meta["category"] == "B"
+
+
+@pytest.mark.integration
+def test_update_by_filter_multiple_fields(document_store: PgvectorDocumentStore):
+    docs = [
+        Document(content="Doc 1", meta={"category": "A", "year": 2023}),
+        Document(content="Doc 2", meta={"category": "A", "year": 2023}),
+        Document(content="Doc 3", meta={"category": "B", "year": 2024}),
+    ]
+    document_store.write_documents(docs)
+    assert document_store.count_documents() == 3
+
+    # update multiple fields for category="A" documents
+    updated_count = document_store.update_by_filter(
+        filters={"field": "meta.category", "operator": "==", "value": "A"},
+        meta={"status": "published", "priority": "high", "reviewed": True},
+    )
+    assert updated_count == 2
+
+    # verify
+    published_docs = document_store.filter_documents(filters={"field": "meta.category", "operator": "==", "value": "A"})
+    assert len(published_docs) == 2
+    for doc in published_docs:
+        assert doc.meta["status"] == "published"
+        assert doc.meta["priority"] == "high"
+        assert doc.meta["reviewed"] is True
+        assert doc.meta["year"] == 2023  # Original field should still be present
+
+    # verify category B was not updated
+    b_docs = document_store.filter_documents(filters={"field": "meta.category", "operator": "==", "value": "B"})
+    assert len(b_docs) == 1
+    assert "status" not in b_docs[0].meta
+    assert "priority" not in b_docs[0].meta
+
+
+@pytest.mark.integration
+def test_update_by_filter_no_matches(document_store: PgvectorDocumentStore):
+    docs = [
+        Document(content="Doc 1", meta={"category": "A"}),
+        Document(content="Doc 2", meta={"category": "B"}),
+    ]
+    document_store.write_documents(docs)
+    assert document_store.count_documents() == 2
+
+    # update documents with category="C" (no matches)
+    updated_count = document_store.update_by_filter(
+        filters={"field": "meta.category", "operator": "==", "value": "C"}, meta={"status": "published"}
+    )
+    assert updated_count == 0
+    assert document_store.count_documents() == 2
+
+    # verify no documents were updated
+    published_docs = document_store.filter_documents(
+        filters={"field": "meta.status", "operator": "==", "value": "published"}
+    )
+    assert len(published_docs) == 0
+
+
+@pytest.mark.integration
+def test_update_by_filter_advanced_filters(document_store: PgvectorDocumentStore):
+    docs = [
+        Document(content="Doc 1", meta={"category": "A", "year": 2023, "status": "draft"}),
+        Document(content="Doc 2", meta={"category": "A", "year": 2024, "status": "draft"}),
+        Document(content="Doc 3", meta={"category": "B", "year": 2023, "status": "draft"}),
+    ]
+    document_store.write_documents(docs)
+    assert document_store.count_documents() == 3
+
+    # AND condition
+    updated_count = document_store.update_by_filter(
+        filters={
+            "operator": "AND",
+            "conditions": [
+                {"field": "meta.category", "operator": "==", "value": "A"},
+                {"field": "meta.year", "operator": "==", "value": 2023},
+            ],
+        },
+        meta={"status": "published"},
+    )
+    assert updated_count == 1
+
+    # verify only one document was updated
+    published_docs = document_store.filter_documents(
+        filters={"field": "meta.status", "operator": "==", "value": "published"}
+    )
+    assert len(published_docs) == 1
+    assert published_docs[0].meta["category"] == "A"
+    assert published_docs[0].meta["year"] == 2023
+
+    # OR condition
+    updated_count = document_store.update_by_filter(
+        filters={
+            "operator": "OR",
+            "conditions": [
+                {"field": "meta.category", "operator": "==", "value": "B"},
+                {"field": "meta.year", "operator": "==", "value": 2024},
+            ],
+        },
+        meta={"featured": True},
+    )
+    assert updated_count == 2
+
+    # Verify both documents were updated
+    featured_docs = document_store.filter_documents(filters={"field": "meta.featured", "operator": "==", "value": True})
+    assert len(featured_docs) == 2
+
+
+@pytest.mark.integration
+def test_update_by_filter_empty_meta_raises_error(document_store: PgvectorDocumentStore):
+    docs = [Document(content="Doc 1", meta={"category": "A"})]
+    document_store.write_documents(docs)
+
+    # Empty meta dict should raise ValueError
+    with pytest.raises(ValueError, match="meta must be a non-empty dictionary"):
+        document_store.update_by_filter(filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={})
