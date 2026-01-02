@@ -7,7 +7,7 @@ from typing import Any, Literal, Optional, cast
 
 import chromadb
 from chromadb.api.models.AsyncCollection import AsyncCollection
-from chromadb.api.types import GetResult, QueryResult
+from chromadb.api.types import GetResult, Metadata, OneOrMany, QueryResult
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError
@@ -562,7 +562,7 @@ class ChromaDocumentStore:
                 return 0
 
             ids_to_update = []
-            updated_metadata = []
+            updated_metadata: list[Metadata] = []
 
             for doc in matching_docs:
                 ids_to_update.append(doc.id)
@@ -571,12 +571,12 @@ class ChromaDocumentStore:
                 updated_meta = {**current_meta, **meta}
                 # filter to only supported types for Chroma
                 filtered_meta = ChromaDocumentStore._filter_metadata(updated_meta)
-                updated_metadata.append(filtered_meta)
+                updated_metadata.append(cast(Metadata, filtered_meta))
 
             # batch update
             self._collection.update(
                 ids=ids_to_update,
-                metadatas=updated_metadata,  # type: ignore
+                metadatas=cast(OneOrMany[Metadata], updated_metadata),
             )
 
             logger.info(
@@ -616,7 +616,7 @@ class ChromaDocumentStore:
                 return 0
 
             ids_to_update = []
-            updated_metadata = []
+            updated_metadata: list[Metadata] = []
 
             for doc in matching_docs:
                 ids_to_update.append(doc.id)
@@ -625,12 +625,12 @@ class ChromaDocumentStore:
                 updated_meta = {**current_meta, **meta}
                 # filter to only supported types for Chroma
                 filtered_meta = ChromaDocumentStore._filter_metadata(updated_meta)
-                updated_metadata.append(filtered_meta)
+                updated_metadata.append(cast(Metadata, filtered_meta))
 
             # batch update
             await self._async_collection.update(
                 ids=ids_to_update,
-                metadatas=updated_metadata,  # type: ignore
+                metadatas=cast(OneOrMany[Metadata], updated_metadata),
             )
 
             logger.info(
