@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 from collections.abc import Mapping
 from math import exp
 from typing import Any, Optional, Union
@@ -315,7 +316,7 @@ class OpenSearchDocumentStore:
         """
         Asynchronously returns the total number of documents in the document store.
         """
-        self._ensure_initialized()
+        await asyncio.to_thread(self._ensure_initialized)
 
         assert self._async_client is not None
         return (await self._async_client.count(index=self._index))["count"]
@@ -376,7 +377,8 @@ class OpenSearchDocumentStore:
         :param filters: The filters to apply to the document list.
         :returns: A list of Documents that match the given filters.
         """
-        self._ensure_initialized()
+        await asyncio.to_thread(self._ensure_initialized)
+
         return await self._search_documents_async(self._prepare_filter_search_request(filters))
 
     def _prepare_bulk_write_request(
@@ -477,7 +479,7 @@ class OpenSearchDocumentStore:
         :param policy: The duplicate policy to use when writing documents.
         :returns: The number of documents written to the document store.
         """
-        self._ensure_initialized()
+        await asyncio.to_thread(self._ensure_initialized)
         bulk_params = self._prepare_bulk_write_request(documents=documents, policy=policy, is_async=True)
         documents_written, errors = await async_bulk(**bulk_params)
         # since we call async_bulk with stats_only=False, errors is guaranteed to be a list (not int)
@@ -525,7 +527,7 @@ class OpenSearchDocumentStore:
 
         :param document_ids: the document ids to delete
         """
-        self._ensure_initialized()
+        await asyncio.to_thread(self._ensure_initialized)
 
         await async_bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=True))
 
@@ -583,7 +585,7 @@ class OpenSearchDocumentStore:
         :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
             settings. If False, all documents will be deleted using the `delete_by_query` API.
         """
-        self._ensure_initialized()
+        await asyncio.to_thread(self._ensure_initialized)
         assert self._async_client is not None
 
         try:
@@ -643,7 +645,7 @@ class OpenSearchDocumentStore:
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents deleted.
         """
-        self._ensure_initialized()
+        await asyncio.to_thread(self._ensure_initialized)
         assert self._async_client is not None
 
         try:
@@ -707,7 +709,7 @@ class OpenSearchDocumentStore:
         :param meta: The metadata fields to update.
         :returns: The number of documents updated.
         """
-        self._ensure_initialized()
+        await asyncio.to_thread(self._ensure_initialized)
         assert self._async_client is not None
 
         try:
@@ -863,7 +865,7 @@ class OpenSearchDocumentStore:
         See `OpenSearchBM25Retriever` for more information.
         """
 
-        self._ensure_initialized()
+        await asyncio.to_thread(self._ensure_initialized)
 
         search_params = self._prepare_bm25_search_request(
             query=query,
@@ -982,7 +984,7 @@ class OpenSearchDocumentStore:
 
         See `OpenSearchEmbeddingRetriever` for more information.
         """
-        self._ensure_initialized()
+        await asyncio.to_thread(self._ensure_initialized)
 
         search_params = self._prepare_embedding_search_request(
             query_embedding=query_embedding,
