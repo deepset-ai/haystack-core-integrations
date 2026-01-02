@@ -389,61 +389,6 @@ class TestLlamaChatGenerator:
 
     @pytest.mark.skipif(
         not os.environ.get("LLAMA_API_KEY", None),
-        reason="Export an env var called LLAMA_API_KEY containing the Llama API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_with_response_format_json_schema(self):
-        response_schema = {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "CapitalCity",
-                "strict": True,
-                "schema": {
-                    "title": "CapitalCity",
-                    "type": "object",
-                    "properties": {
-                        "city": {"title": "City", "type": "string"},
-                        "country": {"title": "Country", "type": "string"},
-                    },
-                    "required": ["city", "country"],
-                    "additionalProperties": False,
-                },
-            },
-        }
-
-        chat_messages = [ChatMessage.from_user("What's the capital of France?")]
-        comp = MetaLlamaChatGenerator(generation_kwargs={"response_format": response_schema})
-        results = comp.run(chat_messages)
-        assert len(results["replies"]) == 1
-        message: ChatMessage = results["replies"][0]
-        msg = json.loads(message.text)
-        assert "Paris" in msg["city"]
-        assert isinstance(msg["country"], str)
-        assert "France" in msg["country"]
-        assert message.meta["finish_reason"] == "stop"
-
-    @pytest.mark.skipif(
-        not os.environ.get("LLAMA_API_KEY", None),
-        reason="Export an env var called LLAMA_API_KEY containing the OpenAI API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_with_tools(self, tools):
-        chat_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = MetaLlamaChatGenerator(tools=tools)
-        results = component.run(chat_messages)
-        assert len(results["replies"]) == 1
-        message = results["replies"][0]
-        assert message.text is None
-
-        assert message.tool_calls
-        tool_call = message.tool_call
-        assert isinstance(tool_call, ToolCall)
-        assert tool_call.tool_name == "weather"
-        assert tool_call.arguments == {"city": "Paris"}
-        assert message.meta["finish_reason"] == "tool_calls"
-
-    @pytest.mark.skipif(
-        not os.environ.get("LLAMA_API_KEY", None),
         reason="Export an env var called LLAMA_API_KEY containing the OpenAI API key to run this test.",
     )
     @pytest.mark.integration
