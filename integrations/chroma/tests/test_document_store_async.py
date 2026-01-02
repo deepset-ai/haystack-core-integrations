@@ -9,13 +9,14 @@ from unittest import mock
 
 import pytest
 from haystack.dataclasses import Document
+from haystack.testing.document_store import TEST_EMBEDDING_1
 
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 
 
 @pytest.mark.skipif(
     sys.platform == "win32",
-    reason=("We do not run the Chroma server on Windows and async is only supported with HTTP connections"),
+    reason="We do not run the Chroma server on Windows and async is only supported with HTTP connections",
 )
 @pytest.mark.asyncio
 class TestDocumentStoreAsync:
@@ -32,7 +33,8 @@ class TestDocumentStoreAsync:
                 port=8000,
             )
 
-    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
+    @staticmethod
+    def assert_documents_are_equal(received: list[Document], expected: list[Document]):
         """
         Assert that two lists of Documents are equal.
         This is used in every test, if a Document Store implementation has a different behaviour
@@ -169,3 +171,108 @@ class TestDocumentStoreAsync:
         assert len(results) == 1
         assert results[0].id == "4"
         assert results[0].content == "New document after delete all"
+
+    async def test_delete_by_filter_async(self, document_store: ChromaDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "A"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+        # Delete documents with category="A"
+        deleted_count = await document_store.delete_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert deleted_count == 2
+        assert await document_store.count_documents_async() == 1
+
+        # Verify only category B remains
+        remaining_docs = await document_store.filter_documents_async()
+        assert len(remaining_docs) == 1
+        assert remaining_docs[0].meta["category"] == "B"
+
+    async def test_delete_by_filter_async_no_matches(self, document_store: ChromaDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 2
+
+        # Try to delete documents with category="C" (no matches)
+        deleted_count = await document_store.delete_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "C"}
+        )
+        assert deleted_count == 0
+        assert await document_store.count_documents_async() == 2
+
+    async def test_update_by_filter_async(self, document_store: ChromaDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "draft"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "draft"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+        # Update status for category="A" documents
+        updated_count = await document_store.update_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
+        )
+        assert updated_count == 2
+
+        # Verify the updated documents have the new metadata
+        published_docs = await document_store.filter_documents_async(
+            filters={"field": "meta.status", "operator": "==", "value": "published"}
+        )
+        assert len(published_docs) == 2
+        for doc in published_docs:
+            assert doc.meta["status"] == "published"
+            assert doc.meta["category"] == "A"
+
+        # Verify documents with category="B" were not updated
+        unpublished_docs = await document_store.filter_documents_async(
+            filters={"field": "meta.category", "operator": "==", "value": "B"}
+        )
+        assert len(unpublished_docs) == 1
+        assert unpublished_docs[0].meta["status"] == "draft"
+
+    async def test_update_by_filter_async_no_matches(self, document_store: ChromaDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 2
+
+        # Try to update documents with category="C" (no matches)
+        updated_count = await document_store.update_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "C"}, meta={"status": "published"}
+        )
+        assert updated_count == 0
+        assert await document_store.count_documents_async() == 2
+
+    @pytest.mark.integration
+    async def test_search_embeddings_async(self, document_store: ChromaDocumentStore):
+        query_embedding = TEST_EMBEDDING_1
+        documents = [
+            Document(content="First document", embedding=TEST_EMBEDDING_1, meta={"author": "Author1"}),
+            Document(content="Second document", embedding=[0.1] * len(TEST_EMBEDDING_1)),
+            Document(content="Third document", embedding=TEST_EMBEDDING_1, meta={"author": "Author2"}),
+        ]
+        await document_store.write_documents_async(documents)
+        result = await document_store.search_embeddings_async([query_embedding], top_k=2)
+
+        # Assertions to verify correctness
+        assert len(result) == 1
+        assert len(result[0]) == 2
+        # The documents with matching embeddings should be returned
+        assert all(doc.embedding == pytest.approx(TEST_EMBEDDING_1) for doc in result[0])
+        assert all(doc.score is not None for doc in result[0])
+
+        # check that empty filters behave as no filters
+        result_empty_filters = await document_store.search_embeddings_async([query_embedding], filters={}, top_k=2)
+        assert len(result_empty_filters) == 1
+        assert len(result_empty_filters[0]) == 2

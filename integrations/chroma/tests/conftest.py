@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import numpy as np
 import pytest
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
