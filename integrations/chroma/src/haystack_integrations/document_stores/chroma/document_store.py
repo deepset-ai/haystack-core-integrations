@@ -178,7 +178,8 @@ class ChromaDocumentStore:
                     embedding_function=self._embedding_func,
                 )
 
-    def _prepare_get_kwargs(self, filters: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    @staticmethod
+    def _prepare_get_kwargs(filters: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         """
         Prepare kwargs for Chroma get operations.
         """
@@ -195,7 +196,8 @@ class ChromaDocumentStore:
 
         return kwargs
 
-    def _prepare_query_kwargs(self, filters: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    @staticmethod
+    def _prepare_query_kwargs(filters: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         """
         Prepare kwargs for Chroma query operations.
         """
@@ -246,7 +248,7 @@ class ChromaDocumentStore:
         self._ensure_initialized()
         assert self._collection is not None
 
-        kwargs = self._prepare_get_kwargs(filters)
+        kwargs = ChromaDocumentStore._prepare_get_kwargs(filters)
         result = self._collection.get(**kwargs)
 
         return self._get_result_to_documents(result)
@@ -266,12 +268,13 @@ class ChromaDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_collection is not None
 
-        kwargs = self._prepare_get_kwargs(filters)
+        kwargs = ChromaDocumentStore._prepare_get_kwargs(filters)
         result = await self._async_collection.get(**kwargs)
 
         return self._get_result_to_documents(result)
 
-    def _convert_document_to_chroma(self, doc: Document) -> Optional[dict[str, Any]]:
+    @staticmethod
+    def _convert_document_to_chroma(doc: Document) -> Optional[dict[str, Any]]:
         """
         Converts a Haystack Document to a Chroma document.
         """
@@ -353,7 +356,7 @@ class ChromaDocumentStore:
         assert self._collection is not None
 
         for doc in documents:
-            data = self._convert_document_to_chroma(doc)
+            data = ChromaDocumentStore._convert_document_to_chroma(doc)
             if data is not None:
                 self._collection.add(**data)
 
@@ -384,7 +387,7 @@ class ChromaDocumentStore:
         assert self._async_collection is not None
 
         for doc in documents:
-            data = self._convert_document_to_chroma(doc)
+            data = ChromaDocumentStore._convert_document_to_chroma(doc)
             if data is not None:
                 await self._async_collection.add(**data)
 
@@ -413,6 +416,201 @@ class ChromaDocumentStore:
         assert self._async_collection is not None
 
         await self._async_collection.delete(ids=document_ids)
+
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        self._ensure_initialized()
+        assert self._collection is not None
+
+        try:
+            chroma_filter = _convert_filters(filters)
+
+            # count documents before deletion since ChromaDB doesn't return count
+            matching_docs = self.filter_documents(filters)
+            count = len(matching_docs)
+
+            if count == 0:
+                return 0
+
+            delete_kwargs: dict[str, Any] = {}
+
+            if chroma_filter.ids:
+                # if the filter contains IDs, use them directly
+                delete_kwargs["ids"] = chroma_filter.ids
+            else:
+                # use where/where_document filters
+                if chroma_filter.where:
+                    delete_kwargs["where"] = chroma_filter.where
+                if chroma_filter.where_document:
+                    delete_kwargs["where_document"] = chroma_filter.where_document
+
+            # perform deletion
+            self._collection.delete(**delete_kwargs)
+
+            logger.info(
+                "Deleted {n_docs} documents from collection '{name}' using filters.",
+                n_docs=count,
+                name=self._collection_name,
+            )
+            return count
+        except Exception as e:
+            msg = f"Failed to delete documents by filter from ChromaDB: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously deletes all documents that match the provided filters.
+
+        Asynchronous methods are only supported for HTTP connections.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        await self._ensure_initialized_async()
+        assert self._async_collection is not None
+
+        try:
+            chroma_filter = _convert_filters(filters)
+
+            # count documents before deletion since ChromaDB doesn't return count
+            matching_docs = await self.filter_documents_async(filters)
+            count = len(matching_docs)
+
+            if count == 0:
+                return 0
+
+            delete_kwargs: dict[str, Any] = {}
+
+            if chroma_filter.ids:
+                # if filter contains IDs, use them directly
+                delete_kwargs["ids"] = chroma_filter.ids
+            else:
+                # use where/where_document filters
+                if chroma_filter.where:
+                    delete_kwargs["where"] = chroma_filter.where
+                if chroma_filter.where_document:
+                    delete_kwargs["where_document"] = chroma_filter.where_document
+
+            await self._async_collection.delete(**delete_kwargs)
+
+            logger.info(
+                "Deleted {n_docs} documents from collection '{name}' using filters.",
+                n_docs=count,
+                name=self._collection_name,
+            )
+            return count
+        except Exception as e:
+            msg = f"Failed to delete documents by filter from ChromaDB: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Updates the metadata of all documents that match the provided filters.
+
+        **Note**: This operation is not atomic. Documents matching the filter are fetched first,
+        then updated. If documents are modified between the fetch and update operations,
+        those changes may be lost.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
+        :param meta: The metadata fields to update. This will be merged with existing metadata.
+        :returns: The number of documents updated.
+        """
+        self._ensure_initialized()
+        assert self._collection is not None
+
+        try:
+            _convert_filters(filters)
+
+            matching_docs = self.filter_documents(filters)
+
+            if not matching_docs:
+                return 0
+
+            ids_to_update = []
+            updated_metadata = []
+
+            for doc in matching_docs:
+                ids_to_update.append(doc.id)
+                # merge existing metadata with new metadata
+                current_meta = doc.meta or {}
+                updated_meta = {**current_meta, **meta}
+                updated_metadata.append(updated_meta)
+
+            # batch update
+            self._collection.update(
+                ids=ids_to_update,
+                metadatas=updated_metadata,
+            )
+
+            logger.info(
+                "Updated {n_docs} documents in collection '{name}' using filters.",
+                n_docs=len(ids_to_update),
+                name=self._collection_name,
+            )
+            return len(ids_to_update)
+        except Exception as e:
+            msg = f"Failed to update documents by filter in ChromaDB: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Asynchronously updates the metadata of all documents that match the provided filters.
+
+        Asynchronous methods are only supported for HTTP connections.
+
+        **Note**: This operation is not atomic. Documents matching the filter are fetched first,
+        then updated. If documents are modified between the fetch and update operations,
+        those changes may be lost.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
+        :param meta: The metadata fields to update. This will be merged with existing metadata.
+        :returns: The number of documents updated.
+        """
+        await self._ensure_initialized_async()
+        assert self._async_collection is not None
+
+        try:
+            _convert_filters(filters)
+
+            matching_docs = await self.filter_documents_async(filters)
+
+            if not matching_docs:
+                return 0
+
+            ids_to_update = []
+            updated_metadatas = []
+
+            for doc in matching_docs:
+                ids_to_update.append(doc.id)
+                # merge existing metadata with new metadata
+                current_meta = doc.meta or {}
+                updated_meta = {**current_meta, **meta}
+                updated_metadatas.append(updated_meta)
+
+            # batch update
+            await self._async_collection.update(
+                ids=ids_to_update,
+                metadatas=updated_metadatas,
+            )
+
+            logger.info(
+                "Updated {n_docs} documents in collection '{name}' using filters.",
+                n_docs=len(ids_to_update),
+                name=self._collection_name,
+            )
+            return len(ids_to_update)
+        except Exception as e:
+            msg = f"Failed to update documents by filter in ChromaDB: {e!s}"
+            raise DocumentStoreError(msg) from e
 
     def delete_all_documents(self, *, recreate_index: bool = False) -> None:
         """
@@ -511,7 +709,7 @@ class ChromaDocumentStore:
         self._ensure_initialized()
         assert self._collection is not None
 
-        kwargs = self._prepare_query_kwargs(filters)
+        kwargs = ChromaDocumentStore._prepare_query_kwargs(filters)
         results = self._collection.query(
             query_texts=queries,
             n_results=top_k,
@@ -539,7 +737,7 @@ class ChromaDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_collection is not None
 
-        kwargs = self._prepare_query_kwargs(filters)
+        kwargs = ChromaDocumentStore._prepare_query_kwargs(filters)
         results = await self._async_collection.query(
             query_texts=queries,
             n_results=top_k,
@@ -567,7 +765,7 @@ class ChromaDocumentStore:
         self._ensure_initialized()
         assert self._collection is not None
 
-        kwargs = self._prepare_query_kwargs(filters)
+        kwargs = ChromaDocumentStore._prepare_query_kwargs(filters)
         results = self._collection.query(
             query_embeddings=cast(list[Sequence[float]], query_embeddings),
             n_results=top_k,
@@ -598,7 +796,7 @@ class ChromaDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_collection is not None
 
-        kwargs = self._prepare_query_kwargs(filters)
+        kwargs = ChromaDocumentStore._prepare_query_kwargs(filters)
         results = await self._async_collection.query(
             query_embeddings=cast(list[Sequence[float]], query_embeddings),
             n_results=top_k,
