@@ -301,6 +301,29 @@ class ChromaDocumentStore:
         return valid_meta
 
     @staticmethod
+    def _prepare_metadata_update(
+        matching_docs: list[Document], meta: dict[str, Any]
+    ) -> tuple[list[str], list[Metadata]]:
+        """
+        Prepares document IDs and updated metadata for batch update operations.
+
+        :param matching_docs: List of documents to update.
+        :param meta: New metadata to merge with existing document metadata.
+        :returns: Tuple of (ids_to_update, updated_metadata).
+        """
+        ids_to_update = []
+        updated_metadata: list[Metadata] = []
+
+        for doc in matching_docs:
+            ids_to_update.append(doc.id)
+            current_meta = doc.meta or {}
+            updated_meta = {**current_meta, **meta}
+            filtered_meta = ChromaDocumentStore._filter_metadata(updated_meta)
+            updated_metadata.append(cast(Metadata, filtered_meta))
+
+        return ids_to_update, updated_metadata
+
+    @staticmethod
     def _convert_document_to_chroma(doc: Document) -> Optional[dict[str, Any]]:
         """
         Converts a Haystack Document to a Chroma document.
@@ -559,17 +582,7 @@ class ChromaDocumentStore:
             if not matching_docs:
                 return 0
 
-            ids_to_update = []
-            updated_metadata: list[Metadata] = []
-
-            for doc in matching_docs:
-                ids_to_update.append(doc.id)
-                # merge existing metadata with new metadata
-                current_meta = doc.meta or {}
-                updated_meta = {**current_meta, **meta}
-                # filter to only supported types for Chroma
-                filtered_meta = ChromaDocumentStore._filter_metadata(updated_meta)
-                updated_metadata.append(cast(Metadata, filtered_meta))
+            ids_to_update, updated_metadata = ChromaDocumentStore._prepare_metadata_update(matching_docs, meta)
 
             # batch update
             self._collection.update(
@@ -611,17 +624,7 @@ class ChromaDocumentStore:
             if not matching_docs:
                 return 0
 
-            ids_to_update = []
-            updated_metadata: list[Metadata] = []
-
-            for doc in matching_docs:
-                ids_to_update.append(doc.id)
-                # merge existing metadata with new metadata
-                current_meta = doc.meta or {}
-                updated_meta = {**current_meta, **meta}
-                # filter to only supported types for Chroma
-                filtered_meta = ChromaDocumentStore._filter_metadata(updated_meta)
-                updated_metadata.append(cast(Metadata, filtered_meta))
+            ids_to_update, updated_metadata = ChromaDocumentStore._prepare_metadata_update(matching_docs, meta)
 
             # batch update
             await self._async_collection.update(
