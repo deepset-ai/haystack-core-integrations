@@ -43,7 +43,9 @@ class OpenSearchDocumentStore:
 
     Usage example:
     ```python
-    from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
+    from haystack_integrations.document_stores.opensearch import (
+        OpenSearchDocumentStore,
+    )
     from haystack import Document
 
     document_store = OpenSearchDocumentStore(hosts="localhost:9200")
@@ -393,6 +395,10 @@ class OpenSearchDocumentStore:
         opensearch_actions = []
         for doc in documents:
             doc_dict = doc.to_dict()
+
+            # Extract routing from document metadata
+            doc_routing = doc_dict.pop("_routing", None)
+
             if "sparse_embedding" in doc_dict:
                 sparse_embedding = doc_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
@@ -402,13 +408,17 @@ class OpenSearchDocumentStore:
                         "The `sparse_embedding` field will be ignored.",
                         id=doc.id,
                     )
-            opensearch_actions.append(
-                {
-                    "_op_type": action,
-                    "_id": doc.id,
-                    "_source": doc_dict,
-                }
-            )
+
+            action_dict = {
+                "_op_type": action,
+                "_id": doc.id,
+                "_source": doc_dict,
+            }
+
+            if doc_routing:
+                action_dict["_routing"] = doc_routing
+
+            opensearch_actions.append(action_dict)
 
         return {
             "client": self._client if not is_async else self._async_client,
@@ -498,36 +508,48 @@ class OpenSearchDocumentStore:
 
         return Document.from_dict(data)
 
-    def _prepare_bulk_delete_request(self, *, document_ids: list[str], is_async: bool) -> dict[str, Any]:
+    def _prepare_bulk_delete_request(
+        self, *, document_ids: list[str], is_async: bool, routing: Optional[dict[str, str]] = None
+    ) -> dict[str, Any]:
+        def action_generator():
+            for id_ in document_ids:
+                action = {"_op_type": "delete", "_id": id_}
+                # Add routing if provided for this document ID
+                if routing and id_ in routing:
+                    action["_routing"] = routing[id_]
+                yield action
+
         return {
             "client": self._client if not is_async else self._async_client,
-            "actions": ({"_op_type": "delete", "_id": id_} for id_ in document_ids),
+            "actions": action_generator(),
             "refresh": "wait_for",
             "index": self._index,
             "raise_on_error": False,
             "max_chunk_bytes": self._max_chunk_bytes,
         }
 
-    def delete_documents(self, document_ids: list[str]) -> None:
+    def delete_documents(self, document_ids: list[str], routing: Optional[dict[str, str]] = None) -> None:
         """
         Deletes documents that match the provided `document_ids` from the document store.
 
         :param document_ids: the document ids to delete
+        :param routing: the routing to use when deleting documents
         """
 
         self._ensure_initialized()
 
-        bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=False))
+        bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=False, routing=routing))
 
-    async def delete_documents_async(self, document_ids: list[str]) -> None:
+    async def delete_documents_async(self, document_ids: list[str], routing: Optional[dict[str, str]] = None) -> None:
         """
         Asynchronously deletes documents that match the provided `document_ids` from the document store.
 
         :param document_ids: the document ids to delete
+        :param routing: the routing to use when deleting documents
         """
         self._ensure_initialized()
 
-        await async_bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=True))
+        await async_bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=True, routing=routing))
 
     def _prepare_delete_all_request(self, *, is_async: bool) -> dict[str, Any]:
         return {
