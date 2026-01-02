@@ -454,5 +454,3 @@ async def test_delete_table_async_first_call(document_store):
     without triggering errors due to an uninitialized state.
     """
     await document_store.delete_table_async()  # if throw error, test fails
-
-
