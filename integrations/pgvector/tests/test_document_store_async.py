@@ -245,7 +245,9 @@ class TestDocumentStoreAsync:
             assert doc.meta["year"] == 2023  # Original field should still be present
 
         # Verify category B was not updated
-        b_docs = await document_store.filter_documents_async(filters={"field": "meta.category", "operator": "==", "value": "B"})
+        b_docs = await document_store.filter_documents_async(
+            filters={"field": "meta.category", "operator": "==", "value": "B"}
+        )
         assert len(b_docs) == 1
         assert "status" not in b_docs[0].meta
         assert "priority" not in b_docs[0].meta

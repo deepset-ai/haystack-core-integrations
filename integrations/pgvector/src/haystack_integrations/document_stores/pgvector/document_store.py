@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from typing import Any, Literal, Optional, Union, overload
 
 from haystack import default_from_dict, default_to_dict, logging
@@ -1136,7 +1137,9 @@ class PgvectorDocumentStore:
             msg = "meta must be a non-empty dictionary"
             raise ValueError(msg)
 
-        update_sql = SQL("UPDATE {schema_name}.{table_name} SET meta = COALESCE(meta, '{{}}'::jsonb) || %s::jsonb").format(
+        update_sql = SQL(
+            "UPDATE {schema_name}.{table_name} SET meta = COALESCE(meta, '{{}}'::jsonb) || %s::jsonb"
+        ).format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
         )
@@ -1184,7 +1187,9 @@ class PgvectorDocumentStore:
             msg = "meta must be a non-empty dictionary"
             raise ValueError(msg)
 
-        update_sql = SQL("UPDATE {schema_name}.{table_name} SET meta = COALESCE(meta, '{{}}'::jsonb) || %s::jsonb").format(
+        update_sql = SQL(
+            "UPDATE {schema_name}.{table_name} SET meta = COALESCE(meta, '{{}}'::jsonb) || %s::jsonb"
+        ).format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
         )
