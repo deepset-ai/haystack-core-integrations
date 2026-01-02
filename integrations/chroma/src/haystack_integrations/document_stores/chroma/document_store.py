@@ -576,7 +576,7 @@ class ChromaDocumentStore:
             # batch update
             self._collection.update(
                 ids=ids_to_update,
-                metadatas=updated_metadata, # type: ignore
+                metadatas=updated_metadata,  # type: ignore
             )
 
             logger.info(
@@ -630,7 +630,7 @@ class ChromaDocumentStore:
             # batch update
             await self._async_collection.update(
                 ids=ids_to_update,
-                metadatas=updated_metadata, # type: ignore
+                metadatas=updated_metadata,  # type: ignore
             )
 
             logger.info(
