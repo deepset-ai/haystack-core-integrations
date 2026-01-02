@@ -10,7 +10,7 @@ import pytz
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 from openai import OpenAIError
