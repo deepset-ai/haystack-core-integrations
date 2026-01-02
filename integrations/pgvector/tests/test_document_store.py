@@ -467,7 +467,6 @@ def test_update_by_filter_advanced_filters(document_store: PgvectorDocumentStore
     )
     assert updated_count == 2
 
-    # Verify both documents were updated
     featured_docs = document_store.filter_documents(filters={"field": "meta.featured", "operator": "==", "value": True})
     assert len(featured_docs) == 2
 
@@ -477,6 +476,5 @@ def test_update_by_filter_empty_meta_raises_error(document_store: PgvectorDocume
     docs = [Document(content="Doc 1", meta={"category": "A"})]
     document_store.write_documents(docs)
 
-    # Empty meta dict should raise ValueError
     with pytest.raises(ValueError, match="meta must be a non-empty dictionary"):
         document_store.update_by_filter(filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={})
