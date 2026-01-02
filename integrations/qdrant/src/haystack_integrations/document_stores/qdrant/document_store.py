@@ -517,6 +517,249 @@ class QdrantDocumentStore:
                 "Called QdrantDocumentStore.delete_documents_async() on a non-existing ID",
             )
 
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+
+        :returns:
+            The number of documents deleted.
+        """
+        self._initialize_client()
+        assert self._client is not None
+
+        try:
+            qdrant_filter = convert_filters_to_qdrant(filters)
+
+            if qdrant_filter is None:
+                return 0
+
+            matching_docs = list(self.filter_documents(filters))
+            count = len(matching_docs)
+
+            if count == 0:
+                return 0
+
+            # perform deletion using FilterSelector
+            self._client.delete(
+                collection_name=self.index,
+                points_selector=rest.FilterSelector(filter=qdrant_filter),
+                wait=self.wait_result_from_api,
+            )
+
+            logger.info(
+                "Deleted {n_docs} documents from collection '{name}' using filters.",
+                n_docs=count,
+                name=self.index,
+            )
+            return count
+        except Exception as e:
+            msg = f"Failed to delete documents by filter from Qdrant: {e!s}"
+            raise QdrantStoreError(msg) from e
+
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+
+        :returns:
+            The number of documents deleted.
+        """
+        await self._initialize_async_client()
+        assert self._async_client is not None
+
+        try:
+            qdrant_filter = convert_filters_to_qdrant(filters)
+
+            if qdrant_filter is None:
+                return 0
+
+            matching_docs = []
+            async for doc in self._get_documents_generator_async(filters):
+                matching_docs.append(doc)
+            count = len(matching_docs)
+
+            if count == 0:
+                return 0
+
+            # perform deletion using FilterSelector
+            await self._async_client.delete(
+                collection_name=self.index,
+                points_selector=rest.FilterSelector(filter=qdrant_filter),
+                wait=self.wait_result_from_api,
+            )
+
+            logger.info(
+                "Deleted {n_docs} documents from collection '{name}' using filters.",
+                n_docs=count,
+                name=self.index,
+            )
+            return count
+        except Exception as e:
+            msg = f"Failed to delete documents by filter from Qdrant: {e!s}"
+            raise QdrantStoreError(msg) from e
+
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Updates the metadata of all documents that match the provided filters.
+
+        **Note**: This operation is not atomic. Documents matching the filter are fetched first,
+        then updated. If documents are modified between the fetch and update operations,
+        those changes may be lost.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update. This will be merged with existing metadata.
+
+        :returns:
+            The number of documents updated.
+        """
+        self._initialize_client()
+        assert self._client is not None
+
+        try:
+            qdrant_filter = convert_filters_to_qdrant(filters)
+            if qdrant_filter is None:
+                return 0
+
+            # get all matching documents using scroll
+            updated_points = []
+            next_offset = None
+            stop_scrolling = False
+
+            while not stop_scrolling:
+                records, next_offset = self._client.scroll(
+                    collection_name=self.index,
+                    scroll_filter=qdrant_filter,
+                    limit=self.scroll_size,
+                    offset=next_offset,
+                    with_payload=True,
+                    with_vectors=True,
+                )
+
+                stop_scrolling = next_offset is None or (
+                    hasattr(next_offset, "num")
+                    and hasattr(next_offset, "uuid")
+                    and next_offset.num == 0
+                    and next_offset.uuid == ""
+                )
+
+                # update payload for each record
+                for record in records:
+                    # merge existing payload with new metadata
+                    updated_payload = {**(record.payload or {}), **meta}
+
+                    # create updated point preserving vectors
+                    updated_point = rest.PointStruct(
+                        id=record.id,
+                        vector=record.vector or {},
+                        payload=updated_payload,
+                    )
+                    updated_points.append(updated_point)
+
+            if not updated_points:
+                return 0
+
+            # upsert updated points back in batches
+            for batch in get_batches_from_generator(updated_points, self.write_batch_size):
+                self._client.upsert(
+                    collection_name=self.index,
+                    points=batch,
+                    wait=self.wait_result_from_api,
+                )
+
+            logger.info(
+                "Updated {n_docs} documents in collection '{name}' using filters.",
+                n_docs=len(updated_points),
+                name=self.index,
+            )
+            return len(updated_points)
+        except Exception as e:
+            msg = f"Failed to update documents by filter in Qdrant: {e!s}"
+            raise QdrantStoreError(msg) from e
+
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Asynchronously updates the metadata of all documents that match the provided filters.
+
+        **Note**: This operation is not atomic. Documents matching the filter are fetched first,
+        then updated. If documents are modified between the fetch and update operations,
+        those changes may be lost.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update. This will be merged with existing metadata.
+
+        :returns:
+            The number of documents updated.
+        """
+        await self._initialize_async_client()
+        assert self._async_client is not None
+
+        try:
+            qdrant_filter = convert_filters_to_qdrant(filters)
+            if qdrant_filter is None:
+                return 0
+
+            updated_points = []
+            next_offset = None
+            stop_scrolling = False
+
+            while not stop_scrolling:
+                records, next_offset = await self._async_client.scroll(
+                    collection_name=self.index,
+                    scroll_filter=qdrant_filter,
+                    limit=self.scroll_size,
+                    offset=next_offset,
+                    with_payload=True,
+                    with_vectors=True,
+                )
+
+                stop_scrolling = next_offset is None or (
+                    hasattr(next_offset, "num")
+                    and hasattr(next_offset, "uuid")
+                    and next_offset.num == 0
+                    and next_offset.uuid == ""
+                )
+
+                # update payload for each record
+                for record in records:
+                    # merge existing payload with new metadata
+                    updated_payload = {**(record.payload or {}), **meta}
+
+                    # create updated point preserving vectors
+                    updated_point = rest.PointStruct(
+                        id=record.id,
+                        vector=record.vector or {},
+                        payload=updated_payload,
+                    )
+                    updated_points.append(updated_point)
+
+            if not updated_points:
+                return 0
+
+            # upsert updated points back in batches
+            for batch in get_batches_from_generator(updated_points, self.write_batch_size):
+                await self._async_client.upsert(
+                    collection_name=self.index,
+                    points=batch,
+                    wait=self.wait_result_from_api,
+                )
+
+            logger.info(
+                "Updated {n_docs} documents in collection '{name}' using filters.",
+                n_docs=len(updated_points),
+                name=self.index,
+            )
+            return len(updated_points)
+        except Exception as e:
+            msg = f"Failed to update documents by filter in Qdrant: {e!s}"
+            raise QdrantStoreError(msg) from e
+
     def delete_all_documents(self, recreate_index: bool = False) -> None:
         """
         Deletes all documents from the document store.
