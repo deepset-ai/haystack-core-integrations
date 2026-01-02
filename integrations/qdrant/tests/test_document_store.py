@@ -361,9 +361,7 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         assert remaining_docs[0].meta["category"] == "B"
 
         # Delete remaining document by year
-        deleted_count = document_store.delete_by_filter(
-            filters={"field": "meta.year", "operator": "==", "value": 2023}
-        )
+        deleted_count = document_store.delete_by_filter(filters={"field": "meta.year", "operator": "==", "value": 2023})
         assert deleted_count == 1
         assert document_store.count_documents() == 0
 
@@ -442,7 +440,9 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             assert doc.meta["category"] == "A"
 
         # Verify documents with category="B" were not updated
-        draft_docs = document_store.filter_documents(filters={"field": "meta.status", "operator": "==", "value": "draft"})
+        draft_docs = document_store.filter_documents(
+            filters={"field": "meta.status", "operator": "==", "value": "draft"}
+        )
         assert len(draft_docs) == 1
         assert draft_docs[0].meta["category"] == "B"
 
