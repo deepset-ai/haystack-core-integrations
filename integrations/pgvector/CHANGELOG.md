@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/pgvector-v5.5.0] - 2026-01-02
+
+### 🚀 Features
+
+- Adding `update_by_filter` and `delete_by_filter` to PgVector document store (#2647)
+
+
 ## [integrations/pgvector-v5.4.0] - 2025-12-05
 
 ### 📚 Documentation
