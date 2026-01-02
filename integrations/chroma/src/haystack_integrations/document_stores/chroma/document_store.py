@@ -554,8 +554,6 @@ class ChromaDocumentStore:
         assert self._collection is not None
 
         try:
-            _convert_filters(filters)
-
             matching_docs = self.filter_documents(filters)
 
             if not matching_docs:
@@ -608,8 +606,6 @@ class ChromaDocumentStore:
         assert self._async_collection is not None
 
         try:
-            _convert_filters(filters)
-
             matching_docs = await self.filter_documents_async(filters)
 
             if not matching_docs:
