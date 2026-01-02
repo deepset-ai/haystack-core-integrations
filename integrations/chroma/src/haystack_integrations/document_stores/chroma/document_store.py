@@ -274,6 +274,33 @@ class ChromaDocumentStore:
         return self._get_result_to_documents(result)
 
     @staticmethod
+    def _filter_metadata(meta: dict[str, Any]) -> dict[str, str | int | float | bool | None]:
+        """
+        Filters metadata to only include supported types for Chroma.
+
+        returns:
+            A new dictionary with only valid metadata values.
+        """
+        valid_meta: dict[str, str | int | float | bool | None] = {}
+        discarded_keys = []
+
+        for k, v in meta.items():
+            if v is None or isinstance(v, SUPPORTED_TYPES_FOR_METADATA_VALUES):
+                valid_meta[k] = v
+            else:
+                discarded_keys.append(k)
+
+        if discarded_keys:
+            logger.warning(
+                "Metadata contains values of unsupported types for the keys: {keys}. "
+                "These items will be discarded. Supported types are: {types}.",
+                keys=", ".join(discarded_keys),
+                types=", ".join([t.__name__ for t in SUPPORTED_TYPES_FOR_METADATA_VALUES]),
+            )
+
+        return valid_meta
+
+    @staticmethod
     def _convert_document_to_chroma(doc: Document) -> Optional[dict[str, Any]]:
         """
         Converts a Haystack Document to a Chroma document.
@@ -542,7 +569,9 @@ class ChromaDocumentStore:
                 # merge existing metadata with new metadata
                 current_meta = doc.meta or {}
                 updated_meta = {**current_meta, **meta}
-                updated_metadata.append(updated_meta)
+                # filter to only supported types for Chroma
+                filtered_meta = ChromaDocumentStore._filter_metadata(updated_meta)
+                updated_metadata.append(filtered_meta)
 
             # batch update
             self._collection.update(
@@ -594,7 +623,9 @@ class ChromaDocumentStore:
                 # merge existing metadata with new metadata
                 current_meta = doc.meta or {}
                 updated_meta = {**current_meta, **meta}
-                updated_metadatas.append(updated_meta)
+                # filter to only supported types for Chroma
+                filtered_meta = ChromaDocumentStore._filter_metadata(updated_meta)
+                updated_metadatas.append(filtered_meta)
 
             # batch update
             await self._async_collection.update(
