@@ -576,7 +576,7 @@ class ChromaDocumentStore:
             # batch update
             self._collection.update(
                 ids=ids_to_update,
-                metadatas=updated_metadata,
+                metadatas=updated_metadata, # type: ignore
             )
 
             logger.info(
@@ -616,7 +616,7 @@ class ChromaDocumentStore:
                 return 0
 
             ids_to_update = []
-            updated_metadatas = []
+            updated_metadata = []
 
             for doc in matching_docs:
                 ids_to_update.append(doc.id)
@@ -625,12 +625,12 @@ class ChromaDocumentStore:
                 updated_meta = {**current_meta, **meta}
                 # filter to only supported types for Chroma
                 filtered_meta = ChromaDocumentStore._filter_metadata(updated_meta)
-                updated_metadatas.append(filtered_meta)
+                updated_metadata.append(filtered_meta)
 
             # batch update
             await self._async_collection.update(
                 ids=ids_to_update,
-                metadatas=updated_metadatas,
+                metadatas=updated_metadata, # type: ignore
             )
 
             logger.info(
