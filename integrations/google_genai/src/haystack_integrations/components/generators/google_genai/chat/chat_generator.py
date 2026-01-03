@@ -506,6 +506,12 @@ class GoogleGenAIChatGenerator:
         self._safety_settings = safety_settings or []
         self._streaming_callback = streaming_callback
         self._tools = tools
+    
+    def __del__(self):
+        self._client.close()
+
+    def __exit__(self):
+        self._client.close()
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -1013,5 +1019,3 @@ class GoogleGenAIChatGenerator:
 
             error_msg = f"Error in async Google Gen AI chat generation: {e}"
             raise RuntimeError(error_msg) from e
-        finally:
-            await self._client.aio.aclose()
