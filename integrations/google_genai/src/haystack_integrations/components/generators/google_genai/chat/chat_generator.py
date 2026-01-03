@@ -6,6 +6,7 @@ import base64
 import json
 from collections.abc import AsyncIterator, Iterator
 from datetime import datetime, timezone
+from types import TracebackType
 from typing import Any, Literal, Optional
 
 from google.genai import types
@@ -506,11 +507,13 @@ class GoogleGenAIChatGenerator:
         self._safety_settings = safety_settings or []
         self._streaming_callback = streaming_callback
         self._tools = tools
-    
+
     def __del__(self):
         self._client.close()
 
-    def __exit__(self):
+    def __exit__(
+        self, exc_type: Optional[Exception], exc_value: Optional[Exception], traceback: Optional[TracebackType]
+    ) -> None:
         self._client.close()
 
     def to_dict(self) -> dict[str, Any]:
@@ -886,15 +889,14 @@ class GoogleGenAIChatGenerator:
                     config=config,
                 )
                 return self._handle_streaming_response(response_stream, streaming_callback)
-            else:
-                # Use non-streaming
-                response = self._client.models.generate_content(
-                    model=self._model,
-                    contents=contents,
-                    config=config,
-                )
-                reply = _convert_google_genai_response_to_chatmessage(response, self._model)
-                return {"replies": [reply]}
+            # Use non-streaming
+            response = self._client.models.generate_content(
+                model=self._model,
+                contents=contents,
+                config=config,
+            )
+            reply = _convert_google_genai_response_to_chatmessage(response, self._model)
+            return {"replies": [reply]}
 
         except Exception as e:
             # Check if the error is related to thinking configuration
@@ -995,15 +997,14 @@ class GoogleGenAIChatGenerator:
                     config=config,
                 )
                 return await self._handle_streaming_response_async(response_stream, streaming_callback)
-            else:
-                # Use non-streaming
-                response = await self._client.aio.models.generate_content(
-                    model=self._model,
-                    contents=contents,
-                    config=config,
-                )
-                reply = _convert_google_genai_response_to_chatmessage(response, self._model)
-                return {"replies": [reply]}
+            # Use non-streaming
+            response = await self._client.aio.models.generate_content(
+                model=self._model,
+                contents=contents,
+                config=config,
+            )
+            reply = _convert_google_genai_response_to_chatmessage(response, self._model)
+            return {"replies": [reply]}
 
         except Exception as e:
             # Check if the error is related to thinking configuration
