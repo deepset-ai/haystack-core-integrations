@@ -209,6 +209,11 @@ integration:weights_and_biases_weave:
       - any-glob-to-any-file: "integrations/weights_and_biases_weave/**/*"
       - any-glob-to-any-file: ".github/workflows/weights_and_biases_weave.yml"
 
+integration:valkey:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/valkey/**/*"
+      - any-glob-to-any-file: ".github/workflows/valkey.yml"
+
 # Topics
 topic:CI:
   - changed-files:
