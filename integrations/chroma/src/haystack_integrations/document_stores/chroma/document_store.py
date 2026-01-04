@@ -7,8 +7,8 @@ from typing import Any, Literal, Optional, cast
 
 import chromadb
 from chromadb.api.models.AsyncCollection import AsyncCollection
-from chromadb.config import Settings
 from chromadb.api.types import GetResult, QueryResult
+from chromadb.config import Settings
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError

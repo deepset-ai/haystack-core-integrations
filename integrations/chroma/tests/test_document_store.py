@@ -9,6 +9,7 @@ import uuid
 from unittest import mock
 
 import pytest
+from chromadb.api.shared_system_client import SharedSystemClient
 from haystack.dataclasses import ByteStream, Document
 from haystack.testing.document_store import (
     TEST_EMBEDDING_1,
@@ -86,7 +87,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         with pytest.raises(ValueError):
             store = ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost")
             store._ensure_initialized()
-    
+
     def test_client_settings_applied(self):
         """
         Chroma's in-memory client uses a singleton pattern with an internal cache.
@@ -94,8 +95,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         with different settings in the same process. We clear the cache before and after
         this test to avoid conflicts with other tests that use default settings.
         """
-        from chromadb.api.shared_system_client import SharedSystemClient
-
         SharedSystemClient.clear_system_cache()
         try:
             store = ChromaDocumentStore(client_settings={"anonymized_telemetry": False})
@@ -106,7 +105,10 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
 
     def test_to_dict(self, request):
         ds = ChromaDocumentStore(
-            collection_name=request.node.name, embedding_function="HuggingFaceEmbeddingFunction", api_key="1234567890", client_settings={"anonymized_telemetry": False}
+            collection_name=request.node.name,
+            embedding_function="HuggingFaceEmbeddingFunction",
+            api_key="1234567890",
+            client_settings={"anonymized_telemetry": False},
         )
         ds_dict = ds.to_dict()
         assert ds_dict == {
@@ -136,7 +138,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
                 "port": None,
                 "api_key": "1234567890",
                 "distance_function": "l2",
-                "client_settings": {"anonymized_telemetry": False}
+                "client_settings": {"anonymized_telemetry": False},
             },
         }
 
