@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import asyncio
 from collections.abc import Mapping
 from math import exp
 from typing import Any, Optional, Union
