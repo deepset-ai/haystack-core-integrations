@@ -272,6 +272,12 @@ class OpenSearchDocumentStore:
                 timeout=self._timeout,
                 **self._kwargs,
             )
+            self._initialized = True
+
+            self._ensure_index_exists()
+
+    async def _ensure_initialized_async(self):
+        if not self._async_client:
             async_http_auth = AsyncAWSAuth(self._http_auth) if isinstance(self._http_auth, AWSAuth) else self._http_auth
             self._async_client = AsyncOpenSearch(
                 hosts=self._hosts,
@@ -284,10 +290,23 @@ class OpenSearchDocumentStore:
                 connection_class=AsyncHttpConnection,
                 **self._kwargs,
             )
-
             self._initialized = True
+            await self._ensure_index_exists_async()
 
-            self._ensure_index_exists()
+    async def _ensure_index_exists_async(self):
+        assert self._async_client is not None
+
+        if await self._async_client.indices.exists(index=self._index):
+            logger.debug(
+                "The index '{index}' already exists. The `embedding_dim`, `method`, `mappings`, and "
+                "`settings` values will be ignored.",
+                index=self._index,
+            )
+        elif self._create_index:
+            # Create the index if it doesn't exist
+            body = {"mappings": self._mappings, "settings": self._settings}
+            await self._async_client.indices.create(index=self._index, body=body)
+
 
     def _ensure_index_exists(self):
         assert self._client is not None
@@ -316,7 +335,7 @@ class OpenSearchDocumentStore:
         """
         Asynchronously returns the total number of documents in the document store.
         """
-        await asyncio.to_thread(self._ensure_initialized)
+        await self.ensure_initialized_async()
 
         assert self._async_client is not None
         return (await self._async_client.count(index=self._index))["count"]
@@ -377,7 +396,8 @@ class OpenSearchDocumentStore:
         :param filters: The filters to apply to the document list.
         :returns: A list of Documents that match the given filters.
         """
-        await asyncio.to_thread(self._ensure_initialized)
+        await self.ensure_initialized_async()
+
 
         return await self._search_documents_async(self._prepare_filter_search_request(filters))
 
@@ -479,7 +499,8 @@ class OpenSearchDocumentStore:
         :param policy: The duplicate policy to use when writing documents.
         :returns: The number of documents written to the document store.
         """
-        await asyncio.to_thread(self._ensure_initialized)
+        await self.ensure_initialized_async()
+        assert self._async_client is not None
         bulk_params = self._prepare_bulk_write_request(documents=documents, policy=policy, is_async=True)
         documents_written, errors = await async_bulk(**bulk_params)
         # since we call async_bulk with stats_only=False, errors is guaranteed to be a list (not int)
@@ -527,7 +548,8 @@ class OpenSearchDocumentStore:
 
         :param document_ids: the document ids to delete
         """
-        await asyncio.to_thread(self._ensure_initialized)
+        await self.ensure_initialized_async()
+        assert self._async_client is not None
 
         await async_bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=True))
 
@@ -585,7 +607,7 @@ class OpenSearchDocumentStore:
         :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
             settings. If False, all documents will be deleted using the `delete_by_query` API.
         """
-        await asyncio.to_thread(self._ensure_initialized)
+        await self.ensure_initialized_async()
         assert self._async_client is not None
 
         try:
@@ -645,7 +667,7 @@ class OpenSearchDocumentStore:
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents deleted.
         """
-        await asyncio.to_thread(self._ensure_initialized)
+        await self.ensure_initialized_async()
         assert self._async_client is not None
 
         try:
@@ -709,7 +731,7 @@ class OpenSearchDocumentStore:
         :param meta: The metadata fields to update.
         :returns: The number of documents updated.
         """
-        await asyncio.to_thread(self._ensure_initialized)
+        await self.ensure_initialized_async()
         assert self._async_client is not None
 
         try:
@@ -865,7 +887,8 @@ class OpenSearchDocumentStore:
         See `OpenSearchBM25Retriever` for more information.
         """
 
-        await asyncio.to_thread(self._ensure_initialized)
+        await self.ensure_initialized_async()
+        assert self._async_client is not None
 
         search_params = self._prepare_bm25_search_request(
             query=query,
@@ -984,7 +1007,8 @@ class OpenSearchDocumentStore:
 
         See `OpenSearchEmbeddingRetriever` for more information.
         """
-        await asyncio.to_thread(self._ensure_initialized)
+        await self.ensure_initialized_async()
+        assert self._async_client is not None
 
         search_params = self._prepare_embedding_search_request(
             query_embedding=query_embedding,
