@@ -17,6 +17,7 @@ from haystack_integrations.document_stores.chroma import ChromaDocumentStore
     sys.platform == "win32",
     reason=("We do not run the Chroma server on Windows and async is only supported with HTTP connections"),
 )
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestDocumentStoreAsync:
     @pytest.fixture
@@ -104,7 +105,6 @@ class TestDocumentStoreAsync:
         await store._ensure_initialized_async()
         assert store._async_client.get_settings().anonymized_telemetry is False
 
-    @pytest.mark.integration
     async def test_search_async(self):
         document_store = ChromaDocumentStore(host="localhost", port=8000, collection_name="my_custom_collection")
 
