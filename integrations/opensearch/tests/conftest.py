@@ -30,7 +30,6 @@ def document_store(request):
     store._ensure_initialized()
     assert store._client
     store._client.indices.delete(index=index, params={"ignore": [400, 404]})
-    asyncio.run(store._async_client.close())
 
 
 @pytest.fixture
@@ -80,7 +79,6 @@ def document_store_readonly(request):
 
     store._client.cluster.put_settings(body={"transient": {"action.auto_create_index": True}})
     store._client.indices.delete(index=index, params={"ignore": [400, 404]})
-    asyncio.run(store._async_client.close())
 
 
 @pytest.fixture
@@ -104,7 +102,6 @@ def document_store_embedding_dim_4_no_emb_returned(request):
     yield store
 
     store._client.indices.delete(index=index, params={"ignore": [400, 404]})
-    asyncio.run(store._async_client.close())
 
 
 @pytest.fixture
@@ -129,7 +126,6 @@ def document_store_embedding_dim_4_no_emb_returned_faiss(request):
     yield store
 
     store._client.indices.delete(index=index, params={"ignore": [400, 404]})
-    asyncio.run(store._async_client.close())
 
 
 @pytest.fixture
