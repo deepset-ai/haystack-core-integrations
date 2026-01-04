@@ -32,6 +32,7 @@ def document_store(request):
     assert store._client
     assert store._async_client
     store._client.indices.delete(index=index, params={"ignore": [400, 404]})
+    asyncio.run(store._async_client.close())
 
 
 @pytest.fixture
