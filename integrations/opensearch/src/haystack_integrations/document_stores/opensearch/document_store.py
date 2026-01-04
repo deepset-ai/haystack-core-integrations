@@ -306,7 +306,6 @@ class OpenSearchDocumentStore:
             body = {"mappings": self._mappings, "settings": self._settings}
             await self._async_client.indices.create(index=self._index, body=body)
 
-
     def _ensure_index_exists(self):
         assert self._client is not None
 
@@ -396,7 +395,6 @@ class OpenSearchDocumentStore:
         :returns: A list of Documents that match the given filters.
         """
         await self._ensure_initialized_async()
-
 
         return await self._search_documents_async(self._prepare_filter_search_request(filters))
 
