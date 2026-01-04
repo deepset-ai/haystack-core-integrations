@@ -94,6 +94,16 @@ class TestDocumentStoreAsync:
         )
         self.assert_documents_are_equal(result, [d for d in filterable_docs if d.meta.get("number") == 100])
 
+    async def test_client_settings_applied_async(self):
+        store = ChromaDocumentStore(
+            host="localhost",
+            port=8000,
+            client_settings={"anonymized_telemetry": False},
+            collection_name=f"{uuid.uuid1()}-async-settings",
+        )
+        await store._ensure_initialized_async()
+        assert store._async_client.get_settings().anonymized_telemetry is False
+
     @pytest.mark.integration
     async def test_search_async(self):
         document_store = ChromaDocumentStore(host="localhost", port=8000, collection_name="my_custom_collection")

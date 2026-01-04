@@ -75,6 +75,10 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         assert store._host == "localhost"
         assert store._port == 8000
 
+    def test_init_with_client_settings(self):
+        store = ChromaDocumentStore(client_settings={"anonymized_telemetry": False})
+        assert store._client_settings == {"anonymized_telemetry": False}
+
     def test_invalid_initialization_both_host_and_persist_path(self):
         """
         Test that providing both host and persist_path raises an error.
@@ -82,10 +86,27 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         with pytest.raises(ValueError):
             store = ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost")
             store._ensure_initialized()
+    
+    def test_client_settings_applied(self):
+        """
+        Chroma's in-memory client uses a singleton pattern with an internal cache.
+        Once a client is created with certain settings, Chroma rejects creating another
+        with different settings in the same process. We clear the cache before and after
+        this test to avoid conflicts with other tests that use default settings.
+        """
+        from chromadb.api.shared_system_client import SharedSystemClient
+
+        SharedSystemClient.clear_system_cache()
+        try:
+            store = ChromaDocumentStore(client_settings={"anonymized_telemetry": False})
+            store._ensure_initialized()
+            assert store._client.get_settings().anonymized_telemetry is False
+        finally:
+            SharedSystemClient.clear_system_cache()
 
     def test_to_dict(self, request):
         ds = ChromaDocumentStore(
-            collection_name=request.node.name, embedding_function="HuggingFaceEmbeddingFunction", api_key="1234567890"
+            collection_name=request.node.name, embedding_function="HuggingFaceEmbeddingFunction", api_key="1234567890", client_settings={"anonymized_telemetry": False}
         )
         ds_dict = ds.to_dict()
         assert ds_dict == {
@@ -98,6 +119,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
                 "port": None,
                 "api_key": "1234567890",
                 "distance_function": "l2",
+                "client_settings": {"anonymized_telemetry": False},
             },
         }
 
@@ -114,6 +136,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
                 "port": None,
                 "api_key": "1234567890",
                 "distance_function": "l2",
+                "client_settings": {"anonymized_telemetry": False}
             },
         }
 
@@ -121,6 +144,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         assert ds._collection_name == collection_name
         assert ds._embedding_function == function_name
         assert ds._embedding_function_params == {"api_key": "1234567890"}
+        assert ds._client_settings == {"anonymized_telemetry": False}
 
     def test_same_collection_name_reinitialization(self):
         ChromaDocumentStore("test_1")
