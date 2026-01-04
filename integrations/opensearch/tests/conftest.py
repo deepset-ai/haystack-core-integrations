@@ -25,9 +25,9 @@ def document_store(request):
         return_embedding=True,
         method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
     )
+    store._ensure_initialized()
     yield store
 
-    store._ensure_initialized()
     asyncio.run(store._ensure_initialized_async())
     assert store._client
     assert store._async_client
