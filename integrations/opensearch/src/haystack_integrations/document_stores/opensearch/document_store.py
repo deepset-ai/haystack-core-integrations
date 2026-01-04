@@ -262,7 +262,7 @@ class OpenSearchDocumentStore:
 
     def _ensure_initialized(self):
         # Ideally, we have a warm-up stage for document stores as well as components.
-        if not self._initialized:
+        if not self._client:
             self._client = OpenSearch(
                 hosts=self._hosts,
                 http_auth=self._http_auth,
