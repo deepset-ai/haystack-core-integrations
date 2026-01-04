@@ -28,7 +28,9 @@ def document_store(request):
     yield store
 
     store._ensure_initialized()
+    asyncio.run(store._ensure_initialized_async())
     assert store._client
+    assert store._async_client
     store._client.indices.delete(index=index, params={"ignore": [400, 404]})
 
 
