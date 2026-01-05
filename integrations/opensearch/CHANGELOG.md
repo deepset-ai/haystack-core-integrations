@@ -1,5 +1,24 @@
 # Changelog
 
+## [integrations/opensearch-v4.6.0] - 2026-01-05
+
+### 🐛 Bug Fixes
+
+- Fix failing tests for opensearch and ollama (#2500)
+- OpenSearch async client initialization (#2645)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 5) (#2528)
+
 ## [integrations/opensearch-v4.5.0] - 2025-10-27
 
 ### 🚀 Features
