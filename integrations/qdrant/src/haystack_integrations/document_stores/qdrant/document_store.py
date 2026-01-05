@@ -1,7 +1,7 @@
 import inspect
 from collections.abc import AsyncGenerator, Generator
 from itertools import islice
-from typing import Any, ClassVar, Optional, Union
+from typing import Any, ClassVar, Optional, Union, cast
 
 import qdrant_client
 from haystack import default_from_dict, default_to_dict, logging
@@ -654,9 +654,11 @@ class QdrantDocumentStore:
                     updated_payload = {**(record.payload or {}), **meta}
 
                     # create updated point preserving vectors
+                    # Type cast needed because record.vector type doesn't include all PointStruct vector types
+                    vector_value = record.vector if record.vector is not None else {}
                     updated_point = rest.PointStruct(
                         id=record.id,
-                        vector=record.vector or {},
+                        vector=cast(Any, vector_value),
                         payload=updated_payload,
                     )
                     updated_points.append(updated_point)
@@ -732,9 +734,11 @@ class QdrantDocumentStore:
                     updated_payload = {**(record.payload or {}), **meta}
 
                     # create updated point preserving vectors
+                    # Type cast needed because record.vector type doesn't include all PointStruct vector types
+                    vector_value = record.vector if record.vector is not None else {}
                     updated_point = rest.PointStruct(
                         id=record.id,
-                        vector=record.vector or {},
+                        vector=cast(Any, vector_value),
                         payload=updated_payload,
                     )
                     updated_points.append(updated_point)
