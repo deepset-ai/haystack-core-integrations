@@ -602,3 +602,50 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
             }
         )
         assert count_a_active == 2
+
+    def test_count_distinct_values_by_filter(self, document_store: OpenSearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active", "priority": 2}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive", "priority": 1}),
+            Document(content="Doc 4", meta={"category": "A", "status": "active", "priority": 3}),
+            Document(content="Doc 5", meta={"category": "C", "status": "active", "priority": 2}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 5
+
+        # Count distinct values for all documents
+        distinct_counts = document_store.count_distinct_values_by_filter(filters={})
+        assert distinct_counts["category"] == 3  # A, B, C
+        assert distinct_counts["status"] == 2  # active, inactive
+        assert distinct_counts["priority"] == 3  # 1, 2, 3
+
+        # Count distinct values for documents with category="A"
+        distinct_counts_a = document_store.count_distinct_values_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert distinct_counts_a["category"] == 1  # Only A
+        assert distinct_counts_a["status"] == 2  # active, inactive
+        assert distinct_counts_a["priority"] == 2  # 1, 3
+
+        # Count distinct values for documents with status="active"
+        distinct_counts_active = document_store.count_distinct_values_by_filter(
+            filters={"field": "meta.status", "operator": "==", "value": "active"}
+        )
+        assert distinct_counts_active["category"] == 3  # A, B, C
+        assert distinct_counts_active["status"] == 1  # Only active
+        assert distinct_counts_active["priority"] == 3  # 1, 2, 3
+
+        # Count distinct values with complex filter (category="A" AND status="active")
+        distinct_counts_a_active = document_store.count_distinct_values_by_filter(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.category", "operator": "==", "value": "A"},
+                    {"field": "meta.status", "operator": "==", "value": "active"},
+                ],
+            }
+        )
+        assert distinct_counts_a_active["category"] == 1  # Only A
+        assert distinct_counts_a_active["status"] == 1  # Only active
+        assert distinct_counts_a_active["priority"] == 2  # 1, 3

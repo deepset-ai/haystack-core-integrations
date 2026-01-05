@@ -271,6 +271,54 @@ class TestDocumentStoreAsync:
         assert count_a_active == 2
 
     @pytest.mark.asyncio
+    async def test_count_distinct_values_by_filter(self, document_store: OpenSearchDocumentStore):
+        filterable_docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active", "priority": 2}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive", "priority": 1}),
+            Document(content="Doc 4", meta={"category": "A", "status": "active", "priority": 3}),
+            Document(content="Doc 5", meta={"category": "C", "status": "active", "priority": 2}),
+        ]
+        await document_store.write_documents_async(filterable_docs)
+        assert await document_store.count_documents_async() == 5
+
+        # count distinct values for all documents
+        distinct_counts = await document_store.count_distinct_values_by_filter_async(filters={})
+        assert distinct_counts["category"] == 3  # A, B, C
+        assert distinct_counts["status"] == 2  # active, inactive
+        assert distinct_counts["priority"] == 3  # 1, 2, 3
+
+        # count distinct values for documents with category="A"
+        distinct_counts_a = await document_store.count_distinct_values_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert distinct_counts_a["category"] == 1  # Only A
+        assert distinct_counts_a["status"] == 2  # active, inactive
+        assert distinct_counts_a["priority"] == 2  # 1, 3
+
+        # count distinct values for documents with status="active"
+        distinct_counts_active = await document_store.count_distinct_values_by_filter_async(
+            filters={"field": "meta.status", "operator": "==", "value": "active"}
+        )
+        assert distinct_counts_active["category"] == 3  # A, B, C
+        assert distinct_counts_active["status"] == 1  # Only active
+        assert distinct_counts_active["priority"] == 3  # 1, 2, 3
+
+        # count distinct values with complex filter (category="A" AND status="active")
+        distinct_counts_a_active = await document_store.count_distinct_values_by_filter_async(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.category", "operator": "==", "value": "A"},
+                    {"field": "meta.status", "operator": "==", "value": "active"},
+                ],
+            }
+        )
+        assert distinct_counts_a_active["category"] == 1  # Only A
+        assert distinct_counts_a_active["status"] == 1  # Only active
+        assert distinct_counts_a_active["priority"] == 2  # 1, 3
+
+    @pytest.mark.asyncio
     async def test_delete_documents(self, document_store: OpenSearchDocumentStore):
         doc = Document(content="test doc")
         await document_store.write_documents_async([doc])
