@@ -348,10 +348,10 @@ class OpenSearchDocumentStore:
         out = []
         # Fields that are not metadata (should stay at top level)
         non_meta_fields = {"id", "content", "embedding", "blob", "sparse_embedding", "score"}
-        
+
         for hit in hits:
             data = hit["_source"].copy()
-            
+
             # Reconstruct metadata dict from flattened fields
             meta = {}
             fields_to_remove = []
@@ -359,14 +359,14 @@ class OpenSearchDocumentStore:
                 if key not in non_meta_fields:
                     meta[key] = value
                     fields_to_remove.append(key)
-            
+
             # Remove metadata fields from top level and add them to meta
             for key in fields_to_remove:
                 data.pop(key, None)
-            
+
             if meta:
                 data["meta"] = meta
-            
+
             if "highlight" in hit:
                 if "meta" not in data:
                     data["meta"] = {}

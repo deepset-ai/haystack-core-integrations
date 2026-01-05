@@ -558,24 +558,32 @@ class TestDocumentStoreAsync:
         assert lang_count == 3
 
         # Test pagination - first page
-        unique_values_page1, total_count = await document_store.get_field_unique_values_async("meta.category", None, 0, 2)
+        unique_values_page1, total_count = await document_store.get_field_unique_values_async(
+            "meta.category", None, 0, 2
+        )
         assert len(unique_values_page1) == 2
         assert total_count == 3
         assert all(val in ["A", "B", "C"] for val in unique_values_page1)
 
         # Test pagination - second page
-        unique_values_page2, total_count = await document_store.get_field_unique_values_async("meta.category", None, 2, 2)
+        unique_values_page2, total_count = await document_store.get_field_unique_values_async(
+            "meta.category", None, 2, 2
+        )
         assert len(unique_values_page2) == 1
         assert total_count == 3
         assert unique_values_page2[0] in ["A", "B", "C"]
 
         # Test with search term - filter by content matching "Python"
-        unique_values_filtered, total_count = await document_store.get_field_unique_values_async("meta.category", "Python", 0, 10)
+        unique_values_filtered, total_count = await document_store.get_field_unique_values_async(
+            "meta.category", "Python", 0, 10
+        )
         assert set(unique_values_filtered) == {"A"}  # Only category A has documents with "Python" in content
         assert total_count == 1
 
         # Test with search term - filter by content matching "Java"
-        unique_values_java, total_count = await document_store.get_field_unique_values_async("meta.category", "Java", 0, 10)
+        unique_values_java, total_count = await document_store.get_field_unique_values_async(
+            "meta.category", "Java", 0, 10
+        )
         assert set(unique_values_java) == {"B"}  # Only category B has documents with "Java" in content
         assert total_count == 1
 
@@ -587,13 +595,15 @@ class TestDocumentStoreAsync:
             Document(content="Doc 4", meta={"priority": 3}),
         ]
         await document_store.write_documents_async(int_docs)
-        unique_priorities, priority_count = await document_store.get_field_unique_values_async("meta.priority", None, 0, 10)
+        unique_priorities, priority_count = await document_store.get_field_unique_values_async(
+            "meta.priority", None, 0, 10
+        )
         assert set(unique_priorities) == {"1", "2", "3"}
         assert priority_count == 3
 
         # Test with search term on integer field
-        unique_priorities_filtered, priority_count = await document_store.get_field_unique_values_async("meta.priority", "Doc 1", 0, 10)
+        unique_priorities_filtered, priority_count = await document_store.get_field_unique_values_async(
+            "meta.priority", "Doc 1", 0, 10
+        )
         assert set(unique_priorities_filtered) == {"1"}
         assert priority_count == 1
-
-    

@@ -762,7 +762,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         min_max_single = document_store.get_field_min_max("meta.single_value")
         assert min_max_single["min"] == 42
         assert min_max_single["max"] == 42
-                
+
         # Test with float values
         min_max_score = document_store.get_field_min_max("meta.rating")
         assert min_max_score["min"] == pytest.approx(5.2)
@@ -825,6 +825,8 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert priority_count == 3
 
         # Test with search term on integer field
-        unique_priorities_filtered, priority_count = document_store.get_field_unique_values("meta.priority", "Doc 1", 0, 10)
+        unique_priorities_filtered, priority_count = document_store.get_field_unique_values(
+            "meta.priority", "Doc 1", 0, 10
+        )
         assert set(unique_priorities_filtered) == {"1"}
         assert priority_count == 1
