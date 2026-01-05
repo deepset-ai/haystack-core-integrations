@@ -526,7 +526,7 @@ class OpenSearchDocumentStore:
         """
         await self._ensure_initialized_async()
         assert self._async_client is not None
-        bulk_params = self._prepare_bulk_write_request(documents=documents, policy=policy, is_async=True)
+        bulk_params = self._prepare_bulk_write_request(documents=documents, policy=policy, is_async=True, refresh=refresh)
         documents_written, errors = await async_bulk(**bulk_params)
         # since we call async_bulk with stats_only=False, errors is guaranteed to be a list (not int)
         OpenSearchDocumentStore._process_bulk_write_errors(errors=errors, policy=policy)  # type: ignore[arg-type]
