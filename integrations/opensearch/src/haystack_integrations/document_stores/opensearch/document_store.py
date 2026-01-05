@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import json
 from collections.abc import Mapping
 from math import exp
 from typing import Any, Literal, Optional, Union
 
+import httpx
 import requests
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -1418,6 +1418,39 @@ class OpenSearchDocumentStore:
 
         return unique_values, total_count
 
+    def _prepare_sql_http_request_params(
+        self, base_url: str, response_format: ResponseFormat
+    ) -> tuple[str, dict[str, str], Any]:
+        """
+        Prepares HTTP request parameters for SQL query execution.
+        """
+        url = f"{base_url}/_plugins/_sql?format={response_format}"
+        headers = {"Content-Type": "application/json"}
+        auth = None
+        if self._http_auth:
+            if isinstance(self._http_auth, tuple):
+                auth = self._http_auth
+            elif isinstance(self._http_auth, AWSAuth):
+                # For AWS auth, we need to use the opensearchpy client
+                # Fall through to the try/except below
+                pass
+        return url, headers, auth
+
+    @staticmethod
+    def _process_sql_response(response_data: Any, response_format: ResponseFormat) -> Any:
+        """
+        Processes the SQL query response data.
+        """
+        if response_format == "json":
+            # extract only the query results
+            if isinstance(response_data, dict) and "hits" in response_data:
+                hits = response_data.get("hits", {}).get("hits", [])
+                # extract _source from each hit, which contains the actual document data
+                return [hit.get("_source", {}) for hit in hits]
+            return response_data
+        else:
+            return response_data if isinstance(response_data, str) else str(response_data)
+
     def query_sql(self, query: str, response_format: ResponseFormat = "json") -> Any:
         """
         Execute a raw OpenSearch SQL query against the index.
@@ -1436,18 +1469,8 @@ class OpenSearchDocumentStore:
                 # Get connection info from the transport
                 connection = self._client.transport.get_connection()
                 base_url = connection.host
-                url = f"{base_url}/_plugins/_sql?format={response_format}"
-                
-                headers = {"Content-Type": "application/json"}
-                auth = None
-                if self._http_auth:
-                    if isinstance(self._http_auth, tuple):
-                        auth = self._http_auth
-                    elif isinstance(self._http_auth, AWSAuth):
-                        # For AWS auth, we need to use the opensearchpy client
-                        # Fall through to the try/except below
-                        pass
-                
+                url, headers, auth = self._prepare_sql_http_request_params(base_url, response_format)
+
                 verify = self._verify_certs if self._verify_certs is not None else True
                 timeout = self._timeout if self._timeout is not None else 30.0
                 response = requests.post(
@@ -1463,12 +1486,12 @@ class OpenSearchDocumentStore:
             except Exception as e:
                 # If requests fails (e.g., AWS auth), fall back to opensearchpy
                 # which will raise SerializationError that we can handle
-                pass
-        
+                logger.error(f"Failed to execute SQL query in OpenSearch: {e!s}")
+
         try:
             body = {"query": query}
             params = {"format": response_format}
-            
+
             response_data = self._client.transport.perform_request(
                 method="POST",
                 url="/_plugins/_sql",
@@ -1476,20 +1499,15 @@ class OpenSearchDocumentStore:
                 body=body,
             )
 
-            if response_format == "json":
-                # extract only the query results
-                if isinstance(response_data, dict) and "hits" in response_data:
-                    hits = response_data.get("hits", {}).get("hits", [])
-                    # extract _source from each hit, which contains the actual document data
-                    return [hit.get("_source", {}) for hit in hits]
-                return response_data
-            else:
-                return response_data if isinstance(response_data, str) else str(response_data)
+            return self._process_sql_response(response_data, response_format)
         except SerializationError:
             # If we get here, it means requests failed above (likely AWS auth)
             # and opensearchpy can't deserialize the response
             # Re-raise as DocumentStoreError with a helpful message
-            msg = f"Failed to execute SQL query in OpenSearch: Unable to deserialize {response_format} response. This format may not be supported with the current authentication method."
+            msg = (
+                f"Failed to execute SQL query in OpenSearch: Unable to deserialize {response_format} response. "
+                f"This format may not be supported with the current authentication method."
+            )
             raise DocumentStoreError(msg) from None
         except Exception as e:
             msg = f"Failed to execute SQL query in OpenSearch: {e!s}"
@@ -1510,26 +1528,14 @@ class OpenSearchDocumentStore:
         # For non-JSON formats, use httpx directly to avoid deserialization issues
         if response_format != "json":
             try:
-                import httpx
-                
                 # Get connection info from the transport
                 connection = self._async_client.transport.get_connection()
                 base_url = connection.host
-                url = f"{base_url}/_plugins/_sql?format={response_format}"
-                
-                headers = {"Content-Type": "application/json"}
-                auth = None
-                if self._http_auth:
-                    if isinstance(self._http_auth, tuple):
-                        auth = self._http_auth
-                    elif isinstance(self._http_auth, AWSAuth):
-                        # For AWS auth, we need to use the opensearchpy client
-                        # Fall through to the try/except below
-                        pass
-                
+                url, headers, auth = self._prepare_sql_http_request_params(base_url, response_format)
+
                 verify = self._verify_certs if self._verify_certs is not None else True
                 timeout = httpx.Timeout(self._timeout if self._timeout else 30.0)
-                
+
                 async with httpx.AsyncClient(verify=verify, timeout=timeout) as client:
                     response = await client.post(
                         url,
@@ -1545,12 +1551,12 @@ class OpenSearchDocumentStore:
             except Exception as e:
                 # If httpx fails (e.g., AWS auth), fall back to opensearchpy
                 # which will raise SerializationError that we can handle
-                pass
+                logger.error(f"Failed to execute SQL query in OpenSearch: {e!s}")
 
         try:
             body = {"query": query}
             params = {"format": response_format}
-            
+
             response_data = await self._async_client.transport.perform_request(
                 method="POST",
                 url="/_plugins/_sql",
@@ -1558,20 +1564,16 @@ class OpenSearchDocumentStore:
                 body=body,
             )
 
-            if response_format == "json":
-                # extract only the query results
-                if isinstance(response_data, dict) and "hits" in response_data:
-                    hits = response_data.get("hits", {}).get("hits", [])
-                    # extract _source from each hit, which contains the actual document data
-                    return [hit.get("_source", {}) for hit in hits]
-                return response_data
-            else:
-                return response_data if isinstance(response_data, str) else str(response_data)
+            return self._process_sql_response(response_data, response_format)
         except SerializationError:
             # If we get here, it means httpx failed above (likely AWS auth or not installed)
             # and opensearchpy can't deserialize the response
             # Re-raise as DocumentStoreError with a helpful message
-            msg = f"Failed to execute SQL query in OpenSearch: Unable to deserialize {response_format} response. This format may not be supported with the current authentication method. Consider installing httpx for better support."
+            msg = (
+                f"Failed to execute SQL query in OpenSearch: Unable to deserialize {response_format} response. "
+                f"This format may not be supported with the current authentication method. "
+                f"Consider installing httpx for better support."
+            )
             raise DocumentStoreError(msg) from None
         except Exception as e:
             msg = f"Failed to execute SQL query in OpenSearch: {e!s}"
