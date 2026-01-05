@@ -1287,7 +1287,30 @@ class OpenSearchDocumentStore:
         return self._extract_distinct_counts_from_aggregations(result.get("aggregations", {}), index_mapping)
 
     def get_fields_info(self) -> dict[str, dict]:
-        pass
+        """
+        Returns the information about the fields in the index.
+
+        :returns: The information about the fields in the index.
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        mapping = self._client.indices.get_mapping(index=self._index)
+        index_mapping = mapping[self._index]["mappings"]["properties"]
+        return index_mapping
+
+    async def get_fields_info_async(self) -> dict[str, dict]:
+        """
+        Asynchronously returns the information about the fields in the index.
+
+        :returns: The information about the fields in the index.
+        """
+        await self._ensure_initialized_async()
+        assert self._async_client is not None
+
+        mapping = await self._async_client.indices.get_mapping(index=self._index)
+        index_mapping = mapping[self._index]["mappings"]["properties"]
+        return index_mapping
 
     def get_field_min_max(self, metadata_field: str) -> dict[str, Any]:
         pass

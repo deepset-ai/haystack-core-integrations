@@ -707,3 +707,27 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert distinct_counts_a_active["category"] == 1  # Only A
         assert distinct_counts_a_active["status"] == 1  # Only active
         assert distinct_counts_a_active["priority"] == 2  # 1, 3
+
+    def test_get_fields_info(self, document_store: OpenSearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "B", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        fields_info = document_store.get_fields_info()
+
+        # Verify that fields_info contains expected fields
+        assert "content" in fields_info
+        assert "embedding" in fields_info
+        assert "category" in fields_info
+        assert "status" in fields_info
+        assert "priority" in fields_info
+
+        # Verify field types
+        assert fields_info["content"]["type"] == "text"
+        assert fields_info["embedding"]["type"] == "knn_vector"
+        # Metadata fields should be keyword type (from dynamic templates)
+        assert fields_info["category"]["type"] == "keyword"
+        assert fields_info["status"]["type"] == "keyword"
+        assert fields_info["priority"]["type"] == "long"
