@@ -239,6 +239,38 @@ class TestDocumentStoreAsync:
         assert result[0].meta["number"] == 100
 
     @pytest.mark.asyncio
+    async def test_count_documents_by_filter(self, document_store: OpenSearchDocumentStore):
+        filterable_docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
+            Document(content="Doc 4", meta={"category": "A", "status": "active"}),
+        ]
+        await document_store.write_documents_async(filterable_docs)
+        assert await document_store.count_documents_async() == 4
+
+        count_a = await document_store.count_documents_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert count_a == 3
+
+        count_active = await document_store.count_documents_by_filter_async(
+            filters={"field": "meta.status", "operator": "==", "value": "active"}
+        )
+        assert count_active == 3
+
+        count_a_active = await document_store.count_documents_by_filter_async(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.category", "operator": "==", "value": "A"},
+                    {"field": "meta.status", "operator": "==", "value": "active"},
+                ],
+            }
+        )
+        assert count_a_active == 2
+
+    @pytest.mark.asyncio
     async def test_delete_documents(self, document_store: OpenSearchDocumentStore):
         doc = Document(content="test doc")
         await document_store.write_documents_async([doc])
