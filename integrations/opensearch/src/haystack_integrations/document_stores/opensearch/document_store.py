@@ -1312,8 +1312,72 @@ class OpenSearchDocumentStore:
         index_mapping = mapping[self._index]["mappings"]["properties"]
         return index_mapping
 
+    @staticmethod
+    def _normalize_metadata_field_name(metadata_field: str) -> str:
+        """
+        Normalizes a metadata field name by removing the "meta." prefix if present.
+        """
+        return metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
+
+    @staticmethod
+    def _build_min_max_query_body(field_name: str) -> dict[str, Any]:
+        """
+        Builds the query body for getting min and max values using stats aggregation.
+        """
+        return {
+            "query": {"match_all": {}},
+            "aggs": {
+                "field_stats": {
+                    "stats": {
+                        "field": field_name,
+                    }
+                }
+            },
+            "size": 0,  # We only need aggregations, not documents
+        }
+
+    @staticmethod
+    def _extract_min_max_from_stats(stats: dict[str, Any]) -> dict[str, Any]:
+        """
+        Extracts min and max values from stats aggregation results.
+        """
+        min_value = stats.get("min")
+        max_value = stats.get("max")
+        return {"min": min_value, "max": max_value}
+
     def get_field_min_max(self, metadata_field: str) -> dict[str, Any]:
-        pass
+        """
+        Returns the minimum and maximum values for the given metadata field.
+
+        :param metadata_field: The metadata field to get the minimum and maximum values for.
+        :returns: The minimum and maximum values for the given metadata field.
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        field_name = self._normalize_metadata_field_name(metadata_field)
+        body = self._build_min_max_query_body(field_name)
+        result = self._client.search(index=self._index, body=body)
+        stats = result.get("aggregations", {}).get("field_stats", {})
+
+        return self._extract_min_max_from_stats(stats)
+
+    async def get_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Asynchronously returns the minimum and maximum values for the given metadata field.
+
+        :param metadata_field: The metadata field to get the minimum and maximum values for.
+        :returns: The minimum and maximum values for the given metadata field.
+        """
+        await self._ensure_initialized_async()
+        assert self._async_client is not None
+
+        field_name = self._normalize_metadata_field_name(metadata_field)
+        body = self._build_min_max_query_body(field_name)
+        result = await self._async_client.search(index=self._index, body=body)
+        stats = result.get("aggregations", {}).get("field_stats", {})
+
+        return self._extract_min_max_from_stats(stats)
 
     def get_field_unique_values(
         self, metadata_field: str, search_term: str | None, from_: int, size: int

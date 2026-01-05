@@ -496,3 +496,30 @@ class TestDocumentStoreAsync:
         assert fields_info["category"]["type"] == "keyword"
         assert fields_info["status"]["type"] == "keyword"
         assert fields_info["priority"]["type"] == "long"
+
+    @pytest.mark.asyncio
+    async def test_get_field_min_max(self, document_store: OpenSearchDocumentStore):
+        filterable_docs = [
+            Document(content="Doc 1", meta={"priority": 1, "rating": 10}),
+            Document(content="Doc 2", meta={"priority": 5, "rating": 20}),
+            Document(content="Doc 3", meta={"priority": 3, "rating": 15}),
+            Document(content="Doc 4", meta={"priority": 10, "rating": 5}),
+        ]
+        await document_store.write_documents_async(filterable_docs)
+
+        # Test with "meta." prefix for integer field
+        min_max_priority = await document_store.get_field_min_max_async("meta.priority")
+        assert min_max_priority["min"] == 1
+        assert min_max_priority["max"] == 10
+
+        # Test with "meta." prefix for another integer field
+        min_max_rating = await document_store.get_field_min_max_async("meta.rating")
+        assert min_max_rating["min"] == 5
+        assert min_max_rating["max"] == 20
+
+        # Test with single value
+        single_doc = [Document(content="Doc 5", meta={"single_value": 42})]
+        await document_store.write_documents_async(single_doc)
+        min_max_single = await document_store.get_field_min_max_async("meta.single_value")
+        assert min_max_single["min"] == 42
+        assert min_max_single["max"] == 42
