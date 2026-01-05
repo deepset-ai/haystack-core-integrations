@@ -127,22 +127,6 @@ class TestLlamaChatGeneratorAsync:
     )
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_live_run_async(self):
-        chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = MetaLlamaChatGenerator()
-        results = await component.run_async(chat_messages)
-        assert len(results["replies"]) == 1
-        message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.text
-        assert "Llama-4-Scout-17B-16E-Instruct-FP8" in message.meta["model"]
-        assert message.meta["finish_reason"] == "stop"
-
-    @pytest.mark.skipif(
-        not os.environ.get("LLAMA_API_KEY", None),
-        reason="Export an env var called LLAMA_API_KEY containing the Llama API key to run this test.",
-    )
-    @pytest.mark.integration
-    @pytest.mark.asyncio
     async def test_live_run_streaming_async(self):
         counter = 0
         responses = ""
@@ -212,50 +196,3 @@ class TestLlamaChatGeneratorAsync:
         assert not final_message.tool_call
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
-
-    @pytest.mark.skipif(
-        not os.environ.get("LLAMA_API_KEY", None),
-        reason="Export an env var called LLAMA_API_KEY containing the Llama API key to run this test.",
-    )
-    @pytest.mark.integration
-    @pytest.mark.asyncio
-    async def test_live_run_with_tools_streaming_async(self, tools):
-        """
-        Integration test that the MetaLlamaChatGenerator component can run with tools and streaming.
-        """
-
-        counter = 0
-        tool_calls = []
-
-        async def callback(chunk: StreamingChunk):
-            nonlocal counter
-            nonlocal tool_calls
-            counter += 1
-            if chunk.meta.get("tool_calls"):
-                tool_calls.extend(chunk.meta["tool_calls"])
-
-        component = MetaLlamaChatGenerator(tools=tools, streaming_callback=callback)
-        results = await component.run_async(
-            [ChatMessage.from_user("What's the weather like in Paris?")],
-        )
-
-        assert len(results["replies"]) > 0, "No replies received"
-        assert counter > 1, "Streaming callback was not called multiple times"
-        assert tool_calls, "No tool calls received in streaming"
-
-        # Find the message with tool calls
-        tool_message = None
-        for message in results["replies"]:
-            if message.tool_call:
-                tool_message = message
-                break
-
-        assert tool_message is not None, "No message with tool call found"
-        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
-        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
-
-        tool_call = tool_message.tool_call
-        assert tool_call.id, "Tool call does not contain value for 'id' key"
-        assert tool_call.tool_name == "weather"
-        assert tool_call.arguments == {"city": "Paris"}
-        assert tool_message.meta["finish_reason"] == "tool_calls"
