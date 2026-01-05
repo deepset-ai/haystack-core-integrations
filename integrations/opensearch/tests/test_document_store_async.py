@@ -464,13 +464,18 @@ class TestDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_get_field_min_max(self, document_store: OpenSearchDocumentStore):
-        filterable_docs = [
-            Document(content="Doc 1", meta={"priority": 1, "rating": 10}),
-            Document(content="Doc 2", meta={"priority": 5, "rating": 20}),
-            Document(content="Doc 3", meta={"priority": 3, "rating": 15}),
-            Document(content="Doc 4", meta={"priority": 10, "rating": 5}),
+        # Test with integer values
+        docs = [
+            Document(content="Doc 1", meta={"priority": 1, "age": 10}),
+            Document(content="Doc 2", meta={"priority": 5, "age": 20}),
+            Document(content="Doc 3", meta={"priority": 3, "age": 15}),
+            Document(content="Doc 4", meta={"priority": 10, "age": 5}),
+            Document(content="Doc 6", meta={"rating": 10.5}),
+            Document(content="Doc 7", meta={"rating": 20.3}),
+            Document(content="Doc 8", meta={"rating": 15.7}),
+            Document(content="Doc 9", meta={"rating": 5.2}),
         ]
-        await document_store.write_documents_async(filterable_docs)
+        await document_store.write_documents_async(docs)
 
         # Test with "meta." prefix for integer field
         min_max_priority = await document_store.get_field_min_max_async("meta.priority")
@@ -478,7 +483,7 @@ class TestDocumentStoreAsync:
         assert min_max_priority["max"] == 10
 
         # Test with "meta." prefix for another integer field
-        min_max_rating = await document_store.get_field_min_max_async("meta.rating")
+        min_max_rating = await document_store.get_field_min_max_async("meta.age")
         assert min_max_rating["min"] == 5
         assert min_max_rating["max"] == 20
 
@@ -488,3 +493,10 @@ class TestDocumentStoreAsync:
         min_max_single = await document_store.get_field_min_max_async("meta.single_value")
         assert min_max_single["min"] == 42
         assert min_max_single["max"] == 42
+
+        # Test with float values
+        min_max_score = await document_store.get_field_min_max_async("meta.rating")
+        assert min_max_score["min"] == pytest.approx(5.2)
+        assert min_max_score["max"] == pytest.approx(20.3)
+
+    
