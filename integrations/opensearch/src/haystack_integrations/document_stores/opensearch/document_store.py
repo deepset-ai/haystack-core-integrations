@@ -265,7 +265,7 @@ class OpenSearchDocumentStore:
 
     def _ensure_initialized(self):
         # Ideally, we have a warm-up stage for document stores as well as components.
-        if not self._initialized:
+        if not self._client:
             self._client = OpenSearch(
                 hosts=self._hosts,
                 http_auth=self._http_auth,
@@ -274,6 +274,12 @@ class OpenSearchDocumentStore:
                 timeout=self._timeout,
                 **self._kwargs,
             )
+            self._initialized = True
+
+            self._ensure_index_exists()
+
+    async def _ensure_initialized_async(self):
+        if not self._async_client:
             async_http_auth = AsyncAWSAuth(self._http_auth) if isinstance(self._http_auth, AWSAuth) else self._http_auth
             self._async_client = AsyncOpenSearch(
                 hosts=self._hosts,
@@ -286,10 +292,22 @@ class OpenSearchDocumentStore:
                 connection_class=AsyncHttpConnection,
                 **self._kwargs,
             )
-
             self._initialized = True
+            await self._ensure_index_exists_async()
 
-            self._ensure_index_exists()
+    async def _ensure_index_exists_async(self):
+        assert self._async_client is not None
+
+        if await self._async_client.indices.exists(index=self._index):
+            logger.debug(
+                "The index '{index}' already exists. The `embedding_dim`, `method`, `mappings`, and "
+                "`settings` values will be ignored.",
+                index=self._index,
+            )
+        elif self._create_index:
+            # Create the index if it doesn't exist
+            body = {"mappings": self._mappings, "settings": self._settings}
+            await self._async_client.indices.create(index=self._index, body=body)
 
     def _ensure_index_exists(self):
         assert self._client is not None
@@ -318,7 +336,7 @@ class OpenSearchDocumentStore:
         """
         Asynchronously returns the total number of documents in the document store.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         assert self._async_client is not None
         return (await self._async_client.count(index=self._index))["count"]
@@ -379,7 +397,8 @@ class OpenSearchDocumentStore:
         :param filters: The filters to apply to the document list.
         :returns: A list of Documents that match the given filters.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
+
         return await self._search_documents_async(self._prepare_filter_search_request(filters))
 
     def _prepare_bulk_write_request(
@@ -505,10 +524,9 @@ class OpenSearchDocumentStore:
             For more details, see the [OpenSearch refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/index-document/).
         :returns: The number of documents written to the document store.
         """
-        self._ensure_initialized()
-        bulk_params = self._prepare_bulk_write_request(
-            documents=documents, policy=policy, is_async=True, refresh=refresh
-        )
+        await self._ensure_initialized_async()
+        assert self._async_client is not None
+        bulk_params = self._prepare_bulk_write_request(documents=documents, policy=policy, is_async=True)
         documents_written, errors = await async_bulk(**bulk_params)
         # since we call async_bulk with stats_only=False, errors is guaranteed to be a list (not int)
         OpenSearchDocumentStore._process_bulk_write_errors(errors=errors, policy=policy)  # type: ignore[arg-type]
@@ -571,7 +589,8 @@ class OpenSearchDocumentStore:
             - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
             For more details, see the [OpenSearch refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/index-document/).
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
+        assert self._async_client is not None
 
         await async_bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=True, refresh=refresh))
 
@@ -638,7 +657,7 @@ class OpenSearchDocumentStore:
             completes. If False, no refresh is performed. For more details, see the
             [OpenSearch delete_by_query refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/delete-by-query/).
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
         assert self._async_client is not None
 
         try:
@@ -708,7 +727,7 @@ class OpenSearchDocumentStore:
             [OpenSearch delete_by_query refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/delete-by-query/).
         :returns: The number of documents deleted.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
         assert self._async_client is not None
 
         try:
@@ -778,7 +797,7 @@ class OpenSearchDocumentStore:
             [OpenSearch update_by_query refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/update-by-query/).
         :returns: The number of documents updated.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
         assert self._async_client is not None
 
         try:
@@ -934,7 +953,8 @@ class OpenSearchDocumentStore:
         See `OpenSearchBM25Retriever` for more information.
         """
 
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
+        assert self._async_client is not None
 
         search_params = self._prepare_bm25_search_request(
             query=query,
@@ -1053,7 +1073,8 @@ class OpenSearchDocumentStore:
 
         See `OpenSearchEmbeddingRetriever` for more information.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
+        assert self._async_client is not None
 
         search_params = self._prepare_embedding_search_request(
             query_embedding=query_embedding,

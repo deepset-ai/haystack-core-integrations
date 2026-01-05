@@ -4,6 +4,7 @@
 
 import pytest
 from haystack.dataclasses import Document
+from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.document_stores.opensearch.document_store import OpenSearchDocumentStore
 
@@ -12,7 +13,7 @@ from haystack_integrations.document_stores.opensearch.document_store import Open
 class TestDocumentStoreAsync:
     @pytest.mark.asyncio
     async def test_write_documents(self, document_store: OpenSearchDocumentStore):
-        assert await document_store.write_documents_async([Document(id="1")]) == 1
+        assert await document_store.write_documents_async([Document(id="1")], policy=DuplicatePolicy.OVERWRITE) == 1
 
     @pytest.mark.asyncio
     async def test_bm25_retrieval(self, document_store: OpenSearchDocumentStore, test_documents: list[Document]):
