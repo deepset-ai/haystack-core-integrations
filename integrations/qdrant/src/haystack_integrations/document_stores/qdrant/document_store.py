@@ -651,7 +651,11 @@ class QdrantDocumentStore:
                 # update payload for each record
                 for record in records:
                     # merge existing payload with new metadata
-                    updated_payload = {**(record.payload or {}), **meta}
+                    # Metadata is stored under the "meta" key in the payload
+                    updated_payload = dict(record.payload or {})
+                    if "meta" not in updated_payload:
+                        updated_payload["meta"] = {}
+                    updated_payload["meta"].update(meta)
 
                     # create updated point preserving vectors
                     # Type cast needed because record.vector type doesn't include all PointStruct vector types
@@ -731,7 +735,11 @@ class QdrantDocumentStore:
                 # update payload for each record
                 for record in records:
                     # merge existing payload with new metadata
-                    updated_payload = {**(record.payload or {}), **meta}
+                    # Metadata is stored under the "meta" key in the payload
+                    updated_payload = dict(record.payload or {})
+                    if "meta" not in updated_payload:
+                        updated_payload["meta"] = {}
+                    updated_payload["meta"].update(meta)
 
                     # create updated point preserving vectors
                     # Type cast needed because record.vector type doesn't include all PointStruct vector types
