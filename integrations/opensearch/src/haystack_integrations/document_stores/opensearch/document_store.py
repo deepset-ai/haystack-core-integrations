@@ -64,25 +64,25 @@ class OpenSearchDocumentStore:
     """
 
     def __init__(
-            self,
-            *,
-            hosts: Optional[Hosts] = None,
-            index: str = "default",
-            max_chunk_bytes: int = DEFAULT_MAX_CHUNK_BYTES,
-            embedding_dim: int = 768,
-            return_embedding: bool = False,
-            method: Optional[dict[str, Any]] = None,
-            mappings: Optional[dict[str, Any]] = None,
-            settings: Optional[dict[str, Any]] = DEFAULT_SETTINGS,
-            create_index: bool = True,
-            http_auth: Any = (
-                    Secret.from_env_var("OPENSEARCH_USERNAME", strict=False),  # noqa: B008
-                    Secret.from_env_var("OPENSEARCH_PASSWORD", strict=False),  # noqa: B008
-            ),
-            use_ssl: Optional[bool] = None,
-            verify_certs: Optional[bool] = None,
-            timeout: Optional[int] = None,
-            **kwargs: Any,
+        self,
+        *,
+        hosts: Optional[Hosts] = None,
+        index: str = "default",
+        max_chunk_bytes: int = DEFAULT_MAX_CHUNK_BYTES,
+        embedding_dim: int = 768,
+        return_embedding: bool = False,
+        method: Optional[dict[str, Any]] = None,
+        mappings: Optional[dict[str, Any]] = None,
+        settings: Optional[dict[str, Any]] = DEFAULT_SETTINGS,
+        create_index: bool = True,
+        http_auth: Any = (
+            Secret.from_env_var("OPENSEARCH_USERNAME", strict=False),  # noqa: B008
+            Secret.from_env_var("OPENSEARCH_PASSWORD", strict=False),  # noqa: B008
+        ),
+        use_ssl: Optional[bool] = None,
+        verify_certs: Optional[bool] = None,
+        timeout: Optional[int] = None,
+        **kwargs: Any,
     ) -> None:
         """
         Creates a new OpenSearchDocumentStore instance.
@@ -174,10 +174,10 @@ class OpenSearchDocumentStore:
         return default_mappings
 
     def create_index(
-            self,
-            index: Optional[str] = None,
-            mappings: Optional[dict[str, Any]] = None,
-            settings: Optional[dict[str, Any]] = None,
+        self,
+        index: Optional[str] = None,
+        mappings: Optional[dict[str, Any]] = None,
+        settings: Optional[dict[str, Any]] = None,
     ) -> None:
         """
         Creates an index in OpenSearch.
@@ -399,7 +399,7 @@ class OpenSearchDocumentStore:
         return await self._search_documents_async(self._prepare_filter_search_request(filters))
 
     def _prepare_bulk_write_request(
-            self, *, documents: list[Document], policy: DuplicatePolicy, is_async: bool
+        self, *, documents: list[Document], policy: DuplicatePolicy, is_async: bool
     ) -> dict[str, Any]:
         if len(documents) > 0 and not isinstance(documents[0], Document):
             msg = "param 'documents' must contain a list of objects of type Document"
@@ -487,7 +487,7 @@ class OpenSearchDocumentStore:
         return documents_written
 
     async def write_documents_async(
-            self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
+        self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
     ) -> int:
         """
         Asynchronously writes documents to the document store.
@@ -757,14 +757,14 @@ class OpenSearchDocumentStore:
             raise DocumentStoreError(msg) from e
 
     def _prepare_bm25_search_request(
-            self,
-            *,
-            query: str,
-            filters: Optional[dict[str, Any]],
-            fuzziness: Union[int, str],
-            top_k: int,
-            all_terms_must_match: bool,
-            custom_query: Optional[dict[str, Any]],
+        self,
+        *,
+        query: str,
+        filters: Optional[dict[str, Any]],
+        fuzziness: Union[int, str],
+        top_k: int,
+        all_terms_must_match: bool,
+        custom_query: Optional[dict[str, Any]],
     ) -> dict[str, Any]:
         if not query:
             body: dict[str, Any] = {"query": {"bool": {"must": {"match_all": {}}}}}
@@ -822,15 +822,15 @@ class OpenSearchDocumentStore:
             doc.score = float(1 / (1 + exp(-(doc.score / float(BM25_SCALING_FACTOR)))))
 
     def _bm25_retrieval(
-            self,
-            query: str,
-            *,
-            filters: Optional[dict[str, Any]] = None,
-            fuzziness: Union[int, str] = "AUTO",
-            top_k: int = 10,
-            scale_score: bool = False,
-            all_terms_must_match: bool = False,
-            custom_query: Optional[dict[str, Any]] = None,
+        self,
+        query: str,
+        *,
+        filters: Optional[dict[str, Any]] = None,
+        fuzziness: Union[int, str] = "AUTO",
+        top_k: int = 10,
+        scale_score: bool = False,
+        all_terms_must_match: bool = False,
+        custom_query: Optional[dict[str, Any]] = None,
     ) -> list[Document]:
         """
         Retrieves documents that match the provided `query` using the BM25 search algorithm.
@@ -860,15 +860,15 @@ class OpenSearchDocumentStore:
         return documents
 
     async def _bm25_retrieval_async(
-            self,
-            query: str,
-            *,
-            filters: Optional[dict[str, Any]] = None,
-            fuzziness: str = "AUTO",
-            top_k: int = 10,
-            scale_score: bool = False,
-            all_terms_must_match: bool = False,
-            custom_query: Optional[dict[str, Any]] = None,
+        self,
+        query: str,
+        *,
+        filters: Optional[dict[str, Any]] = None,
+        fuzziness: str = "AUTO",
+        top_k: int = 10,
+        scale_score: bool = False,
+        all_terms_must_match: bool = False,
+        custom_query: Optional[dict[str, Any]] = None,
     ) -> list[Document]:
         """
         Asynchronously retrieves documents that match the provided `query` using the BM25 search algorithm.
@@ -900,13 +900,13 @@ class OpenSearchDocumentStore:
         return documents
 
     def _prepare_embedding_search_request(
-            self,
-            *,
-            query_embedding: list[float],
-            filters: Optional[dict[str, Any]],
-            top_k: int,
-            custom_query: Optional[dict[str, Any]],
-            efficient_filtering: bool = False,
+        self,
+        *,
+        query_embedding: list[float],
+        filters: Optional[dict[str, Any]],
+        top_k: int,
+        custom_query: Optional[dict[str, Any]],
+        efficient_filtering: bool = False,
     ) -> dict[str, Any]:
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
@@ -956,13 +956,13 @@ class OpenSearchDocumentStore:
         return body
 
     def _embedding_retrieval(
-            self,
-            query_embedding: list[float],
-            *,
-            filters: Optional[dict[str, Any]] = None,
-            top_k: int = 10,
-            custom_query: Optional[dict[str, Any]] = None,
-            efficient_filtering: bool = False,
+        self,
+        query_embedding: list[float],
+        *,
+        filters: Optional[dict[str, Any]] = None,
+        top_k: int = 10,
+        custom_query: Optional[dict[str, Any]] = None,
+        efficient_filtering: bool = False,
     ) -> list[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
@@ -986,13 +986,13 @@ class OpenSearchDocumentStore:
         return self._search_documents(search_params)
 
     async def _embedding_retrieval_async(
-            self,
-            query_embedding: list[float],
-            *,
-            filters: Optional[dict[str, Any]] = None,
-            top_k: int = 10,
-            custom_query: Optional[dict[str, Any]] = None,
-            efficient_filtering: bool = False,
+        self,
+        query_embedding: list[float],
+        *,
+        filters: Optional[dict[str, Any]] = None,
+        top_k: int = 10,
+        custom_query: Optional[dict[str, Any]] = None,
+        efficient_filtering: bool = False,
     ) -> list[Document]:
         """
         Asynchronously retrieves documents that are most similar to the query embedding using a vector similarity
@@ -1073,7 +1073,8 @@ class OpenSearchDocumentStore:
         pass
 
     def get_field_unique_values(
-            self, metadata_field: str, search_term: str | None, from_: int, size: int)-> tuple[list[str], int]:
+        self, metadata_field: str, search_term: str | None, from_: int, size: int
+    ) -> tuple[list[str], int]:
         pass
 
     def query_sql(self, query: str):
