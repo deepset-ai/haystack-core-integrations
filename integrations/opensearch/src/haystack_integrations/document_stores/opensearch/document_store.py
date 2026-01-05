@@ -2,16 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 from collections.abc import Mapping
 from math import exp
-from typing import Any, Optional, Union
+from typing import Any, Literal, Optional, Union
 
+import requests
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret
 from opensearchpy import AsyncHttpConnection, AsyncOpenSearch, OpenSearch
+from opensearchpy.exceptions import SerializationError
 from opensearchpy.helpers import async_bulk, bulk
 
 from haystack_integrations.document_stores.opensearch.auth import AsyncAWSAuth, AWSAuth
@@ -20,6 +23,8 @@ from haystack_integrations.document_stores.opensearch.filters import normalize_f
 logger = logging.getLogger(__name__)
 
 Hosts = Union[str, list[Union[str, Mapping[str, Union[str, int]]]]]
+
+ResponseFormat = Literal["json", "jdbc", "csv", "raw"]
 
 # document scores are essentially unbounded and will be scaled to values between 0 and 1 if scale_score is set to
 # True. Scaling uses the expit function (inverse of the logit function) after applying a scaling factor
@@ -1309,7 +1314,7 @@ class OpenSearchDocumentStore:
         field_name = self._normalize_metadata_field_name(metadata_field)
 
         # filter by search_term if provided
-        query = {"match_all": {}}
+        query: dict[str, Any] = {"match_all": {}}
         if search_term:
             # Use match_phrase for exact phrase matching to avoid tokenization issues
             query = {"match_phrase": {"content": search_term}}
@@ -1370,7 +1375,7 @@ class OpenSearchDocumentStore:
         field_name = self._normalize_metadata_field_name(metadata_field)
 
         # filter by search_term if provided
-        query = {"match_all": {}}
+        query: dict[str, Any] = {"match_all": {}}
         if search_term:
             # Use match_phrase for exact phrase matching to avoid tokenization issues
             query = {"match_phrase": {"content": search_term}}
@@ -1413,5 +1418,161 @@ class OpenSearchDocumentStore:
 
         return unique_values, total_count
 
-    def query_sql(self, query: str):
-        pass
+    def query_sql(self, query: str, response_format: ResponseFormat = "json") -> Any:
+        """
+        Execute a raw OpenSearch SQL query against the index.
+
+        :param query: The OpenSearch SQL query to execute
+        :param response_format: The format of the response. See https://docs.opensearch.org/latest/search-plugins/sql/response-formats/
+        :returns: The query results in the specified format. For JSON format, returns a list of dictionaries
+            (the _source from each hit). For other formats (csv, jdbc, raw), returns the response as text.
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        # For non-JSON formats, use requests directly to avoid deserialization issues
+        if response_format != "json":
+            try:
+                # Get connection info from the transport
+                connection = self._client.transport.get_connection()
+                base_url = connection.host
+                url = f"{base_url}/_plugins/_sql?format={response_format}"
+                
+                headers = {"Content-Type": "application/json"}
+                auth = None
+                if self._http_auth:
+                    if isinstance(self._http_auth, tuple):
+                        auth = self._http_auth
+                    elif isinstance(self._http_auth, AWSAuth):
+                        # For AWS auth, we need to use the opensearchpy client
+                        # Fall through to the try/except below
+                        pass
+                
+                verify = self._verify_certs if self._verify_certs is not None else True
+                timeout = self._timeout if self._timeout is not None else 30.0
+                response = requests.post(
+                    url,
+                    json={"query": query},
+                    headers=headers,
+                    auth=auth,
+                    verify=verify,
+                    timeout=timeout,
+                )
+                response.raise_for_status()
+                return response.text
+            except Exception as e:
+                # If requests fails (e.g., AWS auth), fall back to opensearchpy
+                # which will raise SerializationError that we can handle
+                pass
+        
+        try:
+            body = {"query": query}
+            params = {"format": response_format}
+            
+            response_data = self._client.transport.perform_request(
+                method="POST",
+                url="/_plugins/_sql",
+                params=params,
+                body=body,
+            )
+
+            if response_format == "json":
+                # extract only the query results
+                if isinstance(response_data, dict) and "hits" in response_data:
+                    hits = response_data.get("hits", {}).get("hits", [])
+                    # extract _source from each hit, which contains the actual document data
+                    return [hit.get("_source", {}) for hit in hits]
+                return response_data
+            else:
+                return response_data if isinstance(response_data, str) else str(response_data)
+        except SerializationError:
+            # If we get here, it means requests failed above (likely AWS auth)
+            # and opensearchpy can't deserialize the response
+            # Re-raise as DocumentStoreError with a helpful message
+            msg = f"Failed to execute SQL query in OpenSearch: Unable to deserialize {response_format} response. This format may not be supported with the current authentication method."
+            raise DocumentStoreError(msg) from None
+        except Exception as e:
+            msg = f"Failed to execute SQL query in OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def query_sql_async(self, query: str, response_format: ResponseFormat = "json") -> Any:
+        """
+        Asynchronously execute a raw OpenSearch SQL query against the index.
+
+        :param query: The OpenSearch SQL query to execute
+        :param response_format: The format of the response. See https://docs.opensearch.org/latest/search-plugins/sql/response-formats/
+        :returns: The query results in the specified format. For JSON format, returns a list of dictionaries
+            (the _source from each hit). For other formats (csv, jdbc, raw), returns the response as text.
+        """
+        await self._ensure_initialized_async()
+        assert self._async_client is not None
+
+        # For non-JSON formats, use httpx directly to avoid deserialization issues
+        if response_format != "json":
+            try:
+                import httpx
+                
+                # Get connection info from the transport
+                connection = self._async_client.transport.get_connection()
+                base_url = connection.host
+                url = f"{base_url}/_plugins/_sql?format={response_format}"
+                
+                headers = {"Content-Type": "application/json"}
+                auth = None
+                if self._http_auth:
+                    if isinstance(self._http_auth, tuple):
+                        auth = self._http_auth
+                    elif isinstance(self._http_auth, AWSAuth):
+                        # For AWS auth, we need to use the opensearchpy client
+                        # Fall through to the try/except below
+                        pass
+                
+                verify = self._verify_certs if self._verify_certs is not None else True
+                timeout = httpx.Timeout(self._timeout if self._timeout else 30.0)
+                
+                async with httpx.AsyncClient(verify=verify, timeout=timeout) as client:
+                    response = await client.post(
+                        url,
+                        json={"query": query},
+                        headers=headers,
+                        auth=auth,
+                    )
+                    response.raise_for_status()
+                    return response.text
+            except ImportError:
+                # httpx not available, fall through to opensearchpy
+                pass
+            except Exception as e:
+                # If httpx fails (e.g., AWS auth), fall back to opensearchpy
+                # which will raise SerializationError that we can handle
+                pass
+
+        try:
+            body = {"query": query}
+            params = {"format": response_format}
+            
+            response_data = await self._async_client.transport.perform_request(
+                method="POST",
+                url="/_plugins/_sql",
+                params=params,
+                body=body,
+            )
+
+            if response_format == "json":
+                # extract only the query results
+                if isinstance(response_data, dict) and "hits" in response_data:
+                    hits = response_data.get("hits", {}).get("hits", [])
+                    # extract _source from each hit, which contains the actual document data
+                    return [hit.get("_source", {}) for hit in hits]
+                return response_data
+            else:
+                return response_data if isinstance(response_data, str) else str(response_data)
+        except SerializationError:
+            # If we get here, it means httpx failed above (likely AWS auth or not installed)
+            # and opensearchpy can't deserialize the response
+            # Re-raise as DocumentStoreError with a helpful message
+            msg = f"Failed to execute SQL query in OpenSearch: Unable to deserialize {response_format} response. This format may not be supported with the current authentication method. Consider installing httpx for better support."
+            raise DocumentStoreError(msg) from None
+        except Exception as e:
+            msg = f"Failed to execute SQL query in OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e

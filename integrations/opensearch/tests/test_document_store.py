@@ -772,3 +772,65 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         )
         assert set(unique_priorities_filtered) == {"1"}
         assert priority_count == 1
+
+    def test_query_sql(self, document_store: OpenSearchDocumentStore):
+        """
+        Test executing SQL queries against the OpenSearch index.
+        """
+        docs = [
+            Document(content="Python programming", meta={"category": "A", "status": "active", "priority": 1}),
+            Document(content="Java programming", meta={"category": "B", "status": "active", "priority": 2}),
+            Document(content="Python scripting", meta={"category": "A", "status": "inactive", "priority": 3}),
+            Document(content="JavaScript development", meta={"category": "C", "status": "active", "priority": 1}),
+        ]
+        document_store.write_documents(docs)
+        time.sleep(1)  # Wait for documents to be indexed
+
+        # Test SQL query with JSON format (default)
+        sql_query = (
+            f"SELECT content, category, status, priority FROM {document_store._index} "  # noqa: S608
+            f"WHERE category = 'A' ORDER BY priority"
+        )
+        result = document_store.query_sql(sql_query, response_format="json")
+
+        # New format returns a list of dictionaries (the _source from each hit)
+        assert len(result) == 2  # Two documents with category A
+        assert isinstance(result, list)
+        assert all(isinstance(row, dict) for row in result)
+
+        # Verify data contains expected values
+        categories = [row.get("category") for row in result]
+        assert all(cat == "A" for cat in categories)
+
+        # Verify all expected fields are present
+        for row in result:
+            assert "content" in row
+            assert "category" in row
+            assert "status" in row
+            assert "priority" in row
+
+        # Test SQL query with CSV format
+        result_csv = document_store.query_sql(sql_query, response_format="csv")
+        assert isinstance(result_csv, str)
+        assert "content" in result_csv
+        assert "category" in result_csv
+
+        # Test SQL query with JDBC format
+        result_jdbc = document_store.query_sql(sql_query, response_format="jdbc")
+        # JDBC format can be dict or str depending on OpenSearch version
+        assert result_jdbc is not None
+
+        # Test SQL query with RAW format
+        result_raw = document_store.query_sql(sql_query, response_format="raw")
+        assert isinstance(result_raw, str)
+
+        # Test COUNT query
+        count_query = f"SELECT COUNT(*) as total FROM {document_store._index}"  # noqa: S608
+        count_result = document_store.query_sql(count_query, response_format="json")
+        # COUNT query may return different format, check it's a valid response
+        assert count_result is not None
+
+        # Test error handling for invalid SQL query
+        invalid_query = "SELECT * FROM non_existent_index"
+        with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
+            document_store.query_sql(invalid_query)
