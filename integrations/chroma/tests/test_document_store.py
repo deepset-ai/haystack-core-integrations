@@ -103,6 +103,20 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         finally:
             SharedSystemClient.clear_system_cache()
 
+    def test_invalid_client_settings(self):
+        SharedSystemClient.clear_system_cache()
+        try:
+            store = ChromaDocumentStore(
+                client_settings={
+                    "invalid_setting_name": "some_value",
+                    "another_fake_setting": 123,
+                }
+            )
+            with pytest.raises(ValueError, match="Invalid client_settings"):
+                store._ensure_initialized()
+        finally:
+            SharedSystemClient.clear_system_cache()
+
     def test_to_dict(self, request):
         ds = ChromaDocumentStore(
             collection_name=request.node.name,
