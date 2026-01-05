@@ -709,3 +709,64 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         min_max_score = document_store.get_field_min_max("meta.rating")
         assert min_max_score["min"] == pytest.approx(5.2)
         assert min_max_score["max"] == pytest.approx(20.3)
+
+    def test_get_field_unique_values(self, document_store: OpenSearchDocumentStore):
+        # Test with string values
+        docs = [
+            Document(content="Python programming", meta={"category": "A", "language": "Python"}),
+            Document(content="Java programming", meta={"category": "B", "language": "Java"}),
+            Document(content="Python scripting", meta={"category": "A", "language": "Python"}),
+            Document(content="JavaScript development", meta={"category": "C", "language": "JavaScript"}),
+            Document(content="Python data science", meta={"category": "A", "language": "Python"}),
+            Document(content="Java backend", meta={"category": "B", "language": "Java"}),
+        ]
+        document_store.write_documents(docs)
+
+        # Test getting all unique values without search term
+        unique_values, total_count = document_store.get_field_unique_values("meta.category", None, 0, 10)
+        assert set(unique_values) == {"A", "B", "C"}
+        assert total_count == 3
+
+        # Test with "meta." prefix
+        unique_languages, lang_count = document_store.get_field_unique_values("meta.language", None, 0, 10)
+        assert set(unique_languages) == {"Python", "Java", "JavaScript"}
+        assert lang_count == 3
+
+        # Test pagination - first page
+        unique_values_page1, total_count = document_store.get_field_unique_values("meta.category", None, 0, 2)
+        assert len(unique_values_page1) == 2
+        assert total_count == 3
+        assert all(val in ["A", "B", "C"] for val in unique_values_page1)
+
+        # Test pagination - second page
+        unique_values_page2, total_count = document_store.get_field_unique_values("meta.category", None, 2, 2)
+        assert len(unique_values_page2) == 1
+        assert total_count == 3
+        assert unique_values_page2[0] in ["A", "B", "C"]
+
+        # Test with search term - filter by content matching "Python"
+        unique_values_filtered, total_count = document_store.get_field_unique_values("meta.category", "Python", 0, 10)
+        assert set(unique_values_filtered) == {"A"}  # Only category A has documents with "Python" in content
+        assert total_count == 1
+
+        # Test with search term - filter by content matching "Java"
+        unique_values_java, total_count = document_store.get_field_unique_values("meta.category", "Java", 0, 10)
+        assert set(unique_values_java) == {"B"}  # Only category B has documents with "Java" in content
+        assert total_count == 1
+
+        # Test with integer values
+        int_docs = [
+            Document(content="Doc 1", meta={"priority": 1}),
+            Document(content="Doc 2", meta={"priority": 2}),
+            Document(content="Doc 3", meta={"priority": 1}),
+            Document(content="Doc 4", meta={"priority": 3}),
+        ]
+        document_store.write_documents(int_docs)
+        unique_priorities, priority_count = document_store.get_field_unique_values("meta.priority", None, 0, 10)
+        assert set(unique_priorities) == {"1", "2", "3"}
+        assert priority_count == 3
+
+        # Test with search term on integer field
+        unique_priorities_filtered, priority_count = document_store.get_field_unique_values("meta.priority", "Doc 1", 0, 10)
+        assert set(unique_priorities_filtered) == {"1"}
+        assert priority_count == 1

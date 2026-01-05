@@ -1294,7 +1294,63 @@ class OpenSearchDocumentStore:
     def get_field_unique_values(
         self, metadata_field: str, search_term: str | None, from_: int, size: int
     ) -> tuple[list[str], int]:
-        pass
+        """
+        Returns unique values for a metadata field, optionally filtered by a search term in the content.
+
+        :param metadata_field: The metadata field to get unique values for.
+        :param search_term: Optional search term to filter documents by matching in the content field.
+        :param from_: The starting index for pagination.
+        :param size: The number of unique values to return.
+        :returns: A tuple containing (list of unique values, total count of unique values).
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        field_name = self._normalize_metadata_field_name(metadata_field)
+
+        # filter by search_term if provided
+        query = {"match_all": {}}
+        if search_term:
+            # Use match_phrase for exact phrase matching to avoid tokenization issues
+            query = {"match_phrase": {"content": search_term}}
+
+        # Build aggregations
+        # Terms aggregation for paginated unique values
+        # Note: Terms aggregation doesn't support 'from' parameter directly,
+        # so we fetch from_ + size results and slice them
+        # Cardinality aggregation for total count
+        terms_size = from_ + size if from_ > 0 else size
+        body = {
+            "query": query,
+            "aggs": {
+                "unique_values": {
+                    "terms": {
+                        "field": field_name,
+                        "size": terms_size,
+                    }
+                },
+                "total_count": {
+                    "cardinality": {
+                        "field": field_name,
+                    }
+                },
+            },
+            "size": 0,  # we only need aggregations, not documents
+        }
+
+        result = self._client.search(index=self._index, body=body)
+        aggregations = result.get("aggregations", {})
+
+        # Extract unique values from terms aggregation buckets
+        unique_values_buckets = aggregations.get("unique_values", {}).get("buckets", [])
+        # Apply pagination by slicing the results
+        paginated_buckets = unique_values_buckets[from_ : from_ + size]
+        unique_values = [str(bucket["key"]) for bucket in paginated_buckets]
+
+        # Extract total count from cardinality aggregation
+        total_count = int(aggregations.get("total_count", {}).get("value", 0))
+
+        return unique_values, total_count
 
     def query_sql(self, query: str):
         pass
