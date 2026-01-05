@@ -1063,6 +1063,65 @@ class OpenSearchDocumentStore:
         body = {"query": {"bool": {"filter": normalized_filters}}}
         return (await self._async_client.count(index=self._index, body=body))["count"]
 
+    @staticmethod
+    def _build_cardinality_aggregations(index_mapping: dict[str, Any]) -> dict[str, Any]:
+        """
+        Builds cardinality aggregations for all metadata fields in the index mapping.
+
+        :param index_mapping: The properties mapping from the index.
+        :returns: Dictionary of aggregations keyed by field name.
+        """
+        special_fields = {"content", "embedding", "id", "score", "blob", "sparse_embedding"}
+        aggs = {}
+        for field_name in index_mapping.keys():
+            if field_name not in special_fields:
+                aggs[f"{field_name}_cardinality"] = {"cardinality": {"field": field_name}}
+        return aggs
+
+    @staticmethod
+    def _build_distinct_values_query_body(filters: dict, aggs: dict[str, Any]) -> dict[str, Any]:
+        """
+        Builds the query body for distinct values counting with filters and aggregations.
+
+        :param filters: The filters to apply, or empty dict for no filters.
+        :param aggs: The aggregations to include in the query.
+        :returns: The query body dictionary.
+        """
+        if filters:
+            normalized_filters = normalize_filters(filters)
+            return {
+                "query": {"bool": {"filter": normalized_filters}},
+                "aggs": aggs,
+                "size": 0,  # We only need aggregations, not documents
+            }
+        else:
+            # No filters - match all documents
+            return {
+                "query": {"match_all": {}},
+                "aggs": aggs,
+                "size": 0,  # We only need aggregations, not documents
+            }
+
+    @staticmethod
+    def _extract_distinct_counts_from_aggregations(
+        aggregations: dict[str, Any], index_mapping: dict[str, Any]
+    ) -> dict[str, int]:
+        """
+        Extracts distinct value counts from search result aggregations.
+
+        :param aggregations: The aggregations from the search result.
+        :param index_mapping: The properties mapping from the index.
+        :returns: Dictionary mapping field names to their distinct value counts.
+        """
+        special_fields = {"content", "embedding", "id", "score", "blob", "sparse_embedding"}
+        distinct_counts = {}
+        for field_name in index_mapping.keys():
+            if field_name not in special_fields:
+                agg_key = f"{field_name}_cardinality"
+                if agg_key in aggregations:
+                    distinct_counts[field_name] = aggregations[agg_key]["value"]
+        return distinct_counts
+
     def count_distinct_values_by_filter(self, filters: dict) -> dict[str, int]:
         """
         Returns the number of unique values for each meta field of the documents that match the provided filters.
@@ -1078,43 +1137,17 @@ class OpenSearchDocumentStore:
         mapping = self._client.indices.get_mapping(index=self._index)
         index_mapping = mapping[self._index]["mappings"]["properties"]
 
-        # aggregations for each metadata field (exclude special fields)
-        special_fields = {"content", "embedding", "id", "score", "blob", "sparse_embedding"}
-        aggs = {}
-        for field_name in index_mapping.keys():
-            if field_name not in special_fields:
-                aggs[f"{field_name}_cardinality"] = {"cardinality": {"field": field_name}}
-
+        # build aggregations for each metadata field
+        aggs = self._build_cardinality_aggregations(index_mapping)
         if not aggs:
             return {}
 
-        # search query with filters and aggregations
-        if filters:
-            normalized_filters = normalize_filters(filters)
-            body = {
-                "query": {"bool": {"filter": normalized_filters}},
-                "aggs": aggs,
-                "size": 0,  # We only need aggregations, not documents
-            }
-        else:
-            # No filters - match all documents
-            body = {
-                "query": {"match_all": {}},
-                "aggs": aggs,
-                "size": 0,  # We only need aggregations, not documents
-            }
+        # build and execute search query
+        body = self._build_distinct_values_query_body(filters, aggs)
         result = self._client.search(index=self._index, body=body)
 
-        # extract cardinality values for each field
-        distinct_counts = {}
-        aggregations = result.get("aggregations", {})
-        for field_name in index_mapping.keys():
-            if field_name not in special_fields:
-                agg_key = f"{field_name}_cardinality"
-                if agg_key in aggregations:
-                    distinct_counts[field_name] = aggregations[agg_key]["value"]
-
-        return distinct_counts
+        # extract cardinality values from aggregations
+        return self._extract_distinct_counts_from_aggregations(result.get("aggregations", {}), index_mapping)
 
     async def count_distinct_values_by_filter_async(self, filters: dict) -> dict[str, int]:
         """
@@ -1132,43 +1165,17 @@ class OpenSearchDocumentStore:
         mapping = await self._async_client.indices.get_mapping(index=self._index)
         index_mapping = mapping[self._index]["mappings"]["properties"]
 
-        # aggregations for each metadata field (exclude special fields)
-        special_fields = {"content", "embedding", "id", "score", "blob", "sparse_embedding"}
-        aggs = {}
-        for field_name in index_mapping.keys():
-            if field_name not in special_fields:
-                aggs[f"{field_name}_cardinality"] = {"cardinality": {"field": field_name}}
-
+        # build aggregations for each metadata field
+        aggs = self._build_cardinality_aggregations(index_mapping)
         if not aggs:
             return {}
 
-        # search query with filters and aggregations
-        if filters:
-            normalized_filters = normalize_filters(filters)
-            body = {
-                "query": {"bool": {"filter": normalized_filters}},
-                "aggs": aggs,
-                "size": 0,  # We only need aggregations, not documents
-            }
-        else:
-            # No filters - match all documents
-            body = {
-                "query": {"match_all": {}},
-                "aggs": aggs,
-                "size": 0,  # We only need aggregations, not documents
-            }
+        # build and execute search query
+        body = self._build_distinct_values_query_body(filters, aggs)
         result = await self._async_client.search(index=self._index, body=body)
 
-        # extract cardinality values for each field
-        distinct_counts = {}
-        aggregations = result.get("aggregations", {})
-        for field_name in index_mapping.keys():
-            if field_name not in special_fields:
-                agg_key = f"{field_name}_cardinality"
-                if agg_key in aggregations:
-                    distinct_counts[field_name] = aggregations[agg_key]["value"]
-
-        return distinct_counts
+        # extract cardinality values from aggregations
+        return self._extract_distinct_counts_from_aggregations(result.get("aggregations", {}), index_mapping)
 
     def get_fields_info(self) -> dict[str, dict]:
         pass
