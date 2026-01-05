@@ -670,7 +670,7 @@ class QdrantDocumentStore:
             for batch in get_batches_from_generator(updated_points, self.write_batch_size):
                 self._client.upsert(
                     collection_name=self.index,
-                    points=batch,
+                    points=list(batch),
                     wait=self.wait_result_from_api,
                 )
 
@@ -750,7 +750,7 @@ class QdrantDocumentStore:
             for batch in get_batches_from_generator(updated_points, self.write_batch_size):
                 await self._async_client.upsert(
                     collection_name=self.index,
-                    points=batch,
+                    points=list(batch),
                     wait=self.wait_result_from_api,
                 )
 
