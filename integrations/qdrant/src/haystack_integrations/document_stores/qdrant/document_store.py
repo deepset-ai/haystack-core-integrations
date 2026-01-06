@@ -603,6 +603,46 @@ class QdrantDocumentStore:
             msg = f"Failed to delete documents by filter from Qdrant: {e!s}"
             raise QdrantStoreError(msg) from e
 
+    @staticmethod
+    def _check_stop_scrolling(next_offset: Any) -> bool:
+        """
+        Checks if scrolling should stop based on the next_offset value.
+
+        :param next_offset: The offset returned from the scroll operation.
+        :returns: True if scrolling should stop, False otherwise.
+        """
+        return next_offset is None or (
+            hasattr(next_offset, "num")
+            and hasattr(next_offset, "uuid")
+            and next_offset.num == 0
+            and next_offset.uuid == ""
+        )
+
+    @staticmethod
+    def _create_updated_point_from_record(record: Any, meta: dict[str, Any]) -> rest.PointStruct:
+        """
+        Creates an updated PointStruct from a Qdrant record with merged metadata.
+
+        :param record: The Qdrant record to update.
+        :param meta: The metadata fields to merge with existing metadata.
+        :returns: A PointStruct with updated metadata and preserved vectors.
+        """
+        # merge existing payload with new metadata
+        # Metadata is stored under the "meta" key in the payload
+        updated_payload = dict(record.payload or {})
+        if "meta" not in updated_payload:
+            updated_payload["meta"] = {}
+        updated_payload["meta"].update(meta)
+
+        # create updated point preserving vectors
+        # Type cast needed because record.vector type doesn't include all PointStruct vector types
+        vector_value = record.vector if record.vector is not None else {}
+        return rest.PointStruct(
+            id=record.id,
+            vector=cast(Any, vector_value),
+            payload=updated_payload,
+        )
+
     def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
         """
         Updates the metadata of all documents that match the provided filters.
@@ -629,9 +669,8 @@ class QdrantDocumentStore:
             # get all matching documents using scroll
             updated_points = []
             next_offset = None
-            stop_scrolling = False
 
-            while not stop_scrolling:
+            while True:
                 records, next_offset = self._client.scroll(
                     collection_name=self.index,
                     scroll_filter=qdrant_filter,
@@ -641,31 +680,12 @@ class QdrantDocumentStore:
                     with_vectors=True,
                 )
 
-                stop_scrolling = next_offset is None or (
-                    hasattr(next_offset, "num")
-                    and hasattr(next_offset, "uuid")
-                    and next_offset.num == 0
-                    and next_offset.uuid == ""
-                )
-
                 # update payload for each record
                 for record in records:
-                    # merge existing payload with new metadata
-                    # Metadata is stored under the "meta" key in the payload
-                    updated_payload = dict(record.payload or {})
-                    if "meta" not in updated_payload:
-                        updated_payload["meta"] = {}
-                    updated_payload["meta"].update(meta)
+                    updated_points.append(self._create_updated_point_from_record(record, meta))
 
-                    # create updated point preserving vectors
-                    # Type cast needed because record.vector type doesn't include all PointStruct vector types
-                    vector_value = record.vector if record.vector is not None else {}
-                    updated_point = rest.PointStruct(
-                        id=record.id,
-                        vector=cast(Any, vector_value),
-                        payload=updated_payload,
-                    )
-                    updated_points.append(updated_point)
+                if self._check_stop_scrolling(next_offset):
+                    break
 
             if not updated_points:
                 return 0
@@ -713,9 +733,8 @@ class QdrantDocumentStore:
 
             updated_points = []
             next_offset = None
-            stop_scrolling = False
 
-            while not stop_scrolling:
+            while True:
                 records, next_offset = await self._async_client.scroll(
                     collection_name=self.index,
                     scroll_filter=qdrant_filter,
@@ -725,31 +744,12 @@ class QdrantDocumentStore:
                     with_vectors=True,
                 )
 
-                stop_scrolling = next_offset is None or (
-                    hasattr(next_offset, "num")
-                    and hasattr(next_offset, "uuid")
-                    and next_offset.num == 0
-                    and next_offset.uuid == ""
-                )
-
                 # update payload for each record
                 for record in records:
-                    # merge existing payload with new metadata
-                    # Metadata is stored under the "meta" key in the payload
-                    updated_payload = dict(record.payload or {})
-                    if "meta" not in updated_payload:
-                        updated_payload["meta"] = {}
-                    updated_payload["meta"].update(meta)
+                    updated_points.append(self._create_updated_point_from_record(record, meta))
 
-                    # create updated point preserving vectors
-                    # Type cast needed because record.vector type doesn't include all PointStruct vector types
-                    vector_value = record.vector if record.vector is not None else {}
-                    updated_point = rest.PointStruct(
-                        id=record.id,
-                        vector=cast(Any, vector_value),
-                        payload=updated_payload,
-                    )
-                    updated_points.append(updated_point)
+                if self._check_stop_scrolling(next_offset):
+                    break
 
             if not updated_points:
                 return 0
