@@ -600,7 +600,7 @@ class OpenSearchDocumentStore:
         return {
             "index": self._index,
             "body": {"query": {"match_all": {}}},  # Delete all documents
-            "wait_for_completion": False if is_async else True,  # block until done (set False for async)
+            "wait_for_completion": is_async and refresh,  # Wait for completion if async and refresh=True
             "refresh": refresh,
         }
 
@@ -680,10 +680,9 @@ class OpenSearchDocumentStore:
                 await self._async_client.indices.create(index=self._index, body=body)
             else:
                 # use delete_by_query for more efficient deletion without index recreation
-                # For async, we need to wait for completion to ensure documents are deleted
-                delete_request = self._prepare_delete_all_request(is_async=True, refresh=refresh)
-                delete_request["wait_for_completion"] = True  # Override to wait for completion in async
-                await self._async_client.delete_by_query(**delete_request)
+                await self._async_client.delete_by_query(
+                    **self._prepare_delete_all_request(is_async=True, refresh=refresh)
+                )
 
         except Exception as e:
             msg = f"Failed to delete all documents from OpenSearch: {e!s}"
