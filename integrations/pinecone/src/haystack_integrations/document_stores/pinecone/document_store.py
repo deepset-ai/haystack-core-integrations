@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from copy import copy
 from typing import Any, Literal, Optional, Union
 
@@ -376,6 +377,200 @@ class PineconeDocumentStore:
         except NotFoundException:
             # Namespace doesn't exist (empty collection), which is fine - nothing to delete
             logger.debug("Namespace '{namespace}' not found. Nothing to delete.", namespace=self.namespace or "default")
+
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Deletes all documents that match the provided filters.
+
+        Pinecone does not support server-side delete by filter, so this method
+        first searches for matching documents, then deletes them by ID.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        _validate_filters(filters)
+
+        self._initialize_index()
+        assert self._index is not None, "Index is not initialized"
+
+        # Find documents matching the filters
+        documents = self.filter_documents(filters=filters)
+
+        if not documents:
+            return 0
+
+        # Extract document IDs
+        document_ids = [doc.id for doc in documents]
+
+        # Delete documents by ID
+        self.delete_documents(document_ids)
+
+        deleted_count = len(document_ids)
+        logger.info(
+            "Deleted {n_docs} documents from index '{index}' using filters.",
+            n_docs=deleted_count,
+            index=self.index_name,
+        )
+
+        if len(documents) == TOP_K_LIMIT:
+            logger.warning(
+                f"PineconeDocumentStore can return at most {TOP_K_LIMIT} documents. "
+                f"It is possible that more than {deleted_count} documents matched the filters, "
+                f"but only {deleted_count} were deleted."
+            )
+
+        return deleted_count
+
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously deletes all documents that match the provided filters.
+
+        Pinecone does not support server-side delete by filter, so this method
+        first searches for matching documents, then deletes them by ID.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        _validate_filters(filters)
+
+        await self._initialize_async_index()
+        assert self._async_index is not None, "Index is not initialized"
+
+        # Find documents matching the filters
+        documents = await self.filter_documents_async(filters=filters)
+
+        if not documents:
+            return 0
+
+        # Extract document IDs
+        document_ids = [doc.id for doc in documents]
+
+        # Delete documents by ID
+        await self.delete_documents_async(document_ids)
+
+        deleted_count = len(document_ids)
+        logger.info(
+            "Deleted {n_docs} documents from index '{index}' using filters.",
+            n_docs=deleted_count,
+            index=self.index_name,
+        )
+
+        if len(documents) == TOP_K_LIMIT:
+            logger.warning(
+                f"PineconeDocumentStore can return at most {TOP_K_LIMIT} documents. "
+                f"It is possible that more than {deleted_count} documents matched the filters, "
+                f"but only {deleted_count} were deleted."
+            )
+
+        return deleted_count
+
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Updates the metadata of all documents that match the provided filters.
+
+        Pinecone does not support server-side update by filter, so this method
+        first searches for matching documents, then updates their metadata and re-writes them.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update. This will be merged with existing metadata.
+        :returns: The number of documents updated.
+        """
+        _validate_filters(filters)
+
+        if not isinstance(meta, dict):
+            msg = "meta must be a dictionary"
+            raise ValueError(msg)
+
+        self._initialize_index()
+        assert self._index is not None, "Index is not initialized"
+
+        # Find documents matching the filters
+        documents = self.filter_documents(filters=filters)
+
+        if not documents:
+            return 0
+
+        # Update metadata for each document
+        for document in documents:
+            if document.meta is None:
+                document.meta = {}
+            document.meta.update(meta)
+
+        # Re-write documents with updated metadata
+        # Using OVERWRITE policy to update existing documents
+        self.write_documents(documents, policy=DuplicatePolicy.OVERWRITE)
+
+        updated_count = len(documents)
+        logger.info(
+            "Updated {n_docs} documents in index '{index}' using filters.",
+            n_docs=updated_count,
+            index=self.index_name,
+        )
+
+        if len(documents) == TOP_K_LIMIT:
+            logger.warning(
+                f"PineconeDocumentStore can return at most {TOP_K_LIMIT} documents. "
+                f"It is possible that more than {updated_count} documents matched the filters, "
+                f"but only {updated_count} were updated."
+            )
+
+        return updated_count
+
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Asynchronously updates the metadata of all documents that match the provided filters.
+
+        Pinecone does not support server-side update by filter, so this method
+        first searches for matching documents, then updates their metadata and re-writes them.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update. This will be merged with existing metadata.
+        :returns: The number of documents updated.
+        """
+        _validate_filters(filters)
+
+        if not isinstance(meta, dict):
+            msg = "meta must be a dictionary"
+            raise ValueError(msg)
+
+        await self._initialize_async_index()
+        assert self._async_index is not None, "Index is not initialized"
+
+        # Find documents matching the filters
+        documents = await self.filter_documents_async(filters=filters)
+
+        if not documents:
+            return 0
+
+        # Update metadata for each document
+        for document in documents:
+            if document.meta is None:
+                document.meta = {}
+            document.meta.update(meta)
+
+        # Re-write documents with updated metadata
+        # Using OVERWRITE policy to update existing documents
+        await self.write_documents_async(documents, policy=DuplicatePolicy.OVERWRITE)
+
+        updated_count = len(documents)
+        logger.info(
+            "Updated {n_docs} documents in index '{index}' using filters.",
+            n_docs=updated_count,
+            index=self.index_name,
+        )
+
+        if len(documents) == TOP_K_LIMIT:
+            logger.warning(
+                f"PineconeDocumentStore can return at most {TOP_K_LIMIT} documents. "
+                f"It is possible that more than {updated_count} documents matched the filters, "
+                f"but only {updated_count} were updated."
+            )
+
+        return updated_count
 
     def _embedding_retrieval(
         self,
