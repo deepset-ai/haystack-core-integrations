@@ -20,7 +20,7 @@ from weaviate.config import AdditionalConfig
 from weaviate.embedded import EmbeddedOptions
 from weaviate.util import generate_uuid5
 
-from ._filters import convert_filters
+from ._filters import convert_filters, validate_filters
 from .auth import AuthCredentials
 
 logger = logging.getLogger(__name__)
@@ -420,7 +420,7 @@ class WeaviateDocumentStore:
         #
         # Nonetheless there's also another issue, paginating with limit and offset is not efficient
         # and it's still restricted by the QUERY_MAXIMUM_RESULTS environment variable.
-        # If the sum of limit and offest is greater than QUERY_MAXIMUM_RESULTS an error is raised.
+        # If the sum of limit and offset is greater than QUERY_MAXIMUM_RESULTS an error is raised.
         # See the official docs for more:
         # https://weaviate.io/developers/weaviate/api/graphql/additional-operators#performance-considerations
         offset = 0
@@ -453,9 +453,7 @@ class WeaviateDocumentStore:
         :param filters: The filters to apply to the document list.
         :returns: A list of Documents that match the given filters.
         """
-        if filters and "operator" not in filters and "conditions" not in filters:
-            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
-            raise ValueError(msg)
+        validate_filters(filters)
 
         result = []
         if filters:
@@ -484,7 +482,7 @@ class WeaviateDocumentStore:
                     vector=doc.embedding,
                 )
         if failed_objects := self.client.batch.failed_objects:
-            # We fallback to use the UUID if the _original_id is not present, this is just to be
+            # We fall back to use the UUID if the _original_id is not present, this is just to be
             mapped_objects = {}
             for obj in failed_objects:
                 properties = obj.object_.properties or {}
@@ -508,7 +506,7 @@ class WeaviateDocumentStore:
     def _write(self, documents: list[Document], policy: DuplicatePolicy) -> int:
         """
         Writes documents to Weaviate using the specified policy.
-        This doesn't uses the batch API, so it's slower than _batch_write.
+        This doesn't use the batch API, so it's slower than _batch_write.
         If policy is set to SKIP it will skip any document that already exists.
         If policy is set to FAIL it will raise an exception if any of the documents already exists.
         """
@@ -619,9 +617,7 @@ class WeaviateDocumentStore:
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents deleted.
         """
-        if filters and "operator" not in filters and "conditions" not in filters:
-            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
-            raise ValueError(msg)
+        validate_filters(filters)
 
         try:
             weaviate_filter = convert_filters(filters)
@@ -648,9 +644,7 @@ class WeaviateDocumentStore:
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents deleted.
         """
-        if filters and "operator" not in filters and "conditions" not in filters:
-            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
-            raise ValueError(msg)
+        validate_filters(filters)
 
         try:
             collection = await self.async_collection
@@ -679,9 +673,7 @@ class WeaviateDocumentStore:
         :param meta: The metadata fields to update. These will be merged with existing metadata.
         :returns: The number of documents updated.
         """
-        if filters and "operator" not in filters and "conditions" not in filters:
-            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
-            raise ValueError(msg)
+        validate_filters(filters)
 
         if not isinstance(meta, dict):
             msg = "Meta must be a dictionary"
@@ -777,9 +769,7 @@ class WeaviateDocumentStore:
         :param meta: The metadata fields to update. These will be merged with existing metadata.
         :returns: The number of documents updated.
         """
-        if filters and "operator" not in filters and "conditions" not in filters:
-            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
-            raise ValueError(msg)
+        validate_filters(filters)
 
         if not isinstance(meta, dict):
             msg = "Meta must be a dictionary"
