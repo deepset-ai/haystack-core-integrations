@@ -1093,9 +1093,6 @@ class OpenSearchDocumentStore:
     def _build_cardinality_aggregations(index_mapping: dict[str, Any]) -> dict[str, Any]:
         """
         Builds cardinality aggregations for all metadata fields in the index mapping.
-
-        :param index_mapping: The properties mapping from the index.
-        :returns: Dictionary of aggregations keyed by field name.
         """
         special_fields = {"content", "embedding", "id", "score", "blob", "sparse_embedding"}
         aggs = {}
@@ -1108,10 +1105,6 @@ class OpenSearchDocumentStore:
     def _build_distinct_values_query_body(filters: dict, aggs: dict[str, Any]) -> dict[str, Any]:
         """
         Builds the query body for distinct values counting with filters and aggregations.
-
-        :param filters: The filters to apply, or empty dict for no filters.
-        :param aggs: The aggregations to include in the query.
-        :returns: The query body dictionary.
         """
         if filters:
             normalized_filters = normalize_filters(filters)
@@ -1134,10 +1127,6 @@ class OpenSearchDocumentStore:
     ) -> dict[str, int]:
         """
         Extracts distinct value counts from search result aggregations.
-
-        :param aggregations: The aggregations from the search result.
-        :param index_mapping: The properties mapping from the index.
-        :returns: Dictionary mapping field names to their distinct value counts.
         """
         special_fields = {"content", "embedding", "id", "score", "blob", "sparse_embedding"}
         distinct_counts = {}
@@ -1459,6 +1448,9 @@ class OpenSearchDocumentStore:
         :param response_format: The format of the response. See https://docs.opensearch.org/latest/search-plugins/sql/response-formats/
         :returns: The query results in the specified format. For JSON format, returns a list of dictionaries
             (the _source from each hit). For other formats (csv, jdbc, raw), returns the response as text.
+
+        NOTE: For non-JSON formats (csv, jdbc, raw), use requests to make a raw HTTP request and get the text response
+              This avoids deserialization issues with the opensearchpy client.
         """
         self._ensure_initialized()
         assert self._client is not None
@@ -1501,9 +1493,8 @@ class OpenSearchDocumentStore:
 
             return self._process_sql_response(response_data, response_format)
         except SerializationError:
-            # If we get here, it means requests failed above (likely AWS auth)
-            # and opensearchpy can't deserialize the response
-            # Re-raise as DocumentStoreError with a helpful message
+            # If we get here, it means requests failed above (likely AWS auth) and opensearchpy can't deserialize the
+            # response. Re-raise as DocumentStoreError with a helpful message
             msg = (
                 f"Failed to execute SQL query in OpenSearch: Unable to deserialize {response_format} response. "
                 f"This format may not be supported with the current authentication method."
@@ -1521,6 +1512,9 @@ class OpenSearchDocumentStore:
         :param response_format: The format of the response. See https://docs.opensearch.org/latest/search-plugins/sql/response-formats/
         :returns: The query results in the specified format. For JSON format, returns a list of dictionaries
             (the _source from each hit). For other formats (csv, jdbc, raw), returns the response as text.
+
+        NOTE: For non-JSON formats (csv, jdbc, raw), use httpx AsyncClient to make a raw HTTP request and get the text
+              response. This avoids deserialization issues with the opensearchpy client.
         """
         await self._ensure_initialized_async()
         assert self._async_client is not None
@@ -1545,12 +1539,7 @@ class OpenSearchDocumentStore:
                     )
                     response.raise_for_status()
                     return response.text
-            except ImportError:
-                # httpx not available, fall through to opensearchpy
-                pass
             except Exception as e:
-                # If httpx fails (e.g., AWS auth), fall back to opensearchpy
-                # which will raise SerializationError that we can handle
                 logger.error(f"Failed to execute SQL query in OpenSearch: {e!s}")
 
         try:
@@ -1566,9 +1555,8 @@ class OpenSearchDocumentStore:
 
             return self._process_sql_response(response_data, response_format)
         except SerializationError:
-            # If we get here, it means httpx failed above (likely AWS auth or not installed)
-            # and opensearchpy can't deserialize the response
-            # Re-raise as DocumentStoreError with a helpful message
+            # If we get here, it means httpx failed above (likely AWS auth or not installed) and opensearchpy can't
+            # deserialize the response. Re-raise as DocumentStoreError with a helpful message
             msg = (
                 f"Failed to execute SQL query in OpenSearch: Unable to deserialize {response_format} response. "
                 f"This format may not be supported with the current authentication method. "
