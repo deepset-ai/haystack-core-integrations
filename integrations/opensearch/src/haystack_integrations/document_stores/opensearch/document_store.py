@@ -596,7 +596,7 @@ class OpenSearchDocumentStore:
 
         await async_bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=True, refresh=refresh))
 
-    def _prepare_delete_all_request(self, *, is_async: bool, refresh: bool) -> dict[str, Any]:
+    def _prepare_delete_all_request(self, *, refresh: bool) -> dict[str, Any]:
         return {
             "index": self._index,
             "body": {"query": {"match_all": {}}},  # Delete all documents
@@ -638,7 +638,7 @@ class OpenSearchDocumentStore:
 
             else:
                 result = self._client.delete_by_query(
-                    **self._prepare_delete_all_request(is_async=False, refresh=refresh)
+                    **self._prepare_delete_all_request(refresh=refresh)
                 )
                 logger.info(
                     "Deleted all the {n_docs} documents from the index '{index}'.",
@@ -681,7 +681,7 @@ class OpenSearchDocumentStore:
             else:
                 # use delete_by_query for more efficient deletion without index recreation
                 await self._async_client.delete_by_query(
-                    **self._prepare_delete_all_request(is_async=True, refresh=refresh)
+                    **self._prepare_delete_all_request(refresh=refresh)
                 )
 
         except Exception as e:
