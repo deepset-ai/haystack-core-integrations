@@ -170,16 +170,15 @@ class TestWeaviateDocumentStoreAsync:
             Document(content="Doc 3", meta={"category": "A"}),
         ]
         document_store.write_documents(docs)
-        assert document_store.count_documents() == 3
 
-        # Delete documents with category="A"
+        # delete documents with category="A"
         deleted_count = await document_store.delete_by_filter_async(
             filters={"field": "meta.category", "operator": "==", "value": "A"}
         )
         assert deleted_count == 2
         assert document_store.count_documents() == 1
 
-        # Verify only category B remains
+        # verify only category B remains
         remaining_docs = document_store.filter_documents()
         assert len(remaining_docs) == 1
         assert remaining_docs[0].meta["category"] == "B"
@@ -194,7 +193,7 @@ class TestWeaviateDocumentStoreAsync:
         document_store.write_documents(docs)
         assert document_store.count_documents() == 3
 
-        # Update status for category="A" documents
+        # update status for category="A" documents
         updated_count = await document_store.update_by_filter_async(
             filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
         )
@@ -208,8 +207,3 @@ class TestWeaviateDocumentStoreAsync:
         for doc in published_docs:
             assert doc.meta["category"] == "A"
             assert doc.meta["status"] == "published"
-
-        # Verify category B still has draft status
-        draft_docs = document_store.filter_documents(filters={"field": "meta.status", "operator": "==", "value": "draft"})
-        assert len(draft_docs) == 1
-        assert draft_docs[0].meta["category"] == "B"

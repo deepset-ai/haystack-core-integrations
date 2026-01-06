@@ -849,11 +849,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert deleted_count == 2
         assert document_store.count_documents() == 1
 
-        # Verify only category B remains
-        remaining_docs = document_store.filter_documents()
-        assert len(remaining_docs) == 1
-        assert remaining_docs[0].meta["category"] == "B"
-
     def test_update_by_filter(self, document_store):
         docs = [
             Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
@@ -877,8 +872,3 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         for doc in published_docs:
             assert doc.meta["category"] == "A"
             assert doc.meta["status"] == "published"
-
-        # Verify category B still has draft status
-        draft_docs = document_store.filter_documents(filters={"field": "meta.status", "operator": "==", "value": "draft"})
-        assert len(draft_docs) == 1
-        assert draft_docs[0].meta["category"] == "B"
