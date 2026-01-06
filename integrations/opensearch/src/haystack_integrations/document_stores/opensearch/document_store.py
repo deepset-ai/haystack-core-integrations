@@ -637,9 +637,7 @@ class OpenSearchDocumentStore:
                 )
 
             else:
-                result = self._client.delete_by_query(
-                    **self._prepare_delete_all_request(refresh=refresh)
-                )
+                result = self._client.delete_by_query(**self._prepare_delete_all_request(refresh=refresh))
                 logger.info(
                     "Deleted all the {n_docs} documents from the index '{index}'.",
                     index=self._index,
@@ -680,9 +678,7 @@ class OpenSearchDocumentStore:
                 await self._async_client.indices.create(index=self._index, body=body)
             else:
                 # use delete_by_query for more efficient deletion without index recreation
-                await self._async_client.delete_by_query(
-                    **self._prepare_delete_all_request(refresh=refresh)
-                )
+                await self._async_client.delete_by_query(**self._prepare_delete_all_request(refresh=refresh))
 
         except Exception as e:
             msg = f"Failed to delete all documents from OpenSearch: {e!s}"
