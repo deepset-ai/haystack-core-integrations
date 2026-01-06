@@ -25,8 +25,9 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai>=2.14.0",
-  "opensearch-py[async]>=2.4.0,<3"],
+  "opensearch-py[async]>=2.4.0,<3",
   "httpx>=0.28.1"
+]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/opensearch#readme"
