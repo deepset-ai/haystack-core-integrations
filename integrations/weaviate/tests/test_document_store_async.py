@@ -16,7 +16,11 @@ class TestWeaviateDocumentStoreAsync:
         collection_settings = {
             "class": f"{request.node.name}",
             "invertedIndexConfig": {"indexNullState": True},
-            "properties": DOCUMENT_COLLECTION_PROPERTIES,
+            "properties": [
+                *DOCUMENT_COLLECTION_PROPERTIES,
+                {"name": "category", "dataType": ["text"]},
+                {"name": "status", "dataType": ["text"]},
+            ],
         }
         store = WeaviateDocumentStore(
             url="http://localhost:8080",

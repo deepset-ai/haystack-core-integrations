@@ -58,6 +58,8 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 *DOCUMENT_COLLECTION_PROPERTIES,
                 {"name": "number", "dataType": ["int"]},
                 {"name": "date", "dataType": ["date"]},
+                {"name": "category", "dataType": ["text"]},
+                {"name": "status", "dataType": ["text"]},
             ],
         }
         store = WeaviateDocumentStore(
