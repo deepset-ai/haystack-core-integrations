@@ -393,17 +393,14 @@ class PineconeDocumentStore:
 
         self._initialize_index()
         assert self._index is not None, "Index is not initialized"
-
-        # Find documents matching the filters
+        
         documents = self.filter_documents(filters=filters)
-
         if not documents:
             return 0
 
-        # Extract document IDs
         document_ids = [doc.id for doc in documents]
 
-        # Delete documents by ID
+
         self.delete_documents(document_ids)
 
         deleted_count = len(document_ids)
@@ -438,16 +435,13 @@ class PineconeDocumentStore:
         await self._initialize_async_index()
         assert self._async_index is not None, "Index is not initialized"
 
-        # Find documents matching the filters
         documents = await self.filter_documents_async(filters=filters)
 
         if not documents:
             return 0
 
-        # Extract document IDs
         document_ids = [doc.id for doc in documents]
 
-        # Delete documents by ID
         await self.delete_documents_async(document_ids)
 
         deleted_count = len(document_ids)
@@ -487,13 +481,11 @@ class PineconeDocumentStore:
         self._initialize_index()
         assert self._index is not None, "Index is not initialized"
 
-        # Find documents matching the filters
         documents = self.filter_documents(filters=filters)
-
         if not documents:
             return 0
 
-        # Update metadata for each document
+        # update metadata for each document
         for document in documents:
             if document.meta is None:
                 document.meta = {}
@@ -540,13 +532,11 @@ class PineconeDocumentStore:
         await self._initialize_async_index()
         assert self._async_index is not None, "Index is not initialized"
 
-        # Find documents matching the filters
         documents = await self.filter_documents_async(filters=filters)
-
         if not documents:
             return 0
 
-        # Update metadata for each document
+        # update metadata for each document
         for document in documents:
             if document.meta is None:
                 document.meta = {}
