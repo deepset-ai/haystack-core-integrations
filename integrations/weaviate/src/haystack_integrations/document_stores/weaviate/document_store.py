@@ -751,10 +751,7 @@ class WeaviateDocumentStore:
 
             if failed_updates:
                 msg = "\n".join(
-                    [
-                        f"Failed to update object with id '{id_}'. Error: '{error}'"
-                        for id_, error in failed_updates
-                    ]
+                    [f"Failed to update object with id '{id_}'. Error: '{error}'" for id_, error in failed_updates]
                 )
                 raise DocumentStoreError(msg)
 
@@ -854,10 +851,7 @@ class WeaviateDocumentStore:
 
             if failed_updates:
                 msg = "\n".join(
-                    [
-                        f"Failed to update object with id '{id_}'. Error: '{error}'"
-                        for id_, error in failed_updates
-                    ]
+                    [f"Failed to update object with id '{id_}'. Error: '{error}'" for id_, error in failed_updates]
                 )
                 raise DocumentStoreError(msg)
 
