@@ -600,7 +600,7 @@ class OpenSearchDocumentStore:
         return {
             "index": self._index,
             "body": {"query": {"match_all": {}}},  # Delete all documents
-            "wait_for_completion": (not is_async) or refresh,  # True for sync calls, or for async if refresh=True
+            "wait_for_completion": not is_async,  # `True` for sync calls only
             "refresh": refresh,
         }
 
