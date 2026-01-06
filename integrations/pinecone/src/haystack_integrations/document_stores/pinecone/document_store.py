@@ -378,6 +378,33 @@ class PineconeDocumentStore:
             # Namespace doesn't exist (empty collection), which is fine - nothing to delete
             logger.debug("Namespace '{namespace}' not found. Nothing to delete.", namespace=self.namespace or "default")
 
+    @staticmethod
+    def _update_documents_metadata(documents: list[Document], meta: dict[str, Any]) -> None:
+        """
+        Updates metadata for a list of documents by merging the provided meta dictionary.
+
+        :param documents: List of documents to update.
+        :param meta: Metadata fields to merge into each document's existing metadata.
+        """
+        for document in documents:
+            if document.meta is None:
+                document.meta = {}
+            document.meta.update(meta)
+
+    def _log_top_k_limit_warning(self, document_count: int, operation: str) -> None:
+        """
+        Logs a warning if the document count equals TOP_K_LIMIT, indicating potential truncation.
+
+        :param document_count: Number of documents processed.
+        :param operation: Description of the operation (e.g., "deleted", "updated").
+        """
+        if document_count == TOP_K_LIMIT:
+            logger.warning(
+                f"PineconeDocumentStore can return at most {TOP_K_LIMIT} documents. "
+                f"It is possible that more than {document_count} documents matched the filters, "
+                f"but only {document_count} were {operation}."
+            )
+
     def delete_by_filter(self, filters: dict[str, Any]) -> int:
         """
         Deletes all documents that match the provided filters.
@@ -400,7 +427,6 @@ class PineconeDocumentStore:
 
         document_ids = [doc.id for doc in documents]
 
-
         self.delete_documents(document_ids)
 
         deleted_count = len(document_ids)
@@ -410,12 +436,7 @@ class PineconeDocumentStore:
             index=self.index_name,
         )
 
-        if len(documents) == TOP_K_LIMIT:
-            logger.warning(
-                f"PineconeDocumentStore can return at most {TOP_K_LIMIT} documents. "
-                f"It is possible that more than {deleted_count} documents matched the filters, "
-                f"but only {deleted_count} were deleted."
-            )
+        self._log_top_k_limit_warning(deleted_count, "deleted")
 
         return deleted_count
 
@@ -436,7 +457,6 @@ class PineconeDocumentStore:
         assert self._async_index is not None, "Index is not initialized"
 
         documents = await self.filter_documents_async(filters=filters)
-
         if not documents:
             return 0
 
@@ -451,12 +471,7 @@ class PineconeDocumentStore:
             index=self.index_name,
         )
 
-        if len(documents) == TOP_K_LIMIT:
-            logger.warning(
-                f"PineconeDocumentStore can return at most {TOP_K_LIMIT} documents. "
-                f"It is possible that more than {deleted_count} documents matched the filters, "
-                f"but only {deleted_count} were deleted."
-            )
+        self._log_top_k_limit_warning(deleted_count, "deleted")
 
         return deleted_count
 
@@ -485,11 +500,7 @@ class PineconeDocumentStore:
         if not documents:
             return 0
 
-        # update metadata for each document
-        for document in documents:
-            if document.meta is None:
-                document.meta = {}
-            document.meta.update(meta)
+        self._update_documents_metadata(documents, meta)
 
         # Re-write documents with updated metadata
         # Using OVERWRITE policy to update existing documents
@@ -502,12 +513,7 @@ class PineconeDocumentStore:
             index=self.index_name,
         )
 
-        if len(documents) == TOP_K_LIMIT:
-            logger.warning(
-                f"PineconeDocumentStore can return at most {TOP_K_LIMIT} documents. "
-                f"It is possible that more than {updated_count} documents matched the filters, "
-                f"but only {updated_count} were updated."
-            )
+        self._log_top_k_limit_warning(updated_count, "updated")
 
         return updated_count
 
@@ -536,11 +542,7 @@ class PineconeDocumentStore:
         if not documents:
             return 0
 
-        # update metadata for each document
-        for document in documents:
-            if document.meta is None:
-                document.meta = {}
-            document.meta.update(meta)
+        self._update_documents_metadata(documents, meta)
 
         # Re-write documents with updated metadata
         # Using OVERWRITE policy to update existing documents
@@ -553,12 +555,7 @@ class PineconeDocumentStore:
             index=self.index_name,
         )
 
-        if len(documents) == TOP_K_LIMIT:
-            logger.warning(
-                f"PineconeDocumentStore can return at most {TOP_K_LIMIT} documents. "
-                f"It is possible that more than {updated_count} documents matched the filters, "
-                f"but only {updated_count} were updated."
-            )
+        self._log_top_k_limit_warning(updated_count, "updated")
 
         return updated_count
 
