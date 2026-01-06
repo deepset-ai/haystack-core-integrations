@@ -837,32 +837,32 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
 
     def test_delete_by_filter(self, document_store):
         docs = [
-            Document(content="Doc 1", meta={"category": "A"}),
-            Document(content="Doc 2", meta={"category": "B"}),
-            Document(content="Doc 3", meta={"category": "A"}),
+            Document(content="Doc 1", meta={"category": "TypeA"}),
+            Document(content="Doc 2", meta={"category": "TypeB"}),
+            Document(content="Doc 3", meta={"category": "TypeA"}),
         ]
         document_store.write_documents(docs)
         assert document_store.count_documents() == 3
 
-        # Delete documents with category="A"
+        # Delete documents with category="TypeA"
         deleted_count = document_store.delete_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}
+            filters={"field": "meta.category", "operator": "==", "value": "TypeA"}
         )
         assert deleted_count == 2
         assert document_store.count_documents() == 1
 
     def test_update_by_filter(self, document_store):
         docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "draft"}),
-            Document(content="Doc 3", meta={"category": "A", "status": "draft"}),
+            Document(content="Doc 1", meta={"category": "TypeA", "status": "draft"}),
+            Document(content="Doc 2", meta={"category": "TypeB", "status": "draft"}),
+            Document(content="Doc 3", meta={"category": "TypeA", "status": "draft"}),
         ]
         document_store.write_documents(docs)
         assert document_store.count_documents() == 3
 
-        # Update status for category="A" documents
+        # Update status for category="TypeA" documents
         updated_count = document_store.update_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
+            filters={"field": "meta.category", "operator": "==", "value": "TypeA"}, meta={"status": "published"}
         )
         assert updated_count == 2
 
@@ -872,5 +872,5 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         )
         assert len(published_docs) == 2
         for doc in published_docs:
-            assert doc.meta["category"] == "A"
+            assert doc.meta["category"] == "TypeA"
             assert doc.meta["status"] == "published"

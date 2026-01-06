@@ -169,37 +169,37 @@ class TestWeaviateDocumentStoreAsync:
     @pytest.mark.asyncio
     async def test_delete_by_filter_async(self, document_store):
         docs = [
-            Document(content="Doc 1", meta={"category": "A"}),
-            Document(content="Doc 2", meta={"category": "B"}),
-            Document(content="Doc 3", meta={"category": "A"}),
+            Document(content="Doc 1", meta={"category": "TypeA"}),
+            Document(content="Doc 2", meta={"category": "TypeB"}),
+            Document(content="Doc 3", meta={"category": "TypeA"}),
         ]
         document_store.write_documents(docs)
 
-        # delete documents with category="A"
+        # delete documents with category="TypeA"
         deleted_count = await document_store.delete_by_filter_async(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}
+            filters={"field": "meta.category", "operator": "==", "value": "TypeA"}
         )
         assert deleted_count == 2
         assert document_store.count_documents() == 1
 
-        # verify only category B remains
+        # verify only category TypeB remains
         remaining_docs = document_store.filter_documents()
         assert len(remaining_docs) == 1
-        assert remaining_docs[0].meta["category"] == "B"
+        assert remaining_docs[0].meta["category"] == "TypeB"
 
     @pytest.mark.asyncio
     async def test_update_by_filter_async(self, document_store):
         docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "draft"}),
-            Document(content="Doc 3", meta={"category": "A", "status": "draft"}),
+            Document(content="Doc 1", meta={"category": "TypeA", "status": "draft"}),
+            Document(content="Doc 2", meta={"category": "TypeB", "status": "draft"}),
+            Document(content="Doc 3", meta={"category": "TypeA", "status": "draft"}),
         ]
         document_store.write_documents(docs)
         assert document_store.count_documents() == 3
 
-        # update status for category="A" documents
+        # update status for category="TypeA" documents
         updated_count = await document_store.update_by_filter_async(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
+            filters={"field": "meta.category", "operator": "==", "value": "TypeA"}, meta={"status": "published"}
         )
         assert updated_count == 2
 
@@ -209,5 +209,5 @@ class TestWeaviateDocumentStoreAsync:
         )
         assert len(published_docs) == 2
         for doc in published_docs:
-            assert doc.meta["category"] == "A"
+            assert doc.meta["category"] == "TypeA"
             assert doc.meta["status"] == "published"
