@@ -1103,6 +1103,30 @@ class MCPTool(Tool):
             message = f"Failed to invoke tool '{self.name}' with args: {kwargs} , got error: {e!s}"
             raise MCPInvocationError(message, self.name, kwargs) from e
 
+    def _get_valid_inputs(self) -> set[str]:
+        """
+        Return the set of valid input parameter names from the MCP tool schema.
+
+        Used to validate that `inputs_from_state` only references parameters that actually exist.
+        Unlike the default implementation that introspects the function signature,
+        this returns parameters from the MCP tool's JSON schema.
+
+        When eager_connect=False and we have placeholder parameters, returns an empty set
+        to skip validation until warm_up() is called.
+
+        :returns: Set of valid input parameter names from the MCP tool schema.
+        """
+        # Get parameters from the JSON schema (not from function introspection)
+        # MCPTool uses _invoke_tool(**kwargs) so introspection would only find 'kwargs'
+        properties = self.parameters.get("properties", {})
+
+        # If we have placeholder parameters (eager_connect=False), return empty set to skip validation
+        # Validation will happen during warm_up when real schema is fetched
+        if not properties:
+            return set()
+
+        return set(properties.keys())
+
     def warm_up(self) -> None:
         """Connect and fetch the tool schema if eager_connect is turned off."""
         with self._lock:
@@ -1110,6 +1134,19 @@ class MCPTool(Tool):
                 return
             tool = self._connect_and_initialize(self.name)
             self.parameters = tool.inputSchema
+
+            # Validate inputs_from_state now that we have the real schema
+            # Note: Duplicates Tool.__post_init__() logic, but needed here for early error detection
+            # when eager_connect=False (validation was skipped during __init__ via empty _get_valid_inputs())
+            if self._inputs_from_state:
+                valid_inputs = set(self.parameters.get("properties", {}).keys())
+                for state_key, param_name in self._inputs_from_state.items():
+                    if param_name not in valid_inputs:
+                        msg = (
+                            f"inputs_from_state maps '{state_key}' to unknown parameter '{param_name}'. "
+                            f"Valid parameters are: {valid_inputs}."
+                        )
+                        raise ValueError(msg)
 
             # Remove inputs_from_state keys from parameters schema if present
             # This matches the behavior of ComponentTool
