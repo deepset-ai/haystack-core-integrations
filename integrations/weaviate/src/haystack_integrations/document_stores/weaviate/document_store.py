@@ -681,7 +681,6 @@ class WeaviateDocumentStore:
 
         try:
             matching_objects = self._query_with_filters(filters)
-
             if not matching_objects:
                 return 0
 

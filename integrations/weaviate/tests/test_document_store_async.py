@@ -225,6 +225,7 @@ class TestWeaviateDocumentStoreAsync:
                     meta={"index": index, "status": "draft", "category": "test"},
                 )
             )
+        document_store.write_documents(docs)
 
         # update all documents should trigger pagination (3 pages)
         updated_count = await document_store.update_by_filter_async(

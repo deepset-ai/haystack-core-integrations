@@ -882,11 +882,9 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         docs = []
         for index in range(250):
             docs.append(
-                Document(
-                    content="This is some content",
-                    meta={"index": index, "status": "draft", "category": "test"},
-                )
+                Document(content="This is some content", meta={"index": index, "status": "draft", "category": "test"})
             )
+        document_store.write_documents(docs)
 
         # update all documents should trigger pagination (3 pages)
         updated_count = document_store.update_by_filter(
