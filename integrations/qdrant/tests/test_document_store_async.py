@@ -262,3 +262,215 @@ class TestQdrantDocumentStore:
         # ensure the collection still exists by writing documents again
         await document_store.write_documents_async(docs)
         assert await document_store.count_documents_async() == 5
+
+    @pytest.mark.asyncio
+    async def test_delete_by_filter_async(self, document_store: QdrantDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "year": 2023}),
+            Document(content="Doc 2", meta={"category": "B", "year": 2023}),
+            Document(content="Doc 3", meta={"category": "A", "year": 2024}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+        # Delete documents with category="A"
+        await document_store.delete_by_filter_async(filters={"field": "meta.category", "operator": "==", "value": "A"})
+        assert await document_store.count_documents_async() == 1
+
+        # Verify only category B remains
+        remaining_docs = []
+        async for doc in document_store._get_documents_generator_async():
+            remaining_docs.append(doc)
+        assert len(remaining_docs) == 1
+        assert remaining_docs[0].meta["category"] == "B"
+
+        # Delete remaining document by year
+        await document_store.delete_by_filter_async(filters={"field": "meta.year", "operator": "==", "value": 2023})
+        assert await document_store.count_documents_async() == 0
+
+    @pytest.mark.asyncio
+    async def test_delete_by_filter_async_no_matches(self, document_store: QdrantDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 2
+
+        # Try to delete documents with category="C" (no matches)
+        await document_store.delete_by_filter_async(filters={"field": "meta.category", "operator": "==", "value": "C"})
+        assert await document_store.count_documents_async() == 2
+
+    @pytest.mark.asyncio
+    async def test_delete_by_filter_async_advanced_filters(self, document_store: QdrantDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "year": 2023, "status": "draft"}),
+            Document(content="Doc 2", meta={"category": "A", "year": 2024, "status": "published"}),
+            Document(content="Doc 3", meta={"category": "B", "year": 2023, "status": "draft"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+        # AND condition
+        await document_store.delete_by_filter_async(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.category", "operator": "==", "value": "A"},
+                    {"field": "meta.year", "operator": "==", "value": 2023},
+                ],
+            }
+        )
+        assert await document_store.count_documents_async() == 2
+
+        # OR condition
+        await document_store.delete_by_filter_async(
+            filters={
+                "operator": "OR",
+                "conditions": [
+                    {"field": "meta.category", "operator": "==", "value": "B"},
+                    {"field": "meta.status", "operator": "==", "value": "published"},
+                ],
+            }
+        )
+        assert await document_store.count_documents_async() == 0
+
+    @pytest.mark.asyncio
+    async def test_update_by_filter_async(self, document_store: QdrantDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "draft"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "draft"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+        # Update status for category="A" documents
+        updated_count = await document_store.update_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
+        )
+        assert updated_count == 2
+
+        # Verify the updated documents have the new metadata
+        published_docs = []
+        async for doc in document_store._get_documents_generator_async(
+            filters={"field": "meta.status", "operator": "==", "value": "published"}
+        ):
+            published_docs.append(doc)
+        assert len(published_docs) == 2
+        for doc in published_docs:
+            assert doc.meta["status"] == "published"
+            assert doc.meta["category"] == "A"
+
+        # Verify documents with category="B" were not updated
+        draft_docs = []
+        async for doc in document_store._get_documents_generator_async(
+            filters={"field": "meta.status", "operator": "==", "value": "draft"}
+        ):
+            draft_docs.append(doc)
+        assert len(draft_docs) == 1
+        assert draft_docs[0].meta["category"] == "B"
+
+    @pytest.mark.asyncio
+    async def test_update_by_filter_async_multiple_fields(self, document_store: QdrantDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "year": 2023}),
+            Document(content="Doc 2", meta={"category": "A", "year": 2023}),
+            Document(content="Doc 3", meta={"category": "B", "year": 2024}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+        # Update multiple fields for category="A" documents
+        updated_count = await document_store.update_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"},
+            meta={"status": "published", "reviewed": True},
+        )
+        assert updated_count == 2
+
+        # Verify updates
+        published_docs = []
+        async for doc in document_store._get_documents_generator_async(
+            filters={"field": "meta.status", "operator": "==", "value": "published"}
+        ):
+            published_docs.append(doc)
+        assert len(published_docs) == 2
+        for doc in published_docs:
+            assert doc.meta["status"] == "published"
+            assert doc.meta["reviewed"] is True
+            assert doc.meta["category"] == "A"
+            assert doc.meta["year"] == 2023  # Existing field preserved
+
+    @pytest.mark.asyncio
+    async def test_update_by_filter_async_no_matches(self, document_store: QdrantDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 2
+
+        # Try to update documents with category="C" (no matches)
+        updated_count = await document_store.update_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "C"}, meta={"status": "published"}
+        )
+        assert updated_count == 0
+        assert await document_store.count_documents_async() == 2
+
+    @pytest.mark.asyncio
+    async def test_update_by_filter_async_advanced_filters(self, document_store: QdrantDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "year": 2023, "status": "draft"}),
+            Document(content="Doc 2", meta={"category": "A", "year": 2024, "status": "draft"}),
+            Document(content="Doc 3", meta={"category": "B", "year": 2023, "status": "draft"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+        # Update with AND condition
+        updated_count = await document_store.update_by_filter_async(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.category", "operator": "==", "value": "A"},
+                    {"field": "meta.year", "operator": "==", "value": 2023},
+                ],
+            },
+            meta={"status": "published"},
+        )
+        assert updated_count == 1
+
+        # Verify only one document was updated
+        published_docs = []
+        async for doc in document_store._get_documents_generator_async(
+            filters={"field": "meta.status", "operator": "==", "value": "published"}
+        ):
+            published_docs.append(doc)
+        assert len(published_docs) == 1
+        assert published_docs[0].meta["category"] == "A"
+        assert published_docs[0].meta["year"] == 2023
+
+    @pytest.mark.asyncio
+    async def test_update_by_filter_async_preserves_vectors(self, document_store: QdrantDocumentStore):
+        """Test that update_by_filter_async preserves document embeddings."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}, embedding=[0.1] * 768),
+            Document(content="Doc 2", meta={"category": "B"}, embedding=[0.2] * 768),
+        ]
+        await document_store.write_documents_async(docs)
+
+        # Update metadata
+        updated_count = await document_store.update_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
+        )
+        assert updated_count == 1
+
+        # Verify embedding is preserved
+        updated_docs = []
+        async for doc in document_store._get_documents_generator_async(
+            filters={"field": "meta.status", "operator": "==", "value": "published"}
+        ):
+            updated_docs.append(doc)
+        assert len(updated_docs) == 1
+        assert updated_docs[0].embedding is not None
+        assert len(updated_docs[0].embedding) == 768
