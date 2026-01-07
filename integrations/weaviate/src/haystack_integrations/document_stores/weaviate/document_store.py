@@ -680,28 +680,7 @@ class WeaviateDocumentStore:
             raise ValueError(msg)
 
         try:
-            weaviate_filter = convert_filters(filters)
-            properties = [p.name for p in self.collection.config.get().properties]
-
-            # Query all objects matching the filter
-            matching_objects = []
-            offset = 0
-            partial_result = None
-
-            # Paginate through all matching objects
-            # We include vector=True to preserve vectors when updating
-            while partial_result is None or len(partial_result.objects) == DEFAULT_QUERY_LIMIT:
-                partial_result = self.collection.query.fetch_objects(
-                    filters=weaviate_filter,
-                    include_vector=True,
-                    limit=DEFAULT_QUERY_LIMIT,
-                    offset=offset,
-                    return_properties=properties,
-                )
-                matching_objects.extend(partial_result.objects)
-                offset += DEFAULT_QUERY_LIMIT
-                if len(partial_result.objects) < DEFAULT_QUERY_LIMIT:
-                    break
+            matching_objects = self._query_with_filters(filters)
 
             if not matching_objects:
                 return 0
@@ -798,8 +777,6 @@ class WeaviateDocumentStore:
                 )
                 matching_objects.extend(partial_result.objects)
                 offset += DEFAULT_QUERY_LIMIT
-                if len(partial_result.objects) < DEFAULT_QUERY_LIMIT:
-                    break
 
             if not matching_objects:
                 return 0
