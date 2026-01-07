@@ -620,8 +620,7 @@ class TestDocumentStoreAsync:
             Document(content="Python scripting", meta={"category": "A", "status": "inactive", "priority": 3}),
             Document(content="JavaScript development", meta={"category": "C", "status": "active", "priority": 1}),
         ]
-        await document_store.write_documents_async(docs)
-        time.sleep(1)  # Wait for documents to be indexed
+        await document_store.write_documents_async(docs, refresh=True)
 
         # Test SQL query with JSON format (default)
         sql_query = (
