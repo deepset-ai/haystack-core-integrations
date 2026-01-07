@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/qdrant-v9.5.0] - 2026-01-07
+
+### 🚀 Features
+
+- Adding `delete_by_filter()` and `update_by_filter()` to `QdrantDocumentStore` (#2650)
+
+### 🐛 Bug Fixes
+
+- Fix types for qdrant-client 1.16.1 (#2561)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+
+
 ## [integrations/qdrant-v9.4.0] - 2025-11-18
 
 ### 🧹 Chores
