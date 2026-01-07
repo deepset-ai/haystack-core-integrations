@@ -35,7 +35,6 @@ from weaviate.embedded import (
 
 from haystack_integrations.document_stores.weaviate.auth import AuthApiKey
 from haystack_integrations.document_stores.weaviate.document_store import (
-    DEFAULT_QUERY_LIMIT,
     DOCUMENT_COLLECTION_PROPERTIES,
     WeaviateDocumentStore,
 )
