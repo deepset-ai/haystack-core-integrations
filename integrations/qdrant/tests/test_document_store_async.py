@@ -274,9 +274,7 @@ class TestQdrantDocumentStore:
         assert await document_store.count_documents_async() == 3
 
         # Delete documents with category="A"
-        await document_store.delete_by_filter_async(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}
-        )
+        await document_store.delete_by_filter_async(filters={"field": "meta.category", "operator": "==", "value": "A"})
         assert await document_store.count_documents_async() == 1
 
         # Verify only category B remains
@@ -287,9 +285,7 @@ class TestQdrantDocumentStore:
         assert remaining_docs[0].meta["category"] == "B"
 
         # Delete remaining document by year
-        await document_store.delete_by_filter_async(
-            filters={"field": "meta.year", "operator": "==", "value": 2023}
-        )
+        await document_store.delete_by_filter_async(filters={"field": "meta.year", "operator": "==", "value": 2023})
         assert await document_store.count_documents_async() == 0
 
     @pytest.mark.asyncio
@@ -302,9 +298,7 @@ class TestQdrantDocumentStore:
         assert await document_store.count_documents_async() == 2
 
         # Try to delete documents with category="C" (no matches)
-        await document_store.delete_by_filter_async(
-            filters={"field": "meta.category", "operator": "==", "value": "C"}
-        )
+        await document_store.delete_by_filter_async(filters={"field": "meta.category", "operator": "==", "value": "C"})
         assert await document_store.count_documents_async() == 2
 
     @pytest.mark.asyncio
