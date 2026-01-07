@@ -77,7 +77,7 @@ class TestGitHubIssueCommenterTool:
             retry_attempts=3,
             outputs_to_string={"handler": message_handler},
             inputs_from_state={"repository": "repo"},
-            outputs_to_state={"documents": {"source": "docs", "handler": message_handler}},
+            outputs_to_state={"documents": {"source": "success", "handler": message_handler}},
         )
         tool_dict = tool.to_dict()
         assert tool_dict["type"] == "haystack_integrations.tools.github.issue_commenter_tool.GitHubIssueCommenterTool"
@@ -92,7 +92,7 @@ class TestGitHubIssueCommenterTool:
             == "haystack_integrations.tools.github.utils.message_handler"
         )
         assert tool_dict["data"]["inputs_from_state"] == {"repository": "repo"}
-        assert tool_dict["data"]["outputs_to_state"]["documents"]["source"] == "docs"
+        assert tool_dict["data"]["outputs_to_state"]["documents"]["source"] == "success"
         assert (
             tool_dict["data"]["outputs_to_state"]["documents"]["handler"]
             == "haystack_integrations.tools.github.utils.message_handler"
@@ -113,7 +113,7 @@ class TestGitHubIssueCommenterTool:
                 "inputs_from_state": {"repository": "repo"},
                 "outputs_to_state": {
                     "documents": {
-                        "source": "docs",
+                        "source": "success",
                         "handler": "haystack_integrations.tools.github.utils.message_handler",
                     }
                 },
@@ -128,5 +128,5 @@ class TestGitHubIssueCommenterTool:
         assert tool.retry_attempts == 3
         assert tool.outputs_to_string["handler"] == message_handler
         assert tool.inputs_from_state == {"repository": "repo"}
-        assert tool.outputs_to_state["documents"]["source"] == "docs"
+        assert tool.outputs_to_state["documents"]["source"] == "success"
         assert tool.outputs_to_state["documents"]["handler"] == message_handler
