@@ -8,7 +8,7 @@
 
 
 from collections.abc import Mapping
-from typing import Any, Literal, Optional, Union, cast
+from typing import Any, Literal, Optional, Union
 
 import numpy as np
 from elastic_transport import NodeConfig
@@ -1274,7 +1274,7 @@ class ElasticsearchDocumentStore:
             if isinstance(result, dict):
                 return result
             # Convert ObjectApiResponse to dict
-            return {k: v for k, v in result.items()}  # type: ignore[attr-defined]
+            return dict(result.items())  # type: ignore
         except Exception as e:
             msg = f"Failed to execute SQL query in Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
@@ -1296,7 +1296,7 @@ class ElasticsearchDocumentStore:
             if isinstance(result, dict):
                 return result
             # Convert ObjectApiResponse to dict
-            return {k: v for k, v in result.items()}  # type: ignore[attr-defined]
+            return dict(result.items())  # type: ignore
         except Exception as e:
             msg = f"Failed to execute SQL query in Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
