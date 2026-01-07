@@ -74,7 +74,7 @@ class TestGitHubPRCreatorTool:
             raise_on_failure=False,
             outputs_to_string={"handler": message_handler},
             inputs_from_state={"repository": "repo"},
-            outputs_to_state={"documents": {"source": "docs", "handler": message_handler}},
+            outputs_to_state={"documents": {"source": "result", "handler": message_handler}},
         )
         tool_dict = tool.to_dict()
         assert tool_dict["type"] == "haystack_integrations.tools.github.pr_creator_tool.GitHubPRCreatorTool"
@@ -92,7 +92,7 @@ class TestGitHubPRCreatorTool:
             == "haystack_integrations.tools.github.utils.message_handler"
         )
         assert tool_dict["data"]["inputs_from_state"] == {"repository": "repo"}
-        assert tool_dict["data"]["outputs_to_state"]["documents"]["source"] == "docs"
+        assert tool_dict["data"]["outputs_to_state"]["documents"]["source"] == "result"
         assert (
             tool_dict["data"]["outputs_to_state"]["documents"]["handler"]
             == "haystack_integrations.tools.github.utils.message_handler"
@@ -112,7 +112,7 @@ class TestGitHubPRCreatorTool:
                 "inputs_from_state": {"repository": "repo"},
                 "outputs_to_state": {
                     "documents": {
-                        "source": "docs",
+                        "source": "result",
                         "handler": "haystack_integrations.tools.github.utils.message_handler",
                     }
                 },
@@ -126,5 +126,5 @@ class TestGitHubPRCreatorTool:
         assert tool.raise_on_failure is False
         assert tool.outputs_to_string["handler"] == message_handler
         assert tool.inputs_from_state == {"repository": "repo"}
-        assert tool.outputs_to_state["documents"]["source"] == "docs"
+        assert tool.outputs_to_state["documents"]["source"] == "result"
         assert tool.outputs_to_state["documents"]["handler"] == message_handler

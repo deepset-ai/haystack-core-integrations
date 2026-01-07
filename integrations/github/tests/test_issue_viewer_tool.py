@@ -73,7 +73,7 @@ class TestGitHubIssueViewerTool:
             retry_attempts=3,
             outputs_to_string={"handler": message_handler},
             inputs_from_state={"repository": "repo"},
-            outputs_to_state={"documents": {"source": "docs", "handler": message_handler}},
+            outputs_to_state={"documents": {"source": "documents", "handler": message_handler}},
         )
         tool_dict = tool.to_dict()
         assert tool_dict["type"] == "haystack_integrations.tools.github.issue_viewer_tool.GitHubIssueViewerTool"
@@ -88,7 +88,7 @@ class TestGitHubIssueViewerTool:
             == "haystack_integrations.tools.github.utils.message_handler"
         )
         assert tool_dict["data"]["inputs_from_state"] == {"repository": "repo"}
-        assert tool_dict["data"]["outputs_to_state"]["documents"]["source"] == "docs"
+        assert tool_dict["data"]["outputs_to_state"]["documents"]["source"] == "documents"
         assert (
             tool_dict["data"]["outputs_to_state"]["documents"]["handler"]
             == "haystack_integrations.tools.github.utils.message_handler"
@@ -109,7 +109,7 @@ class TestGitHubIssueViewerTool:
                 "inputs_from_state": {"repository": "repo"},
                 "outputs_to_state": {
                     "documents": {
-                        "source": "docs",
+                        "source": "documents",
                         "handler": "haystack_integrations.tools.github.utils.message_handler",
                     }
                 },
@@ -124,5 +124,5 @@ class TestGitHubIssueViewerTool:
         assert tool.retry_attempts == 3
         assert tool.outputs_to_string["handler"] == message_handler
         assert tool.inputs_from_state == {"repository": "repo"}
-        assert tool.outputs_to_state["documents"]["source"] == "docs"
+        assert tool.outputs_to_state["documents"]["source"] == "documents"
         assert tool.outputs_to_state["documents"]["handler"] == message_handler

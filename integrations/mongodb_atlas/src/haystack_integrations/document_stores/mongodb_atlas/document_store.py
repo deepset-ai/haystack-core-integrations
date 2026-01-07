@@ -283,7 +283,7 @@ class MongoDBAtlasDocumentStore:
         Returns the documents that match the filters provided.
 
         For a detailed specification of the filters,
-        refer to the Haystack [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering).
+        refer to the Haystack [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering).
 
         :param filters: The filters to apply. It returns only the documents that match the filters.
         :returns: A list of Documents that match the given filters.
@@ -299,7 +299,7 @@ class MongoDBAtlasDocumentStore:
         Asynchronously returns the documents that match the filters provided.
 
         For a detailed specification of the filters,
-        refer to the Haystack [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering).
+        refer to the Haystack [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering).
 
         :param filters: The filters to apply. It returns only the documents that match the filters.
         :returns: A list of Documents that match the given filters.
