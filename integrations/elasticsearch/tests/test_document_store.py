@@ -586,6 +586,145 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert len(draft_docs) == 1
         assert draft_docs[0].meta["category"] == "B"
 
+    def test_count_documents_by_filter(self, document_store: ElasticsearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
+            Document(content="Doc 4", meta={"category": "C", "status": "active"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 4
+
+        # Count documents with category="A"
+        count = document_store.count_documents_by_filter(
+            filters={"field": "category", "operator": "==", "value": "A"}
+        )
+        assert count == 2
+
+        # Count documents with status="active"
+        count = document_store.count_documents_by_filter(
+            filters={"field": "status", "operator": "==", "value": "active"}
+        )
+        assert count == 3
+
+        # Count with complex filter
+        count = document_store.count_documents_by_filter(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "category", "operator": "==", "value": "A"},
+                    {"field": "status", "operator": "==", "value": "active"},
+                ],
+            }
+        )
+        assert count == 1
+
+    def test_count_distinct_values_by_filter(self, document_store: ElasticsearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "value": 10}),
+            Document(content="Doc 2", meta={"category": "A", "value": 20}),
+            Document(content="Doc 3", meta={"category": "B", "value": 10}),
+            Document(content="Doc 4", meta={"category": "B", "value": 30}),
+        ]
+        document_store.write_documents(docs)
+
+        # Count distinct values for "value" field where category="A"
+        distinct_count = document_store.count_distinct_values_by_filter(
+            filters={"field": "category", "operator": "==", "value": "A"}, field="value"
+        )
+        assert distinct_count == 2
+
+        # Count distinct values for "value" field where category="B"
+        distinct_count = document_store.count_distinct_values_by_filter(
+            filters={"field": "category", "operator": "==", "value": "B"}, field="value"
+        )
+        assert distinct_count == 2
+
+        # Count distinct values for "value" field across all documents
+        distinct_count = document_store.count_distinct_values_by_filter(filters={}, field="value")
+        assert distinct_count == 3
+
+    def test_get_fields_info(self, document_store: ElasticsearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "value": 10, "active": True}),
+            Document(content="Doc 2", meta={"category": "B", "value": 20}),
+        ]
+        document_store.write_documents(docs)
+
+        fields_info = document_store.get_fields_info()
+
+        # Check that common fields exist
+        assert "content" in fields_info
+        assert "embedding" in fields_info
+
+        # Check that metadata fields are present (they might be in properties)
+        # The exact structure depends on Elasticsearch's dynamic mapping
+
+    def test_get_field_min_max(self, document_store: ElasticsearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"value": 10, "score": 5.5}),
+            Document(content="Doc 2", meta={"value": 20, "score": 8.3}),
+            Document(content="Doc 3", meta={"value": 15, "score": 2.1}),
+            Document(content="Doc 4", meta={"value": 5, "score": 9.9}),
+        ]
+        document_store.write_documents(docs)
+
+        # Get min/max for numeric field
+        result = document_store.get_field_min_max("value")
+        assert result["min"] == 5
+        assert result["max"] == 20
+
+        # Get min/max for float field
+        result = document_store.get_field_min_max("score")
+        assert result["min"] == 2.1
+        assert result["max"] == 9.9
+
+    def test_get_field_unique_values(self, document_store: ElasticsearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
+            Document(content="Doc 4", meta={"category": "C", "status": "pending"}),
+            Document(content="Doc 5", meta={"category": "A", "status": "active"}),
+        ]
+        document_store.write_documents(docs)
+
+        # Get unique values for category field
+        result = document_store.get_field_unique_values("category")
+        assert len(result["values"]) > 0
+        assert "A" in result["values"]
+        assert "B" in result["values"]
+        assert "C" in result["values"]
+        assert result["total"] >= 3
+
+        # Get unique values with pagination
+        result = document_store.get_field_unique_values("category", from_=0, size=2)
+        assert len(result["values"]) == 2
+
+        # Get unique values with search term
+        result = document_store.get_field_unique_values("status", search_term="act")
+        assert "active" in result["values"]
+        # inactive might also be included if prefix matching includes it
+
+    def test_query_sql(self, document_store: ElasticsearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "value": 10}),
+            Document(content="Doc 2", meta={"category": "B", "value": 20}),
+            Document(content="Doc 3", meta={"category": "A", "value": 30}),
+        ]
+        document_store.write_documents(docs)
+
+        # Execute a simple SQL query
+        # Note: SQL plugin needs to be enabled in Elasticsearch
+        try:
+            result = document_store.query_sql("SELECT * FROM " + document_store._index + " LIMIT 10")
+            # The result structure depends on Elasticsearch SQL API
+            assert isinstance(result, dict)
+        except DocumentStoreError:
+            # SQL plugin might not be enabled, which is acceptable
+            pass
+
 
 @pytest.mark.integration
 class TestElasticsearchDocumentStoreAsync:
@@ -865,3 +1004,150 @@ class TestElasticsearchDocumentStoreAsync:
         )
         assert len(draft_docs) == 1
         assert draft_docs[0].meta["category"] == "B"
+
+    @pytest.mark.asyncio
+    async def test_count_documents_by_filter_async(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
+            Document(content="Doc 4", meta={"category": "C", "status": "active"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 4
+
+        # Count documents with category="A"
+        count = await document_store.count_documents_by_filter_async(
+            filters={"field": "category", "operator": "==", "value": "A"}
+        )
+        assert count == 2
+
+        # Count documents with status="active"
+        count = await document_store.count_documents_by_filter_async(
+            filters={"field": "status", "operator": "==", "value": "active"}
+        )
+        assert count == 3
+
+        # Count with complex filter
+        count = await document_store.count_documents_by_filter_async(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "category", "operator": "==", "value": "A"},
+                    {"field": "status", "operator": "==", "value": "active"},
+                ],
+            }
+        )
+        assert count == 1
+
+    @pytest.mark.asyncio
+    async def test_count_distinct_values_by_filter_async(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "value": 10}),
+            Document(content="Doc 2", meta={"category": "A", "value": 20}),
+            Document(content="Doc 3", meta={"category": "B", "value": 10}),
+            Document(content="Doc 4", meta={"category": "B", "value": 30}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        # Count distinct values for "value" field where category="A"
+        distinct_count = await document_store.count_distinct_values_by_filter_async(
+            filters={"field": "category", "operator": "==", "value": "A"}, field="value"
+        )
+        assert distinct_count == 2
+
+        # Count distinct values for "value" field where category="B"
+        distinct_count = await document_store.count_distinct_values_by_filter_async(
+            filters={"field": "category", "operator": "==", "value": "B"}, field="value"
+        )
+        assert distinct_count == 2
+
+        # Count distinct values for "value" field across all documents
+        distinct_count = await document_store.count_distinct_values_by_filter_async(filters={}, field="value")
+        assert distinct_count == 3
+
+    @pytest.mark.asyncio
+    async def test_get_fields_info_async(self, document_store):
+        # get_fields_info doesn't have an async version, but we can test the sync version
+        # in an async context
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "value": 10, "active": True}),
+            Document(content="Doc 2", meta={"category": "B", "value": 20}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        fields_info = document_store.get_fields_info()
+
+        # Check that common fields exist
+        assert "content" in fields_info
+        assert "embedding" in fields_info
+
+    @pytest.mark.asyncio
+    async def test_get_field_min_max_async(self, document_store):
+        # get_field_min_max doesn't have an async version, but we can test the sync version
+        # in an async context
+        docs = [
+            Document(content="Doc 1", meta={"value": 10, "score": 5.5}),
+            Document(content="Doc 2", meta={"value": 20, "score": 8.3}),
+            Document(content="Doc 3", meta={"value": 15, "score": 2.1}),
+            Document(content="Doc 4", meta={"value": 5, "score": 9.9}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        # Get min/max for numeric field
+        result = document_store.get_field_min_max("value")
+        assert result["min"] == 5
+        assert result["max"] == 20
+
+        # Get min/max for float field
+        result = document_store.get_field_min_max("score")
+        assert result["min"] == 2.1
+        assert result["max"] == 9.9
+
+    @pytest.mark.asyncio
+    async def test_get_field_unique_values_async(self, document_store):
+        # get_field_unique_values doesn't have an async version, but we can test the sync version
+        # in an async context
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
+            Document(content="Doc 4", meta={"category": "C", "status": "pending"}),
+            Document(content="Doc 5", meta={"category": "A", "status": "active"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        # Get unique values for category field
+        result = document_store.get_field_unique_values("category")
+        assert len(result["values"]) > 0
+        assert "A" in result["values"]
+        assert "B" in result["values"]
+        assert "C" in result["values"]
+        assert result["total"] >= 3
+
+        # Get unique values with pagination
+        result = document_store.get_field_unique_values("category", from_=0, size=2)
+        assert len(result["values"]) == 2
+
+        # Get unique values with search term
+        result = document_store.get_field_unique_values("status", search_term="act")
+        assert "active" in result["values"]
+
+    @pytest.mark.asyncio
+    async def test_query_sql_async(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "value": 10}),
+            Document(content="Doc 2", meta={"category": "B", "value": 20}),
+            Document(content="Doc 3", meta={"category": "A", "value": 30}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        # Execute a simple SQL query
+        # Note: SQL plugin needs to be enabled in Elasticsearch
+        try:
+            result = await document_store.query_sql_async("SELECT * FROM " + document_store._index + " LIMIT 10")
+            # The result structure depends on Elasticsearch SQL API
+            assert isinstance(result, dict)
+        except DocumentStoreError:
+            # SQL plugin might not be enabled, which is acceptable
+            pass

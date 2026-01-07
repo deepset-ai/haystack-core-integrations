@@ -1036,3 +1036,244 @@ class ElasticsearchDocumentStore:
             search_body["knn"]["filter"] = _normalize_filters(filters)
 
         return await self._search_documents_async(**search_body)
+
+    def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Returns the number of documents that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents that match the filters.
+        """
+        self._ensure_initialized()
+
+        try:
+            normalized_filters = _normalize_filters(filters)
+            query = {"bool": {"filter": normalized_filters}}
+            result = self.client.count(index=self._index, body={"query": query})  # type: ignore
+            return result["count"]
+        except Exception as e:
+            msg = f"Failed to count documents by filter in Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously returns the number of documents that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents that match the filters.
+        """
+        self._ensure_initialized()
+
+        try:
+            normalized_filters = _normalize_filters(filters)
+            query = {"bool": {"filter": normalized_filters}}
+            result = await self.async_client.count(index=self._index, body={"query": query})  # type: ignore
+            return result["count"]
+        except Exception as e:
+            msg = f"Failed to count documents by filter in Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def count_distinct_values_by_filter(self, filters: dict[str, Any], field: str) -> int:
+        """
+        Returns the number of distinct values for a field in documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param field: The field name to count distinct values for.
+        :returns: The number of distinct values for the field.
+        """
+        self._ensure_initialized()
+
+        try:
+            normalized_filters = _normalize_filters(filters)
+            body = {
+                "query": {"bool": {"filter": normalized_filters}},
+                "aggs": {
+                    "distinct_values": {
+                        "cardinality": {
+                            "field": field,
+                        }
+                    }
+                },
+                "size": 0,
+            }
+            result = self.client.search(index=self._index, body=body)  # type: ignore
+            return int(result["aggregations"]["distinct_values"]["value"])
+        except Exception as e:
+            msg = f"Failed to count distinct values by filter in Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def count_distinct_values_by_filter_async(self, filters: dict[str, Any], field: str) -> int:
+        """
+        Asynchronously returns the number of distinct values for a field in documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param field: The field name to count distinct values for.
+        :returns: The number of distinct values for the field.
+        """
+        self._ensure_initialized()
+
+        try:
+            normalized_filters = _normalize_filters(filters)
+            body = {
+                "query": {"bool": {"filter": normalized_filters}},
+                "aggs": {
+                    "distinct_values": {
+                        "cardinality": {
+                            "field": field,
+                        }
+                    }
+                },
+                "size": 0,
+            }
+            result = await self.async_client.search(index=self._index, body=body)  # type: ignore
+            return int(result["aggregations"]["distinct_values"]["value"])
+        except Exception as e:
+            msg = f"Failed to count distinct values by filter in Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def get_fields_info(self) -> dict[str, Any]:
+        """
+        Returns information about all fields in the index mapping.
+
+        :returns: A dictionary containing field information from the index mapping.
+        """
+        self._ensure_initialized()
+
+        try:
+            mapping = self.client.indices.get_mapping(index=self._index)  # type: ignore
+            index_mapping = mapping[self._index]["mappings"]
+            return index_mapping.get("properties", {})
+        except Exception as e:
+            msg = f"Failed to get fields info from Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def get_field_min_max(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Returns the minimum and maximum values for a metadata field.
+
+        :param metadata_field: The metadata field name to get min/max values for.
+        :returns: A dictionary with 'min' and 'max' keys containing the minimum and maximum values.
+        """
+        self._ensure_initialized()
+
+        try:
+            body = {
+                "aggs": {
+                    "min_value": {"min": {"field": metadata_field}},
+                    "max_value": {"max": {"field": metadata_field}},
+                },
+                "size": 0,
+            }
+            result = self.client.search(index=self._index, body=body)  # type: ignore
+            return {
+                "min": result["aggregations"]["min_value"]["value"],
+                "max": result["aggregations"]["max_value"]["value"],
+            }
+        except Exception as e:
+            msg = f"Failed to get field min/max from Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def get_field_unique_values(
+        self, metadata_field: str, search_term: Optional[str] = None, from_: int = 0, size: int = 10
+    ) -> dict[str, Any]:
+        """
+        Returns unique values for a metadata field, optionally filtered by a search term.
+
+        :param metadata_field: The metadata field name to get unique values for.
+        :param search_term: Optional search term to filter the unique values.
+        :param from_: The starting index for pagination (note: terms aggregation doesn't support from_ directly,
+            so this is approximated by fetching more results and slicing).
+        :param size: The number of unique values to return.
+        :returns: A dictionary containing 'values' (list of unique values) and 'total' (total count).
+        """
+        self._ensure_initialized()
+
+        try:
+            # Terms aggregation doesn't support 'from_' directly, so we fetch from_ + size and slice
+            fetch_size = from_ + size if from_ > 0 else size
+
+            body: dict[str, Any] = {
+                "aggs": {
+                    "unique_values": {
+                        "terms": {
+                            "field": metadata_field,
+                            "size": fetch_size,
+                        }
+                    }
+                },
+                "size": 0,
+            }
+
+            if search_term:
+                body["query"] = {
+                    "bool": {
+                        "filter": [
+                            {
+                                "prefix": {
+                                    metadata_field: {
+                                        "value": search_term,
+                                        "case_insensitive": True,
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+
+            result = self.client.search(index=self._index, body=body)  # type: ignore
+            buckets = result["aggregations"]["unique_values"]["buckets"]
+
+            # Slice to handle from_ parameter
+            if from_ > 0:
+                buckets = buckets[from_:]
+
+            values = [bucket["key"] for bucket in buckets]
+            # Get total distinct count (approximate if sum_other_doc_count > 0)
+            sum_other = result["aggregations"]["unique_values"].get("sum_other_doc_count", 0)
+            total = sum_other + len(result["aggregations"]["unique_values"]["buckets"])
+
+            return {
+                "values": values,
+                "total": total,
+            }
+        except Exception as e:
+            msg = f"Failed to get field unique values from Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def query_sql(self, query: str) -> dict[str, Any]:
+        """
+        Executes a SQL query against the Elasticsearch index.
+
+        :param query: The SQL query string to execute.
+        :returns: A dictionary containing the query results.
+        """
+        self._ensure_initialized()
+
+        try:
+            body = {"query": query}
+            result = self.client.sql.query(body=body)  # type: ignore
+            return result
+        except Exception as e:
+            msg = f"Failed to execute SQL query in Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def query_sql_async(self, query: str) -> dict[str, Any]:
+        """
+        Asynchronously executes a SQL query against the Elasticsearch index.
+
+        :param query: The SQL query string to execute.
+        :returns: A dictionary containing the query results.
+        """
+        self._ensure_initialized()
+
+        try:
+            body = {"query": query}
+            result = await self.async_client.sql.query(body=body)  # type: ignore
+            return result
+        except Exception as e:
+            msg = f"Failed to execute SQL query in Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
