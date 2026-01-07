@@ -781,8 +781,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
             Document(content="Python scripting", meta={"category": "A", "status": "inactive", "priority": 3}),
             Document(content="JavaScript development", meta={"category": "C", "status": "active", "priority": 1}),
         ]
-        document_store.write_documents(docs)
-        time.sleep(1)  # Wait for documents to be indexed
+        document_store.write_documents(docs, refresh=True)
 
         # Test SQL query with JSON format (default)
         sql_query = (
