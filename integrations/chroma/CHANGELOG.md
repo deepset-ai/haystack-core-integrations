@@ -1,11 +1,23 @@
 # Changelog
 
-## [integrations/chroma-v3.4.1]
+## [integrations/chroma-v3.5.0] - 2026-01-07
+
+### 🚀 Features
+
+- Adding `delete_by_filter()` and `update_by_filter()` to `ChromaDocumentStore` (#2649)
+
 
 ### ⚙️ CI
 
-- Adopt PEP 585 type hinting (#2475)
+- Change pytest command (#2475)
 
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+
+### 🌀 Miscellaneous
+
+- Adopt PEP 585 type hinting (part 1) (#2509)
 
 ## [integrations/chroma-v3.4.0] - 2025-10-27
 
