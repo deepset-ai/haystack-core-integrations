@@ -70,9 +70,9 @@ class TestGitHubRepoForkerTool:
         tool = GitHubRepoForkerTool(
             github_token=Secret.from_env_var("GITHUB_TOKEN"),
             raise_on_failure=False,
-            outputs_to_string={"source": "docs", "handler": message_handler},
+            outputs_to_string={"source": "repo", "handler": message_handler},
             inputs_from_state={"repository": "repo"},
-            outputs_to_state={"documents": {"source": "docs", "handler": message_handler}},
+            outputs_to_state={"documents": {"source": "repo", "handler": message_handler}},
         )
         tool_dict = tool.to_dict()
         assert tool_dict["type"] == "haystack_integrations.tools.github.repo_forker_tool.GitHubRepoForkerTool"
@@ -90,7 +90,7 @@ class TestGitHubRepoForkerTool:
             == "haystack_integrations.tools.github.utils.message_handler"
         )
         assert tool_dict["data"]["inputs_from_state"] == {"repository": "repo"}
-        assert tool_dict["data"]["outputs_to_state"]["documents"]["source"] == "docs"
+        assert tool_dict["data"]["outputs_to_state"]["documents"]["source"] == "repo"
         assert (
             tool_dict["data"]["outputs_to_state"]["documents"]["handler"]
             == "haystack_integrations.tools.github.utils.message_handler"
@@ -110,7 +110,7 @@ class TestGitHubRepoForkerTool:
                 "inputs_from_state": {"repository": "repo"},
                 "outputs_to_state": {
                     "documents": {
-                        "source": "docs",
+                        "source": "repo",
                         "handler": "haystack_integrations.tools.github.utils.message_handler",
                     }
                 },
@@ -124,5 +124,5 @@ class TestGitHubRepoForkerTool:
         assert tool.raise_on_failure is False
         assert tool.outputs_to_string["handler"] == message_handler
         assert tool.inputs_from_state == {"repository": "repo"}
-        assert tool.outputs_to_state["documents"]["source"] == "docs"
+        assert tool.outputs_to_state["documents"]["source"] == "repo"
         assert tool.outputs_to_state["documents"]["handler"] == message_handler
