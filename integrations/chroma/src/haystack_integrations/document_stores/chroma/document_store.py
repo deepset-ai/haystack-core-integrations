@@ -472,7 +472,7 @@ class ChromaDocumentStore:
         Deletes all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for deletion.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents deleted.
         """
         self._ensure_initialized()
@@ -520,7 +520,7 @@ class ChromaDocumentStore:
         Asynchronous methods are only supported for HTTP connections.
 
         :param filters: The filters to apply to select documents for deletion.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents deleted.
         """
         await self._ensure_initialized_async()
@@ -569,7 +569,7 @@ class ChromaDocumentStore:
         those changes may be lost.
 
         :param filters: The filters to apply to select documents for updating.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :param meta: The metadata fields to update. This will be merged with existing metadata.
         :returns: The number of documents updated.
         """
@@ -611,7 +611,7 @@ class ChromaDocumentStore:
         those changes may be lost.
 
         :param filters: The filters to apply to select documents for updating.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :param meta: The metadata fields to update. This will be merged with existing metadata.
         :returns: The number of documents updated.
         """
