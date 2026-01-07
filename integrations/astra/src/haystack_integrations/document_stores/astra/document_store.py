@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present Anant Corporation <support@anant.us>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from typing import Any, Optional, Union
 
 from haystack import default_from_dict, default_to_dict, logging
@@ -400,7 +401,6 @@ class AstraDocumentStore:
         Deletes documents from the document store.
 
         :param document_ids: IDs of the documents to delete.
-        :param delete_all: if `True`, delete all documents.
         :raises MissingDocumentError: if no document was deleted but document IDs were provided.
         """
         if self.index.find_one_document({"filter": {}}) is not None:
@@ -420,7 +420,6 @@ class AstraDocumentStore:
         """
         Deletes all documents from the document store.
         """
-        deletion_counter = 0
 
         try:
             deletion_counter = self.index.delete_all_documents()
@@ -432,3 +431,59 @@ class AstraDocumentStore:
             logger.info("All documents deleted")
         else:
             logger.error("Could not delete all documents")
+
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Deletes documents that match the provided filters.
+
+        :param filters: The filters to apply to find documents to delete.
+        :returns: The number of documents deleted.
+        :raises AstraDocumentStoreFilterError: if the filter is invalid or not supported.
+        """
+        if not isinstance(filters, dict):
+            msg = "Filters must be a dictionary"
+            raise AstraDocumentStoreFilterError(msg)
+
+        if "id" in filters:
+            filters["_id"] = filters.pop("id")
+
+        converted_filters = _convert_filters(filters)
+        deletion_count = self.index.delete(filters=converted_filters)
+
+        logger.info(f"{deletion_count} documents deleted by filter")
+        return deletion_count
+
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Updates documents that match the provided filters with the given metadata.
+
+        :param filters: The filters to apply to find documents to update.
+        :param meta: The metadata fields to update. This will be merged with existing metadata.
+
+        :returns:
+            The number of documents updated.
+
+        :raises:
+            AstraDocumentStoreFilterError: if the filter is invalid or not supported.
+        """
+        if not isinstance(filters, dict):
+            msg = "Filters must be a dictionary"
+            raise AstraDocumentStoreFilterError(msg)
+
+        if not isinstance(meta, dict):
+            msg = "Meta must be a dictionary"
+            raise AstraDocumentStoreFilterError(msg)
+
+        if "id" in filters:
+            filters["_id"] = filters.pop("id")
+
+        converted_filters = _convert_filters(filters)
+
+        # use dot notation to update nested fields in the meta-object - ensures fields are created if they don't exist
+        update_fields = {f"meta.{key}": value for key, value in meta.items()}
+        update_operation = {"$set": update_fields}
+        update_count = self.index.update(filters=converted_filters, update=update_operation)  # type: ignore
+
+        logger.info(f"{update_count} documents updated by filter")
+
+        return update_count
