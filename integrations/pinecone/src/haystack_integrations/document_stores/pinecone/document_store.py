@@ -246,8 +246,8 @@ class PineconeDocumentStore:
             vectors=documents_for_pinecone, namespace=self.namespace, batch_size=self.batch_size
         )
 
-        written_docs = result["upserted_count"]
-        return written_docs
+        # if the operation is successful, result will have the upserted_count attribute
+        return result.upserted_count  # type: ignore[union-attr]
 
     async def write_documents_async(
         self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
@@ -270,16 +270,15 @@ class PineconeDocumentStore:
             vectors=documents_for_pinecone, namespace=self.namespace, batch_size=self.batch_size
         )
 
-        written_docs = result["upserted_count"]
-
-        return written_docs
+        # if the operation is successful, result will have the upserted_count attribute
+        return result.upserted_count  # type: ignore[union-attr]
 
     def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
         """
         Returns the documents that match the filters provided.
 
         For a detailed specification of the filters,
-        refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
+        refer to the [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering)
 
         :param filters: The filters to apply to the document list.
         :returns: A list of Documents that match the given filters.
@@ -473,8 +472,8 @@ class PineconeDocumentStore:
 
         return metadata
 
-    def _convert_query_result_to_documents(self, query_result: dict[str, Any]) -> list[Document]:
-        pinecone_docs = query_result["matches"]
+    def _convert_query_result_to_documents(self, query_result: Any) -> list[Document]:
+        pinecone_docs = query_result.matches
         documents = []
         for pinecone_doc in pinecone_docs:
             content = pinecone_doc["metadata"].pop("content", None)
@@ -524,7 +523,9 @@ class PineconeDocumentStore:
 
             document.meta = new_meta
 
-    def _convert_documents_to_pinecone_format(self, documents: list[Document]) -> list[dict[str, Any]]:
+    def _convert_documents_to_pinecone_format(
+        self, documents: list[Document]
+    ) -> list[tuple[str, list[float], dict[str, Any]]]:
         documents_for_pinecone = []
         for document in documents:
             embedding = copy(document.embedding)
@@ -538,11 +539,11 @@ class PineconeDocumentStore:
             if document.meta:
                 self._discard_invalid_meta(document)
 
-            doc_for_pinecone: dict[str, Any] = {"id": document.id, "values": embedding, "metadata": dict(document.meta)}
+            metadata = dict(document.meta) if document.meta else {}
 
             # we save content as metadata
             if document.content is not None:
-                doc_for_pinecone["metadata"]["content"] = document.content
+                metadata["content"] = document.content
 
             # currently, storing blob in Pinecone is not supported
             if document.blob is not None:
@@ -559,12 +560,12 @@ class PineconeDocumentStore:
                     document_id=document.id,
                 )
 
-            documents_for_pinecone.append(doc_for_pinecone)
+            documents_for_pinecone.append((document.id, embedding, metadata))
         return documents_for_pinecone
 
     def _prepare_documents_for_writing(
         self, documents: list[Document], policy: DuplicatePolicy
-    ) -> list[dict[str, Any]]:
+    ) -> list[tuple[str, list[float], dict[str, Any]]]:
         """
         Helper method to prepare documents for writing to Pinecone.
         """

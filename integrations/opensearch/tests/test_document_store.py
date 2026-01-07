@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import random
-import time
 from unittest.mock import patch
 
 import pytest
@@ -511,8 +510,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         document_store.write_documents(docs)
         assert document_store.count_documents() == 2
 
-        document_store.delete_all_documents(recreate_index=False)
-        time.sleep(2)  # need to wait for the deletion to be reflected in count_documents
+        document_store.delete_all_documents(recreate_index=False, refresh=True)
         assert document_store.count_documents() == 0
 
         new_doc = Document(id="3", content="New document after delete all")
@@ -534,9 +532,8 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
 
         # Delete documents with category="A"
         deleted_count = document_store.delete_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}
+            filters={"field": "meta.category", "operator": "==", "value": "A"}, refresh=True
         )
-        time.sleep(2)  # wait for deletion to be reflected
         assert deleted_count == 2
         assert document_store.count_documents() == 1
 
@@ -556,9 +553,10 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
 
         # Update status for category="A" documents
         updated_count = document_store.update_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
+            filters={"field": "meta.category", "operator": "==", "value": "A"},
+            meta={"status": "published"},
+            refresh=True,
         )
-        time.sleep(2)  # wait for update to be reflected
         assert updated_count == 2
 
         # Verify the updates

@@ -36,8 +36,8 @@ jobs:
         python-version: ["3.10", "3.13"]
         # the INDEX_NAME is used in test_serverless_index_creation_from_scratch
         include:
-          - python-version: "3.9"
-            INDEX_NAME: "index-39"
+          - python-version: "3.10"
+            INDEX_NAME: "index-310"
           - python-version: "3.13"
             INDEX_NAME: "index-313"
 
