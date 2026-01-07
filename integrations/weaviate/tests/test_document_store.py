@@ -882,7 +882,9 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         docs = []
         for index in range(250):
             docs.append(
-                Document(content="This is some content", meta={"index": index, "status": "draft", "category": "test"},
+                Document(
+                    content="This is some content",
+                    meta={"index": index, "status": "draft", "category": "test"},
                 )
             )
 
