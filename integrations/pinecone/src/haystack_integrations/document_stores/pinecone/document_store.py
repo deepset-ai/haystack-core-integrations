@@ -419,7 +419,7 @@ class PineconeDocumentStore:
 
         self._initialize_index()
         assert self._index is not None, "Index is not initialized"
-        
+
         documents = self.filter_documents(filters=filters)
         if not documents:
             return 0
