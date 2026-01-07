@@ -77,7 +77,7 @@ class TestGitHubFileEditorTool:
         tool = GitHubFileEditorTool(
             outputs_to_string={"source": "result", "handler": message_handler},
             inputs_from_state={"repo_state": "repo"},
-            outputs_to_state={"file_content": {"source": "content", "handler": message_handler}},
+            outputs_to_state={"file_content": {"source": "result", "handler": message_handler}},
         )
 
         tool_dict = tool.to_dict()
@@ -88,7 +88,7 @@ class TestGitHubFileEditorTool:
         assert tool_dict["data"]["inputs_from_state"] == {"repo_state": "repo"}
         assert tool_dict["data"]["outputs_to_state"] == {
             "file_content": {
-                "source": "content",
+                "source": "result",
                 "handler": "haystack_integrations.tools.github.utils.message_handler",
             },
         }
@@ -113,7 +113,7 @@ class TestGitHubFileEditorTool:
                 "inputs_from_state": {"repo_state": "repo"},
                 "outputs_to_state": {
                     "file_content": {
-                        "source": "content",
+                        "source": "result",
                         "handler": "haystack_integrations.tools.github.utils.message_handler",
                     },
                 },
@@ -124,7 +124,7 @@ class TestGitHubFileEditorTool:
         assert tool.outputs_to_string["source"] == "result"
         assert tool.outputs_to_string["handler"] == message_handler
         assert tool.inputs_from_state == {"repo_state": "repo"}
-        assert tool.outputs_to_state["file_content"]["source"] == "content"
+        assert tool.outputs_to_state["file_content"]["source"] == "result"
         assert tool.outputs_to_state["file_content"]["handler"] == message_handler
 
     def test_pipeline_serialization(self, monkeypatch):
