@@ -192,7 +192,7 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         """
         document_store.delete_documents(["test"])
 
-    def test_delete_not_empty_nonexisting(self, document_store: ChromaDocumentStore):
+    def test_delete_not_empty_non_existing(self, document_store: ChromaDocumentStore):
         """
         Deleting a non-existing document should not raise with Chroma
         """
@@ -419,3 +419,108 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
         results = document_store.filter_documents()
         assert len(results) == 1
         assert results[0].content == "New document after delete all"
+
+    def test_delete_by_filter(self, document_store: ChromaDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "A"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 3
+
+        # delete documents with category="A"
+        deleted_count = document_store.delete_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert deleted_count == 2
+        assert document_store.count_documents() == 1
+
+        # verify only category B remains
+        remaining_docs = document_store.filter_documents()
+        assert len(remaining_docs) == 1
+        assert remaining_docs[0].meta["category"] == "B"
+
+    def test_delete_by_filter_no_matches(self, document_store: ChromaDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 2
+
+        # delete documents with category="C" (no matches)
+        deleted_count = document_store.delete_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "C"}
+        )
+        assert deleted_count == 0
+        assert document_store.count_documents() == 2
+
+    def test_update_by_filter(self, document_store: ChromaDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "draft"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "draft"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 3
+
+        # update status for category="A" documents
+        updated_count = document_store.update_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
+        )
+        assert updated_count == 2
+
+        # verify the updated documents have the new metadata
+        published_docs = document_store.filter_documents(
+            filters={"field": "meta.status", "operator": "==", "value": "published"}
+        )
+        assert len(published_docs) == 2
+        for doc in published_docs:
+            assert doc.meta["status"] == "published"
+            assert doc.meta["category"] == "A"
+
+        # Verify documents with category="B" were not updated
+        unpublished_docs = document_store.filter_documents(
+            filters={"field": "meta.category", "operator": "==", "value": "B"}
+        )
+        assert len(unpublished_docs) == 1
+        assert unpublished_docs[0].meta["status"] == "draft"
+
+    def test_update_by_filter_no_matches(self, document_store: ChromaDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 2
+
+        # Try to update documents with category="C" (no matches)
+        updated_count = document_store.update_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "C"}, meta={"status": "published"}
+        )
+        assert updated_count == 0
+        assert document_store.count_documents() == 2
+
+    @pytest.mark.integration
+    def test_search_embeddings(self, document_store: ChromaDocumentStore):
+        query_embedding = TEST_EMBEDDING_1
+        documents = [
+            Document(content="First document", embedding=TEST_EMBEDDING_1, meta={"author": "Author1"}),
+            Document(content="Second document", embedding=[0.1] * len(TEST_EMBEDDING_1)),
+            Document(content="Third document", embedding=TEST_EMBEDDING_1, meta={"author": "Author2"}),
+        ]
+        document_store.write_documents(documents)
+        result = document_store.search_embeddings([query_embedding], top_k=2)
+
+        # Assertions to verify correctness
+        assert len(result) == 1
+        assert len(result[0]) == 2
+        # The documents with matching embeddings should be returned
+        assert all(doc.embedding == pytest.approx(TEST_EMBEDDING_1) for doc in result[0])
+        assert all(doc.score is not None for doc in result[0])
+
+        # check that empty filters behave as no filters
+        result_empty_filters = document_store.search_embeddings([query_embedding], filters={}, top_k=2)
+        assert len(result_empty_filters) == 1
+        assert len(result_empty_filters[0]) == 2
