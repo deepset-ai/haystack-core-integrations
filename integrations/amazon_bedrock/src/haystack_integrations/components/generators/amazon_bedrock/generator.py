@@ -58,7 +58,7 @@ class AmazonBedrockGenerator:
     automatically from the environment or the AWS configuration file.
     If the AWS environment is not configured, set `aws_access_key_id`, `aws_secret_access_key`,
     `aws_session_token`, and `aws_region_name` as environment variables or pass them as
-     [Secret](https://docs.haystack.deepset.ai/v2.0/docs/secret-management) arguments. Make sure the region you set
+     [Secret](https://docs.haystack.deepset.ai/docs/secret-management) arguments. Make sure the region you set
     supports Amazon Bedrock.
     """
 
