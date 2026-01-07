@@ -6,7 +6,10 @@ import pytest
 from haystack.dataclasses.document import Document
 
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
-from haystack_integrations.document_stores.weaviate.document_store import DOCUMENT_COLLECTION_PROPERTIES
+from haystack_integrations.document_stores.weaviate.document_store import (
+    DEFAULT_QUERY_LIMIT,
+    DOCUMENT_COLLECTION_PROPERTIES,
+)
 
 
 @pytest.mark.integration
@@ -211,3 +214,32 @@ class TestWeaviateDocumentStoreAsync:
         for doc in published_docs:
             assert doc.meta["category"] == "TypeA"
             assert doc.meta["status"] == "published"
+
+    @pytest.mark.asyncio
+    async def test_update_by_filter_async_with_pagination(self, document_store, monkeypatch):
+        # Reduce DEFAULT_QUERY_LIMIT to test pagination without creating 10000+ documents
+        monkeypatch.setattr("haystack_integrations.document_stores.weaviate.document_store.DEFAULT_QUERY_LIMIT", 100)
+
+        docs = []
+        for index in range(250):
+            docs.append(
+                Document(content="This is some content", meta={"index": index, "status": "draft", "category": "test"},
+                )
+            )
+
+        # update all documents should trigger pagination (3 pages)
+        updated_count = await document_store.update_by_filter_async(
+            filters={"field": "category", "operator": "==", "value": "test"},
+            meta={"status": "published"},
+        )
+        assert updated_count == 250
+
+        published_docs = document_store.filter_documents(
+            filters={"field": "status", "operator": "==", "value": "published"}
+        )
+        assert len(published_docs) == 250
+        for doc in published_docs:
+            assert doc.meta["category"] == "test"
+            assert doc.meta["status"] == "published"
+            assert "index" in doc.meta
+            assert 0 <= doc.meta["index"] < 250
