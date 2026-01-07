@@ -517,7 +517,7 @@ class QdrantDocumentStore:
                 "Called QdrantDocumentStore.delete_documents_async() on a non-existing ID",
             )
 
-    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+    def delete_by_filter(self, filters: dict[str, Any]) -> None:
         """
         Deletes all documents that match the provided filters.
 
@@ -532,15 +532,8 @@ class QdrantDocumentStore:
 
         try:
             qdrant_filter = convert_filters_to_qdrant(filters)
-
             if qdrant_filter is None:
-                return 0
-
-            matching_docs = list(self.filter_documents(filters))
-            count = len(matching_docs)
-
-            if count == 0:
-                return 0
+                return
 
             # perform deletion using FilterSelector
             self._client.delete(
@@ -549,17 +542,11 @@ class QdrantDocumentStore:
                 wait=self.wait_result_from_api,
             )
 
-            logger.info(
-                "Deleted {n_docs} documents from collection '{name}' using filters.",
-                n_docs=count,
-                name=self.index,
-            )
-            return count
         except Exception as e:
             msg = f"Failed to delete documents by filter from Qdrant: {e!s}"
             raise QdrantStoreError(msg) from e
 
-    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> None:
         """
         Asynchronously deletes all documents that match the provided filters.
 
@@ -574,17 +561,8 @@ class QdrantDocumentStore:
 
         try:
             qdrant_filter = convert_filters_to_qdrant(filters)
-
             if qdrant_filter is None:
-                return 0
-
-            matching_docs = []
-            async for doc in self._get_documents_generator_async(filters):
-                matching_docs.append(doc)
-            count = len(matching_docs)
-
-            if count == 0:
-                return 0
+                return
 
             # perform deletion using FilterSelector
             await self._async_client.delete(
@@ -593,12 +571,6 @@ class QdrantDocumentStore:
                 wait=self.wait_result_from_api,
             )
 
-            logger.info(
-                "Deleted {n_docs} documents from collection '{name}' using filters.",
-                n_docs=count,
-                name=self.index,
-            )
-            return count
         except Exception as e:
             msg = f"Failed to delete documents by filter from Qdrant: {e!s}"
             raise QdrantStoreError(msg) from e
