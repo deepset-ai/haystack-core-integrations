@@ -34,7 +34,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
     This component uses the ChatMessage format for structuring both input and output,
     ensuring coherent and contextually relevant responses in chat-based text generation scenarios.
     Details on the ChatMessage format can be found in the
-    [Haystack docs](https://docs.haystack.deepset.ai/v2.0/docs/data-classes#chatmessage)
+    [Haystack docs](https://docs.haystack.deepset.ai/docs/data-classes#chatmessage)
 
     For more details on the parameters supported by the Mistral API, refer to the
     [Mistral API Docs](https://docs.mistral.ai/api/).

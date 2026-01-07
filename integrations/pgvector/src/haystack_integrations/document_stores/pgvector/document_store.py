@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from typing import Any, Literal, Optional, Union, overload
 
 from haystack import default_from_dict, default_to_dict, logging
@@ -13,6 +14,7 @@ from psycopg.cursor_async import AsyncCursor
 from psycopg.rows import DictRow, dict_row
 from psycopg.sql import SQL, Composed, Identifier
 from psycopg.sql import Literal as SQLLiteral
+from psycopg.types.json import Jsonb
 
 from pgvector.psycopg import register_vector, register_vector_async
 
@@ -762,7 +764,7 @@ class PgvectorDocumentStore:
         Returns the documents that match the filters provided.
 
         For a detailed specification of the filters,
-        refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
+        refer to the [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering)
 
         :param filters: The filters to apply to the document list.
         :raises TypeError: If `filters` is not a dictionary.
@@ -799,7 +801,7 @@ class PgvectorDocumentStore:
         Asynchronously returns the documents that match the filters provided.
 
         For a detailed specification of the filters,
-        refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
+        refer to the [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering)
 
         :param filters: The filters to apply to the document list.
 
@@ -1035,6 +1037,190 @@ class PgvectorDocumentStore:
             sql_query=query,
             error_msg="Could not delete all documents from PgvectorDocumentStore",
         )
+
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        _validate_filters(filters)
+
+        delete_sql = SQL("DELETE FROM {schema_name}.{table_name}").format(
+            schema_name=Identifier(self.schema_name),
+            table_name=Identifier(self.table_name),
+        )
+
+        params = ()
+        if filters:
+            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+            delete_sql += sql_where_clause
+
+        self._ensure_db_setup()
+        assert self._cursor is not None
+
+        try:
+            self._execute_sql(
+                cursor=self._cursor,
+                sql_query=delete_sql,
+                params=params,
+                error_msg="Could not delete documents by filter from PgvectorDocumentStore",
+            )
+            deleted_count = self._cursor.rowcount
+            logger.info(
+                "Deleted {n_docs} documents from table '{schema}.{table}' using filters.",
+                n_docs=deleted_count,
+                schema=self.schema_name,
+                table=self.table_name,
+            )
+            return deleted_count
+        except Error as e:
+            msg = f"Failed to delete documents by filter from PgvectorDocumentStore: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        _validate_filters(filters)
+
+        delete_sql = SQL("DELETE FROM {schema_name}.{table_name}").format(
+            schema_name=Identifier(self.schema_name),
+            table_name=Identifier(self.table_name),
+        )
+
+        params = ()
+        if filters:
+            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+            delete_sql += sql_where_clause
+
+        await self._ensure_db_setup_async()
+        assert self._async_cursor is not None
+
+        try:
+            await self._execute_sql_async(
+                cursor=self._async_cursor,
+                sql_query=delete_sql,
+                params=params,
+                error_msg="Could not delete documents by filter from PgvectorDocumentStore",
+            )
+            deleted_count = self._async_cursor.rowcount
+            logger.info(
+                "Deleted {n_docs} documents from table '{schema}.{table}' using filters.",
+                n_docs=deleted_count,
+                schema=self.schema_name,
+                table=self.table_name,
+            )
+            return deleted_count
+        except Error as e:
+            msg = f"Failed to delete documents by filter from PgvectorDocumentStore: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Updates the metadata of all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update.
+        :returns: The number of documents updated.
+        """
+        _validate_filters(filters)
+
+        if not meta:
+            msg = "meta must be a non-empty dictionary"
+            raise ValueError(msg)
+
+        update_sql = SQL(
+            "UPDATE {schema_name}.{table_name} SET meta = COALESCE(meta, '{{}}'::jsonb) || %s::jsonb"
+        ).format(
+            schema_name=Identifier(self.schema_name),
+            table_name=Identifier(self.table_name),
+        )
+
+        params: tuple[Any, ...] = (Jsonb(meta),)
+        if filters:
+            sql_where_clause, where_params = _convert_filters_to_where_clause_and_params(filters)
+            update_sql += sql_where_clause
+            params = params + where_params
+
+        self._ensure_db_setup()
+        assert self._cursor is not None
+
+        try:
+            self._execute_sql(
+                cursor=self._cursor,
+                sql_query=update_sql,
+                params=params,
+                error_msg="Could not update documents by filter from PgvectorDocumentStore",
+            )
+            updated_count = self._cursor.rowcount
+            logger.info(
+                "Updated {n_docs} documents in table '{schema}.{table}' using filters.",
+                n_docs=updated_count,
+                schema=self.schema_name,
+                table=self.table_name,
+            )
+            return updated_count
+        except Error as e:
+            msg = f"Failed to update documents by filter in PgvectorDocumentStore: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Asynchronously updates the metadata of all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update.
+        :returns: The number of documents updated.
+        """
+        _validate_filters(filters)
+
+        if not meta:
+            msg = "meta must be a non-empty dictionary"
+            raise ValueError(msg)
+
+        update_sql = SQL(
+            "UPDATE {schema_name}.{table_name} SET meta = COALESCE(meta, '{{}}'::jsonb) || %s::jsonb"
+        ).format(
+            schema_name=Identifier(self.schema_name),
+            table_name=Identifier(self.table_name),
+        )
+
+        params: tuple[Any, ...] = (Jsonb(meta),)
+        if filters:
+            sql_where_clause, where_params = _convert_filters_to_where_clause_and_params(filters)
+            update_sql += sql_where_clause
+            params = params + where_params
+
+        await self._ensure_db_setup_async()
+        assert self._async_cursor is not None
+
+        try:
+            await self._execute_sql_async(
+                cursor=self._async_cursor,
+                sql_query=update_sql,
+                params=params,
+                error_msg="Could not update documents by filter from PgvectorDocumentStore",
+            )
+            updated_count = self._async_cursor.rowcount
+            logger.info(
+                "Updated {n_docs} documents in table '{schema}.{table}' using filters.",
+                n_docs=updated_count,
+                schema=self.schema_name,
+                table=self.table_name,
+            )
+            return updated_count
+        except Error as e:
+            msg = f"Failed to update documents by filter in PgvectorDocumentStore: {e!s}"
+            raise DocumentStoreError(msg) from e
 
     def _build_keyword_retrieval_query(
         self, query: str, top_k: int, filters: Optional[dict[str, Any]] = None

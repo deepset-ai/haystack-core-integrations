@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/weaviate-v6.4.0] - 2025-12-16
+
+### 🚀 Features
+
+- Add `run_async` to all Weaviate retrievers (#2607)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 5) (#2528)
+
 ## [integrations/weaviate-v6.3.0] - 2025-10-03
 
 ### 🚀 Features

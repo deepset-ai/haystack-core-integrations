@@ -18,7 +18,7 @@ env:
 
 jobs:
   generate-api-reference:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       integration_name: ${{ steps.pathfinder.outputs.integration_name }}
 
@@ -51,7 +51,7 @@ jobs:
         run: hatch run docs
 
       - name: Upload API reference artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ steps.pathfinder.outputs.integration_name }}
           path: ${{ steps.pathfinder.outputs.project_path }}/${{ steps.pathfinder.outputs.integration_name }}.md
@@ -61,7 +61,7 @@ jobs:
 
 
   sync-api-reference:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     needs: generate-api-reference
     
     steps:
@@ -78,7 +78,7 @@ jobs:
           python-version: "3.10"          
 
       - name: Download API reference artifact
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: ${{ needs.generate-api-reference.outputs.integration_name }}
 
@@ -105,7 +105,7 @@ jobs:
           os.remove(artifact_filename)
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         env:
           INTEGRATION_NAME: ${{ needs.generate-api-reference.outputs.integration_name }}
         with:

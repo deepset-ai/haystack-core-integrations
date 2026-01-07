@@ -169,12 +169,13 @@ class TestMCPTool:
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
 
         # Create tool with state-mapping parameters
+        # The 'add' tool has parameters 'a' and 'b', so we map to 'a'
         tool = MCPTool(
             name="add",
             server_info=server_info,
             eager_connect=False,
             outputs_to_string={"source": "result"},
-            inputs_from_state={"filter": "query_filter"},
+            inputs_from_state={"state_a": "a"},
             outputs_to_state={"result": {"source": "output"}},
         )
         mcp_tool_cleanup(tool)
@@ -184,7 +185,7 @@ class TestMCPTool:
 
         # Verify state-mapping parameters are serialized
         assert tool_dict["data"]["outputs_to_string"] == {"source": "result"}
-        assert tool_dict["data"]["inputs_from_state"] == {"filter": "query_filter"}
+        assert tool_dict["data"]["inputs_from_state"] == {"state_a": "a"}
         assert tool_dict["data"]["outputs_to_state"] == {"result": {"source": "output"}}
 
         # Test deserialization (from_dict)
@@ -193,7 +194,7 @@ class TestMCPTool:
 
         # Verify state-mapping parameters are restored
         assert new_tool._outputs_to_string == {"source": "result"}
-        assert new_tool._inputs_from_state == {"filter": "query_filter"}
+        assert new_tool._inputs_from_state == {"state_a": "a"}
         assert new_tool._outputs_to_state == {"result": {"source": "output"}}
 
     @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")

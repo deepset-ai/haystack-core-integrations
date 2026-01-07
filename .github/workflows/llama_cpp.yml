@@ -32,11 +32,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            python-version: "3.9"
+            python-version: "3.10"
           - os: ubuntu-latest
             python-version: "3.13"
           - os: windows-latest
-            python-version: "3.9"
+            python-version: "3.10"
           - os: windows-latest
             python-version: "3.13"
 
@@ -64,11 +64,11 @@ jobs:
         run: pip install --upgrade hatch
 
       - name: Lint
-        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
       - name: Generate docs
-        if: matrix.python-version == '3.9' && runner.os == 'Linux'
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run docs
 
       - name: Run tests

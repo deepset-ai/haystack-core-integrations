@@ -2,9 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import asyncio
 import random
-import time
 from unittest.mock import Mock, patch
 
 import pytest
@@ -525,8 +523,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         document_store.write_documents(docs)
         assert document_store.count_documents() == 2
 
-        document_store.delete_all_documents(recreate_index=False)
-        time.sleep(2)  # need to wait for the deletion to be reflected in count_documents
+        document_store.delete_all_documents(recreate_index=False, refresh=True)
         assert document_store.count_documents() == 0
 
         new_doc = Document(id="3", content="New document after delete all")
@@ -547,8 +544,9 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert document_store.count_documents() == 3
 
         # Delete documents with category="A"
-        deleted_count = document_store.delete_by_filter(filters={"field": "category", "operator": "==", "value": "A"})
-        time.sleep(2)  # wait for deletion to be reflected
+        deleted_count = document_store.delete_by_filter(
+            filters={"field": "category", "operator": "==", "value": "A"}, refresh=True
+        )
         assert deleted_count == 2
         assert document_store.count_documents() == 1
 
@@ -568,9 +566,10 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         # Update status for category="A" documents
         updated_count = document_store.update_by_filter(
-            filters={"field": "category", "operator": "==", "value": "A"}, meta={"status": "published"}
+            filters={"field": "category", "operator": "==", "value": "A"},
+            meta={"status": "published"},
+            refresh=True,
         )
-        time.sleep(2)  # wait for update to be reflected
         assert updated_count == 2
 
         # Verify the updates
@@ -803,9 +802,7 @@ class TestElasticsearchDocumentStoreAsync:
         await document_store.write_documents_async(docs)
         assert await document_store.count_documents_async() == 2
 
-        await document_store.delete_all_documents_async(recreate_index=False)
-        # Need to wait for the deletion to be reflected in count_documents
-        await asyncio.sleep(2)
+        await document_store.delete_all_documents_async(recreate_index=False, refresh=True)
         assert await document_store.count_documents_async() == 0
 
         new_doc = Document(id="3", content="New document after delete all")
@@ -824,9 +821,8 @@ class TestElasticsearchDocumentStoreAsync:
 
         # Delete documents with category="A"
         deleted_count = await document_store.delete_by_filter_async(
-            filters={"field": "category", "operator": "==", "value": "A"}
+            filters={"field": "category", "operator": "==", "value": "A"}, refresh=True
         )
-        await asyncio.sleep(2)  # wait for deletion to be reflected
 
         assert deleted_count == 2
         assert await document_store.count_documents_async() == 1
@@ -848,9 +844,10 @@ class TestElasticsearchDocumentStoreAsync:
 
         # Update status for category="A" documents
         updated_count = await document_store.update_by_filter_async(
-            filters={"field": "category", "operator": "==", "value": "A"}, meta={"status": "published"}
+            filters={"field": "category", "operator": "==", "value": "A"},
+            meta={"status": "published"},
+            refresh=True,
         )
-        await asyncio.sleep(2)  # wait for update to be reflected
         assert updated_count == 2
 
         # Verify the updates
