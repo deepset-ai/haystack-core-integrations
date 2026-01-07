@@ -762,7 +762,7 @@ class PgvectorDocumentStore:
         Returns the documents that match the filters provided.
 
         For a detailed specification of the filters,
-        refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
+        refer to the [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering)
 
         :param filters: The filters to apply to the document list.
         :raises TypeError: If `filters` is not a dictionary.
@@ -799,7 +799,7 @@ class PgvectorDocumentStore:
         Asynchronously returns the documents that match the filters provided.
 
         For a detailed specification of the filters,
-        refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering)
+        refer to the [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering)
 
         :param filters: The filters to apply to the document list.
 

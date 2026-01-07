@@ -238,7 +238,7 @@ class ChromaDocumentStore:
         Returns the documents that match the filters provided.
 
         For a detailed specification of the filters,
-        refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering).
+        refer to the [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering).
 
         :param filters: the filters to apply to the document list.
         :returns: a list of Documents that match the given filters.
@@ -258,7 +258,7 @@ class ChromaDocumentStore:
         Asynchronous methods are only supported for HTTP connections.
 
         For a detailed specification of the filters,
-        refer to the [documentation](https://docs.haystack.deepset.ai/v2.0/docs/metadata-filtering).
+        refer to the [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering).
 
         :param filters: the filters to apply to the document list.
         :returns: a list of Documents that match the given filters.
