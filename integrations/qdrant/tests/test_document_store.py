@@ -367,9 +367,7 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         assert document_store.count_documents() == 2
 
         # try to delete documents with category="C" (no matches)
-        document_store.delete_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "C"}
-        )
+        document_store.delete_by_filter(filters={"field": "meta.category", "operator": "==", "value": "C"})
         assert document_store.count_documents() == 2
 
     def test_delete_by_filter_advanced_filters(self, document_store: QdrantDocumentStore):
