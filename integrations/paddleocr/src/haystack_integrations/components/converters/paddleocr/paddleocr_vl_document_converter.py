@@ -372,7 +372,7 @@ class PaddleOCRVLDocumentConverter:
 
         # Prepare headers with authentication
         access_token_value = self.access_token.resolve_value() if self.access_token else None
-        headers = {"Content-Type": "application/json"}
+        headers = {"Content-Type": "application/json", "Client-Platform": "haystack"}
         if access_token_value:
             headers["Authorization"] = f"token {access_token_value}"
 
