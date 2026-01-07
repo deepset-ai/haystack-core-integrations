@@ -6,10 +6,7 @@ import pytest
 from haystack.dataclasses.document import Document
 
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
-from haystack_integrations.document_stores.weaviate.document_store import (
-    DEFAULT_QUERY_LIMIT,
-    DOCUMENT_COLLECTION_PROPERTIES,
-)
+from haystack_integrations.document_stores.weaviate.document_store import DOCUMENT_COLLECTION_PROPERTIES
 
 
 @pytest.mark.integration
