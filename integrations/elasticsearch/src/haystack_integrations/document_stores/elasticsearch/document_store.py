@@ -8,7 +8,7 @@
 
 
 from collections.abc import Mapping
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union, cast
 
 import numpy as np
 from elastic_transport import NodeConfig
@@ -1087,9 +1087,14 @@ class ElasticsearchDocumentStore:
         self._ensure_initialized()
 
         try:
-            normalized_filters = _normalize_filters(filters)
+            if filters:
+                normalized_filters = _normalize_filters(filters)
+                query = {"bool": {"filter": normalized_filters}}
+            else:
+                query = {"match_all": {}}
+
             body = {
-                "query": {"bool": {"filter": normalized_filters}},
+                "query": query,
                 "aggs": {
                     "distinct_values": {
                         "cardinality": {
@@ -1117,9 +1122,14 @@ class ElasticsearchDocumentStore:
         self._ensure_initialized()
 
         try:
-            normalized_filters = _normalize_filters(filters)
+            if filters:
+                normalized_filters = _normalize_filters(filters)
+                query = {"bool": {"filter": normalized_filters}}
+            else:
+                query = {"match_all": {}}
+
             body = {
-                "query": {"bool": {"filter": normalized_filters}},
+                "query": query,
                 "aggs": {
                     "distinct_values": {
                         "cardinality": {
@@ -1162,6 +1172,7 @@ class ElasticsearchDocumentStore:
 
         try:
             body = {
+                "query": {"match_all": {}},
                 "aggs": {
                     "min_value": {"min": {"field": metadata_field}},
                     "max_value": {"max": {"field": metadata_field}},
@@ -1169,9 +1180,11 @@ class ElasticsearchDocumentStore:
                 "size": 0,
             }
             result = self.client.search(index=self._index, body=body)  # type: ignore
+            min_value = result["aggregations"]["min_value"]["value"]
+            max_value = result["aggregations"]["max_value"]["value"]
             return {
-                "min": result["aggregations"]["min_value"]["value"],
-                "max": result["aggregations"]["max_value"]["value"],
+                "min": min_value if min_value is not None else None,
+                "max": max_value if max_value is not None else None,
             }
         except Exception as e:
             msg = f"Failed to get field min/max from Elasticsearch: {e!s}"
@@ -1256,7 +1269,12 @@ class ElasticsearchDocumentStore:
         try:
             body = {"query": query}
             result = self.client.sql.query(body=body)  # type: ignore
-            return result
+            # ObjectApiResponse is dict-like, convert to dict for runtime
+            # It behaves like a dict but isinstance() returns False
+            if isinstance(result, dict):
+                return result
+            # Convert ObjectApiResponse to dict
+            return {k: v for k, v in result.items()}  # type: ignore[attr-defined]
         except Exception as e:
             msg = f"Failed to execute SQL query in Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
@@ -1273,7 +1291,12 @@ class ElasticsearchDocumentStore:
         try:
             body = {"query": query}
             result = await self.async_client.sql.query(body=body)  # type: ignore
-            return result
+            # ObjectApiResponse is dict-like, convert to dict for runtime
+            # It behaves like a dict but isinstance() returns False
+            if isinstance(result, dict):
+                return result
+            # Convert ObjectApiResponse to dict
+            return {k: v for k, v in result.items()}  # type: ignore[attr-defined]
         except Exception as e:
             msg = f"Failed to execute SQL query in Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
