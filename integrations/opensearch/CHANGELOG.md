@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/opensearch-v5.0.0] - 2026-01-07
+
+### 🚀 Features
+
+- [**breaking**] Expose refresh parameter in `OpenSearchDocumentStore` (#2623)
+
+
 ## [integrations/opensearch-v4.6.0] - 2026-01-05
 
 ### 🐛 Bug Fixes
