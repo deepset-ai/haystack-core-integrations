@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/weaviate-v6.5.0] - 2026-01-08
+
+### 🚀 Features
+
+- Adding `delete_by_filter` and `update_by_filter` to `WeaviateDocumentStore` (#2656)
+
+
 ## [integrations/weaviate-v6.4.0] - 2025-12-16
 
 ### 🚀 Features
