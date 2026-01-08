@@ -390,20 +390,6 @@ class PineconeDocumentStore:
                 document.meta = {}
             document.meta.update(meta)
 
-    def _log_top_k_limit_warning(self, document_count: int, operation: str) -> None:
-        """
-        Logs a warning if the document count equals TOP_K_LIMIT, indicating potential truncation.
-
-        :param document_count: Number of documents processed.
-        :param operation: Description of the operation (e.g., "deleted", "updated").
-        """
-        if document_count == TOP_K_LIMIT:
-            logger.warning(
-                f"PineconeDocumentStore can return at most {TOP_K_LIMIT} documents. "
-                f"It is possible that more than {document_count} documents matched the filters, "
-                f"but only {document_count} were {operation}."
-            )
-
     def delete_by_filter(self, filters: dict[str, Any]) -> int:
         """
         Deletes all documents that match the provided filters.
@@ -434,8 +420,6 @@ class PineconeDocumentStore:
             n_docs=deleted_count,
             index=self.index_name,
         )
-
-        self._log_top_k_limit_warning(deleted_count, "deleted")
 
         return deleted_count
 
@@ -469,8 +453,6 @@ class PineconeDocumentStore:
             n_docs=deleted_count,
             index=self.index_name,
         )
-
-        self._log_top_k_limit_warning(deleted_count, "deleted")
 
         return deleted_count
 
@@ -512,8 +494,6 @@ class PineconeDocumentStore:
             index=self.index_name,
         )
 
-        self._log_top_k_limit_warning(updated_count, "updated")
-
         return updated_count
 
     async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
@@ -553,8 +533,6 @@ class PineconeDocumentStore:
             n_docs=updated_count,
             index=self.index_name,
         )
-
-        self._log_top_k_limit_warning(updated_count, "updated")
 
         return updated_count
 
