@@ -110,6 +110,46 @@ def test_get_default_mappings(_mock_opensearch_client):
     }
 
 
+@patch("haystack_integrations.document_stores.opensearch.document_store.bulk")
+def test_routing_extracted_from_metadata(mock_bulk, document_store):
+    """Test routing extraction from document metadata"""
+    mock_bulk.return_value = (2, [])
+
+    docs = [
+        Document(id="1", content="Doc", meta={"_routing": "user_a", "other": "data"}),
+        Document(id="2", content="Doc"),
+    ]
+    document_store.write_documents(docs)
+
+    actions = list(mock_bulk.call_args.kwargs["actions"])
+
+    # Routing should be at action level, not in _source
+    assert actions[0]["_routing"] == "user_a"
+    assert "_routing" not in actions[0]["_source"].get("meta", {})
+
+    # Other metadata should be preserved
+    assert actions[0]["_source"]["other"] == "data"
+
+    # Second doc has no routing
+    assert "_routing" not in actions[1]
+    assert "_routing" not in actions[1]["_source"].get("meta", {})
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.bulk")
+def test_routing_in_delete(mock_bulk, document_store):
+    """Test routing parameter in delete operations"""
+    mock_bulk.return_value = (2, [])
+
+    routing_map = {"1": "user_a", "2": "user_b"}
+    document_store.delete_documents(["1", "2", "3"], routing=routing_map)
+
+    actions = list(mock_bulk.call_args.kwargs["actions"])
+
+    assert actions[0]["_routing"] == "user_a"
+    assert actions[1]["_routing"] == "user_b"
+    assert "_routing" not in actions[2]
+
+
 @pytest.mark.integration
 class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
     """
@@ -575,6 +615,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert len(draft_docs) == 1
         assert draft_docs[0].meta["category"] == "B"
 
+
     def test_count_documents_by_filter(self, document_store: OpenSearchDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A", "status": "active"}),
@@ -831,3 +872,46 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         invalid_query = "SELECT * FROM non_existent_index"
         with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
             document_store.query_sql(invalid_query)
+
+    @pytest.mark.integration
+    def test_write_with_routing(self, document_store: OpenSearchDocumentStore):
+        """Test writing documents with routing metadata"""
+        docs = [
+            Document(id="1", content="User A doc", meta={"_routing": "user_a", "category": "test"}),
+            Document(id="2", content="User B doc", meta={"_routing": "user_b"}),
+            Document(id="3", content="No routing"),
+        ]
+
+        written = document_store.write_documents(docs)
+        assert written == 3
+        assert document_store.count_documents() == 3
+
+        # Verify _routing not stored in metadata
+        retrieved = document_store.filter_documents()
+        retrieved_by_id = {doc.id: doc for doc in retrieved}
+
+        # Check _routing is not stored for any document
+        for doc in retrieved:
+            assert "_routing" not in doc.meta
+
+        assert retrieved_by_id["1"].meta["category"] == "test"
+
+        assert retrieved_by_id["2"].meta == {}
+
+        assert retrieved_by_id["3"].meta == {}
+
+    @pytest.mark.integration
+    def test_delete_with_routing(self, document_store: OpenSearchDocumentStore):
+        """Test deleting documents with routing"""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"_routing": "user_a"}),
+            Document(id="2", content="Doc 2", meta={"_routing": "user_b"}),
+            Document(id="3", content="Doc 3"),
+        ]
+        document_store.write_documents(docs)
+
+        routing_map = {"1": "user_a", "2": "user_b"}
+        document_store.delete_documents(["1", "2"], routing=routing_map)
+
+        assert document_store.count_documents() == 1
+
