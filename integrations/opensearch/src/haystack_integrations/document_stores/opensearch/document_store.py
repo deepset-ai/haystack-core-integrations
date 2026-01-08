@@ -1201,6 +1201,8 @@ class OpenSearchDocumentStore:
     def _build_cardinality_aggregations(index_mapping: dict[str, Any]) -> dict[str, Any]:
         """
         Builds cardinality aggregations for all metadata fields in the index mapping.
+
+        See: https://docs.opensearch.org/latest/aggregations/metric/cardinality/
         """
         aggs = {}
         for field_name in index_mapping.keys():
