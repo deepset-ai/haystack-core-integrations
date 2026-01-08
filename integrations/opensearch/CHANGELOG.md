@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/opensearch-v5.1.0] - 2026-01-08
+
+### 🌀 Miscellaneous
+
+- Feat: Add routing support for OpenSearchDocumentStore (#2624)
+
 ## [integrations/opensearch-v5.0.0] - 2026-01-07
 
 ### 🚀 Features
