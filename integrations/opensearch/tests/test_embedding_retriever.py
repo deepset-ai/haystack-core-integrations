@@ -404,3 +404,51 @@ async def test_embedding_retriever_runtime_document_store_switching_async(
     python_query_embedding = [0.4, 0.4, 0.4] + [0.0] * 765
     results_1_again = await retriever.run_async(query_embedding=python_query_embedding)
     assert "Python" in results_1_again["documents"][0].content
+
+
+@pytest.mark.integration
+def test_embedding_retriever_document_structure_with_metadata(document_store, test_documents_with_embeddings_1):
+    """
+    Test that documents returned by embedding retriever have correct structure:
+    - Metadata fields are in doc.meta (not at top level)
+    - Special fields (content, embedding, id, score) are at top level
+    - All original metadata is preserved
+    """
+    document_store.write_documents(test_documents_with_embeddings_1, refresh=True)
+    retriever = OpenSearchEmbeddingRetriever(document_store=document_store)
+
+    # Query embedding to match functional programming languages
+    query_embedding = [0.2, 0.3, 0.4] + [0.0] * 765
+    results = retriever.run(query_embedding=query_embedding, top_k=5)
+
+    assert len(results["documents"]) > 0
+
+    for doc in results["documents"]:
+        # Verify special fields are at top level
+        assert hasattr(doc, "content")
+        assert isinstance(doc.content, str)
+        assert hasattr(doc, "id")
+        assert isinstance(doc.id, str)
+        assert hasattr(doc, "score")
+        assert doc.score is not None
+        assert hasattr(doc, "embedding")
+        assert isinstance(doc.embedding, list)
+        assert len(doc.embedding) == 768
+
+        # Verify metadata fields are in meta dict (not at top level)
+        assert hasattr(doc, "meta")
+        assert isinstance(doc.meta, dict)
+
+        # Verify original metadata is preserved
+        assert "likes" in doc.meta
+        assert "language_type" in doc.meta
+        assert isinstance(doc.meta["likes"], int)
+        assert isinstance(doc.meta["language_type"], str)
+
+        # Verify document can be serialized/deserialized
+        doc_dict = doc.to_dict()
+        doc_from_dict = Document.from_dict(doc_dict)
+        assert doc_from_dict.content == doc.content
+        assert doc_from_dict.meta == doc.meta
+        assert doc_from_dict.id == doc.id
+        assert doc_from_dict.embedding == doc.embedding

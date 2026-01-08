@@ -891,3 +891,45 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         invalid_query = "SELECT * FROM non_existent_index"
         with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
             document_store.query_sql(invalid_query)
+
+    @pytest.mark.integration
+    def test_write_with_routing(self, document_store: OpenSearchDocumentStore):
+        """Test writing documents with routing metadata"""
+        docs = [
+            Document(id="1", content="User A doc", meta={"_routing": "user_a", "category": "test"}),
+            Document(id="2", content="User B doc", meta={"_routing": "user_b"}),
+            Document(id="3", content="No routing"),
+        ]
+
+        written = document_store.write_documents(docs)
+        assert written == 3
+        assert document_store.count_documents() == 3
+
+        # Verify _routing not stored in metadata
+        retrieved = document_store.filter_documents()
+        retrieved_by_id = {doc.id: doc for doc in retrieved}
+
+        # Check _routing is not stored for any document
+        for doc in retrieved:
+            assert "_routing" not in doc.meta
+
+        assert retrieved_by_id["1"].meta["category"] == "test"
+
+        assert retrieved_by_id["2"].meta == {}
+
+        assert retrieved_by_id["3"].meta == {}
+
+    @pytest.mark.integration
+    def test_delete_with_routing(self, document_store: OpenSearchDocumentStore):
+        """Test deleting documents with routing"""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"_routing": "user_a"}),
+            Document(id="2", content="Doc 2", meta={"_routing": "user_b"}),
+            Document(id="3", content="Doc 3"),
+        ]
+        document_store.write_documents(docs)
+
+        routing_map = {"1": "user_a", "2": "user_b"}
+        document_store.delete_documents(["1", "2"], routing=routing_map)
+
+        assert document_store.count_documents() == 1
