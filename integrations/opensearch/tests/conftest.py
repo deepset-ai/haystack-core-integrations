@@ -1,9 +1,25 @@
 import asyncio
+import re
 
 import pytest
 from haystack import Document
 
 from haystack_integrations.document_stores.opensearch.document_store import OpenSearchDocumentStore
+
+
+def _get_unique_index_name(request) -> str:
+    """
+    Generate a unique, valid OpenSearch index name from the test's nodeid.
+
+    Uses the full nodeid (e.g., 'test_document_store_async.py::TestClass::test_method')
+    to avoid collisions when tests in different files/classes share the same method name.
+    """
+    # Use nodeid for uniqueness across files/classes, sanitize for valid index name
+    # OpenSearch index names must be lowercase and cannot contain: \, /, *, ?, ", <, >, |, space, comma, #
+    index_name = re.sub(r"[^a-zA-Z0-9_-]", "_", request.node.nodeid).lower()
+    # Ensure it doesn't start with -, _, or + and is not longer than 255 chars
+    index_name = index_name.lstrip("-_+")[:255]
+    return index_name
 
 
 @pytest.fixture
@@ -14,7 +30,7 @@ def document_store(request):
     """
     hosts = ["https://localhost:9200"]
     # Use a different index for each test so we can run them in parallel
-    index = f"{request.node.name}"
+    index = _get_unique_index_name(request)
 
     store = OpenSearchDocumentStore(
         hosts=hosts,
@@ -38,7 +54,7 @@ def document_store(request):
 @pytest.fixture
 def document_store_2(request):
     hosts = ["https://localhost:9200"]
-    index = f"test_index_2_{request.node.name}"
+    index = f"test_index_2_{_get_unique_index_name(request)}"
 
     store = OpenSearchDocumentStore(
         hosts=hosts,
@@ -67,7 +83,7 @@ def document_store_readonly(request):
     """
     hosts = ["https://localhost:9200"]
     # Use a different index for each test so we can run them in parallel
-    index = f"{request.node.name}"
+    index = _get_unique_index_name(request)
 
     store = OpenSearchDocumentStore(
         hosts=hosts,
@@ -96,7 +112,7 @@ def document_store_embedding_dim_4_no_emb_returned(request):
     """
     hosts = ["https://localhost:9200"]
     # Use a different index for each test so we can run them in parallel
-    index = f"{request.node.name}"
+    index = _get_unique_index_name(request)
 
     store = OpenSearchDocumentStore(
         hosts=hosts,
@@ -121,7 +137,7 @@ def document_store_embedding_dim_4_no_emb_returned_faiss(request):
     """
     hosts = ["https://localhost:9200"]
     # Use a different index for each test so we can run them in parallel
-    index = f"{request.node.name}"
+    index = _get_unique_index_name(request)
 
     store = OpenSearchDocumentStore(
         hosts=hosts,
