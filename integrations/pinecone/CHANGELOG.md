@@ -1,5 +1,22 @@
 # Changelog
 
+## [integrations/pinecone-v5.5.0] - 2026-01-08
+
+### 🚀 Features
+
+- Adding `delete_by_filter` and update_by_filter to `PineconeDocumentStore` (#2655)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+- Fix Pinecone types and make sure that tests run (#2658)
+- Make fmt command more forgiving (#2671)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 5) (#2528)
+- Fix: Fix doc links (#2661)
+
 ## [integrations/pinecone-v5.4.0] - 2025-11-05
 
 ### 🚀 Features
