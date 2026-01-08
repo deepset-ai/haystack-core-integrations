@@ -16,7 +16,11 @@ class TestWeaviateDocumentStoreAsync:
         collection_settings = {
             "class": f"{request.node.name}",
             "invertedIndexConfig": {"indexNullState": True},
-            "properties": DOCUMENT_COLLECTION_PROPERTIES,
+            "properties": [
+                *DOCUMENT_COLLECTION_PROPERTIES,
+                {"name": "category", "dataType": ["text"]},
+                {"name": "status", "dataType": ["text"]},
+            ],
         }
         store = WeaviateDocumentStore(
             url="http://localhost:8080",
@@ -161,3 +165,81 @@ class TestWeaviateDocumentStoreAsync:
         )
         assert len(result_vector) > 0
         assert result_vector[0].score > 0.0
+
+    @pytest.mark.asyncio
+    async def test_delete_by_filter_async(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "TypeA"}),
+            Document(content="Doc 2", meta={"category": "TypeB"}),
+            Document(content="Doc 3", meta={"category": "TypeA"}),
+        ]
+        document_store.write_documents(docs)
+
+        # delete documents with category="TypeA"
+        deleted_count = await document_store.delete_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "TypeA"}
+        )
+        assert deleted_count == 2
+        assert document_store.count_documents() == 1
+
+        # verify only category TypeB remains
+        remaining_docs = document_store.filter_documents()
+        assert len(remaining_docs) == 1
+        assert remaining_docs[0].meta["category"] == "TypeB"
+
+    @pytest.mark.asyncio
+    async def test_update_by_filter_async(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "TypeA", "status": "draft"}),
+            Document(content="Doc 2", meta={"category": "TypeB", "status": "draft"}),
+            Document(content="Doc 3", meta={"category": "TypeA", "status": "draft"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 3
+
+        # update status for category="TypeA" documents
+        updated_count = await document_store.update_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "TypeA"}, meta={"status": "published"}
+        )
+        assert updated_count == 2
+
+        # Verify the updates
+        published_docs = document_store.filter_documents(
+            filters={"field": "meta.status", "operator": "==", "value": "published"}
+        )
+        assert len(published_docs) == 2
+        for doc in published_docs:
+            assert doc.meta["category"] == "TypeA"
+            assert doc.meta["status"] == "published"
+
+    @pytest.mark.asyncio
+    async def test_update_by_filter_async_with_pagination(self, document_store, monkeypatch):
+        # Reduce DEFAULT_QUERY_LIMIT to test pagination without creating 10000+ documents
+        monkeypatch.setattr("haystack_integrations.document_stores.weaviate.document_store.DEFAULT_QUERY_LIMIT", 100)
+
+        docs = []
+        for index in range(250):
+            docs.append(
+                Document(
+                    content="This is some content",
+                    meta={"index": index, "status": "draft", "category": "test"},
+                )
+            )
+        document_store.write_documents(docs)
+
+        # update all documents should trigger pagination (3 pages)
+        updated_count = await document_store.update_by_filter_async(
+            filters={"field": "category", "operator": "==", "value": "test"},
+            meta={"status": "published"},
+        )
+        assert updated_count == 250
+
+        published_docs = document_store.filter_documents(
+            filters={"field": "status", "operator": "==", "value": "published"}
+        )
+        assert len(published_docs) == 250
+        for doc in published_docs:
+            assert doc.meta["category"] == "test"
+            assert doc.meta["status"] == "published"
+            assert "index" in doc.meta
+            assert 0 <= doc.meta["index"] < 250
