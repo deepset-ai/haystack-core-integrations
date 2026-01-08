@@ -615,7 +615,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert len(draft_docs) == 1
         assert draft_docs[0].meta["category"] == "B"
 
-
     def test_count_documents_by_filter(self, document_store: OpenSearchDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A", "status": "active"}),
@@ -914,4 +913,3 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         document_store.delete_documents(["1", "2"], routing=routing_map)
 
         assert document_store.count_documents() == 1
-

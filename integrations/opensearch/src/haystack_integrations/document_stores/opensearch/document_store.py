@@ -352,29 +352,10 @@ class OpenSearchDocumentStore:
     @staticmethod
     def _deserialize_search_hits(hits: list[dict[str, Any]]) -> list[Document]:
         out = []
-
         for hit in hits:
-            data = hit["_source"].copy()
-
-            # Reconstruct metadata dict from flattened fields
-            meta = {}
-            fields_to_remove = []
-            for key, value in data.items():
-                if key not in SPECIAL_FIELDS:
-                    meta[key] = value
-                    fields_to_remove.append(key)
-
-            # Remove metadata fields from top level and add them to meta
-            for key in fields_to_remove:
-                data.pop(key, None)
-
-            if meta:
-                data["meta"] = meta
-
+            data = hit["_source"]
             if "highlight" in hit:
-                if "meta" not in data:
-                    data["meta"] = {}
-                data["meta"]["highlighted"] = hit["highlight"]
+                data["metadata"]["highlighted"] = hit["highlight"]
             data["score"] = hit["_score"]
             out.append(Document.from_dict(data))
 

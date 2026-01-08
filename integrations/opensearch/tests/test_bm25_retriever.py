@@ -424,6 +424,60 @@ def test_bm25_retriever_runtime_document_store_switching(
     assert len(results_1_again["documents"]) == 1
 
 
+@pytest.mark.integration
+def test_bm25_retriever_document_structure_with_metadata(document_store):
+    """
+    Test document structure with complex metadata (nested values, lists, etc.)
+    """
+    docs = [
+        Document(
+            content="Python is versatile",
+            meta={
+                "category": "programming",
+                "tags": ["python", "general-purpose"],
+                "rating": 4.5,
+                "active": True,
+                "author": {"name": "John", "role": "developer"},
+            },
+            id="python_doc",
+        ),
+        Document(
+            content="JavaScript is dynamic",
+            meta={
+                "category": "programming",
+                "tags": ["javascript", "web"],
+                "rating": 4.8,
+                "active": True,
+            },
+            id="js_doc",
+        ),
+    ]
+    document_store.write_documents(docs, refresh=True)
+    retriever = OpenSearchBM25Retriever(document_store=document_store)
+
+    results = retriever.run(query="programming", top_k=2)
+    assert len(results["documents"]) == 2
+
+    for doc in results["documents"]:
+        # Verify structure
+        assert hasattr(doc, "content")
+        assert hasattr(doc, "meta")
+        assert isinstance(doc.meta, dict)
+
+        # Verify complex metadata is preserved
+        assert "category" in doc.meta
+        assert "tags" in doc.meta
+        assert isinstance(doc.meta["tags"], list)
+        assert "rating" in doc.meta
+
+        # Verify document can be serialized/deserialized
+        doc_dict = doc.to_dict()
+        doc_from_dict = Document.from_dict(doc_dict)
+        assert doc_from_dict.content == doc.content
+        assert doc_from_dict.meta == doc.meta
+        assert doc_from_dict.id == doc.id
+
+
 @pytest.mark.asyncio
 @pytest.mark.integration
 async def test_bm25_retriever_async_runtime_document_store_switching(
