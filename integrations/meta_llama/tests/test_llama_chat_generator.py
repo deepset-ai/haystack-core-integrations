@@ -324,35 +324,6 @@ class TestLlamaChatGenerator:
 
     @pytest.mark.skipif(
         not os.environ.get("LLAMA_API_KEY", None),
-        reason="Export an env var called LLAMA_API_KEY containing the OpenAI API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_streaming(self):
-        class Callback:
-            def __init__(self):
-                self.responses = ""
-                self.counter = 0
-
-            def __call__(self, chunk: StreamingChunk) -> None:
-                self.counter += 1
-                self.responses += chunk.content if chunk.content else ""
-
-        callback = Callback()
-        component = MetaLlamaChatGenerator(streaming_callback=callback)
-        results = component.run([ChatMessage.from_user("What's the capital of France?")])
-
-        assert len(results["replies"]) == 1
-        message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.text
-
-        assert "Llama-4-Scout-17B-16E-Instruct-FP8" in message.meta["model"]
-        assert message.meta["finish_reason"] == "stop"
-
-        assert callback.counter > 1
-        assert "Paris" in callback.responses
-
-    @pytest.mark.skipif(
-        not os.environ.get("LLAMA_API_KEY", None),
         reason="Export an env var called LLAMA_API_KEY containing the Llama API key to run this test.",
     )
     @pytest.mark.integration
@@ -432,6 +403,56 @@ class TestLlamaChatGenerator:
         assert not final_message.tool_call
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
+
+    @pytest.mark.skipif(
+        not os.environ.get("LLAMA_API_KEY", None),
+        reason="Export an env var called LLAMA_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_tools_streaming(self, tools):
+        """
+        Integration test that the MetaLlamaChatGenerator component can run with tools and streaming.
+        """
+
+        class Callback:
+            def __init__(self):
+                self.responses = ""
+                self.counter = 0
+                self.tool_calls = []
+
+            def __call__(self, chunk: StreamingChunk) -> None:
+                self.counter += 1
+                if chunk.content:
+                    self.responses += chunk.content
+                if chunk.meta.get("tool_calls"):
+                    self.tool_calls.extend(chunk.meta["tool_calls"])
+
+        callback = Callback()
+        component = MetaLlamaChatGenerator(tools=tools, streaming_callback=callback)
+        results = component.run(
+            [ChatMessage.from_user("What's the weather like in Paris?")],
+        )
+
+        assert len(results["replies"]) > 0, "No replies received"
+        assert callback.counter > 1, "Streaming callback was not called multiple times"
+        assert callback.tool_calls, "No tool calls received in streaming"
+
+        # Find the message with tool calls
+        tool_message = None
+        for message in results["replies"]:
+            if message.tool_call:
+                tool_message = message
+                break
+
+        assert tool_message is not None, "No message with tool call found"
+        assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
+
+        tool_call = tool_message.tool_call
+        assert tool_call.id, "Tool call does not contain value for 'id' key"
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
+        assert tool_message.meta["finish_reason"] == "tool_calls"
 
     @pytest.mark.skipif(
         not os.environ.get("LLAMA_API_KEY", None),
