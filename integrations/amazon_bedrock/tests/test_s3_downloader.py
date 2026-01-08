@@ -140,7 +140,6 @@ class TestS3Downloader:
 
     def test_run_with_extensions(self, tmp_path, mock_s3_storage, mock_boto3_session):
         d = S3Downloader(file_root_path=str(tmp_path), file_extensions=[".txt"])
-        d.warm_up()
         d._storage = mock_s3_storage
 
         docs = [
@@ -154,7 +153,6 @@ class TestS3Downloader:
 
     def test_run_with_input_file_meta_key(self, tmp_path, mock_s3_storage, mock_boto3_session):
         d = S3Downloader(file_root_path=str(tmp_path), file_name_meta_key="custom_file_key")
-        d.warm_up()
         d._storage = mock_s3_storage
 
         docs = [Document(meta={"file_id": str(uuid4()), "custom_file_key": "a.txt"})]
@@ -165,7 +163,6 @@ class TestS3Downloader:
 
     def test_run_with_s3_key_generation_function(self, tmp_path, mock_s3_storage, mock_boto3_session):
         d = S3Downloader(file_root_path=str(tmp_path), s3_key_generation_function=s3_key_generation_function)
-        d.warm_up()
         d._storage = mock_s3_storage
 
         docs = [Document(meta={"file_id": str(uuid4()), "file_name": "a.txt"})]
@@ -184,7 +181,6 @@ class TestS3Downloader:
             s3_key_generation_function=s3_key_generation_function,
             file_extensions=[".txt"],
         )
-        d.warm_up()
         d._storage = mock_s3_storage
 
         docs = [
@@ -222,9 +218,7 @@ class TestS3Downloader:
     )
     def test_live_run_with_no_documents(self, tmp_path):
         d = S3Downloader(file_root_path=str(tmp_path))
-        d.warm_up()
-        docs = []
-        out = d.run(documents=docs)
+        out = d.run(documents=[])
         assert len(out["documents"]) == 0
 
     @pytest.mark.integration
@@ -241,9 +235,7 @@ class TestS3Downloader:
         d = S3Downloader(file_root_path=str(tmp_path), file_name_meta_key="custom_name")
         monkeypatch.setenv("S3_DOWNLOADER_PREFIX", "")
         d.warm_up()
-        docs = [
-            Document(meta={"custom_name": "text-sample.txt"}),
-        ]
+        docs = [Document(meta={"custom_name": "text-sample.txt"})]
         out = d.run(documents=docs)
         assert len(out["documents"]) == 1
         assert out["documents"][0].meta["custom_name"] == "text-sample.txt"
@@ -256,7 +248,6 @@ class TestS3Downloader:
     def test_live_run_with_prefix(self, tmp_path, monkeypatch):
         d = S3Downloader(file_root_path=str(tmp_path))
         monkeypatch.setenv("S3_DOWNLOADER_PREFIX", "subfolder/")
-
         d.warm_up()
         docs = [Document(meta={"file_name": "employees.json"})]
         out = d.run(documents=docs)
