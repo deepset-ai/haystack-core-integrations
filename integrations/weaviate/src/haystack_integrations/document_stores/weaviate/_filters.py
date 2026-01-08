@@ -11,6 +11,18 @@ import weaviate
 from weaviate.collections.classes.filters import Filter, FilterReturn
 
 
+def validate_filters(filters: dict[str, Any] | None) -> None:
+    """
+    Validates that filters have the correct structure.
+
+    :param filters: The filters to validate.
+    :raises ValueError: If filters are provided but have invalid syntax.
+    """
+    if filters and "operator" not in filters and "conditions" not in filters:
+        msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
+        raise ValueError(msg)
+
+
 def convert_filters(filters: dict[str, Any]) -> FilterReturn:
     """
     Convert filters from Haystack format to Weaviate format.
