@@ -24,6 +24,7 @@ from haystack_integrations.document_stores.opensearch.filters import normalize_f
 
 logger = logging.getLogger(__name__)
 
+SPECIAL_FIELDS = {"content", "embedding", "id", "score", "sparse_embedding", "blob"}
 
 Hosts = Union[str, list[Union[str, Mapping[str, Union[str, int]]]]]
 
@@ -351,8 +352,6 @@ class OpenSearchDocumentStore:
     @staticmethod
     def _deserialize_search_hits(hits: list[dict[str, Any]]) -> list[Document]:
         out = []
-        # Fields that are not metadata (should stay at top level)
-        non_meta_fields = {"id", "content", "embedding", "blob", "sparse_embedding", "score"}
 
         for hit in hits:
             data = hit["_source"].copy()
@@ -361,7 +360,7 @@ class OpenSearchDocumentStore:
             meta = {}
             fields_to_remove = []
             for key, value in data.items():
-                if key not in non_meta_fields:
+                if key not in SPECIAL_FIELDS:
                     meta[key] = value
                     fields_to_remove.append(key)
 
@@ -1203,10 +1202,9 @@ class OpenSearchDocumentStore:
         """
         Builds cardinality aggregations for all metadata fields in the index mapping.
         """
-        special_fields = {"content", "embedding", "id", "score", "blob", "sparse_embedding"}
         aggs = {}
         for field_name in index_mapping.keys():
-            if field_name not in special_fields:
+            if field_name not in SPECIAL_FIELDS:
                 aggs[f"{field_name}_cardinality"] = {"cardinality": {"field": field_name}}
         return aggs
 
@@ -1237,10 +1235,9 @@ class OpenSearchDocumentStore:
         """
         Extracts distinct value counts from search result aggregations.
         """
-        special_fields = {"content", "embedding", "id", "score", "blob", "sparse_embedding"}
         distinct_counts = {}
         for field_name in index_mapping.keys():
-            if field_name not in special_fields:
+            if field_name not in SPECIAL_FIELDS:
                 agg_key = f"{field_name}_cardinality"
                 if agg_key in aggregations:
                     distinct_counts[field_name] = aggregations[agg_key]["value"]
