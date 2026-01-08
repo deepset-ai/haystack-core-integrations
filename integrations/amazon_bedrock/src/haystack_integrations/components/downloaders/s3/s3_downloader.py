@@ -142,8 +142,7 @@ class S3Downloader:
         """
 
         if self._storage is None:
-            msg = f"The component {self.__class__.__name__} was not warmed up. Call 'warm_up()' before calling run()."
-            raise RuntimeError(msg)
+            self.warm_up()
 
         filtered_documents = self._filter_documents_by_extensions(documents) if self.file_extensions else documents
 
