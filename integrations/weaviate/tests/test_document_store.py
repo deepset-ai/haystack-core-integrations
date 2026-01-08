@@ -315,7 +315,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             "key": "value",
         }
 
-    def test_to_document(self, document_store, test_files_path):
+    def test_to_document(self, test_files_path):
         image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")
         data = DataObject(
             properties={
