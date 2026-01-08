@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 
 import numpy as np
@@ -139,3 +143,99 @@ class TestDocumentStoreAsync:
         result = sentence_window_retriever.run(retrieved_documents=[retrieved_doc["documents"][0]])
 
         assert len(result["context_windows"]) == 1
+
+    async def test_delete_by_filter_async(self, document_store_async: PineconeDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "A"}),
+        ]
+        await document_store_async.write_documents_async(docs)
+
+        # delete documents with category="A"
+        deleted_count = await document_store_async.delete_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert deleted_count == 2
+        assert await document_store_async.count_documents_async() == 1
+
+        # only category B remains
+        remaining_docs = await document_store_async.filter_documents_async()
+        assert len(remaining_docs) == 1
+        assert remaining_docs[0].meta["category"] == "B"
+
+    async def test_delete_by_filter_async_no_matches(self, document_store_async: PineconeDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        await document_store_async.write_documents_async(docs)
+
+        # delete documents with category="C" (no matches)
+        deleted_count = await document_store_async.delete_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "C"}
+        )
+        assert deleted_count == 0
+        assert await document_store_async.count_documents_async() == 2
+
+    async def test_update_by_filter_async(self, document_store_async: PineconeDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "draft"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "draft"}),
+        ]
+        await document_store_async.write_documents_async(docs)
+        assert await document_store_async.count_documents_async() == 3
+
+        # update status for category="A" documents
+        updated_count = await document_store_async.update_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
+        )
+        assert updated_count == 2
+
+        published_docs = await document_store_async.filter_documents_async(
+            filters={"field": "meta.status", "operator": "==", "value": "published"}
+        )
+        assert len(published_docs) == 2
+        for doc in published_docs:
+            assert doc.meta["category"] == "A"
+            assert doc.meta["status"] == "published"
+
+    async def test_update_by_filter_async_multiple_fields(self, document_store_async: PineconeDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "draft", "priority": "low"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "draft", "priority": "low"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "draft", "priority": "low"}),
+        ]
+        await document_store_async.write_documents_async(docs)
+
+        # update multiple fields for category="A" documents
+        updated_count = await document_store_async.update_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"},
+            meta={"status": "published", "priority": "high"},
+        )
+        assert updated_count == 2
+
+        # verify the updates
+        published_docs = await document_store_async.filter_documents_async(
+            filters={"field": "meta.status", "operator": "==", "value": "published"}
+        )
+        assert len(published_docs) == 2
+        for doc in published_docs:
+            assert doc.meta["category"] == "A"
+            assert doc.meta["status"] == "published"
+            assert doc.meta["priority"] == "high"
+
+    async def test_update_by_filter_async_no_matches(self, document_store_async: PineconeDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        await document_store_async.write_documents_async(docs)
+
+        # try to update documents with category="C" (no matches)
+        updated_count = await document_store_async.update_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "C"}, meta={"status": "published"}
+        )
+        assert updated_count == 0
+        assert await document_store_async.count_documents_async() == 2

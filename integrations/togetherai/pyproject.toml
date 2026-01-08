@@ -48,7 +48,7 @@ dependencies = ["haystack-pydoc-tools", "ruff"]
 
 [tool.hatch.envs.default.scripts]
 docs = ["pydoc-markdown pydoc/config_docusaurus.yml"]
-fmt = "ruff check --fix {args} && ruff format {args}"
+fmt = "ruff check --fix {args}; ruff format {args}"
 fmt-check = "ruff check {args} && ruff format --check {args}" 
 
 [tool.hatch.envs.test]
