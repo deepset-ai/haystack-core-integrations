@@ -289,7 +289,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert document_store._additional_config.connection.session_pool_maxsize == 20
         assert document_store._additional_config.connection.session_pool_timeout == 5
 
-    def test_to_data_object(self, document_store, test_files_path):
+    def test_to_data_object(self, test_files_path):
         doc = Document(content="test doc")
         data = WeaviateDocumentStore._to_data_object(doc)
         assert data == {
