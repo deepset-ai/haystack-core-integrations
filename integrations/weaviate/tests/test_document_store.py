@@ -291,7 +291,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
 
     def test_to_data_object(self, document_store, test_files_path):
         doc = Document(content="test doc")
-        data = document_store._to_data_object(doc)
+        data = WeaviateDocumentStore._to_data_object(doc)
         assert data == {
             "_original_id": doc.id,
             "content": doc.content,
@@ -305,7 +305,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             embedding=[1, 2, 3],
             meta={"key": "value"},
         )
-        data = document_store._to_data_object(doc)
+        data = WeaviateDocumentStore._to_data_object(doc)
         assert data == {
             "_original_id": doc.id,
             "content": doc.content,
@@ -329,7 +329,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             vector={"default": [1, 2, 3]},
         )
 
-        doc = document_store._to_document(data)
+        doc = WeaviateDocumentStore._to_document(data)
         assert doc.id == "123"
         assert doc.content == "some content"
         assert doc.blob == image
