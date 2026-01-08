@@ -46,7 +46,9 @@ class OpenSearchDocumentStore:
 
     Usage example:
     ```python
-    from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
+    from haystack_integrations.document_stores.opensearch import (
+        OpenSearchDocumentStore,
+    )
     from haystack import Document
 
     document_store = OpenSearchDocumentStore(hosts="localhost:9200")
@@ -420,6 +422,10 @@ class OpenSearchDocumentStore:
         opensearch_actions = []
         for doc in documents:
             doc_dict = doc.to_dict()
+
+            # Extract routing from document metadata
+            doc_routing = doc_dict.pop("_routing", None)
+
             if "sparse_embedding" in doc_dict:
                 sparse_embedding = doc_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
@@ -429,13 +435,17 @@ class OpenSearchDocumentStore:
                         "The `sparse_embedding` field will be ignored.",
                         id=doc.id,
                     )
-            opensearch_actions.append(
-                {
-                    "_op_type": action,
-                    "_id": doc.id,
-                    "_source": doc_dict,
-                }
-            )
+
+            action_dict = {
+                "_op_type": action,
+                "_id": doc.id,
+                "_source": doc_dict,
+            }
+
+            if doc_routing is not None:
+                action_dict["_routing"] = doc_routing
+
+            opensearch_actions.append(action_dict)
 
         return {
             "client": self._client if not is_async else self._async_client,
@@ -549,18 +559,36 @@ class OpenSearchDocumentStore:
         return Document.from_dict(data)
 
     def _prepare_bulk_delete_request(
-        self, *, document_ids: list[str], is_async: bool, refresh: Literal["wait_for", True, False]
+        self,
+        *,
+        document_ids: list[str],
+        is_async: bool,
+        refresh: Literal["wait_for", True, False],
+        routing: Optional[dict[str, str]] = None,
     ) -> dict[str, Any]:
+        def action_generator():
+            for id_ in document_ids:
+                action = {"_op_type": "delete", "_id": id_}
+                # Add routing if provided for this document ID
+                if routing and id_ in routing and routing[id_] is not None:
+                    action["_routing"] = routing[id_]
+                yield action
+
         return {
             "client": self._client if not is_async else self._async_client,
-            "actions": ({"_op_type": "delete", "_id": id_} for id_ in document_ids),
+            "actions": action_generator(),
             "refresh": refresh,
             "index": self._index,
             "raise_on_error": False,
             "max_chunk_bytes": self._max_chunk_bytes,
         }
 
-    def delete_documents(self, document_ids: list[str], refresh: Literal["wait_for", True, False] = "wait_for") -> None:
+    def delete_documents(
+        self,
+        document_ids: list[str],
+        refresh: Literal["wait_for", True, False] = "wait_for",
+        routing: Optional[dict[str, str]] = None,
+    ) -> None:
         """
         Deletes documents that match the provided `document_ids` from the document store.
 
@@ -570,16 +598,24 @@ class OpenSearchDocumentStore:
             - `False`: Do not refresh (better performance for bulk operations).
             - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
             For more details, see the [OpenSearch refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/index-document/).
+        :param routing: A dictionary mapping document IDs to their routing values.
+            Routing values are used to determine the shard where documents are stored.
+            If provided, the routing value for each document will be used during deletion.
         """
 
         self._ensure_initialized()
 
-        bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=False, refresh=refresh))
+        bulk(
+            **self._prepare_bulk_delete_request(
+                document_ids=document_ids, is_async=False, refresh=refresh, routing=routing
+            )
+        )
 
     async def delete_documents_async(
         self,
         document_ids: list[str],
         refresh: Literal["wait_for", True, False] = "wait_for",
+        routing: Optional[dict[str, str]] = None,
     ) -> None:
         """
         Asynchronously deletes documents that match the provided `document_ids` from the document store.
@@ -590,11 +626,18 @@ class OpenSearchDocumentStore:
             - `False`: Do not refresh (better performance for bulk operations).
             - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
             For more details, see the [OpenSearch refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/index-document/).
+        :param routing: A dictionary mapping document IDs to their routing values.
+            Routing values are used to determine the shard where documents are stored.
+            If provided, the routing value for each document will be used during deletion.
         """
         await self._ensure_initialized_async()
         assert self._async_client is not None
 
-        await async_bulk(**self._prepare_bulk_delete_request(document_ids=document_ids, is_async=True, refresh=refresh))
+        await async_bulk(
+            **self._prepare_bulk_delete_request(
+                document_ids=document_ids, is_async=True, refresh=refresh, routing=routing
+            )
+        )
 
     def _prepare_delete_all_request(self, *, refresh: bool) -> dict[str, Any]:
         return {
