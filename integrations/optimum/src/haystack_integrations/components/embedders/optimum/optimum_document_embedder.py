@@ -200,14 +200,12 @@ class OptimumDocumentEmbedder:
             A list of Documents to embed.
         :returns:
             The updated Documents with their embeddings.
-        :raises RuntimeError:
-            If the component was not initialized.
         :raises TypeError:
             If the input is not a list of Documents.
         """
         if not self._initialized:
-            msg = "The embedding model has not been loaded. Please call warm_up() before running."
-            raise RuntimeError(msg)
+            self.warm_up()
+
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "OptimumDocumentEmbedder expects a list of Documents as input."

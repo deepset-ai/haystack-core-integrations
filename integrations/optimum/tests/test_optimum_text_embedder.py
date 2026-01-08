@@ -252,7 +252,6 @@ class TestOptimumTextEmbedder:
                 suffix=" suffix",
                 pooling_mode=pooling_mode,
             )
-            embedder.warm_up()
 
             result = embedder.run(text="The food was delicious")
 
