@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 import pytest
 from elasticsearch.exceptions import BadRequestError  # type: ignore[import-not-found]
 from haystack.dataclasses.document import Document
+from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
@@ -754,18 +755,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
         except DocumentStoreError:
             # SQL plugin might not be enabled, which is acceptable
             pass
-
-# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
-#
-# SPDX-License-Identifier: Apache-2.0
-
-import pytest
-from haystack.dataclasses.document import Document
-from haystack.dataclasses.sparse_embedding import SparseEmbedding
-from haystack.document_stores.errors import DocumentStoreError
-from haystack.document_stores.types import DuplicatePolicy
-
-from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
 
 @pytest.mark.integration
