@@ -243,7 +243,7 @@ def _assert_documents_are_equal(received: list[Document], expected: list[Documen
     sorted_expected = sorted(expected, key=lambda doc: doc.id)
     assert len(sorted_received) == len(sorted_expected)
 
-    for received_doc, expected_doc in zip(sorted_received, sorted_expected):
+    for received_doc, expected_doc in zip(sorted_received, sorted_expected, strict=True):
         # Compare all attributes except score
         assert received_doc.id == expected_doc.id
         assert received_doc.content == expected_doc.content
