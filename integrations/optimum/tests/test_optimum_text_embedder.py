@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -252,7 +256,6 @@ class TestOptimumTextEmbedder:
                 suffix=" suffix",
                 pooling_mode=pooling_mode,
             )
-            embedder.warm_up()
 
             result = embedder.run(text="The food was delicious")
 
