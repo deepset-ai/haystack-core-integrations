@@ -1,5 +1,28 @@
 # Changelog
 
+## [integrations/amazon_sagemaker-v1.0.0] - 2026-01-09
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Standardize readmes - part 1 (#2202)
+- Standardize readmes - part 2 (#2205)
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Amazon_sagemaker - drop Python 3.9 and use X|Y typing (#2687)
+
+### 🌀 Miscellaneous
+
+- Chore: Fix linting in Amazon Sagemaker (#2250)
+- Enhancement: Adopt PEP 585 type hinting (part 6) (#2532)
+
 ## [integrations/amazon_sagemaker-v0.3.0] - 2025-06-30
 
 ### 🚀 Features

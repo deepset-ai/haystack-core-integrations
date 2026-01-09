@@ -1,5 +1,31 @@
 # Changelog
 
+## [integrations/fastembed-v1.6.0] - 2026-01-09
+
+### 🚀 Features
+
+- Update FastEmbed components to auto call run `warm_up` and don't modify Documents in place (#2678)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Remove black (#1985)
+- Standardize readmes - part 1 (#2202)
+- Fix linting fastembed (#2254)
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+
+### 🌀 Miscellaneous
+
+- Adopt PEP 585 type hinting (part 3) (#2510)
+
 ## [integrations/fastembed-v1.5.0] - 2025-06-17
 
 ### 🐛 Bug Fixes

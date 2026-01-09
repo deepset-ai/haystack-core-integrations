@@ -4,7 +4,7 @@
 
 import json
 from dataclasses import replace
-from typing import Any, Optional
+from typing import Any
 
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -68,18 +68,18 @@ class AmazonBedrockDocumentImageEmbedder:
         self,
         *,
         model: str,
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
-        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
+        aws_access_key_id: Secret | None = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
+        aws_secret_access_key: Secret | None = Secret.from_env_var(  # noqa: B008
             "AWS_SECRET_ACCESS_KEY", strict=False
         ),
-        aws_session_token: Optional[Secret] = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
-        aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
-        aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
+        aws_session_token: Secret | None = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
+        aws_region_name: Secret | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
+        aws_profile_name: Secret | None = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         file_path_meta_field: str = "file_path",
-        root_path: Optional[str] = None,
-        image_size: Optional[tuple[int, int]] = None,
+        root_path: str | None = None,
+        image_size: tuple[int, int] | None = None,
         progress_bar: bool = True,
-        boto3_config: Optional[dict[str, Any]] = None,
+        boto3_config: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -144,7 +144,7 @@ class AmazonBedrockDocumentImageEmbedder:
                 raise ValueError(msg)
             self.embedding_types = embedding_types
 
-        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+        def resolve_secret(secret: Secret | None) -> str | None:
             return secret.resolve_value() if secret else None
 
         try:
@@ -288,7 +288,7 @@ class AmazonBedrockDocumentImageEmbedder:
 
         docs_with_embeddings = []
 
-        for doc, emb in zip(documents, embeddings):
+        for doc, emb in zip(documents, embeddings, strict=True):
             # we store this information for later inspection
             new_meta = {
                 **doc.meta,

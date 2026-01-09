@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional
+from typing import Any
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -63,14 +63,14 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         *,
         api_key: Secret = Secret.from_env_var("AIMLAPI_API_KEY"),
         model: str = "openai/gpt-5-chat-latest",
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        api_base_url: Optional[str] = "https://api.aimlapi.com/v1",
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        tools: Optional[ToolsType] = None,
-        timeout: Optional[float] = None,
-        extra_headers: Optional[dict[str, Any]] = None,
-        max_retries: Optional[int] = None,
-        http_client_kwargs: Optional[dict[str, Any]] = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        api_base_url: str | None = "https://api.aimlapi.com/v1",
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: ToolsType | None = None,
+        timeout: float | None = None,
+        extra_headers: dict[str, Any] | None = None,
+        max_retries: int | None = None,
+        http_client_kwargs: dict[str, Any] | None = None,
     ):
         """
         Creates an instance of AIMLAPIChatGenerator. Unless specified otherwise,
@@ -155,10 +155,10 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         self,
         *,
         messages: list[ChatMessage],
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        tools: Optional[ToolsType] = None,
-        tools_strict: Optional[bool] = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: ToolsType | None = None,
+        tools_strict: bool | None = None,
     ) -> dict[str, Any]:
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}

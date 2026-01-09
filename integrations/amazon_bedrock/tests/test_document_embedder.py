@@ -1,6 +1,6 @@
 import io
 import os
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -66,7 +66,7 @@ class TestAmazonBedrockDocumentEmbedder:
             )
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
-    def test_to_dict(self, mock_boto3_session: Any, boto3_config: Optional[dict[str, Any]]):
+    def test_to_dict(self, mock_boto3_session: Any, boto3_config: dict[str, Any] | None):
         embedder = AmazonBedrockDocumentEmbedder(
             model="cohere.embed-english-v3",
             input_type="search_document",
@@ -94,7 +94,7 @@ class TestAmazonBedrockDocumentEmbedder:
         assert embedder.to_dict() == expected_dict
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
-    def test_from_dict(self, mock_boto3_session: Any, boto3_config: Optional[dict[str, Any]]):
+    def test_from_dict(self, mock_boto3_session: Any, boto3_config: dict[str, Any] | None):
         data = {
             "type": TYPE,
             "init_parameters": {

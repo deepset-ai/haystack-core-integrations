@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -210,20 +214,6 @@ class TestFastembedRanker:
             match="top_k must be > 0, but got -3",
         ):
             ranker.run(query=query, documents=list_document, top_k=-3)
-
-    def test_run_no_warmup(self):
-        """
-        Test for checking error when calling without a warmup.
-        """
-        ranker = FastembedRanker(model_name="Xenova/ms-marco-MiniLM-L-12-v2")
-
-        query = "query"
-        list_document = [Document("Document 1")]
-
-        with pytest.raises(
-            RuntimeError,
-        ):
-            ranker.run(query=query, documents=list_document)
 
     def test_run_empty_document_list(self):
         """
