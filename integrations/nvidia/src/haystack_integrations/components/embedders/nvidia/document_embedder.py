@@ -4,6 +4,7 @@
 
 import os
 import warnings
+from dataclasses import replace
 from typing import Any, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -49,7 +50,7 @@ class NvidiaDocumentEmbedder:
         embedding_separator: str = "\n",
         truncate: Optional[Union[EmbeddingTruncateMode, str]] = None,
         timeout: Optional[float] = None,
-    ):
+    ) -> None:
         """
         Create a NvidiaTextEmbedder component.
 
@@ -108,7 +109,7 @@ class NvidiaDocumentEmbedder:
     def class_name(cls) -> str:
         return "NvidiaDocumentEmbedder"
 
-    def default_model(self):
+    def default_model(self) -> None:
         """Set default model in local NIM mode."""
         valid_models = [
             model.id for model in self.available_models if not model.base_model or model.base_model == model.id
@@ -129,7 +130,7 @@ class NvidiaDocumentEmbedder:
             error_message = "No locally hosted model was found."
             raise ValueError(error_message)
 
-    def warm_up(self):
+    def warm_up(self) -> None:
         """
         Initializes the component.
         """
@@ -267,7 +268,9 @@ class NvidiaDocumentEmbedder:
 
         texts_to_embed = self._prepare_texts_to_embed(documents)
         embeddings, metadata = self._embed_batch(texts_to_embed, self.batch_size)
-        for doc, emb in zip(documents, embeddings):
-            doc.embedding = emb
 
-        return {"documents": documents, "meta": metadata}
+        new_documents = []
+        for doc, emb in zip(documents, embeddings):
+            new_documents.append(replace(doc, embedding=emb))
+
+        return {"documents": new_documents, "meta": metadata}
