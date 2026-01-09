@@ -248,7 +248,7 @@ class NvidiaDocumentEmbedder:
             - `documents` - List of processed Documents with embeddings.
             - `meta` - Metadata on usage statistics, etc.
         :raises TypeError:
-            If the input is not a string.
+            If the input is not a list of Documents.
         """
         if not self._initialized:
             self.warm_up()
