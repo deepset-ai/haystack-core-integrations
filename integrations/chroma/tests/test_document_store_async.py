@@ -18,6 +18,7 @@ from haystack_integrations.document_stores.chroma import ChromaDocumentStore
     sys.platform == "win32",
     reason="We do not run the Chroma server on Windows and async is only supported with HTTP connections",
 )
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestDocumentStoreAsync:
     @pytest.fixture
@@ -96,7 +97,29 @@ class TestDocumentStoreAsync:
         )
         self.assert_documents_are_equal(result, [d for d in filterable_docs if d.meta.get("number") == 100])
 
-    @pytest.mark.integration
+    async def test_client_settings_applied_async(self):
+        store = ChromaDocumentStore(
+            host="localhost",
+            port=8000,
+            client_settings={"anonymized_telemetry": False},
+            collection_name=f"{uuid.uuid1()}-async-settings",
+        )
+        await store._ensure_initialized_async()
+        assert store._async_client.get_settings().anonymized_telemetry is False
+
+    async def test_invalid_client_settings_async(self):
+        store = ChromaDocumentStore(
+            host="localhost",
+            port=8000,
+            client_settings={
+                "invalid_setting_name": "some_value",
+                "another_fake_setting": 123,
+            },
+            collection_name=f"{uuid.uuid1()}-async-invalid",
+        )
+        with pytest.raises(ValueError, match="Invalid client_settings"):
+            await store._ensure_initialized_async()
+
     async def test_search_async(self):
         document_store = ChromaDocumentStore(host="localhost", port=8000, collection_name="my_custom_collection")
 
