@@ -55,8 +55,8 @@ jobs:
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run docs
 
-      - name: Run tests
-        run: hatch run test:cov-retry
+      - name: Run tests (in parallel, using 4 cores)
+        run: hatch run test:cov-retry -n 4  # GA runner has 4 cores
 
       - name: Run unit tests with lowest direct dependencies
         run: |
