@@ -240,14 +240,23 @@ class MCPToolset(Toolset):
                              If False (default), defer connection to warm_up.
         :param inputs_from_state: Optional dictionary mapping tool names to their inputs_from_state config.
                                  Each config maps state keys to tool parameter names.
+                                 Tool names should match available tools from the server; a warning is logged for
+                                 unknown tools. Note: With Haystack >= 2.22.0, parameter names are validated;
+                                 ValueError is raised for invalid parameters. With earlier versions, invalid
+                                 parameters fail at runtime.
                                  Example: `{"git_status": {"repository": "repo_path"}}`
         :param outputs_to_state: Optional dictionary mapping tool names to their outputs_to_state config.
                                 Each config defines how tool outputs map to state keys with optional handlers.
+                                Tool names should match available tools from the server; a warning is logged for
+                                unknown tools.
                                 Example: `{"git_status": {"status_result": {"source": "status"}}}`
         :param outputs_to_string: Optional dictionary mapping tool names to their outputs_to_string config.
                                  Each config defines how tool outputs are converted to strings.
+                                 Tool names should match available tools from the server; a warning is logged for
+                                 unknown tools.
                                  Example: `{"git_diff": {"source": "diff", "handler": format_diff}}`
         :raises MCPToolNotFoundError: If any of the specified tool names are not found on the server
+        :raises ValueError: If parameter names in inputs_from_state are invalid (Haystack >= 2.22.0 only)
         """
         # Store configuration
         self.server_info = server_info
@@ -356,11 +365,11 @@ class MCPToolset(Toolset):
             return haystack_tools
         except Exception as e:
             # We need to close because we could connect properly, retrieve tools yet
-            # fail because of an MCPToolNotFoundError
+            # fail because of validation errors
             self.close()
 
-            if isinstance(e, MCPToolNotFoundError):
-                raise  # re-raise MCPToolNotFoundError as is to show original message
+            if isinstance(e, (MCPToolNotFoundError, ValueError)):
+                raise  # re-raise validation errors as is to show original message
 
             # Create informative error message for SSE connection errors
             # Common error handling for HTTP-based transports

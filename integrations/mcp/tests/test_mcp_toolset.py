@@ -324,7 +324,12 @@ class TestMCPToolset:
             assert callable(kwargs["outputs_to_string"]["add"]["handler"])
 
     async def test_toolset_state_config_unknown_tool_warning(self, caplog):
-        """Test that a warning is logged when state config references unknown tools."""
+        """Test that a warning is logged when state config references unknown tools.
+
+        Note: This test validates unknown tool names at the MCPToolset level.
+        For parameter validation (unknown parameter names), see test_toolset_state_config_invalid_parameter_raises_error
+        which requires Haystack >= 2.22.0.
+        """
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
 
         with caplog.at_level("WARNING"):
@@ -343,6 +348,31 @@ class TestMCPToolset:
             # The warning should be logged
             assert any("unknown_tool" in record.message for record in caplog.records)
             toolset.close()
+
+    @pytest.mark.skipif(
+        not hasattr(__import__("haystack.tools", fromlist=["Tool"]).Tool, "_get_valid_inputs"),
+        reason="Requires Haystack >= 2.22.0 for inputs_from_state validation",
+    )
+    async def test_toolset_state_config_invalid_parameter_raises_error(self):
+        """Test that ValueError is raised when inputs_from_state references non-existent parameter.
+
+        Requires Haystack >= 2.22.0 which validates inputs_from_state parameter names.
+        With Haystack < 2.22.0, this test is skipped and invalid parameter mappings will
+        only fail at runtime when the tool is invoked.
+        """
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+
+        with pytest.raises(ValueError, match="unknown parameter"):
+            MCPToolset(
+                server_info=server_info,
+                tool_names=["add"],
+                connection_timeout=10,
+                invocation_timeout=10,
+                eager_connect=True,
+                inputs_from_state={
+                    "add": {"state_key": "non_existent_param"},  # 'add' tool has 'a' and 'b' parameters
+                },
+            )
 
     async def test_toolset_no_state_config(self, calculator_toolset):
         """Test that tools have no state config when none is provided."""
