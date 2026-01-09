@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from dataclasses import replace
 from typing import Any, Optional, Union
 
 from haystack import Document, component, default_from_dict, default_to_dict
@@ -56,7 +57,7 @@ class OptimumDocumentEmbedder:
         progress_bar: bool = True,
         meta_fields_to_embed: Optional[list[str]] = None,
         embedding_separator: str = "\n",
-    ):
+    ) -> None:
         """
         Create a OptimumDocumentEmbedder component.
 
@@ -140,7 +141,7 @@ class OptimumDocumentEmbedder:
         self._backend = _EmbedderBackend(params)
         self._initialized = False
 
-    def warm_up(self):
+    def warm_up(self) -> None:
         """
         Initializes the component.
         """
@@ -223,7 +224,9 @@ class OptimumDocumentEmbedder:
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
         embeddings = self._backend.embed_texts(texts_to_embed)
-        for doc, emb in zip(documents, embeddings):
-            doc.embedding = emb
 
-        return {"documents": documents}
+        new_documents = []
+        for doc, emb in zip(documents, embeddings):
+            new_documents.append(replace(doc, embedding=emb))
+
+        return {"documents": new_documents}
