@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 
 import pytest
 from haystack import Document
@@ -6,15 +7,23 @@ from haystack import Document
 from haystack_integrations.document_stores.opensearch.document_store import OpenSearchDocumentStore
 
 
+def _get_unique_index_name() -> str:
+    """
+    Generate a unique, valid OpenSearch index name for test isolation.
+
+    Each test gets its own index to enable parallel test execution without conflicts.
+    """
+    return f"test_{uuid.uuid4().hex}"
+
+
 @pytest.fixture
-def document_store(request):
+def document_store():
     """
     We use this document store for basic tests and for testing filters.
     `return_embedding` is set to True because in filters tests we compare embeddings.
     """
     hosts = ["https://localhost:9200"]
-    # Use a different index for each test so we can run them in parallel
-    index = f"{request.node.name}"
+    index = _get_unique_index_name()
 
     store = OpenSearchDocumentStore(
         hosts=hosts,
@@ -36,9 +45,9 @@ def document_store(request):
 
 
 @pytest.fixture
-def document_store_2(request):
+def document_store_2():
     hosts = ["https://localhost:9200"]
-    index = f"test_index_2_{request.node.name}"
+    index = f"test_index_2_{_get_unique_index_name()}"
 
     store = OpenSearchDocumentStore(
         hosts=hosts,
@@ -61,13 +70,13 @@ def document_store_2(request):
 
 
 @pytest.fixture
-def document_store_readonly(request):
+def document_store_readonly():
     """
     A document store that does not automatically create the underlying index.
     """
     hosts = ["https://localhost:9200"]
     # Use a different index for each test so we can run them in parallel
-    index = f"{request.node.name}"
+    index = _get_unique_index_name()
 
     store = OpenSearchDocumentStore(
         hosts=hosts,
@@ -90,13 +99,12 @@ def document_store_readonly(request):
 
 
 @pytest.fixture
-def document_store_embedding_dim_4_no_emb_returned(request):
+def document_store_embedding_dim_4_no_emb_returned():
     """
     A document store with embedding dimension 4 that does not return embeddings.
     """
     hosts = ["https://localhost:9200"]
-    # Use a different index for each test so we can run them in parallel
-    index = f"{request.node.name}"
+    index = _get_unique_index_name()
 
     store = OpenSearchDocumentStore(
         hosts=hosts,
@@ -113,15 +121,14 @@ def document_store_embedding_dim_4_no_emb_returned(request):
 
 
 @pytest.fixture
-def document_store_embedding_dim_4_no_emb_returned_faiss(request):
+def document_store_embedding_dim_4_no_emb_returned_faiss():
     """
     A document store with embedding dimension 4 that uses a FAISS engine with HNSW algorithm for vector search.
     We use this document store for testing efficient k-NN filtering according to
     https://opensearch.org/docs/latest/vector-search/filter-search-knn/efficient-knn-filtering/.
     """
     hosts = ["https://localhost:9200"]
-    # Use a different index for each test so we can run them in parallel
-    index = f"{request.node.name}"
+    index = _get_unique_index_name()
 
     store = OpenSearchDocumentStore(
         hosts=hosts,
