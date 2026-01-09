@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Sequence
-from typing import Any, Literal, Optional, cast
+from typing import Any, Literal, cast
 
 import chromadb
 from chromadb.api.models.AsyncCollection import AsyncCollection
@@ -36,12 +36,12 @@ class ChromaDocumentStore:
         self,
         collection_name: str = "documents",
         embedding_function: str = "default",
-        persist_path: Optional[str] = None,
-        host: Optional[str] = None,
-        port: Optional[int] = None,
+        persist_path: str | None = None,
+        host: str | None = None,
+        port: int | None = None,
         distance_function: Literal["l2", "cosine", "ip"] = "l2",
-        metadata: Optional[dict] = None,
-        client_settings: Optional[dict[str, Any]] = None,
+        metadata: dict | None = None,
+        client_settings: dict[str, Any] | None = None,
         **embedding_function_params: Any,
     ):
         """
@@ -97,8 +97,8 @@ class ChromaDocumentStore:
         self._host = host
         self._port = port
 
-        self._collection: Optional[chromadb.Collection] = None
-        self._async_collection: Optional[AsyncCollection] = None
+        self._collection: chromadb.Collection | None = None
+        self._async_collection: AsyncCollection | None = None
 
     def _ensure_initialized(self):
         if not self._collection:
@@ -208,7 +208,7 @@ class ChromaDocumentStore:
                 )
 
     @staticmethod
-    def _prepare_get_kwargs(filters: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    def _prepare_get_kwargs(filters: dict[str, Any] | None = None) -> dict[str, Any]:
         """
         Prepare kwargs for Chroma get operations.
         """
@@ -226,7 +226,7 @@ class ChromaDocumentStore:
         return kwargs
 
     @staticmethod
-    def _prepare_query_kwargs(filters: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    def _prepare_query_kwargs(filters: dict[str, Any] | None = None) -> dict[str, Any]:
         """
         Prepare kwargs for Chroma query operations.
         """
@@ -264,7 +264,7 @@ class ChromaDocumentStore:
 
         return value
 
-    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
+    def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -282,7 +282,7 @@ class ChromaDocumentStore:
 
         return self._get_result_to_documents(result)
 
-    async def filter_documents_async(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
+    async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Asynchronously returns the documents that match the filters provided.
 
@@ -353,7 +353,7 @@ class ChromaDocumentStore:
         return ids_to_update, updated_metadata
 
     @staticmethod
-    def _convert_document_to_chroma(doc: Document) -> Optional[dict[str, Any]]:
+    def _convert_document_to_chroma(doc: Document) -> dict[str, Any] | None:
         """
         Converts a Haystack Document to a Chroma document.
         """
@@ -755,7 +755,7 @@ class ChromaDocumentStore:
         self,
         queries: list[str],
         top_k: int,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
     ) -> list[list[Document]]:
         """
         Search the documents in the store using the provided text queries.
@@ -781,7 +781,7 @@ class ChromaDocumentStore:
         self,
         queries: list[str],
         top_k: int,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
     ) -> list[list[Document]]:
         """
         Asynchronously search the documents in the store using the provided text queries.
@@ -809,7 +809,7 @@ class ChromaDocumentStore:
         self,
         query_embeddings: list[list[float]],
         top_k: int,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
     ) -> list[list[Document]]:
         """
         Perform vector search on the stored document, pass the embeddings of the queries instead of their text.
@@ -837,7 +837,7 @@ class ChromaDocumentStore:
         self,
         query_embeddings: list[list[float]],
         top_k: int,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
     ) -> list[list[Document]]:
         """
         Asynchronously perform vector search on the stored document, pass the embeddings of the queries instead of

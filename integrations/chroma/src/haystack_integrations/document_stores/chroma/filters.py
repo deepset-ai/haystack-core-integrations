@@ -4,7 +4,7 @@
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from chromadb.api.types import WhereDocument, validate_where, validate_where_document
 
@@ -38,8 +38,8 @@ class ChromaFilter:
     """
 
     ids: list[str]
-    where: Optional[dict[str, Any]]
-    where_document: Optional[dict[str, Any]]
+    where: dict[str, Any] | None
+    where_document: dict[str, Any] | None
 
 
 def _convert_filters(filters: dict[str, Any]) -> ChromaFilter:
