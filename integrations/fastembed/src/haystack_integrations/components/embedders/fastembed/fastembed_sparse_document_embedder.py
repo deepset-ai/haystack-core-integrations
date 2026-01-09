@@ -162,7 +162,7 @@ class FastembedSparseDocumentEmbedder:
                 "FastembedSparseDocumentEmbedder expects a list of Documents as input. "
                 "In case you want to embed a list of strings, please use the FastembedTextEmbedder."
             )
-            raise TypeError(msg)\
+            raise TypeError(msg)
 
         if self.embedding_backend is None:
             self.warm_up()
