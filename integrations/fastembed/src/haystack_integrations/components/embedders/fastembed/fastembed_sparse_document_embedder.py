@@ -1,3 +1,8 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+from dataclasses import replace
 from typing import Any, Optional
 
 from haystack import Document, component, default_to_dict
@@ -63,7 +68,7 @@ class FastembedSparseDocumentEmbedder:
         meta_fields_to_embed: Optional[list[str]] = None,
         embedding_separator: str = "\n",
         model_kwargs: Optional[dict[str, Any]] = None,
-    ):
+    ) -> None:
         """
         Create an FastembedDocumentEmbedder component.
 
@@ -95,6 +100,7 @@ class FastembedSparseDocumentEmbedder:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
         self.model_kwargs = model_kwargs
+        self.embedding_backend = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -116,11 +122,11 @@ class FastembedSparseDocumentEmbedder:
             model_kwargs=self.model_kwargs,
         )
 
-    def warm_up(self):
+    def warm_up(self) -> None:
         """
         Initializes the component.
         """
-        if not hasattr(self, "embedding_backend"):
+        if self.embedding_backend is None:
             self.embedding_backend = _FastembedSparseEmbeddingBackendFactory.get_embedding_backend(
                 model_name=self.model_name,
                 cache_dir=self.cache_dir,
@@ -149,25 +155,28 @@ class FastembedSparseDocumentEmbedder:
         :returns: A dictionary with the following keys:
             - `documents`: List of Documents with each Document's `sparse_embedding`
                             field set to the computed embeddings.
+        :raises TypeError: If the input is not a list of Documents.
         """
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "FastembedSparseDocumentEmbedder expects a list of Documents as input. "
                 "In case you want to embed a list of strings, please use the FastembedTextEmbedder."
             )
-            raise TypeError(msg)
-        if not hasattr(self, "embedding_backend"):
-            msg = "The embedding model has not been loaded. Please call warm_up() before running."
-            raise RuntimeError(msg)
+            raise TypeError(msg)\
+
+        if self.embedding_backend is None:
+            self.warm_up()
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
-        embeddings = self.embedding_backend.embed(
+        embeddings = self.embedding_backend.embed(  # type: ignore[union-attr]
             texts_to_embed,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
             parallel=self.parallel,
         )
 
+        new_documents = []
         for doc, emb in zip(documents, embeddings):
-            doc.sparse_embedding = emb
-        return {"documents": documents}
+            new_documents.append(replace(doc, embedding=emb))
+
+        return {"documents": new_documents}

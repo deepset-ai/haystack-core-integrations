@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from typing import Any, Optional
 
 from haystack import component, default_to_dict
@@ -36,7 +40,7 @@ class FastembedSparseTextEmbedder:
         parallel: Optional[int] = None,
         local_files_only: bool = False,
         model_kwargs: Optional[dict[str, Any]] = None,
-    ):
+    ) -> None:
         """
         Create a FastembedSparseTextEmbedder component.
 
@@ -61,6 +65,7 @@ class FastembedSparseTextEmbedder:
         self.parallel = parallel
         self.local_files_only = local_files_only
         self.model_kwargs = model_kwargs
+        self.embedding_backend = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -80,11 +85,11 @@ class FastembedSparseTextEmbedder:
             model_kwargs=self.model_kwargs,
         )
 
-    def warm_up(self):
+    def warm_up(self) -> None:
         """
         Initializes the component.
         """
-        if not hasattr(self, "embedding_backend"):
+        if self.embedding_backend is None:
             self.embedding_backend = _FastembedSparseEmbeddingBackendFactory.get_embedding_backend(
                 model_name=self.model_name,
                 cache_dir=self.cache_dir,
@@ -102,7 +107,6 @@ class FastembedSparseTextEmbedder:
         :returns: A dictionary with the following keys:
             - `embedding`: A list of floats representing the embedding of the input text.
         :raises TypeError: If the input is not a string.
-        :raises RuntimeError: If the embedding model has not been loaded.
         """
         if not isinstance(text, str):
             msg = (
@@ -110,11 +114,11 @@ class FastembedSparseTextEmbedder:
                 "In case you want to embed a list of Documents, please use the FastembedDocumentEmbedder."
             )
             raise TypeError(msg)
-        if not hasattr(self, "embedding_backend"):
-            msg = "The embedding model has not been loaded. Please call warm_up() before running."
-            raise RuntimeError(msg)
 
-        embedding = self.embedding_backend.embed(
+        if self.embedding_backend is None:
+            self.warm_up()
+
+        embedding = self.embedding_backend.embed(  # type: ignore[union-attr]
             [text],
             progress_bar=self.progress_bar,
             parallel=self.parallel,
