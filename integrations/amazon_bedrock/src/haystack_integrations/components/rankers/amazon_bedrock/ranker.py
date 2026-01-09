@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from botocore.exceptions import ClientError
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -60,15 +60,15 @@ class AmazonBedrockRanker:
         self,
         model: str = "cohere.rerank-v3-5:0",
         top_k: int = 10,
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
-        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
+        aws_access_key_id: Secret | None = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
+        aws_secret_access_key: Secret | None = Secret.from_env_var(  # noqa: B008
             ["AWS_SECRET_ACCESS_KEY"], strict=False
         ),
-        aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
-        aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
-        aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
-        max_chunks_per_doc: Optional[int] = None,
-        meta_fields_to_embed: Optional[list[str]] = None,
+        aws_session_token: Secret | None = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
+        aws_region_name: Secret | None = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
+        aws_profile_name: Secret | None = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
+        max_chunks_per_doc: int | None = None,
+        meta_fields_to_embed: list[str] | None = None,
         meta_data_separator: str = "\n",
     ) -> None:
         if not model:
@@ -103,7 +103,7 @@ class AmazonBedrockRanker:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.meta_data_separator = meta_data_separator
 
-        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+        def resolve_secret(secret: Secret | None) -> str | None:
             return secret.resolve_value() if secret else None
 
         try:
@@ -177,7 +177,7 @@ class AmazonBedrockRanker:
         return concatenated_input_list
 
     @component.output_types(documents=list[Document])
-    def run(self, query: str, documents: list[Document], top_k: Optional[int] = None) -> dict[str, list[Document]]:
+    def run(self, query: str, documents: list[Document], top_k: int | None = None) -> dict[str, list[Document]]:
         """
         Use the Amazon Bedrock Reranker to re-rank the list of documents based on the query.
 
@@ -201,7 +201,7 @@ class AmazonBedrockRanker:
         if not documents:
             return {"documents": []}
 
-        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+        def resolve_secret(secret: Secret | None) -> str | None:
             return secret.resolve_value() if secret else None
 
         region = resolve_secret(self.aws_region_name)

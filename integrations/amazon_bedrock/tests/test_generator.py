@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import MagicMock, call
 
 import pytest
@@ -21,7 +21,7 @@ from haystack_integrations.components.generators.amazon_bedrock.adapters import 
 
 
 @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
-def test_to_dict(mock_boto3_session: Any, boto3_config: Optional[dict[str, Any]]):
+def test_to_dict(mock_boto3_session: Any, boto3_config: dict[str, Any] | None):
     """
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
@@ -50,7 +50,7 @@ def test_to_dict(mock_boto3_session: Any, boto3_config: Optional[dict[str, Any]]
 
 
 @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
-def test_from_dict(mock_boto3_session: Any, boto3_config: Optional[dict[str, Any]]):
+def test_from_dict(mock_boto3_session: Any, boto3_config: dict[str, Any] | None):
     """
     Test that the from_dict method returns the correct object
     """
@@ -161,7 +161,7 @@ def test_constructor_with_empty_model():
         ("mistral.mistral-medium-v8:0", MistralAdapter),  # artificial
     ],
 )
-def test_get_model_adapter(model: str, expected_model_adapter: Optional[type[BedrockModelAdapter]]):
+def test_get_model_adapter(model: str, expected_model_adapter: type[BedrockModelAdapter] | None):
     """
     Test that the correct model adapter is returned for a given model
     """
@@ -182,7 +182,7 @@ def test_get_model_adapter(model: str, expected_model_adapter: Optional[type[Bed
     ],
 )
 def test_get_model_adapter_with_model_family(
-    model_family: str, expected_model_adapter: Optional[type[BedrockModelAdapter]]
+    model_family: str, expected_model_adapter: type[BedrockModelAdapter] | None
 ):
     """
     Test that the correct model adapter is returned for a given model model_family
