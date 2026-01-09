@@ -8,7 +8,6 @@ from unittest.mock import Mock, patch
 import pytest
 from elasticsearch.exceptions import BadRequestError  # type: ignore[import-not-found]
 from haystack.dataclasses.document import Document
-from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
@@ -668,10 +667,16 @@ class TestDocumentStore(DocumentStoreBaseTests):
         ]
         document_store.write_documents(docs)
 
-        # Get min/max for numeric field
+        # Get min/max for numeric field without "meta." prefix
         result = document_store.get_field_min_max("value")
         assert result["min"] == 5
         assert result["max"] == 20
+
+        # Get min/max for numeric field with "meta." prefix (should work the same)
+        result_with_prefix = document_store.get_field_min_max("meta.value")
+        assert result_with_prefix["min"] == 5
+        assert result_with_prefix["max"] == 20
+        assert result_with_prefix == result
 
         # Get min/max for float field
         # Note: Float fields might not be indexed as numeric depending on dynamic mapping
@@ -679,6 +684,12 @@ class TestDocumentStore(DocumentStoreBaseTests):
         if result["min"] is not None and result["max"] is not None:
             assert result["min"] == 2.1
             assert result["max"] == 9.9
+
+            # Test with "meta." prefix
+            result_with_prefix = document_store.get_field_min_max("meta.score")
+            assert result_with_prefix["min"] == 2.1
+            assert result_with_prefix["max"] == 9.9
+            assert result_with_prefix == result
         else:
             # If the field isn't indexed as numeric, skip this assertion
             # This can happen if Elasticsearch's dynamic mapping treats it as a keyword
@@ -694,7 +705,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         ]
         document_store.write_documents(docs)
 
-        # Get unique values for category field
+        # Get unique values for category field without "meta." prefix
         result = document_store.get_field_unique_values("category")
         assert len(result["values"]) > 0
         assert "A" in result["values"]
@@ -702,14 +713,29 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert "C" in result["values"]
         assert result["total"] >= 3
 
+        # Get unique values for category field with "meta." prefix (should work the same)
+        result_with_prefix = document_store.get_field_unique_values("meta.category")
+        assert result_with_prefix["values"] == result["values"]
+        assert result_with_prefix["total"] == result["total"]
+
         # Get unique values with pagination
         result = document_store.get_field_unique_values("category", from_=0, size=2)
         assert len(result["values"]) == 2
 
-        # Get unique values with search term
+        # Get unique values with pagination using "meta." prefix
+        result_with_prefix = document_store.get_field_unique_values("meta.category", from_=0, size=2)
+        assert len(result_with_prefix["values"]) == 2
+        assert result_with_prefix["values"] == result["values"]
+
+        # Get unique values with search term without "meta." prefix
         result = document_store.get_field_unique_values("status", search_term="act")
         assert "active" in result["values"]
         # inactive might also be included if prefix matching includes it
+
+        # Get unique values with search term using "meta." prefix
+        result_with_prefix = document_store.get_field_unique_values("meta.status", search_term="act")
+        assert "active" in result_with_prefix["values"]
+        assert result_with_prefix["values"] == result["values"]
 
     def test_query_sql(self, document_store: ElasticsearchDocumentStore):
         docs = [
@@ -728,6 +754,18 @@ class TestDocumentStore(DocumentStoreBaseTests):
         except DocumentStoreError:
             # SQL plugin might not be enabled, which is acceptable
             pass
+
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+import pytest
+from haystack.dataclasses.document import Document
+from haystack.dataclasses.sparse_embedding import SparseEmbedding
+from haystack.document_stores.errors import DocumentStoreError
+from haystack.document_stores.types import DuplicatePolicy
+
+from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
 
 @pytest.mark.integration
@@ -1094,10 +1132,16 @@ class TestElasticsearchDocumentStoreAsync:
         ]
         await document_store.write_documents_async(docs)
 
-        # Get min/max for numeric field
+        # Get min/max for numeric field without "meta." prefix
         result = await document_store.get_field_min_max_async("value")
         assert result["min"] == 5
         assert result["max"] == 20
+
+        # Get min/max for numeric field with "meta." prefix (should work the same)
+        result_with_prefix = await document_store.get_field_min_max_async("meta.value")
+        assert result_with_prefix["min"] == 5
+        assert result_with_prefix["max"] == 20
+        assert result_with_prefix == result
 
         # Get min/max for float field
         # Note: Float fields might not be indexed as numeric depending on dynamic mapping
@@ -1105,6 +1149,12 @@ class TestElasticsearchDocumentStoreAsync:
         if result["min"] is not None and result["max"] is not None:
             assert result["min"] == 2.1
             assert result["max"] == 9.9
+
+            # Test with "meta." prefix
+            result_with_prefix = await document_store.get_field_min_max_async("meta.score")
+            assert result_with_prefix["min"] == 2.1
+            assert result_with_prefix["max"] == 9.9
+            assert result_with_prefix == result
         else:
             # If the field isn't indexed as numeric, skip this assertion
             # This can happen if Elasticsearch's dynamic mapping treats it as a keyword
@@ -1121,7 +1171,7 @@ class TestElasticsearchDocumentStoreAsync:
         ]
         await document_store.write_documents_async(docs)
 
-        # Get unique values for category field
+        # Get unique values for category field without "meta." prefix
         result = await document_store.get_field_unique_values_async("category")
         assert len(result["values"]) > 0
         assert "A" in result["values"]
@@ -1129,13 +1179,28 @@ class TestElasticsearchDocumentStoreAsync:
         assert "C" in result["values"]
         assert result["total"] >= 3
 
+        # Get unique values for category field with "meta." prefix (should work the same)
+        result_with_prefix = await document_store.get_field_unique_values_async("meta.category")
+        assert result_with_prefix["values"] == result["values"]
+        assert result_with_prefix["total"] == result["total"]
+
         # Get unique values with pagination
         result = await document_store.get_field_unique_values_async("category", from_=0, size=2)
         assert len(result["values"]) == 2
 
-        # Get unique values with search term
+        # Get unique values with pagination using "meta." prefix
+        result_with_prefix = await document_store.get_field_unique_values_async("meta.category", from_=0, size=2)
+        assert len(result_with_prefix["values"]) == 2
+        assert result_with_prefix["values"] == result["values"]
+
+        # Get unique values with search term without "meta." prefix
         result = await document_store.get_field_unique_values_async("status", search_term="act")
         assert "active" in result["values"]
+
+        # Get unique values with search term using "meta." prefix
+        result_with_prefix = await document_store.get_field_unique_values_async("meta.status", search_term="act")
+        assert "active" in result_with_prefix["values"]
+        assert result_with_prefix["values"] == result["values"]
 
     @pytest.mark.asyncio
     async def test_query_sql_async(self, document_store):

@@ -1182,11 +1182,16 @@ class ElasticsearchDocumentStore:
         Returns the minimum and maximum values for a metadata field.
 
         :param metadata_field: The metadata field name to get min/max values for.
+            If the field name starts with "meta.", the prefix will be removed automatically.
         :returns: A dictionary with 'min' and 'max' keys containing the minimum and maximum values.
         """
         self._ensure_initialized()
 
         try:
+            # Remove "meta." prefix if present, as documents are flattened in Elasticsearch
+            if metadata_field.startswith("meta."):
+                metadata_field = metadata_field[5:]
+
             body = {
                 "query": {"match_all": {}},
                 "aggs": {
@@ -1211,11 +1216,16 @@ class ElasticsearchDocumentStore:
         Asynchronously returns the minimum and maximum values for a metadata field.
 
         :param metadata_field: The metadata field name to get min/max values for.
+            If the field name starts with "meta.", the prefix will be removed automatically.
         :returns: A dictionary with 'min' and 'max' keys containing the minimum and maximum values.
         """
         self._ensure_initialized()
 
         try:
+            # Remove "meta." prefix if present, as documents are flattened in Elasticsearch
+            if metadata_field.startswith("meta."):
+                metadata_field = metadata_field[5:]
+
             body = {
                 "query": {"match_all": {}},
                 "aggs": {
@@ -1242,6 +1252,7 @@ class ElasticsearchDocumentStore:
         Returns unique values for a metadata field, optionally filtered by a search term.
 
         :param metadata_field: The metadata field name to get unique values for.
+            If the field name starts with "meta.", the prefix will be removed automatically.
         :param search_term: Optional search term to filter the unique values.
         :param from_: The starting index for pagination (note: terms aggregation doesn't support from_ directly,
             so this is approximated by fetching more results and slicing).
@@ -1251,6 +1262,10 @@ class ElasticsearchDocumentStore:
         self._ensure_initialized()
 
         try:
+            # Remove "meta." prefix if present, as documents are flattened in Elasticsearch
+            if metadata_field.startswith("meta."):
+                metadata_field = metadata_field[5:]
+
             # Terms aggregation doesn't support 'from_' directly, so we fetch from_ + size and slice
             fetch_size = from_ + size if from_ > 0 else size
 
@@ -1309,6 +1324,7 @@ class ElasticsearchDocumentStore:
         Asynchronously returns unique values for a metadata field, optionally filtered by a search term.
 
         :param metadata_field: The metadata field name to get unique values for.
+            If the field name starts with "meta.", the prefix will be removed automatically.
         :param search_term: Optional search term to filter the unique values.
         :param from_: The starting index for pagination (note: terms aggregation doesn't support from_ directly,
             so this is approximated by fetching more results and slicing).
@@ -1318,6 +1334,10 @@ class ElasticsearchDocumentStore:
         self._ensure_initialized()
 
         try:
+            # Remove "meta." prefix if present, as documents are flattened in Elasticsearch
+            if metadata_field.startswith("meta."):
+                metadata_field = metadata_field[5:]
+
             # Terms aggregation doesn't support 'from_' directly, so we fetch from_ + size and slice
             fetch_size = from_ + size if from_ > 0 else size
 
