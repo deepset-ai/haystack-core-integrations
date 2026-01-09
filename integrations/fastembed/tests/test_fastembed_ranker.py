@@ -4,6 +4,7 @@
 
 from unittest.mock import MagicMock
 
+import numpy as np
 import pytest
 from haystack import Document, default_from_dict
 
@@ -237,6 +238,7 @@ class TestFastembedRanker:
             meta_fields_to_embed=["meta_field"],
         )
         ranker._model = MagicMock()
+        ranker._model.rerank.return_value = [np.random.rand(3, 16).tolist() for _ in range(5)]
 
         documents = [Document(content=f"document-number {i}", meta={"meta_field": f"meta_value {i}"}) for i in range(5)]
         query = "test"

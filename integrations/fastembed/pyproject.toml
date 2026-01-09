@@ -7,7 +7,7 @@ name = "fastembed-haystack"
 dynamic = ["version"]
 description = "Haystack 2.x component to embed strings and Documents using fastembed embedding model"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
@@ -15,7 +15,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -23,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.0.1", "fastembed>=0.4.2"]
+dependencies = ["haystack-ai>=2.22.0", "fastembed>=0.4.2"]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations"
@@ -75,7 +74,6 @@ check_untyped_defs = true
 disallow_incomplete_defs = true
 
 [tool.ruff]
-target-version = "py39"
 line-length = 120
 
 [tool.ruff.lint]
@@ -123,10 +121,6 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
-]
-unfixable = [
-  # Don't touch unused imports
-  "F401",
 ]
 
 [tool.ruff.lint.isort]

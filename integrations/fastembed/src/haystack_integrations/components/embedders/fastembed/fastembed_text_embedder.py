@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional
+from typing import Any
 
 from haystack import component, default_to_dict
 
@@ -33,12 +33,12 @@ class FastembedTextEmbedder:
     def __init__(
         self,
         model: str = "BAAI/bge-small-en-v1.5",
-        cache_dir: Optional[str] = None,
-        threads: Optional[int] = None,
+        cache_dir: str | None = None,
+        threads: int | None = None,
         prefix: str = "",
         suffix: str = "",
         progress_bar: bool = True,
-        parallel: Optional[int] = None,
+        parallel: int | None = None,
         local_files_only: bool = False,
     ) -> None:
         """
@@ -67,7 +67,7 @@ class FastembedTextEmbedder:
         self.progress_bar = progress_bar
         self.parallel = parallel
         self.local_files_only = local_files_only
-        self.embedding_backend: Optional[_FastembedEmbeddingBackend] = None
+        self.embedding_backend: _FastembedEmbeddingBackend | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """

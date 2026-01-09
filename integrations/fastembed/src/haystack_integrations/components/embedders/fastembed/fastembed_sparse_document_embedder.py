@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import replace
-from typing import Any, Optional
+from typing import Any
 
 from haystack import Document, component, default_to_dict
 
@@ -62,15 +62,15 @@ class FastembedSparseDocumentEmbedder:
     def __init__(
         self,
         model: str = "prithivida/Splade_PP_en_v1",
-        cache_dir: Optional[str] = None,
-        threads: Optional[int] = None,
+        cache_dir: str | None = None,
+        threads: int | None = None,
         batch_size: int = 32,
         progress_bar: bool = True,
-        parallel: Optional[int] = None,
+        parallel: int | None = None,
         local_files_only: bool = False,
-        meta_fields_to_embed: Optional[list[str]] = None,
+        meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
-        model_kwargs: Optional[dict[str, Any]] = None,
+        model_kwargs: dict[str, Any] | None = None,
     ) -> None:
         """
         Create an FastembedDocumentEmbedder component.
@@ -103,7 +103,7 @@ class FastembedSparseDocumentEmbedder:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
         self.model_kwargs = model_kwargs
-        self.embedding_backend: Optional[_FastembedSparseEmbeddingBackend] = None
+        self.embedding_backend: _FastembedSparseEmbeddingBackend | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -179,7 +179,7 @@ class FastembedSparseDocumentEmbedder:
         )
 
         new_documents = []
-        for doc, emb in zip(documents, embeddings):
+        for doc, emb in zip(documents, embeddings, strict=True):
             new_documents.append(replace(doc, sparse_embedding=emb))
 
         return {"documents": new_documents}

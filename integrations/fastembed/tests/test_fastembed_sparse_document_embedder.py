@@ -267,7 +267,7 @@ class TestFastembedSparseDocumentEmbedderDoc:
             embedding_separator="\n",
         )
         embedder.embedding_backend = MagicMock()
-
+        embedder.embedding_backend.embed.return_value = [self._generate_mocked_sparse_embedding(3) for _ in range(5)]
         documents = [Document(content=f"document-number {i}", meta={"meta_field": f"meta_value {i}"}) for i in range(5)]
 
         embedder.run(documents=documents)
