@@ -1,5 +1,14 @@
 # Changelog
 
+## [integrations/anthropic-v5.0.0] - 2026-01-09
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Anthropic - drop Python 3.9 and use X|Y typing (#2688)
+
+
 ## [integrations/anthropic-v4.6.0] - 2025-11-26
 
 
