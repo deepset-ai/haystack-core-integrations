@@ -1,6 +1,6 @@
 import json
 from collections.abc import AsyncIterator, Iterator
-from typing import Any, Literal, Optional, Union, get_args
+from typing import Any, Literal, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
@@ -77,7 +77,7 @@ def _format_tool(tool: Tool) -> dict[str, Any]:
 
 def _format_message(
     message: ChatMessage,
-) -> Union[UserChatMessageV2, AssistantChatMessageV2, SystemChatMessageV2, ToolChatMessageV2]:
+) -> UserChatMessageV2 | AssistantChatMessageV2 | SystemChatMessageV2 | ToolChatMessageV2:
     """
     Formats a Haystack ChatMessage into Cohere's chat format.
 
@@ -147,7 +147,7 @@ def _format_message(
                     raise ValueError(msg)
 
         # Build multimodal content following Cohere's API specification
-        content_parts: list[Union[CohereTextContent, ImageUrlContent]] = []
+        content_parts: list[CohereTextContent | ImageUrlContent] = []
         for part in message._content:
             if isinstance(part, TextContent) and part.text:
                 text_content = CohereTextContent(text=part.text)
@@ -234,7 +234,7 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
 def _convert_cohere_chunk_to_streaming_chunk(
     chunk: StreamedChatResponseV2,
     model: str,
-    component_info: Optional[ComponentInfo] = None,
+    component_info: ComponentInfo | None = None,
     global_index: int = 0,
 ) -> StreamingChunk:
     """
@@ -518,10 +518,10 @@ class CohereChatGenerator:
         self,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
         model: str = "command-a-03-2025",
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        api_base_url: Optional[str] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        tools: Optional[ToolsType] = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        api_base_url: str | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: ToolsType | None = None,
         **kwargs: Any,
     ):
         """
@@ -618,9 +618,9 @@ class CohereChatGenerator:
     def run(
         self,
         messages: list[ChatMessage],
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        tools: Optional[ToolsType] = None,
-        streaming_callback: Optional[StreamingCallbackT] = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: ToolsType | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Invoke the chat endpoint based on the provided messages and generation parameters.
@@ -685,9 +685,9 @@ class CohereChatGenerator:
     async def run_async(
         self,
         messages: list[ChatMessage],
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        tools: Optional[ToolsType] = None,
-        streaming_callback: Optional[StreamingCallbackT] = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: ToolsType | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Asynchronously invoke the chat endpoint based on the provided messages and generation parameters.
