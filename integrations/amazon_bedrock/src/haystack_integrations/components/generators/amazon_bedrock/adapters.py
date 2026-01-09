@@ -1,6 +1,6 @@
 import json
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 from botocore.eventstream import EventStream
 from haystack.dataclasses import StreamingChunk, SyncStreamingCallbackT
@@ -19,7 +19,7 @@ class BedrockModelAdapter(ABC):
         It will be overridden by the corresponding parameter in the `model_kwargs` if it is present.
     """
 
-    def __init__(self, model_kwargs: dict[str, Any], max_length: Optional[int]) -> None:
+    def __init__(self, model_kwargs: dict[str, Any], max_length: int | None) -> None:
         self.model_kwargs = model_kwargs
         self.max_length = max_length
 
@@ -115,7 +115,7 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
     :param max_length: Maximum length of generated text
     """
 
-    def __init__(self, model_kwargs: dict[str, Any], max_length: Optional[int]) -> None:
+    def __init__(self, model_kwargs: dict[str, Any], max_length: int | None) -> None:
         self.use_messages_api = model_kwargs.get("use_messages_api", True)
         self.include_thinking = model_kwargs.get("include_thinking", True)
         self.thinking_tag = model_kwargs.get("thinking_tag", "thinking")
@@ -175,7 +175,7 @@ class AnthropicClaudeAdapter(BedrockModelAdapter):
             if self.include_thinking and len(thinking) == len(texts):
                 texts = [
                     f"{self.thinking_tag_start}{thinking}{self.thinking_tag_end}{text}"
-                    for text, thinking in zip(texts, thinking)
+                    for text, thinking in zip(texts, thinking, strict=True)
                 ]
             return texts
 
