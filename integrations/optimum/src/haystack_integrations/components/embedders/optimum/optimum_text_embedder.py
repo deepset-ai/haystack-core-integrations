@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from typing import Any, Optional, Union
 
 from haystack import component, default_from_dict, default_to_dict
@@ -162,14 +166,11 @@ class OptimumTextEmbedder:
             The text to embed.
         :returns:
             The embeddings of the text.
-        :raises RuntimeError:
-            If the component was not initialized.
         :raises TypeError:
             If the input is not a string.
         """
         if not self._initialized:
-            msg = "The embedding model has not been loaded. Please call warm_up() before running."
-            raise RuntimeError(msg)
+            self.warm_up()
 
         if not isinstance(text, str):
             msg = (

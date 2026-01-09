@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import copy
 import tempfile
 from unittest.mock import MagicMock, patch
@@ -371,7 +375,6 @@ class TestOptimumDocumentEmbedder:
                 optimizer_settings=opt_config,
                 quantizer_settings=quant_config,
             )
-            embedder.warm_up()
 
             result = embedder.run(documents=docs)
             _ = [embedder.run([d]) for d in docs_copy]
