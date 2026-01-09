@@ -1,5 +1,5 @@
 import json
-from typing import Any, ClassVar, Optional, Union
+from typing import Any, ClassVar
 
 import boto3
 import requests
@@ -49,15 +49,15 @@ class SagemakerGenerator:
     def __init__(
         self,
         model: str,
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
-        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
+        aws_access_key_id: Secret | None = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
+        aws_secret_access_key: Secret | None = Secret.from_env_var(  # noqa: B008
             ["AWS_SECRET_ACCESS_KEY"], strict=False
         ),
-        aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
-        aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
-        aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
-        aws_custom_attributes: Optional[dict[str, Any]] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
+        aws_session_token: Secret | None = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
+        aws_region_name: Secret | None = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
+        aws_profile_name: Secret | None = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
+        aws_custom_attributes: dict[str, Any] | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
     ):
         """
         Instantiates the session with SageMaker.
@@ -95,7 +95,7 @@ class SagemakerGenerator:
         self.aws_region_name = aws_region_name
         self.aws_profile_name = aws_profile_name
 
-        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+        def resolve_secret(secret: Secret | None) -> str | None:
             return secret.resolve_value() if secret else None
 
         try:
@@ -159,11 +159,11 @@ class SagemakerGenerator:
 
     @staticmethod
     def _get_aws_session(
-        aws_access_key_id: Optional[str] = None,
-        aws_secret_access_key: Optional[str] = None,
-        aws_session_token: Optional[str] = None,
-        aws_region_name: Optional[str] = None,
-        aws_profile_name: Optional[str] = None,
+        aws_access_key_id: str | None = None,
+        aws_secret_access_key: str | None = None,
+        aws_session_token: str | None = None,
+        aws_region_name: str | None = None,
+        aws_profile_name: str | None = None,
     ) -> boto3.Session:
         """
         Creates an AWS Session with the given parameters.
@@ -193,8 +193,8 @@ class SagemakerGenerator:
 
     @component.output_types(replies=list[str], meta=list[dict[str, Any]])
     def run(
-        self, prompt: str, generation_kwargs: Optional[dict[str, Any]] = None
-    ) -> dict[str, Union[list[str], list[dict[str, Any]]]]:
+        self, prompt: str, generation_kwargs: dict[str, Any] | None = None
+    ) -> dict[str, list[str] | list[dict[str, Any]]]:
         """
         Invoke the text generation inference based on the provided prompt and generation parameters.
 
