@@ -49,7 +49,7 @@ class NvidiaGenerator:
         api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
         model_arguments: Optional[dict[str, Any]] = None,
         timeout: Optional[float] = None,
-    ):
+    ) -> None:
         """
         Create a NvidiaGenerator component.
 
@@ -90,7 +90,7 @@ class NvidiaGenerator:
     def class_name(cls) -> str:
         return "NvidiaGenerator"
 
-    def default_model(self):
+    def default_model(self) -> None:
         """Set default model in local NIM mode."""
         valid_models = [
             model.id for model in self.available_models if not model.base_model or model.base_model == model.id
@@ -111,7 +111,7 @@ class NvidiaGenerator:
             error_message = "No locally hosted model was found."
             raise ValueError(error_message)
 
-    def warm_up(self):
+    def warm_up(self) -> None:
         """
         Initializes the component.
         """
@@ -183,8 +183,7 @@ class NvidiaGenerator:
             - `meta` - Metadata for each reply.
         """
         if self.backend is None:
-            msg = "The generation model has not been loaded. Call warm_up() before running."
-            raise RuntimeError(msg)
+            self.warm_up()
 
         assert self.backend is not None
         replies, meta = self.backend.generate(prompt=prompt)

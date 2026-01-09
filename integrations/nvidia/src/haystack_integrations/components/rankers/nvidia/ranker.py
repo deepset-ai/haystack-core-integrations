@@ -57,7 +57,7 @@ class NvidiaRanker:
         meta_fields_to_embed: Optional[list[str]] = None,
         embedding_separator: str = "\n",
         timeout: Optional[float] = None,
-    ):
+    ) -> None:
         """
         Create a NvidiaRanker component.
 
@@ -155,7 +155,7 @@ class NvidiaRanker:
             deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    def warm_up(self):
+    def warm_up(self) -> None:
         """
         Initialize the ranker.
 
@@ -192,12 +192,7 @@ class NvidiaRanker:
         return document_texts
 
     @component.output_types(documents=list[Document])
-    def run(
-        self,
-        query: str,
-        documents: list[Document],
-        top_k: Optional[int] = None,
-    ) -> dict[str, list[Document]]:
+    def run(self, query: str, documents: list[Document], top_k: Optional[int] = None) -> dict[str, list[Document]]:
         """
         Rank a list of documents based on a given query.
 
@@ -205,14 +200,13 @@ class NvidiaRanker:
         :param documents: The list of documents to rank.
         :param top_k: The number of documents to return.
 
-        :raises RuntimeError: If the ranker has not been loaded.
         :raises TypeError: If the arguments are of the wrong type.
 
         :returns: A dictionary containing the ranked documents.
         """
         if not self._initialized:
-            msg = "The ranker has not been loaded. Please call warm_up() before running."
-            raise RuntimeError(msg)
+            self.warm_up()
+
         if not isinstance(query, str):
             msg = "NvidiaRanker expects the `query` parameter to be a string."
             raise TypeError(msg)
