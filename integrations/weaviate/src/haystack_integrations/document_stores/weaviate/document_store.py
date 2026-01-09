@@ -326,7 +326,8 @@ class WeaviateDocumentStore:
         total = self.collection.aggregate.over_all(total_count=True).total_count
         return total if total else 0
 
-    def _to_data_object(self, document: Document) -> dict[str, Any]:
+    @staticmethod
+    def _to_data_object(document: Document) -> dict[str, Any]:
         """
         Converts a Document to a Weaviate data object ready to be saved.
         """
@@ -365,7 +366,8 @@ class WeaviateDocumentStore:
 
         return data
 
-    def _to_document(self, data: DataObject[dict[str, Any], None]) -> Document:
+    @staticmethod
+    def _to_document(data: DataObject[dict[str, Any], None]) -> Document:
         """
         Converts a data object read from Weaviate into a Document.
         """
@@ -460,7 +462,7 @@ class WeaviateDocumentStore:
             result = self._query_with_filters(filters)
         else:
             result = self._query()
-        return [self._to_document(doc) for doc in result]
+        return [WeaviateDocumentStore._to_document(doc) for doc in result]
 
     def _batch_write(self, documents: list[Document]) -> int:
         """
@@ -476,7 +478,7 @@ class WeaviateDocumentStore:
                     raise ValueError(msg)
 
                 batch.add_object(
-                    properties=self._to_data_object(doc),
+                    properties=WeaviateDocumentStore._to_data_object(doc),
                     collection=self.collection.name,
                     uuid=generate_uuid5(doc.id),
                     vector=doc.embedding,
@@ -524,7 +526,7 @@ class WeaviateDocumentStore:
             try:
                 self.collection.data.insert(
                     uuid=generate_uuid5(doc.id),
-                    properties=self._to_data_object(doc),
+                    properties=WeaviateDocumentStore._to_data_object(doc),
                     vector=doc.embedding,
                 )
 
@@ -848,7 +850,7 @@ class WeaviateDocumentStore:
             return_metadata=["score"],
         )
 
-        return [self._to_document(doc) for doc in result.objects]
+        return [WeaviateDocumentStore._to_document(doc) for doc in result.objects]
 
     async def _bm25_retrieval_async(
         self, query: str, filters: Optional[dict[str, Any]] = None, top_k: Optional[int] = None
@@ -866,7 +868,7 @@ class WeaviateDocumentStore:
             return_metadata=["score"],
         )
 
-        return [self._to_document(doc) for doc in result.objects]
+        return [WeaviateDocumentStore._to_document(doc) for doc in result.objects]
 
     def _embedding_retrieval(
         self,
@@ -892,7 +894,7 @@ class WeaviateDocumentStore:
             return_metadata=["certainty"],
         )
 
-        return [self._to_document(doc) for doc in result.objects]
+        return [WeaviateDocumentStore._to_document(doc) for doc in result.objects]
 
     async def _embedding_retrieval_async(
         self,
@@ -920,7 +922,7 @@ class WeaviateDocumentStore:
             return_metadata=["certainty"],
         )
 
-        return [self._to_document(doc) for doc in result.objects]
+        return [WeaviateDocumentStore._to_document(doc) for doc in result.objects]
 
     def _hybrid_retrieval(
         self,
@@ -945,7 +947,7 @@ class WeaviateDocumentStore:
             return_metadata=["score"],
         )
 
-        return [self._to_document(doc) for doc in result.objects]
+        return [WeaviateDocumentStore._to_document(doc) for doc in result.objects]
 
     async def _hybrid_retrieval_async(
         self,
@@ -972,4 +974,4 @@ class WeaviateDocumentStore:
             return_metadata=["score"],
         )
 
-        return [self._to_document(doc) for doc in result.objects]
+        return [WeaviateDocumentStore._to_document(doc) for doc in result.objects]

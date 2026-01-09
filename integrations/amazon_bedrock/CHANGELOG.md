@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v5.4.0] - 2026-01-08
+
+### 🚀 Features
+
+- Update `S3Downloader` to auto call run `warm_up` on first run instead raising error (#2673)
+
+### 🧹 Chores
+
+- Make fmt command more forgiving (#2671)
+
+### 🌀 Miscellaneous
+
+- Fix: Fix doc links (#2661)
+
 ## [integrations/amazon_bedrock-v5.3.1] - 2025-12-19
 
 ### 🐛 Bug Fixes

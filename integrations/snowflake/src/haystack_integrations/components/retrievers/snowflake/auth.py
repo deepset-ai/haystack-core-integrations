@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from pathlib import Path
 from typing import Any, Literal, Optional
 from urllib.parse import quote
