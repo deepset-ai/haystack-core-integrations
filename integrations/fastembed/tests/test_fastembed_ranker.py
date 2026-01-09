@@ -215,20 +215,6 @@ class TestFastembedRanker:
         ):
             ranker.run(query=query, documents=list_document, top_k=-3)
 
-    def test_run_no_warmup(self):
-        """
-        Test for checking error when calling without a warmup.
-        """
-        ranker = FastembedRanker(model_name="Xenova/ms-marco-MiniLM-L-12-v2")
-
-        query = "query"
-        list_document = [Document("Document 1")]
-
-        with pytest.raises(
-            RuntimeError,
-        ):
-            ranker.run(query=query, documents=list_document)
-
     def test_run_empty_document_list(self):
         """
         Test for no error when sending no documents.

@@ -177,6 +177,6 @@ class FastembedSparseDocumentEmbedder:
 
         new_documents = []
         for doc, emb in zip(documents, embeddings):
-            new_documents.append(replace(doc, embedding=emb))
+            new_documents.append(replace(doc, sparse_embedding=emb))
 
         return {"documents": new_documents}
