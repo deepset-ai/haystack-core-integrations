@@ -8,12 +8,15 @@ from collections.abc import Mapping
 from math import exp
 from typing import Any, Literal, Optional, Union
 
+import httpx
+import requests
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret
 from opensearchpy import AsyncHttpConnection, AsyncOpenSearch, OpenSearch
+from opensearchpy.exceptions import SerializationError
 from opensearchpy.helpers import async_bulk, bulk
 
 from haystack_integrations.document_stores.opensearch.auth import AsyncAWSAuth, AWSAuth
@@ -21,8 +24,11 @@ from haystack_integrations.document_stores.opensearch.filters import normalize_f
 
 logger = logging.getLogger(__name__)
 
+SPECIAL_FIELDS = {"content", "embedding", "id", "score", "sparse_embedding", "blob"}
 
 Hosts = Union[str, list[Union[str, Mapping[str, Union[str, int]]]]]
+
+ResponseFormat = Literal["json", "jdbc", "csv", "raw"]
 
 # document scores are essentially unbounded and will be scaled to values between 0 and 1 if scale_score is set to
 # True. Scaling uses the expit function (inverse of the logit function) after applying a scaling factor
@@ -1141,3 +1147,511 @@ class OpenSearchDocumentStore:
             return substitutions.get(custom_query, custom_query)
 
         return custom_query
+
+    def count_documents_by_filter(self, filters: dict) -> int:
+        """
+        Returns the number of documents that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents that match the filters.
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        normalized_filters = normalize_filters(filters)
+        body = {"query": {"bool": {"filter": normalized_filters}}}
+        return self._client.count(index=self._index, body=body)["count"]
+
+    async def count_documents_by_filter_async(self, filters: dict) -> int:
+        """
+        Asynchronously returns the number of documents that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents that match the filters.
+        """
+        await self._ensure_initialized_async()
+        assert self._async_client is not None
+
+        normalized_filters = normalize_filters(filters)
+        body = {"query": {"bool": {"filter": normalized_filters}}}
+        return (await self._async_client.count(index=self._index, body=body))["count"]
+
+    @staticmethod
+    def _build_cardinality_aggregations(index_mapping: dict[str, Any]) -> dict[str, Any]:
+        """
+        Builds cardinality aggregations for all metadata fields in the index mapping.
+
+        See: https://docs.opensearch.org/latest/aggregations/metric/cardinality/
+        """
+        aggs = {}
+        for field_name in index_mapping.keys():
+            if field_name not in SPECIAL_FIELDS:
+                aggs[f"{field_name}_cardinality"] = {"cardinality": {"field": field_name}}
+        return aggs
+
+    @staticmethod
+    def _build_distinct_values_query_body(filters: dict, aggs: dict[str, Any]) -> dict[str, Any]:
+        """
+        Builds the query body for distinct values counting with filters and aggregations.
+        """
+        if filters:
+            normalized_filters = normalize_filters(filters)
+            return {
+                "query": {"bool": {"filter": normalized_filters}},
+                "aggs": aggs,
+                "size": 0,  # We only need aggregations, not documents
+            }
+        else:
+            # No filters - match all documents
+            return {
+                "query": {"match_all": {}},
+                "aggs": aggs,
+                "size": 0,  # We only need aggregations, not documents
+            }
+
+    @staticmethod
+    def _extract_distinct_counts_from_aggregations(
+        aggregations: dict[str, Any], index_mapping: dict[str, Any]
+    ) -> dict[str, int]:
+        """
+        Extracts distinct value counts from search result aggregations.
+        """
+        distinct_counts = {}
+        for field_name in index_mapping.keys():
+            if field_name not in SPECIAL_FIELDS:
+                agg_key = f"{field_name}_cardinality"
+                if agg_key in aggregations:
+                    distinct_counts[field_name] = aggregations[agg_key]["value"]
+        return distinct_counts
+
+    def count_distinct_values_by_filter(self, filters: dict) -> dict[str, int]:
+        """
+        Returns the number of unique values for each meta field of the documents that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of unique values for each meta field of the documents that match the filters.
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        # use index mapping to get all fields
+        mapping = self._client.indices.get_mapping(index=self._index)
+        index_mapping = mapping[self._index]["mappings"]["properties"]
+
+        # build aggregations for each metadata field
+        aggs = self._build_cardinality_aggregations(index_mapping)
+        if not aggs:
+            return {}
+
+        # build and execute search query
+        body = self._build_distinct_values_query_body(filters, aggs)
+        result = self._client.search(index=self._index, body=body)
+
+        # extract cardinality values from aggregations
+        return self._extract_distinct_counts_from_aggregations(result.get("aggregations", {}), index_mapping)
+
+    async def count_distinct_values_by_filter_async(self, filters: dict) -> dict[str, int]:
+        """
+        Asynchronously returns the number of unique values for each meta field of the documents that match the
+        provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of unique values for each meta field of the documents that match the filters.
+        """
+        await self._ensure_initialized_async()
+        assert self._async_client is not None
+
+        # use index mapping to get all fields
+        mapping = await self._async_client.indices.get_mapping(index=self._index)
+        index_mapping = mapping[self._index]["mappings"]["properties"]
+
+        # build aggregations for each metadata field
+        aggs = self._build_cardinality_aggregations(index_mapping)
+        if not aggs:
+            return {}
+
+        # build and execute search query
+        body = self._build_distinct_values_query_body(filters, aggs)
+        result = await self._async_client.search(index=self._index, body=body)
+
+        # extract cardinality values from aggregations
+        return self._extract_distinct_counts_from_aggregations(result.get("aggregations", {}), index_mapping)
+
+    def get_fields_info(self) -> dict[str, dict]:
+        """
+        Returns the information about the fields in the index.
+
+        :returns: The information about the fields in the index.
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        mapping = self._client.indices.get_mapping(index=self._index)
+        index_mapping = mapping[self._index]["mappings"]["properties"]
+        return index_mapping
+
+    async def get_fields_info_async(self) -> dict[str, dict]:
+        """
+        Asynchronously returns the information about the fields in the index.
+
+        :returns: The information about the fields in the index.
+        """
+        await self._ensure_initialized_async()
+        assert self._async_client is not None
+
+        mapping = await self._async_client.indices.get_mapping(index=self._index)
+        index_mapping = mapping[self._index]["mappings"]["properties"]
+        return index_mapping
+
+    @staticmethod
+    def _normalize_metadata_field_name(metadata_field: str) -> str:
+        """
+        Normalizes a metadata field name by removing the "meta." prefix if present.
+        """
+        return metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
+
+    @staticmethod
+    def _build_min_max_query_body(field_name: str) -> dict[str, Any]:
+        """
+        Builds the query body for getting min and max values using stats aggregation.
+        """
+        return {
+            "query": {"match_all": {}},
+            "aggs": {
+                "field_stats": {
+                    "stats": {
+                        "field": field_name,
+                    }
+                }
+            },
+            "size": 0,  # We only need aggregations, not documents
+        }
+
+    @staticmethod
+    def _extract_min_max_from_stats(stats: dict[str, Any]) -> dict[str, Any]:
+        """
+        Extracts min and max values from stats aggregation results.
+        """
+        min_value = stats.get("min")
+        max_value = stats.get("max")
+        return {"min": min_value, "max": max_value}
+
+    def get_field_min_max(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Returns the minimum and maximum values for the given metadata field.
+
+        :param metadata_field: The metadata field to get the minimum and maximum values for.
+        :returns: The minimum and maximum values for the given metadata field.
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        field_name = self._normalize_metadata_field_name(metadata_field)
+        body = self._build_min_max_query_body(field_name)
+        result = self._client.search(index=self._index, body=body)
+        stats = result.get("aggregations", {}).get("field_stats", {})
+
+        return self._extract_min_max_from_stats(stats)
+
+    async def get_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Asynchronously returns the minimum and maximum values for the given metadata field.
+
+        :param metadata_field: The metadata field to get the minimum and maximum values for.
+        :returns: The minimum and maximum values for the given metadata field.
+        """
+        await self._ensure_initialized_async()
+        assert self._async_client is not None
+
+        field_name = self._normalize_metadata_field_name(metadata_field)
+        body = self._build_min_max_query_body(field_name)
+        result = await self._async_client.search(index=self._index, body=body)
+        stats = result.get("aggregations", {}).get("field_stats", {})
+
+        return self._extract_min_max_from_stats(stats)
+
+    def get_field_unique_values(
+        self, metadata_field: str, search_term: str | None, from_: int, size: int
+    ) -> tuple[list[str], int]:
+        """
+        Returns unique values for a metadata field, optionally filtered by a search term in the content.
+
+        :param metadata_field: The metadata field to get unique values for.
+        :param search_term: Optional search term to filter documents by matching in the content field.
+        :param from_: The starting index for pagination.
+        :param size: The number of unique values to return.
+        :returns: A tuple containing (list of unique values, total count of unique values).
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        field_name = self._normalize_metadata_field_name(metadata_field)
+
+        # filter by search_term if provided
+        query: dict[str, Any] = {"match_all": {}}
+        if search_term:
+            # Use match_phrase for exact phrase matching to avoid tokenization issues
+            query = {"match_phrase": {"content": search_term}}
+
+        # Build aggregations
+        # Terms aggregation for paginated unique values
+        # Note: Terms aggregation doesn't support 'from' parameter directly,
+        # so we fetch from_ + size results and slice them
+        # Cardinality aggregation for total count
+        terms_size = from_ + size if from_ > 0 else size
+        body = {
+            "query": query,
+            "aggs": {
+                "unique_values": {
+                    "terms": {
+                        "field": field_name,
+                        "size": terms_size,
+                    }
+                },
+                "total_count": {
+                    "cardinality": {
+                        "field": field_name,
+                    }
+                },
+            },
+            "size": 0,  # we only need aggregations, not documents
+        }
+
+        result = self._client.search(index=self._index, body=body)
+        aggregations = result.get("aggregations", {})
+
+        # Extract unique values from terms aggregation buckets
+        unique_values_buckets = aggregations.get("unique_values", {}).get("buckets", [])
+        # Apply pagination by slicing the results
+        paginated_buckets = unique_values_buckets[from_ : from_ + size]
+        unique_values = [str(bucket["key"]) for bucket in paginated_buckets]
+
+        # Extract total count from cardinality aggregation
+        total_count = int(aggregations.get("total_count", {}).get("value", 0))
+
+        return unique_values, total_count
+
+    async def get_field_unique_values_async(
+        self, metadata_field: str, search_term: str | None, from_: int, size: int
+    ) -> tuple[list[str], int]:
+        """
+        Asynchronously returns unique values for a metadata field, optionally filtered by a search term in the content.
+
+        :param metadata_field: The metadata field to get unique values for.
+        :param search_term: Optional search term to filter documents by matching in the content field.
+        :param from_: The starting index for pagination.
+        :param size: The number of unique values to return.
+        :returns: A tuple containing (list of unique values, total count of unique values).
+        """
+        await self._ensure_initialized_async()
+        assert self._async_client is not None
+
+        field_name = self._normalize_metadata_field_name(metadata_field)
+
+        # filter by search_term if provided
+        query: dict[str, Any] = {"match_all": {}}
+        if search_term:
+            # Use match_phrase for exact phrase matching to avoid tokenization issues
+            query = {"match_phrase": {"content": search_term}}
+
+        # Build aggregations
+        # Terms aggregation for paginated unique values
+        # Note: Terms aggregation doesn't support 'from' parameter directly,
+        # so we fetch from_ + size results and slice them
+        # Cardinality aggregation for total count
+        terms_size = from_ + size if from_ > 0 else size
+        body = {
+            "query": query,
+            "aggs": {
+                "unique_values": {
+                    "terms": {
+                        "field": field_name,
+                        "size": terms_size,
+                    }
+                },
+                "total_count": {
+                    "cardinality": {
+                        "field": field_name,
+                    }
+                },
+            },
+            "size": 0,  # we only need aggregations, not documents
+        }
+
+        result = await self._async_client.search(index=self._index, body=body)
+        aggregations = result.get("aggregations", {})
+
+        # Extract unique values from terms aggregation buckets
+        unique_values_buckets = aggregations.get("unique_values", {}).get("buckets", [])
+        # Apply pagination by slicing the results
+        paginated_buckets = unique_values_buckets[from_ : from_ + size]
+        unique_values = [str(bucket["key"]) for bucket in paginated_buckets]
+
+        # Extract total count from cardinality aggregation
+        total_count = int(aggregations.get("total_count", {}).get("value", 0))
+
+        return unique_values, total_count
+
+    def _prepare_sql_http_request_params(
+        self, base_url: str, response_format: ResponseFormat
+    ) -> tuple[str, dict[str, str], Any]:
+        """
+        Prepares HTTP request parameters for SQL query execution.
+        """
+        url = f"{base_url}/_plugins/_sql?format={response_format}"
+        headers = {"Content-Type": "application/json"}
+        auth = None
+        if self._http_auth:
+            if isinstance(self._http_auth, tuple):
+                auth = self._http_auth
+            elif isinstance(self._http_auth, AWSAuth):
+                # For AWS auth, we need to use the opensearchpy client
+                # Fall through to the try/except below
+                pass
+        return url, headers, auth
+
+    @staticmethod
+    def _process_sql_response(response_data: Any, response_format: ResponseFormat) -> Any:
+        """
+        Processes the SQL query response data.
+        """
+        if response_format == "json":
+            # extract only the query results
+            if isinstance(response_data, dict) and "hits" in response_data:
+                hits = response_data.get("hits", {}).get("hits", [])
+                # extract _source from each hit, which contains the actual document data
+                return [hit.get("_source", {}) for hit in hits]
+            return response_data
+        else:
+            return response_data if isinstance(response_data, str) else str(response_data)
+
+    def query_sql(self, query: str, response_format: ResponseFormat = "json") -> Any:
+        """
+        Execute a raw OpenSearch SQL query against the index.
+
+        :param query: The OpenSearch SQL query to execute
+        :param response_format: The format of the response. See https://docs.opensearch.org/latest/search-plugins/sql/response-formats/
+        :returns: The query results in the specified format. For JSON format, returns a list of dictionaries
+            (the _source from each hit). For other formats (csv, jdbc, raw), returns the response as text.
+
+        NOTE: For non-JSON formats (csv, jdbc, raw), use requests to make a raw HTTP request and get the text response
+              This avoids deserialization issues with the opensearchpy client.
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        # For non-JSON formats, use requests directly to avoid deserialization issues
+        if response_format != "json":
+            try:
+                # Get connection info from the transport
+                connection = self._client.transport.get_connection()
+                base_url = connection.host
+                url, headers, auth = self._prepare_sql_http_request_params(base_url, response_format)
+
+                verify = self._verify_certs if self._verify_certs is not None else True
+                timeout = self._timeout if self._timeout is not None else 30.0
+                response = requests.post(
+                    url,
+                    json={"query": query},
+                    headers=headers,
+                    auth=auth,
+                    verify=verify,
+                    timeout=timeout,
+                )
+                response.raise_for_status()
+                return response.text
+            except Exception as e:
+                # If requests fails (e.g., AWS auth), fall back to opensearchpy
+                # which will raise SerializationError that we can handle
+                logger.error(f"Failed to execute SQL query in OpenSearch: {e!s}")
+
+        try:
+            body = {"query": query}
+            params = {"format": response_format}
+
+            response_data = self._client.transport.perform_request(
+                method="POST",
+                url="/_plugins/_sql",
+                params=params,
+                body=body,
+            )
+
+            return self._process_sql_response(response_data, response_format)
+        except SerializationError:
+            # If we get here, it means requests failed above (likely AWS auth) and opensearchpy can't deserialize the
+            # response. Re-raise as DocumentStoreError with a helpful message
+            msg = (
+                f"Failed to execute SQL query in OpenSearch: Unable to deserialize {response_format} response. "
+                f"This format may not be supported with the current authentication method."
+            )
+            raise DocumentStoreError(msg) from None
+        except Exception as e:
+            msg = f"Failed to execute SQL query in OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def query_sql_async(self, query: str, response_format: ResponseFormat = "json") -> Any:
+        """
+        Asynchronously execute a raw OpenSearch SQL query against the index.
+
+        :param query: The OpenSearch SQL query to execute
+        :param response_format: The format of the response. See https://docs.opensearch.org/latest/search-plugins/sql/response-formats/
+        :returns: The query results in the specified format. For JSON format, returns a list of dictionaries
+            (the _source from each hit). For other formats (csv, jdbc, raw), returns the response as text.
+
+        NOTE: For non-JSON formats (csv, jdbc, raw), use httpx AsyncClient to make a raw HTTP request and get the text
+              response. This avoids deserialization issues with the opensearchpy client.
+        """
+        await self._ensure_initialized_async()
+        assert self._async_client is not None
+
+        # For non-JSON formats, use httpx directly to avoid deserialization issues
+        if response_format != "json":
+            try:
+                # Get connection info from the transport
+                connection = self._async_client.transport.get_connection()
+                base_url = connection.host
+                url, headers, auth = self._prepare_sql_http_request_params(base_url, response_format)
+
+                verify = self._verify_certs if self._verify_certs is not None else True
+                timeout = httpx.Timeout(self._timeout if self._timeout else 30.0)
+
+                async with httpx.AsyncClient(verify=verify, timeout=timeout) as client:
+                    response = await client.post(
+                        url,
+                        json={"query": query},
+                        headers=headers,
+                        auth=auth,
+                    )
+                    response.raise_for_status()
+                    return response.text
+            except Exception as e:
+                logger.error(f"Failed to execute SQL query in OpenSearch: {e!s}")
+
+        try:
+            body = {"query": query}
+            params = {"format": response_format}
+
+            response_data = await self._async_client.transport.perform_request(
+                method="POST",
+                url="/_plugins/_sql",
+                params=params,
+                body=body,
+            )
+
+            return self._process_sql_response(response_data, response_format)
+        except SerializationError:
+            # If we get here, it means httpx failed above (likely AWS auth or not installed) and opensearchpy can't
+            # deserialize the response. Re-raise as DocumentStoreError with a helpful message
+            msg = (
+                f"Failed to execute SQL query in OpenSearch: Unable to deserialize {response_format} response. "
+                f"This format may not be supported with the current authentication method. "
+                f"Consider installing httpx for better support."
+            )
+            raise DocumentStoreError(msg) from None
+        except Exception as e:
+            msg = f"Failed to execute SQL query in OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e

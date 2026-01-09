@@ -4,6 +4,7 @@
 
 import pytest
 from haystack.dataclasses import Document
+from haystack.document_stores.errors import DocumentStoreError
 from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.document_stores.opensearch.document_store import OpenSearchDocumentStore
@@ -237,6 +238,86 @@ class TestDocumentStoreAsync:
         assert result[0].meta["number"] == 100
 
     @pytest.mark.asyncio
+    async def test_count_documents_by_filter(self, document_store: OpenSearchDocumentStore):
+        filterable_docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
+            Document(content="Doc 4", meta={"category": "A", "status": "active"}),
+        ]
+        await document_store.write_documents_async(filterable_docs)
+        assert await document_store.count_documents_async() == 4
+
+        count_a = await document_store.count_documents_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert count_a == 3
+
+        count_active = await document_store.count_documents_by_filter_async(
+            filters={"field": "meta.status", "operator": "==", "value": "active"}
+        )
+        assert count_active == 3
+
+        count_a_active = await document_store.count_documents_by_filter_async(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.category", "operator": "==", "value": "A"},
+                    {"field": "meta.status", "operator": "==", "value": "active"},
+                ],
+            }
+        )
+        assert count_a_active == 2
+
+    @pytest.mark.asyncio
+    async def test_count_distinct_values_by_filter(self, document_store: OpenSearchDocumentStore):
+        filterable_docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active", "priority": 2}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive", "priority": 1}),
+            Document(content="Doc 4", meta={"category": "A", "status": "active", "priority": 3}),
+            Document(content="Doc 5", meta={"category": "C", "status": "active", "priority": 2}),
+        ]
+        await document_store.write_documents_async(filterable_docs)
+        assert await document_store.count_documents_async() == 5
+
+        # count distinct values for all documents
+        distinct_counts = await document_store.count_distinct_values_by_filter_async(filters={})
+        assert distinct_counts["category"] == 3  # A, B, C
+        assert distinct_counts["status"] == 2  # active, inactive
+        assert distinct_counts["priority"] == 3  # 1, 2, 3
+
+        # count distinct values for documents with category="A"
+        distinct_counts_a = await document_store.count_distinct_values_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert distinct_counts_a["category"] == 1  # Only A
+        assert distinct_counts_a["status"] == 2  # active, inactive
+        assert distinct_counts_a["priority"] == 2  # 1, 3
+
+        # count distinct values for documents with status="active"
+        distinct_counts_active = await document_store.count_distinct_values_by_filter_async(
+            filters={"field": "meta.status", "operator": "==", "value": "active"}
+        )
+        assert distinct_counts_active["category"] == 3  # A, B, C
+        assert distinct_counts_active["status"] == 1  # Only active
+        assert distinct_counts_active["priority"] == 3  # 1, 2, 3
+
+        # count distinct values with complex filter (category="A" AND status="active")
+        distinct_counts_a_active = await document_store.count_distinct_values_by_filter_async(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.category", "operator": "==", "value": "A"},
+                    {"field": "meta.status", "operator": "==", "value": "active"},
+                ],
+            }
+        )
+        assert distinct_counts_a_active["category"] == 1  # Only A
+        assert distinct_counts_a_active["status"] == 1  # Only active
+        assert distinct_counts_a_active["priority"] == 2  # 1, 3
+
+    @pytest.mark.asyncio
     async def test_delete_documents(self, document_store: OpenSearchDocumentStore):
         doc = Document(content="test doc")
         await document_store.write_documents_async([doc])
@@ -391,3 +472,201 @@ class TestDocumentStoreAsync:
         )
         assert len(draft_docs) == 1
         assert draft_docs[0].meta["category"] == "B"
+
+    @pytest.mark.asyncio
+    async def test_get_fields_info(self, document_store: OpenSearchDocumentStore):
+        filterable_docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "B", "status": "inactive"}),
+        ]
+        await document_store.write_documents_async(filterable_docs)
+
+        fields_info = await document_store.get_fields_info_async()
+
+        # Verify that fields_info contains expected fields
+        assert "content" in fields_info
+        assert "embedding" in fields_info
+        assert "category" in fields_info
+        assert "status" in fields_info
+        assert "priority" in fields_info
+
+        # Verify field types
+        assert fields_info["content"]["type"] == "text"
+        assert fields_info["embedding"]["type"] == "knn_vector"
+        # Metadata fields should be keyword type (from dynamic templates)
+        assert fields_info["category"]["type"] == "keyword"
+        assert fields_info["status"]["type"] == "keyword"
+        assert fields_info["priority"]["type"] == "long"
+
+    @pytest.mark.asyncio
+    async def test_get_field_min_max(self, document_store: OpenSearchDocumentStore):
+        # Test with integer values
+        docs = [
+            Document(content="Doc 1", meta={"priority": 1, "age": 10}),
+            Document(content="Doc 2", meta={"priority": 5, "age": 20}),
+            Document(content="Doc 3", meta={"priority": 3, "age": 15}),
+            Document(content="Doc 4", meta={"priority": 10, "age": 5}),
+            Document(content="Doc 6", meta={"rating": 10.5}),
+            Document(content="Doc 7", meta={"rating": 20.3}),
+            Document(content="Doc 8", meta={"rating": 15.7}),
+            Document(content="Doc 9", meta={"rating": 5.2}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        # Test with "meta." prefix for integer field
+        min_max_priority = await document_store.get_field_min_max_async("meta.priority")
+        assert min_max_priority["min"] == 1
+        assert min_max_priority["max"] == 10
+
+        # Test with "meta." prefix for another integer field
+        min_max_rating = await document_store.get_field_min_max_async("meta.age")
+        assert min_max_rating["min"] == 5
+        assert min_max_rating["max"] == 20
+
+        # Test with single value
+        single_doc = [Document(content="Doc 5", meta={"single_value": 42})]
+        await document_store.write_documents_async(single_doc)
+        min_max_single = await document_store.get_field_min_max_async("meta.single_value")
+        assert min_max_single["min"] == 42
+        assert min_max_single["max"] == 42
+
+        # Test with float values
+        min_max_score = await document_store.get_field_min_max_async("meta.rating")
+        assert min_max_score["min"] == pytest.approx(5.2)
+        assert min_max_score["max"] == pytest.approx(20.3)
+
+    @pytest.mark.asyncio
+    async def test_get_field_unique_values(self, document_store: OpenSearchDocumentStore):
+        # Test with string values
+        docs = [
+            Document(content="Python programming", meta={"category": "A", "language": "Python"}),
+            Document(content="Java programming", meta={"category": "B", "language": "Java"}),
+            Document(content="Python scripting", meta={"category": "A", "language": "Python"}),
+            Document(content="JavaScript development", meta={"category": "C", "language": "JavaScript"}),
+            Document(content="Python data science", meta={"category": "A", "language": "Python"}),
+            Document(content="Java backend", meta={"category": "B", "language": "Java"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        # Test getting all unique values without search term
+        unique_values, total_count = await document_store.get_field_unique_values_async("meta.category", None, 0, 10)
+        assert set(unique_values) == {"A", "B", "C"}
+        assert total_count == 3
+
+        # Test with "meta." prefix
+        unique_languages, lang_count = await document_store.get_field_unique_values_async("meta.language", None, 0, 10)
+        assert set(unique_languages) == {"Python", "Java", "JavaScript"}
+        assert lang_count == 3
+
+        # Test pagination - first page
+        unique_values_page1, total_count = await document_store.get_field_unique_values_async(
+            "meta.category", None, 0, 2
+        )
+        assert len(unique_values_page1) == 2
+        assert total_count == 3
+        assert all(val in ["A", "B", "C"] for val in unique_values_page1)
+
+        # Test pagination - second page
+        unique_values_page2, total_count = await document_store.get_field_unique_values_async(
+            "meta.category", None, 2, 2
+        )
+        assert len(unique_values_page2) == 1
+        assert total_count == 3
+        assert unique_values_page2[0] in ["A", "B", "C"]
+
+        # Test with search term - filter by content matching "Python"
+        unique_values_filtered, total_count = await document_store.get_field_unique_values_async(
+            "meta.category", "Python", 0, 10
+        )
+        assert set(unique_values_filtered) == {"A"}  # Only category A has documents with "Python" in content
+        assert total_count == 1
+
+        # Test with search term - filter by content matching "Java"
+        unique_values_java, total_count = await document_store.get_field_unique_values_async(
+            "meta.category", "Java", 0, 10
+        )
+        assert set(unique_values_java) == {"B"}  # Only category B has documents with "Java" in content
+        assert total_count == 1
+
+        # Test with integer values
+        int_docs = [
+            Document(content="Doc 1", meta={"priority": 1}),
+            Document(content="Doc 2", meta={"priority": 2}),
+            Document(content="Doc 3", meta={"priority": 1}),
+            Document(content="Doc 4", meta={"priority": 3}),
+        ]
+        await document_store.write_documents_async(int_docs)
+        unique_priorities, priority_count = await document_store.get_field_unique_values_async(
+            "meta.priority", None, 0, 10
+        )
+        assert set(unique_priorities) == {"1", "2", "3"}
+        assert priority_count == 3
+
+        # Test with search term on integer field
+        unique_priorities_filtered, priority_count = await document_store.get_field_unique_values_async(
+            "meta.priority", "Doc 1", 0, 10
+        )
+        assert set(unique_priorities_filtered) == {"1"}
+        assert priority_count == 1
+
+    @pytest.mark.asyncio
+    async def test_query_sql(self, document_store: OpenSearchDocumentStore):
+        """
+        Test executing SQL queries against the OpenSearch index.
+        """
+        docs = [
+            Document(content="Python programming", meta={"category": "A", "status": "active", "priority": 1}),
+            Document(content="Java programming", meta={"category": "B", "status": "active", "priority": 2}),
+            Document(content="Python scripting", meta={"category": "A", "status": "inactive", "priority": 3}),
+            Document(content="JavaScript development", meta={"category": "C", "status": "active", "priority": 1}),
+        ]
+        await document_store.write_documents_async(docs, refresh=True)
+
+        # Test SQL query with JSON format (default)
+        sql_query = (
+            f"SELECT content, category, status, priority FROM {document_store._index} "  # noqa: S608
+            f"WHERE category = 'A' ORDER BY priority"
+        )
+        result = await document_store.query_sql_async(sql_query, response_format="json")
+
+        # New format returns a list of dictionaries (the _source from each hit)
+        assert len(result) == 2  # Two documents with category A
+        assert isinstance(result, list)
+        assert all(isinstance(row, dict) for row in result)
+
+        # Verify data contains expected values
+        categories = [row.get("category") for row in result]
+        assert all(cat == "A" for cat in categories)
+
+        # Verify all expected fields are present
+        for row in result:
+            assert "content" in row
+            assert "category" in row
+            assert "status" in row
+            assert "priority" in row
+
+        # Test SQL query with CSV format
+        result_csv = await document_store.query_sql_async(sql_query, response_format="csv")
+        assert isinstance(result_csv, str)
+        assert "content" in result_csv
+        assert "category" in result_csv
+
+        # Test SQL query with JDBC format
+        result_jdbc = await document_store.query_sql_async(sql_query, response_format="jdbc")
+        # JDBC format can be dict or str depending on OpenSearch version
+        assert result_jdbc is not None
+
+        # Test SQL query with RAW format
+        result_raw = await document_store.query_sql_async(sql_query, response_format="raw")
+        assert isinstance(result_raw, str)
+
+        # Test COUNT query
+        count_query = f"SELECT COUNT(*) as total FROM {document_store._index}"  # noqa: S608
+        count_result = await document_store.query_sql_async(count_query, response_format="json")
+        # COUNT query may return different format, check it's a valid response
+        assert count_result is not None
+
+        # Test error handling for invalid SQL query
+        invalid_query = "SELECT * FROM non_existent_index"
+        with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
+            await document_store.query_sql_async(invalid_query)
