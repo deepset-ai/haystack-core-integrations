@@ -303,7 +303,7 @@ class ElasticsearchDocumentStore:
         Asynchronously returns how many documents are present in the document store.
         :returns: Number of documents in the document store.
         """
-        self._ensure_initialized()
+        self._ensure_initialized()  # ensures _async_client is not None
         result = await self._async_client.count(index=self._index)  # type: ignore
         return result["count"]
 
@@ -600,6 +600,103 @@ class ElasticsearchDocumentStore:
             "body": {"query": {"match_all": {}}},  # Delete all documents
             "wait_for_completion": False if is_async else True,  # block until done (set False for async)
             "refresh": refresh,
+        }
+
+    @staticmethod
+    def _normalize_metadata_field(field: str) -> str:
+        """
+        Removes the "meta." prefix from a field name if present.
+        Documents are flattened in Elasticsearch, so metadata fields don't need the prefix.
+
+        :param field: The field name to normalize.
+        :returns: The normalized field name without "meta." prefix.
+        """
+        if field.startswith("meta."):
+            return field[5:]
+        return field
+
+    @staticmethod
+    def _convert_sql_result(result: Any) -> dict[str, Any]:
+        """
+        Converts Elasticsearch SQL query result to a dictionary.
+        Handles ObjectApiResponse which behaves like a dict but isinstance() returns False.
+
+        :param result: The result from Elasticsearch SQL query.
+        :returns: A dictionary containing the query results.
+        """
+        if isinstance(result, dict):
+            return result
+        # Convert ObjectApiResponse to dict
+        return dict(result.items())  # type: ignore
+
+    def _build_unique_values_query(
+        self, metadata_field: str, search_term: Optional[str] = None, from_: int = 0, size: int = 10
+    ) -> dict[str, Any]:
+        """
+        Builds the Elasticsearch query body for getting unique values.
+
+        :param metadata_field: The normalized metadata field name.
+        :param search_term: Optional search term to filter the unique values.
+        :param from_: The starting index for pagination.
+        :param size: The number of unique values to return.
+        :returns: The Elasticsearch query body.
+        """
+        # Terms aggregation doesn't support 'from_' directly, so we fetch from_ + size and slice
+        fetch_size = from_ + size if from_ > 0 else size
+
+        body: dict[str, Any] = {
+            "aggs": {
+                "unique_values": {
+                    "terms": {
+                        "field": metadata_field,
+                        "size": fetch_size,
+                    }
+                }
+            },
+            "size": 0,
+        }
+
+        if search_term:
+            body["query"] = {
+                "bool": {
+                    "filter": [
+                        {
+                            "prefix": {
+                                metadata_field: {
+                                    "value": search_term,
+                                    "case_insensitive": True,
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+
+        return body
+
+    @staticmethod
+    def _process_unique_values_result(result: Any, from_: int) -> dict[str, Any]:
+        """
+        Processes the Elasticsearch aggregation result for unique values.
+
+        :param result: The Elasticsearch search result (ObjectApiResponse that behaves like a dict).
+        :param from_: The starting index for pagination.
+        :returns: A dictionary containing 'values' (list of unique values) and 'total' (total count).
+        """
+        buckets = result["aggregations"]["unique_values"]["buckets"]
+
+        # Slice to handle from_ parameter
+        if from_ > 0:
+            buckets = buckets[from_:]
+
+        values = [bucket["key"] for bucket in buckets]
+        # Get total distinct count (approximate if sum_other_doc_count > 0)
+        sum_other = result["aggregations"]["unique_values"].get("sum_other_doc_count", 0)
+        total = sum_other + len(result["aggregations"]["unique_values"]["buckets"])
+
+        return {
+            "values": values,
+            "total": total,
         }
 
     async def delete_documents_async(
@@ -1189,8 +1286,7 @@ class ElasticsearchDocumentStore:
 
         try:
             # Remove "meta." prefix if present, as documents are flattened in Elasticsearch
-            if metadata_field.startswith("meta."):
-                metadata_field = metadata_field[5:]
+            metadata_field = self._normalize_metadata_field(metadata_field)
 
             body = {
                 "query": {"match_all": {}},
@@ -1223,8 +1319,7 @@ class ElasticsearchDocumentStore:
 
         try:
             # Remove "meta." prefix if present, as documents are flattened in Elasticsearch
-            if metadata_field.startswith("meta."):
-                metadata_field = metadata_field[5:]
+            metadata_field = self._normalize_metadata_field(metadata_field)
 
             body = {
                 "query": {"match_all": {}},
@@ -1263,56 +1358,13 @@ class ElasticsearchDocumentStore:
 
         try:
             # Remove "meta." prefix if present, as documents are flattened in Elasticsearch
-            if metadata_field.startswith("meta."):
-                metadata_field = metadata_field[5:]
+            metadata_field = self._normalize_metadata_field(metadata_field)
 
-            # Terms aggregation doesn't support 'from_' directly, so we fetch from_ + size and slice
-            fetch_size = from_ + size if from_ > 0 else size
-
-            body: dict[str, Any] = {
-                "aggs": {
-                    "unique_values": {
-                        "terms": {
-                            "field": metadata_field,
-                            "size": fetch_size,
-                        }
-                    }
-                },
-                "size": 0,
-            }
-
-            if search_term:
-                body["query"] = {
-                    "bool": {
-                        "filter": [
-                            {
-                                "prefix": {
-                                    metadata_field: {
-                                        "value": search_term,
-                                        "case_insensitive": True,
-                                    }
-                                }
-                            }
-                        ]
-                    }
-                }
+            # Build the search body
+            body = self._build_unique_values_query(metadata_field, search_term, from_, size)
 
             result = self.client.search(index=self._index, body=body)  # type: ignore
-            buckets = result["aggregations"]["unique_values"]["buckets"]
-
-            # Slice to handle from_ parameter
-            if from_ > 0:
-                buckets = buckets[from_:]
-
-            values = [bucket["key"] for bucket in buckets]
-            # Get total distinct count (approximate if sum_other_doc_count > 0)
-            sum_other = result["aggregations"]["unique_values"].get("sum_other_doc_count", 0)
-            total = sum_other + len(result["aggregations"]["unique_values"]["buckets"])
-
-            return {
-                "values": values,
-                "total": total,
-            }
+            return self._process_unique_values_result(result, from_)
         except Exception as e:
             msg = f"Failed to get field unique values from Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
@@ -1335,56 +1387,13 @@ class ElasticsearchDocumentStore:
 
         try:
             # Remove "meta." prefix if present, as documents are flattened in Elasticsearch
-            if metadata_field.startswith("meta."):
-                metadata_field = metadata_field[5:]
+            metadata_field = self._normalize_metadata_field(metadata_field)
 
-            # Terms aggregation doesn't support 'from_' directly, so we fetch from_ + size and slice
-            fetch_size = from_ + size if from_ > 0 else size
-
-            body: dict[str, Any] = {
-                "aggs": {
-                    "unique_values": {
-                        "terms": {
-                            "field": metadata_field,
-                            "size": fetch_size,
-                        }
-                    }
-                },
-                "size": 0,
-            }
-
-            if search_term:
-                body["query"] = {
-                    "bool": {
-                        "filter": [
-                            {
-                                "prefix": {
-                                    metadata_field: {
-                                        "value": search_term,
-                                        "case_insensitive": True,
-                                    }
-                                }
-                            }
-                        ]
-                    }
-                }
+            # Build the search body
+            body = self._build_unique_values_query(metadata_field, search_term, from_, size)
 
             result = await self.async_client.search(index=self._index, body=body)  # type: ignore
-            buckets = result["aggregations"]["unique_values"]["buckets"]
-
-            # Slice to handle from_ parameter
-            if from_ > 0:
-                buckets = buckets[from_:]
-
-            values = [bucket["key"] for bucket in buckets]
-            # Get total distinct count (approximate if sum_other_doc_count > 0)
-            sum_other = result["aggregations"]["unique_values"].get("sum_other_doc_count", 0)
-            total = sum_other + len(result["aggregations"]["unique_values"]["buckets"])
-
-            return {
-                "values": values,
-                "total": total,
-            }
+            return self._process_unique_values_result(result, from_)
         except Exception as e:
             msg = f"Failed to get field unique values from Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
@@ -1401,12 +1410,7 @@ class ElasticsearchDocumentStore:
         try:
             body = {"query": query}
             result = self.client.sql.query(body=body)  # type: ignore
-            # ObjectApiResponse is dict-like, convert to dict for runtime
-            # It behaves like a dict but isinstance() returns False
-            if isinstance(result, dict):
-                return result
-            # Convert ObjectApiResponse to dict
-            return dict(result.items())  # type: ignore
+            return self._convert_sql_result(result)
         except Exception as e:
             msg = f"Failed to execute SQL query in Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
@@ -1423,12 +1427,7 @@ class ElasticsearchDocumentStore:
         try:
             body = {"query": query}
             result = await self.async_client.sql.query(body=body)  # type: ignore
-            # ObjectApiResponse is dict-like, convert to dict for runtime
-            # It behaves like a dict but isinstance() returns False
-            if isinstance(result, dict):
-                return result
-            # Convert ObjectApiResponse to dict
-            return dict(result.items())  # type: ignore
+            return self._convert_sql_result(result)
         except Exception as e:
             msg = f"Failed to execute SQL query in Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
