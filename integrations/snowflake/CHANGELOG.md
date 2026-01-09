@@ -1,21 +1,35 @@
 # Changelog
 
+## [integrations/snowflake-v2.1.0] - 2026-01-09
+
+### 🚀 Features
+
+- Update `SnowflakeTableRetriever` to auto call run `warm_up` (#2679)
+
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 5) (#2528)
+
 ## [integrations/snowflake-v2.0.0] - 2025-10-22
 
 ### 🚀 Features
 
+- Add MFA authentication support to snowflake integration (#2305)
 - [**breaking**] Add `warm_up` method to `SnowflakeTableRetriever` to delegate auth and database connection testing  (#2414)
 
 ### 📚 Documentation
 
 - Add pydoc configurations for Docusaurus (#2411)
-
-
-## [integrations/snowflake-v1.2.0] - 2025-10-17
-
-### 🚀 Features
-
-- Add MFA authentication support to snowflake integration (#2305)
 
 ### 🧹 Chores
 
