@@ -47,7 +47,7 @@ class TestDocumentStoreAsync:
         received.sort(key=operator.attrgetter("id"))
         expected.sort(key=operator.attrgetter("id"))
 
-        for doc_received, doc_expected in zip(received, expected):
+        for doc_received, doc_expected in zip(received, expected, strict=True):
             assert doc_received.content == doc_expected.content
             assert doc_received.meta == doc_expected.meta
 
