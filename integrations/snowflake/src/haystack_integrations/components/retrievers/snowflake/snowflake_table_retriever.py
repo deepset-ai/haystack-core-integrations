@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, Union
 from urllib.parse import quote_plus
 
 import polars as pl
@@ -400,7 +400,7 @@ class SnowflakeTableRetriever:
             return None
 
     @staticmethod
-    def _empty_response() -> dict[str, Any]:
+    def _empty_response() -> dict[str, Union[DataFrame, str]]:
         """Returns a standardized empty response.
 
         :returns:
@@ -411,7 +411,7 @@ class SnowflakeTableRetriever:
         return {"dataframe": DataFrame(), "table": ""}
 
     @component.output_types(dataframe=DataFrame, table=str)
-    def run(self, query: str, return_markdown: Optional[bool] = None) -> dict[str, Any]:
+    def run(self, query: str, return_markdown: Optional[bool] = None) -> dict[str, Union[DataFrame, str]]:
         """
         Executes a SQL query against a Snowflake database using ADBC and Polars.
 
@@ -423,8 +423,7 @@ class SnowflakeTableRetriever:
             - `"table"`: A Markdown-formatted string representation of the DataFrame.
         """
         if not self._warmed_up:
-            msg = "SnowflakeTableRetriever not warmed up. Please call `warm_up()` before running queries."
-            raise RuntimeError(msg)
+            self.warm_up()
 
         # Validate SQL query
         if not query:

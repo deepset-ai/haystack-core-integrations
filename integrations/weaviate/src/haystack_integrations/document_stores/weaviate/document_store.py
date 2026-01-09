@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import base64
 import datetime
 import json
@@ -19,7 +20,7 @@ from weaviate.config import AdditionalConfig
 from weaviate.embedded import EmbeddedOptions
 from weaviate.util import generate_uuid5
 
-from ._filters import convert_filters
+from ._filters import convert_filters, validate_filters
 from .auth import AuthCredentials
 
 logger = logging.getLogger(__name__)
@@ -325,7 +326,8 @@ class WeaviateDocumentStore:
         total = self.collection.aggregate.over_all(total_count=True).total_count
         return total if total else 0
 
-    def _to_data_object(self, document: Document) -> dict[str, Any]:
+    @staticmethod
+    def _to_data_object(document: Document) -> dict[str, Any]:
         """
         Converts a Document to a Weaviate data object ready to be saved.
         """
@@ -364,7 +366,8 @@ class WeaviateDocumentStore:
 
         return data
 
-    def _to_document(self, data: DataObject[dict[str, Any], None]) -> Document:
+    @staticmethod
+    def _to_document(data: DataObject[dict[str, Any], None]) -> Document:
         """
         Converts a data object read from Weaviate into a Document.
         """
@@ -419,7 +422,7 @@ class WeaviateDocumentStore:
         #
         # Nonetheless there's also another issue, paginating with limit and offset is not efficient
         # and it's still restricted by the QUERY_MAXIMUM_RESULTS environment variable.
-        # If the sum of limit and offest is greater than QUERY_MAXIMUM_RESULTS an error is raised.
+        # If the sum of limit and offset is greater than QUERY_MAXIMUM_RESULTS an error is raised.
         # See the official docs for more:
         # https://weaviate.io/developers/weaviate/api/graphql/additional-operators#performance-considerations
         offset = 0
@@ -452,16 +455,14 @@ class WeaviateDocumentStore:
         :param filters: The filters to apply to the document list.
         :returns: A list of Documents that match the given filters.
         """
-        if filters and "operator" not in filters and "conditions" not in filters:
-            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
-            raise ValueError(msg)
+        validate_filters(filters)
 
         result = []
         if filters:
             result = self._query_with_filters(filters)
         else:
             result = self._query()
-        return [self._to_document(doc) for doc in result]
+        return [WeaviateDocumentStore._to_document(doc) for doc in result]
 
     def _batch_write(self, documents: list[Document]) -> int:
         """
@@ -477,13 +478,13 @@ class WeaviateDocumentStore:
                     raise ValueError(msg)
 
                 batch.add_object(
-                    properties=self._to_data_object(doc),
+                    properties=WeaviateDocumentStore._to_data_object(doc),
                     collection=self.collection.name,
                     uuid=generate_uuid5(doc.id),
                     vector=doc.embedding,
                 )
         if failed_objects := self.client.batch.failed_objects:
-            # We fallback to use the UUID if the _original_id is not present, this is just to be
+            # We fall back to use the UUID if the _original_id is not present, this is just to be
             mapped_objects = {}
             for obj in failed_objects:
                 properties = obj.object_.properties or {}
@@ -507,7 +508,7 @@ class WeaviateDocumentStore:
     def _write(self, documents: list[Document], policy: DuplicatePolicy) -> int:
         """
         Writes documents to Weaviate using the specified policy.
-        This doesn't uses the batch API, so it's slower than _batch_write.
+        This doesn't use the batch API, so it's slower than _batch_write.
         If policy is set to SKIP it will skip any document that already exists.
         If policy is set to FAIL it will raise an exception if any of the documents already exists.
         """
@@ -525,7 +526,7 @@ class WeaviateDocumentStore:
             try:
                 self.collection.data.insert(
                     uuid=generate_uuid5(doc.id),
-                    properties=self._to_data_object(doc),
+                    properties=WeaviateDocumentStore._to_data_object(doc),
                     vector=doc.embedding,
                 )
 
@@ -610,6 +611,231 @@ class WeaviateDocumentStore:
                     "Make sure to specify a deletion `batch_size` which is less than `QUERY_MAXIMUM_RESULTS`.",
                 )
 
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        validate_filters(filters)
+
+        try:
+            weaviate_filter = convert_filters(filters)
+            result = self.collection.data.delete_many(where=weaviate_filter)
+            deleted_count = result.successful
+            logger.info(
+                "Deleted {n_docs} documents from collection '{collection}' using filters.",
+                n_docs=deleted_count,
+                collection=self.collection.name,
+            )
+            return deleted_count
+        except weaviate.exceptions.WeaviateQueryError as e:
+            msg = f"Failed to delete documents by filter in Weaviate. Error: {e.message}"
+            raise DocumentStoreError(msg) from e
+        except Exception as e:
+            msg = f"Failed to delete documents by filter in Weaviate: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        validate_filters(filters)
+
+        try:
+            collection = await self.async_collection
+            weaviate_filter = convert_filters(filters)
+            result = await collection.data.delete_many(where=weaviate_filter)
+            deleted_count = result.successful
+            logger.info(
+                "Deleted {n_docs} documents from collection '{collection}' using filters.",
+                n_docs=deleted_count,
+                collection=collection.name,
+            )
+            return deleted_count
+        except weaviate.exceptions.WeaviateQueryError as e:
+            msg = f"Failed to delete documents by filter in Weaviate. Error: {e.message}"
+            raise DocumentStoreError(msg) from e
+        except Exception as e:
+            msg = f"Failed to delete documents by filter in Weaviate: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Updates the metadata of all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update. These will be merged with existing metadata.
+        :returns: The number of documents updated.
+        """
+        validate_filters(filters)
+
+        if not isinstance(meta, dict):
+            msg = "Meta must be a dictionary"
+            raise ValueError(msg)
+
+        try:
+            matching_objects = self._query_with_filters(filters)
+            if not matching_objects:
+                return 0
+
+            # Update each object with the new metadata
+            # Since metadata is stored flattened in Weaviate properties, we update properties directly
+            updated_count = 0
+            failed_updates = []
+
+            for obj in matching_objects:
+                try:
+                    # Get current properties
+                    current_properties = obj.properties.copy() if obj.properties else {}
+
+                    # Update with new metadata values
+                    # Note: metadata fields are stored directly in properties (flattened)
+                    for key, value in meta.items():
+                        current_properties[key] = value
+
+                    # Update the object, preserving the vector
+                    # Get the vector from the object to preserve it during replace
+                    vector = None
+                    if isinstance(obj.vector, list):
+                        vector = obj.vector
+                    elif isinstance(obj.vector, dict):
+                        vector = obj.vector.get("default")
+
+                    self.collection.data.replace(
+                        uuid=obj.uuid,
+                        properties=current_properties,
+                        vector=vector,
+                    )
+                    updated_count += 1
+                except Exception as e:
+                    # Collect failed updates but continue with others
+                    obj_properties = obj.properties or {}
+                    id_ = obj_properties.get("_original_id", obj.uuid)
+                    failed_updates.append((id_, str(e)))
+
+            if failed_updates:
+                msg = "\n".join(
+                    [f"Failed to update object with id '{id_}'. Error: '{error}'" for id_, error in failed_updates]
+                )
+                raise DocumentStoreError(msg)
+
+            logger.info(
+                "Updated {n_docs} documents in collection '{collection}' using filters.",
+                n_docs=updated_count,
+                collection=self.collection.name,
+            )
+            return updated_count
+        except weaviate.exceptions.WeaviateQueryError as e:
+            msg = f"Failed to update documents by filter in Weaviate. Error: {e.message}"
+            raise DocumentStoreError(msg) from e
+        except Exception as e:
+            msg = f"Failed to update documents by filter in Weaviate: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Asynchronously updates the metadata of all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update. These will be merged with existing metadata.
+        :returns: The number of documents updated.
+        """
+        validate_filters(filters)
+
+        if not isinstance(meta, dict):
+            msg = "Meta must be a dictionary"
+            raise ValueError(msg)
+
+        try:
+            collection = await self.async_collection
+            weaviate_filter = convert_filters(filters)
+            config = await collection.config.get()
+            properties = [p.name for p in config.properties]
+
+            # Query all objects matching the filter
+            matching_objects = []
+            offset = 0
+            partial_result = None
+
+            # Paginate through all matching objects
+            # We include vector=True to preserve vectors when updating
+            while partial_result is None or len(partial_result.objects) == DEFAULT_QUERY_LIMIT:
+                partial_result = await collection.query.fetch_objects(
+                    filters=weaviate_filter,
+                    include_vector=True,
+                    limit=DEFAULT_QUERY_LIMIT,
+                    offset=offset,
+                    return_properties=properties,
+                )
+                matching_objects.extend(partial_result.objects)
+                offset += DEFAULT_QUERY_LIMIT
+
+            if not matching_objects:
+                return 0
+
+            # Update each object with the new metadata
+            # Since metadata is stored flattened in Weaviate properties, we update properties directly
+            updated_count = 0
+            failed_updates = []
+
+            for obj in matching_objects:
+                try:
+                    # Get current properties
+                    current_properties = obj.properties.copy() if obj.properties else {}
+
+                    # Update with new metadata values
+                    # Note: metadata fields are stored directly in properties (flattened)
+                    for key, value in meta.items():
+                        current_properties[key] = value
+
+                    # Update the object, preserving the vector
+                    # Get the vector from the object to preserve it during replace
+                    vector = None
+                    if isinstance(obj.vector, list):
+                        vector = obj.vector
+                    elif isinstance(obj.vector, dict):
+                        vector = obj.vector.get("default")
+
+                    await collection.data.replace(
+                        uuid=obj.uuid,
+                        properties=current_properties,
+                        vector=vector,
+                    )
+                    updated_count += 1
+                except Exception as e:
+                    # Collect failed updates but continue with others
+                    obj_properties = obj.properties or {}
+                    id_ = obj_properties.get("_original_id", obj.uuid)
+                    failed_updates.append((id_, str(e)))
+
+            if failed_updates:
+                msg = "\n".join(
+                    [f"Failed to update object with id '{id_}'. Error: '{error}'" for id_, error in failed_updates]
+                )
+                raise DocumentStoreError(msg)
+
+            logger.info(
+                "Updated {n_docs} documents in collection '{collection}' using filters.",
+                n_docs=updated_count,
+                collection=collection.name,
+            )
+            return updated_count
+        except weaviate.exceptions.WeaviateQueryError as e:
+            msg = f"Failed to update documents by filter in Weaviate. Error: {e.message}"
+            raise DocumentStoreError(msg) from e
+        except Exception as e:
+            msg = f"Failed to update documents by filter in Weaviate: {e!s}"
+            raise DocumentStoreError(msg) from e
+
     def _bm25_retrieval(
         self, query: str, filters: Optional[dict[str, Any]] = None, top_k: Optional[int] = None
     ) -> list[Document]:
@@ -624,7 +850,7 @@ class WeaviateDocumentStore:
             return_metadata=["score"],
         )
 
-        return [self._to_document(doc) for doc in result.objects]
+        return [WeaviateDocumentStore._to_document(doc) for doc in result.objects]
 
     async def _bm25_retrieval_async(
         self, query: str, filters: Optional[dict[str, Any]] = None, top_k: Optional[int] = None
@@ -642,7 +868,7 @@ class WeaviateDocumentStore:
             return_metadata=["score"],
         )
 
-        return [self._to_document(doc) for doc in result.objects]
+        return [WeaviateDocumentStore._to_document(doc) for doc in result.objects]
 
     def _embedding_retrieval(
         self,
@@ -668,7 +894,7 @@ class WeaviateDocumentStore:
             return_metadata=["certainty"],
         )
 
-        return [self._to_document(doc) for doc in result.objects]
+        return [WeaviateDocumentStore._to_document(doc) for doc in result.objects]
 
     async def _embedding_retrieval_async(
         self,
@@ -696,7 +922,7 @@ class WeaviateDocumentStore:
             return_metadata=["certainty"],
         )
 
-        return [self._to_document(doc) for doc in result.objects]
+        return [WeaviateDocumentStore._to_document(doc) for doc in result.objects]
 
     def _hybrid_retrieval(
         self,
@@ -721,7 +947,7 @@ class WeaviateDocumentStore:
             return_metadata=["score"],
         )
 
-        return [self._to_document(doc) for doc in result.objects]
+        return [WeaviateDocumentStore._to_document(doc) for doc in result.objects]
 
     async def _hybrid_retrieval_async(
         self,
@@ -748,4 +974,4 @@ class WeaviateDocumentStore:
             return_metadata=["score"],
         )
 
-        return [self._to_document(doc) for doc in result.objects]
+        return [WeaviateDocumentStore._to_document(doc) for doc in result.objects]

@@ -58,6 +58,8 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
                 *DOCUMENT_COLLECTION_PROPERTIES,
                 {"name": "number", "dataType": ["int"]},
                 {"name": "date", "dataType": ["date"]},
+                {"name": "category", "dataType": ["text"]},
+                {"name": "status", "dataType": ["text"]},
             ],
         }
         store = WeaviateDocumentStore(
@@ -287,9 +289,9 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert document_store._additional_config.connection.session_pool_maxsize == 20
         assert document_store._additional_config.connection.session_pool_timeout == 5
 
-    def test_to_data_object(self, document_store, test_files_path):
+    def test_to_data_object(self, test_files_path):
         doc = Document(content="test doc")
-        data = document_store._to_data_object(doc)
+        data = WeaviateDocumentStore._to_data_object(doc)
         assert data == {
             "_original_id": doc.id,
             "content": doc.content,
@@ -303,7 +305,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             embedding=[1, 2, 3],
             meta={"key": "value"},
         )
-        data = document_store._to_data_object(doc)
+        data = WeaviateDocumentStore._to_data_object(doc)
         assert data == {
             "_original_id": doc.id,
             "content": doc.content,
@@ -313,7 +315,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             "key": "value",
         }
 
-    def test_to_document(self, document_store, test_files_path):
+    def test_to_document(self, test_files_path):
         image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")
         data = DataObject(
             properties={
@@ -327,7 +329,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             vector={"default": [1, 2, 3]},
         )
 
-        doc = document_store._to_document(data)
+        doc = WeaviateDocumentStore._to_document(data)
         assert doc.id == "123"
         assert doc.content == "some content"
         assert doc.blob == image
@@ -832,3 +834,72 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             document_store.delete_all_documents(batch_size=20000)
         assert document_store.count_documents() == 5
         assert "Not all documents have been deleted." in caplog.text
+
+    def test_delete_by_filter(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "TypeA"}),
+            Document(content="Doc 2", meta={"category": "TypeB"}),
+            Document(content="Doc 3", meta={"category": "TypeA"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 3
+
+        # Delete documents with category="TypeA"
+        deleted_count = document_store.delete_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "TypeA"}
+        )
+        assert deleted_count == 2
+        assert document_store.count_documents() == 1
+
+    def test_update_by_filter(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "TypeA", "status": "draft"}),
+            Document(content="Doc 2", meta={"category": "TypeB", "status": "draft"}),
+            Document(content="Doc 3", meta={"category": "TypeA", "status": "draft"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 3
+
+        # Update status for category="TypeA" documents
+        updated_count = document_store.update_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "TypeA"}, meta={"status": "published"}
+        )
+        assert updated_count == 2
+
+        # Verify the updates
+        published_docs = document_store.filter_documents(
+            filters={"field": "meta.status", "operator": "==", "value": "published"}
+        )
+        assert len(published_docs) == 2
+        for doc in published_docs:
+            assert doc.meta["category"] == "TypeA"
+            assert doc.meta["status"] == "published"
+
+    def test_update_by_filter_with_pagination(self, document_store, monkeypatch):
+        # Reduce DEFAULT_QUERY_LIMIT to test pagination without creating 10000+ documents
+        monkeypatch.setattr("haystack_integrations.document_stores.weaviate.document_store.DEFAULT_QUERY_LIMIT", 100)
+
+        docs = []
+        for index in range(250):
+            docs.append(
+                Document(content="This is some content", meta={"index": index, "status": "draft", "category": "test"})
+            )
+        document_store.write_documents(docs)
+
+        # update all documents should trigger pagination (3 pages)
+        updated_count = document_store.update_by_filter(
+            filters={"field": "category", "operator": "==", "value": "test"},
+            meta={"status": "published"},
+        )
+        assert updated_count == 250
+
+        # verify updates were correct
+        published_docs = document_store.filter_documents(
+            filters={"field": "status", "operator": "==", "value": "published"}
+        )
+        assert len(published_docs) == 250
+        for doc in published_docs:
+            assert doc.meta["category"] == "test"
+            assert doc.meta["status"] == "published"
+            assert "index" in doc.meta
+            assert 0 <= doc.meta["index"] < 250
