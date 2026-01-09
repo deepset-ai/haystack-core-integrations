@@ -1,4 +1,3 @@
-from typing import Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -10,7 +9,7 @@ from haystack_integrations.components.generators.cohere.chat.chat_generator impo
 )
 
 
-def create_mock_cohere_chunk(chunk_type: str, index: Optional[int] = None, **kwargs):
+def create_mock_cohere_chunk(chunk_type: str, index: int | None = None, **kwargs):
     """aux function to create properly configured mock Cohere chunks"""
     chunk = MagicMock()
     chunk.type = chunk_type
@@ -370,7 +369,7 @@ class TestCohereChunkConversion:
         # TODO: the indexes are not correctly checked because of missing global_index
         # all the streaming chunks have index 0, but the expected indexes increase with tool calls.
 
-        for cohere_chunk, haystack_chunk in zip(cohere_chunks, expected_streaming_chunks):
+        for cohere_chunk, haystack_chunk in zip(cohere_chunks, expected_streaming_chunks, strict=True):
             stream_chunk = _convert_cohere_chunk_to_streaming_chunk(
                 chunk=cohere_chunk,
                 model="command-a-03-2025",

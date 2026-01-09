@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -40,7 +40,7 @@ class CohereTextEmbedder:
         api_base_url: str = "https://api.cohere.com",
         truncate: str = "END",
         timeout: float = 120.0,
-        embedding_type: Optional[EmbeddingTypes] = None,
+        embedding_type: EmbeddingTypes | None = None,
     ):
         """
         :param api_key: the Cohere API key.
@@ -134,7 +134,7 @@ class CohereTextEmbedder:
         return default_from_dict(cls, data)
 
     @component.output_types(embedding=list[float], meta=dict[str, Any])
-    def run(self, text: str) -> dict[str, Union[list[float], dict[str, Any]]]:
+    def run(self, text: str) -> dict[str, list[float] | dict[str, Any]]:
         """
         Embed text.
 
@@ -161,7 +161,7 @@ class CohereTextEmbedder:
         return {"embedding": embedding[0], "meta": metadata}
 
     @component.output_types(embedding=list[float], meta=dict[str, Any])
-    async def run_async(self, text: str) -> dict[str, Union[list[float], dict[str, Any]]]:
+    async def run_async(self, text: str) -> dict[str, list[float] | dict[str, Any]]:
         """
         Asynchronously embed text.
 

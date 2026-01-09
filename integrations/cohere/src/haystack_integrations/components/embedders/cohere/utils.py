@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Optional
+from typing import Any
 
 from tqdm import tqdm
 
@@ -16,7 +16,7 @@ async def get_async_response(
     model_name: str,
     input_type: str,
     truncate: str,
-    embedding_type: Optional[EmbeddingTypes] = None,
+    embedding_type: EmbeddingTypes | None = None,
 ) -> tuple[list[list[float]], dict[str, Any]]:
     """Embeds a list of texts asynchronously using the Cohere API.
 
@@ -64,7 +64,7 @@ def get_response(
     truncate: str,
     batch_size: int = 32,
     progress_bar: bool = False,
-    embedding_type: Optional[EmbeddingTypes] = None,
+    embedding_type: EmbeddingTypes | None = None,
 ) -> tuple[list[list[float]], dict[str, Any]]:
     """Embeds a list of texts using the Cohere API.
 

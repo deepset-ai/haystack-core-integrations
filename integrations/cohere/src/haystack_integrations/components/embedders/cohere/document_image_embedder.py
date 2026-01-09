@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import replace
-from typing import Any, Optional
+from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.image.image_utils import (
@@ -63,13 +63,13 @@ class CohereDocumentImageEmbedder:
         self,
         *,
         file_path_meta_field: str = "file_path",
-        root_path: Optional[str] = None,
-        image_size: Optional[tuple[int, int]] = None,
+        root_path: str | None = None,
+        image_size: tuple[int, int] | None = None,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
         model: str = "embed-v4.0",
         api_base_url: str = "https://api.cohere.com",
         timeout: float = 120.0,
-        embedding_dimension: Optional[int] = None,
+        embedding_dimension: int | None = None,
         embedding_type: EmbeddingTypes = EmbeddingTypes.FLOAT,
         progress_bar: bool = True,
     ) -> None:
@@ -205,7 +205,7 @@ class CohereDocumentImageEmbedder:
                 )
                 raise ValueError(msg)
 
-        images_to_embed: list[Optional[str]] = [None] * len(documents)
+        images_to_embed: list[str | None] = [None] * len(documents)
         pdf_page_infos: list[_PDFPageInfo] = []
 
         for doc_idx, image_source_info in enumerate(images_source_info):
@@ -259,7 +259,9 @@ class CohereDocumentImageEmbedder:
         embeddings = []
 
         # The Cohere API only supports passing one image at a time
-        for doc, image in tqdm(zip(documents, images_to_embed), desc="Embedding images", disable=not self.progress_bar):
+        for doc, image in tqdm(
+            zip(documents, images_to_embed, strict=True), desc="Embedding images", disable=not self.progress_bar
+        ):
             try:
                 response = self._client.embed(
                     model=self.model,
@@ -276,7 +278,7 @@ class CohereDocumentImageEmbedder:
             embeddings.append(embedding)
 
         docs_with_embeddings = []
-        for doc, emb in zip(documents, embeddings):
+        for doc, emb in zip(documents, embeddings, strict=True):
             # we store this information for later inspection
             new_meta = {
                 **doc.meta,
@@ -305,7 +307,9 @@ class CohereDocumentImageEmbedder:
         embeddings = []
 
         # The Cohere API only supports passing one image at a time
-        for doc, image in tqdm(zip(documents, images_to_embed), desc="Embedding images", disable=not self.progress_bar):
+        for doc, image in tqdm(
+            zip(documents, images_to_embed, strict=True), desc="Embedding images", disable=not self.progress_bar
+        ):
             try:
                 response = await self._async_client.embed(
                     model=self.model,
@@ -322,7 +326,7 @@ class CohereDocumentImageEmbedder:
             embeddings.append(embedding)
 
         docs_with_embeddings = []
-        for doc, emb in zip(documents, embeddings):
+        for doc, emb in zip(documents, embeddings, strict=True):
             # we store this information for later inspection
             new_meta = {
                 **doc.meta,

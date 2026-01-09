@@ -244,7 +244,7 @@ class TestCohereDocumentImageEmbedder:
 
         assert isinstance(result["documents"], list)
         assert len(result["documents"]) == len(documents)
-        for doc, new_doc in zip(documents, result["documents"]):
+        for doc, new_doc in zip(documents, result["documents"], strict=True):
             assert doc.embedding is None
             assert new_doc is not doc
             assert isinstance(new_doc, Document)
@@ -306,7 +306,7 @@ class TestCohereDocumentImageEmbedder:
 
         assert isinstance(result["documents"], list)
         assert len(result["documents"]) == len(documents)
-        for doc, new_doc in zip(documents, result["documents"]):
+        for doc, new_doc in zip(documents, result["documents"], strict=True):
             assert doc.embedding is None
             assert new_doc is not doc
             assert isinstance(new_doc, Document)
@@ -357,7 +357,7 @@ class TestCohereDocumentImageEmbedder:
 
         result = embedder.run(documents=documents)
         assert len(result["documents"]) == len(documents)
-        for doc, new_doc in zip(documents, result["documents"]):
+        for doc, new_doc in zip(documents, result["documents"], strict=True):
             assert doc.embedding is None
             assert new_doc is not doc
             assert isinstance(new_doc, Document)
@@ -388,7 +388,7 @@ class TestCohereDocumentImageEmbedder:
 
         result = await embedder.run_async(documents=documents)
         assert len(result["documents"]) == len(documents)
-        for doc, new_doc in zip(documents, result["documents"]):
+        for doc, new_doc in zip(documents, result["documents"], strict=True):
             assert doc.embedding is None
             assert new_doc is not doc
             assert isinstance(new_doc, Document)
