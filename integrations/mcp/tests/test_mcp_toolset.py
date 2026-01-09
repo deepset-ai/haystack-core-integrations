@@ -7,7 +7,6 @@ import tempfile
 import time
 from unittest.mock import patch
 
-import haystack
 import pytest
 import pytest_asyncio
 from haystack import logging
@@ -23,6 +22,10 @@ from haystack_integrations.tools.mcp.mcp_tool import (
     MCPToolNotFoundError,
     SSEServerInfo,
     StreamableHttpServerInfo,
+)
+from haystack_integrations.tools.mcp.mcp_toolset import (
+    _deserialize_state_config,
+    _serialize_state_config,
 )
 
 # Import in-memory transport and fixtures
@@ -73,6 +76,38 @@ async def calculator_toolset_with_tool_filter(mcp_tool_cleanup):
         connection_timeout=45,
         invocation_timeout=60,
         eager_connect=True,
+    )
+
+    return mcp_tool_cleanup(toolset)
+
+
+def format_result(result):
+    """Sample handler function for testing."""
+    return f"FORMATTED: {result}"
+
+
+@pytest_asyncio.fixture
+async def calculator_toolset_with_state_config(mcp_tool_cleanup):
+    """Fixture that provides an MCPToolset with state configuration."""
+
+    server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+    toolset = MCPToolset(
+        server_info=server_info,
+        tool_names=["add", "subtract"],
+        connection_timeout=45,
+        invocation_timeout=60,
+        eager_connect=True,
+        inputs_from_state={
+            "add": {"first_number": "a"},
+            "subtract": {"first_number": "a", "second_number": "b"},
+        },
+        outputs_to_state={
+            "add": {"sum_result": {"source": "content"}},
+            "subtract": {"diff_result": {}},
+        },
+        outputs_to_string={
+            "add": {"source": "content", "handler": format_result},
+        },
     )
 
     return mcp_tool_cleanup(toolset)
@@ -232,6 +267,91 @@ class TestMCPToolset:
                 invocation_timeout=10,
                 eager_connect=True,
             )
+
+    async def test_toolset_with_state_config(self, calculator_toolset_with_state_config):
+        """Test that MCPToolset correctly passes state configuration to tools."""
+        toolset = calculator_toolset_with_state_config
+
+        # Verify toolset has state configs stored
+        assert toolset.inputs_from_state == {
+            "add": {"first_number": "a"},
+            "subtract": {"first_number": "a", "second_number": "b"},
+        }
+        assert "add" in toolset.outputs_to_state
+        assert "subtract" in toolset.outputs_to_state
+        assert "add" in toolset.outputs_to_string
+
+        # Verify tools have correct state configurations
+        add_tool = next(tool for tool in toolset.tools if tool.name == "add")
+        subtract_tool = next(tool for tool in toolset.tools if tool.name == "subtract")
+
+        assert add_tool.inputs_from_state == {"first_number": "a"}
+        assert subtract_tool.inputs_from_state == {"first_number": "a", "second_number": "b"}
+        assert add_tool.outputs_to_state == {"sum_result": {"source": "content"}}
+        assert subtract_tool.outputs_to_state == {"diff_result": {}}
+        assert add_tool.outputs_to_string is not None
+        assert subtract_tool.outputs_to_string is None
+
+    async def test_toolset_state_config_serde(self, calculator_toolset_with_state_config):
+        """Test serialization and deserialization of MCPToolset with state configuration."""
+        toolset = calculator_toolset_with_state_config
+
+        toolset_dict = toolset.to_dict()
+
+        # Verify state configs are serialized
+        assert toolset_dict["data"]["inputs_from_state"] == {
+            "add": {"first_number": "a"},
+            "subtract": {"first_number": "a", "second_number": "b"},
+        }
+        assert toolset_dict["data"]["outputs_to_state"] is not None
+        assert toolset_dict["data"]["outputs_to_string"] is not None
+        # Handler should be serialized as a string
+        assert isinstance(toolset_dict["data"]["outputs_to_string"]["add"]["handler"], str)
+
+        # Test deserialization
+        with patch("haystack_integrations.tools.mcp.mcp_toolset.MCPToolset.__init__", return_value=None) as mock_init:
+            MCPToolset.from_dict(toolset_dict)
+
+            mock_init.assert_called_once()
+            _, kwargs = mock_init.call_args
+            assert kwargs["inputs_from_state"] == {
+                "add": {"first_number": "a"},
+                "subtract": {"first_number": "a", "second_number": "b"},
+            }
+            assert "add" in kwargs["outputs_to_state"]
+            assert "add" in kwargs["outputs_to_string"]
+            # Handler should be deserialized back to a callable
+            assert callable(kwargs["outputs_to_string"]["add"]["handler"])
+
+    async def test_toolset_state_config_unknown_tool_warning(self, caplog):
+        """Test that a warning is logged when state config references unknown tools."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+
+        with caplog.at_level("WARNING"):
+            toolset = MCPToolset(
+                server_info=server_info,
+                tool_names=["add"],  # Only include add
+                connection_timeout=10,
+                invocation_timeout=10,
+                eager_connect=True,
+                inputs_from_state={
+                    "add": {"first_number": "a"},
+                    "unknown_tool": {"some_key": "some_param"},  # This tool doesn't exist
+                },
+            )
+
+            # The warning should be logged
+            assert any("unknown_tool" in record.message for record in caplog.records)
+            toolset.close()
+
+    async def test_toolset_no_state_config(self, calculator_toolset):
+        """Test that tools have no state config when none is provided."""
+        toolset = calculator_toolset
+
+        for tool in toolset.tools:
+            assert tool.inputs_from_state is None
+            assert tool.outputs_to_state is None
+            assert tool.outputs_to_string is None
 
     @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
     @pytest.mark.integration
@@ -464,19 +584,18 @@ if __name__ == "__main__":
             if os.path.exists(server_script_path):
                 os.remove(server_script_path)
 
-    def test_pipeline_deserialization_fails_without_github_token(self, monkeypatch):
+    def test_pipeline_deserialization_succeeds_with_lazy_connection(self, monkeypatch):
         """
-        Test that pipeline deserialization + MCPToolset initialization fails when GitHub
-        token is not resolved during deserialization.
+        Test that pipeline deserialization succeeds with lazy connection (eager_connect=False).
 
-        The issue:
-        - Setup: Agent pipeline template with MCPToolset with a token from env var (PERSONAL_ACCESS_TOKEN_GITHUB)
-        - MCPToolset tries to connect immediately during __init__ after validation
-        - Secrets get resolved during validation, after MCPToolset is initialized
-        - Connection fails because token can't be resolved in __init__
-        - Pipeline deserialization fails with DeserializationError
+        With lazy connection (the default), MCPToolset defers connection until warm_up() is called.
+        This allows pipelines to be deserialized even when the server is not available or
+        credentials are not yet resolved.
 
-        This test demonstrates why we need warmup for MCPToolset on first use rather than during deserialization.
+        This test demonstrates that:
+        - Pipeline deserialization succeeds even with an invalid token
+        - MCPToolset creates a placeholder tool during initialization
+        - Actual connection happens later during warm_up()
         """
         pipeline_yaml = """
 components:
@@ -528,7 +647,103 @@ components:
 connections: []
 """
         monkeypatch.setenv("PERSONAL_ACCESS_TOKEN_GITHUB", "SOME_OBVIOUSLY_INVALID_TOKEN")
-        # Attempt to deserialize the pipeline - this will fail because MCPToolset
-        # tries to connect immediately and the token isn't available
-        with pytest.raises(haystack.core.errors.DeserializationError):
-            Pipeline.loads(pipeline_yaml)
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-dummy-key-for-testing")
+
+        # Deserialization should succeed because eager_connect defaults to False
+        # With lazy connection, MCPToolset creates a placeholder tool and doesn't try to connect
+        pipeline = Pipeline.loads(pipeline_yaml)
+
+        # Verify the pipeline was created successfully
+        assert pipeline is not None
+        agent = pipeline.get_component("agent")
+        assert agent is not None
+
+        # The key point is that deserialization succeeded even with an invalid token
+        # because the connection is deferred until warm_up() is called
+
+
+class TestStateConfigHelpers:
+    """Tests for the state configuration serialization helper functions."""
+
+    def test_serialize_outputs_to_string_with_handler(self):
+        """Test serializing outputs_to_string config with a handler function."""
+        config = {
+            "add": {"source": "content", "handler": format_result},
+            "subtract": {"source": "diff"},
+        }
+
+        serialized = _serialize_state_config(config)
+
+        assert serialized is not None
+        assert "add" in serialized
+        assert "subtract" in serialized
+        assert isinstance(serialized["add"]["handler"], str)  # Handler serialized to string
+        assert serialized["subtract"]["source"] == "diff"
+        assert "handler" not in serialized["subtract"]  # No handler for subtract
+
+    def test_serialize_outputs_to_state_with_handler(self):
+        """Test serializing outputs_to_state config with a handler function."""
+        config = {
+            "add": {
+                "sum_result": {"source": "content", "handler": format_result},
+                "raw_result": {},
+            },
+        }
+
+        serialized = _serialize_state_config(config)
+
+        assert serialized is not None
+        assert "add" in serialized
+        assert isinstance(serialized["add"]["sum_result"]["handler"], str)
+        assert serialized["add"]["raw_result"] == {}
+
+    def test_serialize_empty_config(self):
+        """Test that empty config returns None."""
+        assert _serialize_state_config({}) is None
+        assert _serialize_state_config(None) is None
+
+    def test_deserialize_outputs_to_string_with_handler(self):
+        """Test deserializing outputs_to_string config with a handler function."""
+        # First serialize to get the correct handler path
+        original = {"add": {"source": "content", "handler": format_result}}
+        serialized = _serialize_state_config(original)
+
+        # Now deserialize
+        deserialized = _deserialize_state_config(serialized)
+
+        assert "add" in deserialized
+        assert callable(deserialized["add"]["handler"])
+        assert deserialized["add"]["source"] == "content"
+
+    def test_deserialize_outputs_to_state_with_handler(self):
+        """Test deserializing outputs_to_state config with a handler function."""
+        # First serialize to get the correct handler path
+        original = {"add": {"sum_result": {"source": "content", "handler": format_result}}}
+        serialized = _serialize_state_config(original)
+
+        # Now deserialize
+        deserialized = _deserialize_state_config(serialized)
+
+        assert "add" in deserialized
+        assert callable(deserialized["add"]["sum_result"]["handler"])
+
+    def test_deserialize_empty_config(self):
+        """Test that empty config returns empty dict."""
+        assert _deserialize_state_config({}) == {}
+        assert _deserialize_state_config(None) == {}
+
+    def test_roundtrip_serialization(self):
+        """Test that serialization and deserialization are inverse operations."""
+        original = {
+            "add": {"source": "content", "handler": format_result},
+            "subtract": {"source": "diff"},
+        }
+
+        serialized = _serialize_state_config(original)
+        deserialized = _deserialize_state_config(serialized)
+
+        assert "add" in deserialized
+        assert "subtract" in deserialized
+        assert deserialized["add"]["source"] == "content"
+        assert callable(deserialized["add"]["handler"])
+        assert deserialized["subtract"]["source"] == "diff"
