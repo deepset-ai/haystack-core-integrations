@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional
+from typing import Any
 
 from haystack.errors import FilterError
 
@@ -20,7 +20,7 @@ def _normalize_filters(filters: dict[str, Any]) -> dict[str, Any]:
     return _parse_logical_condition(filters)
 
 
-def _convert_filters(filters: Optional[dict[str, Any]] = None) -> Optional[dict[str, Any]]:
+def _convert_filters(filters: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """
     Convert haystack filters to astra filter string capturing all boolean operators
     """

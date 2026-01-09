@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -52,7 +52,7 @@ class AstraDocumentStore:
         embedding_dimension: int = 768,
         duplicates_policy: DuplicatePolicy = DuplicatePolicy.NONE,
         similarity: str = "cosine",
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
     ):
         """
         The connection to Astra DB is established and managed through the JSON API.
@@ -100,7 +100,7 @@ class AstraDocumentStore:
         self.duplicates_policy = duplicates_policy
         self.similarity = similarity
         self.namespace = namespace
-        self._index: Optional[AstraClient] = None
+        self._index: AstraClient | None = None
 
     @property
     def index(self) -> AstraClient:
@@ -177,7 +177,7 @@ class AstraDocumentStore:
 
         batch_size = MAX_BATCH_SIZE
 
-        def _convert_input_document(document: Union[dict, Document]) -> dict[str, Any]:
+        def _convert_input_document(document: dict | Document) -> dict[str, Any]:
             if isinstance(document, Document):
                 document_dict = document.to_dict(flatten=False)
             elif isinstance(document, dict):
@@ -284,7 +284,7 @@ class AstraDocumentStore:
         """
         return self.index.count_documents()
 
-    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
+    def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Returns at most 1000 documents that match the filter.
 
@@ -370,9 +370,7 @@ class AstraDocumentStore:
             raise MissingDocumentError(msg)
         return ret[0]
 
-    def search(
-        self, query_embedding: list[float], top_k: int, filters: Optional[dict[str, Any]] = None
-    ) -> list[Document]:
+    def search(self, query_embedding: list[float], top_k: int, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Perform a search for a list of queries.
 
