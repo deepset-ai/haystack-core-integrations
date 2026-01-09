@@ -71,6 +71,9 @@ class ChromaDocumentStore:
             `distance_function` parameter above.
         :param client_settings: a dictionary of Chroma Settings configuration options passed to
             `chromadb.config.Settings`. These settings configure the underlying Chroma client behavior.
+            For available options, see [Chroma's config.py](https://github.com/chroma-core/chroma/blob/main/chromadb/config.py).
+            **Note**: specifying these settings may interfere with standard client initialization parameters.
+            This option is intended for advanced customization.
         :param embedding_function_params: additional parameters to pass to the embedding function.
         """
 
@@ -112,7 +115,7 @@ class ChromaDocumentStore:
             if self._client_settings:
                 try:
                     client_kwargs["settings"] = Settings(**self._client_settings)
-                except Exception as e:
+                except ValueError as e:
                     msg = f"Invalid client_settings: {e}"
                     raise ValueError(msg) from e
 
@@ -167,7 +170,7 @@ class ChromaDocumentStore:
             if self._client_settings:
                 try:
                     client_kwargs["settings"] = Settings(**self._client_settings)
-                except Exception as e:
+                except ValueError as e:
                     msg = f"Invalid client_settings: {e}"
                     raise ValueError(msg) from e
 

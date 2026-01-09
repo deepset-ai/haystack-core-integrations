@@ -21,6 +21,19 @@ from haystack.testing.document_store import (
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 
 
+@pytest.fixture
+def clear_chroma_system_cache():
+    """
+    Chroma's in-memory client uses a singleton pattern with an internal cache.
+    Once a client is created with certain settings, Chroma rejects creating another
+    with different settings in the same process. This fixture clears the cache
+    before and after tests that use custom client settings.
+    """
+    SharedSystemClient.clear_system_cache()
+    yield
+    SharedSystemClient.clear_system_cache()
+
+
 class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
@@ -88,34 +101,26 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocuments
             store = ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost")
             store._ensure_initialized()
 
-    def test_client_settings_applied(self):
+    def test_client_settings_applied(self, clear_chroma_system_cache):
         """
         Chroma's in-memory client uses a singleton pattern with an internal cache.
         Once a client is created with certain settings, Chroma rejects creating another
         with different settings in the same process. We clear the cache before and after
         this test to avoid conflicts with other tests that use default settings.
         """
-        SharedSystemClient.clear_system_cache()
-        try:
-            store = ChromaDocumentStore(client_settings={"anonymized_telemetry": False})
-            store._ensure_initialized()
-            assert store._client.get_settings().anonymized_telemetry is False
-        finally:
-            SharedSystemClient.clear_system_cache()
+        store = ChromaDocumentStore(client_settings={"anonymized_telemetry": False})
+        store._ensure_initialized()
+        assert store._client.get_settings().anonymized_telemetry is False
 
-    def test_invalid_client_settings(self):
-        SharedSystemClient.clear_system_cache()
-        try:
-            store = ChromaDocumentStore(
-                client_settings={
-                    "invalid_setting_name": "some_value",
-                    "another_fake_setting": 123,
-                }
-            )
-            with pytest.raises(ValueError, match="Invalid client_settings"):
-                store._ensure_initialized()
-        finally:
-            SharedSystemClient.clear_system_cache()
+    def test_invalid_client_settings(self, clear_chroma_system_cache):
+        store = ChromaDocumentStore(
+            client_settings={
+                "invalid_setting_name": "some_value",
+                "another_fake_setting": 123,
+            }
+        )
+        with pytest.raises(ValueError, match="Invalid client_settings"):
+            store._ensure_initialized()
 
     def test_to_dict(self, request):
         ds = ChromaDocumentStore(
