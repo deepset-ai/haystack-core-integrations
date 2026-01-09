@@ -1072,15 +1072,13 @@ class TestElasticsearchDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_get_fields_info_async(self, document_store):
-        # get_fields_info doesn't have an async version, but we can test the sync version
-        # in an async context
         docs = [
             Document(content="Doc 1", meta={"category": "A", "value": 10, "active": True}),
             Document(content="Doc 2", meta={"category": "B", "value": 20}),
         ]
         await document_store.write_documents_async(docs)
 
-        fields_info = document_store.get_fields_info()
+        fields_info = await document_store.get_fields_info_async()
 
         # Check that common fields exist
         assert "content" in fields_info
@@ -1088,8 +1086,6 @@ class TestElasticsearchDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_get_field_min_max_async(self, document_store):
-        # get_field_min_max doesn't have an async version, but we can test the sync version
-        # in an async context
         docs = [
             Document(content="Doc 1", meta={"value": 10, "score": 5.5}),
             Document(content="Doc 2", meta={"value": 20, "score": 8.3}),
@@ -1099,13 +1095,13 @@ class TestElasticsearchDocumentStoreAsync:
         await document_store.write_documents_async(docs)
 
         # Get min/max for numeric field
-        result = document_store.get_field_min_max("value")
+        result = await document_store.get_field_min_max_async("value")
         assert result["min"] == 5
         assert result["max"] == 20
 
         # Get min/max for float field
         # Note: Float fields might not be indexed as numeric depending on dynamic mapping
-        result = document_store.get_field_min_max("score")
+        result = await document_store.get_field_min_max_async("score")
         if result["min"] is not None and result["max"] is not None:
             assert result["min"] == 2.1
             assert result["max"] == 9.9
@@ -1116,8 +1112,6 @@ class TestElasticsearchDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_get_field_unique_values_async(self, document_store):
-        # get_field_unique_values doesn't have an async version, but we can test the sync version
-        # in an async context
         docs = [
             Document(content="Doc 1", meta={"category": "A", "status": "active"}),
             Document(content="Doc 2", meta={"category": "B", "status": "active"}),
@@ -1128,7 +1122,7 @@ class TestElasticsearchDocumentStoreAsync:
         await document_store.write_documents_async(docs)
 
         # Get unique values for category field
-        result = document_store.get_field_unique_values("category")
+        result = await document_store.get_field_unique_values_async("category")
         assert len(result["values"]) > 0
         assert "A" in result["values"]
         assert "B" in result["values"]
@@ -1136,11 +1130,11 @@ class TestElasticsearchDocumentStoreAsync:
         assert result["total"] >= 3
 
         # Get unique values with pagination
-        result = document_store.get_field_unique_values("category", from_=0, size=2)
+        result = await document_store.get_field_unique_values_async("category", from_=0, size=2)
         assert len(result["values"]) == 2
 
         # Get unique values with search term
-        result = document_store.get_field_unique_values("status", search_term="act")
+        result = await document_store.get_field_unique_values_async("status", search_term="act")
         assert "active" in result["values"]
 
     @pytest.mark.asyncio

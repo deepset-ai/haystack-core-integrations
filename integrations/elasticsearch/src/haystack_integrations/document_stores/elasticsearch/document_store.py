@@ -1161,6 +1161,22 @@ class ElasticsearchDocumentStore:
             msg = f"Failed to get fields info from Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
+    async def get_fields_info_async(self) -> dict[str, Any]:
+        """
+        Asynchronously returns information about all fields in the index mapping.
+
+        :returns: A dictionary containing field information from the index mapping.
+        """
+        self._ensure_initialized()
+
+        try:
+            mapping = await self.async_client.indices.get_mapping(index=self._index)  # type: ignore
+            index_mapping = mapping[self._index]["mappings"]
+            return index_mapping.get("properties", {})
+        except Exception as e:
+            msg = f"Failed to get fields info from Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
     def get_field_min_max(self, metadata_field: str) -> dict[str, Any]:
         """
         Returns the minimum and maximum values for a metadata field.
@@ -1180,6 +1196,35 @@ class ElasticsearchDocumentStore:
                 "size": 0,
             }
             result = self.client.search(index=self._index, body=body)  # type: ignore
+            min_value = result["aggregations"]["min_value"]["value"]
+            max_value = result["aggregations"]["max_value"]["value"]
+            return {
+                "min": min_value if min_value is not None else None,
+                "max": max_value if max_value is not None else None,
+            }
+        except Exception as e:
+            msg = f"Failed to get field min/max from Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def get_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Asynchronously returns the minimum and maximum values for a metadata field.
+
+        :param metadata_field: The metadata field name to get min/max values for.
+        :returns: A dictionary with 'min' and 'max' keys containing the minimum and maximum values.
+        """
+        self._ensure_initialized()
+
+        try:
+            body = {
+                "query": {"match_all": {}},
+                "aggs": {
+                    "min_value": {"min": {"field": metadata_field}},
+                    "max_value": {"max": {"field": metadata_field}},
+                },
+                "size": 0,
+            }
+            result = await self.async_client.search(index=self._index, body=body)  # type: ignore
             min_value = result["aggregations"]["min_value"]["value"]
             max_value = result["aggregations"]["max_value"]["value"]
             return {
@@ -1238,6 +1283,73 @@ class ElasticsearchDocumentStore:
                 }
 
             result = self.client.search(index=self._index, body=body)  # type: ignore
+            buckets = result["aggregations"]["unique_values"]["buckets"]
+
+            # Slice to handle from_ parameter
+            if from_ > 0:
+                buckets = buckets[from_:]
+
+            values = [bucket["key"] for bucket in buckets]
+            # Get total distinct count (approximate if sum_other_doc_count > 0)
+            sum_other = result["aggregations"]["unique_values"].get("sum_other_doc_count", 0)
+            total = sum_other + len(result["aggregations"]["unique_values"]["buckets"])
+
+            return {
+                "values": values,
+                "total": total,
+            }
+        except Exception as e:
+            msg = f"Failed to get field unique values from Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def get_field_unique_values_async(
+        self, metadata_field: str, search_term: Optional[str] = None, from_: int = 0, size: int = 10
+    ) -> dict[str, Any]:
+        """
+        Asynchronously returns unique values for a metadata field, optionally filtered by a search term.
+
+        :param metadata_field: The metadata field name to get unique values for.
+        :param search_term: Optional search term to filter the unique values.
+        :param from_: The starting index for pagination (note: terms aggregation doesn't support from_ directly,
+            so this is approximated by fetching more results and slicing).
+        :param size: The number of unique values to return.
+        :returns: A dictionary containing 'values' (list of unique values) and 'total' (total count).
+        """
+        self._ensure_initialized()
+
+        try:
+            # Terms aggregation doesn't support 'from_' directly, so we fetch from_ + size and slice
+            fetch_size = from_ + size if from_ > 0 else size
+
+            body: dict[str, Any] = {
+                "aggs": {
+                    "unique_values": {
+                        "terms": {
+                            "field": metadata_field,
+                            "size": fetch_size,
+                        }
+                    }
+                },
+                "size": 0,
+            }
+
+            if search_term:
+                body["query"] = {
+                    "bool": {
+                        "filter": [
+                            {
+                                "prefix": {
+                                    metadata_field: {
+                                        "value": search_term,
+                                        "case_insensitive": True,
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+
+            result = await self.async_client.search(index=self._index, body=body)  # type: ignore
             buckets = result["aggregations"]["unique_values"]["buckets"]
 
             # Slice to handle from_ parameter
