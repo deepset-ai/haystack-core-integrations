@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, ClassVar, Optional, Union
+from typing import Any, ClassVar
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
@@ -113,13 +113,13 @@ class AnthropicChatGenerator:
         self,
         api_key: Secret = Secret.from_env_var("ANTHROPIC_API_KEY"),  # noqa: B008
         model: str = "claude-sonnet-4-5",
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
         ignore_tools_thinking_messages: bool = True,
-        tools: Optional[ToolsType] = None,
+        tools: ToolsType | None = None,
         *,
-        timeout: Optional[float] = None,
-        max_retries: Optional[int] = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
     ):
         """
         Creates an instance of AnthropicChatGenerator.
@@ -229,8 +229,8 @@ class AnthropicChatGenerator:
     def _prepare_request_params(
         self,
         messages: list[ChatMessage],
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        tools: Optional[ToolsType] = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: ToolsType | None = None,
     ) -> tuple[list[TextBlockParam], list[MessageParam], dict[str, Any], list[ToolParam]]:
         """
         Prepare the parameters for the Anthropic API request.
@@ -277,8 +277,8 @@ class AnthropicChatGenerator:
 
     def _process_response(
         self,
-        response: Union[Message, Stream[RawMessageStreamEvent]],
-        streaming_callback: Optional[SyncStreamingCallbackT] = None,
+        response: Message | Stream[RawMessageStreamEvent],
+        streaming_callback: SyncStreamingCallbackT | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Process the response from the Anthropic API.
@@ -291,7 +291,7 @@ class AnthropicChatGenerator:
         # we cannot use isinstance(Stream)
         if not isinstance(response, Message):
             chunks: list[StreamingChunk] = []
-            model: Optional[str] = None
+            model: str | None = None
             tool_call_index = -1
             input_tokens = None
             component_info = ComponentInfo.from_component(self)
@@ -345,7 +345,7 @@ class AnthropicChatGenerator:
     async def _process_response_async(
         self,
         response: Any,
-        streaming_callback: Optional[AsyncStreamingCallbackT] = None,
+        streaming_callback: AsyncStreamingCallbackT | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Process the response from the Anthropic API asynchronously.
@@ -359,7 +359,7 @@ class AnthropicChatGenerator:
         # workaround for https://github.com/DataDog/dd-trace-py/issues/12562
         if not isinstance(response, Message):
             chunks: list[StreamingChunk] = []
-            model: Optional[str] = None
+            model: str | None = None
             tool_call_index = -1
             input_tokens = None
             component_info = ComponentInfo.from_component(self)
@@ -418,9 +418,9 @@ class AnthropicChatGenerator:
     def run(
         self,
         messages: list[ChatMessage],
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        tools: Optional[ToolsType] = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: ToolsType | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Invokes the Anthropic API with the given messages and generation kwargs.
@@ -460,9 +460,9 @@ class AnthropicChatGenerator:
     async def run_async(
         self,
         messages: list[ChatMessage],
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        tools: Optional[ToolsType] = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: ToolsType | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Async version of the run method. Invokes the Anthropic API with the given messages and generation kwargs.
