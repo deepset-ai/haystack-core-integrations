@@ -247,14 +247,12 @@ class NvidiaDocumentEmbedder:
             A dictionary with the following keys and values:
             - `documents` - List of processed Documents with embeddings.
             - `meta` - Metadata on usage statistics, etc.
-        :raises RuntimeError:
-            If the component was not initialized.
         :raises TypeError:
             If the input is not a string.
         """
         if not self._initialized:
-            msg = "The embedding model has not been loaded. Please call warm_up() before running."
-            raise RuntimeError(msg)
+            self.warm_up()
+
         elif not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "NvidiaDocumentEmbedder expects a list of Documents as input."
