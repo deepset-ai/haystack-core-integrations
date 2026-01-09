@@ -7,7 +7,10 @@ from typing import Any, Optional
 
 from haystack import Document, component, default_to_dict
 
-from .embedding_backend.fastembed_backend import _FastembedSparseEmbeddingBackendFactory
+from .embedding_backend.fastembed_backend import (
+    _FastembedSparseEmbeddingBackend,
+    _FastembedSparseEmbeddingBackendFactory,
+)
 
 
 @component
@@ -100,7 +103,7 @@ class FastembedSparseDocumentEmbedder:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
         self.model_kwargs = model_kwargs
-        self.embedding_backend = None
+        self.embedding_backend: Optional[_FastembedSparseEmbeddingBackend] = None
 
     def to_dict(self) -> dict[str, Any]:
         """

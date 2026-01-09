@@ -7,7 +7,10 @@ from typing import Any, Optional
 from haystack import component, default_to_dict
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
 
-from .embedding_backend.fastembed_backend import _FastembedSparseEmbeddingBackendFactory
+from .embedding_backend.fastembed_backend import (
+    _FastembedSparseEmbeddingBackend,
+    _FastembedSparseEmbeddingBackendFactory,
+)
 
 
 @component
@@ -65,7 +68,7 @@ class FastembedSparseTextEmbedder:
         self.parallel = parallel
         self.local_files_only = local_files_only
         self.model_kwargs = model_kwargs
-        self.embedding_backend = None
+        self.embedding_backend: Optional[_FastembedSparseEmbeddingBackend] = None
 
     def to_dict(self) -> dict[str, Any]:
         """

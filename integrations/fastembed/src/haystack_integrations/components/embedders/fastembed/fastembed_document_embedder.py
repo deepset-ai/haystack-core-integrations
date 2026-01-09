@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 from haystack import Document, component, default_to_dict
 
-from .embedding_backend.fastembed_backend import _FastembedEmbeddingBackendFactory
+from .embedding_backend.fastembed_backend import _FastembedEmbeddingBackend, _FastembedEmbeddingBackendFactory
 
 
 @component
@@ -107,7 +107,7 @@ class FastembedDocumentEmbedder:
         self.local_files_only = local_files_only
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
-        self.embedding_backend = None
+        self.embedding_backend: Optional[_FastembedEmbeddingBackend] = None
 
     def to_dict(self) -> dict[str, Any]:
         """

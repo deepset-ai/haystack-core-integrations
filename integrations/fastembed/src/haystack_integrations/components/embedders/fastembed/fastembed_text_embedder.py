@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 from haystack import component, default_to_dict
 
-from .embedding_backend.fastembed_backend import _FastembedEmbeddingBackendFactory
+from .embedding_backend.fastembed_backend import _FastembedEmbeddingBackend, _FastembedEmbeddingBackendFactory
 
 
 @component
@@ -67,7 +67,7 @@ class FastembedTextEmbedder:
         self.progress_bar = progress_bar
         self.parallel = parallel
         self.local_files_only = local_files_only
-        self.embedding_backend = None
+        self.embedding_backend: Optional[_FastembedEmbeddingBackend] = None
 
     def to_dict(self) -> dict[str, Any]:
         """
