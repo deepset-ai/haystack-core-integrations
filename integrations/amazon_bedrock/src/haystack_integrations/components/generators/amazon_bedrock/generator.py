@@ -1,7 +1,8 @@
 import json
 import re
 import warnings
-from typing import Any, Callable, ClassVar, Literal, Optional, Union, get_args
+from collections.abc import Callable
+from typing import Any, ClassVar, Literal, get_args
 
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -95,18 +96,18 @@ class AmazonBedrockGenerator:
     def __init__(
         self,
         model: str,
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
-        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
+        aws_access_key_id: Secret | None = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
+        aws_secret_access_key: Secret | None = Secret.from_env_var(  # noqa: B008
             "AWS_SECRET_ACCESS_KEY", strict=False
         ),
-        aws_session_token: Optional[Secret] = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
-        aws_region_name: Optional[Secret] = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
-        aws_profile_name: Optional[Secret] = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
-        max_length: Optional[int] = None,
-        truncate: Optional[bool] = None,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-        boto3_config: Optional[dict[str, Any]] = None,
-        model_family: Optional[MODEL_FAMILIES] = None,
+        aws_session_token: Secret | None = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
+        aws_region_name: Secret | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
+        aws_profile_name: Secret | None = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
+        max_length: int | None = None,
+        truncate: bool | None = None,
+        streaming_callback: Callable[[StreamingChunk], None] | None = None,
+        boto3_config: dict[str, Any] | None = None,
+        model_family: MODEL_FAMILIES | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -156,7 +157,7 @@ class AmazonBedrockGenerator:
         self.kwargs = kwargs
         self.model_family = model_family
 
-        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+        def resolve_secret(secret: Secret | None) -> str | None:
             return secret.resolve_value() if secret else None
 
         try:
@@ -187,9 +188,9 @@ class AmazonBedrockGenerator:
     def run(
         self,
         prompt: str,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Union[list[str], dict[str, Any]]]:
+        streaming_callback: Callable[[StreamingChunk], None] | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+    ) -> dict[str, list[str] | dict[str, Any]]:
         """
         Generates a list of string response to the given prompt.
 
@@ -240,7 +241,7 @@ class AmazonBedrockGenerator:
         return {"replies": replies, "meta": metadata}
 
     @classmethod
-    def get_model_adapter(cls, model: str, model_family: Optional[str] = None) -> type[BedrockModelAdapter]:
+    def get_model_adapter(cls, model: str, model_family: str | None = None) -> type[BedrockModelAdapter]:
         """
         Gets the model adapter for the given model.
 

@@ -1,5 +1,6 @@
 import os
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingChunk
@@ -70,13 +71,13 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         region: str,
         project_id: str,
         model: str = "claude-sonnet-4@20250514",
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
+        streaming_callback: Callable[[StreamingChunk], None] | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
         ignore_tools_thinking_messages: bool = True,
-        tools: Optional[ToolsType] = None,
+        tools: ToolsType | None = None,
         *,
-        timeout: Optional[float] = None,
-        max_retries: Optional[int] = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
     ):
         """
         Creates an instance of AnthropicVertexChatGenerator.

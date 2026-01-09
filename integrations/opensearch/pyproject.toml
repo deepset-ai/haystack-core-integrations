@@ -60,6 +60,7 @@ dependencies = [
     "pytest-asyncio",
     "pytest-cov",
     "pytest-rerunfailures",
+    "pytest-xdist",
     "mypy",
     "pip",
     "boto3",
@@ -166,4 +167,3 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 minversion = "6.0"
 markers = ["unit: unit tests", "integration: integration tests"]
 asyncio_mode = "auto"
-

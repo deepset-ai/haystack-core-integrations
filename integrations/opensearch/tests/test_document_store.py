@@ -443,28 +443,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
 
         assert mock_bulk.call_args.kwargs["max_chunk_bytes"] == DEFAULT_MAX_CHUNK_BYTES
 
-    @pytest.fixture
-    def document_store_embedding_dim_4_no_emb_returned(self, request):
-        """
-        This is the most basic requirement for the child class: provide
-        an instance of this document store so the base class can use it.
-        """
-        hosts = ["https://localhost:9200"]
-        # Use a different index for each test so we can run them in parallel
-        index = f"{request.node.name}"
-
-        store = OpenSearchDocumentStore(
-            hosts=hosts,
-            index=index,
-            http_auth=("admin", "admin"),
-            verify_certs=False,
-            embedding_dim=4,
-            return_embedding=False,
-            method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
-        )
-        yield store
-        store._client.indices.delete(index=index, params={"ignore": [400, 404]})
-
     def test_embedding_retrieval_but_dont_return_embeddings_for_embedding_retrieval(
         self, document_store_embedding_dim_4_no_emb_returned: OpenSearchDocumentStore
     ):
