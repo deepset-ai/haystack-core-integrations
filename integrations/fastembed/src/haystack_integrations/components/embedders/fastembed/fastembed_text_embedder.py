@@ -1,8 +1,12 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from typing import Any, Optional
 
 from haystack import component, default_to_dict
 
-from .embedding_backend.fastembed_backend import _FastembedEmbeddingBackendFactory
+from .embedding_backend.fastembed_backend import _FastembedEmbeddingBackend, _FastembedEmbeddingBackendFactory
 
 
 @component
@@ -36,7 +40,7 @@ class FastembedTextEmbedder:
         progress_bar: bool = True,
         parallel: Optional[int] = None,
         local_files_only: bool = False,
-    ):
+    ) -> None:
         """
         Create a FastembedTextEmbedder component.
 
@@ -63,6 +67,7 @@ class FastembedTextEmbedder:
         self.progress_bar = progress_bar
         self.parallel = parallel
         self.local_files_only = local_files_only
+        self.embedding_backend: Optional[_FastembedEmbeddingBackend] = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -83,11 +88,11 @@ class FastembedTextEmbedder:
             local_files_only=self.local_files_only,
         )
 
-    def warm_up(self):
+    def warm_up(self) -> None:
         """
         Initializes the component.
         """
-        if not hasattr(self, "embedding_backend"):
+        if self.embedding_backend is None:
             self.embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(
                 model_name=self.model_name,
                 cache_dir=self.cache_dir,
@@ -104,7 +109,6 @@ class FastembedTextEmbedder:
         :returns: A dictionary with the following keys:
             - `embedding`: A list of floats representing the embedding of the input text.
         :raises TypeError: If the input is not a string.
-        :raises RuntimeError: If the embedding model has not been loaded.
         """
         if not isinstance(text, str):
             msg = (
@@ -112,13 +116,13 @@ class FastembedTextEmbedder:
                 "In case you want to embed a list of Documents, please use the FastembedDocumentEmbedder."
             )
             raise TypeError(msg)
-        if not hasattr(self, "embedding_backend"):
-            msg = "The embedding model has not been loaded. Please call warm_up() before running."
-            raise RuntimeError(msg)
+
+        if self.embedding_backend is None:
+            self.warm_up()
 
         text_to_embed = [self.prefix + text + self.suffix]
         embedding = list(
-            self.embedding_backend.embed(
+            self.embedding_backend.embed(  # type: ignore[union-attr]
                 text_to_embed,
                 progress_bar=self.progress_bar,
                 parallel=self.parallel,
