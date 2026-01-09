@@ -1,4 +1,5 @@
-from typing import Any, Callable, ClassVar, Optional, Union
+from collections.abc import Callable
+from typing import Any, ClassVar
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingChunk
@@ -61,12 +62,12 @@ class AnthropicGenerator:
         self,
         api_key: Secret = Secret.from_env_var("ANTHROPIC_API_KEY"),  # noqa: B008
         model: str = "claude-sonnet-4-20250514",
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-        system_prompt: Optional[str] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
+        streaming_callback: Callable[[StreamingChunk], None] | None = None,
+        system_prompt: str | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
         *,
-        timeout: Optional[float] = None,
-        max_retries: Optional[int] = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
     ):
         """
         Initialize the AnthropicGenerator.
@@ -147,9 +148,9 @@ class AnthropicGenerator:
     def run(
         self,
         prompt: str,
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-    ) -> dict[str, Union[list[str], list[dict[str, Any]]]]:
+        generation_kwargs: dict[str, Any] | None = None,
+        streaming_callback: Callable[[StreamingChunk], None] | None = None,
+    ) -> dict[str, list[str] | list[dict[str, Any]]]:
         """
         Generate replies using the Anthropic API.
 
@@ -174,7 +175,7 @@ class AnthropicGenerator:
 
         streaming_callback = streaming_callback or self.streaming_callback
         stream = streaming_callback is not None
-        response: Union[Message, Stream[MessageStreamEvent]] = self.client.messages.create(
+        response: Message | Stream[MessageStreamEvent] = self.client.messages.create(
             max_tokens=filtered_generation_kwargs.pop("max_tokens", 512),
             system=self.system_prompt if self.system_prompt else filtered_generation_kwargs.pop("system", ""),
             model=self.model,
@@ -244,7 +245,7 @@ class AnthropicGenerator:
             if self.include_thinking and len(thinkings) == len(completions):
                 completions = [
                     f"{self.thinking_tag_start}{thinking}{self.thinking_tag_end}{completion}"
-                    for thinking, completion in zip(thinkings, completions)
+                    for thinking, completion in zip(thinkings, completions, strict=True)
                 ]
 
             meta.update(
