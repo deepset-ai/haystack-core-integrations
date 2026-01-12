@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Optional
+from typing import Any
 
 from haystack import component, default_to_dict
 from haystack.components.embedders import OpenAITextEmbedder
@@ -32,13 +32,13 @@ class MistralTextEmbedder(OpenAITextEmbedder):
         self,
         api_key: Secret = Secret.from_env_var("MISTRAL_API_KEY"),
         model: str = "mistral-embed",
-        api_base_url: Optional[str] = "https://api.mistral.ai/v1",
+        api_base_url: str | None = "https://api.mistral.ai/v1",
         prefix: str = "",
         suffix: str = "",
         *,
-        timeout: Optional[float] = None,
-        max_retries: Optional[int] = None,
-        http_client_kwargs: Optional[dict[str, Any]] = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
+        http_client_kwargs: dict[str, Any] | None = None,
     ):
         """
         Creates an MistralTextEmbedder component.
