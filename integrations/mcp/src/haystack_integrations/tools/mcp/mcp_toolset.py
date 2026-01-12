@@ -194,7 +194,7 @@ class MCPToolset(Toolset):
             "git_diff": {"repository": "repo_path"},
             "git_log": {"repository": "repo_path"},
         },
-        # Map tool outputs to state keys
+        # Map tool outputs to state keys for each tool
         outputs_to_state={
             "git_status": {"status_result": {"source": "status"}},
             "git_diff": {"diff_result": {}},
