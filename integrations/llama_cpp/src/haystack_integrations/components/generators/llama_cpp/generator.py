@@ -1,4 +1,4 @@
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import component, logging
 
@@ -28,10 +28,10 @@ class LlamaCppGenerator:
     def __init__(
         self,
         model: str,
-        n_ctx: Optional[int] = 0,
-        n_batch: Optional[int] = 512,
-        model_kwargs: Optional[dict[str, Any]] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
+        n_ctx: int | None = 0,
+        n_batch: int | None = 512,
+        model_kwargs: dict[str, Any] | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
     ):
         """
         :param model: The path of a quantized model for text generation, for example, "zephyr-7b-beta.Q4_0.gguf".
@@ -62,7 +62,7 @@ class LlamaCppGenerator:
         self.n_batch = n_batch
         self.model_kwargs = model_kwargs
         self.generation_kwargs = generation_kwargs
-        self.model: Optional[Llama] = None
+        self.model: Llama | None = None
 
     def warm_up(self):
         if self.model is None:
@@ -70,8 +70,8 @@ class LlamaCppGenerator:
 
     @component.output_types(replies=list[str], meta=list[dict[str, Any]])
     def run(
-        self, prompt: str, generation_kwargs: Optional[dict[str, Any]] = None
-    ) -> dict[str, Union[list[str], list[dict[str, Any]]]]:
+        self, prompt: str, generation_kwargs: dict[str, Any] | None = None
+    ) -> dict[str, list[str] | list[dict[str, Any]]]:
         """
         Run the text generation model on the given prompt.
 
