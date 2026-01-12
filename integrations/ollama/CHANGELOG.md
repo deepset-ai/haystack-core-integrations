@@ -1,5 +1,26 @@
 # Changelog
 
+## [integrations/ollama-v6.0.0] - 2026-01-12
+
+### 🐛 Bug Fixes
+
+- Fix failing tests for opensearch and ollama (#2500)
+- Fix ollama unit test (#2523)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Ollama - drop Python 3.9 and use X|Y typing (#2719)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 5) (#2528)
+
 ## [integrations/ollama-v5.3.0] - 2025-10-22
 
 ### 🚀 Features
