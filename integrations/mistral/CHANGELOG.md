@@ -1,5 +1,22 @@
 # Changelog
 
+## [integrations/mistral-v1.0.0] - 2026-01-12
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Mistral - drop Python 3.9 and use X|Y typing (#2716)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 4) (#2527)
+- Fix: Fix doc links (#2661)
+
 ## [integrations/mistral-v0.6.0] - 2025-10-27
 
 ### 🚀 Features
