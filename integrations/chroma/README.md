@@ -11,3 +11,6 @@
 ## Contributing
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
+
+To run integration tests locally, you need a Chroma server running.
+Start one with: `docker run -p 8000:8000 chromadb/chroma:latest`.
