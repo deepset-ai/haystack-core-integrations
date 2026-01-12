@@ -4,7 +4,7 @@
 
 import logging as python_logging
 from datetime import datetime
-from typing import Any, Optional, Union
+from typing import Any
 
 from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import (
@@ -100,8 +100,8 @@ class AzureAISearchDocumentStore:
         azure_endpoint: Secret = Secret.from_env_var("AZURE_AI_SEARCH_ENDPOINT", strict=True),  # noqa: B008
         index_name: str = "default",
         embedding_dimension: int = 768,
-        metadata_fields: Optional[dict[str, Union[SearchField, type]]] = None,
-        vector_search_configuration: Optional[VectorSearch] = None,
+        metadata_fields: dict[str, SearchField | type] | None = None,
+        vector_search_configuration: VectorSearch | None = None,
         include_search_metadata: bool = False,
         **index_creation_kwargs: Any,
     ):
@@ -148,8 +148,8 @@ class AzureAISearchDocumentStore:
 
         For more information on parameters, see the [official Azure AI Search documentation](https://learn.microsoft.com/en-us/azure/search/).
         """
-        self._client: Optional[SearchClient] = None
-        self._index_client: Optional[SearchIndexClient] = None
+        self._client: SearchClient | None = None
+        self._index_client: SearchIndexClient | None = None
         self._index_fields = []  # type: list[Any]  # stores all fields in the final schema of index
         self._api_key = api_key
         self._azure_endpoint = azure_endpoint
@@ -202,7 +202,7 @@ class AzureAISearchDocumentStore:
 
     @staticmethod
     def _normalize_metadata_index_fields(
-        metadata_fields: Optional[dict[str, Union[SearchField, type]]],
+        metadata_fields: dict[str, SearchField | type] | None,
     ) -> dict[str, SearchField]:
         """Create a list of index fields for storing metadata values."""
 
@@ -516,7 +516,7 @@ class AzureAISearchDocumentStore:
         result = self.client.search(search_text=search_text, top=top_k)
         return self._convert_search_result_to_documents(list(result))
 
-    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
+    def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Returns the documents that match the provided filters.
         Filters should be given as a dictionary supporting filtering by metadata. For details on
@@ -567,7 +567,7 @@ class AzureAISearchDocumentStore:
             documents.append(doc)
         return documents
 
-    def _index_exists(self, index_name: Optional[str]) -> bool:
+    def _index_exists(self, index_name: str | None) -> bool:
         """
         Check if the index exists in the Azure AI Search service.
 
@@ -614,7 +614,7 @@ class AzureAISearchDocumentStore:
         query_embedding: list[float],
         *,
         top_k: int = 10,
-        filters: Optional[str] = None,
+        filters: str | None = None,
         **kwargs: Any,
     ) -> list[Document]:
         """
@@ -648,7 +648,7 @@ class AzureAISearchDocumentStore:
         self,
         query: str,
         top_k: int = 10,
-        filters: Optional[str] = None,
+        filters: str | None = None,
         **kwargs: Any,
     ) -> list[Document]:
         """
@@ -681,7 +681,7 @@ class AzureAISearchDocumentStore:
         query: str,
         query_embedding: list[float],
         top_k: int = 10,
-        filters: Optional[str] = None,
+        filters: str | None = None,
         **kwargs: Any,
     ) -> list[Document]:
         """

@@ -1,5 +1,14 @@
 # Changelog
 
+## [integrations/cometapi-v2.0.0] - 2026-01-09
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Cometapi - drop Python 3.9 and use X|Y typing (#2697)
+
+
 ## [integrations/cometapi-v1.1.0] - 2025-11-26
 
 ### 🚀 Features
