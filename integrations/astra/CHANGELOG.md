@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/astra-v4.0.0] - 2026-01-12
+
+### 🧹 Chores
+
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Astra - drop Python 3.9 and use X|Y typing (#2694)
+
+
 ## [integrations/astra-v3.1.0] - 2025-12-30
 
 ### 🚀 Features
