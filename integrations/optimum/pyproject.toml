@@ -7,7 +7,7 @@ name = "optimum-haystack"
 dynamic = ["version"]
 description = "Component to embed strings and Documents using models loaded with the HuggingFace Optimum library. This component is designed to seamlessly inference models using the high speed ONNX runtime."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "Apache-2.0"
 keywords = []
 authors = [
@@ -18,7 +18,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -26,7 +25,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai",
+  "haystack-ai>=2.22.0",
   "optimum[onnxruntime]>=1.21.0",
   # The main export function of Optimum into ONNX has hidden dependencies.
   # It depends on either "sentence-transformers", "diffusers" or "timm", based
@@ -99,7 +98,6 @@ known-first-party = ["haystack_integrations"]
 
 
 [tool.ruff]
-target-version = "py39"
 line-length = 120
 exclude = ["example", "tests"]
 
@@ -145,10 +143,6 @@ ignore = [
   "PLR0915",
   # Asserts
   "S101",
-]
-unfixable = [
-  # Don't touch unused imports
-  "F401",
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]
