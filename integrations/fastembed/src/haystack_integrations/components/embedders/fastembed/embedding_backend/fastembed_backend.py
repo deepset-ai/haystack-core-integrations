@@ -1,4 +1,4 @@
-from typing import Any, ClassVar, Optional
+from typing import Any, ClassVar
 
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from tqdm import tqdm
@@ -17,8 +17,8 @@ class _FastembedEmbeddingBackendFactory:
     @staticmethod
     def get_embedding_backend(
         model_name: str,
-        cache_dir: Optional[str] = None,
-        threads: Optional[int] = None,
+        cache_dir: str | None = None,
+        threads: int | None = None,
         local_files_only: bool = False,
     ) -> "_FastembedEmbeddingBackend":
         embedding_backend_id = f"{model_name}{cache_dir}{threads}"
@@ -41,8 +41,8 @@ class _FastembedEmbeddingBackend:
     def __init__(
         self,
         model_name: str,
-        cache_dir: Optional[str] = None,
-        threads: Optional[int] = None,
+        cache_dir: str | None = None,
+        threads: int | None = None,
         local_files_only: bool = False,
     ):
         self.model = TextEmbedding(
@@ -70,10 +70,10 @@ class _FastembedSparseEmbeddingBackendFactory:
     @staticmethod
     def get_embedding_backend(
         model_name: str,
-        cache_dir: Optional[str] = None,
-        threads: Optional[int] = None,
+        cache_dir: str | None = None,
+        threads: int | None = None,
         local_files_only: bool = False,
-        model_kwargs: Optional[dict[str, Any]] = None,
+        model_kwargs: dict[str, Any] | None = None,
     ) -> "_FastembedSparseEmbeddingBackend":
         embedding_backend_id = f"{model_name}{cache_dir}{threads}{local_files_only}{model_kwargs}"
 
@@ -99,10 +99,10 @@ class _FastembedSparseEmbeddingBackend:
     def __init__(
         self,
         model_name: str,
-        cache_dir: Optional[str] = None,
-        threads: Optional[int] = None,
+        cache_dir: str | None = None,
+        threads: int | None = None,
         local_files_only: bool = False,
-        model_kwargs: Optional[dict[str, Any]] = None,
+        model_kwargs: dict[str, Any] | None = None,
     ):
         model_kwargs = model_kwargs or {}
 

@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -37,7 +37,7 @@ class CohereRanker:
         top_k: int = 10,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
         api_base_url: str = "https://api.cohere.com",
-        meta_fields_to_embed: Optional[list[str]] = None,
+        meta_fields_to_embed: list[str] | None = None,
         meta_data_separator: str = "\n",
         max_tokens_per_doc: int = 4096,
     ):
@@ -120,7 +120,7 @@ class CohereRanker:
         return concatenated_input_list
 
     @component.output_types(documents=list[Document])
-    def run(self, query: str, documents: list[Document], top_k: Optional[int] = None) -> dict[str, list[Document]]:
+    def run(self, query: str, documents: list[Document], top_k: int | None = None) -> dict[str, list[Document]]:
         """
         Use the Cohere Reranker to re-rank the list of documents based on the query.
 
@@ -160,7 +160,7 @@ class CohereRanker:
         indices = [output.index for output in response.results]
         scores = [output.relevance_score for output in response.results]
         sorted_docs = []
-        for idx, score in zip(indices, scores):
+        for idx, score in zip(indices, scores, strict=True):
             doc = documents[idx]
             doc.score = score
             sorted_docs.append(documents[idx])
