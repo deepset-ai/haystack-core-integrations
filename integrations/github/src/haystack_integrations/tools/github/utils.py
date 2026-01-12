@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Callable, Optional, Union
+from collections.abc import Callable
+from typing import Any
 
 from haystack import Document
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
@@ -33,8 +34,8 @@ def message_handler(documents: list[Document], max_length: int = 150_000) -> str
 
 def serialize_handlers(
     serialized: dict[str, Any],
-    outputs_to_state: Optional[dict[str, dict[str, Union[str, Callable]]]],
-    outputs_to_string: Optional[dict[str, Union[str, Callable[[Any], str]]]],
+    outputs_to_state: dict[str, dict[str, str | Callable]] | None,
+    outputs_to_string: dict[str, str | Callable[[Any], str]] | None,
 ) -> None:
     """
     Serializes callable handlers in outputs_to_state and outputs_to_string.

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import base64
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 import requests
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -21,7 +21,7 @@ class GitHubItem:
     path: str
     size: int
     url: str
-    content: Optional[str] = None
+    content: str | None = None
 
 
 @component
@@ -71,10 +71,10 @@ class GitHubRepoViewer:
     def __init__(
         self,
         *,
-        github_token: Optional[Secret] = None,
+        github_token: Secret | None = None,
         raise_on_failure: bool = True,
         max_file_size: int = 1_000_000,  # 1MB default limit
-        repo: Optional[str] = None,
+        repo: str | None = None,
         branch: str = "main",
     ):
         """
@@ -207,7 +207,7 @@ class GitHubRepoViewer:
         )
 
     @component.output_types(documents=list[Document])
-    def run(self, path: str, repo: Optional[str] = None, branch: Optional[str] = None) -> dict[str, list[Document]]:
+    def run(self, path: str, repo: str | None = None, branch: str | None = None) -> dict[str, list[Document]]:
         """
         Process a GitHub repository path and return documents.
 

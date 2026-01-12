@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import re
-from typing import Any, Optional
+from typing import Any
 
 import requests
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -37,7 +37,7 @@ class GitHubIssueViewer:
     def __init__(
         self,
         *,
-        github_token: Optional[Secret] = None,
+        github_token: Secret | None = None,
         raise_on_failure: bool = True,
         retry_attempts: int = 2,
     ):
