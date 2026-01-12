@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Union
+from typing import Any
 
 
 def remove_key_from_schema(
-    schema: Union[dict[str, Any], list[Any], Any], target_key: str
-) -> Union[dict[str, Any], list[Any], Any]:
+    schema: dict[str, Any] | list[Any] | Any, target_key: str
+) -> dict[str, Any] | list[Any] | Any:
     """
     Recursively traverse a schema and remove all occurrences of the target key.
 
