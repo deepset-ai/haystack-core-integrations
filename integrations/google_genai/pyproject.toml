@@ -7,7 +7,7 @@ name = "google-genai-haystack"
 dynamic = ["version"]
 description = 'Use models like Gemini via Google Gen AI SDK'
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "Apache-2.0"
 keywords = []
 authors = [
@@ -18,7 +18,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -26,7 +25,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.19.0", "google-genai[aiohttp]>=1.18.0", "jsonref>=1.0.0"]
+dependencies = ["haystack-ai>=2.22.0", "google-genai[aiohttp]>=1.18.0", "jsonref>=1.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_genai#readme"
@@ -87,7 +86,6 @@ module = [
 ignore_missing_imports = true
 
 [tool.ruff]
-target-version = "py39"
 line-length = 120
 
 [tool.ruff.lint]
@@ -139,10 +137,6 @@ ignore = [
   "ARG005",
   # Allow function call argument defaults e.g. `Secret.from_env_var`
   "B008",
-]
-unfixable = [
-  # Don't touch unused imports
-  "F401",
 ]
 
 [tool.ruff.lint.isort]
