@@ -196,8 +196,8 @@ class MCPToolset(Toolset):
         },
         # Map tool outputs to state keys for each tool
         outputs_to_state={
-            "git_status": {"status_result": {"source": "status"}},
-            "git_diff": {"diff_result": {}},
+            "git_status": {"status_result": {"source": "status"}},  # Extract "status" from output
+            "git_diff": {"diff_result": {}},  # use full output with default handling
         },
     )
     ```
