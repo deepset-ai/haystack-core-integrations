@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/llama_cpp-v2.0.0] - 2026-01-12
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Llama_cpp - drop Python 3.9 and use X|Y typing (#2710)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 4) (#2527)
+
 ## [integrations/llama_cpp-v1.4.0] - 2025-10-23
 
 ### 📚 Documentation
