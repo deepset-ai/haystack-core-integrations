@@ -486,7 +486,7 @@ class MCPToolset(Toolset):
         server_info = cast(MCPServerInfo, server_info_class).from_dict(server_info_dict)
 
         # Deserialize state configuration parameters
-        inputs_from_state = inner_data.get("inputs_from_state") or {}
+        inputs_from_state = inner_data.get("inputs_from_state")
         outputs_to_state = _deserialize_state_config(inner_data.get("outputs_to_state"))
         outputs_to_string = _deserialize_state_config(inner_data.get("outputs_to_string"))
 
