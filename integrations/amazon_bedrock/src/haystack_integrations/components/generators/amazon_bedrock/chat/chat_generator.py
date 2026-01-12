@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 import aioboto3
 from botocore.config import Config
@@ -147,19 +147,19 @@ class AmazonBedrockChatGenerator:
     def __init__(
         self,
         model: str,
-        aws_access_key_id: Optional[Secret] = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
-        aws_secret_access_key: Optional[Secret] = Secret.from_env_var(  # noqa: B008
+        aws_access_key_id: Secret | None = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
+        aws_secret_access_key: Secret | None = Secret.from_env_var(  # noqa: B008
             ["AWS_SECRET_ACCESS_KEY"], strict=False
         ),
-        aws_session_token: Optional[Secret] = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
-        aws_region_name: Optional[Secret] = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
-        aws_profile_name: Optional[Secret] = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        boto3_config: Optional[dict[str, Any]] = None,
-        tools: Optional[ToolsType] = None,
+        aws_session_token: Secret | None = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
+        aws_region_name: Secret | None = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
+        aws_profile_name: Secret | None = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
+        generation_kwargs: dict[str, Any] | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        boto3_config: dict[str, Any] | None = None,
+        tools: ToolsType | None = None,
         *,
-        guardrail_config: Optional[dict[str, str]] = None,
+        guardrail_config: dict[str, str] | None = None,
     ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
@@ -225,7 +225,7 @@ class AmazonBedrockChatGenerator:
         _validate_guardrail_config(guardrail_config=guardrail_config, streaming=streaming_callback is not None)
         self.guardrail_config = guardrail_config
 
-        def resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+        def resolve_secret(secret: Secret | None) -> str | None:
             return secret.resolve_value() if secret else None
 
         config = Config(
@@ -252,7 +252,7 @@ class AmazonBedrockChatGenerator:
             raise AmazonBedrockConfigurationError(msg) from exception
 
         self.generation_kwargs = generation_kwargs or {}
-        self.async_session: Optional[aioboto3.Session] = None
+        self.async_session: aioboto3.Session | None = None
 
     def _get_async_session(self) -> aioboto3.Session:
         """
@@ -341,11 +341,11 @@ class AmazonBedrockChatGenerator:
     def _prepare_request_params(
         self,
         messages: list[ChatMessage],
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        tools: Optional[ToolsType] = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: ToolsType | None = None,
         requires_async: bool = False,
-    ) -> tuple[dict[str, Any], Optional[StreamingCallbackT]]:
+    ) -> tuple[dict[str, Any], StreamingCallbackT | None]:
         """
         Prepares and formats parameters required to call the Amazon Bedrock Converse API.
 
@@ -423,9 +423,9 @@ class AmazonBedrockChatGenerator:
     def run(
         self,
         messages: list[ChatMessage],
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        tools: Optional[ToolsType] = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: ToolsType | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Executes a synchronous inference call to the Amazon Bedrock model using the Converse API.
@@ -484,9 +484,9 @@ class AmazonBedrockChatGenerator:
     async def run_async(
         self,
         messages: list[ChatMessage],
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        tools: Optional[ToolsType] = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: ToolsType | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Executes an asynchronous inference call to the Amazon Bedrock model using the Converse API.

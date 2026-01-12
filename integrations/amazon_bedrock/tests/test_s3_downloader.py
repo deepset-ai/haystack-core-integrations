@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -63,7 +63,7 @@ class TestS3Downloader:
         assert d.file_extensions == [".pdf", ".txt"]
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 10}])
-    def test_to_dict(self, mock_boto3_session: Any, tmp_path, boto3_config: Optional[dict[str, Any]]):
+    def test_to_dict(self, mock_boto3_session: Any, tmp_path, boto3_config: dict[str, Any] | None):
         d = S3Downloader(file_root_path=str(tmp_path), boto3_config=boto3_config)
         expected = {
             "type": TYPE,
@@ -84,7 +84,7 @@ class TestS3Downloader:
         assert d.to_dict() == expected
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 10}])
-    def test_from_dict(self, mock_boto3_session: Any, tmp_path, boto3_config: Optional[dict[str, Any]]):
+    def test_from_dict(self, mock_boto3_session: Any, tmp_path, boto3_config: dict[str, Any] | None):
         data = {
             "type": TYPE,
             "init_parameters": {

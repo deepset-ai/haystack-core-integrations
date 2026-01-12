@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Optional
+from typing import Any
 
 import requests
 from haystack import component, default_from_dict, default_to_dict
@@ -39,9 +39,9 @@ class JinaTextEmbedder:
         model: str = "jina-embeddings-v3",
         prefix: str = "",
         suffix: str = "",
-        task: Optional[str] = None,
-        dimensions: Optional[int] = None,
-        late_chunking: Optional[bool] = None,
+        task: str | None = None,
+        dimensions: int | None = None,
+        late_chunking: bool | None = None,
     ):
         """
         Create a JinaTextEmbedder component.

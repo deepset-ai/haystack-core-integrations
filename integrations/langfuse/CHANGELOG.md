@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/langfuse-v4.0.0] - 2026-01-12
+
+### 🧹 Chores
+
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Langfuse - drop Python 3.9 and use X|Y typing (#2709)
+
+
 ## [integrations/langfuse-v3.3.1] - 2025-12-10
 
 ### 🚀 Features

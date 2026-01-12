@@ -1,7 +1,7 @@
 import base64
 import json
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 from botocore.eventstream import EventStream
 from haystack import logging
@@ -40,7 +40,7 @@ FINISH_REASON_MAPPING: dict[str, FinishReason] = {
 
 
 # Haystack to Bedrock util methods
-def _format_tools(tools: Optional[list[Tool]] = None) -> Optional[dict[str, Any]]:
+def _format_tools(tools: list[Tool] | None = None) -> dict[str, Any] | None:
     """
     Format Haystack Tool(s) to Amazon Bedrock toolConfig format.
 
@@ -454,7 +454,7 @@ def _convert_event_to_streaming_chunk(
     return streaming_chunk
 
 
-def _process_reasoning_contents(chunks: list[StreamingChunk]) -> Optional[ReasoningContent]:
+def _process_reasoning_contents(chunks: list[StreamingChunk]) -> ReasoningContent | None:
     """
     Process reasoning contents from a list of StreamingChunk objects into the Bedrock expected format.
 
@@ -613,7 +613,7 @@ async def _parse_streaming_response_async(
     return [reply]
 
 
-def _validate_guardrail_config(guardrail_config: Optional[dict[str, str]] = None, streaming: bool = False) -> None:
+def _validate_guardrail_config(guardrail_config: dict[str, str] | None = None, streaming: bool = False) -> None:
     """
     Validate the guardrail configuration.
 

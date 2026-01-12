@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.0.0] - 2026-01-09
+
+### 🧹 Chores
+
+- [**breaking**] Amazon_bedrock - drop Python 3.9 and use X|Y typing (#2685)
+
+
 ## [integrations/amazon_bedrock-v5.4.0] - 2026-01-08
 
 ### 🚀 Features

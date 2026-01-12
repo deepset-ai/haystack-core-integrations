@@ -1,5 +1,29 @@
 # Changelog
 
+## [integrations/hanlp-v2.0.0] - 2026-01-12
+
+### 🐛 Bug Fixes
+
+- Docs: fix hanlp markdown filenames (#2480)
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Hanlp - drop Python 3.9 and use X|Y typing (#2707)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 4) (#2527)
+
 ## [integrations/hanlp-v1.0.1] - 2025-10-14
 
 ### 🐛 Bug Fixes

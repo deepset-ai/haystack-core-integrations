@@ -73,7 +73,7 @@ class TestGitHubPRCreatorTool:
             github_token=Secret.from_env_var("GITHUB_TOKEN"),
             raise_on_failure=False,
             outputs_to_string={"handler": message_handler},
-            inputs_from_state={"repository": "repo"},
+            inputs_from_state={"repository": "issue_url"},
             outputs_to_state={"documents": {"source": "result", "handler": message_handler}},
         )
         tool_dict = tool.to_dict()
@@ -91,7 +91,7 @@ class TestGitHubPRCreatorTool:
             tool_dict["data"]["outputs_to_string"]["handler"]
             == "haystack_integrations.tools.github.utils.message_handler"
         )
-        assert tool_dict["data"]["inputs_from_state"] == {"repository": "repo"}
+        assert tool_dict["data"]["inputs_from_state"] == {"repository": "issue_url"}
         assert tool_dict["data"]["outputs_to_state"]["documents"]["source"] == "result"
         assert (
             tool_dict["data"]["outputs_to_state"]["documents"]["handler"]
@@ -109,7 +109,7 @@ class TestGitHubPRCreatorTool:
                 "github_token": {"env_vars": ["GITHUB_TOKEN"], "strict": True, "type": "env_var"},
                 "raise_on_failure": False,
                 "outputs_to_string": {"handler": "haystack_integrations.tools.github.utils.message_handler"},
-                "inputs_from_state": {"repository": "repo"},
+                "inputs_from_state": {"repository": "issue_url"},
                 "outputs_to_state": {
                     "documents": {
                         "source": "result",
@@ -125,6 +125,6 @@ class TestGitHubPRCreatorTool:
         assert tool.github_token == Secret.from_env_var("GITHUB_TOKEN")
         assert tool.raise_on_failure is False
         assert tool.outputs_to_string["handler"] == message_handler
-        assert tool.inputs_from_state == {"repository": "repo"}
+        assert tool.inputs_from_state == {"repository": "issue_url"}
         assert tool.outputs_to_state["documents"]["source"] == "result"
         assert tool.outputs_to_state["documents"]["handler"] == message_handler

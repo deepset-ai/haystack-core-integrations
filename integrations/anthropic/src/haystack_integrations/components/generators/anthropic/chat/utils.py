@@ -1,4 +1,4 @@
-from typing import Any, Literal, Optional, Union, cast, get_args
+from typing import Any, Literal, cast, get_args
 
 from haystack.dataclasses.chat_message import (
     ChatMessage,
@@ -46,14 +46,12 @@ FINISH_REASON_MAPPING: dict[str, FinishReason] = {
 def _update_anthropic_message_with_tool_call_results(
     tool_call_results: list[ToolCallResult],
     content: list[
-        Union[
-            TextBlockParam,
-            ToolUseBlockParam,
-            ToolResultBlockParam,
-            ImageBlockParam,
-            ThinkingBlockParam,
-            RedactedThinkingBlockParam,
-        ]
+        TextBlockParam
+        | ToolUseBlockParam
+        | ToolResultBlockParam
+        | ImageBlockParam
+        | ThinkingBlockParam
+        | RedactedThinkingBlockParam
     ],
 ) -> None:
     """
@@ -130,14 +128,12 @@ def _convert_messages_to_anthropic_format(
             continue
 
         content: list[
-            Union[
-                TextBlockParam,
-                ToolUseBlockParam,
-                ToolResultBlockParam,
-                ImageBlockParam,
-                ThinkingBlockParam,
-                RedactedThinkingBlockParam,
-            ]
+            TextBlockParam
+            | ToolUseBlockParam
+            | ToolResultBlockParam
+            | ImageBlockParam
+            | ThinkingBlockParam
+            | RedactedThinkingBlockParam
         ] = []
 
         # Handle multimodal content (text and images) preserving order
@@ -222,7 +218,7 @@ def _convert_messages_to_anthropic_format(
 
         # Anthropic only supports assistant and user roles in messages. User role is also used for tool messages.
         # System messages are passed separately.
-        role: Union[Literal["assistant"], Literal["user"]] = "user"
+        role: Literal["assistant"] | Literal["user"] = "user"
         if message._role == ChatRole.ASSISTANT:
             role = "assistant"
 
@@ -358,7 +354,7 @@ def _convert_anthropic_chunk_to_streaming_chunk(
     )
 
 
-def _process_reasoning_contents(chunks: list[StreamingChunk]) -> Optional[ReasoningContent]:
+def _process_reasoning_contents(chunks: list[StreamingChunk]) -> ReasoningContent | None:
     """
     Process reasoning contents from a list of StreamingChunk objects into the Anthropic expected format.
 

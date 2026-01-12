@@ -1,4 +1,4 @@
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.document_stores.types import FilterPolicy
@@ -21,9 +21,9 @@ class AzureAISearchBM25Retriever:
         self,
         *,
         document_store: AzureAISearchDocumentStore,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
+        filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
         **kwargs: Any,
     ):
         """
@@ -97,7 +97,7 @@ class AzureAISearchBM25Retriever:
 
     @component.output_types(documents=list[Document])
     def run(
-        self, query: str, filters: Optional[dict[str, Any]] = None, top_k: Optional[int] = None
+        self, query: str, filters: dict[str, Any] | None = None, top_k: int | None = None
     ) -> dict[str, list[Document]]:
         """Retrieve documents from the AzureAISearchDocumentStore.
 

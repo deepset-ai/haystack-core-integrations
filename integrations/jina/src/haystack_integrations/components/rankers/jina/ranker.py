@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Optional
+from typing import Any
 
 import requests
 from haystack import Document, component, default_from_dict, default_to_dict
@@ -33,8 +33,8 @@ class JinaRanker:
         self,
         model: str = "jina-reranker-v1-base-en",
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008,
-        top_k: Optional[int] = None,
-        score_threshold: Optional[float] = None,
+        top_k: int | None = None,
+        score_threshold: float | None = None,
     ):
         """
         Creates an instance of JinaRanker.
@@ -107,8 +107,8 @@ class JinaRanker:
         self,
         query: str,
         documents: list[Document],
-        top_k: Optional[int] = None,
-        score_threshold: Optional[float] = None,
+        top_k: int | None = None,
+        score_threshold: float | None = None,
     ):
         """
         Returns a list of Documents ranked by their similarity to the given query.

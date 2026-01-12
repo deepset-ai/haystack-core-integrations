@@ -1,10 +1,18 @@
 # Changelog
 
+## [integrations/azure_ai_search-v3.0.0] - 2026-01-09
+
+
+### 🧹 Chores
+
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Azure_ai_search - drop Python 3.9 and use X|Y typing (#2695)
+
 ## [integrations/azure_ai_search-v2.3.3] - 2025-12-10
 
 ### 🚀 Features
 
-- Adding `update_by_filter()` and `delete_by_filter()` to `AzureAISearchDocument Store` (#2586)
+- Adding updated/delete by filter + tests to `AzureAISearchDocument Store` (#2586)
 
 
 ### 🧪 Testing

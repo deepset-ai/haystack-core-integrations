@@ -3,11 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Sequence
-from typing import Any, Literal, Optional, cast
+from typing import Any, Literal, cast
 
 import chromadb
 from chromadb.api.models.AsyncCollection import AsyncCollection
 from chromadb.api.types import GetResult, Metadata, OneOrMany, QueryResult
+from chromadb.config import Settings
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError
@@ -35,11 +36,12 @@ class ChromaDocumentStore:
         self,
         collection_name: str = "documents",
         embedding_function: str = "default",
-        persist_path: Optional[str] = None,
-        host: Optional[str] = None,
-        port: Optional[int] = None,
+        persist_path: str | None = None,
+        host: str | None = None,
+        port: int | None = None,
         distance_function: Literal["l2", "cosine", "ip"] = "l2",
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
+        client_settings: dict[str, Any] | None = None,
         **embedding_function_params: Any,
     ):
         """
@@ -67,6 +69,11 @@ class ChromaDocumentStore:
         :param metadata: a dictionary of chromadb collection parameters passed directly to chromadb's client
             method `create_collection`. If it contains the key `"hnsw:space"`, the value will take precedence over the
             `distance_function` parameter above.
+        :param client_settings: a dictionary of Chroma Settings configuration options passed to
+            `chromadb.config.Settings`. These settings configure the underlying Chroma client behavior.
+            For available options, see [Chroma's config.py](https://github.com/chroma-core/chroma/blob/main/chromadb/config.py).
+            **Note**: specifying these settings may interfere with standard client initialization parameters.
+            This option is intended for advanced customization.
         :param embedding_function_params: additional parameters to pass to the embedding function.
         """
 
@@ -84,13 +91,14 @@ class ChromaDocumentStore:
         self._embedding_function_params = embedding_function_params
         self._distance_function = distance_function
         self._metadata = metadata
+        self._client_settings = client_settings
 
         self._persist_path = persist_path
         self._host = host
         self._port = port
 
-        self._collection: Optional[chromadb.Collection] = None
-        self._async_collection: Optional[AsyncCollection] = None
+        self._collection: chromadb.Collection | None = None
+        self._async_collection: AsyncCollection | None = None
 
     def _ensure_initialized(self):
         if not self._collection:
@@ -102,18 +110,29 @@ class ChromaDocumentStore:
                     "You cannot specify both options."
                 )
                 raise ValueError(error_message)
+
+            # Use dict to conditionally pass settings because Chroma doesn't accept settings=None
+            client_kwargs: dict[str, Any] = {}
+            if self._client_settings:
+                try:
+                    client_kwargs["settings"] = Settings(**self._client_settings)
+                except ValueError as e:
+                    msg = f"Invalid client_settings ({self._client_settings}): {e}"
+                    raise ValueError(msg) from e
+
             if self._host and self._port is not None:
                 # Remote connection via HTTP client
                 client = chromadb.HttpClient(
                     host=self._host,
                     port=self._port,
+                    **client_kwargs,
                 )
             elif self._persist_path is None:
                 # In-memory storage
-                client = chromadb.Client()
+                client = chromadb.Client(**client_kwargs)
             else:
                 # Local persistent storage
-                client = chromadb.PersistentClient(path=self._persist_path)
+                client = chromadb.PersistentClient(path=self._persist_path, **client_kwargs)
 
             self._client = client  # store client for potential future use
 
@@ -148,9 +167,19 @@ class ChromaDocumentStore:
                 )
                 raise ValueError(error_message)
 
+            # Use dict to conditionally pass settings because Chroma doesn't accept settings=None
+            client_kwargs: dict[str, Any] = {}
+            if self._client_settings:
+                try:
+                    client_kwargs["settings"] = Settings(**self._client_settings)
+                except ValueError as e:
+                    msg = f"Invalid client_settings ({self._client_settings}): {e}"
+                    raise ValueError(msg) from e
+
             client = await chromadb.AsyncHttpClient(
                 host=self._host,
                 port=self._port,
+                **client_kwargs,
             )
 
             self._async_client = client  # store client for potential future use
@@ -179,7 +208,7 @@ class ChromaDocumentStore:
                 )
 
     @staticmethod
-    def _prepare_get_kwargs(filters: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    def _prepare_get_kwargs(filters: dict[str, Any] | None = None) -> dict[str, Any]:
         """
         Prepare kwargs for Chroma get operations.
         """
@@ -197,7 +226,7 @@ class ChromaDocumentStore:
         return kwargs
 
     @staticmethod
-    def _prepare_query_kwargs(filters: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    def _prepare_query_kwargs(filters: dict[str, Any] | None = None) -> dict[str, Any]:
         """
         Prepare kwargs for Chroma query operations.
         """
@@ -235,7 +264,7 @@ class ChromaDocumentStore:
 
         return value
 
-    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
+    def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -253,7 +282,7 @@ class ChromaDocumentStore:
 
         return self._get_result_to_documents(result)
 
-    async def filter_documents_async(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
+    async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Asynchronously returns the documents that match the filters provided.
 
@@ -324,7 +353,7 @@ class ChromaDocumentStore:
         return ids_to_update, updated_metadata
 
     @staticmethod
-    def _convert_document_to_chroma(doc: Document) -> Optional[dict[str, Any]]:
+    def _convert_document_to_chroma(doc: Document) -> dict[str, Any] | None:
         """
         Converts a Haystack Document to a Chroma document.
         """
@@ -726,7 +755,7 @@ class ChromaDocumentStore:
         self,
         queries: list[str],
         top_k: int,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
     ) -> list[list[Document]]:
         """
         Search the documents in the store using the provided text queries.
@@ -752,7 +781,7 @@ class ChromaDocumentStore:
         self,
         queries: list[str],
         top_k: int,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
     ) -> list[list[Document]]:
         """
         Asynchronously search the documents in the store using the provided text queries.
@@ -780,7 +809,7 @@ class ChromaDocumentStore:
         self,
         query_embeddings: list[list[float]],
         top_k: int,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
     ) -> list[list[Document]]:
         """
         Perform vector search on the stored document, pass the embeddings of the queries instead of their text.
@@ -808,7 +837,7 @@ class ChromaDocumentStore:
         self,
         query_embeddings: list[list[float]],
         top_k: int,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
     ) -> list[list[Document]]:
         """
         Asynchronously perform vector search on the stored document, pass the embeddings of the queries instead of
@@ -862,6 +891,7 @@ class ChromaDocumentStore:
             host=self._host,
             port=self._port,
             distance_function=self._distance_function,
+            client_settings=self._client_settings,
             **self._embedding_function_params,
         )
 
