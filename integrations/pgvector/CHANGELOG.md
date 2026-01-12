@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/pgvector-v6.0.0] - 2026-01-12
+
+### 🧹 Chores
+
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Pgvector - drop Python 3.9 and use X|Y typing (#2722)
+
+### 🌀 Miscellaneous
+
+- Fix: Fix doc links (#2661)
+
 ## [integrations/pgvector-v5.5.0] - 2026-01-02
 
 ### 🚀 Features
