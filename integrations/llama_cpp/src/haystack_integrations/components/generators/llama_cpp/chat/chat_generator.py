@@ -1,7 +1,7 @@
 import json
 from collections.abc import Iterator
 from datetime import datetime, timezone
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
@@ -192,15 +192,15 @@ class LlamaCppChatGenerator:
     def __init__(
         self,
         model: str,
-        n_ctx: Optional[int] = 0,
-        n_batch: Optional[int] = 512,
-        model_kwargs: Optional[dict[str, Any]] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
+        n_ctx: int | None = 0,
+        n_batch: int | None = 512,
+        model_kwargs: dict[str, Any] | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
         *,
-        tools: Optional[ToolsType] = None,
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        chat_handler_name: Optional[str] = None,
-        model_clip_path: Optional[str] = None,
+        tools: ToolsType | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        chat_handler_name: str | None = None,
+        model_clip_path: str | None = None,
     ):
         """
         :param model: The path of a quantized model for text generation, for example, "zephyr-7b-beta.Q4_0.gguf".
@@ -238,7 +238,7 @@ class LlamaCppChatGenerator:
 
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
 
-        handler: Optional[Llava15ChatHandler] = None
+        handler: Llava15ChatHandler | None = None
         # Validate multimodal requirements
         if chat_handler_name is not None:
             if model_clip_path is None:
@@ -256,7 +256,7 @@ class LlamaCppChatGenerator:
         self.n_batch = n_batch
         self.model_kwargs = model_kwargs
         self.generation_kwargs = generation_kwargs
-        self._model: Optional[Llama] = None
+        self._model: Llama | None = None
         self.tools = tools
         self.streaming_callback = streaming_callback
         self.chat_handler_name = chat_handler_name
@@ -324,10 +324,10 @@ class LlamaCppChatGenerator:
     def run(
         self,
         messages: list[ChatMessage],
-        generation_kwargs: Optional[dict[str, Any]] = None,
+        generation_kwargs: dict[str, Any] | None = None,
         *,
-        tools: Optional[ToolsType] = None,
-        streaming_callback: Optional[StreamingCallbackT] = None,
+        tools: ToolsType | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Run the text generation model on the given list of ChatMessages.
@@ -435,8 +435,8 @@ class LlamaCppChatGenerator:
 
             if chunk.get("choices") and len(chunk["choices"]) > 0:
                 choice = chunk["choices"][0]
-                delta: Union[ChatCompletionStreamResponseDelta, ChatCompletionStreamResponseDeltaEmpty, dict] = (
-                    choice.get("delta", {})
+                delta: ChatCompletionStreamResponseDelta | ChatCompletionStreamResponseDeltaEmpty | dict = choice.get(
+                    "delta", {}
                 )
 
                 finish_reason = choice.get("finish_reason")
