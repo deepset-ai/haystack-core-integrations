@@ -105,7 +105,7 @@ class TestLlamaStackChatGenerator:
     def test_init_default(self):
         component = LlamaStackChatGenerator(model="ollama/llama3.2:3b")
         assert component.model == "ollama/llama3.2:3b"
-        assert component.api_base_url == "http://localhost:8321/v1/openai/v1"
+        assert component.api_base_url == "http://localhost:8321/v1"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
 
@@ -134,7 +134,7 @@ class TestLlamaStackChatGenerator:
         expected_params = {
             "model": "ollama/llama3.2:3b",
             "streaming_callback": None,
-            "api_base_url": "http://localhost:8321/v1/openai/v1",
+            "api_base_url": "http://localhost:8321/v1",
             "generation_kwargs": {},
             "timeout": None,
             "max_retries": None,
