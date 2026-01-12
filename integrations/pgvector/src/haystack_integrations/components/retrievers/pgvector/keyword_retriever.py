@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -52,9 +52,9 @@ class PgvectorKeywordRetriever:
         self,
         *,
         document_store: PgvectorDocumentStore,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
+        filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ):
         """
         :param document_store: An instance of `PgvectorDocumentStore`.
@@ -111,8 +111,8 @@ class PgvectorKeywordRetriever:
     def run(
         self,
         query: str,
-        filters: Optional[dict[str, Any]] = None,
-        top_k: Optional[int] = None,
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
     ) -> dict[str, list[Document]]:
         """
         Retrieve documents from the `PgvectorDocumentStore`, based on keywords.
@@ -141,8 +141,8 @@ class PgvectorKeywordRetriever:
     async def run_async(
         self,
         query: str,
-        filters: Optional[dict[str, Any]] = None,
-        top_k: Optional[int] = None,
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
     ) -> dict[str, list[Document]]:
         """
         Asynchronously retrieve documents from the `PgvectorDocumentStore`, based on keywords.

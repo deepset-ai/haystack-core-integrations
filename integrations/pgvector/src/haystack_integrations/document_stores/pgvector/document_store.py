@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Literal, Optional, Union, overload
+from typing import Any, Literal, overload
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses.document import Document
@@ -92,9 +92,9 @@ class PgvectorDocumentStore:
         recreate_table: bool = False,
         search_strategy: Literal["exact_nearest_neighbor", "hnsw"] = "exact_nearest_neighbor",
         hnsw_recreate_index_if_exists: bool = False,
-        hnsw_index_creation_kwargs: Optional[dict[str, int]] = None,
+        hnsw_index_creation_kwargs: dict[str, int] | None = None,
         hnsw_index_name: str = "haystack_hnsw_index",
-        hnsw_ef_search: Optional[int] = None,
+        hnsw_ef_search: int | None = None,
         keyword_index_name: str = "haystack_keyword_index",
     ):
         """
@@ -175,12 +175,12 @@ class PgvectorDocumentStore:
         self.keyword_index_name = keyword_index_name
         self.language = language
 
-        self._connection: Optional[Connection] = None
-        self._async_connection: Optional[AsyncConnection] = None
-        self._cursor: Optional[Cursor] = None
-        self._async_cursor: Optional[AsyncCursor] = None
-        self._dict_cursor: Optional[Cursor[DictRow]] = None
-        self._async_dict_cursor: Optional[AsyncCursor[DictRow]] = None
+        self._connection: Connection | None = None
+        self._async_connection: AsyncConnection | None = None
+        self._cursor: Cursor | None = None
+        self._async_cursor: AsyncCursor | None = None
+        self._dict_cursor: Cursor[DictRow] | None = None
+        self._async_dict_cursor: AsyncCursor[DictRow] | None = None
         self._table_initialized = False
 
     def to_dict(self) -> dict[str, Any]:
@@ -250,21 +250,21 @@ class PgvectorDocumentStore:
 
     @overload
     def _execute_sql(
-        self, cursor: Cursor, sql_query: Composed, params: Optional[tuple] = None, error_msg: str = ""
+        self, cursor: Cursor, sql_query: Composed, params: tuple | None = None, error_msg: str = ""
     ) -> Cursor: ...
 
     @overload
     def _execute_sql(
-        self, cursor: Cursor[DictRow], sql_query: Composed, params: Optional[tuple] = None, error_msg: str = ""
+        self, cursor: Cursor[DictRow], sql_query: Composed, params: tuple | None = None, error_msg: str = ""
     ) -> Cursor[DictRow]: ...
 
     def _execute_sql(
         self,
-        cursor: Union[Cursor, Cursor[DictRow]],
+        cursor: Cursor | Cursor[DictRow],
         sql_query: Composed,
-        params: Optional[tuple] = None,
+        params: tuple | None = None,
         error_msg: str = "",
-    ) -> Union[Cursor, Cursor[DictRow]]:
+    ) -> Cursor | Cursor[DictRow]:
         """
         Internal method to execute SQL statements and handle exceptions.
 
@@ -299,21 +299,21 @@ class PgvectorDocumentStore:
 
     @overload
     async def _execute_sql_async(
-        self, cursor: AsyncCursor, sql_query: Composed, params: Optional[tuple] = None, error_msg: str = ""
+        self, cursor: AsyncCursor, sql_query: Composed, params: tuple | None = None, error_msg: str = ""
     ) -> AsyncCursor: ...
 
     @overload
     async def _execute_sql_async(
-        self, cursor: AsyncCursor[DictRow], sql_query: Composed, params: Optional[tuple] = None, error_msg: str = ""
+        self, cursor: AsyncCursor[DictRow], sql_query: Composed, params: tuple | None = None, error_msg: str = ""
     ) -> AsyncCursor[DictRow]: ...
 
     async def _execute_sql_async(
         self,
-        cursor: Union[AsyncCursor, AsyncCursor[DictRow]],
+        cursor: AsyncCursor | AsyncCursor[DictRow],
         sql_query: Composed,
-        params: Optional[tuple] = None,
+        params: tuple | None = None,
         error_msg: str = "",
-    ) -> Union[AsyncCursor, AsyncCursor[DictRow]]:
+    ) -> AsyncCursor | AsyncCursor[DictRow]:
         """
         Internal method to asynchronously execute SQL statements and handle exceptions.
 
@@ -759,7 +759,7 @@ class PgvectorDocumentStore:
             return result[0]
         return 0
 
-    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
+    def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -796,7 +796,7 @@ class PgvectorDocumentStore:
         docs = _from_pg_to_haystack_documents(records)
         return docs
 
-    async def filter_documents_async(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
+    async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Asynchronously returns the documents that match the filters provided.
 
@@ -1223,7 +1223,7 @@ class PgvectorDocumentStore:
             raise DocumentStoreError(msg) from e
 
     def _build_keyword_retrieval_query(
-        self, query: str, top_k: int, filters: Optional[dict[str, Any]] = None
+        self, query: str, top_k: int, filters: dict[str, Any] | None = None
     ) -> tuple[Composed, tuple]:
         """
         Builds the SQL query and the where parameters for keyword retrieval.
@@ -1236,7 +1236,7 @@ class PgvectorDocumentStore:
         )
 
         where_params = ()
-        sql_where_clause: Union[Composed, SQL] = SQL("")
+        sql_where_clause: Composed | SQL = SQL("")
         if filters:
             sql_where_clause, where_params = _convert_filters_to_where_clause_and_params(
                 filters=filters, operator="AND"
@@ -1252,7 +1252,7 @@ class PgvectorDocumentStore:
         self,
         query: str,
         *,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
     ) -> list[Document]:
         """
@@ -1287,7 +1287,7 @@ class PgvectorDocumentStore:
         self,
         query: str,
         *,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
     ) -> list[Document]:
         """
@@ -1315,9 +1315,9 @@ class PgvectorDocumentStore:
     def _check_and_build_embedding_retrieval_query(
         self,
         query_embedding: list[float],
-        vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]],
+        vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"] | None,
         top_k: int,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[Composed, tuple]:
         """
         Performs checks and builds the SQL query and the where parameters for embedding retrieval.
@@ -1357,7 +1357,7 @@ class PgvectorDocumentStore:
             score=SQL(score_definition),
         )
 
-        sql_where_clause: Union[Composed, SQL] = SQL("")
+        sql_where_clause: Composed | SQL = SQL("")
         params = ()
         if filters:
             sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
@@ -1379,9 +1379,9 @@ class PgvectorDocumentStore:
         self,
         query_embedding: list[float],
         *,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]] = None,
+        vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"] | None = None,
     ) -> list[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
@@ -1413,9 +1413,9 @@ class PgvectorDocumentStore:
         self,
         query_embedding: list[float],
         *,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        vector_function: Optional[Literal["cosine_similarity", "inner_product", "l2_distance"]] = None,
+        vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"] | None = None,
     ) -> list[Document]:
         """
         Asynchronously retrieves documents that are most similar to the query embedding using a
