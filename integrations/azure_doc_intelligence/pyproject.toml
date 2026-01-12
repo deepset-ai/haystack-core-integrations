@@ -31,7 +31,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
 ]
 dependencies = [
-    "haystack-ai>=2.0.0",
+    "haystack-ai>=2.22.0",
     "azure-ai-documentintelligence>=1.0.0",
 ]
 
