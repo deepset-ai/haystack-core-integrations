@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -45,9 +45,9 @@ class CohereDocumentEmbedder:
         timeout: float = 120.0,
         batch_size: int = 32,
         progress_bar: bool = True,
-        meta_fields_to_embed: Optional[list[str]] = None,
+        meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
-        embedding_type: Optional[EmbeddingTypes] = None,
+        embedding_type: EmbeddingTypes | None = None,
     ):
         """
         :param api_key: the Cohere API key.
@@ -167,7 +167,7 @@ class CohereDocumentEmbedder:
         return texts_to_embed
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
-    def run(self, documents: list[Document]) -> dict[str, Union[list[Document], dict[str, Any]]]:
+    def run(self, documents: list[Document]) -> dict[str, list[Document] | dict[str, Any]]:
         """Embed a list of `Documents`.
 
         :param documents: documents to embed.
@@ -195,13 +195,13 @@ class CohereDocumentEmbedder:
             self.embedding_type,
         )
 
-        for doc, embeddings in zip(documents, all_embeddings):
+        for doc, embeddings in zip(documents, all_embeddings, strict=True):
             doc.embedding = embeddings
 
         return {"documents": documents, "meta": metadata}
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
-    async def run_async(self, documents: list[Document]) -> dict[str, Union[list[Document], dict[str, Any]]]:
+    async def run_async(self, documents: list[Document]) -> dict[str, list[Document] | dict[str, Any]]:
         """
         Embed a list of `Documents` asynchronously.
 
@@ -228,7 +228,7 @@ class CohereDocumentEmbedder:
             embedding_type=self.embedding_type,
         )
 
-        for doc, embeddings in zip(documents, all_embeddings):
+        for doc, embeddings in zip(documents, all_embeddings, strict=True):
             doc.embedding = embeddings
 
         return {"documents": documents, "meta": metadata}
