@@ -262,6 +262,7 @@ class TestFastembedDocumentEmbedder:
             embedding_separator="\n",
         )
         embedder.embedding_backend = MagicMock()
+        embedder.embedding_backend.embed.return_value = [np.random.rand(3, 16).tolist() for _ in range(5)]
 
         documents = [Document(content=f"document-number {i}", meta={"meta_field": f"meta_value {i}"}) for i in range(5)]
 

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional
+from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 
@@ -39,12 +39,12 @@ class FastembedRanker:
         self,
         model_name: str = "Xenova/ms-marco-MiniLM-L-6-v2",
         top_k: int = 10,
-        cache_dir: Optional[str] = None,
-        threads: Optional[int] = None,
+        cache_dir: str | None = None,
+        threads: int | None = None,
         batch_size: int = 64,
-        parallel: Optional[int] = None,
+        parallel: int | None = None,
         local_files_only: bool = False,
-        meta_fields_to_embed: Optional[list[str]] = None,
+        meta_fields_to_embed: list[str] | None = None,
         meta_data_separator: str = "\n",
     ):
         """
@@ -80,7 +80,7 @@ class FastembedRanker:
         self.local_files_only = local_files_only
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.meta_data_separator = meta_data_separator
-        self._model: Optional[TextCrossEncoder] = None
+        self._model: TextCrossEncoder | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -144,7 +144,7 @@ class FastembedRanker:
         return concatenated_input_list
 
     @component.output_types(documents=list[Document])
-    def run(self, query: str, documents: list[Document], top_k: Optional[int] = None) -> dict[str, list[Document]]:
+    def run(self, query: str, documents: list[Document], top_k: int | None = None) -> dict[str, list[Document]]:
         """
         Returns a list of documents ranked by their similarity to the given query, using FastEmbed.
 
@@ -192,7 +192,7 @@ class FastembedRanker:
         )
 
         # Combine the two lists into a single list of tuples
-        doc_scores = list(zip(documents, scores))
+        doc_scores = list(zip(documents, scores, strict=True))
 
         # Sort the list of tuples by the score in descending order
         sorted_doc_scores = sorted(doc_scores, key=lambda x: x[1], reverse=True)
