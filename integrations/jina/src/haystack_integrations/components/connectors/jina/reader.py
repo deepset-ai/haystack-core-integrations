@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
-from typing import Any, Optional, Union
+from typing import Any
 from urllib.parse import quote
 
 import requests
@@ -42,7 +42,7 @@ class JinaReaderConnector:
 
     def __init__(
         self,
-        mode: Union[JinaReaderMode, str],
+        mode: JinaReaderMode | str,
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008
         json_response: bool = True,
     ):
@@ -104,7 +104,7 @@ class JinaReaderConnector:
         return document
 
     @component.output_types(documents=list[Document])
-    def run(self, query: str, headers: Optional[dict[str, str]] = None) -> dict[str, list[Document]]:
+    def run(self, query: str, headers: dict[str, str] | None = None) -> dict[str, list[Document]]:
         """
         Process the query/URL using the Jina AI reader service.
 

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from dataclasses import replace
-from typing import Any, Optional
+from typing import Any
 
 import requests
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -58,9 +58,9 @@ class JinaDocumentImageEmbedder:
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008
         model: str = "jina-clip-v2",
         file_path_meta_field: str = "file_path",
-        root_path: Optional[str] = None,
-        embedding_dimension: Optional[int] = None,
-        image_size: Optional[tuple[int, int]] = None,
+        root_path: str | None = None,
+        embedding_dimension: int | None = None,
+        image_size: tuple[int, int] | None = None,
         batch_size: int = 5,
     ):
         """
@@ -166,7 +166,7 @@ class JinaDocumentImageEmbedder:
             documents=documents, file_path_meta_field=self.file_path_meta_field, root_path=self.root_path
         )
 
-        images_to_embed: list[Optional[str]] = [None] * len(documents)
+        images_to_embed: list[str | None] = [None] * len(documents)
         pdf_page_infos: list[_PDFPageInfo] = []
 
         for doc_idx, image_source_info in enumerate(images_source_info):
@@ -256,7 +256,7 @@ class JinaDocumentImageEmbedder:
             embeddings.extend(batch_embeddings)
 
         docs_with_embeddings = []
-        for doc, emb in zip(documents, embeddings):
+        for doc, emb in zip(documents, embeddings, strict=True):
             # we store this information for later inspection
             new_meta = {
                 **doc.meta,
