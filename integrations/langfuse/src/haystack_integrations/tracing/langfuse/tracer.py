@@ -12,7 +12,7 @@ from contextlib import AbstractContextManager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Literal, Optional, cast
+from typing import Any, Literal, cast
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage
@@ -48,7 +48,7 @@ tracing_context_var: ContextVar[dict[Any, Any]] = ContextVar("tracing_context")
 
 # Internal span execution hierarchy for our tracer
 # Manages parent-child relationships and prevents cross-request span interleaving
-span_stack_var: ContextVar[Optional[list["LangfuseSpan"]]] = ContextVar("span_stack", default=None)
+span_stack_var: ContextVar[list["LangfuseSpan"] | None] = ContextVar("span_stack", default=None)
 
 
 class LangfuseSpan(Span):
@@ -150,9 +150,9 @@ class SpanContext:
 
     name: str
     operation_name: str
-    component_type: Optional[str]
+    component_type: str | None
     tags: dict[str, Any]
-    parent_span: Optional[Span]
+    parent_span: Span | None
     trace_name: str = "Haystack"
     public: bool = False
 
@@ -189,7 +189,7 @@ class SpanHandler(ABC):
     """
 
     def __init__(self) -> None:
-        self.tracer: Optional[langfuse.Langfuse] = None
+        self.tracer: langfuse.Langfuse | None = None
 
     def init_tracer(self, tracer: langfuse.Langfuse) -> None:
         """
@@ -215,7 +215,7 @@ class SpanHandler(ABC):
         pass
 
     @abstractmethod
-    def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
+    def handle(self, span: LangfuseSpan, component_type: str | None) -> None:
         """
         Process a span after component execution by attaching metadata and metrics.
 
@@ -338,7 +338,7 @@ class DefaultSpanHandler(SpanHandler):
         else:
             return LangfuseSpan(self.tracer.start_as_current_span(name=context.name))
 
-    def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
+    def handle(self, span: LangfuseSpan, component_type: str | None) -> None:
         # If the span is at the pipeline level, we add input and output keys to the span
         at_pipeline_level = span.get_data().get(_PIPELINE_INPUT_KEY) is not None
         if at_pipeline_level:
@@ -420,7 +420,7 @@ class LangfuseTracer(Tracer):
         tracer: langfuse.Langfuse,
         name: str = "Haystack",
         public: bool = False,
-        span_handler: Optional[SpanHandler] = None,
+        span_handler: SpanHandler | None = None,
     ) -> None:
         """
         Initialize a LangfuseTracer instance.
@@ -450,7 +450,7 @@ class LangfuseTracer(Tracer):
 
     @contextlib.contextmanager
     def trace(
-        self, operation_name: str, tags: Optional[dict[str, Any]] = None, parent_span: Optional[Span] = None
+        self, operation_name: str, tags: dict[str, Any] | None = None, parent_span: Span | None = None
     ) -> Iterator[Span]:
         tags = tags or {}
         span_name = tags.get(_COMPONENT_NAME_KEY, operation_name)
@@ -541,7 +541,7 @@ class LangfuseTracer(Tracer):
     def flush(self) -> None:
         self._tracer.flush()
 
-    def current_span(self) -> Optional[Span]:
+    def current_span(self) -> Span | None:
         """
         Return the current active span.
 
