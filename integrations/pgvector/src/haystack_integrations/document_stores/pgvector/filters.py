@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from datetime import datetime
 from itertools import chain
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from haystack.errors import FilterError
 from psycopg.sql import SQL, Composed
@@ -21,7 +21,7 @@ PYTHON_TYPES_TO_PG_TYPES = {
 NO_VALUE = "no_value"
 
 
-def _validate_filters(filters: Optional[dict[str, Any]] = None) -> None:
+def _validate_filters(filters: dict[str, Any] | None = None) -> None:
     """
     Validates the filters provided.
     """
