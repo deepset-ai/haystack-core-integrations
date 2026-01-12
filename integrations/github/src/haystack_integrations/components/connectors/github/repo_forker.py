@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import re
 import time
-from typing import Any, Optional
+from typing import Any
 
 import requests
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -137,7 +137,7 @@ class GitHubRepoForker:
         response.raise_for_status()
         return response.json()["login"]
 
-    def _get_existing_repository(self, repo_name: str) -> Optional[str]:
+    def _get_existing_repository(self, repo_name: str) -> str | None:
         """
         Check if a repository with the given name already exists in the authenticated user's account.
 

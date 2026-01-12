@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from base64 import b64decode, b64encode
 from enum import Enum
-from typing import Any, Optional, Union
+from typing import Any
 
 import requests
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -79,7 +79,7 @@ class GitHubFileEditor:
         self,
         *,
         github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"),
-        repo: Optional[str] = None,
+        repo: str | None = None,
         branch: str = "main",
         raise_on_failure: bool = True,
     ):
@@ -145,7 +145,7 @@ class GitHubFileEditor:
     def _check_last_commit(self, owner: str, repo: str, branch: str) -> bool:
         """Check if last commit was made by the current token user."""
         url = f"https://api.github.com/repos/{owner}/{repo}/commits"
-        params: dict[str, Union[str, int]] = {"per_page": 1, "sha": branch}
+        params: dict[str, str | int] = {"per_page": 1, "sha": branch}
         response = requests.get(url, headers=self._get_request_headers(), params=params, timeout=10)
         response.raise_for_status()
         last_commit = response.json()[0]
@@ -191,7 +191,7 @@ class GitHubFileEditor:
             commits_url = f"https://api.github.com/repos/{owner}/{repo}/commits"
 
             # Get the previous commit SHA
-            params: dict[str, Union[str, int]] = {"per_page": 2, "sha": branch}
+            params: dict[str, str | int] = {"per_page": 2, "sha": branch}
             commits = requests.get(commits_url, headers=self._get_request_headers(), params=params, timeout=10).json()
             previous_sha = commits[1]["sha"]
 
@@ -244,10 +244,10 @@ class GitHubFileEditor:
     @component.output_types(result=str)
     def run(
         self,
-        command: Union[Command, str],
+        command: Command | str,
         payload: dict[str, Any],
-        repo: Optional[str] = None,
-        branch: Optional[str] = None,
+        repo: str | None = None,
+        branch: str | None = None,
     ) -> dict[str, str]:
         """
         Process GitHub file operations.
