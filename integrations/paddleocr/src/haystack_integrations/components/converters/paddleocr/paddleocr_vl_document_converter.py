@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import base64
 from pathlib import Path
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal
 
 import requests
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -24,7 +24,7 @@ from paddlex.inference.serving.schemas.shared.ocr import FileType  # type: ignor
 logger = logging.getLogger(__name__)
 
 
-FileTypeInput = Union[Literal["pdf", "image"], None]
+FileTypeInput = Literal["pdf", "image"] | None
 
 # Supported image file extensions
 _IMAGE_EXTENSIONS = {
@@ -41,9 +41,9 @@ _PDF_EXTENSIONS = {".pdf"}
 
 
 def _infer_file_type_from_source(
-    source: Union[str, Path, ByteStream],
-    mime_type: Optional[str] = None,
-) -> Optional[FileType]:
+    source: str | Path | ByteStream,
+    mime_type: str | None = None,
+) -> FileType | None:
     """
     Infer file type from file extension or MIME type.
 
@@ -56,7 +56,7 @@ def _infer_file_type_from_source(
         determined.
     """
     # Try to get extension from file path
-    file_path: Optional[str] = None
+    file_path: str | None = None
 
     # Check if source is a file path
     if isinstance(source, (str, Path)):
@@ -86,7 +86,7 @@ def _infer_file_type_from_source(
     return None
 
 
-def _normalize_file_type(file_type: Optional[FileTypeInput]) -> Optional[FileType]:
+def _normalize_file_type(file_type: FileTypeInput | None) -> FileType | None:
     """
     Normalize file type input to the numeric format expected by the API.
 
@@ -145,26 +145,26 @@ class PaddleOCRVLDocumentConverter:
         *,
         api_url: str,
         access_token: Secret = Secret.from_env_var("AISTUDIO_ACCESS_TOKEN"),
-        file_type: Optional[FileTypeInput] = None,
-        use_doc_orientation_classify: Optional[bool] = None,
-        use_doc_unwarping: Optional[bool] = None,
-        use_layout_detection: Optional[bool] = None,
-        use_chart_recognition: Optional[bool] = None,
-        layout_threshold: Optional[Union[float, dict]] = None,
-        layout_nms: Optional[bool] = None,
-        layout_unclip_ratio: Optional[Union[float, tuple[float, float], dict]] = None,
-        layout_merge_bboxes_mode: Optional[Union[str, dict]] = None,
-        prompt_label: Optional[str] = None,
-        format_block_content: Optional[bool] = None,
-        repetition_penalty: Optional[float] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        min_pixels: Optional[int] = None,
-        max_pixels: Optional[int] = None,
-        prettify_markdown: Optional[bool] = None,
-        show_formula_number: Optional[bool] = None,
-        visualize: Optional[bool] = None,
-        additional_params: Optional[dict[str, Any]] = None,
+        file_type: FileTypeInput | None = None,
+        use_doc_orientation_classify: bool | None = None,
+        use_doc_unwarping: bool | None = None,
+        use_layout_detection: bool | None = None,
+        use_chart_recognition: bool | None = None,
+        layout_threshold: float | dict | None = None,
+        layout_nms: bool | None = None,
+        layout_unclip_ratio: float | tuple[float, float] | dict | None = None,
+        layout_merge_bboxes_mode: str | dict | None = None,
+        prompt_label: str | None = None,
+        format_block_content: bool | None = None,
+        repetition_penalty: float | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        min_pixels: int | None = None,
+        max_pixels: int | None = None,
+        prettify_markdown: bool | None = None,
+        show_formula_number: bool | None = None,
+        visualize: bool | None = None,
+        additional_params: dict[str, Any] | None = None,
     ):
         """
         Create a `PaddleOCRVLDocumentConverter` component.
@@ -421,8 +421,8 @@ class PaddleOCRVLDocumentConverter:
     @component.output_types(documents=list[Document], raw_paddleocr_responses=list[dict[str, Any]])
     def run(
         self,
-        sources: list[Union[str, Path, ByteStream]],
-        meta: Optional[Union[dict[str, Any], list[dict[str, Any]]]] = None,
+        sources: list[str | Path | ByteStream],
+        meta: dict[str, Any] | list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """
         Convert image or PDF files to Documents.
@@ -448,7 +448,7 @@ class PaddleOCRVLDocumentConverter:
 
         meta_list = normalize_metadata(meta, sources_count=len(sources))
 
-        for source, metadata in zip(sources, meta_list):
+        for source, metadata in zip(sources, meta_list, strict=True):
             try:
                 bytestream = get_bytestream_from_source(source)
             except Exception as e:
