@@ -70,23 +70,12 @@ jobs:
             --include-path "${{ steps.pathfinder.outputs.project_path }}/**/*"
             --tag-pattern "${{ steps.pathfinder.outputs.project_path }}-v*"
 
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v8
+      - name: Commit changelog
+        uses: EndBug/add-and-commit@v9
         with:
-          token: ${{ secrets.HAYSTACK_BOT_TOKEN }}
-          commit-message: "Update changelog for ${{ steps.pathfinder.outputs.project_path }}"
-          branch: update-changelog-${{ steps.pathfinder.outputs.project_path }}
-          base: main
-          title: "docs: update changelog for ${{ steps.pathfinder.outputs.project_path }}"
-          add-paths: |
-            ${{ steps.pathfinder.outputs.project_path }}/CHANGELOG.md
-          body: |
-            This PR updates the changelog for ${{ steps.pathfinder.outputs.project_path }} integration
-            with the latest changes just released on PyPi. Please review the changelog diff below and adjust it
-            if necessary.
-
-            A good changelog diff simply lists these latest changes on top of the CHANGELOG.md file.
-            If there are some diffs that seem out of place, please adjust the CHANGELOG.md file manually.
-            Either way, please merge this PR as soon as possible.
-          reviewers: "${{ github.actor }}"
+          author_name: "HaystackBot"
+          author_email: "accounts@deepset.ai"
+          message: "Update the changelog"
+          add: ${{ steps.pathfinder.outputs.project_path }}
+          push: origin HEAD:main
 
