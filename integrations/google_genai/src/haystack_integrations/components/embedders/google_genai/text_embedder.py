@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal
 
 from google.genai import types
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -76,12 +76,12 @@ class GoogleGenAITextEmbedder:
         *,
         api_key: Secret = Secret.from_env_var(["GOOGLE_API_KEY", "GEMINI_API_KEY"], strict=False),
         api: Literal["gemini", "vertex"] = "gemini",
-        vertex_ai_project: Optional[str] = None,
-        vertex_ai_location: Optional[str] = None,
+        vertex_ai_project: str | None = None,
+        vertex_ai_location: str | None = None,
         model: str = "text-embedding-004",
         prefix: str = "",
         suffix: str = "",
-        config: Optional[dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ) -> None:
         """
         Creates an GoogleGenAITextEmbedder component.
@@ -177,7 +177,7 @@ class GoogleGenAITextEmbedder:
         return {"embedding": embedding, "meta": {"model": self._model_name}}
 
     @component.output_types(embedding=list[float], meta=dict[str, Any])
-    def run(self, text: str) -> Union[dict[str, list[float]], dict[str, Any]]:
+    def run(self, text: str) -> dict[str, list[float]] | dict[str, Any]:
         """
         Embeds a single string.
 
@@ -194,7 +194,7 @@ class GoogleGenAITextEmbedder:
         return self._prepare_output(result=response)
 
     @component.output_types(embedding=list[float], meta=dict[str, Any])
-    async def run_async(self, text: str) -> Union[dict[str, list[float]], dict[str, Any]]:
+    async def run_async(self, text: str) -> dict[str, list[float]] | dict[str, Any]:
         """
         Asynchronously embed a single string.
 
