@@ -7,7 +7,7 @@ name = "paddleocr-haystack"
 dynamic = ["version"]
 description = 'An integration of PaddleOCR with Haystack'
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "Apache-2.0"
 keywords = []
 authors = [
@@ -16,7 +16,6 @@ authors = [
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -24,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.19.0",
+  "haystack-ai>=2.22.0",
   "paddleocr>=3.3.2",
   "paddlex[serving]>=3.3.10",
   "requests>=2.25.0",
@@ -80,7 +79,6 @@ check_untyped_defs = true
 disallow_incomplete_defs = true
 
 [tool.ruff]
-target-version = "py39"
 line-length = 120
 
 [tool.ruff.lint]
@@ -126,10 +124,6 @@ ignore = [
   # Misc
   "B008",
   "S101",
-]
-unfixable = [
-  # Don't touch unused imports
-  "F401",
 ]
 
 [tool.ruff.lint.isort]
