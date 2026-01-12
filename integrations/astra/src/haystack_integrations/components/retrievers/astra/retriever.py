@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
@@ -36,9 +36,9 @@ class AstraEmbeddingRetriever:
     def __init__(
         self,
         document_store: AstraDocumentStore,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
+        filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ):
         """
         :param document_store: An instance of AstraDocumentStore.
@@ -61,8 +61,8 @@ class AstraEmbeddingRetriever:
     def run(
         self,
         query_embedding: list[float],
-        filters: Optional[dict[str, Any]] = None,
-        top_k: Optional[int] = None,
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
     ) -> dict[str, list[Document]]:
         """Retrieve documents from the AstraDocumentStore.
 

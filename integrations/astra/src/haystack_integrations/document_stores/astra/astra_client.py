@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
-from typing import Any, Optional, Union
+from typing import Any
 from warnings import warn
 
 from astrapy import DataAPIClient as AstraDBClient
@@ -22,10 +22,10 @@ CALLER_NAME = "haystack"
 @dataclass
 class Response:
     document_id: str
-    text: Optional[str]
-    values: Optional[list]
-    metadata: Optional[dict]
-    score: Optional[float]
+    text: str | None
+    values: list | None
+    metadata: dict | None
+    score: float | None
 
 
 @dataclass
@@ -48,7 +48,7 @@ class AstraClient:
         collection_name: str,
         embedding_dimension: int,
         similarity_function: str,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
     ):
         """
         The connection to Astra DB is established and managed through the JSON API.
@@ -149,11 +149,11 @@ class AstraClient:
     def query(
         self,
         *,
-        vector: Optional[list[float]] = None,
-        query_filter: Optional[dict[str, Union[str, float, int, bool, list, dict]]] = None,
-        top_k: Optional[int] = None,
-        include_metadata: Optional[bool] = None,
-        include_values: Optional[bool] = None,
+        vector: list[float] | None = None,
+        query_filter: dict[str, str | float | int | bool | list | dict] | None = None,
+        top_k: int | None = None,
+        include_metadata: bool | None = None,
+        include_values: bool | None = None,
     ) -> QueryResponse:
         """
         Search the Astra index using a query vector.
@@ -323,8 +323,8 @@ class AstraClient:
     def delete(
         self,
         *,
-        ids: Optional[list[str]] = None,
-        filters: Optional[dict[str, Union[str, float, int, bool, list, dict]]] = None,
+        ids: list[str] | None = None,
+        filters: dict[str, str | float | int | bool | list | dict] | None = None,
     ) -> int:
         """Delete documents from the Astra index.
 
@@ -364,7 +364,7 @@ class AstraClient:
     def update(
         self,
         *,
-        filters: dict[str, Union[str, float, int, bool, list, dict]],
+        filters: dict[str, str | float | int | bool | list | dict],
         update: dict[str, Any],
     ) -> int:
         """
