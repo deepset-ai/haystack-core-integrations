@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/paddleocr-v1.0.0] - 2026-01-12
+
+### 🧹 Chores
+
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Paddleocr - drop Python 3.9 and use X|Y typing (#2714)
+
+### 🌀 Miscellaneous
+
+- Feat: Add 'Client-Platform' header for server processing for PaddleOCR (#2657)
+
 ## [integrations/paddleocr-v0.1.0] - 2025-12-10
 
 ### 🚀 Features
