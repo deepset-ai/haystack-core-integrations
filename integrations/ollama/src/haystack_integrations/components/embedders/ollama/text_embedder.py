@@ -1,4 +1,4 @@
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import component
 
@@ -25,9 +25,9 @@ class OllamaTextEmbedder:
         self,
         model: str = "nomic-embed-text",
         url: str = "http://localhost:11434",
-        generation_kwargs: Optional[dict[str, Any]] = None,
+        generation_kwargs: dict[str, Any] | None = None,
         timeout: int = 120,
-        keep_alive: Optional[Union[float, str]] = None,
+        keep_alive: float | str | None = None,
     ):
         """
         :param model:
@@ -60,8 +60,8 @@ class OllamaTextEmbedder:
 
     @component.output_types(embedding=list[float], meta=dict[str, Any])
     def run(
-        self, text: str, generation_kwargs: Optional[dict[str, Any]] = None
-    ) -> dict[str, Union[list[float], dict[str, Any]]]:
+        self, text: str, generation_kwargs: dict[str, Any] | None = None
+    ) -> dict[str, list[float] | dict[str, Any]]:
         """
         Runs an Ollama Model to compute embeddings of the provided text.
 
@@ -87,8 +87,8 @@ class OllamaTextEmbedder:
 
     @component.output_types(embedding=list[float], meta=dict[str, Any])
     async def run_async(
-        self, text: str, generation_kwargs: Optional[dict[str, Any]] = None
-    ) -> dict[str, Union[list[float], dict[str, Any]]]:
+        self, text: str, generation_kwargs: dict[str, Any] | None = None
+    ) -> dict[str, list[float] | dict[str, Any]]:
         """
         Asynchronously run an Ollama Model to compute embeddings of the provided text.
 

@@ -1,4 +1,5 @@
-from typing import Any, Callable, Optional, Union
+from collections.abc import Callable
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import StreamingChunk
@@ -98,13 +99,13 @@ class OllamaGenerator:
         self,
         model: str = "orca-mini",
         url: str = "http://localhost:11434",
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        system_prompt: Optional[str] = None,
-        template: Optional[str] = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        system_prompt: str | None = None,
+        template: str | None = None,
         raw: bool = False,
         timeout: int = 120,
-        keep_alive: Optional[Union[float, str]] = None,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        keep_alive: float | str | None = None,
+        streaming_callback: Callable[[StreamingChunk], None] | None = None,
     ):
         """
         :param model:
@@ -208,7 +209,7 @@ class OllamaGenerator:
         return {"replies": replies, "meta": [meta]}
 
     def _handle_streaming_response(
-        self, response: Any, streaming_callback: Optional[Callable[[StreamingChunk], None]]
+        self, response: Any, streaming_callback: Callable[[StreamingChunk], None] | None
     ) -> list[StreamingChunk]:
         """
         Handles Streaming response cases
@@ -236,9 +237,9 @@ class OllamaGenerator:
     def run(
         self,
         prompt: str,
-        generation_kwargs: Optional[dict[str, Any]] = None,
+        generation_kwargs: dict[str, Any] | None = None,
         *,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
+        streaming_callback: Callable[[StreamingChunk], None] | None = None,
     ) -> dict[str, list[Any]]:
         """
         Runs an Ollama Model on the given prompt.
