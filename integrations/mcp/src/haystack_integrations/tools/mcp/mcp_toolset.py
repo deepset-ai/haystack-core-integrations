@@ -188,7 +188,7 @@ class MCPToolset(Toolset):
         server_info=StdioServerInfo(command="uvx", args=["mcp-server-git"]),
         tool_names=["git_status", "git_diff", "git_log"],
 
-        # Map state keys to tool parameters for each tool
+        # Maps the state key "repository" to the tool parameter "repo_path" for each tool
         inputs_from_state={
             "git_status": {"repository": "repo_path"},
             "git_diff": {"repository": "repo_path"},
