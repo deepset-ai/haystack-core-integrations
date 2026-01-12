@@ -6,7 +6,6 @@ import asyncio
 import datetime
 import logging
 import sys
-from typing import Optional
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -107,7 +106,7 @@ class MockLangfuseClient:
 
 
 class CustomSpanHandler(DefaultSpanHandler):
-    def handle(self, span: LangfuseSpan, component_type: Optional[str]) -> None:
+    def handle(self, span: LangfuseSpan, component_type: str | None) -> None:
         if component_type == "OpenAIChatGenerator":
             output = span.get_data().get(_COMPONENT_OUTPUT_KEY, {})
             replies = output.get("replies", [])

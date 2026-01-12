@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
@@ -118,13 +118,13 @@ class LangfuseConnector:
         self,
         name: str,
         public: bool = False,
-        public_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),  # noqa: B008
-        secret_key: Optional[Secret] = Secret.from_env_var("LANGFUSE_SECRET_KEY"),  # noqa: B008
-        httpx_client: Optional[httpx.Client] = None,
-        span_handler: Optional[SpanHandler] = None,
+        public_key: Secret | None = Secret.from_env_var("LANGFUSE_PUBLIC_KEY"),  # noqa: B008
+        secret_key: Secret | None = Secret.from_env_var("LANGFUSE_SECRET_KEY"),  # noqa: B008
+        httpx_client: httpx.Client | None = None,
+        span_handler: SpanHandler | None = None,
         *,
-        host: Optional[str] = None,
-        langfuse_client_kwargs: Optional[dict[str, Any]] = None,
+        host: str | None = None,
+        langfuse_client_kwargs: dict[str, Any] | None = None,
     ) -> None:
         """
         Initialize the LangfuseConnector component.
@@ -172,7 +172,7 @@ class LangfuseConnector:
         tracing.enable_tracing(self.tracer)
 
     @component.output_types(name=str, trace_url=str, trace_id=str)
-    def run(self, invocation_context: Optional[dict[str, Any]] = None) -> dict[str, str]:
+    def run(self, invocation_context: dict[str, Any] | None = None) -> dict[str, str]:
         """
         Runs the LangfuseConnector component.
 
