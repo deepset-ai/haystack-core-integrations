@@ -24,7 +24,7 @@ class TestFilters(FilterDocumentsTest):
         assert len(received) == len(expected)
         received.sort(key=lambda x: x.id)
         expected.sort(key=lambda x: x.id)
-        for received_doc, expected_doc in zip(received, expected):
+        for received_doc, expected_doc in zip(received, expected, strict=True):
             # we first compare the embeddings approximately
             if received_doc.embedding is None:
                 assert expected_doc.embedding is None
