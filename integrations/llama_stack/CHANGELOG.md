@@ -1,10 +1,28 @@
 # Changelog
 
+## [integrations/llama_stack-v2.0.0] - 2026-01-12
+
+
+### ⚙️ CI
+
+- Add reruns when running nightly tests if tests fail (#2584)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+- Pin llama-stack; X|Y typing (#2715)
+
 ## [integrations/llama_stack-v1.3.0] - 2025-11-23
 
 ### 🚀 Features
 
 - Support structured outputs in `LlamaStackChatGenerator` (#2535)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+- Add pytest reruns to nightly tests for flaky tests (#2486)
 
 ### 🌀 Miscellaneous
 
