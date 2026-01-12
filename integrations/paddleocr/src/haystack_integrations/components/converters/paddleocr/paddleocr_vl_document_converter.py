@@ -86,7 +86,7 @@ def _infer_file_type_from_source(
     return None
 
 
-def _normalize_file_type(file_type: FileTypeInput | None) -> FileType | None:
+def _normalize_file_type(file_type: FileTypeInput) -> FileType | None:
     """
     Normalize file type input to the numeric format expected by the API.
 
@@ -145,7 +145,7 @@ class PaddleOCRVLDocumentConverter:
         *,
         api_url: str,
         access_token: Secret = Secret.from_env_var("AISTUDIO_ACCESS_TOKEN"),
-        file_type: FileTypeInput | None = None,
+        file_type: FileTypeInput = None,
         use_doc_orientation_classify: bool | None = None,
         use_doc_unwarping: bool | None = None,
         use_layout_detection: bool | None = None,
