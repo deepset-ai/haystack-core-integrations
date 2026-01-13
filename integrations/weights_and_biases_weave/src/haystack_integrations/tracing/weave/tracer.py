@@ -1,7 +1,7 @@
 import contextlib
 import os
 from collections.abc import Iterator
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import logging
 from haystack.tracing import Span, Tracer
@@ -22,9 +22,7 @@ class WeaveSpan(Span):
     that describe the operation.
     """
 
-    def __init__(
-        self, call: Optional[Call] = None, parent: Optional[Call] = None, operation: Optional[str] = None
-    ) -> None:
+    def __init__(self, call: Call | None = None, parent: Call | None = None, operation: str | None = None) -> None:
         self._call = call
         self._parent = parent
         self._operation = operation
@@ -86,12 +84,10 @@ class WeaveTracer(Tracer):
             )
 
         self._client = weave.init(project_name, **weave_init_kwargs)
-        self._current_span: Optional[WeaveSpan] = None
+        self._current_span: WeaveSpan | None = None
 
     @staticmethod
-    def create_call(
-        attributes: dict, client: WeaveClient, parent_span: Union[WeaveSpan, None], operation_name: str
-    ) -> Call:
+    def create_call(attributes: dict, client: WeaveClient, parent_span: WeaveSpan | None, operation_name: str) -> Call:
         comp_name = attributes.pop("haystack.component.name", "")
         comp_type = attributes.pop("haystack.component.type", "")
         comp_input = attributes.pop("haystack.component.input", {})
@@ -104,18 +100,16 @@ class WeaveTracer(Tracer):
         )
         return call
 
-    def current_span(self) -> Optional[Span]:
+    def current_span(self) -> Span | None:
         """Get the current active span."""
         return self._current_span
 
     @staticmethod
-    def _create_component_span(parent_span: Optional[WeaveSpan], operation_name: str) -> WeaveSpan:
+    def _create_component_span(parent_span: WeaveSpan | None, operation_name: str) -> WeaveSpan:
         """Create a span for component runs with deferred call creation."""
         return WeaveSpan(parent=parent_span.raw_span() if parent_span else None, operation=operation_name)
 
-    def _create_regular_span(
-        self, operation_name: str, tags: Optional[dict], parent_span: Optional[WeaveSpan]
-    ) -> WeaveSpan:
+    def _create_regular_span(self, operation_name: str, tags: dict | None, parent_span: WeaveSpan | None) -> WeaveSpan:
         """Create a span for regular operations with immediate call creation."""
         call = self._client.create_call(
             op=operation_name,
@@ -124,7 +118,7 @@ class WeaveTracer(Tracer):
         )
         return WeaveSpan(call=call)
 
-    def _finish_component_call(self, span: WeaveSpan, parent_span: Optional[WeaveSpan], operation_name: str) -> None:
+    def _finish_component_call(self, span: WeaveSpan, parent_span: WeaveSpan | None, operation_name: str) -> None:
         """Create and finish call for component runs."""
         attributes = span.get_attributes()
         call = self.create_call(
@@ -155,8 +149,8 @@ class WeaveTracer(Tracer):
     def trace(  # type: ignore[override]
         self,
         operation_name: str,
-        tags: Optional[dict[str, Any]] = None,
-        parent_span: Optional[WeaveSpan] = None,
+        tags: dict[str, Any] | None = None,
+        parent_span: WeaveSpan | None = None,
     ) -> Iterator[WeaveSpan]:
         """
         A context manager that creates and manages spans for tracking operations in Weights & Biases Weave.
