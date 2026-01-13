@@ -480,7 +480,7 @@ RANKING_MODEL_TABLE = {
 
 DEFAULT_MODELS = {
     "embedding": "nvidia/nv-embedqa-e5-v5",
-    "ranking": "nvidia/nv-rerankqa-mistral-4b-v3",
+    "ranking": "nv-rerank-qa-mistral-4b:1",
     "chat": "meta/llama3-8b-instruct",
 }
 
