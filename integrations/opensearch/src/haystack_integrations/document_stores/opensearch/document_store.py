@@ -1316,6 +1316,20 @@ class OpenSearchDocumentStore:
         """
         Asynchronously returns the information about the fields in the index.
 
+        If we populated the index with documents like:
+
+            Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1})
+            Document(content="Doc 2", meta={"category": "B", "status": "inactive"})
+
+        This method would return:
+
+            {
+                'content': {'type': 'text'},
+                'category': {'type': 'keyword'},
+                'status': {'type': 'keyword'},
+                'priority': {'type': 'long'},
+            }
+
         :returns: The information about the fields in the index.
         """
         await self._ensure_initialized_async()
