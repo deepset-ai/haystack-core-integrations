@@ -789,10 +789,41 @@ class GoogleGenAIChatGenerator:
                 logger.warning(
                     f"Invalid thinking_budget type: {type(thinking_budget)}. Expected int, using dynamic allocation."
                 )
+                # fall back to default: dynamic thinking budget allocation
                 thinking_budget = -1
 
             # Create thinking config
             thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget, include_thoughts=True)
+            generation_kwargs["thinking_config"] = thinking_config
+
+        if "thinking_level" in generation_kwargs:
+            thinking_level = generation_kwargs.pop("thinking_level")
+
+            # Basic type validation
+            if not isinstance(thinking_level, str):
+                logger.warning(
+                    f"Invalid thinking_level type: {type(thinking_level).__name__}. Expected str, "
+                    f"falling back to THINKING_LEVEL_UNSPECIFIED."
+                )
+                thinking_level = types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
+            else:
+                # Convert to uppercase for case-insensitive matching
+                thinking_level_upper = thinking_level.upper()
+
+                # Check if the uppercase value is a valid ThinkingLevel enum member
+                valid_levels = [level.value for level in types.ThinkingLevel]
+                if thinking_level_upper not in valid_levels:
+                    logger.warning(
+                        f"Invalid thinking_level value: '{thinking_level}'. "
+                        f"Must be one of: {valid_levels} (case-insensitive). Falling back to THINKING_LEVEL_UNSPECIFIED."
+                    )
+                    thinking_level = types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
+                else:
+                    # Parse valid string to ThinkingLevel enum
+                    thinking_level = types.ThinkingLevel(thinking_level_upper)
+
+            # Create thinking config with level
+            thinking_config = types.ThinkingConfig(thinking_level=thinking_level, include_thoughts=True)
             generation_kwargs["thinking_config"] = thinking_config
 
         return generation_kwargs
