@@ -1242,7 +1242,7 @@ class ElasticsearchDocumentStore:
             msg = f"Failed to count distinct values by filter in Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    def get_fields_info(self) -> dict[str, Any]:
+    def get_metadata_fields_info(self) -> dict[str, Any]:
         """
         Returns information about all fields in the index mapping.
 
@@ -1258,7 +1258,7 @@ class ElasticsearchDocumentStore:
             msg = f"Failed to get fields info from Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    async def get_fields_info_async(self) -> dict[str, Any]:
+    async def get_metadata_fields_info_async(self) -> dict[str, Any]:
         """
         Asynchronously returns information about all fields in the index mapping.
 
@@ -1274,7 +1274,7 @@ class ElasticsearchDocumentStore:
             msg = f"Failed to get fields info from Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    def get_field_min_max(self, metadata_field: str) -> dict[str, Any]:
+    def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, int | None]:
         """
         Returns the minimum and maximum values for a metadata field.
 
@@ -1307,7 +1307,7 @@ class ElasticsearchDocumentStore:
             msg = f"Failed to get field min/max from Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    async def get_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
+    async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, int | None]:
         """
         Asynchronously returns the minimum and maximum values for a metadata field.
 
@@ -1340,7 +1340,7 @@ class ElasticsearchDocumentStore:
             msg = f"Failed to get field min/max from Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    def get_field_unique_values(
+    def get_metadata_field_unique_values(
         self, metadata_field: str, search_term: Optional[str] = None, from_: int = 0, size: int = 10
     ) -> dict[str, Any]:
         """
@@ -1369,7 +1369,7 @@ class ElasticsearchDocumentStore:
             msg = f"Failed to get field unique values from Elasticsearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    async def get_field_unique_values_async(
+    async def get_metadata_field_unique_values_async(
         self, metadata_field: str, search_term: Optional[str] = None, from_: int = 0, size: int = 10
     ) -> dict[str, Any]:
         """

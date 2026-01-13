@@ -650,7 +650,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         ]
         document_store.write_documents(docs)
 
-        fields_info = document_store.get_fields_info()
+        fields_info = document_store.get_metadata_fields_info()
 
         # Check that common fields exist
         assert "content" in fields_info
@@ -669,25 +669,25 @@ class TestDocumentStore(DocumentStoreBaseTests):
         document_store.write_documents(docs)
 
         # Get min/max for numeric field without "meta." prefix
-        result = document_store.get_field_min_max("value")
+        result = document_store.get_metadata_field_min_max("value")
         assert result["min"] == 5
         assert result["max"] == 20
 
         # Get min/max for numeric field with "meta." prefix (should work the same)
-        result_with_prefix = document_store.get_field_min_max("meta.value")
+        result_with_prefix = document_store.get_metadata_field_min_max("meta.value")
         assert result_with_prefix["min"] == 5
         assert result_with_prefix["max"] == 20
         assert result_with_prefix == result
 
         # Get min/max for float field
         # Note: Float fields might not be indexed as numeric depending on dynamic mapping
-        result = document_store.get_field_min_max("score")
+        result = document_store.get_metadata_field_min_max("score")
         if result["min"] is not None and result["max"] is not None:
             assert result["min"] == 2.1
             assert result["max"] == 9.9
 
             # Test with "meta." prefix
-            result_with_prefix = document_store.get_field_min_max("meta.score")
+            result_with_prefix = document_store.get_metadata_field_min_max("meta.score")
             assert result_with_prefix["min"] == 2.1
             assert result_with_prefix["max"] == 9.9
             assert result_with_prefix == result
@@ -707,7 +707,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         document_store.write_documents(docs)
 
         # Get unique values for category field without "meta." prefix
-        result = document_store.get_field_unique_values("category")
+        result = document_store.get_metadata_field_unique_values("category")
         assert len(result["values"]) > 0
         assert "A" in result["values"]
         assert "B" in result["values"]
@@ -715,26 +715,26 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert result["total"] >= 3
 
         # Get unique values for category field with "meta." prefix (should work the same)
-        result_with_prefix = document_store.get_field_unique_values("meta.category")
+        result_with_prefix = document_store.get_metadata_field_unique_values("meta.category")
         assert result_with_prefix["values"] == result["values"]
         assert result_with_prefix["total"] == result["total"]
 
         # Get unique values with pagination
-        result = document_store.get_field_unique_values("category", from_=0, size=2)
+        result = document_store.get_metadata_field_unique_values("category", from_=0, size=2)
         assert len(result["values"]) == 2
 
         # Get unique values with pagination using "meta." prefix
-        result_with_prefix = document_store.get_field_unique_values("meta.category", from_=0, size=2)
+        result_with_prefix = document_store.get_metadata_field_unique_values("meta.category", from_=0, size=2)
         assert len(result_with_prefix["values"]) == 2
         assert result_with_prefix["values"] == result["values"]
 
         # Get unique values with search term without "meta." prefix
-        result = document_store.get_field_unique_values("status", search_term="act")
+        result = document_store.get_metadata_field_unique_values("status", search_term="act")
         assert "active" in result["values"]
         # inactive might also be included if prefix matching includes it
 
         # Get unique values with search term using "meta." prefix
-        result_with_prefix = document_store.get_field_unique_values("meta.status", search_term="act")
+        result_with_prefix = document_store.get_metadata_field_unique_values("meta.status", search_term="act")
         assert "active" in result_with_prefix["values"]
         assert result_with_prefix["values"] == result["values"]
 
@@ -1105,7 +1105,7 @@ class TestElasticsearchDocumentStoreAsync:
         ]
         await document_store.write_documents_async(docs)
 
-        fields_info = await document_store.get_fields_info_async()
+        fields_info = await document_store.get_metadata_fields_info_async()
 
         # Check that common fields exist
         assert "content" in fields_info
@@ -1122,25 +1122,25 @@ class TestElasticsearchDocumentStoreAsync:
         await document_store.write_documents_async(docs)
 
         # Get min/max for numeric field without "meta." prefix
-        result = await document_store.get_field_min_max_async("value")
+        result = await document_store.get_metadata_field_min_max_async("value")
         assert result["min"] == 5
         assert result["max"] == 20
 
         # Get min/max for numeric field with "meta." prefix (should work the same)
-        result_with_prefix = await document_store.get_field_min_max_async("meta.value")
+        result_with_prefix = await document_store.get_metadata_field_min_max_async("meta.value")
         assert result_with_prefix["min"] == 5
         assert result_with_prefix["max"] == 20
         assert result_with_prefix == result
 
         # Get min/max for float field
         # Note: Float fields might not be indexed as numeric depending on dynamic mapping
-        result = await document_store.get_field_min_max_async("score")
+        result = await document_store.get_metadata_field_min_max_async("score")
         if result["min"] is not None and result["max"] is not None:
             assert result["min"] == 2.1
             assert result["max"] == 9.9
 
             # Test with "meta." prefix
-            result_with_prefix = await document_store.get_field_min_max_async("meta.score")
+            result_with_prefix = await document_store.get_metadata_field_min_max_async("meta.score")
             assert result_with_prefix["min"] == 2.1
             assert result_with_prefix["max"] == 9.9
             assert result_with_prefix == result
@@ -1161,7 +1161,7 @@ class TestElasticsearchDocumentStoreAsync:
         await document_store.write_documents_async(docs)
 
         # Get unique values for category field without "meta." prefix
-        result = await document_store.get_field_unique_values_async("category")
+        result = await document_store.get_metadata_field_unique_values_async("category")
         assert len(result["values"]) > 0
         assert "A" in result["values"]
         assert "B" in result["values"]
@@ -1169,25 +1169,29 @@ class TestElasticsearchDocumentStoreAsync:
         assert result["total"] >= 3
 
         # Get unique values for category field with "meta." prefix (should work the same)
-        result_with_prefix = await document_store.get_field_unique_values_async("meta.category")
+        result_with_prefix = await document_store.get_metadata_field_unique_values_async("meta.category")
         assert result_with_prefix["values"] == result["values"]
         assert result_with_prefix["total"] == result["total"]
 
         # Get unique values with pagination
-        result = await document_store.get_field_unique_values_async("category", from_=0, size=2)
+        result = await document_store.get_metadata_field_unique_values_async("category", from_=0, size=2)
         assert len(result["values"]) == 2
 
         # Get unique values with pagination using "meta." prefix
-        result_with_prefix = await document_store.get_field_unique_values_async("meta.category", from_=0, size=2)
+        result_with_prefix = await document_store.get_metadata_field_unique_values_async(
+            "meta.category", from_=0, size=2
+        )
         assert len(result_with_prefix["values"]) == 2
         assert result_with_prefix["values"] == result["values"]
 
         # Get unique values with search term without "meta." prefix
-        result = await document_store.get_field_unique_values_async("status", search_term="act")
+        result = await document_store.get_metadata_field_unique_values_async("status", search_term="act")
         assert "active" in result["values"]
 
         # Get unique values with search term using "meta." prefix
-        result_with_prefix = await document_store.get_field_unique_values_async("meta.status", search_term="act")
+        result_with_prefix = await document_store.get_metadata_field_unique_values_async(
+            "meta.status", search_term="act"
+        )
         assert "active" in result_with_prefix["values"]
         assert result_with_prefix["values"] == result["values"]
 
