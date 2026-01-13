@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.2.0] - 2026-01-13
+
+### 🚀 Features
+
+- Support flattened generation_kwargs with AmazonBedrockChatGenerator (#2741)
+
+
 ## [integrations/amazon_bedrock-v6.1.1] - 2026-01-13
 
 ### 🌀 Miscellaneous
