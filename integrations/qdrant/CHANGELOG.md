@@ -1,5 +1,13 @@
 # Changelog
 
+## [unreleased]
+
+### 🧹 Chores
+
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Qdrant - drop Python 3.9 and use X|Y typing (#2726)
+
+
 ## [integrations/qdrant-v9.5.0] - 2026-01-07
 
 ### 🚀 Features
