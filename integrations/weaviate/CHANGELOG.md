@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/weaviate-v7.0.0] - 2026-01-13
+
+### 🐛 Bug Fixes
+
+- `WeaviateDocumentStore `_to_document()` and `to_data_object()` should be static methods (#2669)
+
+### 🧹 Chores
+
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Weaviate - drop Python 3.9 and use X|Y typing (#2733)
+
+
 ## [integrations/weaviate-v6.5.0] - 2026-01-08
 
 ### 🚀 Features
