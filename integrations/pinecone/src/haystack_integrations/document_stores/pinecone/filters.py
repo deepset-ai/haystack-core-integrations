@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Optional
+from typing import Any
 
 from haystack.errors import FilterError
 
@@ -181,7 +181,7 @@ COMPARISON_OPERATORS = {
 LOGICAL_OPERATORS = {"AND": "$and", "OR": "$or"}
 
 
-def _validate_filters(filters: Optional[dict[str, Any]]) -> None:
+def _validate_filters(filters: dict[str, Any] | None) -> None:
     """
     Helper method to validate filter syntax.
     """
