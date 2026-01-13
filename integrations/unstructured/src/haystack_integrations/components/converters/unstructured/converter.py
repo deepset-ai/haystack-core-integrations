@@ -5,7 +5,7 @@ import copy
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.utils import normalize_metadata
@@ -47,12 +47,12 @@ class UnstructuredFileConverter:
     def __init__(
         self,
         api_url: str = UNSTRUCTURED_HOSTED_API_URL,
-        api_key: Optional[Secret] = Secret.from_env_var("UNSTRUCTURED_API_KEY", strict=False),  # noqa: B008
+        api_key: Secret | None = Secret.from_env_var("UNSTRUCTURED_API_KEY", strict=False),  # noqa: B008
         document_creation_mode: Literal[
             "one-doc-per-file", "one-doc-per-page", "one-doc-per-element"
         ] = "one-doc-per-file",
         separator: str = "\n\n",
-        unstructured_kwargs: Optional[dict[str, Any]] = None,
+        unstructured_kwargs: dict[str, Any] | None = None,
         progress_bar: bool = True,  # noqa: FBT001, FBT002
     ):
         """
@@ -124,8 +124,8 @@ class UnstructuredFileConverter:
     @component.output_types(documents=list[Document])
     def run(
         self,
-        paths: Union[list[str], list[os.PathLike]],
-        meta: Optional[Union[dict[str, Any], list[dict[str, Any]]]] = None,
+        paths: list[str] | list[os.PathLike],
+        meta: dict[str, Any] | list[dict[str, Any]] | None = None,
     ) -> dict[str, list[Document]]:
         """
         Convert files to Haystack Documents using the Unstructured API.
@@ -162,7 +162,9 @@ class UnstructuredFileConverter:
         meta_list = normalize_metadata(meta, sources_count=len(all_filepaths))
 
         for filepath, metadata in tqdm(
-            zip(all_filepaths, meta_list), desc="Converting files to Haystack Documents", disable=not self.progress_bar
+            zip(all_filepaths, meta_list, strict=True),
+            desc="Converting files to Haystack Documents",
+            disable=not self.progress_bar,
         ):
             elements = self._partition_file_into_elements(filepath=filepath)
             docs_for_file = self._create_documents(
