@@ -197,14 +197,14 @@ class NvidiaTextEmbedder:
             A dictionary with the following keys and values:
             - `embedding` - Embedding of the text.
             - `meta` - Metadata on usage statistics, etc.
-        :raises RuntimeError:
-            If the component was not initialized.
         :raises TypeError:
             If the input is not a string.
+        :raises ValueError:
+            If the input string is empty.
         """
         if not self._initialized:
-            msg = "The embedding model has not been loaded. Please call warm_up() before running."
-            raise RuntimeError(msg)
+            self.warm_up()
+
         elif not isinstance(text, str):
             msg = (
                 "NvidiaTextEmbedder expects a string as an input."
