@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/optimum-v2.0.0] - 2026-01-13
+
+### 🧹 Chores
+
+- [**breaking**] Optimum - drop Python 3.9 and use X|Y typing (#2721)
+
+
 ## [integrations/optimum-v1.3.0] - 2026-01-09
 
 ### 🚀 Features
