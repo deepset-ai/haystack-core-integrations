@@ -6,7 +6,7 @@ import base64
 import json
 from collections.abc import AsyncIterator, Iterator
 from datetime import datetime, timezone
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from google.genai import types
 from haystack import logging
@@ -456,13 +456,13 @@ class GoogleGenAIChatGenerator:
         *,
         api_key: Secret = Secret.from_env_var(["GOOGLE_API_KEY", "GEMINI_API_KEY"], strict=False),
         api: Literal["gemini", "vertex"] = "gemini",
-        vertex_ai_project: Optional[str] = None,
-        vertex_ai_location: Optional[str] = None,
+        vertex_ai_project: str | None = None,
+        vertex_ai_location: str | None = None,
         model: str = "gemini-2.5-flash",
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        safety_settings: Optional[list[dict[str, Any]]] = None,
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        tools: Optional[ToolsType] = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        safety_settings: list[dict[str, Any]] | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        tools: ToolsType | None = None,
     ):
         """
         Initialize a GoogleGenAIChatGenerator instance.
@@ -801,10 +801,10 @@ class GoogleGenAIChatGenerator:
     def run(
         self,
         messages: list[ChatMessage],
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        safety_settings: Optional[list[dict[str, Any]]] = None,
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        tools: Optional[ToolsType] = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        safety_settings: list[dict[str, Any]] | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        tools: ToolsType | None = None,
     ) -> dict[str, Any]:
         """
         Run the Google Gen AI chat generator on the given input data.
@@ -909,10 +909,10 @@ class GoogleGenAIChatGenerator:
     async def run_async(
         self,
         messages: list[ChatMessage],
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        safety_settings: Optional[list[dict[str, Any]]] = None,
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        tools: Optional[ToolsType] = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        safety_settings: list[dict[str, Any]] | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        tools: ToolsType | None = None,
     ) -> dict[str, Any]:
         """
         Async version of the run method. Run the Google Gen AI chat generator on the given input data.

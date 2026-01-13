@@ -1,6 +1,6 @@
 import json
-from collections.abc import AsyncIterator, Iterator
-from typing import Any, Callable, Literal, Optional, Union
+from collections.abc import AsyncIterator, Callable, Iterator
+from typing import Any, Literal
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import (
@@ -212,13 +212,13 @@ class OllamaChatGenerator:
         self,
         model: str = "qwen3:0.6b",
         url: str = "http://localhost:11434",
-        generation_kwargs: Optional[dict[str, Any]] = None,
+        generation_kwargs: dict[str, Any] | None = None,
         timeout: int = 120,
-        keep_alive: Optional[Union[float, str]] = None,
-        streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-        tools: Optional[ToolsType] = None,
-        response_format: Optional[Union[None, Literal["json"], JsonSchemaValue]] = None,
-        think: Union[bool, Literal["low", "medium", "high"]] = False,
+        keep_alive: float | str | None = None,
+        streaming_callback: Callable[[StreamingChunk], None] | None = None,
+        tools: ToolsType | None = None,
+        response_format: None | Literal["json"] | JsonSchemaValue | None = None,
+        think: bool | Literal["low", "medium", "high"] = False,
     ):
         """
         :param model:
@@ -315,7 +315,7 @@ class OllamaChatGenerator:
     def _handle_streaming_response(
         self,
         response_iter: Iterator[ChatResponse],
-        callback: Optional[SyncStreamingCallbackT],
+        callback: SyncStreamingCallbackT | None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Merge an Ollama streaming response into a single ChatMessage, preserving
@@ -399,7 +399,7 @@ class OllamaChatGenerator:
     async def _handle_streaming_response_async(
         self,
         response_iter: AsyncIterator[ChatResponse],
-        callback: Optional[AsyncStreamingCallbackT],
+        callback: AsyncStreamingCallbackT | None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Merge an Ollama async streaming response into a single ChatMessage, preserving
@@ -471,10 +471,10 @@ class OllamaChatGenerator:
     def run(
         self,
         messages: list[ChatMessage],
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        tools: Optional[ToolsType] = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: ToolsType | None = None,
         *,
-        streaming_callback: Optional[StreamingCallbackT] = None,
+        streaming_callback: StreamingCallbackT | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Runs an Ollama Model on a given chat history.
@@ -537,10 +537,10 @@ class OllamaChatGenerator:
     async def run_async(
         self,
         messages: list[ChatMessage],
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        tools: Optional[ToolsType] = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: ToolsType | None = None,
         *,
-        streaming_callback: Optional[StreamingCallbackT] = None,
+        streaming_callback: StreamingCallbackT | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Async version of run. Runs an Ollama Model on a given chat history.

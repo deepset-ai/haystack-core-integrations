@@ -7,7 +7,7 @@ name = "ollama-haystack"
 dynamic = ["version"]
 description = 'An integration between the Ollama LLM framework and Haystack'
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "Apache-2.0"
 keywords = []
 authors = [
@@ -19,7 +19,6 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Development Status :: 4 - Beta",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -27,7 +26,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.19.0", "ollama>=0.5.0", "pydantic"]
+dependencies = ["haystack-ai>=2.22.0", "ollama>=0.5.0", "pydantic"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ollama#readme"
@@ -88,7 +87,6 @@ known-first-party = ["haystack_integrations"]
 
 
 [tool.ruff]
-target-version = "py39"
 line-length = 120
 
 [tool.ruff.lint]
@@ -131,10 +129,6 @@ ignore = [
     "PLR0912",
     "PLR0913",
     "PLR0915",
-]
-unfixable = [
-    # Don't touch unused imports
-    "F401",
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]

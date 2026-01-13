@@ -123,7 +123,7 @@ class TestChineseDocumentSplitter:
         splitter.warm_up()
         result = splitter.run(documents=documents)
         assert len(result["documents"]) == 2
-        for doc, split_doc in zip(documents, result["documents"]):
+        for doc, split_doc in zip(documents, result["documents"], strict=True):
             assert doc.meta.items() <= split_doc.meta.items()
 
     @pytest.mark.integration
@@ -136,7 +136,7 @@ class TestChineseDocumentSplitter:
         splitter.warm_up()
         result = splitter.run(documents=documents)
         assert len(result["documents"]) == 2
-        for doc, split_doc in zip(documents, result["documents"]):
+        for doc, split_doc in zip(documents, result["documents"], strict=True):
             assert doc.id == split_doc.meta["source_id"]
 
     @pytest.mark.integration

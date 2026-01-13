@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/jina-v1.0.0] - 2026-01-12
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Jina - drop Python 3.9 and use X|Y typing (#2708)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 4) (#2527)
+
 ## [integrations/jina-v0.8.0] - 2025-09-04
 
 ### 🚀 Features

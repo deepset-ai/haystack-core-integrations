@@ -1,5 +1,28 @@
 # Changelog
 
+## [integrations/github-v2.0.0] - 2026-01-12
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+- Fix nightly test (#2580)
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Github - drop Python 3.9 and use X|Y typing (#2705)
+
+### 🌀 Miscellaneous
+
+- Adopt PEP 585 type hinting (part 3) (#2510)
+- Chore: Fix tool validation test failures in github integration (#2659)
+- Fix: Fix github integration unit tests (#2703)
+
 ## [integrations/github-v1.2.1] - 2025-10-20
 
 ### 🚀 Features

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import re
-from typing import Any, Optional
+from typing import Any
 
 import requests
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -102,7 +102,7 @@ class GitHubPRCreator:
         except requests.RequestException:
             return False
 
-    def _create_fork(self, owner: str, repo: str) -> Optional[str]:
+    def _create_fork(self, owner: str, repo: str) -> str | None:
         """Create a fork of the repository."""
         url = f"https://api.github.com/repos/{owner}/{repo}/forks"
         try:

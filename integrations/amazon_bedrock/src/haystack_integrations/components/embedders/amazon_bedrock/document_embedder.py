@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from typing import Any
 
 from botocore.config import Config
@@ -186,10 +187,11 @@ class AmazonBedrockDocumentEmbedder:
             )
             all_embeddings.extend(embeddings_list)
 
+        new_documents = []
         for doc, emb in zip(documents, all_embeddings, strict=True):
-            doc.embedding = emb
+            new_documents.append(replace(doc, embedding=emb))
 
-        return documents
+        return new_documents
 
     def _embed_titan(self, documents: list[Document]) -> list[Document]:
         """
@@ -214,10 +216,11 @@ class AmazonBedrockDocumentEmbedder:
             embedding = response_body["embedding"]
             all_embeddings.append(embedding)
 
+        new_documents = []
         for doc, emb in zip(documents, all_embeddings, strict=True):
-            doc.embedding = emb
+            new_documents.append(replace(doc, embedding=emb))
 
-        return documents
+        return new_documents
 
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]) -> dict[str, list[Document]]:
