@@ -1357,7 +1357,7 @@ class OpenSearchDocumentStore:
 
         return self._extract_min_max_from_stats(stats)
 
-    async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
+    async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, int | None]:
         """
         Asynchronously returns the minimum and maximum values for the given metadata field.
 
