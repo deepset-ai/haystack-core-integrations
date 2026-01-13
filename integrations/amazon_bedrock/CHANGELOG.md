@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.1.0] - 2026-01-13
+
+### 🐛 Bug Fixes
+
+- AmazonBedrockDocumentEmbedder to not modify Documents in place (#2174) (#2702)
+
+
 ## [integrations/amazon_bedrock-v6.0.0] - 2026-01-09
 
 ### 🧹 Chores
