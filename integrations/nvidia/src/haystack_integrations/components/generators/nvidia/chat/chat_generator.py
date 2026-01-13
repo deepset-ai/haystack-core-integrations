@@ -60,7 +60,7 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
         http_client_kwargs: Optional[dict[str, Any]] = None,
-    ):
+    ) -> None:
         """
         Creates an instance of NvidiaChatGenerator.
 
