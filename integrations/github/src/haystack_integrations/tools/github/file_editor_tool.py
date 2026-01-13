@@ -1,7 +1,8 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Callable, Optional, Union
+from collections.abc import Callable
+from typing import Any
 
 from haystack.core.serialization import generate_qualified_class_name
 from haystack.tools import ComponentTool
@@ -20,16 +21,16 @@ class GitHubFileEditorTool(ComponentTool):
     def __init__(
         self,
         *,
-        name: Optional[str] = "file_editor",
-        description: Optional[str] = FILE_EDITOR_PROMPT,
-        parameters: Optional[dict[str, Any]] = FILE_EDITOR_SCHEMA,
+        name: str | None = "file_editor",
+        description: str | None = FILE_EDITOR_PROMPT,
+        parameters: dict[str, Any] | None = FILE_EDITOR_SCHEMA,
         github_token: Secret = Secret.from_env_var("GITHUB_TOKEN"),
-        repo: Optional[str] = None,
+        repo: str | None = None,
         branch: str = "main",
         raise_on_failure: bool = True,
-        outputs_to_string: Optional[dict[str, Union[str, Callable[[Any], str]]]] = None,
-        inputs_from_state: Optional[dict[str, str]] = None,
-        outputs_to_state: Optional[dict[str, dict[str, Union[str, Callable]]]] = None,
+        outputs_to_string: dict[str, str | Callable[[Any], str]] | None = None,
+        inputs_from_state: dict[str, str] | None = None,
+        outputs_to_state: dict[str, dict[str, str | Callable]] | None = None,
     ):
         """
         Initialize the GitHub file editor tool.

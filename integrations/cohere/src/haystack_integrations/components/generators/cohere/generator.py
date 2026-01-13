@@ -1,7 +1,8 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Callable, Optional, Union
+from collections.abc import Callable
+from typing import Any
 
 from haystack import component, logging
 from haystack.dataclasses import ChatMessage
@@ -33,8 +34,8 @@ class CohereGenerator(CohereChatGenerator):
         self,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
         model: str = "command-a-03-2025",
-        streaming_callback: Optional[Callable] = None,
-        api_base_url: Optional[str] = None,
+        streaming_callback: Callable | None = None,
+        api_base_url: str | None = None,
         **kwargs: Any,
     ):
         """
@@ -57,7 +58,7 @@ class CohereGenerator(CohereChatGenerator):
     def run(  # type: ignore[override] # due to incompatible signature with ChatGenerator
         self,
         prompt: str,
-    ) -> dict[str, Union[list[str], list[dict[str, Any]]]]:
+    ) -> dict[str, list[str] | list[dict[str, Any]]]:
         """
         Queries the LLM with the prompts to produce replies.
 
@@ -80,7 +81,7 @@ class CohereGenerator(CohereChatGenerator):
     async def run_async(  # type: ignore[override] # due to incompatible signature with ChatGenerator
         self,
         prompt: str,
-    ) -> dict[str, Union[list[str], list[dict[str, Any]]]]:
+    ) -> dict[str, list[str] | list[dict[str, Any]]]:
         """
         Queries the LLM asynchronously with the prompts to produce replies.
         :param prompt: the prompt to be sent to the generative model.

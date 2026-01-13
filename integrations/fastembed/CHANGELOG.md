@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/fastembed-v2.0.0] - 2026-01-12
+
+### 🧹 Chores
+
+- [**breaking**] Fastembed - drop Python 3.9 and use X|Y typing (#2698)
+
+
 ## [integrations/fastembed-v1.6.0] - 2026-01-09
 
 ### 🚀 Features

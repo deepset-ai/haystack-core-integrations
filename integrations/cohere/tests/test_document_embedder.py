@@ -168,7 +168,7 @@ class TestCohereDocumentEmbedder:
 
         assert result["meta"] == {"api_version": "1.0"}
 
-        for doc, doc_with_embedding, embedding in zip(docs, result["documents"], embeddings):
+        for doc, doc_with_embedding, embedding in zip(docs, result["documents"], embeddings, strict=True):
             assert doc_with_embedding.content == doc.content
             assert doc_with_embedding.meta == doc.meta
             assert doc_with_embedding.embedding == embedding
@@ -190,7 +190,7 @@ class TestCohereDocumentEmbedder:
 
         assert result["meta"] == {"api_version": "1.0"}
 
-        for doc, doc_with_embedding, embedding in zip(docs, result["documents"], embeddings):
+        for doc, doc_with_embedding, embedding in zip(docs, result["documents"], embeddings, strict=True):
             assert doc_with_embedding.content == doc.content
             assert doc_with_embedding.meta == doc.meta
             assert doc_with_embedding.embedding == embedding

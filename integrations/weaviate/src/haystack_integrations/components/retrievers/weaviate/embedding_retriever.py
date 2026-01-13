@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
@@ -21,11 +21,11 @@ class WeaviateEmbeddingRetriever:
         self,
         *,
         document_store: WeaviateDocumentStore,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        distance: Optional[float] = None,
-        certainty: Optional[float] = None,
-        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
+        distance: float | None = None,
+        certainty: float | None = None,
+        filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ):
         """
         Creates a new instance of WeaviateEmbeddingRetriever.
@@ -102,10 +102,10 @@ class WeaviateEmbeddingRetriever:
     def run(
         self,
         query_embedding: list[float],
-        filters: Optional[dict[str, Any]] = None,
-        top_k: Optional[int] = None,
-        distance: Optional[float] = None,
-        certainty: Optional[float] = None,
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+        distance: float | None = None,
+        certainty: float | None = None,
     ) -> dict[str, list[Document]]:
         """
         Retrieves documents from Weaviate using the vector search.
@@ -150,10 +150,10 @@ class WeaviateEmbeddingRetriever:
     async def run_async(
         self,
         query_embedding: list[float],
-        filters: Optional[dict[str, Any]] = None,
-        top_k: Optional[int] = None,
-        distance: Optional[float] = None,
-        certainty: Optional[float] = None,
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+        distance: float | None = None,
+        certainty: float | None = None,
     ) -> dict[str, list[Document]]:
         """
         Asynchronously retrieves documents from Weaviate using the vector search.

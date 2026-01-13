@@ -1,3 +1,4 @@
+from dataclasses import replace
 from typing import Any
 
 from botocore.exceptions import ClientError
@@ -251,8 +252,7 @@ class AmazonBedrockRanker:
                 idx = result["index"]
                 score = result["relevanceScore"]
                 doc = documents[idx]
-                doc.score = score
-                sorted_docs.append(doc)
+                sorted_docs.append(replace(doc, score=score))
 
             return {"documents": sorted_docs}
         except ClientError as client_error:

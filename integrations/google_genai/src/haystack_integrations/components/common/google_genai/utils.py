@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Literal, Optional
+from typing import Literal
 
 from google.genai import Client
 from haystack import logging
@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 def _get_client(
     api_key: Secret,
     api: Literal["gemini", "vertex"],
-    vertex_ai_project: Optional[str],
-    vertex_ai_location: Optional[str],
+    vertex_ai_project: str | None,
+    vertex_ai_location: str | None,
 ) -> Client:
     """
     Internal utility function to get a Google GenAI client.

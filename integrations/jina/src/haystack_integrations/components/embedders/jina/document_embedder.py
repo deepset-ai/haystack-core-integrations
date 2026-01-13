@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any, Optional
+from typing import Any
 
 import requests
 from haystack import Document, component, default_from_dict, default_to_dict
@@ -43,11 +43,11 @@ class JinaDocumentEmbedder:
         suffix: str = "",
         batch_size: int = 32,
         progress_bar: bool = True,
-        meta_fields_to_embed: Optional[list[str]] = None,
+        meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
-        task: Optional[str] = None,
-        dimensions: Optional[int] = None,
-        late_chunking: Optional[bool] = None,
+        task: str | None = None,
+        dimensions: int | None = None,
+        late_chunking: bool | None = None,
     ):
         """
         Create a JinaDocumentEmbedder component.
@@ -156,7 +156,7 @@ class JinaDocumentEmbedder:
         return texts_to_embed
 
     def _embed_batch(
-        self, texts_to_embed: list[str], batch_size: int, parameters: Optional[dict] = None
+        self, texts_to_embed: list[str], batch_size: int, parameters: dict | None = None
     ) -> tuple[list[list[float]], dict[str, Any]]:
         """
         Embed a list of texts in batches.
@@ -219,7 +219,7 @@ class JinaDocumentEmbedder:
             texts_to_embed=texts_to_embed, batch_size=self.batch_size, parameters=parameters
         )
 
-        for doc, emb in zip(documents, embeddings):
+        for doc, emb in zip(documents, embeddings, strict=True):
             doc.embedding = emb
 
         return {"documents": documents, "meta": metadata}

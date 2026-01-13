@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional
+from typing import Any
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -63,14 +63,14 @@ class MistralChatGenerator(OpenAIChatGenerator):
         self,
         api_key: Secret = Secret.from_env_var("MISTRAL_API_KEY"),
         model: str = "mistral-small-latest",
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        api_base_url: Optional[str] = "https://api.mistral.ai/v1",
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        tools: Optional[ToolsType] = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        api_base_url: str | None = "https://api.mistral.ai/v1",
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: ToolsType | None = None,
         *,
-        timeout: Optional[float] = None,
-        max_retries: Optional[int] = None,
-        http_client_kwargs: Optional[dict[str, Any]] = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
+        http_client_kwargs: dict[str, Any] | None = None,
     ):
         """
         Creates an instance of MistralChatGenerator. Unless specified otherwise in the `model`, this is for Mistral's
@@ -137,10 +137,10 @@ class MistralChatGenerator(OpenAIChatGenerator):
         self,
         *,
         messages: list[ChatMessage],
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        tools: Optional[ToolsType] = None,
-        tools_strict: Optional[bool] = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: ToolsType | None = None,
+        tools_strict: bool | None = None,
     ) -> dict[str, Any]:
         api_args = super(MistralChatGenerator, self)._prepare_api_call(  # noqa: UP008
             messages=messages,

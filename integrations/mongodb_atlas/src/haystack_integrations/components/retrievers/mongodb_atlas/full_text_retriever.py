@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -43,9 +43,9 @@ class MongoDBAtlasFullTextRetriever:
         self,
         *,
         document_store: MongoDBAtlasDocumentStore,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
+        filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ):
         """
         :param document_store: An instance of MongoDBAtlasDocumentStore.
@@ -103,12 +103,12 @@ class MongoDBAtlasFullTextRetriever:
     @component.output_types(documents=list[Document])
     def run(
         self,
-        query: Union[str, list[str]],
-        fuzzy: Optional[dict[str, int]] = None,
-        match_criteria: Optional[Literal["any", "all"]] = None,
-        score: Optional[dict[str, dict]] = None,
-        synonyms: Optional[str] = None,
-        filters: Optional[dict[str, Any]] = None,
+        query: str | list[str],
+        fuzzy: dict[str, int] | None = None,
+        match_criteria: Literal["any", "all"] | None = None,
+        score: dict[str, dict] | None = None,
+        synonyms: str | None = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
     ) -> dict[str, list[Document]]:
         """
@@ -153,12 +153,12 @@ class MongoDBAtlasFullTextRetriever:
     @component.output_types(documents=list[Document])
     async def run_async(
         self,
-        query: Union[str, list[str]],
-        fuzzy: Optional[dict[str, int]] = None,
-        match_criteria: Optional[Literal["any", "all"]] = None,
-        score: Optional[dict[str, dict]] = None,
-        synonyms: Optional[str] = None,
-        filters: Optional[dict[str, Any]] = None,
+        query: str | list[str],
+        fuzzy: dict[str, int] | None = None,
+        match_criteria: Literal["any", "all"] | None = None,
+        score: dict[str, dict] | None = None,
+        synonyms: str | None = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
     ) -> dict[str, list[Document]]:
         """

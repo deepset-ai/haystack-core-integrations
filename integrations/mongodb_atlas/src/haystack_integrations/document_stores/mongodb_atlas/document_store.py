@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import re
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses.document import Document
@@ -105,10 +105,10 @@ class MongoDBAtlasDocumentStore:
         self.full_text_search_index = full_text_search_index
         self.embedding_field = embedding_field
         self.content_field = content_field
-        self._connection: Optional[MongoClient] = None
-        self._connection_async: Optional[AsyncMongoClient] = None
-        self._collection: Optional[Collection] = None
-        self._collection_async: Optional[AsyncCollection] = None
+        self._connection: MongoClient | None = None
+        self._connection_async: AsyncMongoClient | None = None
+        self._collection: Collection | None = None
+        self._collection_async: AsyncCollection | None = None
 
     def __del__(self) -> None:
         """
@@ -118,7 +118,7 @@ class MongoDBAtlasDocumentStore:
             self._connection.close()
 
     @property
-    def connection(self) -> Union[AsyncMongoClient, MongoClient]:
+    def connection(self) -> AsyncMongoClient | MongoClient:
         if self._connection:
             return self._connection
         if self._connection_async:
@@ -127,7 +127,7 @@ class MongoDBAtlasDocumentStore:
         raise DocumentStoreError(msg)
 
     @property
-    def collection(self) -> Union[AsyncCollection, Collection]:
+    def collection(self) -> AsyncCollection | Collection:
         if self._collection:
             return self._collection
         if self._collection_async:
@@ -278,7 +278,7 @@ class MongoDBAtlasDocumentStore:
         assert self._collection_async is not None
         return await self._collection_async.count_documents({})
 
-    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
+    def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -294,7 +294,7 @@ class MongoDBAtlasDocumentStore:
         documents = list(self._collection.find(filters))
         return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
 
-    async def filter_documents_async(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
+    async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Asynchronously returns the documents that match the filters provided.
 
@@ -332,7 +332,7 @@ class MongoDBAtlasDocumentStore:
             policy = DuplicatePolicy.FAIL
 
         mongo_documents = [self._haystack_doc_to_mongo_doc(doc) for doc in documents]
-        operations: list[Union[UpdateOne, InsertOne, ReplaceOne]]
+        operations: list[UpdateOne | InsertOne | ReplaceOne]
         written_docs = len(documents)
 
         if policy == DuplicatePolicy.SKIP:
@@ -377,7 +377,7 @@ class MongoDBAtlasDocumentStore:
 
         mongo_documents = [self._haystack_doc_to_mongo_doc(doc) for doc in documents]
 
-        operations: list[Union[UpdateOne, InsertOne, ReplaceOne]]
+        operations: list[UpdateOne | InsertOne | ReplaceOne]
         written_docs = len(documents)
 
         if policy == DuplicatePolicy.SKIP:
@@ -636,7 +636,7 @@ class MongoDBAtlasDocumentStore:
     def _embedding_retrieval(
         self,
         query_embedding: list[float],
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
     ) -> list[Document]:
         """
@@ -686,7 +686,7 @@ class MongoDBAtlasDocumentStore:
         return documents
 
     async def _embedding_retrieval_async(
-        self, query_embedding: list[float], filters: Optional[dict[str, Any]] = None, top_k: int = 10
+        self, query_embedding: list[float], filters: dict[str, Any] | None = None, top_k: int = 10
     ) -> list[Document]:
         """
         Asynchronously find the documents that are most similar to the provided `query_embedding` by using a vector
@@ -738,12 +738,12 @@ class MongoDBAtlasDocumentStore:
 
     def _fulltext_retrieval(
         self,
-        query: Union[str, list[str]],
-        fuzzy: Optional[dict[str, int]] = None,
-        match_criteria: Optional[Literal["any", "all"]] = None,
-        score: Optional[dict[str, dict]] = None,
-        synonyms: Optional[str] = None,
-        filters: Optional[dict[str, Any]] = None,
+        query: str | list[str],
+        fuzzy: dict[str, int] | None = None,
+        match_criteria: Literal["any", "all"] | None = None,
+        score: dict[str, dict] | None = None,
+        synonyms: str | None = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
     ) -> list[Document]:
         """
@@ -831,12 +831,12 @@ class MongoDBAtlasDocumentStore:
 
     async def _fulltext_retrieval_async(
         self,
-        query: Union[str, list[str]],
-        fuzzy: Optional[dict[str, int]] = None,
-        match_criteria: Optional[Literal["any", "all"]] = None,
-        score: Optional[dict[str, dict]] = None,
-        synonyms: Optional[str] = None,
-        filters: Optional[dict[str, Any]] = None,
+        query: str | list[str],
+        fuzzy: dict[str, int] | None = None,
+        match_criteria: Literal["any", "all"] | None = None,
+        score: dict[str, dict] | None = None,
+        synonyms: str | None = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
     ) -> list[Document]:
         """

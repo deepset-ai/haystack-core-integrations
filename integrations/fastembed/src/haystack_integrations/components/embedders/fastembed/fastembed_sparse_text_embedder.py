@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional
+from typing import Any
 
 from haystack import component, default_to_dict
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
@@ -37,12 +37,12 @@ class FastembedSparseTextEmbedder:
     def __init__(
         self,
         model: str = "prithivida/Splade_PP_en_v1",
-        cache_dir: Optional[str] = None,
-        threads: Optional[int] = None,
+        cache_dir: str | None = None,
+        threads: int | None = None,
         progress_bar: bool = True,
-        parallel: Optional[int] = None,
+        parallel: int | None = None,
         local_files_only: bool = False,
-        model_kwargs: Optional[dict[str, Any]] = None,
+        model_kwargs: dict[str, Any] | None = None,
     ) -> None:
         """
         Create a FastembedSparseTextEmbedder component.
@@ -68,7 +68,7 @@ class FastembedSparseTextEmbedder:
         self.parallel = parallel
         self.local_files_only = local_files_only
         self.model_kwargs = model_kwargs
-        self.embedding_backend: Optional[_FastembedSparseEmbeddingBackend] = None
+        self.embedding_backend: _FastembedSparseEmbeddingBackend | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """

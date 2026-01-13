@@ -1,7 +1,7 @@
 import inspect
 from collections.abc import AsyncGenerator, Generator
 from itertools import islice
-from typing import Any, ClassVar, Optional, Union, cast
+from typing import Any, ClassVar, cast
 
 import qdrant_client
 from haystack import default_from_dict, default_to_dict, logging
@@ -37,7 +37,7 @@ class QdrantStoreError(DocumentStoreError):
     pass
 
 
-FilterType = dict[str, Union[dict[str, Any], list[Any], str, int, float, bool]]
+FilterType = dict[str, dict[str, Any] | list[Any] | str | int | float | bool]
 
 
 def get_batches_from_generator(iterable: list, n: int) -> Generator:
@@ -98,17 +98,17 @@ class QdrantDocumentStore:
 
     def __init__(
         self,
-        location: Optional[str] = None,
-        url: Optional[str] = None,
+        location: str | None = None,
+        url: str | None = None,
         port: int = 6333,
         grpc_port: int = 6334,
         prefer_grpc: bool = False,
-        https: Optional[bool] = None,
-        api_key: Optional[Secret] = None,
-        prefix: Optional[str] = None,
-        timeout: Optional[int] = None,
-        host: Optional[str] = None,
-        path: Optional[str] = None,
+        https: bool | None = None,
+        api_key: Secret | None = None,
+        prefix: str | None = None,
+        timeout: int | None = None,
+        host: str | None = None,
+        path: str | None = None,
         force_disable_check_same_thread: bool = False,
         index: str = "Document",
         embedding_dim: int = 768,
@@ -119,19 +119,19 @@ class QdrantDocumentStore:
         return_embedding: bool = False,
         progress_bar: bool = True,
         recreate_index: bool = False,
-        shard_number: Optional[int] = None,
-        replication_factor: Optional[int] = None,
-        write_consistency_factor: Optional[int] = None,
-        on_disk_payload: Optional[bool] = None,
-        hnsw_config: Optional[dict] = None,
-        optimizers_config: Optional[dict] = None,
-        wal_config: Optional[dict] = None,
-        quantization_config: Optional[dict] = None,
+        shard_number: int | None = None,
+        replication_factor: int | None = None,
+        write_consistency_factor: int | None = None,
+        on_disk_payload: bool | None = None,
+        hnsw_config: dict | None = None,
+        optimizers_config: dict | None = None,
+        wal_config: dict | None = None,
+        quantization_config: dict | None = None,
         wait_result_from_api: bool = True,
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
         write_batch_size: int = 100,
         scroll_size: int = 10_000,
-        payload_fields_to_index: Optional[list[dict]] = None,
+        payload_fields_to_index: list[dict] | None = None,
     ) -> None:
         """
         Initializes a QdrantDocumentStore.
@@ -220,8 +220,8 @@ class QdrantDocumentStore:
             List of payload fields to index.
         """
 
-        self._client: Optional[qdrant_client.QdrantClient] = None
-        self._async_client: Optional[qdrant_client.AsyncQdrantClient] = None
+        self._client: qdrant_client.QdrantClient | None = None
+        self._async_client: qdrant_client.AsyncQdrantClient | None = None
 
         # Store the Qdrant client specific attributes
         self.location = location
@@ -334,7 +334,7 @@ class QdrantDocumentStore:
 
     def filter_documents(
         self,
-        filters: Optional[Union[dict[str, Any], rest.Filter]] = None,
+        filters: dict[str, Any] | rest.Filter | None = None,
     ) -> list[Document]:
         """
         Returns the documents that match the provided filters.
@@ -357,7 +357,7 @@ class QdrantDocumentStore:
 
     async def filter_documents_async(
         self,
-        filters: Optional[Union[dict[str, Any], rest.Filter]] = None,
+        filters: dict[str, Any] | rest.Filter | None = None,
     ) -> list[Document]:
         """
         Asynchronously returns the documents that match the provided filters.
@@ -878,7 +878,7 @@ class QdrantDocumentStore:
 
     def _get_documents_generator(
         self,
-        filters: Optional[Union[dict[str, Any], rest.Filter]] = None,
+        filters: dict[str, Any] | rest.Filter | None = None,
     ) -> Generator[Document, None, None]:
         """
         Returns a generator that yields documents from Qdrant based on the provided filters.
@@ -918,7 +918,7 @@ class QdrantDocumentStore:
 
     async def _get_documents_generator_async(
         self,
-        filters: Optional[Union[dict[str, Any], rest.Filter]] = None,
+        filters: dict[str, Any] | rest.Filter | None = None,
     ) -> AsyncGenerator[Document, None]:
         """
         Returns an asynchronous generator that yields documents from Qdrant based on the provided filters.
@@ -1021,13 +1021,13 @@ class QdrantDocumentStore:
     def _query_by_sparse(
         self,
         query_sparse_embedding: SparseEmbedding,
-        filters: Optional[Union[dict[str, Any], rest.Filter]] = None,
+        filters: dict[str, Any] | rest.Filter | None = None,
         top_k: int = 10,
         scale_score: bool = False,
         return_embedding: bool = False,
-        score_threshold: Optional[float] = None,
-        group_by: Optional[str] = None,
-        group_size: Optional[int] = None,
+        score_threshold: float | None = None,
+        group_by: str | None = None,
+        group_size: int | None = None,
     ) -> list[Document]:
         """
         Queries Qdrant using a sparse embedding and returns the most relevant documents.
@@ -1098,13 +1098,13 @@ class QdrantDocumentStore:
     def _query_by_embedding(
         self,
         query_embedding: list[float],
-        filters: Optional[Union[dict[str, Any], rest.Filter]] = None,
+        filters: dict[str, Any] | rest.Filter | None = None,
         top_k: int = 10,
         scale_score: bool = False,
         return_embedding: bool = False,
-        score_threshold: Optional[float] = None,
-        group_by: Optional[str] = None,
-        group_size: Optional[int] = None,
+        score_threshold: float | None = None,
+        group_by: str | None = None,
+        group_size: int | None = None,
     ) -> list[Document]:
         """
         Queries Qdrant using a dense embedding and returns the most relevant documents.
@@ -1159,12 +1159,12 @@ class QdrantDocumentStore:
         self,
         query_embedding: list[float],
         query_sparse_embedding: SparseEmbedding,
-        filters: Optional[Union[dict[str, Any], rest.Filter]] = None,
+        filters: dict[str, Any] | rest.Filter | None = None,
         top_k: int = 10,
         return_embedding: bool = False,
-        score_threshold: Optional[float] = None,
-        group_by: Optional[str] = None,
-        group_size: Optional[int] = None,
+        score_threshold: float | None = None,
+        group_by: str | None = None,
+        group_size: int | None = None,
     ) -> list[Document]:
         """
         Retrieves documents based on dense and sparse embeddings and fuses the results using Reciprocal Rank Fusion.
@@ -1271,13 +1271,13 @@ class QdrantDocumentStore:
     async def _query_by_sparse_async(
         self,
         query_sparse_embedding: SparseEmbedding,
-        filters: Optional[Union[dict[str, Any], rest.Filter]] = None,
+        filters: dict[str, Any] | rest.Filter | None = None,
         top_k: int = 10,
         scale_score: bool = False,
         return_embedding: bool = False,
-        score_threshold: Optional[float] = None,
-        group_by: Optional[str] = None,
-        group_size: Optional[int] = None,
+        score_threshold: float | None = None,
+        group_by: str | None = None,
+        group_size: int | None = None,
     ) -> list[Document]:
         """
         Asynchronously queries Qdrant using a sparse embedding and returns the most relevant documents.
@@ -1351,13 +1351,13 @@ class QdrantDocumentStore:
     async def _query_by_embedding_async(
         self,
         query_embedding: list[float],
-        filters: Optional[Union[dict[str, Any], rest.Filter]] = None,
+        filters: dict[str, Any] | rest.Filter | None = None,
         top_k: int = 10,
         scale_score: bool = False,
         return_embedding: bool = False,
-        score_threshold: Optional[float] = None,
-        group_by: Optional[str] = None,
-        group_size: Optional[int] = None,
+        score_threshold: float | None = None,
+        group_by: str | None = None,
+        group_size: int | None = None,
     ) -> list[Document]:
         """
         Asynchronously queries Qdrant using a dense embedding and returns the most relevant documents.
@@ -1413,12 +1413,12 @@ class QdrantDocumentStore:
         self,
         query_embedding: list[float],
         query_sparse_embedding: SparseEmbedding,
-        filters: Optional[Union[dict[str, Any], rest.Filter]] = None,
+        filters: dict[str, Any] | rest.Filter | None = None,
         top_k: int = 10,
         return_embedding: bool = False,
-        score_threshold: Optional[float] = None,
-        group_by: Optional[str] = None,
-        group_size: Optional[int] = None,
+        score_threshold: float | None = None,
+        group_by: str | None = None,
+        group_size: int | None = None,
     ) -> list[Document]:
         """
         Asynchronously retrieves documents based on dense and sparse embeddings and fuses
@@ -1543,7 +1543,7 @@ class QdrantDocumentStore:
             )
             raise QdrantStoreError(msg) from ke
 
-    def _create_payload_index(self, collection_name: str, payload_fields_to_index: Optional[list[dict]] = None) -> None:
+    def _create_payload_index(self, collection_name: str, payload_fields_to_index: list[dict] | None = None) -> None:
         """
         Create payload index for the collection if payload_fields_to_index is provided.
 
@@ -1562,7 +1562,7 @@ class QdrantDocumentStore:
                 )
 
     async def _create_payload_index_async(
-        self, collection_name: str, payload_fields_to_index: Optional[list[dict]] = None
+        self, collection_name: str, payload_fields_to_index: list[dict] | None = None
     ) -> None:
         """
         Asynchronously create payload index for the collection if payload_fields_to_index is provided.
@@ -1590,7 +1590,7 @@ class QdrantDocumentStore:
         use_sparse_embeddings: bool,
         sparse_idf: bool,
         on_disk: bool = False,
-        payload_fields_to_index: Optional[list[dict]] = None,
+        payload_fields_to_index: list[dict] | None = None,
     ) -> None:
         """
         Sets up the Qdrant collection with the specified parameters.
@@ -1647,7 +1647,7 @@ class QdrantDocumentStore:
         use_sparse_embeddings: bool,
         sparse_idf: bool,
         on_disk: bool = False,
-        payload_fields_to_index: Optional[list[dict]] = None,
+        payload_fields_to_index: list[dict] | None = None,
     ) -> None:
         """
         Asynchronously sets up the Qdrant collection with the specified parameters.
@@ -1700,8 +1700,8 @@ class QdrantDocumentStore:
         collection_name: str,
         distance: rest.Distance,
         embedding_dim: int,
-        on_disk: Optional[bool] = None,
-        use_sparse_embeddings: Optional[bool] = None,
+        on_disk: bool | None = None,
+        use_sparse_embeddings: bool | None = None,
         sparse_idf: bool = False,
     ) -> None:
         """
@@ -1743,8 +1743,8 @@ class QdrantDocumentStore:
         collection_name: str,
         distance: rest.Distance,
         embedding_dim: int,
-        on_disk: Optional[bool] = None,
-        use_sparse_embeddings: Optional[bool] = None,
+        on_disk: bool | None = None,
+        use_sparse_embeddings: bool | None = None,
         sparse_idf: bool = False,
     ) -> None:
         """
@@ -1784,7 +1784,7 @@ class QdrantDocumentStore:
     def _handle_duplicate_documents(
         self,
         documents: list[Document],
-        policy: Optional[DuplicatePolicy] = None,
+        policy: DuplicatePolicy | None = None,
     ) -> list[Document]:
         """
         Checks whether any of the passed documents is already existing in the chosen index and returns a list of
@@ -1811,7 +1811,7 @@ class QdrantDocumentStore:
     async def _handle_duplicate_documents_async(
         self,
         documents: list[Document],
-        policy: Optional[DuplicatePolicy] = None,
+        policy: DuplicatePolicy | None = None,
     ) -> list[Document]:
         """
         Asynchronously checks whether any of the passed documents is already existing
@@ -1900,10 +1900,10 @@ class QdrantDocumentStore:
         self,
         embedding_dim: int,
         distance: rest.Distance,
-        on_disk: Optional[bool] = None,
-        use_sparse_embeddings: Optional[bool] = None,
+        on_disk: bool | None = None,
+        use_sparse_embeddings: bool | None = None,
         sparse_idf: bool = False,
-    ) -> tuple[Union[dict[str, rest.VectorParams], rest.VectorParams], Optional[dict[str, rest.SparseVectorParams]]]:
+    ) -> tuple[dict[str, rest.VectorParams] | rest.VectorParams, dict[str, rest.SparseVectorParams] | None]:
         """
         Prepares the configuration for creating or recreating a Qdrant collection.
 
@@ -1916,9 +1916,9 @@ class QdrantDocumentStore:
 
         # dense vectors configuration
         base_vectors_config = rest.VectorParams(size=embedding_dim, on_disk=on_disk, distance=distance)
-        vectors_config: Union[rest.VectorParams, dict[str, rest.VectorParams]] = base_vectors_config
+        vectors_config: rest.VectorParams | dict[str, rest.VectorParams] = base_vectors_config
 
-        sparse_vectors_config: Optional[dict[str, rest.SparseVectorParams]] = None
+        sparse_vectors_config: dict[str, rest.SparseVectorParams] | None = None
 
         if use_sparse_embeddings:
             # in this case, we need to define named vectors
@@ -1936,7 +1936,7 @@ class QdrantDocumentStore:
         return vectors_config, sparse_vectors_config
 
     @staticmethod
-    def _validate_filters(filters: Optional[Union[dict[str, Any], rest.Filter]] = None) -> None:
+    def _validate_filters(filters: dict[str, Any] | rest.Filter | None = None) -> None:
         """
         Validates the filters provided for querying.
 

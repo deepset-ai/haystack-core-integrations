@@ -1,5 +1,14 @@
 # Changelog
 
+## [integrations/cohere-v7.0.0] - 2026-01-12
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Cohere - drop Python 3.9 and use X|Y typing (#2696)
+
+
 ## [integrations/cohere-v6.3.0] - 2025-11-26
 
 ### ⚙️ CI

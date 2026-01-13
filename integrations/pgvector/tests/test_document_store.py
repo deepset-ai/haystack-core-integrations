@@ -154,7 +154,7 @@ def test_halfvec_hnsw_write_documents(document_store_w_halfvec_hnsw_index: Pgvec
     retrieved_docs = document_store_w_halfvec_hnsw_index.filter_documents()
     retrieved_docs.sort(key=lambda x: x.id)
 
-    for original_doc, retrieved_doc in zip(documents, retrieved_docs):
+    for original_doc, retrieved_doc in zip(documents, retrieved_docs, strict=True):
         assert original_doc.id == retrieved_doc.id
         assert original_doc.content == retrieved_doc.content
         assert len(original_doc.embedding) == len(retrieved_doc.embedding)

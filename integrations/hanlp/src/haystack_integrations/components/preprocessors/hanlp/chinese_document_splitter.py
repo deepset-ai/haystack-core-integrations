@@ -2,8 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Callable
 from copy import deepcopy
-from typing import Any, Callable, Literal, Optional
+from typing import Any, Literal
 
 from haystack import Document, component, logging
 from haystack.core.serialization import default_from_dict, default_to_dict
@@ -59,7 +60,7 @@ class ChineseDocumentSplitter:
         split_overlap: int = 200,
         split_threshold: int = 0,
         respect_sentence_boundary: bool = False,
-        splitting_function: Optional[Callable] = None,
+        splitting_function: Callable | None = None,
         granularity: Literal["coarse", "fine"] = "coarse",
     ):
         """
@@ -406,7 +407,7 @@ class ChineseDocumentSplitter:
         """
         documents: list[Document] = []
 
-        for i, (txt, split_idx) in enumerate(zip(text_splits, splits_start_idxs)):
+        for i, (txt, split_idx) in enumerate(zip(text_splits, splits_start_idxs, strict=True)):
             copied_meta = deepcopy(meta)
             copied_meta["page_number"] = splits_pages[i]
             copied_meta["split_id"] = i
