@@ -1,5 +1,26 @@
 # Changelog
 
+## [integrations/ragas-v3.0.0] - 2026-01-13
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Ragas - drop Python 3.9 and use X|Y typing (#2727)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 5) (#2528)
+
 ## [integrations/ragas-v2.2.0] - 2025-06-26
 
 ### 🐛 Bug Fixes
