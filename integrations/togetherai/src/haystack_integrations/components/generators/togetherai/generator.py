@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional, Union, cast
+from typing import Any, cast
 
 from haystack import component, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, StreamingCallbackT
@@ -35,12 +35,12 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
         self,
         api_key: Secret = Secret.from_env_var("TOGETHER_API_KEY"),
         model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-        api_base_url: Optional[str] = "https://api.together.xyz/v1",
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        system_prompt: Optional[str] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
-        timeout: Optional[float] = None,
-        max_retries: Optional[int] = None,
+        api_base_url: str | None = "https://api.together.xyz/v1",
+        streaming_callback: StreamingCallbackT | None = None,
+        system_prompt: str | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
     ):
         """
         Initialize the TogetherAIGenerator.
@@ -141,9 +141,9 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
         self,
         *,
         prompt: str,
-        system_prompt: Optional[str] = None,
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
+        system_prompt: str | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Generate text completions synchronously.
@@ -179,9 +179,9 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
         self,
         *,
         prompt: str,
-        system_prompt: Optional[str] = None,
-        streaming_callback: Optional[StreamingCallbackT] = None,
-        generation_kwargs: Optional[dict[str, Any]] = None,
+        system_prompt: str | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Generate text completions asynchronously.
@@ -211,7 +211,7 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
         replies = chat_response["replies"]
         return self._convert_chat_response_to_generator_format(replies)
 
-    def _prepare_messages(self, prompt: str, system_prompt: Optional[str] = None) -> list[ChatMessage]:
+    def _prepare_messages(self, prompt: str, system_prompt: str | None = None) -> list[ChatMessage]:
         """
         Convert prompt and system_prompt to ChatMessage format.
 
@@ -228,7 +228,7 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
 
     def _convert_chat_response_to_generator_format(
         self, chat_messages: list[ChatMessage]
-    ) -> dict[str, Union[list[str], list[dict[str, Any]]]]:
+    ) -> dict[str, list[str] | list[dict[str, Any]]]:
         """
         Convert ChatGenerator response format to Generator format.
 
