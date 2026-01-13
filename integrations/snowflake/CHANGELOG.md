@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/snowflake-v3.0.0] - 2026-01-13
+
+### 🧹 Chores
+
+- [**breaking**] Snowflake - drop Python 3.9 and use X|Y typing (#2729)
+
+
 ## [integrations/snowflake-v2.1.0] - 2026-01-09
 
 ### 🚀 Features
