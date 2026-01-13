@@ -1,5 +1,4 @@
 import uuid
-from typing import Union
 
 from haystack import logging
 from haystack.dataclasses import Document
@@ -58,7 +57,7 @@ def convert_id(_id: str) -> str:
     return uuid.uuid5(UUID_NAMESPACE, _id).hex
 
 
-QdrantPoint = Union[rest.ScoredPoint, rest.Record]
+QdrantPoint = rest.ScoredPoint | rest.Record
 
 
 def convert_qdrant_point_to_haystack_document(point: QdrantPoint, use_sparse_embeddings: bool) -> Document:
