@@ -4,7 +4,7 @@
 
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import Mock
 from urllib.parse import quote_plus
 
@@ -191,10 +191,10 @@ class TestSnowflakeTableRetriever:
         mocker: Mock,
         user: str,
         account: str,
-        db_name: Optional[str],
-        schema_name: Optional[str],
-        warehouse_name: Optional[str],
-        expected_uri: Optional[str],
+        db_name: str | None,
+        schema_name: str | None,
+        warehouse_name: str | None,
+        expected_uri: str | None,
         should_raise: bool,
     ) -> None:
         mocker.patch.dict(os.environ, {"SNOWFLAKE_API_KEY": "test_api_key"})
