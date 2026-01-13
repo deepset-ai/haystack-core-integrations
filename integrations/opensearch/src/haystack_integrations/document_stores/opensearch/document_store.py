@@ -26,9 +26,9 @@ logger = logging.getLogger(__name__)
 
 SPECIAL_FIELDS = {"content", "embedding", "id", "score", "sparse_embedding", "blob"}
 
-Hosts = Union[str, list[Union[str, Mapping[str, Union[str, int]]]]]
-
 ResponseFormat = Literal["json", "jdbc", "csv", "raw"]
+
+Hosts = Union[str, list[Union[str, Mapping[str, Union[str, int]]]]]
 
 # document scores are essentially unbounded and will be scaled to values between 0 and 1 if scale_score is set to
 # True. Scaling uses the expit function (inverse of the logit function) after applying a scaling factor
@@ -1233,7 +1233,7 @@ class OpenSearchDocumentStore:
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
-                 documents.
+                  documents.
         """
         self._ensure_initialized()
         assert self._client is not None
