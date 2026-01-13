@@ -5,7 +5,6 @@ loaders:
   - haystack_integrations.components.retrievers.opensearch.bm25_retriever
   - haystack_integrations.components.retrievers.opensearch.embedding_retriever
   - haystack_integrations.components.retrievers.opensearch.open_search_hybrid_retriever
-  - haystack_integrations.components.retrievers.opensearch.sql_retriever
   - haystack_integrations.document_stores.opensearch.document_store
   - haystack_integrations.document_stores.opensearch.filters
   search_path:
