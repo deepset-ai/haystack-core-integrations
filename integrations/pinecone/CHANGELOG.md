@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/pinecone-v6.0.0] - 2026-01-13
+
+### 🧹 Chores
+
+- [**breaking**] Pinecone - drop Python 3.9 and use X|Y typing (#2723)
+
+
 ## [integrations/pinecone-v5.5.0] - 2026-01-08
 
 ### 🚀 Features
