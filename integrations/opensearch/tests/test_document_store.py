@@ -619,7 +619,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         )
         assert count_a_active == 2
 
-    def test_count_distinct_values_by_filter(self, document_store: OpenSearchDocumentStore):
+    def test_count_distinct_metadata_values_by_filter(self, document_store: OpenSearchDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
             Document(content="Doc 2", meta={"category": "B", "status": "active", "priority": 2}),
@@ -631,13 +631,13 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert document_store.count_documents() == 5
 
         # Count distinct values for all documents
-        distinct_counts = document_store.count_distinct_values_by_filter(filters={})
+        distinct_counts = document_store.count_distinct_metadata_values_by_filter(filters={})
         assert distinct_counts["category"] == 3  # A, B, C
         assert distinct_counts["status"] == 2  # active, inactive
         assert distinct_counts["priority"] == 3  # 1, 2, 3
 
         # Count distinct values for documents with category="A"
-        distinct_counts_a = document_store.count_distinct_values_by_filter(
+        distinct_counts_a = document_store.count_distinct_metadata_values_by_filter(
             filters={"field": "meta.category", "operator": "==", "value": "A"}
         )
         assert distinct_counts_a["category"] == 1  # Only A
@@ -645,7 +645,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert distinct_counts_a["priority"] == 2  # 1, 3
 
         # Count distinct values for documents with status="active"
-        distinct_counts_active = document_store.count_distinct_values_by_filter(
+        distinct_counts_active = document_store.count_distinct_metadata_values_by_filter(
             filters={"field": "meta.status", "operator": "==", "value": "active"}
         )
         assert distinct_counts_active["category"] == 3  # A, B, C
@@ -653,7 +653,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert distinct_counts_active["priority"] == 3  # 1, 2, 3
 
         # Count distinct values with complex filter (category="A" AND status="active")
-        distinct_counts_a_active = document_store.count_distinct_values_by_filter(
+        distinct_counts_a_active = document_store.count_distinct_metadata_values_by_filter(
             filters={
                 "operator": "AND",
                 "conditions": [
@@ -666,14 +666,14 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert distinct_counts_a_active["status"] == 1  # Only active
         assert distinct_counts_a_active["priority"] == 2  # 1, 3
 
-    def test_get_fields_info(self, document_store: OpenSearchDocumentStore):
+    def test_get_metadata_fields_info(self, document_store: OpenSearchDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
             Document(content="Doc 2", meta={"category": "B", "status": "inactive"}),
         ]
         document_store.write_documents(docs)
 
-        fields_info = document_store.get_fields_info()
+        fields_info = document_store.get_metadata_fields_info()
 
         # Verify that fields_info contains expected fields
         assert "content" in fields_info
@@ -690,7 +690,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert fields_info["status"]["type"] == "keyword"
         assert fields_info["priority"]["type"] == "long"
 
-    def test_get_field_min_max(self, document_store: OpenSearchDocumentStore):
+    def test_get_metadata_field_min_max(self, document_store: OpenSearchDocumentStore):
         # Test with integer values
         docs = [
             Document(content="Doc 1", meta={"priority": 1, "age": 10}),
@@ -705,28 +705,28 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         document_store.write_documents(docs)
 
         # Test with "meta." prefix for integer field
-        min_max_priority = document_store.get_field_min_max("meta.priority")
+        min_max_priority = document_store.get_metadata_field_min_max("meta.priority")
         assert min_max_priority["min"] == 1
         assert min_max_priority["max"] == 10
 
         # Test with "meta." prefix for another integer field
-        min_max_rating = document_store.get_field_min_max("meta.age")
+        min_max_rating = document_store.get_metadata_field_min_max("meta.age")
         assert min_max_rating["min"] == 5
         assert min_max_rating["max"] == 20
 
         # Test with single value
         single_doc = [Document(content="Doc 5", meta={"single_value": 42})]
         document_store.write_documents(single_doc)
-        min_max_single = document_store.get_field_min_max("meta.single_value")
+        min_max_single = document_store.get_metadata_field_min_max("meta.single_value")
         assert min_max_single["min"] == 42
         assert min_max_single["max"] == 42
 
         # Test with float values
-        min_max_score = document_store.get_field_min_max("meta.rating")
+        min_max_score = document_store.get_metadata_field_min_max("meta.rating")
         assert min_max_score["min"] == pytest.approx(5.2)
         assert min_max_score["max"] == pytest.approx(20.3)
 
-    def test_get_field_unique_values(self, document_store: OpenSearchDocumentStore):
+    def test_get_metadata_field_unique_values(self, document_store: OpenSearchDocumentStore):
         # Test with string values
         docs = [
             Document(content="Python programming", meta={"category": "A", "language": "Python"}),
@@ -739,34 +739,38 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         document_store.write_documents(docs)
 
         # Test getting all unique values without search term
-        unique_values, total_count = document_store.get_field_unique_values("meta.category", None, 0, 10)
+        unique_values, total_count = document_store.get_metadata_field_unique_values("meta.category", None, 0, 10)
         assert set(unique_values) == {"A", "B", "C"}
         assert total_count == 3
 
         # Test with "meta." prefix
-        unique_languages, lang_count = document_store.get_field_unique_values("meta.language", None, 0, 10)
+        unique_languages, lang_count = document_store.get_metadata_field_unique_values("meta.language", None, 0, 10)
         assert set(unique_languages) == {"Python", "Java", "JavaScript"}
         assert lang_count == 3
 
         # Test pagination - first page
-        unique_values_page1, total_count = document_store.get_field_unique_values("meta.category", None, 0, 2)
+        unique_values_page1, total_count = document_store.get_metadata_field_unique_values("meta.category", None, 0, 2)
         assert len(unique_values_page1) == 2
         assert total_count == 3
         assert all(val in ["A", "B", "C"] for val in unique_values_page1)
 
         # Test pagination - second page
-        unique_values_page2, total_count = document_store.get_field_unique_values("meta.category", None, 2, 2)
+        unique_values_page2, total_count = document_store.get_metadata_field_unique_values("meta.category", None, 2, 2)
         assert len(unique_values_page2) == 1
         assert total_count == 3
         assert unique_values_page2[0] in ["A", "B", "C"]
 
         # Test with search term - filter by content matching "Python"
-        unique_values_filtered, total_count = document_store.get_field_unique_values("meta.category", "Python", 0, 10)
+        unique_values_filtered, total_count = document_store.get_metadata_field_unique_values(
+            "meta.category", "Python", 0, 10
+        )
         assert set(unique_values_filtered) == {"A"}  # Only category A has documents with "Python" in content
         assert total_count == 1
 
         # Test with search term - filter by content matching "Java"
-        unique_values_java, total_count = document_store.get_field_unique_values("meta.category", "Java", 0, 10)
+        unique_values_java, total_count = document_store.get_metadata_field_unique_values(
+            "meta.category", "Java", 0, 10
+        )
         assert set(unique_values_java) == {"B"}  # Only category B has documents with "Java" in content
         assert total_count == 1
 
@@ -778,12 +782,14 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
             Document(content="Doc 4", meta={"priority": 3}),
         ]
         document_store.write_documents(int_docs)
-        unique_priorities, priority_count = document_store.get_field_unique_values("meta.priority", None, 0, 10)
+        unique_priorities, priority_count = document_store.get_metadata_field_unique_values(
+            "meta.priority", None, 0, 10
+        )
         assert set(unique_priorities) == {"1", "2", "3"}
         assert priority_count == 3
 
         # Test with search term on integer field
-        unique_priorities_filtered, priority_count = document_store.get_field_unique_values(
+        unique_priorities_filtered, priority_count = document_store.get_metadata_field_unique_values(
             "meta.priority", "Doc 1", 0, 10
         )
         assert set(unique_priorities_filtered) == {"1"}

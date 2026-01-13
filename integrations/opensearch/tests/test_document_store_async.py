@@ -282,13 +282,13 @@ class TestDocumentStoreAsync:
         assert await document_store.count_documents_async() == 5
 
         # count distinct values for all documents
-        distinct_counts = await document_store.count_distinct_values_by_filter_async(filters={})
+        distinct_counts = await document_store.count_distinct_metadata_values_by_filter_async(filters={})
         assert distinct_counts["category"] == 3  # A, B, C
         assert distinct_counts["status"] == 2  # active, inactive
         assert distinct_counts["priority"] == 3  # 1, 2, 3
 
         # count distinct values for documents with category="A"
-        distinct_counts_a = await document_store.count_distinct_values_by_filter_async(
+        distinct_counts_a = await document_store.count_distinct_metadata_values_by_filter_async(
             filters={"field": "meta.category", "operator": "==", "value": "A"}
         )
         assert distinct_counts_a["category"] == 1  # Only A
@@ -296,7 +296,7 @@ class TestDocumentStoreAsync:
         assert distinct_counts_a["priority"] == 2  # 1, 3
 
         # count distinct values for documents with status="active"
-        distinct_counts_active = await document_store.count_distinct_values_by_filter_async(
+        distinct_counts_active = await document_store.count_distinct_metadata_values_by_filter_async(
             filters={"field": "meta.status", "operator": "==", "value": "active"}
         )
         assert distinct_counts_active["category"] == 3  # A, B, C
@@ -304,7 +304,7 @@ class TestDocumentStoreAsync:
         assert distinct_counts_active["priority"] == 3  # 1, 2, 3
 
         # count distinct values with complex filter (category="A" AND status="active")
-        distinct_counts_a_active = await document_store.count_distinct_values_by_filter_async(
+        distinct_counts_a_active = await document_store.count_distinct_metadata_values_by_filter_async(
             filters={
                 "operator": "AND",
                 "conditions": [
@@ -474,14 +474,14 @@ class TestDocumentStoreAsync:
         assert draft_docs[0].meta["category"] == "B"
 
     @pytest.mark.asyncio
-    async def test_get_fields_info(self, document_store: OpenSearchDocumentStore):
+    async def test_get_metadata_fields_info_async(self, document_store: OpenSearchDocumentStore):
         filterable_docs = [
             Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
             Document(content="Doc 2", meta={"category": "B", "status": "inactive"}),
         ]
         await document_store.write_documents_async(filterable_docs)
 
-        fields_info = await document_store.get_fields_info_async()
+        fields_info = await document_store.get_metadata_fields_info_async()
 
         # Verify that fields_info contains expected fields
         assert "content" in fields_info
@@ -493,13 +493,14 @@ class TestDocumentStoreAsync:
         # Verify field types
         assert fields_info["content"]["type"] == "text"
         assert fields_info["embedding"]["type"] == "knn_vector"
+
         # Metadata fields should be keyword type (from dynamic templates)
         assert fields_info["category"]["type"] == "keyword"
         assert fields_info["status"]["type"] == "keyword"
         assert fields_info["priority"]["type"] == "long"
 
     @pytest.mark.asyncio
-    async def test_get_field_min_max(self, document_store: OpenSearchDocumentStore):
+    async def test_get_metadata_field_min_max_async(self, document_store: OpenSearchDocumentStore):
         # Test with integer values
         docs = [
             Document(content="Doc 1", meta={"priority": 1, "age": 10}),
@@ -514,29 +515,29 @@ class TestDocumentStoreAsync:
         await document_store.write_documents_async(docs)
 
         # Test with "meta." prefix for integer field
-        min_max_priority = await document_store.get_field_min_max_async("meta.priority")
+        min_max_priority = await document_store.get_metadata_field_min_max_async("meta.priority")
         assert min_max_priority["min"] == 1
         assert min_max_priority["max"] == 10
 
         # Test with "meta." prefix for another integer field
-        min_max_rating = await document_store.get_field_min_max_async("meta.age")
+        min_max_rating = await document_store.get_metadata_field_min_max_async("meta.age")
         assert min_max_rating["min"] == 5
         assert min_max_rating["max"] == 20
 
         # Test with single value
         single_doc = [Document(content="Doc 5", meta={"single_value": 42})]
         await document_store.write_documents_async(single_doc)
-        min_max_single = await document_store.get_field_min_max_async("meta.single_value")
+        min_max_single = await document_store.get_metadata_field_min_max_async("meta.single_value")
         assert min_max_single["min"] == 42
         assert min_max_single["max"] == 42
 
         # Test with float values
-        min_max_score = await document_store.get_field_min_max_async("meta.rating")
+        min_max_score = await document_store.get_metadata_field_min_max_async("meta.rating")
         assert min_max_score["min"] == pytest.approx(5.2)
         assert min_max_score["max"] == pytest.approx(20.3)
 
     @pytest.mark.asyncio
-    async def test_get_field_unique_values(self, document_store: OpenSearchDocumentStore):
+    async def test_get_metadata_field_unique_values_async(self, document_store: OpenSearchDocumentStore):
         # Test with string values
         docs = [
             Document(content="Python programming", meta={"category": "A", "language": "Python"}),
@@ -549,17 +550,21 @@ class TestDocumentStoreAsync:
         await document_store.write_documents_async(docs)
 
         # Test getting all unique values without search term
-        unique_values, total_count = await document_store.get_field_unique_values_async("meta.category", None, 0, 10)
+        unique_values, total_count = await document_store.get_metadata_field_unique_values_async(
+            "meta.category", None, 0, 10
+        )
         assert set(unique_values) == {"A", "B", "C"}
         assert total_count == 3
 
         # Test with "meta." prefix
-        unique_languages, lang_count = await document_store.get_field_unique_values_async("meta.language", None, 0, 10)
+        unique_languages, lang_count = await document_store.get_metadata_field_unique_values_async(
+            "meta.language", None, 0, 10
+        )
         assert set(unique_languages) == {"Python", "Java", "JavaScript"}
         assert lang_count == 3
 
         # Test pagination - first page
-        unique_values_page1, total_count = await document_store.get_field_unique_values_async(
+        unique_values_page1, total_count = await document_store.get_metadata_field_unique_values_async(
             "meta.category", None, 0, 2
         )
         assert len(unique_values_page1) == 2
@@ -567,7 +572,7 @@ class TestDocumentStoreAsync:
         assert all(val in ["A", "B", "C"] for val in unique_values_page1)
 
         # Test pagination - second page
-        unique_values_page2, total_count = await document_store.get_field_unique_values_async(
+        unique_values_page2, total_count = await document_store.get_metadata_field_unique_values_async(
             "meta.category", None, 2, 2
         )
         assert len(unique_values_page2) == 1
@@ -575,14 +580,14 @@ class TestDocumentStoreAsync:
         assert unique_values_page2[0] in ["A", "B", "C"]
 
         # Test with search term - filter by content matching "Python"
-        unique_values_filtered, total_count = await document_store.get_field_unique_values_async(
+        unique_values_filtered, total_count = await document_store.get_metadata_field_unique_values_async(
             "meta.category", "Python", 0, 10
         )
         assert set(unique_values_filtered) == {"A"}  # Only category A has documents with "Python" in content
         assert total_count == 1
 
         # Test with search term - filter by content matching "Java"
-        unique_values_java, total_count = await document_store.get_field_unique_values_async(
+        unique_values_java, total_count = await document_store.get_metadata_field_unique_values_async(
             "meta.category", "Java", 0, 10
         )
         assert set(unique_values_java) == {"B"}  # Only category B has documents with "Java" in content
@@ -596,14 +601,14 @@ class TestDocumentStoreAsync:
             Document(content="Doc 4", meta={"priority": 3}),
         ]
         await document_store.write_documents_async(int_docs)
-        unique_priorities, priority_count = await document_store.get_field_unique_values_async(
+        unique_priorities, priority_count = await document_store.get_metadata_field_unique_values_async(
             "meta.priority", None, 0, 10
         )
         assert set(unique_priorities) == {"1", "2", "3"}
         assert priority_count == 3
 
         # Test with search term on integer field
-        unique_priorities_filtered, priority_count = await document_store.get_field_unique_values_async(
+        unique_priorities_filtered, priority_count = await document_store.get_metadata_field_unique_values_async(
             "meta.priority", "Doc 1", 0, 10
         )
         assert set(unique_priorities_filtered) == {"1"}
