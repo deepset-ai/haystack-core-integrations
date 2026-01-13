@@ -63,14 +63,17 @@ class AmazonBedrockGenerator:
     supports Amazon Bedrock.
     """
 
+    # Regex pattern for supported AWS Bedrock region prefixes
+    _REGION_PREFIX_PATTERN = r"((?:global|us-gov|us|eu|apac|au|ca|jp)\.)?"
+
     SUPPORTED_MODEL_PATTERNS: ClassVar[dict[str, type[BedrockModelAdapter]]] = {
-        r"([a-z]{2}\.)?amazon.titan-text.*": AmazonTitanAdapter,
-        r"([a-z]{2}\.)?ai21.j2.*": AI21LabsJurassic2Adapter,
-        r"([a-z]{2}\.)?cohere.command-[^r].*": CohereCommandAdapter,
-        r"([a-z]{2}\.)?cohere.command-r.*": CohereCommandRAdapter,
-        r"([a-z]{2}\.)?anthropic.claude.*": AnthropicClaudeAdapter,
-        r"([a-z]{2}\.)?meta.llama.*": MetaLlamaAdapter,
-        r"([a-z]{2}\.)?mistral.*": MistralAdapter,
+        rf"{_REGION_PREFIX_PATTERN}amazon.titan-text.*": AmazonTitanAdapter,
+        rf"{_REGION_PREFIX_PATTERN}ai21.j2.*": AI21LabsJurassic2Adapter,
+        rf"{_REGION_PREFIX_PATTERN}cohere.command-[^r].*": CohereCommandAdapter,
+        rf"{_REGION_PREFIX_PATTERN}cohere.command-r.*": CohereCommandRAdapter,
+        rf"{_REGION_PREFIX_PATTERN}anthropic.claude.*": AnthropicClaudeAdapter,
+        rf"{_REGION_PREFIX_PATTERN}meta.llama.*": MetaLlamaAdapter,
+        rf"{_REGION_PREFIX_PATTERN}mistral.*": MistralAdapter,
     }
 
     SUPPORTED_MODEL_FAMILIES: ClassVar[dict[str, type[BedrockModelAdapter]]] = {
