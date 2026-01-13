@@ -1232,7 +1232,7 @@ class OpenSearchDocumentStore:
 
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
-        :returns: The number of unique values for each meta field of the documents that match the filters.
+        :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered documents.
         """
         self._ensure_initialized()
         assert self._client is not None
