@@ -1332,7 +1332,7 @@ class OpenSearchDocumentStore:
         }
 
     @staticmethod
-    def _extract_min_max_from_stats(stats: dict[str, Any]) -> dict[str, Any]:
+    def _extract_min_max_from_stats(stats: dict[str, Any]) -> dict[str, int | None]:
         """
         Extracts min and max values from stats aggregation results.
         """
