@@ -1281,7 +1281,7 @@ class OpenSearchDocumentStore:
         # extract cardinality values from aggregations
         return self._extract_distinct_counts_from_aggregations(result.get("aggregations", {}), index_mapping)
 
-    def get_fields_info(self) -> dict[str, dict]:
+    def get_meta_fields_info(self) -> dict[str, dict]:
         """
         Returns the information about the fields in the index.
 
@@ -1340,7 +1340,7 @@ class OpenSearchDocumentStore:
         max_value = stats.get("max")
         return {"min": min_value, "max": max_value}
 
-    def get_field_min_max(self, metadata_field: str) -> dict[str, Any]:
+    def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
         """
         Returns the minimum and maximum values for the given metadata field.
 
@@ -1374,7 +1374,7 @@ class OpenSearchDocumentStore:
 
         return self._extract_min_max_from_stats(stats)
 
-    def get_field_unique_values(
+    def get_metadata_field_unique_values(
         self, metadata_field: str, search_term: str | None, from_: int, size: int
     ) -> tuple[list[str], int]:
         """
