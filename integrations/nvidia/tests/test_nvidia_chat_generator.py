@@ -314,8 +314,7 @@ class TestNvidiaChatGenerator:
         chat_messages = [
             ChatMessage.from_user(
                 """
-            Return the title and the rating based on the following movie review according
-            to the provided json schema.
+            Based on the following movie review, return a JSON object with the title and the rating (as a number).
             Review: Inception is a really well made film. I rate it four stars out of five."""
             )
         ]

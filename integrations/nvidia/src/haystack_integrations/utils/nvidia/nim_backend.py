@@ -4,7 +4,7 @@
 
 import os
 import warnings
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal
 
 import requests
 from haystack import logging
@@ -23,12 +23,12 @@ class NimBackend:
     def __init__(
         self,
         api_url: str,
-        model_type: Optional[Literal["chat", "embedding", "ranking"]] = None,
-        model: Optional[str] = None,
-        api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
-        model_kwargs: Optional[dict[str, Any]] = None,
-        client: Optional[Union[str, Client]] = None,
-        timeout: Optional[float] = None,
+        model_type: Literal["chat", "embedding", "ranking"] | None = None,
+        model: str | None = None,
+        api_key: Secret | None = Secret.from_env_var("NVIDIA_API_KEY"),
+        model_kwargs: dict[str, Any] | None = None,
+        client: str | Client | None = None,
+        timeout: float | None = None,
     ):
         headers = {
             "Content-Type": "application/json",
@@ -44,7 +44,7 @@ class NimBackend:
         self.api_url = api_url
         if isinstance(client, str):
             client = Client.from_str(client)
-        validated_model: Optional[Model] = None
+        validated_model: Model | None = None
         if is_hosted(self.api_url):
             if not api_key:
                 warnings.warn(
