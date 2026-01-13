@@ -1226,7 +1226,7 @@ class OpenSearchDocumentStore:
                     distinct_counts[field_name] = aggregations[agg_key]["value"]
         return distinct_counts
 
-    def count_unique_metadata_by_filter(self, filters: dict) -> dict[str, int]:
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any]) -> dict[str, int]:
         """
         Returns the number of unique values for each metadata field of the documents that match the provided filters.
 
