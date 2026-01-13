@@ -1232,7 +1232,8 @@ class OpenSearchDocumentStore:
 
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
-        :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered documents.
+        :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
+                 documents.
         """
         self._ensure_initialized()
         assert self._client is not None
@@ -1260,7 +1261,8 @@ class OpenSearchDocumentStore:
 
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
-        :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered documents.
+        :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
+                  documents.
         """
         await self._ensure_initialized_async()
         assert self._async_client is not None
@@ -1285,6 +1287,20 @@ class OpenSearchDocumentStore:
         """
         Returns the information about the fields in the index.
 
+        If we populated the index with documents like:
+
+            Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1})
+            Document(content="Doc 2", meta={"category": "B", "status": "inactive"})
+
+        This method would return:
+
+            {
+                'content': {'type': 'text'},
+                'category': {'type': 'keyword'},
+                'status': {'type': 'keyword'},
+                'priority': {'type': 'long'},
+            }
+
         :returns: The information about the fields in the index.
         """
         self._ensure_initialized()
@@ -1292,6 +1308,8 @@ class OpenSearchDocumentStore:
 
         mapping = self._client.indices.get_mapping(index=self._index)
         index_mapping = mapping[self._index]["mappings"]["properties"]
+        # remove all fields that are not metadata fields
+        index_mapping = {k: v for k, v in index_mapping.items() if k not in SPECIAL_FIELDS}
         return index_mapping
 
     async def get_metadata_fields_info_async(self) -> dict[str, dict]:
@@ -1305,6 +1323,8 @@ class OpenSearchDocumentStore:
 
         mapping = await self._async_client.indices.get_mapping(index=self._index)
         index_mapping = mapping[self._index]["mappings"]["properties"]
+        # remove all fields that are not metadata fields
+        index_mapping = {k: v for k, v in index_mapping.items() if k not in SPECIAL_FIELDS}
         return index_mapping
 
     @staticmethod
@@ -1345,7 +1365,8 @@ class OpenSearchDocumentStore:
         Returns the minimum and maximum values for the given metadata field.
 
         :param metadata_field: The metadata field to get the minimum and maximum values for.
-        :returns: A dictionary with the keys "min" and "max", where each value is the minimum or maximum value of the metadata field across all documents.
+        :returns: A dictionary with the keys "min" and "max", where each value is the minimum or maximum value of the
+                  metadata field across all documents.
         """
         self._ensure_initialized()
         assert self._client is not None
@@ -1362,7 +1383,8 @@ class OpenSearchDocumentStore:
         Asynchronously returns the minimum and maximum values for the given metadata field.
 
         :param metadata_field: The metadata field to get the minimum and maximum values for.
-        :returns: A dictionary with the keys "min" and "max", where each value is the minimum or maximum value of the metadata field across all documents.
+        :returns: A dictionary with the keys "min" and "max", where each value is the minimum or maximum value of the
+                  metadata field across all documents.
         """
         await self._ensure_initialized_async()
         assert self._async_client is not None

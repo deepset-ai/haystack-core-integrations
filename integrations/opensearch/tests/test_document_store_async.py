@@ -484,17 +484,10 @@ class TestDocumentStoreAsync:
         fields_info = await document_store.get_metadata_fields_info_async()
 
         # Verify that fields_info contains expected fields
-        assert "content" in fields_info
-        assert "embedding" in fields_info
         assert "category" in fields_info
         assert "status" in fields_info
         assert "priority" in fields_info
 
-        # Verify field types
-        assert fields_info["content"]["type"] == "text"
-        assert fields_info["embedding"]["type"] == "knn_vector"
-
-        # Metadata fields should be keyword type (from dynamic templates)
         assert fields_info["category"]["type"] == "keyword"
         assert fields_info["status"]["type"] == "keyword"
         assert fields_info["priority"]["type"] == "long"
