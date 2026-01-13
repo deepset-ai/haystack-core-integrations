@@ -1226,7 +1226,7 @@ class OpenSearchDocumentStore:
                     distinct_counts[field_name] = aggregations[agg_key]["value"]
         return distinct_counts
 
-    def count_distinct_values_by_filter(self, filters: dict) -> dict[str, int]:
+    def count_distinct_metadata_values_by_filter(self, filters: dict) -> dict[str, int]:
         """
         Returns the number of unique values for each meta field of the documents that match the provided filters.
 
@@ -1253,7 +1253,7 @@ class OpenSearchDocumentStore:
         # extract cardinality values from aggregations
         return self._extract_distinct_counts_from_aggregations(result.get("aggregations", {}), index_mapping)
 
-    async def count_distinct_values_by_filter_async(self, filters: dict) -> dict[str, int]:
+    async def count_distinct_metadata_values_by_filter_async(self, filters: dict) -> dict[str, int]:
         """
         Asynchronously returns the number of unique values for each meta field of the documents that match the
         provided filters.
@@ -1281,7 +1281,7 @@ class OpenSearchDocumentStore:
         # extract cardinality values from aggregations
         return self._extract_distinct_counts_from_aggregations(result.get("aggregations", {}), index_mapping)
 
-    def get_meta_fields_info(self) -> dict[str, dict]:
+    def get_metadata_fields_info(self) -> dict[str, dict]:
         """
         Returns the information about the fields in the index.
 
@@ -1294,7 +1294,7 @@ class OpenSearchDocumentStore:
         index_mapping = mapping[self._index]["mappings"]["properties"]
         return index_mapping
 
-    async def get_fields_info_async(self) -> dict[str, dict]:
+    async def get_metadata_fields_info_async(self) -> dict[str, dict]:
         """
         Asynchronously returns the information about the fields in the index.
 
@@ -1357,7 +1357,7 @@ class OpenSearchDocumentStore:
 
         return self._extract_min_max_from_stats(stats)
 
-    async def get_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
+    async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
         """
         Asynchronously returns the minimum and maximum values for the given metadata field.
 
@@ -1435,7 +1435,7 @@ class OpenSearchDocumentStore:
 
         return unique_values, total_count
 
-    async def get_field_unique_values_async(
+    async def get_metadata_field_unique_values_async(
         self, metadata_field: str, search_term: str | None, from_: int, size: int
     ) -> tuple[list[str], int]:
         """
