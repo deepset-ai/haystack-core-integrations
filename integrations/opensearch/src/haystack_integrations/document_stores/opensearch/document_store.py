@@ -1340,7 +1340,7 @@ class OpenSearchDocumentStore:
         max_value = stats.get("max")
         return {"min": min_value, "max": max_value}
 
-    def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
+    def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, int | None]:
         """
         Returns the minimum and maximum values for the given metadata field.
 
