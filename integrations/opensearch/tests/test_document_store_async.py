@@ -270,7 +270,7 @@ class TestDocumentStoreAsync:
         assert count_a_active == 2
 
     @pytest.mark.asyncio
-    async def test_count_distinct_values_by_filter(self, document_store: OpenSearchDocumentStore):
+    async def test_count_unique_metadata_by_filter(self, document_store: OpenSearchDocumentStore):
         filterable_docs = [
             Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
             Document(content="Doc 2", meta={"category": "B", "status": "active", "priority": 2}),
@@ -282,13 +282,13 @@ class TestDocumentStoreAsync:
         assert await document_store.count_documents_async() == 5
 
         # count distinct values for all documents
-        distinct_counts = await document_store.count_distinct_metadata_values_by_filter_async(filters={})
+        distinct_counts = await document_store.count_unique_metadata_by_filter_async(filters={})
         assert distinct_counts["category"] == 3  # A, B, C
         assert distinct_counts["status"] == 2  # active, inactive
         assert distinct_counts["priority"] == 3  # 1, 2, 3
 
         # count distinct values for documents with category="A"
-        distinct_counts_a = await document_store.count_distinct_metadata_values_by_filter_async(
+        distinct_counts_a = await document_store.count_unique_metadata_by_filter_async(
             filters={"field": "meta.category", "operator": "==", "value": "A"}
         )
         assert distinct_counts_a["category"] == 1  # Only A
@@ -296,7 +296,7 @@ class TestDocumentStoreAsync:
         assert distinct_counts_a["priority"] == 2  # 1, 3
 
         # count distinct values for documents with status="active"
-        distinct_counts_active = await document_store.count_distinct_metadata_values_by_filter_async(
+        distinct_counts_active = await document_store.count_unique_metadata_by_filter_async(
             filters={"field": "meta.status", "operator": "==", "value": "active"}
         )
         assert distinct_counts_active["category"] == 3  # A, B, C
@@ -304,7 +304,7 @@ class TestDocumentStoreAsync:
         assert distinct_counts_active["priority"] == 3  # 1, 2, 3
 
         # count distinct values with complex filter (category="A" AND status="active")
-        distinct_counts_a_active = await document_store.count_distinct_metadata_values_by_filter_async(
+        distinct_counts_a_active = await document_store.count_unique_metadata_by_filter_async(
             filters={
                 "operator": "AND",
                 "conditions": [

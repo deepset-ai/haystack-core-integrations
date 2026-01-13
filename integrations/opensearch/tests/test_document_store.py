@@ -619,7 +619,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         )
         assert count_a_active == 2
 
-    def test_count_distinct_metadata_values_by_filter(self, document_store: OpenSearchDocumentStore):
+    def test_count_unique_metadata_by_filter(self, document_store: OpenSearchDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
             Document(content="Doc 2", meta={"category": "B", "status": "active", "priority": 2}),
@@ -631,13 +631,13 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert document_store.count_documents() == 5
 
         # Count distinct values for all documents
-        distinct_counts = document_store.count_distinct_metadata_values_by_filter(filters={})
+        distinct_counts = document_store.count_unique_metadata_by_filter(filters={})
         assert distinct_counts["category"] == 3  # A, B, C
         assert distinct_counts["status"] == 2  # active, inactive
         assert distinct_counts["priority"] == 3  # 1, 2, 3
 
         # Count distinct values for documents with category="A"
-        distinct_counts_a = document_store.count_distinct_metadata_values_by_filter(
+        distinct_counts_a = document_store.count_unique_metadata_by_filter(
             filters={"field": "meta.category", "operator": "==", "value": "A"}
         )
         assert distinct_counts_a["category"] == 1  # Only A
@@ -645,7 +645,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert distinct_counts_a["priority"] == 2  # 1, 3
 
         # Count distinct values for documents with status="active"
-        distinct_counts_active = document_store.count_distinct_metadata_values_by_filter(
+        distinct_counts_active = document_store.count_unique_metadata_by_filter(
             filters={"field": "meta.status", "operator": "==", "value": "active"}
         )
         assert distinct_counts_active["category"] == 3  # A, B, C
@@ -653,7 +653,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert distinct_counts_active["priority"] == 3  # 1, 2, 3
 
         # Count distinct values with complex filter (category="A" AND status="active")
-        distinct_counts_a_active = document_store.count_distinct_metadata_values_by_filter(
+        distinct_counts_a_active = document_store.count_unique_metadata_by_filter(
             filters={
                 "operator": "AND",
                 "conditions": [
