@@ -1255,7 +1255,7 @@ class OpenSearchDocumentStore:
 
     async def count_unique_metadata_by_filter_async(self, filters: dict[str, Any]) -> dict[str, int]:
         """
-        Asynchronously returns the number of unique values for each meta field of the documents that match the
+        Asynchronously returns the number of unique values for each metadata field of the documents that match the
         provided filters.
 
         :param filters: The filters to apply to count documents.
