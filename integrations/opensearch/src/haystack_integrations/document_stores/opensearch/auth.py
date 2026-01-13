@@ -27,16 +27,16 @@ class AWSConfigurationError(DocumentStoreError):
     """Exception raised when AWS is not configured correctly"""
 
 
-def _resolve_secret(secret: Optional[Secret]) -> Optional[str]:
+def _resolve_secret(secret: Secret | None) -> str | None:
     return secret.resolve_value() if secret else None
 
 
 def _get_aws_session(
-    aws_access_key_id: Optional[str] = None,
-    aws_secret_access_key: Optional[str] = None,
-    aws_session_token: Optional[str] = None,
-    aws_region_name: Optional[str] = None,
-    aws_profile_name: Optional[str] = None,
+    aws_access_key_id: str | None = None,
+    aws_secret_access_key: str | None = None,
+    aws_session_token: str | None = None,
+    aws_region_name: str | None = None,
+    aws_profile_name: str | None = None,
     **kwargs: Any,
 ) -> "boto3.Session":
     """
@@ -78,19 +78,19 @@ class AWSAuth:
     the necessary `Urllib3AWSV4SignerAuth` creation steps including boto3 Sessions and boto3 credentials.
     """
 
-    aws_access_key_id: Optional[Secret] = field(
+    aws_access_key_id: Secret | None = field(
         default_factory=lambda: Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False)
     )
-    aws_secret_access_key: Optional[Secret] = field(
+    aws_secret_access_key: Secret | None = field(
         default_factory=lambda: Secret.from_env_var("AWS_SECRET_ACCESS_KEY", strict=False)
     )
-    aws_session_token: Optional[Secret] = field(
+    aws_session_token: Secret | None = field(
         default_factory=lambda: Secret.from_env_var("AWS_SESSION_TOKEN", strict=False)
     )
-    aws_region_name: Optional[Secret] = field(
+    aws_region_name: Secret | None = field(
         default_factory=lambda: Secret.from_env_var("AWS_DEFAULT_REGION", strict=False)
     )
-    aws_profile_name: Optional[Secret] = field(default_factory=lambda: Secret.from_env_var("AWS_PROFILE", strict=False))
+    aws_profile_name: Secret | None = field(default_factory=lambda: Secret.from_env_var("AWS_PROFILE", strict=False))
     aws_service: str = field(default="es")
 
     def __post_init__(self) -> None:
@@ -106,7 +106,7 @@ class AWSAuth:
         _fields = {}
         for _field in fields(self):
             field_value = getattr(self, _field.name)
-            if _field.type == Optional[Secret]:
+            if _field.type == Secret | None:
                 _fields[_field.name] = field_value.to_dict() if field_value is not None else None
             else:
                 _fields[_field.name] = field_value
