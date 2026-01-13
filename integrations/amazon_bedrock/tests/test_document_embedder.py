@@ -257,6 +257,74 @@ class TestAmazonBedrockDocumentEmbedder:
             assert doc.content == docs[i].content
             assert doc.embedding == [0.1, 0.2, 0.3]
 
+    def test_run_cohere_does_not_modify_original_documents(self, mock_boto3_session):
+        embedder = AmazonBedrockDocumentEmbedder(model="cohere.embed-english-v3")
+
+        original_docs = [
+            Document(content="test 1", id="doc1"),
+            Document(content="test 2", id="doc2"),
+        ]
+
+        # Store original IDs to verify they're the same objects
+        original_doc_ids = [id(doc) for doc in original_docs]
+        original_embeddings = [doc.embedding for doc in original_docs]
+
+        with patch.object(embedder, "_client") as mock_client:
+            mock_client.invoke_model.return_value = {
+                "body": io.StringIO('{"embeddings": [[0.1, 0.2], [0.3, 0.4]]}'),
+            }
+
+            result = embedder.run(documents=original_docs)
+
+        # Verify originals are unchanged
+        assert all(doc.embedding is None for doc in original_docs)
+        assert original_embeddings == [None, None]
+
+        # Verify returned documents are NEW instances
+        returned_doc_ids = [id(doc) for doc in result["documents"]]
+        assert original_doc_ids != returned_doc_ids
+
+        # Verify returned documents have embeddings
+        assert result["documents"][0].embedding == [0.1, 0.2]
+        assert result["documents"][1].embedding == [0.3, 0.4]
+        assert result["documents"][0].content == "test 1"
+        assert result["documents"][1].content == "test 2"
+
+    def test_run_titan_does_not_modify_original_documents(self, mock_boto3_session):
+        embedder = AmazonBedrockDocumentEmbedder(model="amazon.titan-embed-text-v1")
+
+        original_docs = [
+            Document(content="test 1", id="doc1"),
+            Document(content="test 2", id="doc2"),
+        ]
+
+        # Store original IDs to verify they're the same objects
+        original_doc_ids = [id(doc) for doc in original_docs]
+        original_embeddings = [doc.embedding for doc in original_docs]
+
+        with patch.object(embedder, "_client") as mock_client:
+            # Titan returns one embedding at a time
+            mock_client.invoke_model.side_effect = [
+                {"body": io.StringIO('{"embedding": [0.1, 0.2]}')},
+                {"body": io.StringIO('{"embedding": [0.3, 0.4]}')},
+            ]
+
+            result = embedder.run(documents=original_docs)
+
+        # Verify originals are unchanged
+        assert all(doc.embedding is None for doc in original_docs)
+        assert original_embeddings == [None, None]
+
+        # Verify returned documents are NEW instances
+        returned_doc_ids = [id(doc) for doc in result["documents"]]
+        assert original_doc_ids != returned_doc_ids
+
+        # Verify returned documents have embeddings
+        assert result["documents"][0].embedding == [0.1, 0.2]
+        assert result["documents"][1].embedding == [0.3, 0.4]
+        assert result["documents"][0].content == "test 1"
+        assert result["documents"][1].content == "test 2"
+
     @pytest.mark.integration
     @pytest.mark.skipif(
         not os.getenv("AWS_ACCESS_KEY_ID")
