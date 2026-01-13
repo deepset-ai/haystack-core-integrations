@@ -1345,7 +1345,7 @@ class OpenSearchDocumentStore:
         Returns the minimum and maximum values for the given metadata field.
 
         :param metadata_field: The metadata field to get the minimum and maximum values for.
-        :returns: The minimum and maximum values for the given metadata field.
+        :returns: A dictionary with the keys "min" and "max", where each value is the minimum or maximum value of the metadata field across all documents.
         """
         self._ensure_initialized()
         assert self._client is not None
