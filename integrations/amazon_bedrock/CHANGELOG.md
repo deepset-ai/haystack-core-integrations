@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.1.1] - 2026-01-13
+
+### 🌀 Miscellaneous
+
+- Fix: support global and regional inference profiles in `AmazonBedrockGenerator` (#2725)
+
 ## [integrations/amazon_bedrock-v6.1.0] - 2026-01-13
 
 ### 🐛 Bug Fixes

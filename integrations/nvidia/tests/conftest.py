@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional
+from typing import Any
 
 import pytest
 from haystack.utils import Secret
@@ -12,7 +12,7 @@ from haystack_integrations.utils.nvidia import Model, NimBackend
 
 
 class MockBackend(NimBackend):
-    def __init__(self, model: str, api_key: Optional[Secret] = None, model_kwargs: Optional[dict[str, Any]] = None):
+    def __init__(self, model: str, api_key: Secret | None = None, model_kwargs: dict[str, Any] | None = None):
         api_key = api_key or Secret.from_env_var("NVIDIA_API_KEY")
         super().__init__(api_url="", model=model, api_key=api_key, model_kwargs=model_kwargs or {})
 
