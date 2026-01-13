@@ -2,15 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
 from haystack import component, default_from_dict, default_to_dict, logging
 
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
+from haystack_integrations.document_stores.opensearch.document_store import ResponseFormat
 
 logger = logging.getLogger(__name__)
-
-ResponseFormat = Literal["json", "jdbc", "csv", "raw"]
 
 
 @component
