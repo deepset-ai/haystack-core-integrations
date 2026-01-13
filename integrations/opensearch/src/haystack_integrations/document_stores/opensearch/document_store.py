@@ -8,15 +8,12 @@ from collections.abc import Mapping
 from math import exp
 from typing import Any, Literal, Optional, Union
 
-import httpx
-import requests
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret
 from opensearchpy import AsyncHttpConnection, AsyncOpenSearch, OpenSearch
-from opensearchpy.exceptions import SerializationError
 from opensearchpy.helpers import async_bulk, bulk
 
 from haystack_integrations.document_stores.opensearch.auth import AsyncAWSAuth, AWSAuth
