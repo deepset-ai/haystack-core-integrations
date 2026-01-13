@@ -163,7 +163,6 @@ class TestNvidiaRanker:
         assert response[0].content == "Paris"
         assert response[1].content == "Lyon"
 
-
     @pytest.mark.skipif(
         not os.environ.get("NVIDIA_NIM_RANKER_MODEL", None)
         or not os.environ.get("NVIDIA_NIM_RANKER_ENDPOINT_URL", None),
