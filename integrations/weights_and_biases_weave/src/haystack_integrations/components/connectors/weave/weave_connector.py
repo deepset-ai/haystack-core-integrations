@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
 
@@ -71,7 +71,7 @@ class WeaveConnector:
 
     """
 
-    def __init__(self, pipeline_name: str, weave_init_kwargs: Optional[dict[str, Any]] = None) -> None:
+    def __init__(self, pipeline_name: str, weave_init_kwargs: dict[str, Any] | None = None) -> None:
         """
         Initialize WeaveConnector.
 
@@ -80,7 +80,7 @@ class WeaveConnector:
         """
         self.pipeline_name = pipeline_name
         self.weave_init_kwargs = weave_init_kwargs or {}
-        self.tracer: Optional[WeaveTracer] = None
+        self.tracer: WeaveTracer | None = None
 
     def warm_up(self) -> None:
         """Initialize the WeaveTracer."""
