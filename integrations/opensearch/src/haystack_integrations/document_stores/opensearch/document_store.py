@@ -1173,7 +1173,111 @@ class OpenSearchDocumentStore:
         return (await self._async_client.count(index=self._index, body=body))["count"]
 
     def count_distinct_values_by_filter(self, filters: dict) -> dict[str, int]:
-        pass
+        """
+        Returns the number of unique values for each meta field of the documents that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of unique values for each meta field of the documents that match the filters.
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        # use index mapping to get all fields
+        mapping = self._client.indices.get_mapping(index=self._index)
+        index_mapping = mapping[self._index]["mappings"]["properties"]
+
+        # aggregations for each metadata field (exclude special fields)
+        special_fields = {"content", "embedding", "id", "score", "blob", "sparse_embedding"}
+        aggs = {}
+        for field_name in index_mapping.keys():
+            if field_name not in special_fields:
+                aggs[f"{field_name}_cardinality"] = {"cardinality": {"field": field_name}}
+
+        if not aggs:
+            return {}
+
+        # search query with filters and aggregations
+        if filters:
+            normalized_filters = normalize_filters(filters)
+            body = {
+                "query": {"bool": {"filter": normalized_filters}},
+                "aggs": aggs,
+                "size": 0,  # We only need aggregations, not documents
+            }
+        else:
+            # No filters - match all documents
+            body = {
+                "query": {"match_all": {}},
+                "aggs": aggs,
+                "size": 0,  # We only need aggregations, not documents
+            }
+        result = self._client.search(index=self._index, body=body)
+
+        # extract cardinality values for each field
+        distinct_counts = {}
+        aggregations = result.get("aggregations", {})
+        for field_name in index_mapping.keys():
+            if field_name not in special_fields:
+                agg_key = f"{field_name}_cardinality"
+                if agg_key in aggregations:
+                    distinct_counts[field_name] = aggregations[agg_key]["value"]
+
+        return distinct_counts
+
+    async def count_distinct_values_by_filter_async(self, filters: dict) -> dict[str, int]:
+        """
+        Asynchronously returns the number of unique values for each meta field of the documents that match the
+        provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of unique values for each meta field of the documents that match the filters.
+        """
+        await self._ensure_initialized_async()
+        assert self._async_client is not None
+
+        # use index mapping to get all fields
+        mapping = await self._async_client.indices.get_mapping(index=self._index)
+        index_mapping = mapping[self._index]["mappings"]["properties"]
+
+        # aggregations for each metadata field (exclude special fields)
+        special_fields = {"content", "embedding", "id", "score", "blob", "sparse_embedding"}
+        aggs = {}
+        for field_name in index_mapping.keys():
+            if field_name not in special_fields:
+                aggs[f"{field_name}_cardinality"] = {"cardinality": {"field": field_name}}
+
+        if not aggs:
+            return {}
+
+        # search query with filters and aggregations
+        if filters:
+            normalized_filters = normalize_filters(filters)
+            body = {
+                "query": {"bool": {"filter": normalized_filters}},
+                "aggs": aggs,
+                "size": 0,  # We only need aggregations, not documents
+            }
+        else:
+            # No filters - match all documents
+            body = {
+                "query": {"match_all": {}},
+                "aggs": aggs,
+                "size": 0,  # We only need aggregations, not documents
+            }
+        result = await self._async_client.search(index=self._index, body=body)
+
+        # extract cardinality values for each field
+        distinct_counts = {}
+        aggregations = result.get("aggregations", {})
+        for field_name in index_mapping.keys():
+            if field_name not in special_fields:
+                agg_key = f"{field_name}_cardinality"
+                if agg_key in aggregations:
+                    distinct_counts[field_name] = aggregations[agg_key]["value"]
+
+        return distinct_counts
 
     def get_fields_info(self) -> dict[str, dict]:
         pass
