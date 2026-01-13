@@ -5,11 +5,5 @@
 from .bm25_retriever import OpenSearchBM25Retriever
 from .embedding_retriever import OpenSearchEmbeddingRetriever
 from .open_search_hybrid_retriever import OpenSearchHybridRetriever
-from .sql_retriever import OpenSearchSQLRetriever
 
-__all__ = [
-    "OpenSearchBM25Retriever",
-    "OpenSearchEmbeddingRetriever",
-    "OpenSearchHybridRetriever",
-    "OpenSearchSQLRetriever",
-]
+__all__ = ["OpenSearchBM25Retriever", "OpenSearchEmbeddingRetriever", "OpenSearchHybridRetriever"]
