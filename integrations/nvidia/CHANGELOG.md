@@ -1,5 +1,28 @@
 # Changelog
 
+## [integrations/nvidia-v0.5.0] - 2026-01-13
+
+### 🚀 Features
+
+- Update Nvidia components to auto call run `warm_up` and don't modify Documents in place (#2680)
+
+### 📚 Documentation
+
+- Add NvidiaChatGenerator to pydoc configs (#2448)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 4) (#2527)
+
 ## [integrations/nvidia-v0.4.0] - 2025-10-23
 
 ### 🚀 Features
