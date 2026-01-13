@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 from urllib.parse import quote
 
 from haystack import logging
@@ -49,13 +49,13 @@ class SnowflakeAuthenticator:
     def __init__(
         self,
         authenticator: Literal["SNOWFLAKE", "SNOWFLAKE_JWT", "OAUTH"],
-        api_key: Optional[Secret] = Secret.from_env_var("SNOWFLAKE_API_KEY", strict=False),  # noqa: B008
-        private_key_file: Optional[Secret] = Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_FILE", strict=False),  # noqa: B008
-        private_key_file_pwd: Optional[Secret] = Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_FILE_PWD", strict=False),  # noqa: B008
-        oauth_client_id: Optional[Secret] = Secret.from_env_var("SNOWFLAKE_CLIENT_ID", strict=False),  # noqa: B008
-        oauth_client_secret: Optional[Secret] = Secret.from_env_var("SNOWFLAKE_CLIENT_SECRET", strict=False),  # noqa: B008
-        oauth_token_request_url: Optional[str] = None,
-        oauth_authorization_url: Optional[str] = None,
+        api_key: Secret | None = Secret.from_env_var("SNOWFLAKE_API_KEY", strict=False),  # noqa: B008
+        private_key_file: Secret | None = Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_FILE", strict=False),  # noqa: B008
+        private_key_file_pwd: Secret | None = Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_FILE_PWD", strict=False),  # noqa: B008
+        oauth_client_id: Secret | None = Secret.from_env_var("SNOWFLAKE_CLIENT_ID", strict=False),  # noqa: B008
+        oauth_client_secret: Secret | None = Secret.from_env_var("SNOWFLAKE_CLIENT_SECRET", strict=False),  # noqa: B008
+        oauth_token_request_url: str | None = None,
+        oauth_authorization_url: str | None = None,
     ) -> None:
         """
         Initialize the authenticator with the specified authentication method.
@@ -98,7 +98,7 @@ class SnowflakeAuthenticator:
             if not self.api_key:
                 raise ValueError(ERROR_API_KEY_REQUIRED)
 
-    def read_private_key_content(self) -> Optional[str]:
+    def read_private_key_content(self) -> str | None:
         """
         Reads the private key file content for ADBC compatibility.
 
@@ -121,7 +121,7 @@ class SnowflakeAuthenticator:
             msg = f"Failed to read private key file: {e!s}"
             raise PrivateKeyReadError(msg) from e
 
-    def _build_jwt_auth_params(self, user: Optional[str] = None) -> list[str]:
+    def _build_jwt_auth_params(self, user: str | None = None) -> list[str]:
         """
         Builds JWT authentication parameters for ADBC.
 
@@ -172,7 +172,7 @@ class SnowflakeAuthenticator:
 
         return params
 
-    def build_auth_params(self, user: Optional[str] = None) -> list[str]:
+    def build_auth_params(self, user: str | None = None) -> list[str]:
         """
         Builds authentication parameters for the connection URI.
 
@@ -186,7 +186,7 @@ class SnowflakeAuthenticator:
             return self._build_oauth_auth_params()
         return []
 
-    def get_password_for_uri(self) -> Optional[str]:
+    def get_password_for_uri(self) -> str | None:
         """
         Gets the password for URI construction in SNOWFLAKE authentication.
 
@@ -221,7 +221,7 @@ class SnowflakeAuthenticator:
 
         return masked_params
 
-    def test_connection(self, user: str, account: str, database: Optional[str] = None) -> bool:
+    def test_connection(self, user: str, account: str, database: str | None = None) -> bool:
         """
         Tests the connection with the provided credentials.
 

@@ -7,7 +7,7 @@ name = "snowflake-haystack"
 dynamic = ["version"]
 description = 'A Snowflake integration for the Haystack framework.'
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" },
@@ -16,7 +16,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -25,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai",
+  "haystack-ai>=2.22.0",
   "adbc_driver_snowflake>=1.4.0",
   "polars[pandas,pyarrow]>=1.23.0",
   "snowflake-connector-python>=3.12.0",
@@ -82,7 +81,6 @@ check_untyped_defs = true
 disallow_incomplete_defs = true
 
 [tool.ruff]
-target-version = "py39"
 line-length = 120
 
 [tool.ruff.lint]
@@ -129,10 +127,6 @@ ignore = [
   "S608",
   # Unused method argument
   "ARG002"
-]
-unfixable = [
-  # Don't touch unused imports
-  "F401",
 ]
 
 [tool.ruff.lint.isort]

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal
 from urllib.parse import quote_plus
 
 import polars as pl
@@ -102,18 +102,18 @@ class SnowflakeTableRetriever:
         user: str,
         account: str,
         authenticator: Literal["SNOWFLAKE", "SNOWFLAKE_JWT", "OAUTH"] = "SNOWFLAKE",
-        api_key: Optional[Secret] = Secret.from_env_var("SNOWFLAKE_API_KEY", strict=False),  # noqa: B008
-        database: Optional[str] = None,
-        db_schema: Optional[str] = None,
-        warehouse: Optional[str] = None,
-        login_timeout: Optional[int] = 60,
+        api_key: Secret | None = Secret.from_env_var("SNOWFLAKE_API_KEY", strict=False),  # noqa: B008
+        database: str | None = None,
+        db_schema: str | None = None,
+        warehouse: str | None = None,
+        login_timeout: int | None = 60,
         return_markdown: bool = True,
-        private_key_file: Optional[Secret] = Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_FILE", strict=False),  # noqa: B008
-        private_key_file_pwd: Optional[Secret] = Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_PWD", strict=False),  # noqa: B008
-        oauth_client_id: Optional[Secret] = Secret.from_env_var("SNOWFLAKE_OAUTH_CLIENT_ID", strict=False),  # noqa: B008
-        oauth_client_secret: Optional[Secret] = Secret.from_env_var("SNOWFLAKE_OAUTH_CLIENT_SECRET", strict=False),  # noqa: B008
-        oauth_token_request_url: Optional[str] = None,
-        oauth_authorization_url: Optional[str] = None,
+        private_key_file: Secret | None = Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_FILE", strict=False),  # noqa: B008
+        private_key_file_pwd: Secret | None = Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_PWD", strict=False),  # noqa: B008
+        oauth_client_id: Secret | None = Secret.from_env_var("SNOWFLAKE_OAUTH_CLIENT_ID", strict=False),  # noqa: B008
+        oauth_client_secret: Secret | None = Secret.from_env_var("SNOWFLAKE_OAUTH_CLIENT_SECRET", strict=False),  # noqa: B008
+        oauth_token_request_url: str | None = None,
+        oauth_authorization_url: str | None = None,
     ) -> None:
         """
         :param user: User's login.
@@ -153,7 +153,7 @@ class SnowflakeTableRetriever:
         self.oauth_client_secret = oauth_client_secret
         self.oauth_token_request_url = oauth_token_request_url
         self.oauth_authorization_url = oauth_authorization_url
-        self.authenticator_handler: Optional[SnowflakeAuthenticator] = None
+        self.authenticator_handler: SnowflakeAuthenticator | None = None
         self._warmed_up = False
 
     def warm_up(self) -> None:
@@ -336,7 +336,7 @@ class SnowflakeTableRetriever:
             )
             return ""
 
-    def _execute_query_with_connector(self, query: str) -> Optional[pl.DataFrame]:
+    def _execute_query_with_connector(self, query: str) -> pl.DataFrame | None:
         """
         Executes a query using snowflake-connector-python directly (for JWT authentication).
         This bypasses ADBC compatibility issues.
@@ -400,7 +400,7 @@ class SnowflakeTableRetriever:
             return None
 
     @staticmethod
-    def _empty_response() -> dict[str, Union[DataFrame, str]]:
+    def _empty_response() -> dict[str, DataFrame | str]:
         """Returns a standardized empty response.
 
         :returns:
@@ -411,7 +411,7 @@ class SnowflakeTableRetriever:
         return {"dataframe": DataFrame(), "table": ""}
 
     @component.output_types(dataframe=DataFrame, table=str)
-    def run(self, query: str, return_markdown: Optional[bool] = None) -> dict[str, Union[DataFrame, str]]:
+    def run(self, query: str, return_markdown: bool | None = None) -> dict[str, DataFrame | str]:
         """
         Executes a SQL query against a Snowflake database using ADBC and Polars.
 
