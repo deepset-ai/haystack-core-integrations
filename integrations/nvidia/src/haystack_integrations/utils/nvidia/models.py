@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import dataclass
-from typing import Literal, Optional, Union
+from typing import Literal
 
 from .client import Client
 
@@ -24,13 +24,13 @@ class Model:
     """
 
     id: str
-    model_type: Optional[Literal["chat", "embedding", "ranking"]] = None
-    client: Optional[Union[Client, str]] = None
-    endpoint: Optional[str] = None
-    aliases: Optional[list] = None
-    base_model: Optional[str] = None
-    supports_tools: Optional[bool] = False
-    supports_structured_output: Optional[bool] = False
+    model_type: Literal["chat", "embedding", "ranking"] | None = None
+    client: Client | str | None = None
+    endpoint: str | None = None
+    aliases: list | None = None
+    base_model: str | None = None
+    supports_tools: bool | None = False
+    supports_structured_output: bool | None = False
 
     def __hash__(self) -> int:
         return hash(self.id)

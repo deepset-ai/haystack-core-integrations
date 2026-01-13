@@ -5,7 +5,7 @@
 import os
 import warnings
 from dataclasses import replace
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -39,17 +39,17 @@ class NvidiaDocumentEmbedder:
 
     def __init__(
         self,
-        model: Optional[str] = None,
-        api_key: Optional[Secret] = Secret.from_env_var("NVIDIA_API_KEY"),
+        model: str | None = None,
+        api_key: Secret | None = Secret.from_env_var("NVIDIA_API_KEY"),
         api_url: str = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
         prefix: str = "",
         suffix: str = "",
         batch_size: int = 32,
         progress_bar: bool = True,
-        meta_fields_to_embed: Optional[list[str]] = None,
+        meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
-        truncate: Optional[Union[EmbeddingTruncateMode, str]] = None,
-        timeout: Optional[float] = None,
+        truncate: EmbeddingTruncateMode | str | None = None,
+        timeout: float | None = None,
     ) -> None:
         """
         Create a NvidiaTextEmbedder component.
@@ -98,7 +98,7 @@ class NvidiaDocumentEmbedder:
             truncate = EmbeddingTruncateMode.from_str(truncate)
         self.truncate = truncate
 
-        self.backend: Optional[Any] = None
+        self.backend: Any | None = None
         self._initialized = False
 
         if timeout is None:
@@ -235,7 +235,7 @@ class NvidiaDocumentEmbedder:
         return all_embeddings, {"usage": {"prompt_tokens": usage_prompt_tokens, "total_tokens": usage_total_tokens}}
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
-    def run(self, documents: list[Document]) -> dict[str, Union[list[Document], dict[str, Any]]]:
+    def run(self, documents: list[Document]) -> dict[str, list[Document] | dict[str, Any]]:
         """
         Embed a list of Documents.
 
@@ -268,7 +268,7 @@ class NvidiaDocumentEmbedder:
         embeddings, metadata = self._embed_batch(texts_to_embed, self.batch_size)
 
         new_documents = []
-        for doc, emb in zip(documents, embeddings):
+        for doc, emb in zip(documents, embeddings, strict=True):
             new_documents.append(replace(doc, embedding=emb))
 
         return {"documents": new_documents, "meta": metadata}

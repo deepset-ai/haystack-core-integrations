@@ -4,7 +4,7 @@
 
 import os
 import re
-from typing import Any, Optional, Union
+from typing import Any
 
 import pytest
 from haystack import Document
@@ -61,7 +61,7 @@ class TestNvidiaRanker:
         self,
         requests_mock,
         monkeypatch,
-        truncate: Optional[Union[RankerTruncateMode, str]],
+        truncate: RankerTruncateMode | str | None,
     ) -> None:
         query = "What is it?"
         documents = [
