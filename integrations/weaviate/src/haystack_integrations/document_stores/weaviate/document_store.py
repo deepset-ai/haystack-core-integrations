@@ -6,7 +6,7 @@ import base64
 import datetime
 import json
 from dataclasses import asdict
-from typing import Any, Optional
+from typing import Any
 
 from haystack import logging
 from haystack.core.serialization import default_from_dict, default_to_dict
@@ -86,12 +86,12 @@ class WeaviateDocumentStore:
     def __init__(
         self,
         *,
-        url: Optional[str] = None,
-        collection_settings: Optional[dict[str, Any]] = None,
-        auth_client_secret: Optional[AuthCredentials] = None,
-        additional_headers: Optional[dict] = None,
-        embedded_options: Optional[EmbeddedOptions] = None,
-        additional_config: Optional[AdditionalConfig] = None,
+        url: str | None = None,
+        collection_settings: dict[str, Any] | None = None,
+        auth_client_secret: AuthCredentials | None = None,
+        additional_headers: dict | None = None,
+        embedded_options: EmbeddedOptions | None = None,
+        additional_config: AdditionalConfig | None = None,
         grpc_port: int = 50051,
         grpc_secure: bool = False,
     ):
@@ -145,10 +145,10 @@ class WeaviateDocumentStore:
         self._additional_config = additional_config
         self._grpc_port = grpc_port
         self._grpc_secure = grpc_secure
-        self._client: Optional[weaviate.WeaviateClient] = None
-        self._async_client: Optional[weaviate.WeaviateAsyncClient] = None
-        self._collection: Optional[weaviate.Collection] = None
-        self._async_collection: Optional[weaviate.AsyncCollection] = None
+        self._client: weaviate.WeaviateClient | None = None
+        self._async_client: weaviate.WeaviateAsyncClient | None = None
+        self._collection: weaviate.Collection | None = None
+        self._async_collection: weaviate.AsyncCollection | None = None
         # Store the connection settings dictionary
         self._collection_settings = collection_settings or {
             "class": "Default",
@@ -445,7 +445,7 @@ class WeaviateDocumentStore:
             offset += DEFAULT_QUERY_LIMIT
         return result
 
-    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
+    def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -837,7 +837,7 @@ class WeaviateDocumentStore:
             raise DocumentStoreError(msg) from e
 
     def _bm25_retrieval(
-        self, query: str, filters: Optional[dict[str, Any]] = None, top_k: Optional[int] = None
+        self, query: str, filters: dict[str, Any] | None = None, top_k: int | None = None
     ) -> list[Document]:
         properties = [p.name for p in self.collection.config.get().properties]
         result = self.collection.query.bm25(
@@ -853,7 +853,7 @@ class WeaviateDocumentStore:
         return [WeaviateDocumentStore._to_document(doc) for doc in result.objects]
 
     async def _bm25_retrieval_async(
-        self, query: str, filters: Optional[dict[str, Any]] = None, top_k: Optional[int] = None
+        self, query: str, filters: dict[str, Any] | None = None, top_k: int | None = None
     ) -> list[Document]:
         collection = await self.async_collection
         config = await collection.config.get()
@@ -873,10 +873,10 @@ class WeaviateDocumentStore:
     def _embedding_retrieval(
         self,
         query_embedding: list[float],
-        filters: Optional[dict[str, Any]] = None,
-        top_k: Optional[int] = None,
-        distance: Optional[float] = None,
-        certainty: Optional[float] = None,
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+        distance: float | None = None,
+        certainty: float | None = None,
     ) -> list[Document]:
         if distance is not None and certainty is not None:
             msg = "Can't use 'distance' and 'certainty' parameters together"
@@ -899,10 +899,10 @@ class WeaviateDocumentStore:
     async def _embedding_retrieval_async(
         self,
         query_embedding: list[float],
-        filters: Optional[dict[str, Any]] = None,
-        top_k: Optional[int] = None,
-        distance: Optional[float] = None,
-        certainty: Optional[float] = None,
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+        distance: float | None = None,
+        certainty: float | None = None,
     ) -> list[Document]:
         if distance is not None and certainty is not None:
             msg = "Can't use 'distance' and 'certainty' parameters together"
@@ -928,10 +928,10 @@ class WeaviateDocumentStore:
         self,
         query: str,
         query_embedding: list[float],
-        filters: Optional[dict[str, Any]] = None,
-        top_k: Optional[int] = None,
-        alpha: Optional[float] = None,
-        max_vector_distance: Optional[float] = None,
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+        alpha: float | None = None,
+        max_vector_distance: float | None = None,
     ) -> list[Document]:
         properties = [p.name for p in self.collection.config.get().properties]
         result = self.collection.query.hybrid(
@@ -953,10 +953,10 @@ class WeaviateDocumentStore:
         self,
         query: str,
         query_embedding: list[float],
-        filters: Optional[dict[str, Any]] = None,
-        top_k: Optional[int] = None,
-        alpha: Optional[float] = None,
-        max_vector_distance: Optional[float] = None,
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+        alpha: float | None = None,
+        max_vector_distance: float | None = None,
     ) -> list[Document]:
         collection = await self.async_collection
         config = await collection.config.get()

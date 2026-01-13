@@ -87,7 +87,7 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert len(received) == len(expected)
         received = sorted(received, key=lambda doc: doc.id)
         expected = sorted(expected, key=lambda doc: doc.id)
-        for received_doc, expected_doc in zip(received, expected):
+        for received_doc, expected_doc in zip(received, expected, strict=True):
             received_doc_dict = received_doc.to_dict(flatten=False)
             expected_doc_dict = expected_doc.to_dict(flatten=False)
 
