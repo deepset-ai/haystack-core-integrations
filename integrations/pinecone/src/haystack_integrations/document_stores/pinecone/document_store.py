@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from copy import copy
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -41,7 +41,7 @@ class PineconeDocumentStore:
         namespace: str = "default",
         batch_size: int = 100,
         dimension: int = 768,
-        spec: Optional[dict[str, Any]] = None,
+        spec: dict[str, Any] | None = None,
         metric: Literal["cosine", "euclidean", "dotproduct"] = "cosine",
     ):
         """
@@ -73,8 +73,8 @@ class PineconeDocumentStore:
         self.dimension = dimension
         self.index_name = index
 
-        self._index: Optional[_Index] = None
-        self._async_index: Optional[_IndexAsyncio] = None
+        self._index: _Index | None = None
+        self._async_index: _IndexAsyncio | None = None
         self._dummy_vector = [-10.0] * self.dimension
 
     def _initialize_index(self):
@@ -156,7 +156,7 @@ class PineconeDocumentStore:
             self._async_index = None
 
     @staticmethod
-    def _convert_dict_spec_to_pinecone_object(spec: dict[str, Any]) -> Union[ServerlessSpec, PodSpec]:
+    def _convert_dict_spec_to_pinecone_object(spec: dict[str, Any]) -> ServerlessSpec | PodSpec:
         """Convert the spec dictionary to a Pinecone spec object"""
 
         if "serverless" in spec:
@@ -274,7 +274,7 @@ class PineconeDocumentStore:
         # if the operation is successful, result will have the upserted_count attribute
         return result.upserted_count  # type: ignore[union-attr]
 
-    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
+    def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -306,7 +306,7 @@ class PineconeDocumentStore:
             )
         return documents
 
-    async def filter_documents_async(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
+    async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Asynchronously returns the documents that match the filters provided.
 
@@ -540,8 +540,8 @@ class PineconeDocumentStore:
         self,
         query_embedding: list[float],
         *,
-        namespace: Optional[str] = None,
-        filters: Optional[dict[str, Any]] = None,
+        namespace: str | None = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
     ) -> list[Document]:
         """
@@ -583,8 +583,8 @@ class PineconeDocumentStore:
         self,
         query_embedding: list[float],
         *,
-        namespace: Optional[str] = None,
-        filters: Optional[dict[str, Any]] = None,
+        namespace: str | None = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
     ) -> list[Document]:
         """

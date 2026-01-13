@@ -21,7 +21,7 @@ class TestFilters(FilterDocumentsTest):
         assert len(received) == len(expected)
         received.sort(key=lambda x: x.id)
         expected.sort(key=lambda x: x.id)
-        for received_doc, expected_doc in zip(received, expected):
+        for received_doc, expected_doc in zip(received, expected, strict=True):
             assert received_doc.meta == expected_doc.meta
             assert received_doc.content == expected_doc.content
             # unfortunately, Pinecone returns a slightly different embedding
