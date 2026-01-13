@@ -634,3 +634,29 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         document_store.delete_documents(["1", "2"], routing=routing_map)
 
         assert document_store.count_documents() == 1
+
+    def test_count_documents_by_filter(self, document_store: OpenSearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
+            Document(content="Doc 4", meta={"category": "A", "status": "active"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 4
+
+        count_a = document_store.count_documents_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert count_a == 3
+
+        count_a_active = document_store.count_documents_by_filter(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.category", "operator": "==", "value": "A"},
+                    {"field": "meta.status", "operator": "==", "value": "active"},
+                ],
+            }
+        )
+        assert count_a_active == 2
