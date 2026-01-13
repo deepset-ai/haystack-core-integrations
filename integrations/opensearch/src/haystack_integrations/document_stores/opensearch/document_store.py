@@ -1529,9 +1529,15 @@ class OpenSearchDocumentStore:
         else:
             return response_data if isinstance(response_data, str) else str(response_data)
 
-    def query_sql(self, query: str, response_format: ResponseFormat = "json") -> Any:
+    def _query_sql(self, query: str, response_format: ResponseFormat = "json") -> Any:
         """
         Execute a raw OpenSearch SQL query against the index.
+
+        This method is not meant to be part of the public interface of
+        `OpenSearchDocumentStore` nor called directly.
+        `OpenSearchSQLRetriever` uses this method directly and is the public interface for it.
+
+        See `OpenSearchSQLRetriever` for more information.
 
         :param query: The OpenSearch SQL query to execute
         :param response_format: The format of the response. See https://docs.opensearch.org/latest/search-plugins/sql/response-formats/
@@ -1593,9 +1599,15 @@ class OpenSearchDocumentStore:
             msg = f"Failed to execute SQL query in OpenSearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    async def query_sql_async(self, query: str, response_format: ResponseFormat = "json") -> Any:
+    async def _query_sql_async(self, query: str, response_format: ResponseFormat = "json") -> Any:
         """
         Asynchronously execute a raw OpenSearch SQL query against the index.
+
+        This method is not meant to be part of the public interface of
+        `OpenSearchDocumentStore` nor called directly.
+        `OpenSearchSQLRetriever` uses this method directly and is the public interface for it.
+
+        See `OpenSearchSQLRetriever` for more information.
 
         :param query: The OpenSearch SQL query to execute
         :param response_format: The format of the response. See https://docs.opensearch.org/latest/search-plugins/sql/response-formats/
