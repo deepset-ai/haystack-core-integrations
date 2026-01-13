@@ -1148,7 +1148,7 @@ class OpenSearchDocumentStore:
 
         return custom_query
 
-    def count_documents_by_filter(self, filters: dict) -> int:
+    def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
         """
         Returns the number of documents that match the provided filters.
 
