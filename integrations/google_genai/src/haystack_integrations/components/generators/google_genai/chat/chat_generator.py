@@ -815,7 +815,8 @@ class GoogleGenAIChatGenerator:
                 if thinking_level_upper not in valid_levels:
                     logger.warning(
                         f"Invalid thinking_level value: '{thinking_level}'. "
-                        f"Must be one of: {valid_levels} (case-insensitive). Falling back to THINKING_LEVEL_UNSPECIFIED."
+                        f"Must be one of: {valid_levels} (case-insensitive). "
+                        "Falling back to THINKING_LEVEL_UNSPECIFIED."
                     )
                     thinking_level = types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
                 else:
