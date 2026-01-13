@@ -1163,7 +1163,7 @@ class OpenSearchDocumentStore:
         body = {"query": {"bool": {"filter": normalized_filters}}}
         return self._client.count(index=self._index, body=body)["count"]
 
-    async def count_documents_by_filter_async(self, filters: dict) -> int:
+    async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
         """
         Asynchronously returns the number of documents that match the provided filters.
 
