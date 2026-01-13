@@ -147,11 +147,11 @@ class TestNvidiaRanker:
     def test_integration(
         self,
     ) -> None:
-        query = "What is it?"
+        query = "Capital of France"
         documents = [
-            Document(content="Nothing really."),
-            Document(content="Maybe something."),
-            Document(content="Not this."),
+            Document(content="Lyon"),
+            Document(content="Paris"),
+            Document(content="London"),
         ]
 
         client = NvidiaRanker(top_k=2)
@@ -160,7 +160,9 @@ class TestNvidiaRanker:
         response = client.run(query=query, documents=documents)["documents"]
 
         assert len(response) == 2
-        assert {response[0].content, response[1].content} == {documents[0].content, documents[1].content}
+        assert response[0].content == "Paris"
+        assert response[1].content == "Lyon"
+
 
     @pytest.mark.skipif(
         not os.environ.get("NVIDIA_NIM_RANKER_MODEL", None)
