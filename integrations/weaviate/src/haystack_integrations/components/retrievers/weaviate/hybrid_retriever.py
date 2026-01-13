@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
@@ -21,11 +21,11 @@ class WeaviateHybridRetriever:
         self,
         *,
         document_store: WeaviateDocumentStore,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        alpha: Optional[float] = None,
-        max_vector_distance: Optional[float] = None,
-        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
+        alpha: float | None = None,
+        max_vector_distance: float | None = None,
+        filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ):
         """
         Creates a new instance of WeaviateHybridRetriever.
@@ -120,10 +120,10 @@ class WeaviateHybridRetriever:
         self,
         query: str,
         query_embedding: list[float],
-        filters: Optional[dict[str, Any]] = None,
-        top_k: Optional[int] = None,
-        alpha: Optional[float] = None,
-        max_vector_distance: Optional[float] = None,
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+        alpha: float | None = None,
+        max_vector_distance: float | None = None,
     ) -> dict[str, list[Document]]:
         """
         Retrieves documents from Weaviate using hybrid search.
@@ -190,10 +190,10 @@ class WeaviateHybridRetriever:
         self,
         query: str,
         query_embedding: list[float],
-        filters: Optional[dict[str, Any]] = None,
-        top_k: Optional[int] = None,
-        alpha: Optional[float] = None,
-        max_vector_distance: Optional[float] = None,
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+        alpha: float | None = None,
+        max_vector_distance: float | None = None,
     ) -> dict[str, list[Document]]:
         """
         Asynchronously retrieves documents from Weaviate using hybrid search.

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
@@ -31,9 +31,9 @@ class WeaviateBM25Retriever:
         self,
         *,
         document_store: WeaviateDocumentStore,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
+        filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ):
         """
         Create a new instance of WeaviateBM25Retriever.
@@ -90,7 +90,7 @@ class WeaviateBM25Retriever:
 
     @component.output_types(documents=list[Document])
     def run(
-        self, query: str, filters: Optional[dict[str, Any]] = None, top_k: Optional[int] = None
+        self, query: str, filters: dict[str, Any] | None = None, top_k: int | None = None
     ) -> dict[str, list[Document]]:
         """
         Retrieves documents from Weaviate using the BM25 algorithm.
@@ -113,7 +113,7 @@ class WeaviateBM25Retriever:
 
     @component.output_types(documents=list[Document])
     async def run_async(
-        self, query: str, filters: Optional[dict[str, Any]] = None, top_k: Optional[int] = None
+        self, query: str, filters: dict[str, Any] | None = None, top_k: int | None = None
     ) -> dict[str, list[Document]]:
         """
         Asynchronously retrieves documents from Weaviate using the BM25 algorithm.
