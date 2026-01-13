@@ -1228,7 +1228,7 @@ class OpenSearchDocumentStore:
 
     def count_unique_metadata_by_filter(self, filters: dict) -> dict[str, int]:
         """
-        Returns the number of unique values for each meta field of the documents that match the provided filters.
+        Returns the number of unique values for each metadata field of the documents that match the provided filters.
 
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
