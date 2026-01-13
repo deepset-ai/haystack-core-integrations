@@ -58,7 +58,6 @@ dependencies = [
     "mypy",
     "pip",
     "pillow",  # image support
-    "ruff",
 ]
 
 [tool.hatch.envs.test.scripts]
