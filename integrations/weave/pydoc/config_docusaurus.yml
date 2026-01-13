@@ -17,13 +17,13 @@ processors:
 - type: crossref
 renderer:
   description: Weights & Bias integration for Haystack
-  id: integrations-weights-bias
+  id: integrations-weave
   markdown:
     add_member_class_prefix: false
     add_method_class_prefix: true
     classdef_code_block: false
     descriptive_class_title: false
     descriptive_module_title: true
-    filename: weights_and_bias.md
-  title: weights and bias
+    filename: weave.md
+  title: Weave
   type: haystack_pydoc_tools.renderers.DocusaurusRenderer
