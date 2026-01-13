@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import replace
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret
@@ -43,19 +43,19 @@ class OptimumDocumentEmbedder:
     def __init__(
         self,
         model: str = "sentence-transformers/all-mpnet-base-v2",
-        token: Optional[Secret] = Secret.from_env_var("HF_API_TOKEN", strict=False),  # noqa: B008
+        token: Secret | None = Secret.from_env_var("HF_API_TOKEN", strict=False),  # noqa: B008
         prefix: str = "",
         suffix: str = "",
         normalize_embeddings: bool = True,
         onnx_execution_provider: str = "CPUExecutionProvider",
-        pooling_mode: Optional[Union[str, OptimumEmbedderPooling]] = None,
-        model_kwargs: Optional[dict[str, Any]] = None,
-        working_dir: Optional[str] = None,
-        optimizer_settings: Optional[OptimumEmbedderOptimizationConfig] = None,
-        quantizer_settings: Optional[OptimumEmbedderQuantizationConfig] = None,
+        pooling_mode: str | OptimumEmbedderPooling | None = None,
+        model_kwargs: dict[str, Any] | None = None,
+        working_dir: str | None = None,
+        optimizer_settings: OptimumEmbedderOptimizationConfig | None = None,
+        quantizer_settings: OptimumEmbedderQuantizationConfig | None = None,
         batch_size: int = 32,
         progress_bar: bool = True,
-        meta_fields_to_embed: Optional[list[str]] = None,
+        meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
     ) -> None:
         """
@@ -226,7 +226,7 @@ class OptimumDocumentEmbedder:
         embeddings = self._backend.embed_texts(texts_to_embed)
 
         new_documents = []
-        for doc, emb in zip(documents, embeddings):
+        for doc, emb in zip(documents, embeddings, strict=True):
             new_documents.append(replace(doc, embedding=emb))
 
         return {"documents": new_documents}
