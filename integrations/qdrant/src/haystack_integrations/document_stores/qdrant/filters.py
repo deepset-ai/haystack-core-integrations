@@ -1,13 +1,14 @@
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable, Optional, Union
+from typing import Any
 
 from haystack.utils.filters import COMPARISON_OPERATORS, LOGICAL_OPERATORS, FilterError
 from qdrant_client.http import models
 
 
 def convert_filters_to_qdrant(
-    filter_term: Optional[Union[list[dict[str, Any]], dict[str, Any], models.Filter]] = None,
-) -> Optional[models.Filter]:
+    filter_term: list[dict[str, Any]] | dict[str, Any] | models.Filter | None = None,
+) -> models.Filter | None:
     """Converts Haystack filters to the format used by Qdrant.
 
     :param filter_term: the haystack filter to be converted to qdrant.
@@ -52,7 +53,7 @@ def _process_filter_items(filter_items: list[dict[str, Any]]) -> list[models.Con
     return all_conditions
 
 
-def _process_logical_operator(item: dict[str, Any]) -> Optional[models.Condition]:
+def _process_logical_operator(item: dict[str, Any]) -> models.Condition | None:
     """Process a logical operator (AND, OR, NOT) and return the corresponding condition."""
     operator = item["operator"]
     conditions = item.get("conditions")
@@ -78,7 +79,7 @@ def _process_logical_operator(item: dict[str, Any]) -> Optional[models.Condition
     return None
 
 
-def _process_comparison_operator(item: dict[str, Any]) -> Optional[models.Condition]:
+def _process_comparison_operator(item: dict[str, Any]) -> models.Condition | None:
     """Process a comparison operator and return the corresponding condition."""
     operator = item["operator"]
     field = item.get("field")
@@ -91,7 +92,7 @@ def _process_comparison_operator(item: dict[str, Any]) -> Optional[models.Condit
     return _build_comparison_condition(operator, field, value)
 
 
-def _build_final_filter(conditions: list[models.Condition]) -> Optional[models.Filter]:
+def _build_final_filter(conditions: list[models.Condition]) -> models.Filter | None:
     """Build the final filter from a list of conditions."""
     if not conditions:
         return None
@@ -178,7 +179,7 @@ def _build_nin_condition(key: str, value: list[models.ValueVariants]) -> models.
     )
 
 
-def _build_lt_condition(key: str, value: Union[str, float, int]) -> models.Condition:
+def _build_lt_condition(key: str, value: str | float | int) -> models.Condition:
     if isinstance(value, str) and is_datetime_string(value):
         dt_value = datetime.fromisoformat(value)
         return models.FieldCondition(key=key, range=models.DatetimeRange(lt=dt_value))
@@ -190,7 +191,7 @@ def _build_lt_condition(key: str, value: Union[str, float, int]) -> models.Condi
     raise FilterError(msg)
 
 
-def _build_lte_condition(key: str, value: Union[str, float, int]) -> models.Condition:
+def _build_lte_condition(key: str, value: str | float | int) -> models.Condition:
     if isinstance(value, str) and is_datetime_string(value):
         dt_value = datetime.fromisoformat(value)
         return models.FieldCondition(key=key, range=models.DatetimeRange(lte=dt_value))
@@ -202,7 +203,7 @@ def _build_lte_condition(key: str, value: Union[str, float, int]) -> models.Cond
     raise FilterError(msg)
 
 
-def _build_gt_condition(key: str, value: Union[str, float, int]) -> models.Condition:
+def _build_gt_condition(key: str, value: str | float | int) -> models.Condition:
     if isinstance(value, str) and is_datetime_string(value):
         dt_value = datetime.fromisoformat(value)
         return models.FieldCondition(key=key, range=models.DatetimeRange(gt=dt_value))
@@ -214,7 +215,7 @@ def _build_gt_condition(key: str, value: Union[str, float, int]) -> models.Condi
     raise FilterError(msg)
 
 
-def _build_gte_condition(key: str, value: Union[str, float, int]) -> models.Condition:
+def _build_gte_condition(key: str, value: str | float | int) -> models.Condition:
     if isinstance(value, str) and is_datetime_string(value):
         dt_value = datetime.fromisoformat(value)
         return models.FieldCondition(key=key, range=models.DatetimeRange(gte=dt_value))
