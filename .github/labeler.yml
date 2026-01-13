@@ -204,10 +204,10 @@ integration:weaviate:
       - any-glob-to-any-file: "integrations/weaviate/**/*"
       - any-glob-to-any-file: ".github/workflows/weaviate.yml"
 
-integration:weights_and_biases_weave:
+integration:weave:
   - changed-files:
-      - any-glob-to-any-file: "integrations/weights_and_biases_weave/**/*"
-      - any-glob-to-any-file: ".github/workflows/weights_and_biases_weave.yml"
+      - any-glob-to-any-file: "integrations/weave/**/*"
+      - any-glob-to-any-file: ".github/workflows/weave.yml"
 
 # Topics
 topic:CI:

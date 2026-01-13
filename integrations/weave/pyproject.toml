@@ -26,7 +26,7 @@ dependencies = ["haystack-ai>=2.22.0", "weave>=0.52.7"]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations"
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/weights_and_biases_weave/README.md"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/weave/README.md"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 
 [tool.hatch.build.targets.wheel]
@@ -34,11 +34,11 @@ packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/weights_and_biases_weave-v(?P<version>.*)'
+tag-pattern = 'integrations\/weave-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/weights_and_biases_weave-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/weave-v[0-9]*"'
 
 [tool.hatch.envs.default]
 installer = "uv"
