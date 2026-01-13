@@ -483,6 +483,15 @@ class GoogleGenAIChatGenerator:
               - `-1`: Dynamic (default for most models)
               - `0`: Disable thinking (Flash/Flash-Lite only)
               - Positive integer: Set explicit budget
+            For Gemini 3 series and newer, supports `thinking_level` to configure thinking depth:
+            - `thinking_level`: str, controls thinking (https://ai.google.dev/gemini-api/docs/thinking#levels-budgets)
+              - `minimal`: Matches the "no thinking" setting for most queries. The model may think very minimally for
+                    complex coding tasks. Minimizes latency for chat or high throughput applications.
+              - `low`: Minimizes latency and cost. Best for simple instruction following, chat, or high-throughput
+                    applications.
+              - `medium`: Balanced thinking for most tasks.
+              - `high`: (Default, dynamic): Maximizes reasoning depth. The model may take significantly longer to reach
+                    a first token, but the output will be more carefully reasoned.
         :param safety_settings: Safety settings for content filtering
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
@@ -789,10 +798,42 @@ class GoogleGenAIChatGenerator:
                 logger.warning(
                     f"Invalid thinking_budget type: {type(thinking_budget)}. Expected int, using dynamic allocation."
                 )
+                # fall back to default: dynamic thinking budget allocation
                 thinking_budget = -1
 
             # Create thinking config
             thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget, include_thoughts=True)
+            generation_kwargs["thinking_config"] = thinking_config
+
+        if "thinking_level" in generation_kwargs:
+            thinking_level = generation_kwargs.pop("thinking_level")
+
+            # Basic type validation
+            if not isinstance(thinking_level, str):
+                logger.warning(
+                    f"Invalid thinking_level type: {type(thinking_level).__name__}. Expected str, "
+                    f"falling back to THINKING_LEVEL_UNSPECIFIED."
+                )
+                thinking_level = types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
+            else:
+                # Convert to uppercase for case-insensitive matching
+                thinking_level_upper = thinking_level.upper()
+
+                # Check if the uppercase value is a valid ThinkingLevel enum member
+                valid_levels = [level.value for level in types.ThinkingLevel]
+                if thinking_level_upper not in valid_levels:
+                    logger.warning(
+                        f"Invalid thinking_level value: '{thinking_level}'. "
+                        f"Must be one of: {valid_levels} (case-insensitive). "
+                        "Falling back to THINKING_LEVEL_UNSPECIFIED."
+                    )
+                    thinking_level = types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
+                else:
+                    # Parse valid string to ThinkingLevel enum
+                    thinking_level = types.ThinkingLevel(thinking_level_upper)
+
+            # Create thinking config with level
+            thinking_config = types.ThinkingConfig(thinking_level=thinking_level, include_thoughts=True)
             generation_kwargs["thinking_config"] = thinking_config
 
         return generation_kwargs
