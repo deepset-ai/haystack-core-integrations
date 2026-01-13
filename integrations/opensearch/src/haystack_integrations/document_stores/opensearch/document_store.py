@@ -1226,7 +1226,7 @@ class OpenSearchDocumentStore:
                     distinct_counts[field_name] = aggregations[agg_key]["value"]
         return distinct_counts
 
-    def count_distinct_metadata_values_by_filter(self, filters: dict) -> dict[str, int]:
+    def count_unique_metadata_by_filter(self, filters: dict) -> dict[str, int]:
         """
         Returns the number of unique values for each meta field of the documents that match the provided filters.
 
@@ -1253,7 +1253,7 @@ class OpenSearchDocumentStore:
         # extract cardinality values from aggregations
         return self._extract_distinct_counts_from_aggregations(result.get("aggregations", {}), index_mapping)
 
-    async def count_distinct_metadata_values_by_filter_async(self, filters: dict) -> dict[str, int]:
+    async def count_unique_metadata_by_filter_async(self, filters: dict) -> dict[str, int]:
         """
         Asynchronously returns the number of unique values for each meta field of the documents that match the
         provided filters.
