@@ -6,7 +6,7 @@ import copy
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Union, overload
+from typing import Any, overload
 
 import numpy as np
 import torch
@@ -32,18 +32,18 @@ from .quantization import OptimumEmbedderQuantizationConfig
 @dataclass
 class _EmbedderParams:
     model: str
-    token: Optional[Secret]
+    token: Secret | None
     prefix: str
     suffix: str
     normalize_embeddings: bool
     onnx_execution_provider: str
     batch_size: int
     progress_bar: bool
-    pooling_mode: Optional[Union[str, OptimumEmbedderPooling]]
-    model_kwargs: Optional[dict[str, Any]]
-    working_dir: Optional[str]
-    optimizer_settings: Optional[OptimumEmbedderOptimizationConfig]
-    quantizer_settings: Optional[OptimumEmbedderQuantizationConfig]
+    pooling_mode: str | OptimumEmbedderPooling | None
+    model_kwargs: dict[str, Any] | None
+    working_dir: str | None
+    optimizer_settings: OptimumEmbedderOptimizationConfig | None
+    quantizer_settings: OptimumEmbedderQuantizationConfig | None
 
     def serialize(self) -> dict[str, Any]:
         out = {}
@@ -115,7 +115,7 @@ class _EmbedderBackend:
         self.params = params
         self.model = None
         self.tokenizer = None
-        self.pooling_layer: Optional[SentenceTransformerPoolingLayer] = None
+        self.pooling_layer: SentenceTransformerPoolingLayer | None = None
 
     def warm_up(self):
         assert self.params.model_kwargs
@@ -200,8 +200,8 @@ class _EmbedderBackend:
 
     def embed_texts(
         self,
-        texts_to_embed: Union[str, list[str]],
-    ) -> Union[list[list[float]], list[float]]:
+        texts_to_embed: str | list[str],
+    ) -> list[list[float]] | list[float]:
         assert self.model is not None
         assert self.tokenizer is not None
 
@@ -236,7 +236,7 @@ class _EmbedderBackend:
 
         # Reorder embeddings according to original order
         reordered_embeddings: list[list[float]] = [None] * len(texts)  # type: ignore
-        for embedding, idx in zip(embeddings, length_sorted_idx):
+        for embedding, idx in zip(embeddings, length_sorted_idx, strict=True):
             reordered_embeddings[idx] = embedding
 
         if isinstance(texts_to_embed, str):
@@ -245,7 +245,7 @@ class _EmbedderBackend:
             return reordered_embeddings
 
 
-def _pooling_from_model_config(model: str, token: Optional[str] = None) -> Optional[OptimumEmbedderPooling]:
+def _pooling_from_model_config(model: str, token: str | None = None) -> OptimumEmbedderPooling | None:
     try:
         pooling_config_path = hf_hub_download(repo_id=model, token=token, filename="1_Pooling/config.json")
     except Exception as e:
