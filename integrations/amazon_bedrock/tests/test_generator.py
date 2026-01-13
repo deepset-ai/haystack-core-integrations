@@ -129,6 +129,11 @@ def test_constructor_with_empty_model():
         ("anthropic.claude-v2", AnthropicClaudeAdapter),
         ("eu.anthropic.claude-v1", AnthropicClaudeAdapter),  # cross-region inference
         ("us.anthropic.claude-v2", AnthropicClaudeAdapter),  # cross-region inference
+        ("global.anthropic.claude-v2", AnthropicClaudeAdapter),
+        ("us-gov.anthropic.claude-v1", AnthropicClaudeAdapter),
+        ("apac.anthropic.claude-v2", AnthropicClaudeAdapter),
+        ("au.anthropic.claude-v1", AnthropicClaudeAdapter),
+        ("jp.anthropic.claude-v1", AnthropicClaudeAdapter),
         ("anthropic.claude-instant-v1", AnthropicClaudeAdapter),
         ("anthropic.claude-super-v5", AnthropicClaudeAdapter),  # artificial
         ("cohere.command-text-v14", CohereCommandAdapter),
@@ -205,6 +210,20 @@ def test_get_model_adapter_auto_detect_family_fails():
     """
     with pytest.raises(AmazonBedrockConfigurationError):
         AmazonBedrockGenerator.get_model_adapter(model="arn:123435423")
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        "invalid.anthropic.claude-v2",
+        "xyz.meta.llama2-13b-chat-v1",
+        "fake-region.mistral.mistral-7b-instruct-v0:2",
+        "global.us.anthropic.claude-v2",
+    ],
+)
+def test_get_model_adapter_with_invalid_region_prefix(model: str):
+    with pytest.raises(AmazonBedrockConfigurationError):
+        AmazonBedrockGenerator.get_model_adapter(model=model)
 
 
 def test_get_model_adapter_model_family_over_auto_detection():
