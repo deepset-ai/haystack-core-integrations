@@ -3,7 +3,7 @@ import requests
 
 # * integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0
 # * integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0.post0 (for post-releases)
-INTEGRATION_VERSION_REGEX = r"integrations/([a-zA-Z_]+)-v([0-9]\.[0-9]+\.[0-9]+(?:\.post[0-9]+)?)"
+INTEGRATION_VERSION_REGEX = r"integrations/([a-zA-Z_]+)-v([0-9]+\.[0-9]+\.[0-9]+(?:\.post[0-9]+)?)"
 
 
 def validate_version_number(tag: str):
