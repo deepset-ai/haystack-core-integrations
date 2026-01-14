@@ -1337,7 +1337,7 @@ def test_aggregate_streaming_chunks_with_reasoning(monkeypatch):
     assert result.meta["model"] == "gemini-2.5-pro"
 
 
-def test_process_thinking_config(monkeypatch):
+def test_process_thinking_budget(monkeypatch):
     """Test the _process_thinking_config method with different thinking_budget values."""
     monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
     component = GoogleGenAIChatGenerator()
@@ -1377,4 +1377,42 @@ def test_process_thinking_config(monkeypatch):
     generation_kwargs = {"thinking_budget": "invalid", "temperature": 0.5}
     result = component._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_budget == -1  # Dynamic allocation
+    assert result["temperature"] == 0.5
+
+
+def test_process_thinking_level(monkeypatch):
+    """Test the _process_thinking_config method with different thinking_level values."""
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    component = GoogleGenAIChatGenerator()
+
+    # Test valid thinking_level values
+    generation_kwargs = {"thinking_level": "high", "temperature": 0.7}
+    result = component._process_thinking_config(generation_kwargs.copy())
+
+    # thinking_level should be moved to thinking_config
+    assert "thinking_level" not in result
+    assert "thinking_config" in result
+    assert result["thinking_config"].thinking_level == types.ThinkingLevel.HIGH
+    # Other kwargs should be preserved
+    assert result["temperature"] == 0.7
+
+    # Test THINKING_LEVEL_LOW in upper case
+    generation_kwargs = {"thinking_level": "LOW"}
+    result = component._process_thinking_config(generation_kwargs.copy())
+    assert result["thinking_config"].thinking_level == types.ThinkingLevel.LOW
+
+    # Test THINKING_LEVEL_UNSPECIFIED
+    generation_kwargs = {"thinking_level": "test"}
+    result = component._process_thinking_config(generation_kwargs.copy())
+    assert result["thinking_config"].thinking_level == types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
+
+    # Test when thinking_level is not present
+    generation_kwargs = {"temperature": 0.5}
+    result = component._process_thinking_config(generation_kwargs.copy())
+    assert result == generation_kwargs  # No changes
+
+    # Test invalid type (should fall back to THINKING_LEVEL_UNSPECIFIED)
+    generation_kwargs = {"thinking_level": 123, "temperature": 0.5}
+    result = component._process_thinking_config(generation_kwargs.copy())
+    assert result["thinking_config"].thinking_level == types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
     assert result["temperature"] == 0.5

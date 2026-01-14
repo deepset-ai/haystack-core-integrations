@@ -77,5 +77,8 @@ jobs:
           author_email: "accounts@deepset.ai"
           message: "Update the changelog"
           add: ${{ steps.pathfinder.outputs.project_path }}
+          # to avoid that the pushed branch tip is behind its remote counterpart, we need to pull first
+          # see https://github.com/EndBug/add-and-commit/issues/498
+          pull: " "
           push: origin HEAD:main
 

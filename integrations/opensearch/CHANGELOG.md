@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/opensearch-v6.0.0] - 2026-01-13
+
+### 🧪 Testing
+
+- Add `pytest-xdist` to execute tests in parallel on CI (and/or locally) (#2672)
+
+### 🧹 Chores
+
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Opensearch - drop Python 3.9 and use X|Y typing (#2744)
+
+
 ## [integrations/opensearch-v5.1.0] - 2026-01-08
 
 ### 🌀 Miscellaneous

@@ -6,7 +6,7 @@
 
 from collections.abc import Mapping
 from math import exp
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -25,7 +25,7 @@ SPECIAL_FIELDS = {"content", "embedding", "id", "score", "sparse_embedding", "bl
 
 ResponseFormat = Literal["json", "jdbc", "csv", "raw"]
 
-Hosts = Union[str, list[Union[str, Mapping[str, Union[str, int]]]]]
+Hosts = str | list[str | Mapping[str, str | int]]
 
 # document scores are essentially unbounded and will be scaled to values between 0 and 1 if scale_score is set to
 # True. Scaling uses the expit function (inverse of the logit function) after applying a scaling factor
@@ -74,22 +74,22 @@ class OpenSearchDocumentStore:
     def __init__(
         self,
         *,
-        hosts: Optional[Hosts] = None,
+        hosts: Hosts | None = None,
         index: str = "default",
         max_chunk_bytes: int = DEFAULT_MAX_CHUNK_BYTES,
         embedding_dim: int = 768,
         return_embedding: bool = False,
-        method: Optional[dict[str, Any]] = None,
-        mappings: Optional[dict[str, Any]] = None,
-        settings: Optional[dict[str, Any]] = DEFAULT_SETTINGS,
+        method: dict[str, Any] | None = None,
+        mappings: dict[str, Any] | None = None,
+        settings: dict[str, Any] | None = DEFAULT_SETTINGS,
         create_index: bool = True,
         http_auth: Any = (
             Secret.from_env_var("OPENSEARCH_USERNAME", strict=False),  # noqa: B008
             Secret.from_env_var("OPENSEARCH_PASSWORD", strict=False),  # noqa: B008
         ),
-        use_ssl: Optional[bool] = None,
-        verify_certs: Optional[bool] = None,
-        timeout: Optional[int] = None,
+        use_ssl: bool | None = None,
+        verify_certs: bool | None = None,
+        timeout: int | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -158,8 +158,8 @@ class OpenSearchDocumentStore:
 
         # Client is initialized lazily to prevent side effects when
         # the document store is instantiated.
-        self._client: Optional[OpenSearch] = None
-        self._async_client: Optional[AsyncOpenSearch] = None
+        self._client: OpenSearch | None = None
+        self._async_client: AsyncOpenSearch | None = None
         self._initialized = False
 
     def _get_default_mappings(self) -> dict[str, Any]:
@@ -183,9 +183,9 @@ class OpenSearchDocumentStore:
 
     def create_index(
         self,
-        index: Optional[str] = None,
-        mappings: Optional[dict[str, Any]] = None,
-        settings: Optional[dict[str, Any]] = None,
+        index: str | None = None,
+        mappings: dict[str, Any] | None = None,
+        settings: dict[str, Any] | None = None,
     ) -> None:
         """
         Creates an index in OpenSearch.
@@ -219,7 +219,7 @@ class OpenSearchDocumentStore:
             Dictionary with serialized data.
         """
         # Handle http_auth serialization
-        http_auth: Union[list[dict[str, Any]], dict[str, Any], tuple[str, str], list[str], str] = ""
+        http_auth: list[dict[str, Any]] | dict[str, Any] | tuple[str, str] | list[str] | str = ""
         if isinstance(self._http_auth, list) and self._http_auth_are_secrets:
             # Recreate the Secret objects for serialization
             http_auth = [
@@ -358,7 +358,7 @@ class OpenSearchDocumentStore:
 
         return out
 
-    def _prepare_filter_search_request(self, filters: Optional[dict[str, Any]]) -> dict[str, Any]:
+    def _prepare_filter_search_request(self, filters: dict[str, Any] | None) -> dict[str, Any]:
         search_kwargs: dict[str, Any] = {"size": 10_000}
         if filters:
             search_kwargs["query"] = {"bool": {"filter": normalize_filters(filters)}}
@@ -379,7 +379,7 @@ class OpenSearchDocumentStore:
         search_results = await self._async_client.search(index=self._index, body=request_body)
         return OpenSearchDocumentStore._deserialize_search_hits(search_results["hits"]["hits"])
 
-    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
+    def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -392,7 +392,7 @@ class OpenSearchDocumentStore:
         self._ensure_initialized()
         return self._search_documents(self._prepare_filter_search_request(filters))
 
-    async def filter_documents_async(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
+    async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Asynchronously returns the documents that match the filters provided.
 
@@ -567,7 +567,7 @@ class OpenSearchDocumentStore:
         document_ids: list[str],
         is_async: bool,
         refresh: Literal["wait_for", True, False],
-        routing: Optional[dict[str, str]] = None,
+        routing: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         def action_generator():
             for id_ in document_ids:
@@ -590,7 +590,7 @@ class OpenSearchDocumentStore:
         self,
         document_ids: list[str],
         refresh: Literal["wait_for", True, False] = "wait_for",
-        routing: Optional[dict[str, str]] = None,
+        routing: dict[str, str] | None = None,
     ) -> None:
         """
         Deletes documents that match the provided `document_ids` from the document store.
@@ -618,7 +618,7 @@ class OpenSearchDocumentStore:
         self,
         document_ids: list[str],
         refresh: Literal["wait_for", True, False] = "wait_for",
-        routing: Optional[dict[str, str]] = None,
+        routing: dict[str, str] | None = None,
     ) -> None:
         """
         Asynchronously deletes documents that match the provided `document_ids` from the document store.
@@ -872,11 +872,11 @@ class OpenSearchDocumentStore:
         self,
         *,
         query: str,
-        filters: Optional[dict[str, Any]],
-        fuzziness: Union[int, str],
+        filters: dict[str, Any] | None,
+        fuzziness: int | str,
         top_k: int,
         all_terms_must_match: bool,
-        custom_query: Optional[dict[str, Any]],
+        custom_query: dict[str, Any] | None,
     ) -> dict[str, Any]:
         if not query:
             body: dict[str, Any] = {"query": {"bool": {"must": {"match_all": {}}}}}
@@ -937,12 +937,12 @@ class OpenSearchDocumentStore:
         self,
         query: str,
         *,
-        filters: Optional[dict[str, Any]] = None,
-        fuzziness: Union[int, str] = "AUTO",
+        filters: dict[str, Any] | None = None,
+        fuzziness: int | str = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
-        custom_query: Optional[dict[str, Any]] = None,
+        custom_query: dict[str, Any] | None = None,
     ) -> list[Document]:
         """
         Retrieves documents that match the provided `query` using the BM25 search algorithm.
@@ -975,12 +975,12 @@ class OpenSearchDocumentStore:
         self,
         query: str,
         *,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         fuzziness: str = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
-        custom_query: Optional[dict[str, Any]] = None,
+        custom_query: dict[str, Any] | None = None,
     ) -> list[Document]:
         """
         Asynchronously retrieves documents that match the provided `query` using the BM25 search algorithm.
@@ -1015,9 +1015,9 @@ class OpenSearchDocumentStore:
         self,
         *,
         query_embedding: list[float],
-        filters: Optional[dict[str, Any]],
+        filters: dict[str, Any] | None,
         top_k: int,
-        custom_query: Optional[dict[str, Any]],
+        custom_query: dict[str, Any] | None,
         efficient_filtering: bool = False,
     ) -> dict[str, Any]:
         if not query_embedding:
@@ -1071,9 +1071,9 @@ class OpenSearchDocumentStore:
         self,
         query_embedding: list[float],
         *,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        custom_query: Optional[dict[str, Any]] = None,
+        custom_query: dict[str, Any] | None = None,
         efficient_filtering: bool = False,
     ) -> list[Document]:
         """
@@ -1101,9 +1101,9 @@ class OpenSearchDocumentStore:
         self,
         query_embedding: list[float],
         *,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        custom_query: Optional[dict[str, Any]] = None,
+        custom_query: dict[str, Any] | None = None,
         efficient_filtering: bool = False,
     ) -> list[Document]:
         """

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 from haystack import Document, Pipeline, default_from_dict, default_to_dict, logging, super_component
 from haystack.components.embedders.types import TextEmbedder
@@ -92,22 +92,22 @@ class OpenSearchHybridRetriever:
         *,
         embedder: TextEmbedder,
         # OpenSearchBM25Retriever
-        filters_bm25: Optional[dict[str, Any]] = None,
-        fuzziness: Union[int, str] = "AUTO",
+        filters_bm25: dict[str, Any] | None = None,
+        fuzziness: int | str = "AUTO",
         top_k_bm25: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
-        filter_policy_bm25: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
-        custom_query_bm25: Optional[dict[str, Any]] = None,
+        filter_policy_bm25: str | FilterPolicy = FilterPolicy.REPLACE,
+        custom_query_bm25: dict[str, Any] | None = None,
         # OpenSearchEmbeddingRetriever
-        filters_embedding: Optional[dict[str, Any]] = None,
+        filters_embedding: dict[str, Any] | None = None,
         top_k_embedding: int = 10,
-        filter_policy_embedding: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
-        custom_query_embedding: Optional[dict[str, Any]] = None,
+        filter_policy_embedding: str | FilterPolicy = FilterPolicy.REPLACE,
+        custom_query_embedding: dict[str, Any] | None = None,
         # DocumentJoiner
-        join_mode: Union[str, JoinMode] = JoinMode.RECIPROCAL_RANK_FUSION,
-        weights: Optional[list[float]] = None,
-        top_k: Optional[int] = None,
+        join_mode: str | JoinMode = JoinMode.RECIPROCAL_RANK_FUSION,
+        weights: list[float] | None = None,
+        top_k: int | None = None,
         sort_by_score: bool = True,
         # extra kwargs
         **kwargs: Any,
@@ -242,10 +242,10 @@ class OpenSearchHybridRetriever:
         def run(
             self,
             query: str,
-            filters_bm25: Optional[dict[str, Any]] = None,
-            filters_embedding: Optional[dict[str, Any]] = None,
-            top_k_bm25: Optional[int] = None,
-            top_k_embedding: Optional[int] = None,
+            filters_bm25: dict[str, Any] | None = None,
+            filters_embedding: dict[str, Any] | None = None,
+            top_k_bm25: int | None = None,
+            top_k_embedding: int | None = None,
         ) -> dict[str, list[Document]]: ...
 
     def _create_pipeline(self, data: dict[str, Any]) -> Pipeline:

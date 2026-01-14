@@ -247,6 +247,8 @@ class AnthropicChatGenerator:
         """
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
+        generation_kwargs = self._resolve_flattened_generation_kwargs(generation_kwargs)
+
         disallowed_params = set(generation_kwargs) - set(self.ALLOWED_PARAMS)
         if disallowed_params:
             logger.warning(
@@ -274,6 +276,32 @@ class AnthropicChatGenerator:
                 )
 
         return system_messages, non_system_messages, generation_kwargs, anthropic_tools
+
+    def _resolve_flattened_generation_kwargs(self, generation_kwargs: dict[str, Any]) -> dict[str, Any]:
+        generation_kwargs = generation_kwargs.copy()
+        if "disable_parallel_tool_use" in generation_kwargs:
+            disable_parallel_tool_use = generation_kwargs.pop("disable_parallel_tool_use")
+            tool_choice = generation_kwargs.setdefault("tool_choice", {})
+            tool_choice["disable_parallel_tool_use"] = disable_parallel_tool_use
+
+        if "parallel_tool_use" in generation_kwargs:
+            parallel_tool_use = generation_kwargs.pop("parallel_tool_use")
+            disable_parallel_tool_use = not parallel_tool_use
+            tool_choice = generation_kwargs.setdefault("tool_choice", {})
+            tool_choice["disable_parallel_tool_use"] = disable_parallel_tool_use
+
+        if "tool_choice_type" in generation_kwargs:
+            tool_choice_type = generation_kwargs.pop("tool_choice_type")
+            tool_choice = generation_kwargs.setdefault("tool_choice", {})
+            tool_choice["type"] = tool_choice_type
+
+        if "thinking_budget_tokens" in generation_kwargs:
+            thinking_budget_tokens = generation_kwargs.pop("thinking_budget_tokens")
+            thinking = generation_kwargs.setdefault("thinking", {})
+            thinking["budget_tokens"] = thinking_budget_tokens
+            thinking["type"] = "enabled"
+
+        return generation_kwargs
 
     def _process_response(
         self,

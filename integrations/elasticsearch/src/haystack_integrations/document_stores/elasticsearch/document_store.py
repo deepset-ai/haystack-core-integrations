@@ -8,7 +8,7 @@
 
 
 from collections.abc import Mapping
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal
 
 import numpy as np
 from elastic_transport import NodeConfig
@@ -26,7 +26,7 @@ from .filters import _normalize_filters
 logger = logging.getLogger(__name__)
 
 
-Hosts = Union[str, list[Union[str, Mapping[str, Union[str, int]], NodeConfig]]]
+Hosts = str | list[str | Mapping[str, str | int] | NodeConfig]
 
 # document scores are essentially unbounded and will be scaled to values between 0 and 1 if scale_score is set to
 # True. Scaling uses the expit function (inverse of the logit function) after applying a scaling factor
@@ -77,8 +77,8 @@ class ElasticsearchDocumentStore:
     def __init__(
         self,
         *,
-        hosts: Optional[Hosts] = None,
-        custom_mapping: Optional[dict[str, Any]] = None,
+        hosts: Hosts | None = None,
+        custom_mapping: dict[str, Any] | None = None,
         index: str = "default",
         api_key: Secret = Secret.from_env_var("ELASTIC_API_KEY", strict=False),
         api_key_id: Secret = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),
@@ -117,8 +117,8 @@ class ElasticsearchDocumentStore:
         :param **kwargs: Optional arguments that `Elasticsearch` takes.
         """
         self._hosts = hosts
-        self._client: Optional[Elasticsearch] = None
-        self._async_client: Optional[AsyncElasticsearch] = None
+        self._client: Elasticsearch | None = None
+        self._async_client: AsyncElasticsearch | None = None
         self._index = index
         self._api_key = api_key
         self._api_key_id = api_key_id
@@ -193,7 +193,7 @@ class ElasticsearchDocumentStore:
 
             self._initialized = True
 
-    def _handle_auth(self) -> Optional[Union[str, tuple[str, str]]]:
+    def _handle_auth(self) -> str | tuple[str, str] | None:
         """
         Handles authentication for the Elasticsearch client.
 
@@ -213,7 +213,7 @@ class ElasticsearchDocumentStore:
 
         """
 
-        api_key: Optional[Union[str, tuple[str, str]]]  # make the type checker happy
+        api_key: str | tuple[str, str] | None  # make the type checker happy
 
         api_key_resolved = self._api_key.resolve_value()
         api_key_id_resolved = self._api_key_id.resolve_value()
@@ -359,7 +359,7 @@ class ElasticsearchDocumentStore:
 
         return documents
 
-    def filter_documents(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
+    def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         The main query method for the document store. It retrieves all documents that match the filters.
 
@@ -377,7 +377,7 @@ class ElasticsearchDocumentStore:
         documents = self._search_documents(query=query)
         return documents
 
-    async def filter_documents_async(self, filters: Optional[dict[str, Any]] = None) -> list[Document]:
+    async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Asynchronously retrieves all documents that match the filters.
 
@@ -850,7 +850,7 @@ class ElasticsearchDocumentStore:
         self,
         query: str,
         *,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         fuzziness: str = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
@@ -904,7 +904,7 @@ class ElasticsearchDocumentStore:
         self,
         query: str,
         *,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         fuzziness: str = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
@@ -960,9 +960,9 @@ class ElasticsearchDocumentStore:
         self,
         query_embedding: list[float],
         *,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        num_candidates: Optional[int] = None,
+        num_candidates: int | None = None,
     ) -> list[Document]:
         """
         Retrieves documents using dense vector similarity search.
@@ -999,9 +999,9 @@ class ElasticsearchDocumentStore:
         self,
         query_embedding: list[float],
         *,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        num_candidates: Optional[int] = None,
+        num_candidates: int | None = None,
     ) -> list[Document]:
         """
         Asynchronously retrieves documents using dense vector similarity search.

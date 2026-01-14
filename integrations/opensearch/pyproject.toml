@@ -7,7 +7,7 @@ name = "opensearch-haystack"
 dynamic = ["version"]
 description = 'Haystack 2.x Document Store for OpenSearch'
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "deepset", email = "info@deepset.ai" }]
@@ -15,7 +15,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -24,9 +23,8 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.14.0",
-  "opensearch-py[async]>=2.4.0,<3",
-  "httpx>=0.28.1"
+  "haystack-ai>=2.22.0",
+  "opensearch-py[async]>=2.4.0,<3"
 ]
 
 [project.urls]
@@ -87,7 +85,6 @@ allow-direct-references = true
 
 
 [tool.ruff]
-target-version = "py39"
 line-length = 120
 
 [tool.ruff.lint]
@@ -135,10 +132,6 @@ ignore = [
   "PLR0915",
   # Ignore asserts
   "S101",
-]
-unfixable = [
-  # Don't touch unused imports
-  "F401",
 ]
 
 [tool.ruff.lint.isort]
