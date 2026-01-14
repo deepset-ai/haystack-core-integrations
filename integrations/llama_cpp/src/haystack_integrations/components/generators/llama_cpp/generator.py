@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from typing import Any
 
 from haystack import component, logging
@@ -32,7 +36,7 @@ class LlamaCppGenerator:
         n_batch: int | None = 512,
         model_kwargs: dict[str, Any] | None = None,
         generation_kwargs: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         :param model: The path of a quantized model for text generation, for example, "zephyr-7b-beta.Q4_0.gguf".
             If the model path is also specified in the `model_kwargs`, this parameter will be ignored.
@@ -64,7 +68,7 @@ class LlamaCppGenerator:
         self.generation_kwargs = generation_kwargs
         self.model: Llama | None = None
 
-    def warm_up(self):
+    def warm_up(self) -> None:
         if self.model is None:
             self.model = Llama(**self.model_kwargs)
 
@@ -84,8 +88,7 @@ class LlamaCppGenerator:
             - `meta`: metadata about the request.
         """
         if self.model is None:
-            error_msg = "The model has not been loaded. Please call warm_up() before running."
-            raise RuntimeError(error_msg)
+            self.warm_up()
 
         if not prompt:
             return {"replies": []}
@@ -93,7 +96,7 @@ class LlamaCppGenerator:
         # merge generation kwargs from init method with those from run method
         updated_generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
-        output = self.model.create_completion(prompt=prompt, **updated_generation_kwargs)
+        output = self.model.create_completion(prompt=prompt, **updated_generation_kwargs)  # type: ignore[union-attr]
         if not isinstance(output, dict):
             msg = f"Expected a dictionary response, got a different object: {output}"
             raise ValueError(msg)
