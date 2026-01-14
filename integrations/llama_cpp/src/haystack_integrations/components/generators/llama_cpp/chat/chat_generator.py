@@ -347,8 +347,7 @@ class LlamaCppChatGenerator:
             - `replies`: The responses from the model
         """
         if self._model is None:
-            error_msg = "The model has not been loaded. Please call warm_up() before running."
-            raise RuntimeError(error_msg)
+            self.warm_up()
 
         if not messages:
             return {"replies": []}
