@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/llama_cpp-v2.1.0] - 2026-01-14
+
+### 🚀 Features
+
+- Update Llama CPP components to auto call run `warm_up` (#2748)
+
+
 ## [integrations/llama_cpp-v2.0.0] - 2026-01-12
 
 ### ⚙️ CI
