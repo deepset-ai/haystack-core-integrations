@@ -48,7 +48,6 @@ class ChineseDocumentSplitter:
     splitter = ChineseDocumentSplitter(
         split_by="word", split_length=10, split_overlap=3, respect_sentence_boundary=True
     )
-    splitter.warm_up()
     result = splitter.run(documents=[doc])
     print(result["documents"])
     ```
