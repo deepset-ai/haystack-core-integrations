@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 from collections.abc import Generator
 from typing import Any
@@ -21,7 +25,9 @@ class FailingComponent:
     def run(self) -> dict[str, Any]:
         """Execute the component's logic - always raises an exception."""
         msg = "Test error"
-        raise PipelineRuntimeError(msg)
+        raise PipelineRuntimeError(
+            component_name="FailingComponent", component_type=FailingComponent, message=msg
+        )
 
 
 @pytest.fixture
@@ -146,6 +152,11 @@ class TestWeaveConnector:
         error_traces = [args for args in finish_call_args if args[1].get("exception") is not None]
         assert len(error_traces) > 0
 
+    @pytest.mark.skipif(
+        not os.environ.get("WANDB_API_KEY", None),
+        reason="Export an env var called WANDB_API_KEY containing the Weights & Bias API key to run this test.",
+    )
+    @pytest.mark.integration
     def test_run_method(self) -> None:
         """Test the basic run method of WeaveConnector"""
         connector = WeaveConnector(pipeline_name="test_pipeline")
