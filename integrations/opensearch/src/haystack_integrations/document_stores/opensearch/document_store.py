@@ -1309,7 +1309,7 @@ class OpenSearchDocumentStore:
         index_mapping = {k: v for k, v in index_mapping.items() if k not in SPECIAL_FIELDS}
         return index_mapping
 
-    async def get_metadata_fields_info_async(self) -> dict[str, dict]:
+    async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
         """
         Asynchronously returns the information about the fields in the index.
 
