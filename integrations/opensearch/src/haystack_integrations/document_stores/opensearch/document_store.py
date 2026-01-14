@@ -1528,36 +1528,3 @@ class OpenSearchDocumentStore:
         total_count = int(aggregations.get("total_count", {}).get("value", 0))
 
         return unique_values, total_count
-
-    def _prepare_sql_http_request_params(
-        self, base_url: str, response_format: ResponseFormat
-    ) -> tuple[str, dict[str, str], Any]:
-        """
-        Prepares HTTP request parameters for SQL query execution.
-        """
-        url = f"{base_url}/_plugins/_sql?format={response_format}"
-        headers = {"Content-Type": "application/json"}
-        auth = None
-        if self._http_auth:
-            if isinstance(self._http_auth, tuple):
-                auth = self._http_auth
-            elif isinstance(self._http_auth, AWSAuth):
-                # For AWS auth, we need to use the opensearchpy client
-                # Fall through to the try/except below
-                pass
-        return url, headers, auth
-
-    @staticmethod
-    def _process_sql_response(response_data: Any, response_format: ResponseFormat) -> Any:
-        """
-        Processes the SQL query response data.
-        """
-        if response_format == "json":
-            # extract only the query results
-            if isinstance(response_data, dict) and "hits" in response_data:
-                hits = response_data.get("hits", {}).get("hits", [])
-                # extract _source from each hit, which contains the actual document data
-                return [hit.get("_source", {}) for hit in hits]
-            return response_data
-        else:
-            return response_data if isinstance(response_data, str) else str(response_data)
