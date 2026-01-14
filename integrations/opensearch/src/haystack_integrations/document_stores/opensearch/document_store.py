@@ -1280,7 +1280,7 @@ class OpenSearchDocumentStore:
         # extract cardinality values from aggregations
         return self._extract_distinct_counts_from_aggregations(result.get("aggregations", {}), index_mapping)
 
-    def get_metadata_fields_info(self) -> dict[str, dict]:
+    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
         """
         Returns the information about the fields in the index.
 
