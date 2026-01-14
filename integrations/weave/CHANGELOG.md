@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/weave-v3.1.0] - 2026-01-14
+
+### 🚀 Features
+
+- Update weave components to auto call run `warm_up` (#2750)
+
+### 🧹 Chores
+
+- Standardize Weave integration - pt.2 (#2739)
+
+
 ## [integrations/weave-v3.0.0] - 2026-01-13
 
 ### 🧹 Chores
