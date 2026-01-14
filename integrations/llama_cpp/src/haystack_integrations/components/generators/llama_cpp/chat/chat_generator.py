@@ -384,7 +384,7 @@ class LlamaCppChatGenerator:
         )
 
         if streaming_callback:
-            response_stream = self._model.create_chat_completion(
+            response_stream = self._model.create_chat_completion(  # type: ignore[union-attr]
                 messages=formatted_messages, tools=llamacpp_tools, **updated_generation_kwargs, stream=True
             )
             return self._handle_streaming_response(
@@ -394,7 +394,7 @@ class LlamaCppChatGenerator:
             )  # we know that response_stream is Iterator[CreateChatCompletionStreamResponse]
             # because create_chat_completion was called with stream=True, but mypy doesn't know that
 
-        response = self._model.create_chat_completion(
+        response = self._model.create_chat_completion(  # type: ignore[union-attr]
             messages=formatted_messages, tools=llamacpp_tools, **updated_generation_kwargs
         )
         replies = []
@@ -402,8 +402,10 @@ class LlamaCppChatGenerator:
             msg = f"Expected a dictionary response, got a different object: {response}"
             raise ValueError(msg)
 
-        for choice in response["choices"]:
-            chat_message = self._convert_chat_completion_choice_to_chat_message(choice, response)
+        for choice in response["choices"]:  # type: ignore[index]
+            chat_message = self._convert_chat_completion_choice_to_chat_message(
+                choice, response  # type: ignore[arg-type]
+            )
             replies.append(chat_message)
         return {"replies": replies}
 

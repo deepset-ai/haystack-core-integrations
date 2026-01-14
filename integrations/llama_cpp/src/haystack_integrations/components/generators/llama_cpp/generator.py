@@ -96,7 +96,7 @@ class LlamaCppGenerator:
         # merge generation kwargs from init method with those from run method
         updated_generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
-        output = self.model.create_completion(prompt=prompt, **updated_generation_kwargs)
+        output = self.model.create_completion(prompt=prompt, **updated_generation_kwargs)  # type: ignore[union-attr]
         if not isinstance(output, dict):
             msg = f"Expected a dictionary response, got a different object: {output}"
             raise ValueError(msg)
