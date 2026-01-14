@@ -682,7 +682,6 @@ class TestLlamaCppChatGenerator:
 
         model_path = str(model_path / filename)
         generator = LlamaCppChatGenerator(model=model_path, n_ctx=8192, n_batch=512)
-        generator.warm_up()
         return generator
 
     @pytest.fixture
@@ -1175,7 +1174,6 @@ class TestLlamaCppChatGeneratorFunctionary:
                 "hf_tokenizer_path": hf_tokenizer_path,
             },
         )
-        generator.warm_up()
         return generator
 
     @pytest.mark.integration
@@ -1256,7 +1254,6 @@ class TestLlamaCppChatGeneratorChatML:
                 "chat_format": "chatml-function-calling",
             },
         )
-        generator.warm_up()
         return generator
 
     @pytest.mark.integration
