@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import json
 from collections.abc import Iterator
 from datetime import datetime, timezone
@@ -201,7 +205,7 @@ class LlamaCppChatGenerator:
         streaming_callback: StreamingCallbackT | None = None,
         chat_handler_name: str | None = None,
         model_clip_path: str | None = None,
-    ):
+    ) -> None:
         """
         :param model: The path of a quantized model for text generation, for example, "zephyr-7b-beta.Q4_0.gguf".
             If the model path is also specified in the `model_kwargs`, this parameter will be ignored.
@@ -263,7 +267,7 @@ class LlamaCppChatGenerator:
         self.model_clip_path = model_clip_path
         self._handler = handler
 
-    def warm_up(self):
+    def warm_up(self) -> None:
         if self._model is not None:
             return
 
