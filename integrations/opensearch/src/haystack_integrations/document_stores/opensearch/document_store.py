@@ -1189,7 +1189,7 @@ class OpenSearchDocumentStore:
         return aggs
 
     @staticmethod
-    def _build_distinct_values_query_body(filters: Optional[dict[str, Any]], aggs: dict[str, Any]) -> dict[str, Any]:
+    def _build_distinct_values_query_body(filters: dict[str, Any] | None, aggs: dict[str, Any]) -> dict[str, Any]:
         """
         Builds the query body for distinct values counting with filters and aggregations.
         """
