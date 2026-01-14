@@ -12,6 +12,7 @@ from haystack.utils import deserialize_callable, serialize_callable
 from more_itertools import windowed
 
 import hanlp
+from hanlp.common.component import Component as HanlpComponent
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,6 @@ class ChineseDocumentSplitter:
     splitter = ChineseDocumentSplitter(
         split_by="word", split_length=10, split_overlap=3, respect_sentence_boundary=True
     )
-    splitter.warm_up()
     result = splitter.run(documents=[doc])
     print(result["documents"])
     ```
@@ -62,7 +62,7 @@ class ChineseDocumentSplitter:
         respect_sentence_boundary: bool = False,
         splitting_function: Callable | None = None,
         granularity: Literal["coarse", "fine"] = "coarse",
-    ):
+    ) -> None:
         """
         Initialize the ChineseDocumentSplitter component.
 
@@ -95,6 +95,9 @@ class ChineseDocumentSplitter:
         self.respect_sentence_boundary = respect_sentence_boundary
         self.splitting_function = splitting_function
         self.granularity = granularity
+        self.chinese_tokenizer: HanlpComponent | None = None
+        self.split_sent: HanlpComponent | None = None
+        self._is_warmed_up = False
 
     @staticmethod
     def _validate_init_parameters(
@@ -159,9 +162,8 @@ class ChineseDocumentSplitter:
 
         :raises RuntimeError: If the Chinese word segmentation model is not loaded.
         """
-        if self.split_sent is None:
-            msg = "The Chinese word segmentation model is not loaded. Please run 'warm_up()' before calling 'run()'."
-            raise RuntimeError(msg)
+        if not self._is_warmed_up:
+            self.warm_up()
 
         split_docs = []
         for doc in documents:
@@ -170,11 +172,15 @@ class ChineseDocumentSplitter:
 
     def warm_up(self) -> None:
         """Warm up the component by loading the necessary models."""
+        if self._is_warmed_up:
+            return
+
         if self.granularity == "coarse":
             self.chinese_tokenizer = hanlp.load(hanlp.pretrained.tok.COARSE_ELECTRA_SMALL_ZH)
         if self.granularity == "fine":
             self.chinese_tokenizer = hanlp.load(hanlp.pretrained.tok.FINE_ELECTRA_SMALL_ZH)
         self.split_sent = hanlp.load(hanlp.pretrained.eos.UD_CTB_EOS_MUL)
+        self._is_warmed_up = True
 
     def _split_by_character(self, doc: Document) -> list[Document]:
         """
@@ -188,7 +194,7 @@ class ChineseDocumentSplitter:
 
         split_at = _CHARACTER_SPLIT_BY_MAPPING[self.split_by]
 
-        units = self.chinese_tokenizer(doc.content)
+        units = self.chinese_tokenizer(doc.content)  # type: ignore[misc]
 
         for i in range(len(units) - 1):
             units[i] += split_at
@@ -211,7 +217,7 @@ class ChineseDocumentSplitter:
         :return: A list of split sentences.
         """
         # Split sentences
-        sentences = self.split_sent(text)
+        sentences = self.split_sent(text)  # type: ignore[misc]
 
         # Organize the format of segmented sentences
         results = []
@@ -261,9 +267,15 @@ class ChineseDocumentSplitter:
 
         for sentence_idx, sentence in enumerate(sentences):
             current_chunk.append(sentence)
-            chunk_word_count += len(self.chinese_tokenizer(sentence))
+            chunk_word_count += len(
+                self.chinese_tokenizer(sentence)  # type: ignore[misc]
+            )
             next_sentence_word_count = (
-                len(self.chinese_tokenizer(sentences[sentence_idx + 1])) if sentence_idx < len(sentences) - 1 else 0
+                len(
+                    self.chinese_tokenizer(sentences[sentence_idx + 1])  # type: ignore[misc]
+                )
+                if sentence_idx < len(sentences) - 1
+                else 0
             )
 
             # Number of words in the current chunk plus the next sentence is larger than the split_length,
@@ -478,7 +490,9 @@ class ChineseDocumentSplitter:
         num_words = 0
 
         for sent in reversed(sentences[1:]):
-            num_words += len(self.chinese_tokenizer(sent))
+            num_words += len(
+                self.chinese_tokenizer(sent)  # type: ignore[misc]
+            )
             # If the number of words is larger than the split_length then don't add any more sentences
             if num_words > split_length:
                 break

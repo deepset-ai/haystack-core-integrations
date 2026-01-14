@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v3.1.0] - 2026-01-13
+
+### 🚀 Features
+
+- Support google genai thinking_level (#2737)
+
+
 ## [integrations/google_genai-v3.0.0] - 2026-01-12
 
 ### 🧹 Chores

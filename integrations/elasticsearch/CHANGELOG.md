@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/elasticsearch-v5.0.0] - 2026-01-13
+
+### 🧹 Chores
+
+- Make fmt command more forgiving (#2671)
+- [**breaking**] Elasticsearch - drop Python 3.9 and use X|Y typing (#2743)
+
+
 ## [integrations/elasticsearch-v4.2.0] - 2025-12-19
 
 ### 🚀 Features

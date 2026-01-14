@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 import urllib.request
 from pathlib import Path
@@ -42,7 +46,6 @@ class TestLlamaCppGenerator:
 
         model_path = str(model_path / filename)
         generator = LlamaCppGenerator(model=model_path, n_ctx=128, n_batch=128)
-        generator.warm_up()
         return generator
 
     @pytest.fixture
@@ -105,14 +108,6 @@ class TestLlamaCppGenerator:
         """
         generator = LlamaCppGenerator(model="test_model.gguf", n_ctx=512, n_batch=512, model_kwargs={"n_batch": 1024})
         assert generator.model_kwargs["n_batch"] == 1024
-
-    def test_raises_error_without_warm_up(self):
-        """
-        Test that the generator raises an error if warm_up() is not called before running.
-        """
-        generator = LlamaCppGenerator(model="test_model.gguf", n_ctx=512, n_batch=512)
-        with pytest.raises(RuntimeError):
-            generator.run("What is the capital of China?")
 
     def test_run_with_empty_prompt(self, generator_mock):
         """

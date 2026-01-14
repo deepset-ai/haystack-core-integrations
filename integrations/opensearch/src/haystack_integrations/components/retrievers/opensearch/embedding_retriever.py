@@ -4,7 +4,7 @@
 
 # ruff: noqa: FBT001  Boolean-typed positional argument in function definition
 
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -28,10 +28,10 @@ class OpenSearchEmbeddingRetriever:
         self,
         *,
         document_store: OpenSearchDocumentStore,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
-        custom_query: Optional[dict[str, Any]] = None,
+        filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
+        custom_query: dict[str, Any] | None = None,
         raise_on_failure: bool = True,
         efficient_filtering: bool = False,
     ):
@@ -150,11 +150,11 @@ class OpenSearchEmbeddingRetriever:
     def run(
         self,
         query_embedding: list[float],
-        filters: Optional[dict[str, Any]] = None,
-        top_k: Optional[int] = None,
-        custom_query: Optional[dict[str, Any]] = None,
-        efficient_filtering: Optional[bool] = None,
-        document_store: Optional[OpenSearchDocumentStore] = None,
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+        custom_query: dict[str, Any] | None = None,
+        efficient_filtering: bool | None = None,
+        document_store: OpenSearchDocumentStore | None = None,
     ) -> dict[str, list[Document]]:
         """
         Retrieve documents using a vector similarity metric.
@@ -259,11 +259,11 @@ class OpenSearchEmbeddingRetriever:
     async def run_async(
         self,
         query_embedding: list[float],
-        filters: Optional[dict[str, Any]] = None,
-        top_k: Optional[int] = None,
-        custom_query: Optional[dict[str, Any]] = None,
-        efficient_filtering: Optional[bool] = None,
-        document_store: Optional[OpenSearchDocumentStore] = None,
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+        custom_query: dict[str, Any] | None = None,
+        efficient_filtering: bool | None = None,
+        document_store: OpenSearchDocumentStore | None = None,
     ) -> dict[str, list[Document]]:
         """
         Asynchronously retrieve documents using a vector similarity metric.
