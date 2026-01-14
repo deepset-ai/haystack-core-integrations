@@ -93,7 +93,6 @@ class TestChineseDocumentSplitter:
     @pytest.mark.integration
     def test_empty_list(self):
         splitter = ChineseDocumentSplitter()
-        splitter.warm_up()
         results = splitter.run(documents=[])
         assert results == {"documents": []}
 
@@ -101,7 +100,6 @@ class TestChineseDocumentSplitter:
     def test_empty_document(self):
         splitter = ChineseDocumentSplitter()
         documents = [Document(content="")]
-        splitter.warm_up()
         results = splitter.run(documents=documents)
         assert results == {"documents": []}
 
@@ -109,7 +107,6 @@ class TestChineseDocumentSplitter:
     def test_whitespace_only_document(self):
         splitter = ChineseDocumentSplitter()
         documents = [Document(content="  ")]
-        splitter.warm_up()
         results = splitter.run(documents=documents)
         assert len(results["documents"]) == 0
 
@@ -120,7 +117,6 @@ class TestChineseDocumentSplitter:
             Document(content="这是另一个测试文本。", meta={"name": "doc 1"}),
         ]
         splitter = ChineseDocumentSplitter(split_by="word", split_length=5, split_overlap=2)
-        splitter.warm_up()
         result = splitter.run(documents=documents)
         assert len(result["documents"]) == 2
         for doc, split_doc in zip(documents, result["documents"], strict=True):
@@ -133,7 +129,6 @@ class TestChineseDocumentSplitter:
             Document(content="这是第二个测试文本。"),
         ]
         splitter = ChineseDocumentSplitter(split_by="word", split_length=5, split_overlap=2)
-        splitter.warm_up()
         result = splitter.run(documents=documents)
         assert len(result["documents"]) == 2
         for doc, split_doc in zip(documents, result["documents"], strict=True):
@@ -142,7 +137,6 @@ class TestChineseDocumentSplitter:
     @pytest.mark.integration
     def test_split_by_word(self, sample_text):
         splitter = ChineseDocumentSplitter(split_by="word", granularity="coarse", split_length=5, split_overlap=0)
-        splitter.warm_up()
         result = splitter.run(documents=[Document(content=sample_text)])
         docs = result["documents"]
         assert all(isinstance(doc, Document) for doc in docs)
@@ -153,7 +147,6 @@ class TestChineseDocumentSplitter:
     @pytest.mark.integration
     def test_split_by_sentence(self, sample_text):
         splitter = ChineseDocumentSplitter(split_by="sentence", granularity="coarse", split_length=10, split_overlap=0)
-        splitter.warm_up()
         result = splitter.run(documents=[Document(content=sample_text)])
         docs = result["documents"]
         assert all(isinstance(doc, Document) for doc in docs), "All docs should be instances of Document"
@@ -170,7 +163,6 @@ class TestChineseDocumentSplitter:
         splitter = ChineseDocumentSplitter(
             split_by="word", split_length=10, split_overlap=3, respect_sentence_boundary=True
         )
-        splitter.warm_up()
         result = splitter.run(documents=[doc])
         docs = result["documents"]
 
@@ -193,7 +185,6 @@ class TestChineseDocumentSplitter:
         )
 
         splitter = ChineseDocumentSplitter(split_by="word", split_length=30, split_overlap=10, granularity="coarse")
-        splitter.warm_up()
         result = splitter.run(documents=[doc])
         docs = result["documents"]
         assert len(docs) == 6
