@@ -404,7 +404,8 @@ class LlamaCppChatGenerator:
 
         for choice in response["choices"]:  # type: ignore[index]
             chat_message = self._convert_chat_completion_choice_to_chat_message(
-                choice, response  # type: ignore[arg-type]
+                choice,
+                response,  # type: ignore[arg-type]
             )
             replies.append(chat_message)
         return {"replies": replies}
