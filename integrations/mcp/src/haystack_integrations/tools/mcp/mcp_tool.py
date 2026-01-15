@@ -1075,7 +1075,7 @@ class MCPTool(Tool):
 
             # Parse JSON to dict only when outputs_to_state is configured.
             # ToolInvoker requires dict for _merge_tool_outputs(); ToolCallResult.result expects str otherwise.
-            if hasattr(self, "outputs_to_state") and self.outputs_to_state:
+            if self.outputs_to_state:
                 parsed = json.loads(result)
 
                 # Per MCP spec, content[] may contain TextContent, ImageContent, AudioContent, etc.
@@ -1120,7 +1120,7 @@ class MCPTool(Tool):
 
             # Parse JSON to dict only when outputs_to_state is configured.
             # ToolInvoker requires dict for _merge_tool_outputs(); ToolCallResult.result expects str otherwise.
-            if hasattr(self, "outputs_to_state") and self.outputs_to_state:
+            if self.outputs_to_state:
                 parsed = json.loads(result)
 
                 # Per MCP spec, content[] may contain TextContent, ImageContent, AudioContent, etc.

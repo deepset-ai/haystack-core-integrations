@@ -24,7 +24,7 @@ from haystack_integrations.tools.mcp import (
 )
 
 from .mcp_memory_transport import InMemoryServerInfo
-from .mcp_servers_fixtures import calculator_mcp, echo_mcp
+from .mcp_servers_fixtures import echo_mcp, state_calculator_mcp
 
 logger = logging.getLogger(__name__)
 
@@ -255,22 +255,22 @@ async def calculator_toolset_with_state_config(mcp_tool_cleanup):
     - add: No inputs_from_state, writes result to 'sum' state key
     - subtract: Reads 'sum' from state (written by add), writes to 'difference' state key
     """
-    server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+    server_info = InMemoryServerInfo(server=state_calculator_mcp._mcp_server)
     toolset = MCPToolset(
         server_info=server_info,
-        tool_names=["add", "subtract"],
+        tool_names=["state_add", "state_subtract"],
         connection_timeout=45,
         invocation_timeout=60,
         eager_connect=True,
         inputs_from_state={
-            # add tool takes normal parameters (not from state)
-            # subtract tool reads 'sum' from state and maps to parameter 'a'
-            "subtract": {"sum": "a"},
+            # state_add tool takes normal parameters (not from state)
+            # state_subtract tool reads 'sum' from state and maps to parameter 'a'
+            "state_subtract": {"sum": "a"},
         },
         outputs_to_state={
-            # Extract from structuredContent.result for both tools
-            "add": {"sum": {"source": "result"}},
-            "subtract": {"difference": {"source": "result"}},
+            # Extract from content[].text result for both tools
+            "state_add": {"sum": {"source": "result"}},
+            "state_subtract": {"difference": {"source": "result"}},
         },
     )
     return mcp_tool_cleanup(toolset)
@@ -286,8 +286,8 @@ class TestMCPToolsetStateConfiguration:
         Test that outputs_to_state and inputs_from_state work with Agent state management.
 
         This test verifies the complete state propagation workflow in a single agent run:
-        1. Agent calls add tool which writes 'sum' to state via outputs_to_state
-        2. Agent calls subtract tool which reads 'sum' from state via inputs_from_state
+        1. Agent calls state_add tool which writes 'sum' to state via outputs_to_state
+        2. Agent calls state_subtract tool which reads 'sum' from state via inputs_from_state
 
         Both tools are called in sequence during a single agent execution, demonstrating
         how tools communicate through Agent state.
@@ -295,10 +295,10 @@ class TestMCPToolsetStateConfiguration:
         toolset = calculator_toolset_with_state_config
 
         # Verify state configurations
-        add_tool = next(tool for tool in toolset.tools if tool.name == "add")
-        subtract_tool = next(tool for tool in toolset.tools if tool.name == "subtract")
+        add_tool = next(tool for tool in toolset.tools if tool.name == "state_add")
+        subtract_tool = next(tool for tool in toolset.tools if tool.name == "state_subtract")
 
-        assert add_tool.inputs_from_state is None  # add takes normal parameters
+        assert add_tool.inputs_from_state is None  # state_add takes normal parameters
         assert add_tool.outputs_to_state == {"sum": {"source": "result"}}  # writes sum to state
         assert subtract_tool.inputs_from_state == {"sum": "a"}  # reads 'sum' from state
         assert subtract_tool.outputs_to_state == {"difference": {"source": "result"}}  # writes difference to state
@@ -318,15 +318,15 @@ class TestMCPToolsetStateConfiguration:
         pipeline.add_component("agent", agent)
 
         # Run agent - it will call both tools in sequence during this single execution
-        # 1. First, add tool calculates 20+5 and writes sum=25 to state
-        # 2. Then, subtract tool reads sum from state and calculates sum-10
+        # 1. First, state_add tool calculates 20+5 and writes sum=25 to state
+        # 2. Then, state_subtract tool reads sum from state and calculates sum-10
         result = pipeline.run(
             {
                 "agent": {
                     "messages": [
                         ChatMessage.from_user(
-                            "First, use the add tool to calculate 20 + 5. "
-                            "Then use the subtract tool to subtract 10 from the result."
+                            "First, use the state_add tool to calculate 20 + 5. "
+                            "Then use the state_subtract tool to subtract 10 from the result."
                         )
                     ],
                 }
@@ -334,19 +334,10 @@ class TestMCPToolsetStateConfiguration:
         )
 
         # Verify both state values were written by the tools
-        assert "sum" in result["agent"], "Expected 'sum' to be written to state by add tool's outputs_to_state"
+        assert "sum" in result["agent"], "Expected 'sum' to be written to state by state_add tool"
         sum_value = result["agent"]["sum"]
         assert sum_value == 25, f"Expected sum=25 (20+5), got {sum_value}"
 
-        assert "difference" in result["agent"], (
-            "Expected 'difference' to be written to state by subtract tool's outputs_to_state"
-        )
+        assert "difference" in result["agent"], "Expected 'difference' to be written to state by state_subtract tool"
         difference_value = result["agent"]["difference"]
         assert difference_value == 15, f"Expected difference=15 (25-10), got {difference_value}"
-
-        logger.info("✓ State propagation successful in single agent run!")
-        logger.info(f"  - add(20, 5) wrote sum={sum_value} to state via outputs_to_state")
-        logger.info(
-            f"  - subtract(sum={sum_value} via inputs_from_state, 10) "
-            f"wrote difference={difference_value} via outputs_to_state"
-        )
