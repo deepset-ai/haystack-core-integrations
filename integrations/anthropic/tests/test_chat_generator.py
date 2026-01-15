@@ -344,26 +344,63 @@ class TestAnthropicChatGenerator:
         assert response["replies"][0].meta["model"] == "claude-sonnet-4-5"
         assert response["replies"][0].meta["finish_reason"] == "stop"
 
-    def test_run_with_flattened_generation_kwargs(self, chat_messages, mock_anthropic_completion):
+    @pytest.mark.parametrize(
+        "generation_kwargs,expected_kwargs",
+        [
+            (
+                {
+                    "parallel_tool_use": False,
+                    "tool_choice_type": "any",
+                    "thinking_budget_tokens": 1024,
+                },
+                {
+                    "tool_choice": {"disable_parallel_tool_use": True, "type": "any"},
+                    "thinking": {"budget_tokens": 1024, "type": "enabled"},
+                },
+            ),
+            (
+                {
+                    "parallel_tool_use": True,
+                    "tool_choice_type": "all",
+                },
+                {
+                    "tool_choice": {"disable_parallel_tool_use": False, "type": "all"},
+                },
+            ),
+            (
+                {
+                    "parallel_tool_use": True,
+                },
+                {
+                    "tool_choice": {"disable_parallel_tool_use": False, "type": "auto"},
+                },
+            ),
+            (
+                {
+                    "thinking_budget_tokens": None,
+                    "parallel_tool_use": None,
+                    "tool_choice_type": None,
+                },
+                {},
+            ),
+        ],
+    )
+    def test_run_with_flattened_generation_kwargs(
+        self, chat_messages, mock_anthropic_completion, generation_kwargs, expected_kwargs
+    ):
         """
         Test that the AnthropicChatGenerator component can run with parameters.
         """
         component = AnthropicChatGenerator(
             api_key=Secret.from_token("test-api-key"),
-            generation_kwargs={
-                "max_tokens": 10,
-                "thinking_budget_tokens": 1024,
-                "parallel_tool_use": False,
-                "tool_choice_type": "any",
-            },
+            generation_kwargs=generation_kwargs,
         )
         component.run(chat_messages)
 
         # Check that the component calls the Anthropic API with the correct parameters
-        _, kwargs = mock_anthropic_completion.call_args
-        assert kwargs["max_tokens"] == 10
-        assert kwargs["thinking"] == {"budget_tokens": 1024, "type": "enabled"}
-        assert kwargs["tool_choice"] == {"disable_parallel_tool_use": True, "type": "any"}
+        actual_kwargs = mock_anthropic_completion.call_args.kwargs
+        assert actual_kwargs.get("tool_choice") == expected_kwargs.get("tool_choice")
+        assert actual_kwargs.get("thinking") == expected_kwargs.get("thinking")
 
     def test_check_duplicate_tool_names(self, tools):
         """Test that the AnthropicChatGenerator component fails to initialize with duplicate tool names."""
