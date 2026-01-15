@@ -193,9 +193,9 @@ class AzureDocumentIntelligenceConverter:
 
             except Exception as e:
                 logger.warning(
-                    "Failed to convert %s using Azure Document Intelligence. Skipping it. Error: %s",
-                    source,
-                    e,
+                    "Failed to convert {source} using Azure Document Intelligence. Skipping it. Error: {error}",
+                    source=source,
+                    error=e,
                 )
                 continue
 
