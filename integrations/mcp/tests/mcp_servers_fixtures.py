@@ -8,15 +8,15 @@ calculator_mcp = FastMCP("Calculator")
 
 
 @calculator_mcp.tool()
-def add(a: int, b: int) -> int:
+def add(a: int, b: int) -> dict:
     """Add two integers."""
-    return a + b
+    return {"result": a + b}
 
 
 @calculator_mcp.tool()
-def subtract(a: int, b: int) -> int:
+def subtract(a: int, b: int) -> dict:
     """Subtract integer b from integer a."""
-    return a - b
+    return {"result": a - b}
 
 
 @calculator_mcp.tool()

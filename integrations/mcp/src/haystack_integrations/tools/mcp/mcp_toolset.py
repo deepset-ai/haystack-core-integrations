@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 from collections.abc import Callable
 from typing import Any, cast
 from urllib.parse import urlparse
@@ -326,14 +327,34 @@ class MCPToolset(Toolset):
                 mcp_client: MCPClient,
                 tool_name: str,
                 tool_timeout: float,
+                outputs_to_state: dict[str, Any] | None = None,
             ) -> Callable[..., Any]:
                 """Return a closure that keeps a strong reference to *owner_toolset* alive."""
 
                 def invoke_tool(**kwargs: Any) -> Any:
                     _ = owner_toolset  # strong reference so GC can't collect the toolset too early
-                    return AsyncExecutor.get_instance().run(
+                    result = AsyncExecutor.get_instance().run(
                         mcp_client.call_tool(tool_name, kwargs), timeout=tool_timeout
                     )
+                    # Parse JSON to dict only when outputs_to_state is configured.
+                    # ToolInvoker requires dict for _merge_tool_outputs(); ToolCallResult.result expects str otherwise.
+                    if outputs_to_state:
+                        parsed = json.loads(result)
+
+                        # Per MCP spec, content[] may contain TextContent, ImageContent, AudioContent, etc.
+                        # Parse only first TextContent block (ToolInvoker requires dict, not list).
+                        content = parsed.get("content", [])
+                        for block in content:
+                            if isinstance(block, dict) and block.get("type") == "text":
+                                text = block.get("text", "")
+                                try:
+                                    return json.loads(text)
+                                except (json.JSONDecodeError, TypeError):
+                                    return text
+
+                        # No TextContent found, return full parsed response as fallback
+                        return parsed
+                    return result
 
                 return invoke_tool
 
@@ -343,18 +364,22 @@ class MCPToolset(Toolset):
                 # Skip tools not in the tool_names list if tool_names is provided
                 if self.tool_names is not None and tool_info.name not in self.tool_names:
                     logger.debug(
-                        "Skipping tool '{name}' as it's not in the requested tool_names list", name=tool_info.name
+                        "Skipping tool '{tool_name}' as it's not in the requested tool_names list",
+                        tool_name=tool_info.name,
                     )
                     continue
 
                 # Use the helper function to create the invoke_tool function
+                tool_outputs_to_state = self.outputs_to_state.get(tool_info.name)
                 tool = Tool(
                     name=tool_info.name,
                     description=tool_info.description or "",
                     parameters=tool_info.inputSchema,
-                    function=create_invoke_tool(self, client, tool_info.name, self.invocation_timeout),
+                    function=create_invoke_tool(
+                        self, client, tool_info.name, self.invocation_timeout, tool_outputs_to_state
+                    ),
                     inputs_from_state=self.inputs_from_state.get(tool_info.name),
-                    outputs_to_state=self.outputs_to_state.get(tool_info.name),
+                    outputs_to_state=tool_outputs_to_state,
                     outputs_to_string=self.outputs_to_string.get(tool_info.name),
                 )
                 haystack_tools.append(tool)
