@@ -1446,16 +1446,24 @@ class OpenSearchDocumentStore:
         return self._extract_min_max_from_stats(stats)
 
     def get_metadata_field_unique_values(
-        self, metadata_field: str, search_term: str | None, from_: int, size: int
-    ) -> list[str]:
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        size: int | None = 10000,
+        after: dict[str, Any] | None = None,
+    ) -> tuple[list[str], dict[str, Any] | None]:
         """
         Returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Uses composite aggregations for proper pagination beyond 10k results.
 
         :param metadata_field: The metadata field to get unique values for.
         :param search_term: Optional search term to filter documents by matching in the content field.
-        :param from_: The starting index for pagination.
-        :param size: The number of unique values to return.
-        :returns: A tuple containing (list of unique values, total count of unique values).
+        :param size: The number of unique values to return per page. Defaults to 10000.
+        :param after: Optional pagination key from the previous response. Use None for the first page.
+            For subsequent pages, pass the `after_key` from the previous response.
+        :returns: A tuple containing (list of unique values, after_key for pagination).
+            The after_key is None when there are no more results. Use it in the `after` parameter
+            for the next page.
         """
         self._ensure_initialized()
         assert self._client is not None
@@ -1468,26 +1476,20 @@ class OpenSearchDocumentStore:
             # Use match_phrase for exact phrase matching to avoid tokenization issues
             query = {"match_phrase": {"content": search_term}}
 
-        # Build aggregations
-        # Terms aggregation for paginated unique values
-        # Note: Terms aggregation doesn't support 'from' parameter directly,
-        # so we fetch from_ + size results and slice them
-        # Cardinality aggregation for total count
-        terms_size = from_ + size if from_ > 0 else size
+        # Build composite aggregation for proper pagination
+        composite_agg: dict[str, Any] = {
+            "size": size,
+            "sources": [{field_name: {"terms": {"field": field_name}}}],
+        }
+        if after is not None:
+            composite_agg["after"] = after
+
         body = {
             "query": query,
             "aggs": {
                 "unique_values": {
-                    "terms": {
-                        "field": field_name,
-                        "size": terms_size,
-                    }
-                },
-                "total_count": {
-                    "cardinality": {
-                        "field": field_name,
-                    }
-                },
+                    "composite": composite_agg,
+                }
             },
             "size": 0,  # we only need aggregations, not documents
         }
@@ -1495,25 +1497,38 @@ class OpenSearchDocumentStore:
         result = self._client.search(index=self._index, body=body)
         aggregations = result.get("aggregations", {})
 
-        # Extract unique values from terms aggregation buckets
-        unique_values_buckets = aggregations.get("unique_values", {}).get("buckets", [])
-        # Apply pagination by slicing the results
-        paginated_buckets = unique_values_buckets[from_ : from_ + size]
-        unique_values = [str(bucket["key"]) for bucket in paginated_buckets]
+        # Extract unique values from composite aggregation buckets
+        unique_values_agg = aggregations.get("unique_values", {})
+        unique_values_buckets = unique_values_agg.get("buckets", [])
+        unique_values = [str(bucket["key"][field_name]) for bucket in unique_values_buckets]
 
-        return unique_values
+        # Extract after_key for pagination
+        # If we got fewer results than requested, we've reached the end
+        after_key = unique_values_agg.get("after_key")
+        if after_key is not None and size is not None and len(unique_values_buckets) < size:
+            after_key = None
+
+        return unique_values, after_key
 
     async def get_metadata_field_unique_values_async(
-        self, metadata_field: str, search_term: str | None, from_: int, size: int
-    ) -> list[str]:
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        size: int | None = 10000,
+        after: dict[str, Any] | None = None,
+    ) -> tuple[list[str], dict[str, Any] | None]:
         """
         Asynchronously returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Uses composite aggregations for proper pagination beyond 10k results.
 
         :param metadata_field: The metadata field to get unique values for.
         :param search_term: Optional search term to filter documents by matching in the content field.
-        :param from_: The starting index for pagination.
-        :param size: The number of unique values to return.
-        :returns: A tuple containing (list of unique values, total count of unique values).
+        :param size: The number of unique values to return per page. Defaults to 10000.
+        :param after: Optional pagination key from the previous response. Use None for the first page.
+            For subsequent pages, pass the `after_key` from the previous response.
+        :returns: A tuple containing (list of unique values, after_key for pagination).
+            The after_key is None when there are no more results. Use it in the `after` parameter
+            for the next page.
         """
         await self._ensure_initialized_async()
         assert self._async_client is not None
@@ -1526,26 +1541,20 @@ class OpenSearchDocumentStore:
             # Use match_phrase for exact phrase matching to avoid tokenization issues
             query = {"match_phrase": {"content": search_term}}
 
-        # Build aggregations
-        # Terms aggregation for paginated unique values
-        # Note: Terms aggregation doesn't support 'from' parameter directly,
-        # so we fetch from_ + size results and slice them
-        # Cardinality aggregation for total count
-        terms_size = from_ + size if from_ > 0 else size
+        # Build composite aggregation for proper pagination
+        composite_agg: dict[str, Any] = {
+            "size": size,
+            "sources": [{field_name: {"terms": {"field": field_name}}}],
+        }
+        if after is not None:
+            composite_agg["after"] = after
+
         body = {
             "query": query,
             "aggs": {
                 "unique_values": {
-                    "terms": {
-                        "field": field_name,
-                        "size": terms_size,
-                    }
-                },
-                "total_count": {
-                    "cardinality": {
-                        "field": field_name,
-                    }
-                },
+                    "composite": composite_agg,
+                }
             },
             "size": 0,  # we only need aggregations, not documents
         }
@@ -1553,10 +1562,15 @@ class OpenSearchDocumentStore:
         result = await self._async_client.search(index=self._index, body=body)
         aggregations = result.get("aggregations", {})
 
-        # Extract unique values from terms aggregation buckets
-        unique_values_buckets = aggregations.get("unique_values", {}).get("buckets", [])
-        # Apply pagination by slicing the results
-        paginated_buckets = unique_values_buckets[from_ : from_ + size]
-        unique_values = [str(bucket["key"]) for bucket in paginated_buckets]
+        # Extract unique values from composite aggregation buckets
+        unique_values_agg = aggregations.get("unique_values", {})
+        unique_values_buckets = unique_values_agg.get("buckets", [])
+        unique_values = [str(bucket["key"][field_name]) for bucket in unique_values_buckets]
 
-        return unique_values
+        # Extract after_key for pagination
+        # If we got fewer results than requested, we've reached the end
+        after_key = unique_values_agg.get("after_key")
+        if after_key is not None and size is not None and len(unique_values_buckets) < size:
+            after_key = None
+
+        return unique_values, after_key

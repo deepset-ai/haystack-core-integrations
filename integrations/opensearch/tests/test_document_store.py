@@ -758,29 +758,37 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         document_store.write_documents(docs)
 
         # Test getting all unique values without search term
-        unique_values = document_store.get_metadata_field_unique_values("meta.category", None, 0, 10)
+        unique_values, after_key = document_store.get_metadata_field_unique_values("meta.category", None, 10)
         assert set(unique_values) == {"A", "B", "C"}
+        # after_key should be None when all results are returned
+        assert after_key is None
 
         # Test with "meta." prefix
-        unique_languages = document_store.get_metadata_field_unique_values("meta.language", None, 0, 10)
+        unique_languages, _ = document_store.get_metadata_field_unique_values("meta.language", None, 10)
         assert set(unique_languages) == {"Python", "Java", "JavaScript"}
 
         # Test pagination - first page
-        unique_values_page1 = document_store.get_metadata_field_unique_values("meta.category", None, 0, 2)
+        unique_values_page1, after_key_page1 = document_store.get_metadata_field_unique_values("meta.category", None, 2)
         assert len(unique_values_page1) == 2
         assert all(val in ["A", "B", "C"] for val in unique_values_page1)
+        # Should have an after_key for pagination
+        assert after_key_page1 is not None
 
-        # Test pagination - second page
-        unique_values_page2 = document_store.get_metadata_field_unique_values("meta.category", None, 2, 2)
+        # Test pagination - second page using after_key
+        unique_values_page2, after_key_page2 = document_store.get_metadata_field_unique_values(
+            "meta.category", None, 2, after=after_key_page1
+        )
         assert len(unique_values_page2) == 1
         assert unique_values_page2[0] in ["A", "B", "C"]
+        # Should have no more results
+        assert after_key_page2 is None
 
         # Test with search term - filter by content matching "Python"
-        unique_values_filtered = document_store.get_metadata_field_unique_values("meta.category", "Python", 0, 10)
+        unique_values_filtered, _ = document_store.get_metadata_field_unique_values("meta.category", "Python", 10)
         assert set(unique_values_filtered) == {"A"}  # Only category A has documents with "Python" in content
 
         # Test with search term - filter by content matching "Java"
-        unique_values_java = document_store.get_metadata_field_unique_values("meta.category", "Java", 0, 10)
+        unique_values_java, _ = document_store.get_metadata_field_unique_values("meta.category", "Java", 10)
         assert set(unique_values_java) == {"B"}  # Only category B has documents with "Java" in content
 
         # Test with integer values
@@ -791,11 +799,11 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
             Document(content="Doc 4", meta={"priority": 3}),
         ]
         document_store.write_documents(int_docs)
-        unique_priorities = document_store.get_metadata_field_unique_values("meta.priority", None, 0, 10)
+        unique_priorities, _ = document_store.get_metadata_field_unique_values("meta.priority", None, 10)
         assert set(unique_priorities) == {"1", "2", "3"}
 
         # Test with search term on integer field
-        unique_priorities_filtered = document_store.get_metadata_field_unique_values("meta.priority", "Doc 1", 0, 10)
+        unique_priorities_filtered, _ = document_store.get_metadata_field_unique_values("meta.priority", "Doc 1", 10)
         assert set(unique_priorities_filtered) == {"1"}
 
     @pytest.mark.integration
