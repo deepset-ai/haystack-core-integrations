@@ -161,7 +161,7 @@ class AzureDocumentIntelligenceConverter:
             try:
                 bytestream = get_bytestream_from_source(source=source)
             except Exception as e:
-                logger.warning("Could not read {source}. Skipping it. Error: {error}", source=source, error=e)
+                logger.warning(f"Could not read {source}. Skipping it. Error: {e}")
                 continue
 
             try:
@@ -192,11 +192,7 @@ class AzureDocumentIntelligenceConverter:
                     documents.extend(docs)
 
             except Exception as e:
-                logger.warning(
-                    "Failed to convert {source} using Azure Document Intelligence. Skipping it. Error: {error}",
-                    source=source,
-                    error=e,
-                )
+                logger.warning(f"Failed to convert {source} using Azure Document Intelligence. Skipping it. Error: {e}")
                 continue
 
         return {"documents": documents, "raw_azure_response": azure_responses}
