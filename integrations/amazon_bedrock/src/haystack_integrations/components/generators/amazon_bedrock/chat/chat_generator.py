@@ -425,7 +425,7 @@ class AmazonBedrockChatGenerator:
         generation_kwargs = generation_kwargs.copy()
 
         disable_parallel_tool_use = generation_kwargs.pop("disable_parallel_tool_use", None)
-        if  disable_parallel_tool_use is not None:
+        if disable_parallel_tool_use is not None:
             tool_choice = generation_kwargs.setdefault("tool_choice", {})
             tool_choice["disable_parallel_tool_use"] = disable_parallel_tool_use
 
@@ -434,7 +434,7 @@ class AmazonBedrockChatGenerator:
             disable_parallel_tool_use = not parallel_tool_use
             tool_choice = generation_kwargs.setdefault("tool_choice", {})
             tool_choice["disable_parallel_tool_use"] = disable_parallel_tool_use
-            tool_choice["type"] = "auto" # default value
+            tool_choice["type"] = "auto"  # default value
 
         tool_choice_type = generation_kwargs.pop("tool_choice_type", None)
         if tool_choice_type is not None:
