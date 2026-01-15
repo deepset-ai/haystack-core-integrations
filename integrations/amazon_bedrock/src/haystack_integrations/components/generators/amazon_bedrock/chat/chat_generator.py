@@ -423,24 +423,26 @@ class AmazonBedrockChatGenerator:
 
     def _resolve_flattened_generation_kwargs(self, generation_kwargs: dict[str, Any]) -> dict[str, Any]:
         generation_kwargs = generation_kwargs.copy()
-        if "disable_parallel_tool_use" in generation_kwargs:
-            disable_parallel_tool_use = generation_kwargs.pop("disable_parallel_tool_use")
+
+        disable_parallel_tool_use = generation_kwargs.pop("disable_parallel_tool_use", None)
+        if  disable_parallel_tool_use is not None:
             tool_choice = generation_kwargs.setdefault("tool_choice", {})
             tool_choice["disable_parallel_tool_use"] = disable_parallel_tool_use
 
-        if "parallel_tool_use" in generation_kwargs:
-            parallel_tool_use = generation_kwargs.pop("parallel_tool_use")
+        parallel_tool_use = generation_kwargs.pop("parallel_tool_use", None)
+        if parallel_tool_use is not None:
             disable_parallel_tool_use = not parallel_tool_use
             tool_choice = generation_kwargs.setdefault("tool_choice", {})
             tool_choice["disable_parallel_tool_use"] = disable_parallel_tool_use
+            tool_choice["type"] = "auto" # default value
 
-        if "tool_choice_type" in generation_kwargs:
-            tool_choice_type = generation_kwargs.pop("tool_choice_type")
+        tool_choice_type = generation_kwargs.pop("tool_choice_type", None)
+        if tool_choice_type is not None:
             tool_choice = generation_kwargs.setdefault("tool_choice", {})
             tool_choice["type"] = tool_choice_type
 
-        if "thinking_budget_tokens" in generation_kwargs:
-            thinking_budget_tokens = generation_kwargs.pop("thinking_budget_tokens")
+        thinking_budget_tokens = generation_kwargs.pop("thinking_budget_tokens", None)
+        if thinking_budget_tokens is not None:
             thinking = generation_kwargs.setdefault("thinking", {})
             thinking["budget_tokens"] = thinking_budget_tokens
             thinking["type"] = "enabled"
