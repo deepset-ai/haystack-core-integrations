@@ -29,12 +29,16 @@ from .mcp_tool import (
 logger = logging.getLogger(__name__)
 
 
-def _serialize_state_config(config: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]] | None:
+def _serialize_state_config(config: dict[str, dict[str, Any]] | None) -> dict[str, dict[str, Any]] | None:
     """
     Serialize a state configuration dictionary, converting any callable handlers to their string representation.
 
     Works for both outputs_to_state (tool_name -> {state_key -> {source, handler}})
     and outputs_to_string (tool_name -> {source, handler}).
+
+    Note: The keys "source" and "handler" are reserved and used internally to distinguish between
+    outputs_to_string format and outputs_to_state format. Do not use these as state keys in
+    outputs_to_state configurations.
 
     :param config: The state configuration dictionary to serialize
     :returns: The serialized configuration dictionary, or None if empty

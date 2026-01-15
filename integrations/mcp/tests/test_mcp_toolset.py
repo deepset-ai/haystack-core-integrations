@@ -292,7 +292,7 @@ class TestMCPToolset:
         assert add_tool.outputs_to_string is not None
         assert subtract_tool.outputs_to_string is None
 
-    async def test_toolset_state_config_serde(self, calculator_toolset_with_state_config):
+    async def test_toolset_state_config_serde(self, calculator_toolset_with_state_config, mcp_tool_cleanup):
         """Test serialization and deserialization of MCPToolset with state configuration."""
         toolset = calculator_toolset_with_state_config
 
@@ -308,20 +308,19 @@ class TestMCPToolset:
         # Handler should be serialized as a string
         assert isinstance(toolset_dict["data"]["outputs_to_string"]["add"]["handler"], str)
 
-        # Test deserialization
-        with patch("haystack_integrations.tools.mcp.mcp_toolset.MCPToolset.__init__", return_value=None) as mock_init:
-            MCPToolset.from_dict(toolset_dict)
+        # Test deserialization with full roundtrip
+        new_toolset = MCPToolset.from_dict(toolset_dict)
+        mcp_tool_cleanup(new_toolset)
 
-            mock_init.assert_called_once()
-            _, kwargs = mock_init.call_args
-            assert kwargs["inputs_from_state"] == {
-                "add": {"first_number": "a"},
-                "subtract": {"first_number": "a", "second_number": "b"},
-            }
-            assert "add" in kwargs["outputs_to_state"]
-            assert "add" in kwargs["outputs_to_string"]
-            # Handler should be deserialized back to a callable
-            assert callable(kwargs["outputs_to_string"]["add"]["handler"])
+        # Verify state configs are correctly deserialized
+        assert new_toolset.inputs_from_state == {
+            "add": {"first_number": "a"},
+            "subtract": {"first_number": "a", "second_number": "b"},
+        }
+        assert "add" in new_toolset.outputs_to_state
+        assert "add" in new_toolset.outputs_to_string
+        # Handler should be deserialized back to a callable
+        assert callable(new_toolset.outputs_to_string["add"]["handler"])
 
     async def test_toolset_state_config_unknown_tool_warning(self, caplog):
         """Test that a warning is logged when state config references unknown tools.
