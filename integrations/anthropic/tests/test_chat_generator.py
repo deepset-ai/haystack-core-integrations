@@ -377,6 +377,14 @@ class TestAnthropicChatGenerator:
             ),
             (
                 {
+                    "disable_parallel_tool_use": True,
+                },
+                {
+                    "tool_choice": {"disable_parallel_tool_use": True, "type": "auto"},
+                },
+            ),
+            (
+                {
                     "thinking_budget_tokens": None,
                     "parallel_tool_use": None,
                     "tool_choice_type": None,
