@@ -173,3 +173,39 @@ class TestAzureDocumentIntelligenceConverterIntegration:
         assert "documents" in results
         assert len(results["documents"]) == 1
         assert results["documents"][0].meta["model_id"] == "prebuilt-layout"
+
+    @pytest.mark.skipif(not os.environ.get("AZURE_DI_ENDPOINT"), reason="Azure endpoint not available")
+    @pytest.mark.skipif(not os.environ.get("AZURE_AI_API_KEY"), reason="Azure credentials not available")
+    def test_run_with_jpg_image(self, test_files_path):
+        """Integration test - convert JPG image with text"""
+        converter = AzureDocumentIntelligenceConverter(
+            endpoint=os.environ["AZURE_DI_ENDPOINT"],
+            api_key=Secret.from_env_var("AZURE_AI_API_KEY"),
+        )
+
+        results = converter.run(sources=[test_files_path / "images" / "sample_text.jpg"])
+
+        assert "documents" in results
+        assert len(results["documents"]) == 1
+        doc = results["documents"][0]
+        assert len(doc.content) > 0
+        # Verify OCR extracted some expected text from the image
+        assert "Sample" in doc.content or "OCR" in doc.content or "Azure" in doc.content
+
+    @pytest.mark.skipif(not os.environ.get("AZURE_DI_ENDPOINT"), reason="Azure endpoint not available")
+    @pytest.mark.skipif(not os.environ.get("AZURE_AI_API_KEY"), reason="Azure credentials not available")
+    def test_run_with_docx(self, test_files_path):
+        """Integration test - convert DOCX document"""
+        converter = AzureDocumentIntelligenceConverter(
+            endpoint=os.environ["AZURE_DI_ENDPOINT"],
+            api_key=Secret.from_env_var("AZURE_AI_API_KEY"),
+        )
+
+        results = converter.run(sources=[test_files_path / "docx" / "sample.docx"])
+
+        assert "documents" in results
+        assert len(results["documents"]) == 1
+        doc = results["documents"][0]
+        assert len(doc.content) > 0
+        # Verify some expected content from the DOCX
+        assert "Sample Document" in doc.content or "sample" in doc.content.lower()
