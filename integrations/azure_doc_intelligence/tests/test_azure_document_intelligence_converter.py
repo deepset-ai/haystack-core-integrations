@@ -21,8 +21,6 @@ class TestAzureDocumentIntelligenceConverter:
 
         assert converter.endpoint == "https://test.cognitiveservices.azure.com/"
         assert converter.model_id == "prebuilt-read"
-        assert converter.output_format == "markdown"
-        assert converter.table_format == "markdown"
         assert converter.store_full_path is False
 
     def test_init_custom_params(self):
@@ -31,15 +29,11 @@ class TestAzureDocumentIntelligenceConverter:
             endpoint="https://test.cognitiveservices.azure.com/",
             api_key=Secret.from_token("test_api_key"),
             model_id="prebuilt-layout",
-            output_format="text",
-            table_format="csv",
             store_full_path=True,
         )
 
         assert converter.endpoint == "https://test.cognitiveservices.azure.com/"
         assert converter.model_id == "prebuilt-layout"
-        assert converter.output_format == "text"
-        assert converter.table_format == "csv"
         assert converter.store_full_path is True
 
     def test_to_dict(self):
@@ -48,8 +42,6 @@ class TestAzureDocumentIntelligenceConverter:
             endpoint="https://test.cognitiveservices.azure.com/",
             api_key=Secret.from_env_var("AZURE_AI_API_KEY"),
             model_id="prebuilt-layout",
-            output_format="text",
-            table_format="csv",
             store_full_path=True,
         )
 
@@ -65,8 +57,6 @@ class TestAzureDocumentIntelligenceConverter:
                 "api_key": {"type": "env_var", "env_vars": ["AZURE_AI_API_KEY"], "strict": True},
                 "endpoint": "https://test.cognitiveservices.azure.com/",
                 "model_id": "prebuilt-layout",
-                "output_format": "text",
-                "table_format": "csv",
                 "store_full_path": True,
             },
         }
@@ -82,8 +72,6 @@ class TestAzureDocumentIntelligenceConverter:
 
         assert data["init_parameters"]["endpoint"] == "https://test.cognitiveservices.azure.com/"
         assert data["init_parameters"]["model_id"] == "prebuilt-read"
-        assert data["init_parameters"]["output_format"] == "markdown"
-        assert data["init_parameters"]["table_format"] == "markdown"
         assert data["init_parameters"]["store_full_path"] is False
 
     def test_from_dict(self):
@@ -98,8 +86,6 @@ class TestAzureDocumentIntelligenceConverter:
                 "api_key": {"type": "env_var", "env_vars": ["AZURE_AI_API_KEY"], "strict": True},
                 "endpoint": "https://test.cognitiveservices.azure.com/",
                 "model_id": "prebuilt-layout",
-                "output_format": "markdown",
-                "table_format": "markdown",
                 "store_full_path": False,
             },
         }
@@ -108,33 +94,7 @@ class TestAzureDocumentIntelligenceConverter:
 
         assert converter.endpoint == "https://test.cognitiveservices.azure.com/"
         assert converter.model_id == "prebuilt-layout"
-        assert converter.output_format == "markdown"
-        assert converter.table_format == "markdown"
         assert converter.store_full_path is False
-
-    def test_from_dict_with_text_format(self):
-        """Test deserialization with text output format"""
-        expected_type = (
-            "haystack_integrations.components.converters.azure_doc_intelligence.converter."
-            "AzureDocumentIntelligenceConverter"
-        )
-        data = {
-            "type": expected_type,
-            "init_parameters": {
-                "api_key": {"type": "env_var", "env_vars": ["AZURE_AI_API_KEY"], "strict": True},
-                "endpoint": "https://test.cognitiveservices.azure.com/",
-                "model_id": "prebuilt-read",
-                "output_format": "text",
-                "table_format": "csv",
-                "store_full_path": True,
-            },
-        }
-
-        converter = AzureDocumentIntelligenceConverter.from_dict(data)
-
-        assert converter.output_format == "text"
-        assert converter.table_format == "csv"
-        assert converter.store_full_path is True
 
 
 @pytest.mark.integration
@@ -146,12 +106,11 @@ class TestAzureDocumentIntelligenceConverterIntegration:
 
     @pytest.mark.skipif(not os.environ.get("AZURE_DI_ENDPOINT"), reason="Azure endpoint not available")
     @pytest.mark.skipif(not os.environ.get("AZURE_AI_API_KEY"), reason="Azure credentials not available")
-    def test_run_with_markdown_output(self, test_files_path):
+    def test_run_markdown_output(self, test_files_path):
         """Integration test with real Azure API - markdown mode"""
         converter = AzureDocumentIntelligenceConverter(
             endpoint=os.environ["AZURE_DI_ENDPOINT"],
             api_key=Secret.from_env_var("AZURE_AI_API_KEY"),
-            output_format="markdown",
         )
 
         results = converter.run(sources=[test_files_path / "pdf" / "sample_pdf_1.pdf"])
@@ -159,27 +118,7 @@ class TestAzureDocumentIntelligenceConverterIntegration:
         assert "documents" in results
         assert len(results["documents"]) == 1
         assert len(results["documents"][0].content) > 0
-        assert results["documents"][0].meta["content_format"] == "markdown"
-
-    @pytest.mark.skipif(not os.environ.get("AZURE_DI_ENDPOINT"), reason="Azure endpoint not available")
-    @pytest.mark.skipif(not os.environ.get("AZURE_AI_API_KEY"), reason="Azure credentials not available")
-    def test_run_with_text_output_csv_tables(self, test_files_path):
-        """Integration test with real Azure API - text mode with CSV tables"""
-        converter = AzureDocumentIntelligenceConverter(
-            endpoint=os.environ["AZURE_DI_ENDPOINT"],
-            api_key=Secret.from_env_var("AZURE_AI_API_KEY"),
-            output_format="text",
-            table_format="csv",
-        )
-
-        results = converter.run(sources=[test_files_path / "pdf" / "sample_pdf_1.pdf"])
-
-        assert "documents" in results
-        assert len(results["documents"]) >= 1
-
-        # Check that we have at least one text document
-        text_docs = [d for d in results["documents"] if d.meta.get("content_format") == "text"]
-        assert len(text_docs) == 1
+        assert results["documents"][0].meta["model_id"] == "prebuilt-read"
 
     @pytest.mark.skipif(not os.environ.get("AZURE_DI_ENDPOINT"), reason="Azure endpoint not available")
     @pytest.mark.skipif(not os.environ.get("AZURE_AI_API_KEY"), reason="Azure credentials not available")
@@ -198,7 +137,6 @@ class TestAzureDocumentIntelligenceConverterIntegration:
 
         doc = results["documents"][0]
         assert doc.meta["custom_key"] == "custom_value"
-        # Should be basename only
         assert doc.meta["file_path"] == "sample_pdf_1.pdf"
 
     @pytest.mark.skipif(not os.environ.get("AZURE_DI_ENDPOINT"), reason="Azure endpoint not available")
@@ -228,7 +166,6 @@ class TestAzureDocumentIntelligenceConverterIntegration:
             endpoint=os.environ["AZURE_DI_ENDPOINT"],
             api_key=Secret.from_env_var("AZURE_AI_API_KEY"),
             model_id="prebuilt-layout",
-            output_format="markdown",
         )
 
         results = converter.run(sources=[test_files_path / "pdf" / "sample_pdf_1.pdf"])

@@ -35,9 +35,6 @@ dependencies = [
     "azure-ai-documentintelligence>=1.0.0",
 ]
 
-[project.optional-dependencies]
-csv = ["pandas"]
-
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/azure_doc_intelligence#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
@@ -71,7 +68,6 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
-    "pandas",
 ]
 
 [tool.hatch.envs.test.scripts]
