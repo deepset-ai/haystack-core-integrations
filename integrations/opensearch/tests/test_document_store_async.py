@@ -282,7 +282,7 @@ class TestDocumentStoreAsync:
 
         # count distinct values for all documents
         distinct_counts = await document_store.count_unique_metadata_by_filter_async(
-            filters={}, fields=["category", "status", "priority"]
+            filters={}, metadata_fields=["category", "status", "priority"]
         )
         assert distinct_counts["category"] == 3  # A, B, C
         assert distinct_counts["status"] == 2  # active, inactive
@@ -291,7 +291,7 @@ class TestDocumentStoreAsync:
         # count distinct values for documents with category="A"
         distinct_counts_a = await document_store.count_unique_metadata_by_filter_async(
             filters={"field": "meta.category", "operator": "==", "value": "A"},
-            fields=["category", "status", "priority"],
+            metadata_fields=["category", "status", "priority"],
         )
         assert distinct_counts_a["category"] == 1  # Only A
         assert distinct_counts_a["status"] == 2  # active, inactive
@@ -300,7 +300,7 @@ class TestDocumentStoreAsync:
         # count distinct values for documents with status="active"
         distinct_counts_active = await document_store.count_unique_metadata_by_filter_async(
             filters={"field": "meta.status", "operator": "==", "value": "active"},
-            fields=["category", "status", "priority"],
+            metadata_fields=["category", "status", "priority"],
         )
         assert distinct_counts_active["category"] == 3  # A, B, C
         assert distinct_counts_active["status"] == 1  # Only active
@@ -315,7 +315,7 @@ class TestDocumentStoreAsync:
                     {"field": "meta.status", "operator": "==", "value": "active"},
                 ],
             },
-            fields=["category", "status", "priority"],
+            metadata_fields=["category", "status", "priority"],
         )
         assert distinct_counts_a_active["category"] == 1  # Only A
         assert distinct_counts_a_active["status"] == 1  # Only active
@@ -323,7 +323,7 @@ class TestDocumentStoreAsync:
 
         # Test with only a subset of fields
         distinct_counts_subset = await document_store.count_unique_metadata_by_filter_async(
-            filters={}, fields=["category", "status"]
+            filters={}, metadata_fields=["category", "status"]
         )
         assert distinct_counts_subset["category"] == 3
         assert distinct_counts_subset["status"] == 2
@@ -331,7 +331,7 @@ class TestDocumentStoreAsync:
 
         # Test field name normalization (with "meta." prefix)
         distinct_counts_normalized = await document_store.count_unique_metadata_by_filter_async(
-            filters={}, fields=["meta.category", "status", "meta.priority"]
+            filters={}, metadata_fields=["meta.category", "status", "meta.priority"]
         )
         assert distinct_counts_normalized["category"] == 3
         assert distinct_counts_normalized["status"] == 2
@@ -339,7 +339,9 @@ class TestDocumentStoreAsync:
 
         # Test error handling when field doesn't exist
         with pytest.raises(ValueError, match="Fields not found in index mapping"):
-            await document_store.count_unique_metadata_by_filter_async(filters={}, fields=["nonexistent_field"])
+            await document_store.count_unique_metadata_by_filter_async(
+                filters={}, metadata_fields=["nonexistent_field"]
+            )
 
     @pytest.mark.asyncio
     async def test_delete_documents(self, document_store: OpenSearchDocumentStore):

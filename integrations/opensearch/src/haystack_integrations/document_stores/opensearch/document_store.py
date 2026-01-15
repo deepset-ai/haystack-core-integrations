@@ -1232,14 +1232,14 @@ class OpenSearchDocumentStore:
                     distinct_counts[field_name] = aggregations[agg_key]["value"]
         return distinct_counts
 
-    def count_unique_metadata_by_filter(self, filters: dict[str, Any], fields: list[str]) -> dict[str, int]:
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
         Returns the number of unique values for each specified metadata field of the documents
         that match the provided filters.
 
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
-        :param fields: List of field names to calculate unique values for.
+        :param metadata_fields: List of field names to calculate unique values for.
             Field names can include or omit the "meta." prefix.
         :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
                   documents.
@@ -1253,15 +1253,15 @@ class OpenSearchDocumentStore:
         index_mapping = mapping[self._index]["mappings"]["properties"]
 
         # normalize field names
-        normalized_fields = [self._normalize_metadata_field_name(field) for field in fields]
+        normalized_metadata_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
         # validate that all requested fields exist in the index mapping
-        missing_fields = [f for f in normalized_fields if f not in index_mapping]
+        missing_fields = [f for f in normalized_metadata_fields if f not in index_mapping]
         if missing_fields:
             msg = f"Fields not found in index mapping: {missing_fields}"
             raise ValueError(msg)
 
         # build aggregations for specified metadata fields
-        aggs = self._build_cardinality_aggregations(index_mapping, normalized_fields)
+        aggs = self._build_cardinality_aggregations(index_mapping, normalized_metadata_fields)
         if not aggs:
             return {}
 
@@ -1271,17 +1271,19 @@ class OpenSearchDocumentStore:
 
         # extract cardinality values from aggregations
         return self._extract_distinct_counts_from_aggregations(
-            result.get("aggregations", {}), index_mapping, normalized_fields
+            result.get("aggregations", {}), index_mapping, normalized_metadata_fields
         )
 
-    async def count_unique_metadata_by_filter_async(self, filters: dict[str, Any], fields: list[str]) -> dict[str, int]:
+    async def count_unique_metadata_by_filter_async(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> dict[str, int]:
         """
         Asynchronously returns the number of unique values for each specified metadata field of the documents
         that match the provided filters.
 
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
-        :param fields: List of field names to calculate unique values for.
+        :param metadata_fields: List of field names to calculate unique values for.
             Field names can include or omit the "meta." prefix.
         :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
                   documents.
@@ -1295,15 +1297,15 @@ class OpenSearchDocumentStore:
         index_mapping = mapping[self._index]["mappings"]["properties"]
 
         # normalize field names
-        normalized_fields = [self._normalize_metadata_field_name(field) for field in fields]
+        normalized_metadata_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
         # validate that all requested fields exist in the index mapping
-        missing_fields = [f for f in normalized_fields if f not in index_mapping]
+        missing_fields = [f for f in normalized_metadata_fields if f not in index_mapping]
         if missing_fields:
             msg = f"Fields not found in index mapping: {missing_fields}"
             raise ValueError(msg)
 
         # build aggregations for specified metadata fields
-        aggs = self._build_cardinality_aggregations(index_mapping, normalized_fields)
+        aggs = self._build_cardinality_aggregations(index_mapping, normalized_metadata_fields)
         if not aggs:
             return {}
 
@@ -1313,7 +1315,7 @@ class OpenSearchDocumentStore:
 
         # extract cardinality values from aggregations
         return self._extract_distinct_counts_from_aggregations(
-            result.get("aggregations", {}), index_mapping, normalized_fields
+            result.get("aggregations", {}), index_mapping, normalized_metadata_fields
         )
 
     def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:

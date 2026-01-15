@@ -632,7 +632,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
 
         # Count distinct values for all documents
         distinct_counts = document_store.count_unique_metadata_by_filter(
-            filters={}, fields=["category", "status", "priority"]
+            filters={}, metadata_fields=["category", "status", "priority"]
         )
         assert distinct_counts["category"] == 3  # A, B, C
         assert distinct_counts["status"] == 2  # active, inactive
@@ -641,7 +641,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         # Count distinct values for documents with category="A"
         distinct_counts_a = document_store.count_unique_metadata_by_filter(
             filters={"field": "meta.category", "operator": "==", "value": "A"},
-            fields=["category", "status", "priority"],
+            metadata_fields=["category", "status", "priority"],
         )
         assert distinct_counts_a["category"] == 1  # Only A
         assert distinct_counts_a["status"] == 2  # active, inactive
@@ -650,7 +650,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         # Count distinct values for documents with status="active"
         distinct_counts_active = document_store.count_unique_metadata_by_filter(
             filters={"field": "meta.status", "operator": "==", "value": "active"},
-            fields=["category", "status", "priority"],
+            metadata_fields=["category", "status", "priority"],
         )
         assert distinct_counts_active["category"] == 3  # A, B, C
         assert distinct_counts_active["status"] == 1  # Only active
@@ -665,7 +665,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
                     {"field": "meta.status", "operator": "==", "value": "active"},
                 ],
             },
-            fields=["category", "status", "priority"],
+            metadata_fields=["category", "status", "priority"],
         )
         assert distinct_counts_a_active["category"] == 1  # Only A
         assert distinct_counts_a_active["status"] == 1  # Only active
@@ -673,7 +673,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
 
         # Test with only a subset of fields
         distinct_counts_subset = document_store.count_unique_metadata_by_filter(
-            filters={}, fields=["category", "status"]
+            filters={}, metadata_fields=["category", "status"]
         )
         assert distinct_counts_subset["category"] == 3
         assert distinct_counts_subset["status"] == 2
@@ -681,7 +681,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
 
         # Test field name normalization (with "meta." prefix)
         distinct_counts_normalized = document_store.count_unique_metadata_by_filter(
-            filters={}, fields=["meta.category", "status", "meta.priority"]
+            filters={}, metadata_fields=["meta.category", "status", "meta.priority"]
         )
         assert distinct_counts_normalized["category"] == 3
         assert distinct_counts_normalized["status"] == 2
@@ -689,7 +689,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
 
         # Test error handling when field doesn't exist
         with pytest.raises(ValueError, match="Fields not found in index mapping"):
-            document_store.count_unique_metadata_by_filter(filters={}, fields=["nonexistent_field"])
+            document_store.count_unique_metadata_by_filter(filters={}, metadata_fields=["nonexistent_field"])
 
     def test_get_metadata_fields_info(self, document_store: OpenSearchDocumentStore):
         docs = [
