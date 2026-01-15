@@ -284,6 +284,7 @@ class AnthropicChatGenerator:
         if disable_parallel_tool_use is not None:
             tool_choice = generation_kwargs.setdefault("tool_choice", {})
             tool_choice["disable_parallel_tool_use"] = disable_parallel_tool_use
+            tool_choice["type"] = "auto"  # default value
 
         parallel_tool_use = generation_kwargs.pop("parallel_tool_use", None)
         if parallel_tool_use is not None:
