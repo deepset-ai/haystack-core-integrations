@@ -157,7 +157,7 @@ class AzureDocumentIntelligenceConverter:
         azure_responses = []
         meta_list: list[dict[str, Any]] = normalize_metadata(meta=meta, sources_count=len(sources))
 
-        for source, metadata in zip(sources, meta_list):
+        for source, metadata in zip(sources, meta_list, strict=True):
             try:
                 bytestream = get_bytestream_from_source(source=source)
             except Exception as e:
