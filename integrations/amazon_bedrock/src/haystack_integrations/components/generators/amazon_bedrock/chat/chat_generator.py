@@ -425,16 +425,18 @@ class AmazonBedrockChatGenerator:
         generation_kwargs = generation_kwargs.copy()
 
         disable_parallel_tool_use = generation_kwargs.pop("disable_parallel_tool_use", None)
+        parallel_tool_use = generation_kwargs.pop("parallel_tool_use", None)
+
+        if disable_parallel_tool_use is not None and parallel_tool_use is not None:
+            msg = "Cannot set both disable_parallel_tool_use and parallel_tool_use"
+            raise ValueError(msg)
+        elif parallel_tool_use is not None:
+            disable_parallel_tool_use = not parallel_tool_use
+
         if disable_parallel_tool_use is not None:
             tool_choice = generation_kwargs.setdefault("tool_choice", {})
             tool_choice["disable_parallel_tool_use"] = disable_parallel_tool_use
-
-        parallel_tool_use = generation_kwargs.pop("parallel_tool_use", None)
-        if parallel_tool_use is not None:
-            disable_parallel_tool_use = not parallel_tool_use
-            tool_choice = generation_kwargs.setdefault("tool_choice", {})
-            tool_choice["disable_parallel_tool_use"] = disable_parallel_tool_use
-            tool_choice["type"] = "auto"  # default value
+            tool_choice.setdefault("type", "auto")  # default value
 
         tool_choice_type = generation_kwargs.pop("tool_choice_type", None)
         if tool_choice_type is not None:
@@ -445,7 +447,7 @@ class AmazonBedrockChatGenerator:
         if thinking_budget_tokens is not None:
             thinking = generation_kwargs.setdefault("thinking", {})
             thinking["budget_tokens"] = thinking_budget_tokens
-            thinking["type"] = "enabled"
+            thinking.setdefault("type", "enabled")
 
         return generation_kwargs
 
