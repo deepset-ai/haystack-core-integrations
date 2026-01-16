@@ -1179,20 +1179,24 @@ class OpenSearchDocumentStore:
         return (await self._async_client.count(index=self._index, body=body))["count"]
 
     @staticmethod
-    def _build_cardinality_aggregations(index_mapping: dict[str, Any]) -> dict[str, Any]:
+    def _build_cardinality_aggregations(index_mapping: dict[str, Any], fields: list[str]) -> dict[str, Any]:
         """
-        Builds cardinality aggregations for all metadata fields in the index mapping.
+        Builds cardinality aggregations for specified metadata fields in the index mapping.
+
+        :param index_mapping: The index mapping containing field definitions.
+        :param fields: List of field names to build aggregations for.
+        :returns: Dictionary of cardinality aggregations.
 
         See: https://docs.opensearch.org/latest/aggregations/metric/cardinality/
         """
         aggs = {}
-        for field_name in index_mapping.keys():
-            if field_name not in SPECIAL_FIELDS:
+        for field_name in fields:
+            if field_name not in SPECIAL_FIELDS and field_name in index_mapping:
                 aggs[f"{field_name}_cardinality"] = {"cardinality": {"field": field_name}}
         return aggs
 
     @staticmethod
-    def _build_distinct_values_query_body(filters: Optional[dict[str, Any]], aggs: dict[str, Any]) -> dict[str, Any]:
+    def _build_distinct_values_query_body(filters: dict[str, Any] | None, aggs: dict[str, Any]) -> dict[str, Any]:
         """
         Builds the query body for distinct values counting with filters and aggregations.
         """
@@ -1213,27 +1217,36 @@ class OpenSearchDocumentStore:
 
     @staticmethod
     def _extract_distinct_counts_from_aggregations(
-        aggregations: dict[str, Any], index_mapping: dict[str, Any]
+        aggregations: dict[str, Any], index_mapping: dict[str, Any], fields: list[str]
     ) -> dict[str, int]:
         """
         Extracts distinct value counts from search result aggregations.
+
+        :param aggregations: The aggregations result from the search query.
+        :param index_mapping: The index mapping containing field definitions.
+        :param fields: List of field names to extract counts for.
+        :returns: Dictionary mapping field names to their distinct value counts.
         """
         distinct_counts = {}
-        for field_name in index_mapping.keys():
-            if field_name not in SPECIAL_FIELDS:
+        for field_name in fields:
+            if field_name not in SPECIAL_FIELDS and field_name in index_mapping:
                 agg_key = f"{field_name}_cardinality"
                 if agg_key in aggregations:
                     distinct_counts[field_name] = aggregations[agg_key]["value"]
         return distinct_counts
 
-    def count_unique_metadata_by_filter(self, filters: dict[str, Any]) -> dict[str, int]:
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
-        Returns the number of unique values for each metadata field of the documents that match the provided filters.
+        Returns the number of unique values for each specified metadata field of the documents
+        that match the provided filters.
 
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param metadata_fields: List of field names to calculate unique values for.
+            Field names can include or omit the "meta." prefix.
         :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
                   documents.
+        :raises ValueError: If any of the requested fields don't exist in the index mapping.
         """
         self._ensure_initialized()
         assert self._client is not None
@@ -1242,8 +1255,17 @@ class OpenSearchDocumentStore:
         mapping = self._client.indices.get_mapping(index=self._index)
         index_mapping = mapping[self._index]["mappings"]["properties"]
 
-        # build aggregations for each metadata field
-        aggs = self._build_cardinality_aggregations(index_mapping)
+
+        # normalize field names
+        normalized_metadata_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+        # validate that all requested fields exist in the index mapping
+        missing_fields = [f for f in normalized_metadata_fields if f not in index_mapping]
+        if missing_fields:
+            msg = f"Fields not found in index mapping: {missing_fields}"
+            raise ValueError(msg)
+
+        # build aggregations for specified metadata fields
+        aggs = self._build_cardinality_aggregations(index_mapping, normalized_metadata_fields)
         if not aggs:
             return {}
 
@@ -1252,6 +1274,7 @@ class OpenSearchDocumentStore:
         result = self._client.search(index=self._index, body=body)
 
         # extract cardinality values from aggregations
+<<<<<<< HEAD
         return self._extract_distinct_counts_from_aggregations(result.get("aggregations", {}), index_mapping)
 
     async def count_unique_metadata_by_filter_async(self, filters: dict[str, Any]) -> dict[str, int]:
@@ -1263,6 +1286,26 @@ class OpenSearchDocumentStore:
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
                   documents.
+=======
+        return self._extract_distinct_counts_from_aggregations(
+            result.get("aggregations", {}), index_mapping, normalized_metadata_fields
+        )
+
+    async def count_unique_metadata_by_filter_async(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> dict[str, int]:
+        """
+        Asynchronously returns the number of unique values for each specified metadata field of the documents
+        that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param metadata_fields: List of field names to calculate unique values for.
+            Field names can include or omit the "meta." prefix.
+        :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
+                  documents.
+        :raises ValueError: If any of the requested fields don't exist in the index mapping.
+>>>>>>> main
         """
         await self._ensure_initialized_async()
         assert self._async_client is not None
@@ -1271,8 +1314,17 @@ class OpenSearchDocumentStore:
         mapping = await self._async_client.indices.get_mapping(index=self._index)
         index_mapping = mapping[self._index]["mappings"]["properties"]
 
-        # build aggregations for each metadata field
-        aggs = self._build_cardinality_aggregations(index_mapping)
+        # normalize field names
+        normalized_metadata_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+        # validate that all requested fields exist in the index mapping
+        missing_fields = [f for f in normalized_metadata_fields if f not in index_mapping]
+        if missing_fields:
+            msg = f"Fields not found in index mapping: {missing_fields}"
+            raise ValueError(msg)
+
+        # build aggregations for specified metadata fields
+        aggs = self._build_cardinality_aggregations(index_mapping, normalized_metadata_fields)
+
         if not aggs:
             return {}
 
@@ -1281,9 +1333,12 @@ class OpenSearchDocumentStore:
         result = await self._async_client.search(index=self._index, body=body)
 
         # extract cardinality values from aggregations
-        return self._extract_distinct_counts_from_aggregations(result.get("aggregations", {}), index_mapping)
+        return self._extract_distinct_counts_from_aggregations(
+            result.get("aggregations", {}), index_mapping, normalized_metadata_fields
+        )
 
-    def get_metadata_fields_info(self) -> dict[str, dict]:
+    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
+>>>>>>> main
         """
         Returns the information about the fields in the index.
 
@@ -1312,23 +1367,42 @@ class OpenSearchDocumentStore:
         index_mapping = {k: v for k, v in index_mapping.items() if k not in SPECIAL_FIELDS}
         return index_mapping
 
+<<<<<<< HEAD
     async def get_metadata_fields_info_async(self) -> dict[str, dict]:
+=======
+    async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
+>>>>>>> main
         """
         Asynchronously returns the information about the fields in the index.
 
         If we populated the index with documents like:
 
+<<<<<<< HEAD
             Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1})
             Document(content="Doc 2", meta={"category": "B", "status": "inactive"})
 
         This method would return:
 
+=======
+        ```python
+            Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1})
+            Document(content="Doc 2", meta={"category": "B", "status": "inactive"})
+        ```
+
+        This method would return:
+
+        ```python
+>>>>>>> main
             {
                 'content': {'type': 'text'},
                 'category': {'type': 'keyword'},
                 'status': {'type': 'keyword'},
                 'priority': {'type': 'long'},
             }
+<<<<<<< HEAD
+=======
+        ```
+>>>>>>> main
 
         :returns: The information about the fields in the index.
         """
@@ -1411,6 +1485,7 @@ class OpenSearchDocumentStore:
         return self._extract_min_max_from_stats(stats)
 
     def get_metadata_field_unique_values(
+<<<<<<< HEAD
         self, metadata_field: str, search_term: str | None, from_: int, size: int
     ) -> tuple[list[str], int]:
         """
@@ -1421,6 +1496,26 @@ class OpenSearchDocumentStore:
         :param from_: The starting index for pagination.
         :param size: The number of unique values to return.
         :returns: A tuple containing (list of unique values, total count of unique values).
+=======
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        size: int | None = 10000,
+        after: dict[str, Any] | None = None,
+    ) -> tuple[list[str], dict[str, Any] | None]:
+        """
+        Returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Uses composite aggregations for proper pagination beyond 10k results.
+
+        :param metadata_field: The metadata field to get unique values for.
+        :param search_term: Optional search term to filter documents by matching in the content field.
+        :param size: The number of unique values to return per page. Defaults to 10000.
+        :param after: Optional pagination key from the previous response. Use None for the first page.
+            For subsequent pages, pass the `after_key` from the previous response.
+        :returns: A tuple containing (list of unique values, after_key for pagination).
+            The after_key is None when there are no more results. Use it in the `after` parameter
+            for the next page.
+>>>>>>> main
         """
         self._ensure_initialized()
         assert self._client is not None
@@ -1433,16 +1528,28 @@ class OpenSearchDocumentStore:
             # Use match_phrase for exact phrase matching to avoid tokenization issues
             query = {"match_phrase": {"content": search_term}}
 
+<<<<<<< HEAD
         # Build aggregations
         # Terms aggregation for paginated unique values
         # Note: Terms aggregation doesn't support 'from' parameter directly,
         # so we fetch from_ + size results and slice them
         # Cardinality aggregation for total count
         terms_size = from_ + size if from_ > 0 else size
+=======
+        # Build composite aggregation for proper pagination
+        composite_agg: dict[str, Any] = {
+            "size": size,
+            "sources": [{field_name: {"terms": {"field": field_name}}}],
+        }
+        if after is not None:
+            composite_agg["after"] = after
+
+>>>>>>> main
         body = {
             "query": query,
             "aggs": {
                 "unique_values": {
+<<<<<<< HEAD
                     "terms": {
                         "field": field_name,
                         "size": terms_size,
@@ -1453,6 +1560,10 @@ class OpenSearchDocumentStore:
                         "field": field_name,
                     }
                 },
+=======
+                    "composite": composite_agg,
+                }
+>>>>>>> main
             },
             "size": 0,  # we only need aggregations, not documents
         }
@@ -1460,6 +1571,7 @@ class OpenSearchDocumentStore:
         result = self._client.search(index=self._index, body=body)
         aggregations = result.get("aggregations", {})
 
+<<<<<<< HEAD
         # Extract unique values from terms aggregation buckets
         unique_values_buckets = aggregations.get("unique_values", {}).get("buckets", [])
         # Apply pagination by slicing the results
@@ -1482,6 +1594,40 @@ class OpenSearchDocumentStore:
         :param from_: The starting index for pagination.
         :param size: The number of unique values to return.
         :returns: A tuple containing (list of unique values, total count of unique values).
+=======
+        # Extract unique values from composite aggregation buckets
+        unique_values_agg = aggregations.get("unique_values", {})
+        unique_values_buckets = unique_values_agg.get("buckets", [])
+        unique_values = [str(bucket["key"][field_name]) for bucket in unique_values_buckets]
+
+        # Extract after_key for pagination
+        # If we got fewer results than requested, we've reached the end
+        after_key = unique_values_agg.get("after_key")
+        if after_key is not None and size is not None and len(unique_values_buckets) < size:
+            after_key = None
+
+        return unique_values, after_key
+
+    async def get_metadata_field_unique_values_async(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        size: int | None = 10000,
+        after: dict[str, Any] | None = None,
+    ) -> tuple[list[str], dict[str, Any] | None]:
+        """
+        Asynchronously returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Uses composite aggregations for proper pagination beyond 10k results.
+
+        :param metadata_field: The metadata field to get unique values for.
+        :param search_term: Optional search term to filter documents by matching in the content field.
+        :param size: The number of unique values to return per page. Defaults to 10000.
+        :param after: Optional pagination key from the previous response. Use None for the first page.
+            For subsequent pages, pass the `after_key` from the previous response.
+        :returns: A tuple containing (list of unique values, after_key for pagination).
+            The after_key is None when there are no more results. Use it in the `after` parameter
+            for the next page.
+>>>>>>> main
         """
         await self._ensure_initialized_async()
         assert self._async_client is not None
@@ -1494,16 +1640,28 @@ class OpenSearchDocumentStore:
             # Use match_phrase for exact phrase matching to avoid tokenization issues
             query = {"match_phrase": {"content": search_term}}
 
+<<<<<<< HEAD
         # Build aggregations
         # Terms aggregation for paginated unique values
         # Note: Terms aggregation doesn't support 'from' parameter directly,
         # so we fetch from_ + size results and slice them
         # Cardinality aggregation for total count
         terms_size = from_ + size if from_ > 0 else size
+=======
+        # Build composite aggregation for proper pagination
+        composite_agg: dict[str, Any] = {
+            "size": size,
+            "sources": [{field_name: {"terms": {"field": field_name}}}],
+        }
+        if after is not None:
+            composite_agg["after"] = after
+
+>>>>>>> main
         body = {
             "query": query,
             "aggs": {
                 "unique_values": {
+<<<<<<< HEAD
                     "terms": {
                         "field": field_name,
                         "size": terms_size,
@@ -1514,6 +1672,10 @@ class OpenSearchDocumentStore:
                         "field": field_name,
                     }
                 },
+=======
+                    "composite": composite_agg,
+                }
+>>>>>>> main
             },
             "size": 0,  # we only need aggregations, not documents
         }
@@ -1521,6 +1683,7 @@ class OpenSearchDocumentStore:
         result = await self._async_client.search(index=self._index, body=body)
         aggregations = result.get("aggregations", {})
 
+<<<<<<< HEAD
         # Extract unique values from terms aggregation buckets
         unique_values_buckets = aggregations.get("unique_values", {}).get("buckets", [])
         # Apply pagination by slicing the results
@@ -1703,3 +1866,17 @@ class OpenSearchDocumentStore:
         except Exception as e:
             msg = f"Failed to execute SQL query in OpenSearch: {e!s}"
             raise DocumentStoreError(msg) from e
+=======
+        # Extract unique values from composite aggregation buckets
+        unique_values_agg = aggregations.get("unique_values", {})
+        unique_values_buckets = unique_values_agg.get("buckets", [])
+        unique_values = [str(bucket["key"][field_name]) for bucket in unique_values_buckets]
+
+        # Extract after_key for pagination
+        # If we got fewer results than requested, we've reached the end
+        after_key = unique_values_agg.get("after_key")
+        if after_key is not None and size is not None and len(unique_values_buckets) < size:
+            after_key = None
+
+        return unique_values, after_key
+>>>>>>> main
