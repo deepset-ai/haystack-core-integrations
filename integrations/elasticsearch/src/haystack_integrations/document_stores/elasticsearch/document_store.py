@@ -1051,7 +1051,7 @@ class ElasticsearchDocumentStore:
 
         normalized_filters = _normalize_filters(filters)
         body = {"query": {"bool": {"filter": normalized_filters}}}
-        return self.client.count(index=self._index, body=body)["count"]  # type: ignore
+        return self.client.count(index=self._index, body=body)["count"]
 
     async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
         """
@@ -1065,7 +1065,7 @@ class ElasticsearchDocumentStore:
 
         normalized_filters = _normalize_filters(filters)
         body = {"query": {"bool": {"filter": normalized_filters}}}
-        result = await self.async_client.count(index=self._index, body=body)  # type: ignore
+        result = await self.async_client.count(index=self._index, body=body)
         return result["count"]
 
     @staticmethod
@@ -1148,7 +1148,7 @@ class ElasticsearchDocumentStore:
         self._ensure_initialized()
 
         # use index mapping to get all fields
-        mapping = self.client.indices.get_mapping(index=self._index)  # type: ignore
+        mapping = self.client.indices.get_mapping(index=self._index)
         index_mapping = mapping[self._index]["mappings"]["properties"]
 
         # normalize field names
@@ -1166,7 +1166,7 @@ class ElasticsearchDocumentStore:
 
         # build and execute search query
         body = self._build_distinct_values_query_body(filters, aggs)
-        result = self.client.search(index=self._index, body=body)  # type: ignore
+        result = self.client.search(index=self._index, body=body)
 
         # extract cardinality values from aggregations
         return self._extract_distinct_counts_from_aggregations(
@@ -1191,7 +1191,7 @@ class ElasticsearchDocumentStore:
         self._ensure_initialized()
 
         # use index mapping to get all fields
-        mapping = await self.async_client.indices.get_mapping(index=self._index)  # type: ignore
+        mapping = await self.async_client.indices.get_mapping(index=self._index)
         index_mapping = mapping[self._index]["mappings"]["properties"]
 
         # normalize field names
@@ -1209,7 +1209,7 @@ class ElasticsearchDocumentStore:
 
         # build and execute search query
         body = self._build_distinct_values_query_body(filters, aggs)
-        result = await self.async_client.search(index=self._index, body=body)  # type: ignore
+        result = await self.async_client.search(index=self._index, body=body)
 
         # extract cardinality values from aggregations
         return self._extract_distinct_counts_from_aggregations(
@@ -1388,7 +1388,7 @@ class ElasticsearchDocumentStore:
             "size": 0,  # we only need aggregations, not documents
         }
 
-        result = self.client.search(index=self._index, body=body)  # type: ignore
+        result = self.client.search(index=self._index, body=body)
         aggregations = result.get("aggregations", {})
 
         # Extract unique values from composite aggregation buckets
@@ -1452,7 +1452,7 @@ class ElasticsearchDocumentStore:
             "size": 0,  # we only need aggregations, not documents
         }
 
-        result = await self.async_client.search(index=self._index, body=body)  # type: ignore
+        result = await self.async_client.search(index=self._index, body=body)
         aggregations = result.get("aggregations", {})
 
         # Extract unique values from composite aggregation buckets
