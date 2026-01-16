@@ -1,57 +1,27 @@
-from typing import Any
-
-from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import StreamingCallbackT
-from haystack.tools import Tool, Toolset
-from haystack.utils import Secret
-import asyncio
-import json
-import os
 from datetime import datetime
 from typing import Any
 
-from openai import AsyncOpenAI, AsyncStream, OpenAI, Stream
-from openai.lib._pydantic import to_strict_json_schema
-from openai.types.chat import (
-    ChatCompletion,
-    ChatCompletionChunk,
-    ChatCompletionMessage,
-    ChatCompletionMessageCustomToolCall,
-    ParsedChatCompletion,
-    ParsedChatCompletionMessage,
-)
-from openai.types.chat.chat_completion import Choice
-from openai.types.chat.chat_completion_chunk import Choice as ChunkChoice
-from pydantic import BaseModel
-
-from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _serialize_object
+from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.components.generators.chat import openai as openai_module
+from haystack.components.generators.utils import _serialize_object
 from haystack.dataclasses import (
-    AsyncStreamingCallbackT,
-    ChatMessage,
     ComponentInfo,
     FinishReason,
     StreamingCallbackT,
     StreamingChunk,
-    SyncStreamingCallbackT,
-    ToolCall,
     ToolCallDelta,
-    select_streaming_callback,
 )
 from haystack.tools import (
-    ToolsType,
-    _check_duplicate_tool_names,
-    deserialize_tools_or_toolset_inplace,
-    flatten_tools_or_toolsets,
-    serialize_tools_or_toolset,
-    warm_up_tools,
+    Tool,
+    Toolset,
 )
-from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
-from haystack.utils.http_client import init_http_client
+from haystack.utils import Secret
+from openai.types.chat import ChatCompletionChunk
+from openai.types.chat.chat_completion_chunk import Choice as ChunkChoice
+
 
 # TODO: remove the following implementation after haystack-ai==2.23.0, with a more robust implementation in the
 #       base class
-
 def _convert_chat_completion_chunk_to_streaming_chunk(
     chunk: ChatCompletionChunk, previous_chunks: list[StreamingChunk], component_info: ComponentInfo | None = None
 ) -> StreamingChunk:
@@ -66,7 +36,6 @@ def _convert_chat_completion_chunk_to_streaming_chunk(
     :returns:
         A StreamingChunk object representing the content of the chunk from the OpenAI API.
     """
-    print("here we are")
 
     finish_reason_mapping: dict[str, FinishReason] = {
         "stop": "stop",
@@ -86,7 +55,7 @@ def _convert_chat_completion_chunk_to_streaming_chunk(
             finish_reason=None,
             meta={
                 "model": chunk.model,
-                "received_at": datetime.now().isoformat(),
+                "received_at": datetime.now().isoformat(),  # noqa: DTZ005
                 "usage": _serialize_object(chunk.usage),
             },
         )
@@ -119,7 +88,7 @@ def _convert_chat_completion_chunk_to_streaming_chunk(
                 "index": choice.index,
                 "tool_calls": choice.delta.tool_calls,
                 "finish_reason": choice.finish_reason,
-                "received_at": datetime.now().isoformat(),
+                "received_at": datetime.now().isoformat(),  # noqa: DTZ005
                 "usage": _serialize_object(chunk.usage),
             },
         )
@@ -142,7 +111,7 @@ def _convert_chat_completion_chunk_to_streaming_chunk(
         "index": choice.index,
         "tool_calls": choice.delta.tool_calls,
         "finish_reason": choice.finish_reason,
-        "received_at": datetime.now().isoformat(),
+        "received_at": datetime.now().isoformat(),  # noqa: DTZ005
         "usage": _serialize_object(chunk.usage),
     }
 
@@ -155,7 +124,7 @@ def _convert_chat_completion_chunk_to_streaming_chunk(
     content = ""
     if choice.delta and choice.delta.content:
         content = choice.delta.content
-        
+
     chunk_message = StreamingChunk(
         content=content,
         component_info=component_info,
@@ -170,7 +139,8 @@ def _convert_chat_completion_chunk_to_streaming_chunk(
 
 
 # monkey patch the OpenAIChatGenerator to use our own _convert_chat_completion_chunk_to_streaming_chunk
-OpenAIChatGenerator._convert_chat_completion_chunk_to_streaming_chunk = _convert_chat_completion_chunk_to_streaming_chunk
+openai_module._convert_chat_completion_chunk_to_streaming_chunk = _convert_chat_completion_chunk_to_streaming_chunk
+
 
 class CometAPIChatGenerator(OpenAIChatGenerator):
     """
@@ -222,4 +192,3 @@ class CometAPIChatGenerator(OpenAIChatGenerator):
             tools_strict=tools_strict,
             http_client_kwargs=http_client_kwargs,
         )
-
