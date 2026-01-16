@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/opensearch-v6.1.0] - 2026-01-16
+
+### 🚀 Features
+
+- Adding  count with filtering operations to `OpenSearchDocumentStore` (#2653)
+
+
 ## [integrations/opensearch-v6.0.0] - 2026-01-13
 
 ### 🧪 Testing
