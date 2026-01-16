@@ -20,8 +20,8 @@ from openai.types.chat import ChatCompletionChunk
 from openai.types.chat.chat_completion_chunk import Choice as ChunkChoice
 
 
-# TODO: remove the following implementation after haystack-ai==2.23.0, with a more robust implementation in the
-#       base class
+# TODO: remove the following function and the monkey patch after haystack-ai==2.23.0, that ships this fix in the base
+# class
 def _convert_chat_completion_chunk_to_streaming_chunk(
     chunk: ChatCompletionChunk, previous_chunks: list[StreamingChunk], component_info: ComponentInfo | None = None
 ) -> StreamingChunk:
@@ -36,7 +36,6 @@ def _convert_chat_completion_chunk_to_streaming_chunk(
     :returns:
         A StreamingChunk object representing the content of the chunk from the OpenAI API.
     """
-
     finish_reason_mapping: dict[str, FinishReason] = {
         "stop": "stop",
         "length": "length",
@@ -109,7 +108,7 @@ def _convert_chat_completion_chunk_to_streaming_chunk(
     meta = {
         "model": chunk.model,
         "index": choice.index,
-        "tool_calls": choice.delta.tool_calls,
+        "tool_calls": choice.delta.tool_calls if choice.delta and choice.delta.tool_calls else None,
         "finish_reason": choice.finish_reason,
         "received_at": datetime.now().isoformat(),  # noqa: DTZ005
         "usage": _serialize_object(chunk.usage),
