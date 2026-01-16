@@ -23,8 +23,6 @@ logger = logging.getLogger(__name__)
 
 SPECIAL_FIELDS = {"content", "embedding", "id", "score", "sparse_embedding", "blob"}
 
-ResponseFormat = Literal["json", "jdbc", "csv", "raw"]
-
 Hosts = str | list[str | Mapping[str, str | int]]
 
 # document scores are essentially unbounded and will be scaled to values between 0 and 1 if scale_score is set to
