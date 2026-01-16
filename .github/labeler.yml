@@ -24,6 +24,11 @@ integration:astra:
       - any-glob-to-any-file: "integrations/astra/**/*"
       - any-glob-to-any-file: ".github/workflows/astra.yml"
 
+integration:azure-doc-intelligence:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/azure_doc_intelligence/**/*"
+      - any-glob-to-any-file: ".github/workflows/azure_doc_intelligence.yml"
+
 integration:azure-ai-search:
   - changed-files:
       - any-glob-to-any-file: "integrations/azure_ai_search/**/*"
