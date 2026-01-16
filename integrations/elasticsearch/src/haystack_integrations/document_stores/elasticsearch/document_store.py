@@ -327,7 +327,7 @@ class ElasticsearchDocumentStore:
                 **kwargs,
             )
 
-            documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])  # type: ignore
+            documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])
             from_ = len(documents)
 
             if top_k is not None and from_ >= top_k:
@@ -1102,14 +1102,13 @@ class ElasticsearchDocumentStore:
             return {
                 "query": {"bool": {"filter": normalized_filters}},
                 "aggs": aggs,
-                "size": 0,  # We only need aggregations, not documents
+                "size": 0,  # we only need aggregations, not documents
             }
         else:
-            # No filters - match all documents
             return {
                 "query": {"match_all": {}},
                 "aggs": aggs,
-                "size": 0,  # We only need aggregations, not documents
+                "size": 0,  # we only need aggregations, not documents
             }
 
     @staticmethod
@@ -1151,8 +1150,9 @@ class ElasticsearchDocumentStore:
         mapping = self.client.indices.get_mapping(index=self._index)
         index_mapping = mapping[self._index]["mappings"]["properties"]
 
-        # normalize field names
+        # normalize field names, e.g: remove "meta." prefix if present
         normalized_metadata_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+
         # validate that all requested fields exist in the index mapping
         missing_fields = [f for f in normalized_metadata_fields if f not in index_mapping]
         if missing_fields:
@@ -1274,7 +1274,7 @@ class ElasticsearchDocumentStore:
         """
         self._ensure_initialized()
 
-        mapping = await self.async_client.indices.get_mapping(index=self._index)  # type: ignore
+        mapping = await self.async_client.indices.get_mapping(index=self._index)
         index_mapping = mapping[self._index]["mappings"]["properties"]
         # remove all fields that are not metadata fields
         index_mapping = {k: v for k, v in index_mapping.items() if k not in SPECIAL_FIELDS}
@@ -1318,7 +1318,7 @@ class ElasticsearchDocumentStore:
 
         field_name = self._normalize_metadata_field_name(metadata_field)
         body = self._build_min_max_query_body(field_name)
-        result = self.client.search(index=self._index, body=body)  # type: ignore
+        result = self.client.search(index=self._index, body=body)
         stats = result.get("aggregations", {}).get("field_stats", {})
 
         return self._extract_min_max_from_stats(stats)
@@ -1335,7 +1335,7 @@ class ElasticsearchDocumentStore:
 
         field_name = self._normalize_metadata_field_name(metadata_field)
         body = self._build_min_max_query_body(field_name)
-        result = await self.async_client.search(index=self._index, body=body)  # type: ignore
+        result = await self.async_client.search(index=self._index, body=body)
         stats = result.get("aggregations", {}).get("field_stats", {})
 
         return self._extract_min_max_from_stats(stats)
@@ -1350,6 +1350,8 @@ class ElasticsearchDocumentStore:
         """
         Returns unique values for a metadata field, optionally filtered by a search term in the content.
         Uses composite aggregations for proper pagination beyond 10k results.
+
+        See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
 
         :param metadata_field: The metadata field to get unique values for.
         :param search_term: Optional search term to filter documents by matching in the content field.
@@ -1414,6 +1416,8 @@ class ElasticsearchDocumentStore:
         """
         Asynchronously returns unique values for a metadata field, optionally filtered by a search term in the content.
         Uses composite aggregations for proper pagination beyond 10k results.
+
+        See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
 
         :param metadata_field: The metadata field to get unique values for.
         :param search_term: Optional search term to filter documents by matching in the content field.
