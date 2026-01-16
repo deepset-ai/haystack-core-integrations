@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
 
@@ -84,8 +84,8 @@ class OpenSearchSQLRetriever:
     def run(
         self,
         query: str,
-        response_format: Optional[ResponseFormat] = None,
-        document_store: Optional[OpenSearchDocumentStore] = None,
+        response_format: ResponseFormat | None = None,
+        document_store: OpenSearchDocumentStore | None = None,
     ) -> dict[str, Any]:
         """
         Execute a raw OpenSearch SQL query against the index.
@@ -138,8 +138,8 @@ class OpenSearchSQLRetriever:
     async def run_async(
         self,
         query: str,
-        response_format: Optional[ResponseFormat] = None,
-        document_store: Optional[OpenSearchDocumentStore] = None,
+        response_format: ResponseFormat | None = None,
+        document_store: OpenSearchDocumentStore | None = None,
     ) -> dict[str, Any]:
         """
         Asynchronously execute a raw OpenSearch SQL query against the index.

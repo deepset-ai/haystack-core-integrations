@@ -631,25 +631,17 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         assert document_store.count_documents() == 5
 
         # Count distinct values for all documents
-<<<<<<< HEAD
-        distinct_counts = document_store.count_unique_metadata_by_filter(filters={})
-=======
         distinct_counts = document_store.count_unique_metadata_by_filter(
             filters={}, metadata_fields=["category", "status", "priority"]
         )
->>>>>>> main
         assert distinct_counts["category"] == 3  # A, B, C
         assert distinct_counts["status"] == 2  # active, inactive
         assert distinct_counts["priority"] == 3  # 1, 2, 3
 
         # Count distinct values for documents with category="A"
         distinct_counts_a = document_store.count_unique_metadata_by_filter(
-<<<<<<< HEAD
-            filters={"field": "meta.category", "operator": "==", "value": "A"}
-=======
             filters={"field": "meta.category", "operator": "==", "value": "A"},
             metadata_fields=["category", "status", "priority"],
->>>>>>> main
         )
         assert distinct_counts_a["category"] == 1  # Only A
         assert distinct_counts_a["status"] == 2  # active, inactive
@@ -657,12 +649,8 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
 
         # Count distinct values for documents with status="active"
         distinct_counts_active = document_store.count_unique_metadata_by_filter(
-<<<<<<< HEAD
-            filters={"field": "meta.status", "operator": "==", "value": "active"}
-=======
             filters={"field": "meta.status", "operator": "==", "value": "active"},
             metadata_fields=["category", "status", "priority"],
->>>>>>> main
         )
         assert distinct_counts_active["category"] == 3  # A, B, C
         assert distinct_counts_active["status"] == 1  # Only active
@@ -676,19 +664,13 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
                     {"field": "meta.category", "operator": "==", "value": "A"},
                     {"field": "meta.status", "operator": "==", "value": "active"},
                 ],
-<<<<<<< HEAD
-            }
-=======
             },
             metadata_fields=["category", "status", "priority"],
->>>>>>> main
         )
         assert distinct_counts_a_active["category"] == 1  # Only A
         assert distinct_counts_a_active["status"] == 1  # Only active
         assert distinct_counts_a_active["priority"] == 2  # 1, 3
 
-<<<<<<< HEAD
-=======
         # Test with only a subset of fields
         distinct_counts_subset = document_store.count_unique_metadata_by_filter(
             filters={}, metadata_fields=["category", "status"]
@@ -709,7 +691,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         with pytest.raises(ValueError, match="Fields not found in index mapping"):
             document_store.count_unique_metadata_by_filter(filters={}, metadata_fields=["nonexistent_field"])
 
->>>>>>> main
     def test_get_metadata_fields_info(self, document_store: OpenSearchDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
@@ -777,42 +758,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         document_store.write_documents(docs)
 
         # Test getting all unique values without search term
-<<<<<<< HEAD
-        unique_values, total_count = document_store.get_metadata_field_unique_values("meta.category", None, 0, 10)
-        assert set(unique_values) == {"A", "B", "C"}
-        assert total_count == 3
-
-        # Test with "meta." prefix
-        unique_languages, lang_count = document_store.get_metadata_field_unique_values("meta.language", None, 0, 10)
-        assert set(unique_languages) == {"Python", "Java", "JavaScript"}
-        assert lang_count == 3
-
-        # Test pagination - first page
-        unique_values_page1, total_count = document_store.get_metadata_field_unique_values("meta.category", None, 0, 2)
-        assert len(unique_values_page1) == 2
-        assert total_count == 3
-        assert all(val in ["A", "B", "C"] for val in unique_values_page1)
-
-        # Test pagination - second page
-        unique_values_page2, total_count = document_store.get_metadata_field_unique_values("meta.category", None, 2, 2)
-        assert len(unique_values_page2) == 1
-        assert total_count == 3
-        assert unique_values_page2[0] in ["A", "B", "C"]
-
-        # Test with search term - filter by content matching "Python"
-        unique_values_filtered, total_count = document_store.get_metadata_field_unique_values(
-            "meta.category", "Python", 0, 10
-        )
-        assert set(unique_values_filtered) == {"A"}  # Only category A has documents with "Python" in content
-        assert total_count == 1
-
-        # Test with search term - filter by content matching "Java"
-        unique_values_java, total_count = document_store.get_metadata_field_unique_values(
-            "meta.category", "Java", 0, 10
-        )
-        assert set(unique_values_java) == {"B"}  # Only category B has documents with "Java" in content
-        assert total_count == 1
-=======
         unique_values, after_key = document_store.get_metadata_field_unique_values("meta.category", None, 10)
         assert set(unique_values) == {"A", "B", "C"}
         # after_key should be None when all results are returned
@@ -845,7 +790,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         # Test with search term - filter by content matching "Java"
         unique_values_java, _ = document_store.get_metadata_field_unique_values("meta.category", "Java", 10)
         assert set(unique_values_java) == {"B"}  # Only category B has documents with "Java" in content
->>>>>>> main
 
         # Test with integer values
         int_docs = [
@@ -855,19 +799,54 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
             Document(content="Doc 4", meta={"priority": 3}),
         ]
         document_store.write_documents(int_docs)
-<<<<<<< HEAD
-        unique_priorities, priority_count = document_store.get_metadata_field_unique_values(
-            "meta.priority", None, 0, 10
-        )
+        unique_priorities, _ = document_store.get_metadata_field_unique_values("meta.priority", None, 10)
         assert set(unique_priorities) == {"1", "2", "3"}
-        assert priority_count == 3
 
         # Test with search term on integer field
-        unique_priorities_filtered, priority_count = document_store.get_metadata_field_unique_values(
-            "meta.priority", "Doc 1", 0, 10
-        )
+        unique_priorities_filtered, _ = document_store.get_metadata_field_unique_values("meta.priority", "Doc 1", 10)
         assert set(unique_priorities_filtered) == {"1"}
-        assert priority_count == 1
+
+    @pytest.mark.integration
+    def test_write_with_routing(self, document_store: OpenSearchDocumentStore):
+        """Test writing documents with routing metadata"""
+        docs = [
+            Document(id="1", content="User A doc", meta={"_routing": "user_a", "category": "test"}),
+            Document(id="2", content="User B doc", meta={"_routing": "user_b"}),
+            Document(id="3", content="No routing"),
+        ]
+
+        written = document_store.write_documents(docs)
+        assert written == 3
+        assert document_store.count_documents() == 3
+
+        # Verify _routing not stored in metadata
+        retrieved = document_store.filter_documents()
+        retrieved_by_id = {doc.id: doc for doc in retrieved}
+
+        # Check _routing is not stored for any document
+        for doc in retrieved:
+            assert "_routing" not in doc.meta
+
+        assert retrieved_by_id["1"].meta["category"] == "test"
+
+        assert retrieved_by_id["2"].meta == {}
+
+        assert retrieved_by_id["3"].meta == {}
+
+    @pytest.mark.integration
+    def test_delete_with_routing(self, document_store: OpenSearchDocumentStore):
+        """Test deleting documents with routing"""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"_routing": "user_a"}),
+            Document(id="2", content="Doc 2", meta={"_routing": "user_b"}),
+            Document(id="3", content="Doc 3"),
+        ]
+        document_store.write_documents(docs)
+
+        routing_map = {"1": "user_a", "2": "user_b"}
+        document_store.delete_documents(["1", "2"], routing=routing_map)
+
+        assert document_store.count_documents() == 1
 
     def test_query_sql(self, document_store: OpenSearchDocumentStore):
         docs = [
@@ -925,53 +904,3 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         invalid_query = "SELECT * FROM non_existent_index"
         with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
             document_store._query_sql(invalid_query)
-=======
-        unique_priorities, _ = document_store.get_metadata_field_unique_values("meta.priority", None, 10)
-        assert set(unique_priorities) == {"1", "2", "3"}
-
-        # Test with search term on integer field
-        unique_priorities_filtered, _ = document_store.get_metadata_field_unique_values("meta.priority", "Doc 1", 10)
-        assert set(unique_priorities_filtered) == {"1"}
->>>>>>> main
-
-    @pytest.mark.integration
-    def test_write_with_routing(self, document_store: OpenSearchDocumentStore):
-        """Test writing documents with routing metadata"""
-        docs = [
-            Document(id="1", content="User A doc", meta={"_routing": "user_a", "category": "test"}),
-            Document(id="2", content="User B doc", meta={"_routing": "user_b"}),
-            Document(id="3", content="No routing"),
-        ]
-
-        written = document_store.write_documents(docs)
-        assert written == 3
-        assert document_store.count_documents() == 3
-
-        # Verify _routing not stored in metadata
-        retrieved = document_store.filter_documents()
-        retrieved_by_id = {doc.id: doc for doc in retrieved}
-
-        # Check _routing is not stored for any document
-        for doc in retrieved:
-            assert "_routing" not in doc.meta
-
-        assert retrieved_by_id["1"].meta["category"] == "test"
-
-        assert retrieved_by_id["2"].meta == {}
-
-        assert retrieved_by_id["3"].meta == {}
-
-    @pytest.mark.integration
-    def test_delete_with_routing(self, document_store: OpenSearchDocumentStore):
-        """Test deleting documents with routing"""
-        docs = [
-            Document(id="1", content="Doc 1", meta={"_routing": "user_a"}),
-            Document(id="2", content="Doc 2", meta={"_routing": "user_b"}),
-            Document(id="3", content="Doc 3"),
-        ]
-        document_store.write_documents(docs)
-
-        routing_map = {"1": "user_a", "2": "user_b"}
-        document_store.delete_documents(["1", "2"], routing=routing_map)
-
-        assert document_store.count_documents() == 1
