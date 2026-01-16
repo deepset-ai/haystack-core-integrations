@@ -4,7 +4,7 @@
 
 # ruff: noqa: FBT001  Boolean-typed positional argument in function definition
 
-from typing import Any, Optional, Union
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -28,13 +28,13 @@ class OpenSearchBM25Retriever:
         self,
         *,
         document_store: OpenSearchDocumentStore,
-        filters: Optional[dict[str, Any]] = None,
-        fuzziness: Union[int, str] = "AUTO",
+        filters: dict[str, Any] | None = None,
+        fuzziness: int | str = "AUTO",
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
-        filter_policy: Union[str, FilterPolicy] = FilterPolicy.REPLACE,
-        custom_query: Optional[dict[str, Any]] = None,
+        filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
+        custom_query: dict[str, Any] | None = None,
         raise_on_failure: bool = True,
     ):
         """
@@ -158,12 +158,12 @@ class OpenSearchBM25Retriever:
         self,
         *,
         query: str,
-        filters: Optional[dict[str, Any]],
-        all_terms_must_match: Optional[bool],
-        top_k: Optional[int],
-        fuzziness: Optional[Union[str, int]],
-        scale_score: Optional[bool],
-        custom_query: Optional[dict[str, Any]],
+        filters: dict[str, Any] | None,
+        all_terms_must_match: bool | None,
+        top_k: int | None,
+        fuzziness: str | int | None,
+        scale_score: bool | None,
+        custom_query: dict[str, Any] | None,
     ) -> dict[str, Any]:
         filters = apply_filter_policy(self._filter_policy, self._filters, filters)
 
@@ -194,13 +194,13 @@ class OpenSearchBM25Retriever:
     def run(
         self,
         query: str,
-        filters: Optional[dict[str, Any]] = None,
-        all_terms_must_match: Optional[bool] = None,
-        top_k: Optional[int] = None,
-        fuzziness: Optional[Union[int, str]] = None,
-        scale_score: Optional[bool] = None,
-        custom_query: Optional[dict[str, Any]] = None,
-        document_store: Optional[OpenSearchDocumentStore] = None,
+        filters: dict[str, Any] | None = None,
+        all_terms_must_match: bool | None = None,
+        top_k: int | None = None,
+        fuzziness: int | str | None = None,
+        scale_score: bool | None = None,
+        custom_query: dict[str, Any] | None = None,
+        document_store: OpenSearchDocumentStore | None = None,
     ) -> dict[str, list[Document]]:
         """
         Retrieve documents using BM25 retrieval.
@@ -294,13 +294,13 @@ class OpenSearchBM25Retriever:
     async def run_async(  # pylint: disable=too-many-positional-arguments
         self,
         query: str,
-        filters: Optional[dict[str, Any]] = None,
-        all_terms_must_match: Optional[bool] = None,
-        top_k: Optional[int] = None,
-        fuzziness: Optional[Union[int, str]] = None,
-        scale_score: Optional[bool] = None,
-        custom_query: Optional[dict[str, Any]] = None,
-        document_store: Optional[OpenSearchDocumentStore] = None,
+        filters: dict[str, Any] | None = None,
+        all_terms_must_match: bool | None = None,
+        top_k: int | None = None,
+        fuzziness: int | str | None = None,
+        scale_score: bool | None = None,
+        custom_query: dict[str, Any] | None = None,
+        document_store: OpenSearchDocumentStore | None = None,
     ) -> dict[str, list[Document]]:
         """
         Asynchronously retrieve documents using BM25 retrieval.

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import json
 import os
 import urllib.request
@@ -678,7 +682,6 @@ class TestLlamaCppChatGenerator:
 
         model_path = str(model_path / filename)
         generator = LlamaCppChatGenerator(model=model_path, n_ctx=8192, n_batch=512)
-        generator.warm_up()
         return generator
 
     @pytest.fixture
@@ -897,14 +900,6 @@ class TestLlamaCppChatGenerator:
             model="test_model.gguf", n_ctx=8192, n_batch=512, model_kwargs={"n_batch": 1024}
         )
         assert generator.model_kwargs["n_batch"] == 1024
-
-    def test_raises_error_without_warm_up(self):
-        """
-        Test that the generator raises an error if warm_up() is not called before running.
-        """
-        generator = LlamaCppChatGenerator(model="test_model.gguf", n_ctx=512, n_batch=512)
-        with pytest.raises(RuntimeError):
-            generator.run("What is the capital of China?")
 
     def test_run_with_empty_message(self, generator_mock):
         """
@@ -1179,7 +1174,6 @@ class TestLlamaCppChatGeneratorFunctionary:
                 "hf_tokenizer_path": hf_tokenizer_path,
             },
         )
-        generator.warm_up()
         return generator
 
     @pytest.mark.integration
@@ -1260,7 +1254,6 @@ class TestLlamaCppChatGeneratorChatML:
                 "chat_format": "chatml-function-calling",
             },
         )
-        generator.warm_up()
         return generator
 
     @pytest.mark.integration
@@ -1325,8 +1318,6 @@ class TestLlamaCppChatGeneratorChatML:
             n_ctx=2048,
             generation_kwargs={"max_tokens": 50, "temperature": 0.1},
         )
-
-        generator.warm_up()
 
         result = generator.run(messages)
 

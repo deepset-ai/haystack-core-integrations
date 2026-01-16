@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/anthropic-v5.1.1] - 2026-01-15
+
+### 🐛 Bug Fixes
+
+- None value handling of flattened generation kwargs for AnthropicChatGenerator (#2753)
+
+
+## [integrations/anthropic-v5.1.0] - 2026-01-13
+
+### 🚀 Features
+
+- Support flattened generation_kwargs with AnthropicChatGenerator (#2740)
+
+
 ## [integrations/anthropic-v5.0.0] - 2026-01-09
 
 ### 🧹 Chores

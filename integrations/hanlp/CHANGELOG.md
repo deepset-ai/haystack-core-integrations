@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/hanlp-v2.1.0] - 2026-01-14
+
+### 🚀 Features
+
+- Update hanlp components to auto call run `warm_up` (#2749)
+
+
 ## [integrations/hanlp-v2.0.0] - 2026-01-12
 
 ### 🐛 Bug Fixes

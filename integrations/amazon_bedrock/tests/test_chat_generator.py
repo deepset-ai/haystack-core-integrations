@@ -409,6 +409,69 @@ class TestAmazonBedrockChatGenerator:
             ]
         }
 
+    @pytest.mark.parametrize(
+        "generation_kwargs,additional_model_request_fields",
+        [
+            (
+                {
+                    "parallel_tool_use": False,
+                    "tool_choice_type": "any",
+                    "thinking_budget_tokens": 1024,
+                },
+                {
+                    "tool_choice": {"disable_parallel_tool_use": True, "type": "any"},
+                    "thinking": {"budget_tokens": 1024, "type": "enabled"},
+                },
+            ),
+            (
+                {
+                    "parallel_tool_use": True,
+                    "tool_choice_type": "all",
+                },
+                {
+                    "tool_choice": {"disable_parallel_tool_use": False, "type": "all"},
+                },
+            ),
+            (
+                {
+                    "parallel_tool_use": True,
+                },
+                {
+                    "tool_choice": {"disable_parallel_tool_use": False, "type": "auto"},
+                },
+            ),
+            (
+                {
+                    "disable_parallel_tool_use": True,
+                },
+                {
+                    "tool_choice": {"disable_parallel_tool_use": True, "type": "auto"},
+                },
+            ),
+            (
+                {
+                    "thinking_budget_tokens": None,
+                    "parallel_tool_use": None,
+                    "tool_choice_type": None,
+                },
+                {},
+            ),
+        ],
+    )
+    def test_prepare_request_params_with_flattened_generation_kwargs(
+        self, mock_boto3_session, set_env_variables, generation_kwargs, additional_model_request_fields
+    ):
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+        request_params, _ = generator._prepare_request_params(
+            messages=[ChatMessage.from_user("What's the capital of France?")],
+            generation_kwargs=generation_kwargs,
+        )
+
+        if not additional_model_request_fields:
+            assert "additionalModelRequestFields" not in request_params
+        else:
+            assert request_params["additionalModelRequestFields"] == additional_model_request_fields
+
 
 # In the CI, those tests are skipped if AWS Authentication fails
 @pytest.mark.integration
