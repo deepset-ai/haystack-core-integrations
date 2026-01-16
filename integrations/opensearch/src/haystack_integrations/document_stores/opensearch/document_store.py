@@ -1322,17 +1322,21 @@ class OpenSearchDocumentStore:
 
         If we populated the index with documents like:
 
+        ```python
             Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1})
             Document(content="Doc 2", meta={"category": "B", "status": "inactive"})
+        ```
 
         This method would return:
 
+        ```python
             {
                 'content': {'type': 'text'},
                 'category': {'type': 'keyword'},
                 'status': {'type': 'keyword'},
                 'priority': {'type': 'long'},
             }
+        ```
 
         :returns: The information about the fields in the index.
         """
