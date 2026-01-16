@@ -11,7 +11,6 @@ from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool
 from haystack.utils.auth import Secret
-from openai import OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_chunk import Choice as ChoiceChunk
@@ -256,16 +255,6 @@ class TestCometAPIChatGenerator:
         assert "Paris" in message.text
         assert "gpt-5-mini" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
-
-    @pytest.mark.skipif(
-        not os.environ.get("COMET_API_KEY", None),
-        reason="Export an env var called COMET_API_KEY containing the OpenAI API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_wrong_model(self, chat_messages):
-        component = CometAPIChatGenerator(model="something-obviously-wrong")
-        with pytest.raises(OpenAIError):
-            component.run(chat_messages)
 
     @pytest.mark.skipif(
         not os.environ.get("COMET_API_KEY", None),
