@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/opensearch-v6.1.2] - 2026-01-16
+
+### 🐛 Bug Fixes
+
+- Docs: fixing docstring in `OpenSearchDocumentStore` (#2758)
+
+
 ## [integrations/opensearch-v6.1.1] - 2026-01-16
 
 ### 🐛 Bug Fixes
