@@ -1924,8 +1924,12 @@ class PgvectorDocumentStore:
 
         params: tuple = ()
         if search_term:
-            sql_where += SQL(" AND content ILIKE %s")
-            params = (f"%{search_term}%",)
+            # Use full-text search with word boundaries (similar to keyword retrieval)
+            # This matches OpenSearch's match_phrase behavior more closely
+            sql_where += SQL(" AND to_tsvector({language}, content) @@ plainto_tsquery({language}, %s)").format(
+                language=SQLLiteral(self.language)
+            )
+            params = (search_term,)
 
         # Get total count first
         sql_count = SQL("SELECT COUNT(DISTINCT meta->>{} ) AS total").format(field_literal)
@@ -1991,8 +1995,12 @@ class PgvectorDocumentStore:
 
         params: tuple = ()
         if search_term:
-            sql_where += SQL(" AND content ILIKE %s")
-            params = (f"%{search_term}%",)
+            # Use full-text search with word boundaries (similar to keyword retrieval)
+            # This matches OpenSearch's match_phrase behavior more closely
+            sql_where += SQL(" AND to_tsvector({language}, content) @@ plainto_tsquery({language}, %s)").format(
+                language=SQLLiteral(self.language)
+            )
+            params = (search_term,)
 
         # Get total count first
         sql_count = SQL("SELECT COUNT(DISTINCT meta->>{} ) AS total").format(field_literal)
