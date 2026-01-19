@@ -142,7 +142,7 @@ class AzureDocumentIntelligenceConverter:
             try:
                 analyze_request = AnalyzeDocumentRequest(bytes_source=bytestream.data)
 
-                poller = self.client.begin_analyze_document(
+                poller = self.client.begin_analyze_document(  # type: ignore[union-attr]
                     model_id=self.model_id,
                     body=analyze_request,
                     output_content_format=DocumentContentFormat.MARKDOWN,
