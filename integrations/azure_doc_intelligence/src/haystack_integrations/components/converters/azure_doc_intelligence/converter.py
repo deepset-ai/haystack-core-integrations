@@ -126,8 +126,7 @@ class AzureDocumentIntelligenceConverter:
             - `raw_azure_response`: List of raw Azure responses used to create the Documents
         """
         if self.client is None:
-            msg = "The component has not been warmed up. Please call warm_up() before running."
-            raise RuntimeError(msg)
+            self.warm_up()
 
         documents = []
         azure_responses = []

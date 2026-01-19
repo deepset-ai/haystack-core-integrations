@@ -112,8 +112,6 @@ class TestAzureDocumentIntelligenceConverterIntegration:
             endpoint=os.environ["AZURE_DI_ENDPOINT"],
             api_key=Secret.from_env_var("AZURE_DI_API_KEY"),
         )
-        converter.warm_up()
-
         results = converter.run(sources=[test_files_path / "pdf" / "sample_pdf_1.pdf"])
 
         assert "documents" in results
@@ -130,8 +128,6 @@ class TestAzureDocumentIntelligenceConverterIntegration:
             api_key=Secret.from_env_var("AZURE_DI_API_KEY"),
             store_full_path=False,
         )
-        converter.warm_up()
-
         results = converter.run(
             sources=[test_files_path / "pdf" / "sample_pdf_1.pdf"],
             meta={"custom_key": "custom_value"},
@@ -149,8 +145,6 @@ class TestAzureDocumentIntelligenceConverterIntegration:
             endpoint=os.environ["AZURE_DI_ENDPOINT"],
             api_key=Secret.from_env_var("AZURE_DI_API_KEY"),
         )
-        converter.warm_up()
-
         results = converter.run(
             sources=[
                 test_files_path / "pdf" / "sample_pdf_1.pdf",
@@ -170,8 +164,6 @@ class TestAzureDocumentIntelligenceConverterIntegration:
             api_key=Secret.from_env_var("AZURE_DI_API_KEY"),
             model_id="prebuilt-layout",
         )
-        converter.warm_up()
-
         results = converter.run(sources=[test_files_path / "pdf" / "sample_pdf_1.pdf"])
 
         assert "documents" in results
@@ -186,8 +178,6 @@ class TestAzureDocumentIntelligenceConverterIntegration:
             endpoint=os.environ["AZURE_DI_ENDPOINT"],
             api_key=Secret.from_env_var("AZURE_DI_API_KEY"),
         )
-        converter.warm_up()
-
         results = converter.run(sources=[test_files_path / "images" / "sample_text.jpg"])
 
         assert "documents" in results
@@ -205,8 +195,6 @@ class TestAzureDocumentIntelligenceConverterIntegration:
             endpoint=os.environ["AZURE_DI_ENDPOINT"],
             api_key=Secret.from_env_var("AZURE_DI_API_KEY"),
         )
-        converter.warm_up()
-
         results = converter.run(sources=[test_files_path / "docx" / "sample.docx"])
 
         assert "documents" in results
