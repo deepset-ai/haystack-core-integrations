@@ -903,3 +903,47 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             assert doc.meta["status"] == "published"
             assert "index" in doc.meta
             assert 0 <= doc.meta["index"] < 250
+
+    def test_count_documents_by_filter(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "TypeA"}),
+            Document(content="Doc 2", meta={"category": "TypeB"}),
+            Document(content="Doc 3", meta={"category": "TypeA"}),
+            Document(content="Doc 4", meta={"category": "TypeA"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 4
+
+        count = document_store.count_documents_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "TypeA"}
+        )
+        assert count == 3
+
+        count = document_store.count_documents_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "TypeB"}
+        )
+        assert count == 1
+
+        count = document_store.count_documents_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "TypeC"}
+        )
+        assert count == 0
+
+    def test_get_metadata_fields_info(self, document_store):
+        fields_info = document_store.get_metadata_fields_info()
+
+        # Verify special fields are excluded
+        assert "_original_id" not in fields_info
+        assert "content" not in fields_info
+        assert "blob_data" not in fields_info
+        assert "blob_mime_type" not in fields_info
+        assert "score" not in fields_info
+
+        assert "number" in fields_info
+        assert fields_info["number"]["type"] == "int"
+        assert "date" in fields_info
+        assert fields_info["date"]["type"] == "date"
+        assert "category" in fields_info
+        assert fields_info["category"]["type"] == "text"
+        assert "status" in fields_info
+        assert fields_info["status"]["type"] == "text"

@@ -326,6 +326,74 @@ class WeaviateDocumentStore:
         total = self.collection.aggregate.over_all(total_count=True).total_count
         return total if total else 0
 
+    def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Returns the number of documents that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see
+            [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+        :returns: The number of documents that match the filters.
+        """
+        validate_filters(filters)
+        weaviate_filter = convert_filters(filters)
+        total = self.collection.aggregate.over_all(filters=weaviate_filter, total_count=True).total_count
+        return total if total else 0
+
+    async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously returns the number of documents that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see
+            [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+        :returns: The number of documents that match the filters.
+        """
+        validate_filters(filters)
+        collection = await self.async_collection
+        weaviate_filter = convert_filters(filters)
+        result = await collection.aggregate.over_all(filters=weaviate_filter, total_count=True)
+        return result.total_count if result.total_count else 0
+
+    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
+        """
+        Returns metadata field names and their types, excluding special fields.
+
+        Special fields (content, blob_data, blob_mime_type, _original_id, score) are excluded
+        as they are not user metadata fields.
+
+        :returns: A dictionary where keys are field names and values are dictionaries
+            containing type information, e.g., {"category": {"type": "text"}}.
+        """
+        config = self.collection.config.get()
+        special_fields = {prop["name"] for prop in DOCUMENT_COLLECTION_PROPERTIES}
+        fields_info = {}
+        for prop in config.properties:
+            if prop.name not in special_fields:
+                data_type = str(prop.data_type.value) if hasattr(prop.data_type, "value") else str(prop.data_type)
+                fields_info[prop.name] = {"type": data_type}
+        return fields_info
+
+    async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
+        """
+        Asynchronously returns metadata field names and their types, excluding special fields.
+
+        Special fields (content, blob_data, blob_mime_type, _original_id, score) are excluded
+        as they are not user metadata fields.
+
+        :returns: A dictionary where keys are field names and values are dictionaries
+            containing type information, e.g., {"category": {"type": "text"}}.
+        """
+        collection = await self.async_collection
+        config = await collection.config.get()
+        special_fields = {prop["name"] for prop in DOCUMENT_COLLECTION_PROPERTIES}
+        fields_info = {}
+        for prop in config.properties:
+            if prop.name not in special_fields:
+                data_type = str(prop.data_type.value) if hasattr(prop.data_type, "value") else str(prop.data_type)
+                fields_info[prop.name] = {"type": data_type}
+        return fields_info
+
     @staticmethod
     def _to_data_object(document: Document) -> dict[str, Any]:
         """
