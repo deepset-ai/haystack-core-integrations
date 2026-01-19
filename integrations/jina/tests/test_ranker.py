@@ -105,6 +105,32 @@ class TestJinaRanker:
             assert doc.score == len(ranked_documents) - i
         assert metadata == {"model": model, "usage": {"prompt_tokens": 4, "total_tokens": 4}}
 
+    def test_run_does_not_modify_original_documents(self):
+        docs = [
+            Document(content="I love cheese"),
+            Document(content="A transformer is a deep learning architecture"),
+            Document(content="A transformer is something"),
+            Document(content="A transformer is not good"),
+        ]
+        query = "What is a transformer?"
+
+        model = "jina-ranker"
+        with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
+            ranker = JinaRanker(
+                api_key=Secret.from_token("fake-api-key"),
+                model=model,
+            )
+
+            result = ranker.run(query=query, documents=docs)
+
+        # originals remain unchanged
+        for doc in docs:
+            assert doc.score is None
+
+        # returned docs carry scores
+        for doc in result["documents"]:
+            assert doc.score is not None
+
     def test_run_wrong_input_format(self):
         ranker = JinaRanker(api_key=Secret.from_token("fake-api-key"))
 

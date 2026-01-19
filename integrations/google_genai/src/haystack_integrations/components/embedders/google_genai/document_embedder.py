@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from dataclasses import replace
 from typing import Any, Literal
 
 from google.genai import types
@@ -281,10 +282,11 @@ class GoogleGenAIDocumentEmbedder:
         meta: dict[str, Any]
         embeddings, meta = self._embed_batch(texts_to_embed=texts_to_embed, batch_size=self._batch_size)
 
+        new_documents = []
         for doc, emb in zip(documents, embeddings, strict=True):
-            doc.embedding = emb
+            new_documents.append(replace(doc, embedding=emb))
 
-        return {"documents": documents, "meta": meta}
+        return {"documents": new_documents, "meta": meta}
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
     async def run_async(self, documents: list[Document]) -> dict[str, list[Document]] | dict[str, Any]:
@@ -310,7 +312,8 @@ class GoogleGenAIDocumentEmbedder:
 
         embeddings, meta = await self._embed_batch_async(texts_to_embed=texts_to_embed, batch_size=self._batch_size)
 
+        new_documents = []
         for doc, emb in zip(documents, embeddings, strict=True):
-            doc.embedding = emb
+            new_documents.append(replace(doc, embedding=emb))
 
-        return {"documents": documents, "meta": meta}
+        return {"documents": new_documents, "meta": meta}

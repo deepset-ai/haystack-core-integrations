@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/opensearch-v6.2.0] - 2026-01-19
+
+### 🚀 Features
+
+- Updating `opensearch-py` dependency (#2763)
+
+
 ## [integrations/opensearch-v6.1.2] - 2026-01-16
 
 ### 🐛 Bug Fixes

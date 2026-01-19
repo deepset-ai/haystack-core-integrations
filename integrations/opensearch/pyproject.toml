@@ -25,7 +25,7 @@ classifiers = [
 
 dependencies = [
   "haystack-ai>=2.22.0",
-  "opensearch-py[async]>=2.4.0,<3",
+  "opensearch-py[async]>=3.0.0",
   "httpx>=0.28.1"
 ]
 
