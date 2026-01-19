@@ -20,7 +20,7 @@ class TestAzureDocumentIntelligenceConverter:
         )
 
         assert converter.endpoint == "https://test.cognitiveservices.azure.com/"
-        assert converter.model_id == "prebuilt-read"
+        assert converter.model_id == "prebuilt-document"
         assert converter.store_full_path is False
 
     def test_init_custom_params(self):
@@ -40,7 +40,7 @@ class TestAzureDocumentIntelligenceConverter:
         """Test serialization with Secret handling"""
         converter = AzureDocumentIntelligenceConverter(
             endpoint="https://test.cognitiveservices.azure.com/",
-            api_key=Secret.from_env_var("AZURE_AI_API_KEY"),
+            api_key=Secret.from_env_var("AZURE_DI_API_KEY"),
             model_id="prebuilt-layout",
             store_full_path=True,
         )
@@ -54,7 +54,7 @@ class TestAzureDocumentIntelligenceConverter:
         assert data == {
             "type": expected_type,
             "init_parameters": {
-                "api_key": {"type": "env_var", "env_vars": ["AZURE_AI_API_KEY"], "strict": True},
+                "api_key": {"type": "env_var", "env_vars": ["AZURE_DI_API_KEY"], "strict": True},
                 "endpoint": "https://test.cognitiveservices.azure.com/",
                 "model_id": "prebuilt-layout",
                 "store_full_path": True,
@@ -65,13 +65,13 @@ class TestAzureDocumentIntelligenceConverter:
         """Test serialization with default parameters"""
         converter = AzureDocumentIntelligenceConverter(
             endpoint="https://test.cognitiveservices.azure.com/",
-            api_key=Secret.from_env_var("AZURE_AI_API_KEY"),
+            api_key=Secret.from_env_var("AZURE_DI_API_KEY"),
         )
 
         data = converter.to_dict()
 
         assert data["init_parameters"]["endpoint"] == "https://test.cognitiveservices.azure.com/"
-        assert data["init_parameters"]["model_id"] == "prebuilt-read"
+        assert data["init_parameters"]["model_id"] == "prebuilt-document"
         assert data["init_parameters"]["store_full_path"] is False
 
     def test_from_dict(self):
@@ -83,7 +83,7 @@ class TestAzureDocumentIntelligenceConverter:
         data = {
             "type": expected_type,
             "init_parameters": {
-                "api_key": {"type": "env_var", "env_vars": ["AZURE_AI_API_KEY"], "strict": True},
+                "api_key": {"type": "env_var", "env_vars": ["AZURE_DI_API_KEY"], "strict": True},
                 "endpoint": "https://test.cognitiveservices.azure.com/",
                 "model_id": "prebuilt-layout",
                 "store_full_path": False,
@@ -105,30 +105,32 @@ class TestAzureDocumentIntelligenceConverterIntegration:
         return Path(__file__).parent / "test_files"
 
     @pytest.mark.skipif(not os.environ.get("AZURE_DI_ENDPOINT"), reason="Azure endpoint not available")
-    @pytest.mark.skipif(not os.environ.get("AZURE_AI_API_KEY"), reason="Azure credentials not available")
+    @pytest.mark.skipif(not os.environ.get("AZURE_DI_API_KEY"), reason="Azure credentials not available")
     def test_run_markdown_output(self, test_files_path):
         """Integration test with real Azure API - markdown mode"""
         converter = AzureDocumentIntelligenceConverter(
             endpoint=os.environ["AZURE_DI_ENDPOINT"],
-            api_key=Secret.from_env_var("AZURE_AI_API_KEY"),
+            api_key=Secret.from_env_var("AZURE_DI_API_KEY"),
         )
+        converter.warm_up()
 
         results = converter.run(sources=[test_files_path / "pdf" / "sample_pdf_1.pdf"])
 
         assert "documents" in results
         assert len(results["documents"]) == 1
         assert len(results["documents"][0].content) > 0
-        assert results["documents"][0].meta["model_id"] == "prebuilt-read"
+        assert results["documents"][0].meta["model_id"] == "prebuilt-document"
 
     @pytest.mark.skipif(not os.environ.get("AZURE_DI_ENDPOINT"), reason="Azure endpoint not available")
-    @pytest.mark.skipif(not os.environ.get("AZURE_AI_API_KEY"), reason="Azure credentials not available")
+    @pytest.mark.skipif(not os.environ.get("AZURE_DI_API_KEY"), reason="Azure credentials not available")
     def test_run_with_metadata(self, test_files_path):
         """Integration test - verify metadata handling"""
         converter = AzureDocumentIntelligenceConverter(
             endpoint=os.environ["AZURE_DI_ENDPOINT"],
-            api_key=Secret.from_env_var("AZURE_AI_API_KEY"),
+            api_key=Secret.from_env_var("AZURE_DI_API_KEY"),
             store_full_path=False,
         )
+        converter.warm_up()
 
         results = converter.run(
             sources=[test_files_path / "pdf" / "sample_pdf_1.pdf"],
@@ -140,13 +142,14 @@ class TestAzureDocumentIntelligenceConverterIntegration:
         assert doc.meta["file_path"] == "sample_pdf_1.pdf"
 
     @pytest.mark.skipif(not os.environ.get("AZURE_DI_ENDPOINT"), reason="Azure endpoint not available")
-    @pytest.mark.skipif(not os.environ.get("AZURE_AI_API_KEY"), reason="Azure credentials not available")
+    @pytest.mark.skipif(not os.environ.get("AZURE_DI_API_KEY"), reason="Azure credentials not available")
     def test_run_with_multiple_files(self, test_files_path):
         """Integration test - process multiple files"""
         converter = AzureDocumentIntelligenceConverter(
             endpoint=os.environ["AZURE_DI_ENDPOINT"],
-            api_key=Secret.from_env_var("AZURE_AI_API_KEY"),
+            api_key=Secret.from_env_var("AZURE_DI_API_KEY"),
         )
+        converter.warm_up()
 
         results = converter.run(
             sources=[
@@ -159,14 +162,15 @@ class TestAzureDocumentIntelligenceConverterIntegration:
         assert len(results["documents"]) == 2
 
     @pytest.mark.skipif(not os.environ.get("AZURE_DI_ENDPOINT"), reason="Azure endpoint not available")
-    @pytest.mark.skipif(not os.environ.get("AZURE_AI_API_KEY"), reason="Azure credentials not available")
+    @pytest.mark.skipif(not os.environ.get("AZURE_DI_API_KEY"), reason="Azure credentials not available")
     def test_run_with_prebuilt_layout(self, test_files_path):
         """Integration test with prebuilt-layout model for better table detection"""
         converter = AzureDocumentIntelligenceConverter(
             endpoint=os.environ["AZURE_DI_ENDPOINT"],
-            api_key=Secret.from_env_var("AZURE_AI_API_KEY"),
+            api_key=Secret.from_env_var("AZURE_DI_API_KEY"),
             model_id="prebuilt-layout",
         )
+        converter.warm_up()
 
         results = converter.run(sources=[test_files_path / "pdf" / "sample_pdf_1.pdf"])
 
@@ -175,13 +179,14 @@ class TestAzureDocumentIntelligenceConverterIntegration:
         assert results["documents"][0].meta["model_id"] == "prebuilt-layout"
 
     @pytest.mark.skipif(not os.environ.get("AZURE_DI_ENDPOINT"), reason="Azure endpoint not available")
-    @pytest.mark.skipif(not os.environ.get("AZURE_AI_API_KEY"), reason="Azure credentials not available")
+    @pytest.mark.skipif(not os.environ.get("AZURE_DI_API_KEY"), reason="Azure credentials not available")
     def test_run_with_jpg_image(self, test_files_path):
         """Integration test - convert JPG image with text"""
         converter = AzureDocumentIntelligenceConverter(
             endpoint=os.environ["AZURE_DI_ENDPOINT"],
-            api_key=Secret.from_env_var("AZURE_AI_API_KEY"),
+            api_key=Secret.from_env_var("AZURE_DI_API_KEY"),
         )
+        converter.warm_up()
 
         results = converter.run(sources=[test_files_path / "images" / "sample_text.jpg"])
 
@@ -193,13 +198,14 @@ class TestAzureDocumentIntelligenceConverterIntegration:
         assert "Sample" in doc.content or "OCR" in doc.content or "Azure" in doc.content
 
     @pytest.mark.skipif(not os.environ.get("AZURE_DI_ENDPOINT"), reason="Azure endpoint not available")
-    @pytest.mark.skipif(not os.environ.get("AZURE_AI_API_KEY"), reason="Azure credentials not available")
+    @pytest.mark.skipif(not os.environ.get("AZURE_DI_API_KEY"), reason="Azure credentials not available")
     def test_run_with_docx(self, test_files_path):
         """Integration test - convert DOCX document"""
         converter = AzureDocumentIntelligenceConverter(
             endpoint=os.environ["AZURE_DI_ENDPOINT"],
-            api_key=Secret.from_env_var("AZURE_AI_API_KEY"),
+            api_key=Secret.from_env_var("AZURE_DI_API_KEY"),
         )
+        converter.warm_up()
 
         results = converter.run(sources=[test_files_path / "docx" / "sample.docx"])
 

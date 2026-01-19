@@ -49,7 +49,7 @@ class AzureDocumentIntelligenceConverter:
 
     converter = AzureDocumentIntelligenceConverter(
         endpoint=os.environ["AZURE_DI_ENDPOINT"],
-        api_key=Secret.from_env_var("AZURE_AI_API_KEY"),
+        api_key=Secret.from_env_var("AZURE_DI_API_KEY"),
     )
 
     results = converter.run(sources=["invoice.pdf", "contract.docx"])
@@ -64,8 +64,8 @@ class AzureDocumentIntelligenceConverter:
         self,
         endpoint: str,
         *,
-        api_key: Secret = Secret.from_env_var("AZURE_AI_API_KEY"),
-        model_id: str = "prebuilt-read",
+        api_key: Secret = Secret.from_env_var("AZURE_DI_API_KEY"),
+        model_id: str = "prebuilt-document",
         store_full_path: bool = False,
     ):
         """
@@ -76,24 +76,31 @@ class AzureDocumentIntelligenceConverter:
             Example: "https://YOUR_RESOURCE.cognitiveservices.azure.com/"
         :param api_key:
             API key for Azure authentication. Can use Secret.from_env_var()
-            to load from AZURE_AI_API_KEY environment variable.
+            to load from AZURE_DI_API_KEY environment variable.
         :param model_id:
             Azure model to use for analysis. Options:
-            - "prebuilt-read": Fast OCR for text extraction (default)
+            - "prebuilt-document": General document analysis (default)
+            - "prebuilt-read": Fast OCR for text extraction
             - "prebuilt-layout": Enhanced layout analysis with better table/structure detection
-            - "prebuilt-document": General document analysis
             - Custom model IDs from your Azure resource
         :param store_full_path:
             If True, stores complete file path in metadata.
             If False, stores only the filename (default).
         """
-        self.client = DocumentIntelligenceClient(
-            endpoint=endpoint, credential=AzureKeyCredential(api_key.resolve_value() or "")
-        )
         self.endpoint = endpoint
         self.api_key = api_key
         self.model_id = model_id
         self.store_full_path = store_full_path
+        self.client: DocumentIntelligenceClient | None = None
+
+    def warm_up(self):
+        """
+        Initializes the Azure Document Intelligence client.
+        """
+        if self.client is None:
+            self.client = DocumentIntelligenceClient(
+                endpoint=self.endpoint, credential=AzureKeyCredential(self.api_key.resolve_value() or "")
+            )
 
     @component.output_types(documents=list[Document], raw_azure_response=list[dict])
     def run(
@@ -118,6 +125,10 @@ class AzureDocumentIntelligenceConverter:
             - `documents`: List of created Documents
             - `raw_azure_response`: List of raw Azure responses used to create the Documents
         """
+        if self.client is None:
+            msg = "The component has not been warmed up. Please call warm_up() before running."
+            raise RuntimeError(msg)
+
         documents = []
         azure_responses = []
         meta_list: list[dict[str, Any]] = normalize_metadata(meta=meta, sources_count=len(sources))
