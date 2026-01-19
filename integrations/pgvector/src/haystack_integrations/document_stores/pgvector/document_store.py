@@ -1791,7 +1791,7 @@ class PgvectorDocumentStore:
                     WHEN meta->>{} ~ '^[0-9]+\\.[0-9]+$' THEN (meta->>{} )::real
                     ELSE NULL
                 END) AS max_value
-            FROM {schema_name}.{table_name}
+            FROM {}.{}
             WHERE meta->>{} IS NOT NULL
             """ # noqa: W291
         ).format(
@@ -1803,8 +1803,9 @@ class PgvectorDocumentStore:
             field_literal,
             field_literal,
             field_literal,
-            schema_name=Identifier(self.schema_name),
-            table_name=Identifier(self.table_name),
+            Identifier(self.schema_name),
+            Identifier(self.table_name),
+            field_literal,
         )
 
         self._ensure_db_setup()
@@ -1853,7 +1854,7 @@ class PgvectorDocumentStore:
                     WHEN meta->>{} ~ '^[0-9]+\\.[0-9]+$' THEN (meta->>{} )::real
                     ELSE NULL
                 END) AS max_value
-            FROM {schema_name}.{table_name}
+            FROM {}.{}
             WHERE meta->>{} IS NOT NULL
             """ # noqa: W291
         ).format(
@@ -1865,8 +1866,9 @@ class PgvectorDocumentStore:
             field_literal,
             field_literal,
             field_literal,
-            schema_name=Identifier(self.schema_name),
-            table_name=Identifier(self.table_name),
+            Identifier(self.schema_name),
+            Identifier(self.table_name),
+            field_literal,
         )
 
         await self._ensure_db_setup_async()
