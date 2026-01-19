@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/cometapi-v2.0.1] - 2026-01-19
+
+### 🐛 Bug Fixes
+
+- `CometAPIChatGenerator` - handle `delta` set to `None` (#2759)
+
+
 ## [integrations/cometapi-v2.0.0] - 2026-01-09
 
 ### 🧹 Chores

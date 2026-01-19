@@ -204,6 +204,29 @@ class TestJinaDocumentEmbedder:
             assert all(isinstance(x, float) for x in doc.embedding)
         assert metadata == {"model": model, "usage": {"prompt_tokens": 4, "total_tokens": 4}}
 
+    def test_run_does_not_modify_original_documents(self):
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        model = "jina-embeddings-v2-base-en"
+        with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
+            embedder = JinaDocumentEmbedder(
+                api_key=Secret.from_token("fake-api-key"),
+                model=model,
+            )
+
+            result = embedder.run(documents=docs)
+
+        # originals remain unchanged
+        for doc in docs:
+            assert doc.embedding is None
+
+        # returned docs carry embeddings
+        for doc_with_embedding in result["documents"]:
+            assert doc_with_embedding.embedding is not None
+
     def test_run_custom_batch_size(self):
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
