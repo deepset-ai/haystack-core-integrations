@@ -28,6 +28,8 @@ from anthropic.types import (
 from anthropic.types.raw_message_delta_event import Delta
 from haystack import Pipeline
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, print_streaming_chunk
+from haystack import component
+from haystack.components.agents import Agent
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
@@ -36,8 +38,9 @@ from haystack.dataclasses import (
     StreamingChunk,
     ToolCall,
     ToolCallDelta,
+    TextContent,
 )
-from haystack.tools import Tool, Toolset
+from haystack.tools import Tool, Toolset, ComponentTool
 from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.anthropic.chat.chat_generator import (
@@ -2164,6 +2167,67 @@ class TestAnthropicChatGenerator:
         if streaming_callback:
             streaming_callback.assert_called()
 
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic token to run this test.",
+    )
+    def test_live_run_multimodal(self, test_files_path):
+        """Integration test for multimodal functionality with real API."""
+        image_path = test_files_path / "apple.jpg"
+        # Resize the image to keep this test fast
+        image_content = ImageContent.from_file_path(file_path=image_path, size=(100, 100))
+        messages = [ChatMessage.from_user(content_parts=["What does this image show? Max 5 words", image_content])]
+
+        generator = AnthropicChatGenerator(generation_kwargs={"max_tokens": 20})
+        response = generator.run(messages=messages)
+
+        assert "replies" in response
+        assert isinstance(response["replies"], list)
+        assert len(response["replies"]) > 0
+        message = response["replies"][0]
+        assert message.text
+        assert len(message.text) > 0
+        assert any(word in message.text.lower() for word in ["apple", "fruit", "red"])
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic token to run this test.",
+    )
+    def test_live_run_tool_returning_image(self):
+        @component
+        class ImageRetriever:
+            @component.output_types(images=list[ImageContent])
+            def run(self):
+                return {
+                    "images": [ImageContent.from_file_path("tests/test_files/apple.jpg")]
+                }
+
+        def handler(result):
+            return [
+                TextContent("The name of this photo is: A good fruit."),
+                result["images"][0],
+            ]
+
+        tool = ComponentTool(
+            component=ImageRetriever(),
+            name="retrieve_image",
+            description="Retrieves an image.",
+            outputs_to_result={"handler": handler},
+        )
+
+        agent = Agent(
+            chat_generator=AnthropicChatGenerator(model="claude-haiku-4-5"),
+            tools=[tool],
+            system_prompt="You are a helpful assistant that can retrieve images and describe them.",
+        )
+
+        result = agent.run(
+            messages=[ChatMessage.from_user("retrieve image and describe it in max 5 words")]
+        )
+
+        assert "apple" in result["last_message"].text.lower()
 
 class TestAnthropicChatGeneratorAsync:
     @pytest.fixture
@@ -2341,25 +2405,3 @@ class TestAnthropicChatGeneratorAsync:
         assert "paris" in final_message.text.lower()
         assert "completion_tokens" in final_message.meta["usage"]
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic token to run this test.",
-    )
-    def test_live_run_multimodal(self, test_files_path):
-        """Integration test for multimodal functionality with real API."""
-        image_path = test_files_path / "apple.jpg"
-        # Resize the image to keep this test fast
-        image_content = ImageContent.from_file_path(file_path=image_path, size=(100, 100))
-        messages = [ChatMessage.from_user(content_parts=["What does this image show? Max 5 words", image_content])]
-
-        generator = AnthropicChatGenerator(generation_kwargs={"max_tokens": 20})
-        response = generator.run(messages=messages)
-
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) > 0
-        message = response["replies"][0]
-        assert message.text
-        assert len(message.text) > 0
-        assert any(word in message.text.lower() for word in ["apple", "fruit", "red"])
