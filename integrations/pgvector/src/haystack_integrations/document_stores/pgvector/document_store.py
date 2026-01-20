@@ -1899,6 +1899,63 @@ class PgvectorDocumentStore:
 
         return {"min": min_value, "max": max_value}
 
+    def _build_unique_values_queries(
+        self, normalized_field: str, search_term: str | None, from_: int, size: int
+    ) -> tuple[Composed, Composed, tuple]:
+        """
+        Builds SQL queries for getting unique metadata field values.
+
+        :param normalized_field: The normalized metadata field name.
+        :param search_term: Optional search term to filter documents by content.
+        :param from_: The offset for pagination (0-based).
+        :param size: The number of unique values to return.
+        :returns: A tuple containing (count_query, select_query, params).
+        """
+        field_literal = SQLLiteral(normalized_field)
+
+        # base query components
+        sql_select = SQL("SELECT DISTINCT meta->>{} AS value").format(field_literal)
+        sql_from = SQL(" FROM {schema_name}.{table_name}").format(
+            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
+        )
+        sql_where = SQL(" WHERE meta->>{} IS NOT NULL").format(field_literal)
+
+        params: tuple = ()
+        if search_term:
+            # Use full-text search with word boundaries (similar to keyword retrieval)
+            sql_where += SQL(" AND to_tsvector({language}, content) @@ plainto_tsquery({language}, %s)").format(
+                language=SQLLiteral(self.language)
+            )
+            params = (search_term,)
+
+        # count query
+        sql_count = SQL("SELECT COUNT(DISTINCT meta->>{} ) AS total").format(field_literal)
+        sql_count += sql_from + sql_where
+
+        # paginated select query
+        sql_query = sql_select + sql_from + sql_where
+        sql_query += SQL(" ORDER BY value LIMIT {size} OFFSET {from_}").format(
+            size=SQLLiteral(size), from_=SQLLiteral(from_)
+        )
+
+        return sql_count, sql_query, params
+
+    @staticmethod
+    def _process_unique_values_result(
+        count_result: dict[str, Any] | None,
+        records: list[dict[str, Any]]
+    ) -> tuple[list[str], int]:
+        """
+        Processes the results from unique values queries.
+
+        :param count_result: The count query result row, or None if no results.
+        :param records: The list of records from the select query.
+        :returns: A tuple containing (unique_values, total_count).
+        """
+        total_count = count_result.get("total", 0) if count_result else 0
+        unique_values = [str(record.get("value", "")) for record in records if record.get("value") is not None]
+        return unique_values, total_count
+
     def get_metadata_field_unique_values(
         self, metadata_field: str, search_term: str | None, from_: int, size: int
     ) -> tuple[list[str], int]:
@@ -1915,30 +1972,7 @@ class PgvectorDocumentStore:
             - The total count of unique values
         """
         normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
-
-        # Field name is validated, so it's safe to use SQLLiteral
-        field_literal = SQLLiteral(normalized_field)
-
-        # Build the base query
-        sql_select = SQL("SELECT DISTINCT meta->>{} AS value").format(field_literal)
-        sql_from = SQL(" FROM {schema_name}.{table_name}").format(
-            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
-        )
-
-        sql_where = SQL(" WHERE meta->>{} IS NOT NULL").format(field_literal)
-
-        params: tuple = ()
-        if search_term:
-            # Use full-text search with word boundaries (similar to keyword retrieval)
-            # This matches OpenSearch's match_phrase behavior more closely
-            sql_where += SQL(" AND to_tsvector({language}, content) @@ plainto_tsquery({language}, %s)").format(
-                language=SQLLiteral(self.language)
-            )
-            params = (search_term,)
-
-        # Get total count first
-        sql_count = SQL("SELECT COUNT(DISTINCT meta->>{} ) AS total").format(field_literal)
-        sql_count += sql_from + sql_where
+        sql_count, sql_query, params = self._build_unique_values_queries(normalized_field, search_term, from_, size)
 
         self._ensure_db_setup()
         assert self._dict_cursor is not None
@@ -1950,14 +1984,6 @@ class PgvectorDocumentStore:
             error_msg=f"Could not count unique values for metadata field '{metadata_field}' in PgvectorDocumentStore",
         ).fetchone()
 
-        total_count = count_result.get("total", 0) if count_result else 0
-
-        # Get paginated unique values
-        sql_query = sql_select + sql_from + sql_where
-        sql_query += SQL(" ORDER BY value LIMIT {size} OFFSET {from_}").format(
-            size=SQLLiteral(size), from_=SQLLiteral(from_)
-        )
-
         result = self._execute_sql(
             cursor=self._dict_cursor,
             sql_query=sql_query,
@@ -1966,9 +1992,7 @@ class PgvectorDocumentStore:
         )
 
         records = result.fetchall()
-        unique_values = [str(record.get("value", "")) for record in records if record.get("value") is not None]
-
-        return unique_values, total_count
+        return PgvectorDocumentStore._process_unique_values_result(count_result, records)
 
     async def get_metadata_field_unique_values_async(
         self, metadata_field: str, search_term: str | None, from_: int, size: int
@@ -1986,30 +2010,7 @@ class PgvectorDocumentStore:
             - The total count of unique values
         """
         normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
-
-        # Field name is validated, so it's safe to use SQLLiteral
-        field_literal = SQLLiteral(normalized_field)
-
-        # Build the base query
-        sql_select = SQL("SELECT DISTINCT meta->>{} AS value").format(field_literal)
-        sql_from = SQL(" FROM {schema_name}.{table_name}").format(
-            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
-        )
-
-        sql_where = SQL(" WHERE meta->>{} IS NOT NULL").format(field_literal)
-
-        params: tuple = ()
-        if search_term:
-            # Use full-text search with word boundaries (similar to keyword retrieval)
-            # This matches OpenSearch's match_phrase behavior more closely
-            sql_where += SQL(" AND to_tsvector({language}, content) @@ plainto_tsquery({language}, %s)").format(
-                language=SQLLiteral(self.language)
-            )
-            params = (search_term,)
-
-        # Get total count first
-        sql_count = SQL("SELECT COUNT(DISTINCT meta->>{} ) AS total").format(field_literal)
-        sql_count += sql_from + sql_where
+        sql_count, sql_query, params = self._build_unique_values_queries(normalized_field, search_term, from_, size)
 
         await self._ensure_db_setup_async()
         assert self._async_dict_cursor is not None
@@ -2024,14 +2025,6 @@ class PgvectorDocumentStore:
             )
         ).fetchone()
 
-        total_count = count_result.get("total", 0) if count_result else 0
-
-        # Get paginated unique values
-        sql_query = sql_select + sql_from + sql_where
-        sql_query += SQL(" ORDER BY value LIMIT {size} OFFSET {from_}").format(
-            size=SQLLiteral(size), from_=SQLLiteral(from_)
-        )
-
         result = await self._execute_sql_async(
             cursor=self._async_dict_cursor,
             sql_query=sql_query,
@@ -2040,62 +2033,4 @@ class PgvectorDocumentStore:
         )
 
         records = await result.fetchall()
-        unique_values = [str(record.get("value", "")) for record in records if record.get("value") is not None]
-
-        return unique_values, total_count
-
-    def query_sql(self, query: str) -> Any:
-        """
-        Executes a raw SQL query against the document store.
-
-        **Warning**: This method allows direct SQL execution. Use with caution and ensure
-        queries are safe to prevent SQL injection. Prefer using the provided methods
-        for document operations.
-
-        :param query: The SQL query string to execute.
-        :returns: The query result. The exact type depends on the query executed.
-        :raises DocumentStoreError: If the query execution fails.
-        """
-        self._ensure_db_setup()
-        assert self._dict_cursor is not None
-
-        try:
-            result = self._dict_cursor.execute(SQL(query))
-            # Try to fetch results if it's a SELECT query
-            if query.strip().upper().startswith("SELECT"):
-                return result.fetchall()
-            # For other queries, return rowcount
-            return {"rowcount": self._dict_cursor.rowcount}
-        except Error as e:
-            if self._connection:
-                self._connection.rollback()
-            error_msg = f"Failed to execute SQL query in PgvectorDocumentStore: {e!r}"
-            raise DocumentStoreError(error_msg) from e
-
-    async def query_sql_async(self, query: str) -> Any:
-        """
-        Asynchronously executes a raw SQL query against the document store.
-
-        **Warning**: This method allows direct SQL execution. Use with caution and ensure
-        queries are safe to prevent SQL injection. Prefer using the provided methods
-        for document operations.
-
-        :param query: The SQL query string to execute.
-        :returns: The query result. The exact type depends on the query executed.
-        :raises DocumentStoreError: If the query execution fails.
-        """
-        await self._ensure_db_setup_async()
-        assert self._async_dict_cursor is not None
-
-        try:
-            result = await self._async_dict_cursor.execute(SQL(query))
-            # Try to fetch results if it's a SELECT query
-            if query.strip().upper().startswith("SELECT"):
-                return await result.fetchall()
-            # For other queries, return rowcount
-            return {"rowcount": self._async_dict_cursor.rowcount}
-        except Error as e:
-            if self._async_connection:
-                await self._async_connection.rollback()
-            error_msg = f"Failed to execute SQL query in PgvectorDocumentStore: {e!r}"
-            raise DocumentStoreError(error_msg) from e
+        return PgvectorDocumentStore._process_unique_values_result(count_result, records)
