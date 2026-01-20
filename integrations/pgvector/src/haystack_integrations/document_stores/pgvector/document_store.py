@@ -1439,6 +1439,17 @@ class PgvectorDocumentStore:
         docs = _from_pg_to_haystack_documents(records)
         return docs
 
+    def _prepare_filters_count_documents(self, filters):
+        _validate_filters(filters)
+        sql_count = SQL("SELECT COUNT(*) FROM {schema_name}.{table_name}").format(
+            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
+        )
+        params = ()
+        if filters:
+            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+            sql_count += sql_where_clause
+        return params, sql_count
+
     def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
         """
         Returns the number of documents that match the provided filters.
@@ -1447,16 +1458,7 @@ class PgvectorDocumentStore:
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents that match the filters.
         """
-        _validate_filters(filters)
-
-        sql_count = SQL("SELECT COUNT(*) FROM {schema_name}.{table_name}").format(
-            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
-        )
-
-        params = ()
-        if filters:
-            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
-            sql_count += sql_where_clause
+        params, sql_count = self._prepare_filters_count_documents(filters)
 
         self._ensure_db_setup()
         assert self._cursor is not None
@@ -1479,16 +1481,7 @@ class PgvectorDocumentStore:
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents that match the filters.
         """
-        _validate_filters(filters)
-
-        sql_count = SQL("SELECT COUNT(*) FROM {schema_name}.{table_name}").format(
-            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
-        )
-
-        params = ()
-        if filters:
-            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
-            sql_count += sql_where_clause
+        params, sql_count = self._prepare_filters_count_documents(filters)
 
         await self._ensure_db_setup_async()
         assert self._async_cursor is not None
@@ -1669,10 +1662,7 @@ class PgvectorDocumentStore:
         :param records: List of database records containing 'meta' field.
         :returns: A dictionary mapping field names to their type information.
         """
-        fields_info: dict[str, dict[str, str]] = {}
-
-        # Add content field (always present)
-        fields_info["content"] = {"type": "text"}
+        fields_info: dict[str, dict[str, str]] = {"content": {"type": "text"}}
 
         # Analyze metadata from all documents
         for record in records:
@@ -1692,13 +1682,19 @@ class PgvectorDocumentStore:
 
         return fields_info
 
+    def _analyze_metadata_from_docs_query(self):
+        # query all documents to analyze metadata structure
+        sql_query = SQL("SELECT meta FROM {schema_name}.{table_name} WHERE meta IS NOT NULL").format(
+            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
+        )
+        return sql_query
+
     def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
         """
         Returns the information about the metadata fields in the document store.
 
         Since metadata is stored in a JSONB field, this method analyzes actual data
-        to infer field types. The returned format matches OpenSearch's field mapping structure
-        but uses PostgreSQL/JSONB type names.
+        to infer field types.
 
         Example return:
         ```python
@@ -1715,10 +1711,7 @@ class PgvectorDocumentStore:
         self._ensure_db_setup()
         assert self._dict_cursor is not None
 
-        # Query all documents to analyze metadata structure
-        sql_query = SQL("SELECT meta FROM {schema_name}.{table_name} WHERE meta IS NOT NULL").format(
-            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
-        )
+        sql_query = self._analyze_metadata_from_docs_query()
 
         result = self._execute_sql(
             cursor=self._dict_cursor,
@@ -1734,18 +1727,14 @@ class PgvectorDocumentStore:
         Asynchronously returns the information about the metadata fields in the document store.
 
         Since metadata is stored in a JSONB field, this method analyzes actual data
-        to infer field types. The returned format matches OpenSearch's field mapping structure
-        but uses PostgreSQL/JSONB type names.
+        to infer field types.
 
         :returns: A dictionary mapping field names to their type information.
         """
         await self._ensure_db_setup_async()
         assert self._async_dict_cursor is not None
 
-        # Query all documents to analyze metadata structure
-        sql_query = SQL("SELECT meta FROM {schema_name}.{table_name} WHERE meta IS NOT NULL").format(
-            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
-        )
+        sql_query = self._analyze_metadata_from_docs_query()
 
         result = await self._execute_sql_async(
             cursor=self._async_dict_cursor,
@@ -1756,49 +1745,112 @@ class PgvectorDocumentStore:
         records = await result.fetchall()
         return PgvectorDocumentStore._analyze_metadata_fields_from_records(records)
 
+    def _build_min_max_query(self, normalized_field: str, field_type: str) -> Composed:
+        """
+        Builds the SQL query for getting min/max values based on the field type.
+
+        :param normalized_field: The normalized metadata field name.
+        :param field_type: The type of the field (integer, real, text, or boolean).
+        :returns: The SQL query for min/max calculation.
+        """
+        field_literal = SQLLiteral(normalized_field)
+
+        if field_type == "integer":
+            # For integer fields, cast directly to integer
+            sql_query = SQL(
+                """
+                SELECT 
+                    MIN((meta->>{} )::integer) AS min_value,
+                    MAX((meta->>{} )::integer) AS max_value
+                FROM {}.{}
+                WHERE meta->>{} IS NOT NULL
+                """ # noqa: W291
+            ).format(
+                field_literal,
+                field_literal,
+                Identifier(self.schema_name),
+                Identifier(self.table_name),
+                field_literal,
+            )
+        elif field_type == "real":
+            # For real (float) fields, cast directly to real
+            sql_query = SQL(
+                """
+                SELECT 
+                    MIN((meta->>{} )::real) AS min_value,
+                    MAX((meta->>{} )::real) AS max_value
+                FROM {}.{}
+                WHERE meta->>{} IS NOT NULL
+                """ # noqa: W291
+            ).format(
+                field_literal,
+                field_literal,
+                Identifier(self.schema_name),
+                Identifier(self.table_name),
+                field_literal,
+            )
+        else:
+            # For text and other non-numeric fields, use text comparison
+            # Use COLLATE "C" for case-sensitive comparison (byte-order comparison)
+            # This ensures uppercase and lowercase letters are treated differently
+            sql_query = SQL(
+                """
+                SELECT 
+                    MIN(meta->>{} COLLATE "C") AS min_value,
+                    MAX(meta->>{} COLLATE "C") AS max_value
+                FROM {}.{}
+                WHERE meta->>{} IS NOT NULL
+                """ # noqa: W291
+            ).format(
+                field_literal,
+                field_literal,
+                Identifier(self.schema_name),
+                Identifier(self.table_name),
+                field_literal,
+            )
+
+        return sql_query
+
+    @staticmethod
+    def _process_min_max_result(metadata_field: str, result: dict[str, Any] | None) -> tuple[Any, Any]:
+        """
+        Processes the result from min/max query.
+
+        :param metadata_field: The metadata field name (for error messages).
+        :param result: The database result row, or None if no results.
+        :returns: A tuple containing (max_value, min_value).
+        :raises ValueError: If the field has no values.
+        """
+        if result is None:
+            msg = f"Metadata field '{metadata_field}' has no values"
+            raise ValueError(msg)
+        min_value = result.get("min_value")
+        max_value = result.get("max_value")
+        if min_value is None and max_value is None:
+            msg = f"Metadata field '{metadata_field}' has no values"
+            raise ValueError(msg)
+        return max_value, min_value
+
     def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
         """
         Returns the minimum and maximum values for a given metadata field.
 
         :param metadata_field: The name of the metadata field. Can include or omit the "meta." prefix.
         :returns: A dictionary with 'min' and 'max' keys containing the minimum and maximum values.
-        :raises ValueError: If the field doesn't exist or has no numeric values.
+            For numeric fields (integer, real), returns numeric min/max.
+            For text fields, returns lexicographic min/max based on database collation.
+        :raises ValueError: If the field doesn't exist or has no values.
         """
         normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
 
-        # Try to determine the type and use appropriate MIN/MAX
-        # We'll try numeric types first (integer, real), then fall back to text comparison
-        # Field name is validated, so it's safe to use SQLLiteral
-        field_literal = SQLLiteral(normalized_field)
-        sql_query = SQL(
-            """
-            SELECT 
-                MIN(CASE 
-                    WHEN meta->>{} ~ '^[0-9]+$' THEN (meta->>{} )::integer
-                    WHEN meta->>{} ~ '^[0-9]+\\.[0-9]+$' THEN (meta->>{} )::real
-                    ELSE NULL
-                END) AS min_value,
-                MAX(CASE 
-                    WHEN meta->>{} ~ '^[0-9]+$' THEN (meta->>{} )::integer
-                    WHEN meta->>{} ~ '^[0-9]+\\.[0-9]+$' THEN (meta->>{} )::real
-                    ELSE NULL
-                END) AS max_value
-            FROM {}.{}
-            WHERE meta->>{} IS NOT NULL
-            """ # noqa: W291
-        ).format(
-            field_literal,
-            field_literal,
-            field_literal,
-            field_literal,
-            field_literal,
-            field_literal,
-            field_literal,
-            field_literal,
-            Identifier(self.schema_name),
-            Identifier(self.table_name),
-            field_literal,
-        )
+        # Get field type information from metadata fields info
+        fields_info = self.get_metadata_fields_info()
+        if normalized_field not in fields_info:
+            msg = f"Metadata field '{metadata_field}' not found in document store"
+            raise ValueError(msg)
+
+        field_type = fields_info[normalized_field]["type"]
+        sql_query = self._build_min_max_query(normalized_field, field_type)
 
         self._ensure_db_setup()
         assert self._dict_cursor is not None
@@ -1808,16 +1860,7 @@ class PgvectorDocumentStore:
             error_msg=f"Could not get min/max for metadata field '{metadata_field}' in PgvectorDocumentStore",
         ).fetchone()
 
-        if result is None:
-            msg = f"Metadata field '{metadata_field}' not found or has no values"
-            raise ValueError(msg)
-
-        min_value = result.get("min_value")
-        max_value = result.get("max_value")
-
-        if min_value is None and max_value is None:
-            msg = f"Metadata field '{metadata_field}' has no numeric values"
-            raise ValueError(msg)
+        max_value, min_value = PgvectorDocumentStore._process_min_max_result(metadata_field, result)
 
         return {"min": min_value, "max": max_value}
 
@@ -1827,41 +1870,20 @@ class PgvectorDocumentStore:
 
         :param metadata_field: The name of the metadata field. Can include or omit the "meta." prefix.
         :returns: A dictionary with 'min' and 'max' keys containing the minimum and maximum values.
-        :raises ValueError: If the field doesn't exist or has no numeric values.
+            For numeric fields (integer, real), returns numeric min/max.
+            For text fields, returns lexicographic min/max based on database collation.
+        :raises ValueError: If the field doesn't exist or has no values.
         """
         normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
 
-        # Field name is validated, so it's safe to use SQLLiteral
-        field_literal = SQLLiteral(normalized_field)
-        sql_query = SQL(
-            """
-            SELECT 
-                MIN(CASE 
-                    WHEN meta->>{} ~ '^[0-9]+$' THEN (meta->>{} )::integer
-                    WHEN meta->>{} ~ '^[0-9]+\\.[0-9]+$' THEN (meta->>{} )::real
-                    ELSE NULL
-                END) AS min_value,
-                MAX(CASE 
-                    WHEN meta->>{} ~ '^[0-9]+$' THEN (meta->>{} )::integer
-                    WHEN meta->>{} ~ '^[0-9]+\\.[0-9]+$' THEN (meta->>{} )::real
-                    ELSE NULL
-                END) AS max_value
-            FROM {}.{}
-            WHERE meta->>{} IS NOT NULL
-            """ # noqa: W291
-        ).format(
-            field_literal,
-            field_literal,
-            field_literal,
-            field_literal,
-            field_literal,
-            field_literal,
-            field_literal,
-            field_literal,
-            Identifier(self.schema_name),
-            Identifier(self.table_name),
-            field_literal,
-        )
+        # Get field type information from metadata fields info
+        fields_info = await self.get_metadata_fields_info_async()
+        if normalized_field not in fields_info:
+            msg = f"Metadata field '{metadata_field}' not found in document store"
+            raise ValueError(msg)
+
+        field_type = fields_info[normalized_field]["type"]
+        sql_query = self._build_min_max_query(normalized_field, field_type)
 
         await self._ensure_db_setup_async()
         assert self._async_dict_cursor is not None
@@ -1873,16 +1895,7 @@ class PgvectorDocumentStore:
             )
         ).fetchone()
 
-        if result is None:
-            msg = f"Metadata field '{metadata_field}' not found or has no values"
-            raise ValueError(msg)
-
-        min_value = result.get("min_value")
-        max_value = result.get("max_value")
-
-        if min_value is None and max_value is None:
-            msg = f"Metadata field '{metadata_field}' has no numeric values"
-            raise ValueError(msg)
+        max_value, min_value = PgvectorDocumentStore._process_min_max_result(metadata_field, result)
 
         return {"min": min_value, "max": max_value}
 

@@ -625,6 +625,61 @@ def test_get_metadata_field_min_max(document_store: PgvectorDocumentStore):
     assert min_max_rating["min"] == pytest.approx(5.2)
     assert min_max_rating["max"] == pytest.approx(20.3)
 
+    # Test with text/string values - lexicographic comparison
+    text_docs = [
+        Document(content="Doc 1", meta={"category": "Zebra", "status": "active"}),
+        Document(content="Doc 2", meta={"category": "Apple", "status": "pending"}),
+        Document(content="Doc 3", meta={"category": "Banana", "status": "inactive"}),
+        Document(content="Doc 4", meta={"category": "apple", "status": "active"}),
+    ]
+    document_store.write_documents(text_docs)
+
+    # Test lexicographic min/max for text fields (case-sensitive)
+    min_max_category = document_store.get_metadata_field_min_max("meta.category")
+    assert min_max_category["min"] == "Apple"  # 'A' comes before 'B' and 'Z' and 'a'
+    assert min_max_category["max"] == "apple"  # 'a' comes after 'A', 'B', 'Z' in ASCII
+
+    min_max_status = document_store.get_metadata_field_min_max("meta.status")
+    assert min_max_status["min"] == "active"  # 'a' comes before 'i' and 'p'
+    assert min_max_status["max"] == "pending"  # 'p' comes after 'a' and 'i'
+
+    # Test with empty strings
+    empty_string_docs = [
+        Document(content="Doc 1", meta={"tag": ""}),
+        Document(content="Doc 2", meta={"tag": "A"}),
+        Document(content="Doc 3", meta={"tag": "B"}),
+    ]
+    document_store.write_documents(empty_string_docs)
+    min_max_tag = document_store.get_metadata_field_min_max("meta.tag")
+    assert min_max_tag["min"] == ""  # Empty string is typically minimum
+    assert min_max_tag["max"] == "B"  # 'B' is maximum
+
+    # Test with special characters
+    special_char_docs = [
+        Document(content="Doc 1", meta={"code": "!@#"}),
+        Document(content="Doc 2", meta={"code": "$%^"}),
+        Document(content="Doc 3", meta={"code": "&*()"}),
+    ]
+    document_store.write_documents(special_char_docs)
+    min_max_code = document_store.get_metadata_field_min_max("meta.code")
+    # Special characters have specific ASCII ordering
+    assert min_max_code["min"] in ["!@#", "$%^", "&*()"]
+    assert min_max_code["max"] in ["!@#", "$%^", "&*()"]
+
+    # Test with Unicode characters
+    unicode_docs = [
+        Document(content="Doc 1", meta={"name": "Ángel"}),
+        Document(content="Doc 2", meta={"name": "Zebra"}),
+        Document(content="Doc 3", meta={"name": "Alpha"}),
+    ]
+    document_store.write_documents(unicode_docs)
+    min_max_name = document_store.get_metadata_field_min_max("meta.name")
+    # With COLLATE "C", comparison is byte-order based
+    # "Alpha" should be minimum (A comes first in ASCII)
+    # "Ángel" or "Zebra" will be maximum depending on byte encoding
+    assert min_max_name["min"] == "Alpha"  # 'A' comes first in ASCII
+    assert min_max_name["max"] in ["Ángel", "Zebra"]  # Depends on UTF-8 byte encoding
+
 
 @pytest.mark.integration
 def test_get_metadata_field_unique_values(document_store: PgvectorDocumentStore):
