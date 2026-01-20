@@ -866,6 +866,7 @@ class ElasticsearchDocumentStore:
         :param top_k: Maximum number of documents to return
         :param scale_score: Whether to scale the similarity score to the range [0,1]
         :returns: List of Documents that match the query
+        :raises ValueError: If query_embedding is empty
         """
         if not query:
             msg = "query must be a non empty string"
@@ -920,6 +921,7 @@ class ElasticsearchDocumentStore:
         :param top_k: Maximum number of documents to return
         :param scale_score: Whether to scale the similarity score to the range [0,1]
         :returns: List of Documents that match the query
+        :raises ValueError: If query_embedding is empty
         """
         self._ensure_initialized()
 
@@ -974,6 +976,7 @@ class ElasticsearchDocumentStore:
         :param top_k: Maximum number of documents to return
         :param num_candidates: Number of candidates to consider in the search
         :returns: List of Documents most similar to query_embedding
+        :raises ValueError: If query_embedding is empty
         """
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
@@ -1013,6 +1016,7 @@ class ElasticsearchDocumentStore:
         :param top_k: Maximum number of documents to return
         :param num_candidates: Number of candidates to consider in the search
         :returns: List of Documents most similar to query_embedding
+        :raises ValueError: If query_embedding is empty
         """
         self._ensure_initialized()
 
