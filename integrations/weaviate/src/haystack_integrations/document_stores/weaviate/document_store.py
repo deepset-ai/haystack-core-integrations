@@ -15,6 +15,7 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types.policy import DuplicatePolicy
 
 import weaviate
+from weaviate.collections.classes.aggregate import GroupByAggregate, Metrics
 from weaviate.collections.classes.data import DataObject
 from weaviate.config import AdditionalConfig
 from weaviate.embedded import EmbeddedOptions
@@ -393,6 +394,105 @@ class WeaviateDocumentStore:
                 data_type = str(prop.data_type.value) if hasattr(prop.data_type, "value") else str(prop.data_type)
                 fields_info[prop.name] = {"type": data_type}
         return fields_info
+
+    @staticmethod
+    def _normalize_metadata_field_name(metadata_field: str) -> str:
+        """
+        Removes 'meta.' prefix from field name if present.
+
+        :param metadata_field: The field name, possibly prefixed with 'meta.'.
+        :returns: The field name without the 'meta.' prefix.
+        """
+        return metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
+
+    def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Returns the minimum and maximum values for a numeric or date metadata field.
+
+        :param metadata_field: The metadata field name to get min/max for.
+            Can be prefixed with 'meta.' (e.g., 'meta.year' or 'year').
+        :returns: A dictionary with 'min' and 'max' keys containing the respective values.
+        :raises ValueError: If the field is not found or doesn't support min/max operations.
+        """
+        field_name = self._normalize_metadata_field_name(metadata_field)
+
+        # Get field type from schema
+        config = self.collection.config.get()
+        field_type = None
+        for prop in config.properties:
+            if prop.name == field_name:
+                field_type = prop.data_type
+                break
+
+        if field_type is None:
+            msg = f"Field '{field_name}' not found in collection schema"
+            raise ValueError(msg)
+
+        data_type_str = str(field_type.value) if hasattr(field_type, "value") else str(field_type)
+
+        # Build metrics based on type
+        if data_type_str.lower() == "int":
+            metrics = Metrics(field_name).integer(minimum=True, maximum=True)
+        elif data_type_str.lower() == "number":
+            metrics = Metrics(field_name).number(minimum=True, maximum=True)
+        elif data_type_str.lower() == "date":
+            metrics = Metrics(field_name).date_(minimum=True, maximum=True)
+        else:
+            msg = f"Field type '{data_type_str}' doesn't support min/max aggregation"
+            raise ValueError(msg)
+
+        result = self.collection.aggregate.over_all(return_metrics=metrics)
+        field_metrics = result.properties.get(field_name)
+
+        return {
+            "min": getattr(field_metrics, "minimum", None) if field_metrics else None,
+            "max": getattr(field_metrics, "maximum", None) if field_metrics else None,
+        }
+
+    async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Asynchronously returns the minimum and maximum values for a numeric or date metadata field.
+
+        :param metadata_field: The metadata field name to get min/max for.
+            Can be prefixed with 'meta.' (e.g., 'meta.year' or 'year').
+        :returns: A dictionary with 'min' and 'max' keys containing the respective values.
+        :raises ValueError: If the field is not found or doesn't support min/max operations.
+        """
+        field_name = self._normalize_metadata_field_name(metadata_field)
+
+        # Get field type from schema
+        collection = await self.async_collection
+        config = await collection.config.get()
+        field_type = None
+        for prop in config.properties:
+            if prop.name == field_name:
+                field_type = prop.data_type
+                break
+
+        if field_type is None:
+            msg = f"Field '{field_name}' not found in collection schema"
+            raise ValueError(msg)
+
+        data_type_str = str(field_type.value) if hasattr(field_type, "value") else str(field_type)
+
+        # Build metrics based on type
+        if data_type_str.lower() == "int":
+            metrics = Metrics(field_name).integer(minimum=True, maximum=True)
+        elif data_type_str.lower() == "number":
+            metrics = Metrics(field_name).number(minimum=True, maximum=True)
+        elif data_type_str.lower() == "date":
+            metrics = Metrics(field_name).date_(minimum=True, maximum=True)
+        else:
+            msg = f"Field type '{data_type_str}' doesn't support min/max aggregation"
+            raise ValueError(msg)
+
+        result = await collection.aggregate.over_all(return_metrics=metrics)
+        field_metrics = result.properties.get(field_name)
+
+        return {
+            "min": getattr(field_metrics, "minimum", None) if field_metrics else None,
+            "max": getattr(field_metrics, "maximum", None) if field_metrics else None,
+        }
 
     @staticmethod
     def _to_data_object(document: Document) -> dict[str, Any]:

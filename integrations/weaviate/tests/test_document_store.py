@@ -947,3 +947,35 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert fields_info["category"]["type"] == "text"
         assert "status" in fields_info
         assert fields_info["status"]["type"] == "text"
+
+    def test_get_metadata_field_min_max(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"number": 10}),
+            Document(content="Doc 2", meta={"number": 5}),
+            Document(content="Doc 3", meta={"number": 20}),
+            Document(content="Doc 4", meta={"number": 15}),
+        ]
+        document_store.write_documents(docs)
+
+        result = document_store.get_metadata_field_min_max("number")
+        assert result["min"] == 5
+        assert result["max"] == 20
+
+    def test_get_metadata_field_min_max_with_meta_prefix(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"number": 100}),
+            Document(content="Doc 2", meta={"number": 200}),
+        ]
+        document_store.write_documents(docs)
+
+        result = document_store.get_metadata_field_min_max("meta.number")
+        assert result["min"] == 100
+        assert result["max"] == 200
+
+    def test_get_metadata_field_min_max_unsupported_type(self, document_store):
+        with pytest.raises(ValueError, match="doesn't support min/max aggregation"):
+            document_store.get_metadata_field_min_max("category")
+
+    def test_get_metadata_field_min_max_field_not_found(self, document_store):
+        with pytest.raises(ValueError, match="not found in collection schema"):
+            document_store.get_metadata_field_min_max("nonexistent_field")

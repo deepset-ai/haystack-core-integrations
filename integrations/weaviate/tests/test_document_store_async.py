@@ -20,6 +20,7 @@ class TestWeaviateDocumentStoreAsync:
                 *DOCUMENT_COLLECTION_PROPERTIES,
                 {"name": "category", "dataType": ["text"]},
                 {"name": "status", "dataType": ["text"]},
+                {"name": "number", "dataType": ["int"]},
             ],
         }
         store = WeaviateDocumentStore(
@@ -286,3 +287,39 @@ class TestWeaviateDocumentStoreAsync:
         assert fields_info["category"]["type"] == "text"
         assert "status" in fields_info
         assert fields_info["status"]["type"] == "text"
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_min_max_async(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"number": 10}),
+            Document(content="Doc 2", meta={"number": 5}),
+            Document(content="Doc 3", meta={"number": 20}),
+            Document(content="Doc 4", meta={"number": 15}),
+        ]
+        document_store.write_documents(docs)
+
+        result = await document_store.get_metadata_field_min_max_async("number")
+        assert result["min"] == 5
+        assert result["max"] == 20
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_min_max_async_with_meta_prefix(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"number": 100}),
+            Document(content="Doc 2", meta={"number": 200}),
+        ]
+        document_store.write_documents(docs)
+
+        result = await document_store.get_metadata_field_min_max_async("meta.number")
+        assert result["min"] == 100
+        assert result["max"] == 200
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_min_max_async_unsupported_type(self, document_store):
+        with pytest.raises(ValueError, match="doesn't support min/max aggregation"):
+            await document_store.get_metadata_field_min_max_async("category")
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_min_max_async_field_not_found(self, document_store):
+        with pytest.raises(ValueError, match="not found in collection schema"):
+            await document_store.get_metadata_field_min_max_async("nonexistent_field")
