@@ -1512,8 +1512,10 @@ class PgvectorDocumentStore:
         # Validate field name to prevent SQL injection
         # Only allow alphanumeric characters, underscores, and hyphens
         if not all(c.isalnum() or c in ("_", "-") for c in field_name):
-            msg = (f"Invalid metadata field name: '{field_name}'. Field names can only contain alphanumeric "
-                   f"characters, underscores, and hyphens.")
+            msg = (
+                f"Invalid metadata field name: '{field_name}'. Field names can only contain alphanumeric "
+                f"characters, underscores, and hyphens."
+            )
             raise ValueError(msg)
 
         return field_name
@@ -1552,8 +1554,7 @@ class PgvectorDocumentStore:
 
     @staticmethod
     def _process_count_unique_metadata_result(
-        result: dict[str, Any] | None,
-        normalized_fields: list[str]
+        result: dict[str, Any] | None, normalized_fields: list[str]
     ) -> dict[str, int]:
         """
         Processes the result from counting unique metadata values.
@@ -1568,9 +1569,7 @@ class PgvectorDocumentStore:
         # Return dictionary with normalized field names
         return {field: result.get(field, 0) for field in normalized_fields}
 
-    def count_unique_metadata_by_filter(
-        self, filters: dict[str, Any], metadata_fields: list[str]
-    ) -> dict[str, int]:
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
         Returns the count of unique values for each specified metadata field,
         considering only documents that match the provided filters.
@@ -1764,7 +1763,7 @@ class PgvectorDocumentStore:
                     MAX((meta->>{} )::integer) AS max_value
                 FROM {}.{}
                 WHERE meta->>{} IS NOT NULL
-                """ # noqa: W291
+                """  # noqa: W291
             ).format(
                 field_literal,
                 field_literal,
@@ -1781,7 +1780,7 @@ class PgvectorDocumentStore:
                     MAX((meta->>{} )::real) AS max_value
                 FROM {}.{}
                 WHERE meta->>{} IS NOT NULL
-                """ # noqa: W291
+                """  # noqa: W291
             ).format(
                 field_literal,
                 field_literal,
@@ -1800,7 +1799,7 @@ class PgvectorDocumentStore:
                     MAX(meta->>{} COLLATE "C") AS max_value
                 FROM {}.{}
                 WHERE meta->>{} IS NOT NULL
-                """ # noqa: W291
+                """  # noqa: W291
             ).format(
                 field_literal,
                 field_literal,
@@ -1942,8 +1941,7 @@ class PgvectorDocumentStore:
 
     @staticmethod
     def _process_unique_values_result(
-        count_result: dict[str, Any] | None,
-        records: list[dict[str, Any]]
+        count_result: dict[str, Any] | None, records: list[dict[str, Any]]
     ) -> tuple[list[str], int]:
         """
         Processes the results from unique values queries.
@@ -2021,7 +2019,7 @@ class PgvectorDocumentStore:
                 sql_query=sql_count,
                 params=params,
                 error_msg=f"Could not count unique values for metadata field '{metadata_field}' in "
-                          f"PgvectorDocumentStore",
+                f"PgvectorDocumentStore",
             )
         ).fetchone()
 

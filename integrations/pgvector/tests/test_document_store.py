@@ -720,6 +720,34 @@ def test_get_metadata_field_unique_values(document_store: PgvectorDocumentStore)
     assert unique_values_page2[0] in ["A", "B", "C"]
     assert total_count_page2 == 3
 
+    # Test pagination - verify pages don't overlap
+    assert not set(unique_values_page1).intersection(set(unique_values_page2))
+
+    # Test pagination - verify all values are covered
+    all_values = set(unique_values_page1) | set(unique_values_page2)
+    assert all_values == {"A", "B", "C"}
+
+    # Test pagination - size larger than total count
+    unique_values_large, total_large = document_store.get_metadata_field_unique_values("meta.category", None, 0, 100)
+    assert len(unique_values_large) == 3
+    assert set(unique_values_large) == {"A", "B", "C"}
+    assert total_large == 3
+
+    # Test pagination - from_ beyond total count (should return empty)
+    unique_values_beyond, total_beyond = document_store.get_metadata_field_unique_values("meta.category", None, 10, 10)
+    assert len(unique_values_beyond) == 0
+    assert total_beyond == 3
+
+    # Test pagination - single item per page
+    unique_values_single1, _ = document_store.get_metadata_field_unique_values("meta.category", None, 0, 1)
+    unique_values_single2, _ = document_store.get_metadata_field_unique_values("meta.category", None, 1, 1)
+    unique_values_single3, _ = document_store.get_metadata_field_unique_values("meta.category", None, 2, 1)
+    assert len(unique_values_single1) == 1
+    assert len(unique_values_single2) == 1
+    assert len(unique_values_single3) == 1
+    # All three pages should be different
+    assert len(set(unique_values_single1 + unique_values_single2 + unique_values_single3)) == 3
+
     # Test with search term - filter by content matching "Python"
     unique_values_filtered, total_filtered = document_store.get_metadata_field_unique_values(
         "meta.category", "Python", 0, 10
@@ -731,6 +759,21 @@ def test_get_metadata_field_unique_values(document_store: PgvectorDocumentStore)
     unique_values_java, total_java = document_store.get_metadata_field_unique_values("meta.category", "Java", 0, 10)
     assert set(unique_values_java) == {"B"}  # Only category B has documents with "Java" in content
     assert total_java == 1
+
+    # Test pagination with search term
+    unique_values_search_page1, total_search = document_store.get_metadata_field_unique_values(
+        "meta.language", "Python", 0, 1
+    )
+    assert len(unique_values_search_page1) == 1
+    assert unique_values_search_page1[0] == "Python"
+    assert total_search == 1
+
+    # Test pagination with search term - beyond results
+    unique_values_search_empty, total_search_empty = document_store.get_metadata_field_unique_values(
+        "meta.language", "Python", 10, 10
+    )
+    assert len(unique_values_search_empty) == 0
+    assert total_search_empty == 1
 
     # Test with integer values
     int_docs = [
