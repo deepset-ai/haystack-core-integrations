@@ -44,6 +44,8 @@ UPDATE_SCRIPT = """
             }
             """
 
+SPECIAL_FIELDS = {"content", "embedding", "id", "score", "sparse_embedding", "blob"}
+
 
 class ElasticsearchDocumentStore:
     """
@@ -325,7 +327,7 @@ class ElasticsearchDocumentStore:
                 **kwargs,
             )
 
-            documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])  # type: ignore
+            documents.extend(self._deserialize_document(hit) for hit in res["hits"]["hits"])
             from_ = len(documents)
 
             if top_k is not None and from_ >= top_k:
@@ -864,6 +866,7 @@ class ElasticsearchDocumentStore:
         :param top_k: Maximum number of documents to return
         :param scale_score: Whether to scale the similarity score to the range [0,1]
         :returns: List of Documents that match the query
+        :raises ValueError: If query_embedding is empty
         """
         if not query:
             msg = "query must be a non empty string"
@@ -918,6 +921,7 @@ class ElasticsearchDocumentStore:
         :param top_k: Maximum number of documents to return
         :param scale_score: Whether to scale the similarity score to the range [0,1]
         :returns: List of Documents that match the query
+        :raises ValueError: If query_embedding is empty
         """
         self._ensure_initialized()
 
@@ -972,6 +976,7 @@ class ElasticsearchDocumentStore:
         :param top_k: Maximum number of documents to return
         :param num_candidates: Number of candidates to consider in the search
         :returns: List of Documents most similar to query_embedding
+        :raises ValueError: If query_embedding is empty
         """
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
@@ -1011,6 +1016,7 @@ class ElasticsearchDocumentStore:
         :param top_k: Maximum number of documents to return
         :param num_candidates: Number of candidates to consider in the search
         :returns: List of Documents most similar to query_embedding
+        :raises ValueError: If query_embedding is empty
         """
         self._ensure_initialized()
 
@@ -1036,3 +1042,436 @@ class ElasticsearchDocumentStore:
             search_body["knn"]["filter"] = _normalize_filters(filters)
 
         return await self._search_documents_async(**search_body)
+
+    def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Returns the number of documents that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents that match the filters.
+        """
+        self._ensure_initialized()
+
+        normalized_filters = _normalize_filters(filters)
+        body = {"query": {"bool": {"filter": normalized_filters}}}
+        return self.client.count(index=self._index, body=body)["count"]
+
+    async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously returns the number of documents that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents that match the filters.
+        """
+        self._ensure_initialized()
+
+        normalized_filters = _normalize_filters(filters)
+        body = {"query": {"bool": {"filter": normalized_filters}}}
+        result = await self.async_client.count(index=self._index, body=body)
+        return result["count"]
+
+    @staticmethod
+    def _normalize_metadata_field_name(metadata_field: str) -> str:
+        """
+        Normalizes a metadata field name by removing the "meta." prefix if present.
+        """
+        return metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
+
+    @staticmethod
+    def _build_cardinality_aggregations(index_mapping: dict[str, Any], fields: list[str]) -> dict[str, Any]:
+        """
+        Builds cardinality aggregations for specified metadata fields in the index mapping.
+
+        :param index_mapping: The index mapping containing field definitions.
+        :param fields: List of field names to build aggregations for.
+        :returns: Dictionary of cardinality aggregations.
+
+        See: https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html
+        """
+        aggs = {}
+        for field_name in fields:
+            if field_name not in SPECIAL_FIELDS and field_name in index_mapping:
+                aggs[f"{field_name}_cardinality"] = {"cardinality": {"field": field_name}}
+        return aggs
+
+    @staticmethod
+    def _build_distinct_values_query_body(filters: dict[str, Any] | None, aggs: dict[str, Any]) -> dict[str, Any]:
+        """
+        Builds the query body for distinct values counting with filters and aggregations.
+        """
+        if filters:
+            normalized_filters = _normalize_filters(filters)
+            return {
+                "query": {"bool": {"filter": normalized_filters}},
+                "aggs": aggs,
+                "size": 0,  # we only need aggregations, not documents
+            }
+        else:
+            return {
+                "query": {"match_all": {}},
+                "aggs": aggs,
+                "size": 0,  # we only need aggregations, not documents
+            }
+
+    @staticmethod
+    def _extract_distinct_counts_from_aggregations(
+        aggregations: dict[str, Any], index_mapping: dict[str, Any], fields: list[str]
+    ) -> dict[str, int]:
+        """
+        Extracts distinct value counts from search result aggregations.
+
+        :param aggregations: The aggregations result from the search query.
+        :param index_mapping: The index mapping containing field definitions.
+        :param fields: List of field names to extract counts for.
+        :returns: Dictionary mapping field names to their distinct value counts.
+        """
+        distinct_counts = {}
+        for field_name in fields:
+            if field_name not in SPECIAL_FIELDS and field_name in index_mapping:
+                agg_key = f"{field_name}_cardinality"
+                if agg_key in aggregations:
+                    distinct_counts[field_name] = aggregations[agg_key]["value"]
+        return distinct_counts
+
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
+        """
+        Returns the number of unique values for each specified metadata field of the documents
+        that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param metadata_fields: List of field names to calculate unique values for.
+            Field names can include or omit the "meta." prefix.
+        :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
+                  documents.
+        :raises ValueError: If any of the requested fields don't exist in the index mapping.
+        """
+        self._ensure_initialized()
+
+        # use index mapping to get all fields
+        mapping = self.client.indices.get_mapping(index=self._index)
+        index_mapping = mapping[self._index]["mappings"]["properties"]
+
+        # normalize field names, e.g: remove "meta." prefix if present
+        normalized_metadata_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+
+        # validate that all requested fields exist in the index mapping
+        missing_fields = [f for f in normalized_metadata_fields if f not in index_mapping]
+        if missing_fields:
+            msg = f"Fields not found in index mapping: {missing_fields}"
+            raise ValueError(msg)
+
+        # build aggregations for specified metadata fields
+        aggs = self._build_cardinality_aggregations(index_mapping, normalized_metadata_fields)
+        if not aggs:
+            return {}
+
+        # build and execute search query
+        body = self._build_distinct_values_query_body(filters, aggs)
+        result = self.client.search(index=self._index, body=body)
+
+        # extract cardinality values from aggregations
+        return self._extract_distinct_counts_from_aggregations(
+            result.get("aggregations", {}), index_mapping, normalized_metadata_fields
+        )
+
+    async def count_unique_metadata_by_filter_async(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> dict[str, int]:
+        """
+        Asynchronously returns the number of unique values for each specified metadata field of the documents
+        that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param metadata_fields: List of field names to calculate unique values for.
+            Field names can include or omit the "meta." prefix.
+        :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
+                  documents.
+        :raises ValueError: If any of the requested fields don't exist in the index mapping.
+        """
+        self._ensure_initialized()
+
+        # use index mapping to get all fields
+        mapping = await self.async_client.indices.get_mapping(index=self._index)
+        index_mapping = mapping[self._index]["mappings"]["properties"]
+
+        # normalize field names
+        normalized_metadata_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+        # validate that all requested fields exist in the index mapping
+        missing_fields = [f for f in normalized_metadata_fields if f not in index_mapping]
+        if missing_fields:
+            msg = f"Fields not found in index mapping: {missing_fields}"
+            raise ValueError(msg)
+
+        # build aggregations for specified metadata fields
+        aggs = self._build_cardinality_aggregations(index_mapping, normalized_metadata_fields)
+        if not aggs:
+            return {}
+
+        # build and execute search query
+        body = self._build_distinct_values_query_body(filters, aggs)
+        result = await self.async_client.search(index=self._index, body=body)
+
+        # extract cardinality values from aggregations
+        return self._extract_distinct_counts_from_aggregations(
+            result.get("aggregations", {}), index_mapping, normalized_metadata_fields
+        )
+
+    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
+        """
+        Returns the information about the fields in the index.
+
+        If we populated the index with documents like:
+
+        ```python
+            Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1})
+            Document(content="Doc 2", meta={"category": "B", "status": "inactive"})
+        ```
+
+        This method would return:
+
+        ```python
+            {
+                'content': {'type': 'text'},
+                'category': {'type': 'keyword'},
+                'status': {'type': 'keyword'},
+                'priority': {'type': 'long'},
+            }
+        ```
+
+        :returns: The information about the fields in the index.
+        """
+        self._ensure_initialized()
+
+        mapping = self.client.indices.get_mapping(index=self._index)  # type: ignore
+        index_mapping = mapping[self._index]["mappings"]["properties"]
+        # remove all fields that are not metadata fields
+        index_mapping = {k: v for k, v in index_mapping.items() if k not in SPECIAL_FIELDS}
+        return index_mapping
+
+    async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
+        """
+        Asynchronously returns the information about the fields in the index.
+
+        If we populated the index with documents like:
+
+        ```python
+            Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1})
+            Document(content="Doc 2", meta={"category": "B", "status": "inactive"})
+        ```
+
+        This method would return:
+
+        ```python
+            {
+                'content': {'type': 'text'},
+                'category': {'type': 'keyword'},
+                'status': {'type': 'keyword'},
+                'priority': {'type': 'long'},
+            }
+        ```
+
+        :returns: The information about the fields in the index.
+        """
+        self._ensure_initialized()
+
+        mapping = await self.async_client.indices.get_mapping(index=self._index)
+        index_mapping = mapping[self._index]["mappings"]["properties"]
+        # remove all fields that are not metadata fields
+        index_mapping = {k: v for k, v in index_mapping.items() if k not in SPECIAL_FIELDS}
+        return index_mapping
+
+    @staticmethod
+    def _build_min_max_query_body(field_name: str) -> dict[str, Any]:
+        """
+        Builds the query body for getting min and max values using stats aggregation.
+        """
+        return {
+            "query": {"match_all": {}},
+            "aggs": {
+                "field_stats": {
+                    "stats": {
+                        "field": field_name,
+                    }
+                }
+            },
+            "size": 0,  # We only need aggregations, not documents
+        }
+
+    @staticmethod
+    def _extract_min_max_from_stats(stats: dict[str, Any]) -> dict[str, int | None]:
+        """
+        Extracts min and max values from stats aggregation results.
+        """
+        min_value = stats.get("min")
+        max_value = stats.get("max")
+        return {"min": min_value, "max": max_value}
+
+    def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, int | None]:
+        """
+        Returns the minimum and maximum values for the given metadata field.
+
+        :param metadata_field: The metadata field to get the minimum and maximum values for.
+        :returns: A dictionary with the keys "min" and "max", where each value is the minimum or maximum value of the
+                  metadata field across all documents.
+        """
+        self._ensure_initialized()
+
+        field_name = self._normalize_metadata_field_name(metadata_field)
+        body = self._build_min_max_query_body(field_name)
+        result = self.client.search(index=self._index, body=body)
+        stats = result.get("aggregations", {}).get("field_stats", {})
+
+        return self._extract_min_max_from_stats(stats)
+
+    async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, int | None]:
+        """
+        Asynchronously returns the minimum and maximum values for the given metadata field.
+
+        :param metadata_field: The metadata field to get the minimum and maximum values for.
+        :returns: A dictionary with the keys "min" and "max", where each value is the minimum or maximum value of the
+                  metadata field across all documents.
+        """
+        self._ensure_initialized()
+
+        field_name = self._normalize_metadata_field_name(metadata_field)
+        body = self._build_min_max_query_body(field_name)
+        result = await self.async_client.search(index=self._index, body=body)
+        stats = result.get("aggregations", {}).get("field_stats", {})
+
+        return self._extract_min_max_from_stats(stats)
+
+    def get_metadata_field_unique_values(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        size: int | None = 10000,
+        after: dict[str, Any] | None = None,
+    ) -> tuple[list[str], dict[str, Any] | None]:
+        """
+        Returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Uses composite aggregations for proper pagination beyond 10k results.
+
+        See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
+
+        :param metadata_field: The metadata field to get unique values for.
+        :param search_term: Optional search term to filter documents by matching in the content field.
+        :param size: The number of unique values to return per page. Defaults to 10000.
+        :param after: Optional pagination key from the previous response. Use None for the first page.
+            For subsequent pages, pass the `after_key` from the previous response.
+        :returns: A tuple containing (list of unique values, after_key for pagination).
+            The after_key is None when there are no more results. Use it in the `after` parameter
+            for the next page.
+        """
+        self._ensure_initialized()
+
+        field_name = self._normalize_metadata_field_name(metadata_field)
+
+        # filter by search_term if provided
+        query: dict[str, Any] = {"match_all": {}}
+        if search_term:
+            # Use match_phrase for exact phrase matching to avoid tokenization issues
+            query = {"match_phrase": {"content": search_term}}
+
+        # Build composite aggregation for proper pagination
+        composite_agg: dict[str, Any] = {
+            "size": size,
+            "sources": [{field_name: {"terms": {"field": field_name}}}],
+        }
+        if after is not None:
+            composite_agg["after"] = after
+
+        body = {
+            "query": query,
+            "aggs": {
+                "unique_values": {
+                    "composite": composite_agg,
+                }
+            },
+            "size": 0,  # we only need aggregations, not documents
+        }
+
+        result = self.client.search(index=self._index, body=body)
+        aggregations = result.get("aggregations", {})
+
+        # Extract unique values from composite aggregation buckets
+        unique_values_agg = aggregations.get("unique_values", {})
+        unique_values_buckets = unique_values_agg.get("buckets", [])
+        unique_values = [str(bucket["key"][field_name]) for bucket in unique_values_buckets]
+
+        # Extract after_key for pagination
+        # If we got fewer results than requested, we've reached the end
+        after_key = unique_values_agg.get("after_key")
+        if after_key is not None and size is not None and len(unique_values_buckets) < size:
+            after_key = None
+
+        return unique_values, after_key
+
+    async def get_metadata_field_unique_values_async(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        size: int | None = 10000,
+        after: dict[str, Any] | None = None,
+    ) -> tuple[list[str], dict[str, Any] | None]:
+        """
+        Asynchronously returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Uses composite aggregations for proper pagination beyond 10k results.
+
+        See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
+
+        :param metadata_field: The metadata field to get unique values for.
+        :param search_term: Optional search term to filter documents by matching in the content field.
+        :param size: The number of unique values to return per page. Defaults to 10000.
+        :param after: Optional pagination key from the previous response. Use None for the first page.
+            For subsequent pages, pass the `after_key` from the previous response.
+        :returns: A tuple containing (list of unique values, after_key for pagination).
+            The after_key is None when there are no more results. Use it in the `after` parameter
+            for the next page.
+        """
+        self._ensure_initialized()
+
+        field_name = self._normalize_metadata_field_name(metadata_field)
+
+        # filter by search_term if provided
+        query: dict[str, Any] = {"match_all": {}}
+        if search_term:
+            # Use match_phrase for exact phrase matching to avoid tokenization issues
+            query = {"match_phrase": {"content": search_term}}
+
+        # Build composite aggregation for proper pagination
+        composite_agg: dict[str, Any] = {
+            "size": size,
+            "sources": [{field_name: {"terms": {"field": field_name}}}],
+        }
+        if after is not None:
+            composite_agg["after"] = after
+
+        body = {
+            "query": query,
+            "aggs": {
+                "unique_values": {
+                    "composite": composite_agg,
+                }
+            },
+            "size": 0,  # we only need aggregations, not documents
+        }
+
+        result = await self.async_client.search(index=self._index, body=body)
+        aggregations = result.get("aggregations", {})
+
+        # Extract unique values from composite aggregation buckets
+        unique_values_agg = aggregations.get("unique_values", {})
+        unique_values_buckets = unique_values_agg.get("buckets", [])
+        unique_values = [str(bucket["key"][field_name]) for bucket in unique_values_buckets]
+
+        # Extract after_key for pagination
+        # If we got fewer results than requested, we've reached the end
+        after_key = unique_values_agg.get("after_key")
+        if after_key is not None and size is not None and len(unique_values_buckets) < size:
+            after_key = None
+
+        return unique_values, after_key
