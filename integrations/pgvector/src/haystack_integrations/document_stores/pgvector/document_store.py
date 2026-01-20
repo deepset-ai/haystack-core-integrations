@@ -1505,7 +1505,8 @@ class PgvectorDocumentStore:
             return result[0]
         return 0
 
-    def _normalize_metadata_field_name(self, field_name: str) -> str:
+    @staticmethod
+    def _normalize_metadata_field_name(field_name: str) -> str:
         """
         Normalizes metadata field names by removing 'meta.' prefix if present.
 
@@ -1523,6 +1524,56 @@ class PgvectorDocumentStore:
             raise ValueError(msg)
 
         return field_name
+
+    def _build_count_unique_metadata_query(
+        self, normalized_fields: list[str], filters: dict[str, Any]
+    ) -> tuple[Composed, tuple]:
+        """
+        Builds the SQL query for counting unique metadata values.
+
+        :param normalized_fields: List of normalized metadata field names.
+        :param filters: The filters to apply to select documents.
+        :returns: A tuple containing (sql_query, params).
+        """
+        # Build SELECT clause with COUNT(DISTINCT ...) for each field
+        count_expressions = []
+        for field in normalized_fields:
+            # Use SQLLiteral for the JSONB key (validated field name)
+            count_expressions.append(
+                SQL("COUNT(DISTINCT meta->>{} ) AS {}").format(SQLLiteral(field), Identifier(field))
+            )
+
+        sql_select = SQL("SELECT ") + SQL(", ").join(count_expressions)
+        sql_from = SQL(" FROM {schema_name}.{table_name}").format(
+            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
+        )
+
+        sql_query = sql_select + sql_from
+
+        params = ()
+        if filters:
+            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+            sql_query += sql_where_clause
+
+        return sql_query, params
+
+    @staticmethod
+    def _process_count_unique_metadata_result(
+        result: dict[str, Any] | None,
+        normalized_fields: list[str]
+    ) -> dict[str, int]:
+        """
+        Processes the result from counting unique metadata values.
+
+        :param result: The database result row, or None if no results.
+        :param normalized_fields: List of normalized metadata field names.
+        :returns: A dictionary mapping field names to their unique value counts.
+        """
+        if result is None:
+            return dict.fromkeys(normalized_fields, 0)
+
+        # Return dictionary with normalized field names
+        return {field: result.get(field, 0) for field in normalized_fields}
 
     def count_unique_metadata_by_filter(
         self, filters: dict[str, Any], metadata_fields: list[str]
@@ -1543,28 +1594,8 @@ class PgvectorDocumentStore:
             msg = "metadata_fields must be a non-empty list"
             raise ValueError(msg)
 
-        normalized_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
-
-        # Build SELECT clause with COUNT(DISTINCT ...) for each field
-        # Field names are validated in _normalize_metadata_field_name, so they're safe
-        count_expressions = []
-        for field in normalized_fields:
-            # Use SQLLiteral for the JSONB key (validated field name)
-            count_expressions.append(
-                SQL("COUNT(DISTINCT meta->>{} ) AS {}").format(SQLLiteral(field), Identifier(field))
-            )
-
-        sql_select = SQL("SELECT ") + SQL(", ").join(count_expressions)
-        sql_from = SQL(" FROM {schema_name}.{table_name}").format(
-            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
-        )
-
-        sql_query = sql_select + sql_from
-
-        params = ()
-        if filters:
-            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
-            sql_query += sql_where_clause
+        normalized_fields = [PgvectorDocumentStore._normalize_metadata_field_name(field) for field in metadata_fields]
+        sql_query, params = self._build_count_unique_metadata_query(normalized_fields, filters)
 
         self._ensure_db_setup()
         assert self._dict_cursor is not None
@@ -1575,11 +1606,7 @@ class PgvectorDocumentStore:
             error_msg="Could not count unique metadata values in PgvectorDocumentStore",
         ).fetchone()
 
-        if result is None:
-            return dict.fromkeys(normalized_fields, 0)
-
-        # Return dictionary with normalized field names
-        return {field: result.get(field, 0) for field in normalized_fields}
+        return PgvectorDocumentStore._process_count_unique_metadata_result(result, normalized_fields)
 
     async def count_unique_metadata_by_filter_async(
         self, filters: dict[str, Any], metadata_fields: list[str]
@@ -1600,28 +1627,8 @@ class PgvectorDocumentStore:
             msg = "metadata_fields must be a non-empty list"
             raise ValueError(msg)
 
-        normalized_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
-
-        # Build SELECT clause with COUNT(DISTINCT ...) for each field
-        # Field names are validated in _normalize_metadata_field_name, so they're safe
-        count_expressions = []
-        for field in normalized_fields:
-            # Use SQLLiteral for the JSONB key (validated field name)
-            count_expressions.append(
-                SQL("COUNT(DISTINCT meta->>{} ) AS {}").format(SQLLiteral(field), Identifier(field))
-            )
-
-        sql_select = SQL("SELECT ") + SQL(", ").join(count_expressions)
-        sql_from = SQL(" FROM {schema_name}.{table_name}").format(
-            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
-        )
-
-        sql_query = sql_select + sql_from
-
-        params = ()
-        if filters:
-            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
-            sql_query += sql_where_clause
+        normalized_fields = [PgvectorDocumentStore._normalize_metadata_field_name(field) for field in metadata_fields]
+        sql_query, params = self._build_count_unique_metadata_query(normalized_fields, filters)
 
         await self._ensure_db_setup_async()
         assert self._async_dict_cursor is not None
@@ -1634,46 +1641,72 @@ class PgvectorDocumentStore:
             )
         ).fetchone()
 
-        if result is None:
-            return dict.fromkeys(normalized_fields, 0)
+        return PgvectorDocumentStore._process_count_unique_metadata_result(result, normalized_fields)
 
-        # Return dictionary with normalized field names
-        return {field: result.get(field, 0) for field in normalized_fields}
-
-    def _infer_pg_type_to_opensearch_type(self, value: Any) -> str:
+    @staticmethod
+    def _infer_metadata_field_type(value: Any) -> str:
         """
-        Infers the OpenSearch-like type from a Python value.
+        Infers the PostgreSQL/JSONB type from a Python value.
 
         :param value: The value to infer the type from.
-        :returns: The inferred type name (text, keyword, long, double, boolean).
+        :returns: The inferred type name (text, integer, real, boolean).
         """
         if isinstance(value, bool):
             return "boolean"
         if isinstance(value, int):
-            return "long"
+            return "integer"
         if isinstance(value, float):
-            return "double"
+            return "real"
         if isinstance(value, str):
-            # For strings, we default to keyword (exact match)
-            # In OpenSearch, text is for full-text search, keyword is for exact match
-            # Since we're storing in JSONB, we'll use keyword as default
-            return "keyword"
-        return "keyword"  # Default fallback
+            return "text"
+        return "text"  # Default fallback
+
+    @staticmethod
+    def _analyze_metadata_fields_from_records(records: list[dict[str, Any]]) -> dict[str, dict[str, str]]:
+        """
+        Analyzes metadata fields from database records and infers their types.
+
+        :param records: List of database records containing 'meta' field.
+        :returns: A dictionary mapping field names to their type information.
+        """
+        fields_info: dict[str, dict[str, str]] = {}
+
+        # Add content field (always present)
+        fields_info["content"] = {"type": "text"}
+
+        # Analyze metadata from all documents
+        for record in records:
+            meta = record.get("meta")
+            if not isinstance(meta, dict):
+                continue
+
+            for field_name, field_value in meta.items():
+                if field_name not in fields_info:
+                    # Infer type from first non-null value encountered
+                    if field_value is not None:
+                        inferred_type = PgvectorDocumentStore._infer_metadata_field_type(field_value)
+                        fields_info[field_name] = {"type": inferred_type}
+                    else:
+                        # Default to text for null values
+                        fields_info[field_name] = {"type": "text"}
+
+        return fields_info
 
     def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
         """
         Returns the information about the metadata fields in the document store.
 
         Since metadata is stored in a JSONB field, this method analyzes actual data
-        to infer field types. The returned format matches OpenSearch's field mapping format.
+        to infer field types. The returned format matches OpenSearch's field mapping structure
+        but uses PostgreSQL/JSONB type names.
 
         Example return:
         ```python
         {
             'content': {'type': 'text'},
-            'category': {'type': 'keyword'},
-            'status': {'type': 'keyword'},
-            'priority': {'type': 'long'},
+            'category': {'type': 'text'},
+            'status': {'type': 'text'},
+            'priority': {'type': 'integer'},
         }
         ```
 
@@ -1694,35 +1727,15 @@ class PgvectorDocumentStore:
         )
 
         records = result.fetchall()
-        fields_info: dict[str, dict[str, str]] = {}
-
-        # Add content field (always present)
-        fields_info["content"] = {"type": "text"}
-
-        # Analyze metadata from all documents
-        for record in records:
-            meta = record.get("meta")
-            if not isinstance(meta, dict):
-                continue
-
-            for field_name, field_value in meta.items():
-                if field_name not in fields_info:
-                    # Infer type from first non-null value encountered
-                    if field_value is not None:
-                        inferred_type = self._infer_pg_type_to_opensearch_type(field_value)
-                        fields_info[field_name] = {"type": inferred_type}
-                    else:
-                        # Default to keyword for null values
-                        fields_info[field_name] = {"type": "keyword"}
-
-        return fields_info
+        return PgvectorDocumentStore._analyze_metadata_fields_from_records(records)
 
     async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
         """
         Asynchronously returns the information about the metadata fields in the document store.
 
         Since metadata is stored in a JSONB field, this method analyzes actual data
-        to infer field types. The returned format matches OpenSearch's field mapping format.
+        to infer field types. The returned format matches OpenSearch's field mapping structure
+        but uses PostgreSQL/JSONB type names.
 
         :returns: A dictionary mapping field names to their type information.
         """
@@ -1741,28 +1754,7 @@ class PgvectorDocumentStore:
         )
 
         records = await result.fetchall()
-        fields_info: dict[str, dict[str, str]] = {}
-
-        # Add content field (always present)
-        fields_info["content"] = {"type": "text"}
-
-        # Analyze metadata from all documents
-        for record in records:
-            meta = record.get("meta")
-            if not isinstance(meta, dict):
-                continue
-
-            for field_name, field_value in meta.items():
-                if field_name not in fields_info:
-                    # Infer type from first non-null value encountered
-                    if field_value is not None:
-                        inferred_type = self._infer_pg_type_to_opensearch_type(field_value)
-                        fields_info[field_name] = {"type": inferred_type}
-                    else:
-                        # Default to keyword for null values
-                        fields_info[field_name] = {"type": "keyword"}
-
-        return fields_info
+        return PgvectorDocumentStore._analyze_metadata_fields_from_records(records)
 
     def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
         """
@@ -1772,7 +1764,7 @@ class PgvectorDocumentStore:
         :returns: A dictionary with 'min' and 'max' keys containing the minimum and maximum values.
         :raises ValueError: If the field doesn't exist or has no numeric values.
         """
-        normalized_field = self._normalize_metadata_field_name(metadata_field)
+        normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
 
         # Try to determine the type and use appropriate MIN/MAX
         # We'll try numeric types first (integer, real), then fall back to text comparison
@@ -1837,7 +1829,7 @@ class PgvectorDocumentStore:
         :returns: A dictionary with 'min' and 'max' keys containing the minimum and maximum values.
         :raises ValueError: If the field doesn't exist or has no numeric values.
         """
-        normalized_field = self._normalize_metadata_field_name(metadata_field)
+        normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
 
         # Field name is validated, so it's safe to use SQLLiteral
         field_literal = SQLLiteral(normalized_field)
@@ -1909,7 +1901,7 @@ class PgvectorDocumentStore:
             - A list of unique values (as strings)
             - The total count of unique values
         """
-        normalized_field = self._normalize_metadata_field_name(metadata_field)
+        normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
 
         # Field name is validated, so it's safe to use SQLLiteral
         field_literal = SQLLiteral(normalized_field)
@@ -1980,7 +1972,7 @@ class PgvectorDocumentStore:
             - A list of unique values (as strings)
             - The total count of unique values
         """
-        normalized_field = self._normalize_metadata_field_name(metadata_field)
+        normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
 
         # Field name is validated, so it's safe to use SQLLiteral
         field_literal = SQLLiteral(normalized_field)

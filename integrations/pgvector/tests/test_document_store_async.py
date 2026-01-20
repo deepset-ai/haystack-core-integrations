@@ -573,9 +573,9 @@ async def test_get_metadata_fields_info_async(document_store: PgvectorDocumentSt
     assert "priority" in fields_info
 
     assert fields_info["content"]["type"] == "text"
-    assert fields_info["category"]["type"] == "keyword"
-    assert fields_info["status"]["type"] == "keyword"
-    assert fields_info["priority"]["type"] == "long"
+    assert fields_info["category"]["type"] == "text"
+    assert fields_info["status"]["type"] == "text"
+    assert fields_info["priority"]["type"] == "integer"
 
 
 @pytest.mark.integration
