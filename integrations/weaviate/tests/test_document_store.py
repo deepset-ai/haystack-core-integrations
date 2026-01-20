@@ -979,3 +979,65 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
     def test_get_metadata_field_min_max_field_not_found(self, document_store):
         with pytest.raises(ValueError, match="not found in collection schema"):
             document_store.get_metadata_field_min_max("nonexistent_field")
+
+    def test_count_unique_metadata_by_filter(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "TypeA", "status": "draft"}),
+            Document(content="Doc 2", meta={"category": "TypeB", "status": "published"}),
+            Document(content="Doc 3", meta={"category": "TypeA", "status": "draft"}),
+            Document(content="Doc 4", meta={"category": "TypeC", "status": "published"}),
+            Document(content="Doc 5", meta={"category": "TypeA", "status": "archived"}),
+        ]
+        document_store.write_documents(docs)
+
+        # Filter for TypeA category only
+        result = document_store.count_unique_metadata_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "TypeA"}, metadata_fields=["status"]
+        )
+        assert result["status"] == 2  # draft (2 docs) and archived (1 doc)
+
+        # Filter for multiple categories
+        result = document_store.count_unique_metadata_by_filter(
+            filters={
+                "operator": "OR",
+                "conditions": [
+                    {"field": "meta.category", "operator": "==", "value": "TypeA"},
+                    {"field": "meta.category", "operator": "==", "value": "TypeB"},
+                ],
+            },
+            metadata_fields=["category", "status"],
+        )
+        assert result["category"] == 2  # TypeA, TypeB
+        assert result["status"] == 3  # draft, published, archived
+
+    def test_count_unique_metadata_by_filter_with_meta_prefix(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "TypeA"}),
+            Document(content="Doc 2", meta={"category": "TypeB"}),
+        ]
+        document_store.write_documents(docs)
+
+        result = document_store.count_unique_metadata_by_filter(
+            filters={"field": "meta.category", "operator": "in", "value": ["TypeA", "TypeB"]},
+            metadata_fields=["meta.category"],
+        )
+        assert result["category"] == 2
+
+    def test_count_unique_metadata_by_filter_no_matches(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "TypeA"}),
+        ]
+        document_store.write_documents(docs)
+
+        result = document_store.count_unique_metadata_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "NonExistent"},
+            metadata_fields=["category"],
+        )
+        assert result["category"] == 0
+
+    def test_count_unique_metadata_by_filter_field_not_found(self, document_store):
+        with pytest.raises(ValueError, match="Fields not found in collection schema"):
+            document_store.count_unique_metadata_by_filter(
+                filters={"field": "meta.category", "operator": "==", "value": "TypeA"},
+                metadata_fields=["nonexistent_field"],
+            )

@@ -494,6 +494,79 @@ class WeaviateDocumentStore:
             "max": getattr(field_metrics, "maximum", None) if field_metrics else None,
         }
 
+    def count_unique_metadata_by_filter(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> dict[str, int]:
+        """
+        Returns the count of unique values for each specified metadata field.
+
+        :param filters: The filters to apply when counting unique values.
+            For filter syntax, see
+            [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+        :param metadata_fields: List of metadata field names to count unique values for.
+            Field names can be prefixed with 'meta.' (e.g., 'meta.category' or 'category').
+        :returns: A dictionary mapping field names to counts of unique values.
+        :raises ValueError: If any of the requested fields don't exist in the collection schema.
+        """
+        validate_filters(filters)
+        weaviate_filter = convert_filters(filters)
+
+        normalized_fields = [self._normalize_metadata_field_name(f) for f in metadata_fields]
+
+        # Validate that all requested fields exist in the schema
+        config = self.collection.config.get()
+        schema_fields = {prop.name for prop in config.properties}
+        missing_fields = [f for f in normalized_fields if f not in schema_fields]
+        if missing_fields:
+            msg = f"Fields not found in collection schema: {missing_fields}"
+            raise ValueError(msg)
+
+        result = {}
+        for field in normalized_fields:
+            agg_result = self.collection.aggregate.over_all(
+                filters=weaviate_filter, group_by=GroupByAggregate(prop=field)
+            )
+            result[field] = len(agg_result.groups) if agg_result.groups else 0
+
+        return result
+
+    async def count_unique_metadata_by_filter_async(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> dict[str, int]:
+        """
+        Asynchronously returns the count of unique values for each specified metadata field.
+
+        :param filters: The filters to apply when counting unique values.
+            For filter syntax, see
+            [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+        :param metadata_fields: List of metadata field names to count unique values for.
+            Field names can be prefixed with 'meta.' (e.g., 'meta.category' or 'category').
+        :returns: A dictionary mapping field names to counts of unique values.
+        :raises ValueError: If any of the requested fields don't exist in the collection schema.
+        """
+        validate_filters(filters)
+        collection = await self.async_collection
+        weaviate_filter = convert_filters(filters)
+
+        normalized_fields = [self._normalize_metadata_field_name(f) for f in metadata_fields]
+
+        # Validate that all requested fields exist in the schema
+        config = await collection.config.get()
+        schema_fields = {prop.name for prop in config.properties}
+        missing_fields = [f for f in normalized_fields if f not in schema_fields]
+        if missing_fields:
+            msg = f"Fields not found in collection schema: {missing_fields}"
+            raise ValueError(msg)
+
+        result = {}
+        for field in normalized_fields:
+            agg_result = await collection.aggregate.over_all(
+                filters=weaviate_filter, group_by=GroupByAggregate(prop=field)
+            )
+            result[field] = len(agg_result.groups) if agg_result.groups else 0
+
+        return result
+
     @staticmethod
     def _to_data_object(document: Document) -> dict[str, Any]:
         """
