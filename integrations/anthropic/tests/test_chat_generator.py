@@ -26,21 +26,20 @@ from anthropic.types import (
     Usage,
 )
 from anthropic.types.raw_message_delta_event import Delta
-from haystack import Pipeline
-from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, print_streaming_chunk
-from haystack import component
+from haystack import Pipeline, component
 from haystack.components.agents import Agent
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, print_streaming_chunk
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
     ComponentInfo,
     ImageContent,
     StreamingChunk,
+    TextContent,
     ToolCall,
     ToolCallDelta,
-    TextContent,
 )
-from haystack.tools import Tool, Toolset, ComponentTool
+from haystack.tools import ComponentTool, Tool, Toolset
 from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.anthropic.chat.chat_generator import (
@@ -2200,9 +2199,7 @@ class TestAnthropicChatGenerator:
         class ImageRetriever:
             @component.output_types(images=list[ImageContent])
             def run(self):
-                return {
-                    "images": [ImageContent.from_file_path("tests/test_files/apple.jpg")]
-                }
+                return {"images": [ImageContent.from_file_path("tests/test_files/apple.jpg")]}
 
         def handler(result):
             return [
@@ -2223,11 +2220,10 @@ class TestAnthropicChatGenerator:
             system_prompt="You are a helpful assistant that can retrieve images and describe them.",
         )
 
-        result = agent.run(
-            messages=[ChatMessage.from_user("retrieve image and describe it in max 5 words")]
-        )
+        result = agent.run(messages=[ChatMessage.from_user("retrieve image and describe it in max 5 words")])
 
         assert "apple" in result["last_message"].text.lower()
+
 
 class TestAnthropicChatGeneratorAsync:
     @pytest.fixture
@@ -2404,4 +2400,3 @@ class TestAnthropicChatGeneratorAsync:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
         assert "completion_tokens" in final_message.meta["usage"]
-
