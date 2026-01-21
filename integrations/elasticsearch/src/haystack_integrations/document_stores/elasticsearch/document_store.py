@@ -271,8 +271,8 @@ class ElasticsearchDocumentStore:
             hosts=self._hosts,
             custom_mapping=self._custom_mapping,
             index=self._index,
-            api_key=self._api_key,
-            api_key_id=self._api_key_id,
+            api_key=self._api_key.to_dict(),
+            api_key_id=self._api_key_id.to_dict(),
             embedding_similarity_function=self._embedding_similarity_function,
             **self._kwargs,
         )
