@@ -12,7 +12,7 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseTests
 from haystack.utils import Secret
-from haystack.utils.auth import TokenSecret
+from haystack.utils.auth import EnvVarSecret, SecretType, TokenSecret
 
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
@@ -134,8 +134,16 @@ def test_from_dict_with_api_keys_env_vars(_mock_elasticsearch_client):
     }
 
     document_store = ElasticsearchDocumentStore.from_dict(data)
-    assert document_store._api_key == {"type": "env_var", "env_vars": ["ELASTIC_API_KEY"], "strict": False}
-    assert document_store._api_key_id == {"type": "env_var", "env_vars": ["ELASTIC_API_KEY_ID"], "strict": False}
+
+    assert isinstance(document_store._api_key, EnvVarSecret)
+    assert document_store._api_key.type == SecretType.ENV_VAR
+    assert document_store._api_key._env_vars == ("ELASTIC_API_KEY",)
+    assert document_store._api_key._strict is False
+
+    assert isinstance(document_store._api_key_id, EnvVarSecret)
+    assert document_store._api_key.type == SecretType.ENV_VAR
+    assert document_store._api_key_id._env_vars == ("ELASTIC_API_KEY_ID",)
+    assert document_store._api_key_id._strict is False
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
