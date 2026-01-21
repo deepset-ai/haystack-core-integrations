@@ -27,6 +27,7 @@ class OpenSearchSQLRetriever:
         *,
         document_store: OpenSearchDocumentStore,
         raise_on_failure: bool = True,
+        fetch_size: int | None = None,
     ):
         """
         Creates the OpenSearchSQLRetriever component.
@@ -34,6 +35,8 @@ class OpenSearchSQLRetriever:
         :param document_store: An instance of OpenSearchDocumentStore to use with the Retriever.
         :param raise_on_failure:
             Whether to raise an exception if the API call fails. Otherwise, log a warning and return None.
+        :param fetch_size: Optional number of results to fetch per page. If not provided, the default
+            fetch size set in OpenSearch is used.
 
         :raises ValueError: If `document_store` is not an instance of OpenSearchDocumentStore.
         """
@@ -43,6 +46,7 @@ class OpenSearchSQLRetriever:
 
         self._document_store = document_store
         self._raise_on_failure = raise_on_failure
+        self._fetch_size = fetch_size
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -55,6 +59,7 @@ class OpenSearchSQLRetriever:
             self,
             document_store=self._document_store.to_dict(),
             raise_on_failure=self._raise_on_failure,
+            fetch_size=self._fetch_size,
         )
 
     @classmethod
@@ -78,12 +83,17 @@ class OpenSearchSQLRetriever:
         self,
         query: str,
         document_store: OpenSearchDocumentStore | None = None,
+        cursor: str | None = None,
+        fetch_size: int | None = None,
     ) -> dict[str, Any]:
         """
         Execute a raw OpenSearch SQL query against the index.
 
         :param query: The OpenSearch SQL query to execute.
         :param document_store: Optionally, an instance of OpenSearchDocumentStore to use with the Retriever.
+        :param cursor: Optional cursor for pagination. Use this to fetch the next page of results.
+        :param fetch_size: Optional number of results to fetch per page. If not provided, uses the value
+            specified during initialization, or the default fetch size set in OpenSearch.
 
         :returns:
             A dictionary containing the query results with the following structure:
@@ -106,8 +116,10 @@ class OpenSearchSQLRetriever:
         else:
             doc_store = self._document_store
 
+        fetch_size = fetch_size if fetch_size is not None else self._fetch_size
+
         try:
-            result = doc_store._query_sql(query=query)
+            result = doc_store._query_sql(query=query, cursor=cursor, fetch_size=fetch_size)
         except Exception as e:
             if self._raise_on_failure:
                 raise e
@@ -126,12 +138,17 @@ class OpenSearchSQLRetriever:
         self,
         query: str,
         document_store: OpenSearchDocumentStore | None = None,
+        cursor: str | None = None,
+        fetch_size: int | None = None,
     ) -> dict[str, Any]:
         """
         Asynchronously execute a raw OpenSearch SQL query against the index.
 
         :param query: The OpenSearch SQL query to execute.
         :param document_store: Optionally, an instance of OpenSearchDocumentStore to use with the Retriever.
+        :param cursor: Optional cursor for pagination. Use this to fetch the next page of results.
+        :param fetch_size: Optional number of results to fetch per page. If not provided, uses the value
+            specified during initialization, or the default fetch size set in OpenSearch.
 
         :returns:
             A dictionary containing the query results with the following structure:
@@ -154,8 +171,10 @@ class OpenSearchSQLRetriever:
         else:
             doc_store = self._document_store
 
+        fetch_size = fetch_size if fetch_size is not None else self._fetch_size
+
         try:
-            result = await doc_store._query_sql_async(query=query)
+            result = await doc_store._query_sql_async(query=query, cursor=cursor, fetch_size=fetch_size)
         except Exception as e:
             if self._raise_on_failure:
                 raise e

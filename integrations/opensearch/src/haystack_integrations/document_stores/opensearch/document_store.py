@@ -1595,7 +1595,7 @@ class OpenSearchDocumentStore:
             return [hit.get("_source", {}) for hit in hits]
         return response_data if isinstance(response_data, list) else []
 
-    def _query_sql(self, query: str) -> list[dict[str, Any]]:
+    def _query_sql(self, query: str, cursor: str | None = None, fetch_size: int | None = None) -> list[dict[str, Any]]:
         """
         Execute a raw OpenSearch SQL query against the index.
 
@@ -1606,13 +1606,20 @@ class OpenSearchDocumentStore:
         See `OpenSearchSQLRetriever` for more information.
 
         :param query: The OpenSearch SQL query to execute
+        :param cursor: Optional cursor for pagination. Use this to fetch the next page of results.
+        :param fetch_size: Optional number of results to fetch per page.
         :returns: The query results as a list of dictionaries (the _source from each hit).
         """
         self._ensure_initialized()
         assert self._client is not None
 
         try:
-            body = {"query": query}
+            body: dict[str, Any] = {"query": query}
+            if cursor is not None:
+                body["cursor"] = cursor
+            if fetch_size is not None:
+                body["fetch_size"] = fetch_size
+
             params = {"format": "json"}
 
             response_data = self._client.transport.perform_request(
@@ -1627,7 +1634,9 @@ class OpenSearchDocumentStore:
             msg = f"Failed to execute SQL query in OpenSearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    async def _query_sql_async(self, query: str) -> list[dict[str, Any]]:
+    async def _query_sql_async(
+        self, query: str, cursor: str | None = None, fetch_size: int | None = None
+    ) -> list[dict[str, Any]]:
         """
         Asynchronously execute a raw OpenSearch SQL query against the index.
 
@@ -1638,13 +1647,20 @@ class OpenSearchDocumentStore:
         See `OpenSearchSQLRetriever` for more information.
 
         :param query: The OpenSearch SQL query to execute
+        :param cursor: Optional cursor for pagination. Use this to fetch the next page of results.
+        :param fetch_size: Optional number of results to fetch per page.
         :returns: The query results as a list of dictionaries (the _source from each hit).
         """
         await self._ensure_initialized_async()
         assert self._async_client is not None
 
         try:
-            body = {"query": query}
+            body: dict[str, Any] = {"query": query}
+            if cursor is not None:
+                body["cursor"] = cursor
+            if fetch_size is not None:
+                body["fetch_size"] = fetch_size
+
             params = {"format": "json"}
 
             response_data = await self._async_client.transport.perform_request(

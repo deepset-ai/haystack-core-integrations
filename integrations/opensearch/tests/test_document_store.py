@@ -888,3 +888,67 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         invalid_query = "SELECT * FROM non_existent_index"
         with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
             document_store._query_sql(invalid_query)
+
+    @pytest.mark.integration
+    def test_query_sql_with_fetch_size(self, document_store: OpenSearchDocumentStore):
+        """Test SQL query with fetch_size parameter"""
+        # Create multiple documents to test pagination
+        docs = [Document(content=f"Document {i}", meta={"category": "A", "index": i}) for i in range(15)]
+        document_store.write_documents(docs, refresh=True)
+
+        sql_query = (
+            f"SELECT content, category, index FROM {document_store._index} "  # noqa: S608
+            f"WHERE category = 'A' ORDER BY index"
+        )
+
+        # Test with fetch_size
+        result = document_store._query_sql(sql_query, fetch_size=5)
+
+        # Should return results (exact count depends on OpenSearch behavior)
+        assert isinstance(result, list)
+        assert all(isinstance(row, dict) for row in result)
+
+    @pytest.mark.integration
+    def test_query_sql_with_cursor(self, document_store: OpenSearchDocumentStore):
+        """Test SQL query with cursor parameter for pagination"""
+        # Create multiple documents to test pagination
+        docs = [Document(content=f"Document {i}", meta={"category": "A", "index": i}) for i in range(15)]
+        document_store.write_documents(docs, refresh=True)
+
+        sql_query = (
+            f"SELECT content, category, index FROM {document_store._index} "  # noqa: S608
+            f"WHERE category = 'A' ORDER BY index"
+        )
+
+        # First query without cursor
+        result1 = document_store._query_sql(sql_query, fetch_size=5)
+        assert isinstance(result1, list)
+
+        # Test with invalid cursor - OpenSearch will reject it, but this verifies
+        # the parameter is being passed to the API correctly
+        # Note: In real usage, cursor would come from the previous OpenSearch response
+        with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
+            document_store._query_sql(sql_query, cursor="test_cursor", fetch_size=5)
+
+    @pytest.mark.integration
+    def test_query_sql_pagination_flow(self, document_store: OpenSearchDocumentStore):
+        """Test pagination flow with fetch_size"""
+        # Create enough documents to require pagination
+        docs = [Document(content=f"Document {i}", meta={"category": "A", "index": i}) for i in range(20)]
+        document_store.write_documents(docs, refresh=True)
+
+        sql_query = (
+            f"SELECT content, category, index FROM {document_store._index} "  # noqa: S608
+            f"WHERE category = 'A' ORDER BY index"
+        )
+
+        # Query with small fetch_size to test pagination
+        result = document_store._query_sql(sql_query, fetch_size=10)
+        assert isinstance(result, list)
+        assert len(result) > 0
+
+        # Verify all results have expected fields
+        for row in result:
+            assert "content" in row
+            assert "category" in row
+            assert "index" in row
