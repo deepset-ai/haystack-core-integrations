@@ -26,7 +26,7 @@ from anthropic.types import (
     Usage,
 )
 from anthropic.types.raw_message_delta_event import Delta
-from haystack import Pipeline, component
+from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, print_streaming_chunk
 from haystack.dataclasses import (
@@ -39,7 +39,7 @@ from haystack.dataclasses import (
     ToolCall,
     ToolCallDelta,
 )
-from haystack.tools import ComponentTool, Tool, Toolset
+from haystack.tools import Tool, Toolset, create_tool_from_function
 from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.anthropic.chat.chat_generator import (
@@ -2194,33 +2194,26 @@ class TestAnthropicChatGenerator:
         not os.environ.get("ANTHROPIC_API_KEY", None),
         reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic token to run this test.",
     )
-    def test_live_run_tool_returning_image(self):
-        @component
-        class ImageRetriever:
-            @component.output_types(images=list[ImageContent])
-            def run(self):
-                return {"images": [ImageContent.from_file_path("tests/test_files/apple.jpg")]}
-
-        def handler(result):
+    def test_live_run_agent_with_images_in_tool_result(self, test_files_path):
+        def retrieve_image():
             return [
-                TextContent("The name of this photo is: A good fruit."),
-                result["images"][0],
+                TextContent("Here is the retrieved image."),
+                ImageContent.from_file_path(test_files_path / "apple.jpg", size=(100, 100)),
             ]
 
-        tool = ComponentTool(
-            component=ImageRetriever(),
-            name="retrieve_image",
-            description="Retrieves an image.",
-            outputs_to_result={"handler": handler},
+        image_retriever_tool = create_tool_from_function(
+            name="retrieve_image", description="Tool to retrieve an image", function=retrieve_image
         )
+        image_retriever_tool.outputs_to_result = {}
 
         agent = Agent(
             chat_generator=AnthropicChatGenerator(model="claude-haiku-4-5"),
-            tools=[tool],
-            system_prompt="You are a helpful assistant that can retrieve images and describe them.",
+            system_prompt="You are an Agent that can retrieve images and describe them.",
+            tools=[image_retriever_tool],
         )
 
-        result = agent.run(messages=[ChatMessage.from_user("retrieve image and describe it in max 5 words")])
+        user_message = ChatMessage.from_user("Retrieve the image and describe it in max 5 words.")
+        result = agent.run(messages=[user_message])
 
         assert "apple" in result["last_message"].text.lower()
 
