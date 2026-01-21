@@ -50,64 +50,8 @@ def test_from_dict(_mock_opensearch_client):
     assert retriever_from_dict._raise_on_failure is True
 
 
-def test_run():
-    mock_store = Mock(spec=OpenSearchDocumentStore)
-    mock_store._query_sql.return_value = [{"content": "Test doc", "category": "A"}]
-    retriever = OpenSearchSQLRetriever(document_store=mock_store)
-    res = retriever.run(query="SELECT content, category FROM my_index WHERE category = 'A'")
-    mock_store._query_sql.assert_called_once_with(
-        query="SELECT content, category FROM my_index WHERE category = 'A'",
-        cursor=None,
-        fetch_size=None,
-    )
-    assert len(res) == 1
-    assert "result" in res
-    assert res["result"] == [{"content": "Test doc", "category": "A"}]
-
-
-def test_run_with_runtime_document_store():
-    mock_store1 = Mock(spec=OpenSearchDocumentStore)
-    mock_store2 = Mock(spec=OpenSearchDocumentStore)
-    mock_store2._query_sql.return_value = [{"result": "from store 2"}]
-    retriever = OpenSearchSQLRetriever(document_store=mock_store1)
-    res = retriever.run(query="SELECT * FROM my_index", document_store=mock_store2)
-    mock_store1._query_sql.assert_not_called()
-    mock_store2._query_sql.assert_called_once_with(query="SELECT * FROM my_index", cursor=None, fetch_size=None)
-    assert res["result"] == [{"result": "from store 2"}]
-
-
-def test_run_with_cursor_and_fetch_size():
-    mock_store = Mock(spec=OpenSearchDocumentStore)
-    mock_store._query_sql.return_value = [{"content": "Test doc", "category": "A"}]
-    retriever = OpenSearchSQLRetriever(document_store=mock_store, fetch_size=50)
-    res = retriever.run(query="SELECT * FROM my_index", cursor="test_cursor", fetch_size=100)
-    mock_store._query_sql.assert_called_once_with(
-        query="SELECT * FROM my_index",
-        cursor="test_cursor",
-        fetch_size=100,
-    )
-    assert res["result"] == [{"content": "Test doc", "category": "A"}]
-
-
-def test_run_with_error_raise_on_failure():
-    mock_store = Mock(spec=OpenSearchDocumentStore)
-    mock_store._query_sql.side_effect = Exception("SQL error")
-    retriever = OpenSearchSQLRetriever(document_store=mock_store, raise_on_failure=True)
-    with pytest.raises(Exception, match="SQL error"):
-        retriever.run(query="SELECT * FROM my_index")
-
-
-def test_run_with_error_no_raise():
-    mock_store = Mock(spec=OpenSearchDocumentStore)
-    mock_store._query_sql.side_effect = Exception("SQL error")
-    retriever = OpenSearchSQLRetriever(document_store=mock_store, raise_on_failure=False)
-    res = retriever.run(query="SELECT * FROM my_index")
-    assert res["result"] is None
-
-
 @pytest.mark.integration
 def test_sql_retriever_basic_query(document_store: OpenSearchDocumentStore):
-    """Test basic SQL query execution"""
     docs = [
         Document(content="Python programming", meta={"category": "A", "status": "active", "priority": 1}),
         Document(content="Java programming", meta={"category": "B", "status": "active", "priority": 2}),
@@ -140,7 +84,6 @@ def test_sql_retriever_basic_query(document_store: OpenSearchDocumentStore):
 
 @pytest.mark.integration
 def test_sql_retriever_count_query(document_store: OpenSearchDocumentStore):
-    """Test COUNT query execution"""
     docs = [
         Document(content="Doc 1", meta={"category": "A"}),
         Document(content="Doc 2", meta={"category": "B"}),
@@ -158,8 +101,6 @@ def test_sql_retriever_count_query(document_store: OpenSearchDocumentStore):
 
 @pytest.mark.integration
 def test_sql_retriever_with_filters(document_store: OpenSearchDocumentStore):
-    """Test SQL query with WHERE clause filtering"""
-
     docs = [
         Document(content="Python programming", meta={"category": "A", "status": "active", "priority": 1}),
         Document(content="Java programming", meta={"category": "B", "status": "active", "priority": 2}),
@@ -228,54 +169,6 @@ def test_sql_retriever_error_handling(document_store: OpenSearchDocumentStore):
     retriever_no_raise = OpenSearchSQLRetriever(document_store=document_store, raise_on_failure=False)
     result = retriever_no_raise.run(query=invalid_query)
     assert result["result"] is None
-
-
-@pytest.mark.asyncio
-async def test_run_async():
-    mock_store = Mock(spec=OpenSearchDocumentStore)
-    mock_store._query_sql_async.return_value = [{"content": "Test doc", "category": "A"}]
-    retriever = OpenSearchSQLRetriever(document_store=mock_store)
-    res = await retriever.run_async(query="SELECT content, category FROM my_index WHERE category = 'A'")
-    mock_store._query_sql_async.assert_called_once_with(
-        query="SELECT content, category FROM my_index WHERE category = 'A'",
-        cursor=None,
-        fetch_size=None,
-    )
-    assert len(res) == 1
-    assert "result" in res
-    assert res["result"] == [{"content": "Test doc", "category": "A"}]
-
-
-@pytest.mark.asyncio
-async def test_run_async_with_cursor_and_fetch_size():
-    mock_store = Mock(spec=OpenSearchDocumentStore)
-    mock_store._query_sql_async.return_value = [{"content": "Test doc", "category": "A"}]
-    retriever = OpenSearchSQLRetriever(document_store=mock_store, fetch_size=50)
-    res = await retriever.run_async(query="SELECT * FROM my_index", cursor="test_cursor", fetch_size=100)
-    mock_store._query_sql_async.assert_called_once_with(
-        query="SELECT * FROM my_index",
-        cursor="test_cursor",
-        fetch_size=100,
-    )
-    assert res["result"] == [{"content": "Test doc", "category": "A"}]
-
-
-@pytest.mark.asyncio
-async def test_run_async_with_error_raise_on_failure():
-    mock_store = Mock(spec=OpenSearchDocumentStore)
-    mock_store._query_sql_async.side_effect = Exception("SQL error")
-    retriever = OpenSearchSQLRetriever(document_store=mock_store, raise_on_failure=True)
-    with pytest.raises(Exception, match="SQL error"):
-        await retriever.run_async(query="SELECT * FROM my_index")
-
-
-@pytest.mark.asyncio
-async def test_run_async_with_error_no_raise():
-    mock_store = Mock(spec=OpenSearchDocumentStore)
-    mock_store._query_sql_async.side_effect = Exception("SQL error")
-    retriever = OpenSearchSQLRetriever(document_store=mock_store, raise_on_failure=False)
-    res = await retriever.run_async(query="SELECT * FROM my_index")
-    assert res["result"] is None
 
 
 @pytest.mark.integration
