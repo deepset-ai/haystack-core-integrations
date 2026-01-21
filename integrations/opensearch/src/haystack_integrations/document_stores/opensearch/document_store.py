@@ -1209,24 +1209,20 @@ class OpenSearchDocumentStore:
         :param top_k: Maximum number of results to return.
         :returns: Deduplicated list of metadata dictionaries.
         """
-        # Sort by score
+        # Sort, deduplicate, and filter fields
         sorted_hit_list = sorted(hit_list, key=lambda x: x["_score"], reverse=True)
-
-        # Deduplicate by document ID (keep first occurrence of each document)
-        seen_ids: set[str] = set()
-        unique_hits = []
-        for hit in sorted_hit_list:
-            doc_id = hit["_id"]
-            if doc_id not in seen_ids:
-                seen_ids.add(doc_id)
-                unique_hits.append(hit)
-                if len(unique_hits) >= top_k:
-                    break
+        top_k_hit_list = sorted_hit_list[:top_k]
 
         # Extract only specified fields
-        filtered_results = [{k: v for k, v in hit["_source"].items() if k in fields} for hit in unique_hits]
+        filtered_results = [{k: v for k, v in hit["_source"].items() if k in fields} for hit in top_k_hit_list]
 
-        return filtered_results
+        # Deduplicate
+        deduplicated = []
+        for x in filtered_results:
+            if x not in deduplicated:
+                deduplicated.append(x)
+
+        return deduplicated
 
     def _metadata_search(
         self,

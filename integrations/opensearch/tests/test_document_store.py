@@ -937,7 +937,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         )
 
         assert isinstance(result, list)
-        assert len(result) >= 2  # At least 2 documents with category "Python"
+        assert len(result) == 1  # At least 1 document with category "Python" due to metadat deduplication
         assert all(isinstance(row, dict) for row in result)
         assert all("category" in row for row in result)
 
