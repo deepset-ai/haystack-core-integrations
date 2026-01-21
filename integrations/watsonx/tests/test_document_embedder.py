@@ -175,6 +175,30 @@ class TestWatsonXDocumentEmbedder:
             "meta": {"model": "ibm/slate-30m-english-rtrvr-v2", "truncate_input_tokens": None, "batch_size": 1000},
         }
 
+    def test_run_does_not_modify_original_documents(self, mock_watsonx):
+        """Test that original documents are not modified during embedding"""
+        embedder = WatsonxDocumentEmbedder(project_id=Secret.from_token("fake-project-id"))
+        original_docs = [
+            Document(content="I love cheese"),
+            Document(content="A transformer is a deep learning architecture"),
+        ]
+
+        # Mock the embedder to return embeddings
+        mock_watsonx["embeddings_instance"].embed_documents.return_value = [
+            [0.1, 0.2, 0.3],
+            [0.4, 0.5, 0.6],
+        ]
+
+        result = embedder.run(documents=original_docs)
+
+        # Check that original documents are not modified
+        for doc in original_docs:
+            assert doc.embedding is None
+
+        # Check that returned documents have embeddings
+        for doc_with_embedding in result["documents"]:
+            assert doc_with_embedding.embedding is not None
+
 
 @pytest.mark.integration
 class TestWatsonxDocumentEmbedderIntegration:
