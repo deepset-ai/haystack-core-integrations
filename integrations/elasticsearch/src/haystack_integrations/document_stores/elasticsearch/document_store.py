@@ -16,7 +16,7 @@ from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils import Secret
+from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.version import __version__ as haystack_version
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
@@ -287,6 +287,7 @@ class ElasticsearchDocumentStore:
         :returns:
             Deserialized component.
         """
+        deserialize_secrets_inplace(data, keys=["api_key", "api_key_id"])
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:
