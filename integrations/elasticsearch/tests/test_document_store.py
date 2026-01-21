@@ -141,7 +141,7 @@ def test_from_dict_with_api_keys_env_vars(_mock_elasticsearch_client):
     assert document_store._api_key._strict is False
 
     assert isinstance(document_store._api_key_id, EnvVarSecret)
-    assert document_store._api_key.type == SecretType.ENV_VAR
+    assert document_store._api_key_id.type == SecretType.ENV_VAR
     assert document_store._api_key_id._env_vars == ("ELASTIC_API_KEY_ID",)
     assert document_store._api_key_id._strict is False
 
