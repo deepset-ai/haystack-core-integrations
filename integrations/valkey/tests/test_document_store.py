@@ -751,6 +751,122 @@ class TestValkeyDocumentStoreStaticMethods:
         docs = ValkeyDocumentStore._parse_documents_from_ft(raw_results, with_embedding=with_embedding)
         assert docs == []
 
+    def test_parse_documents_from_ft_with_embeddings(self):
+        """Test _parse_documents_from_ft correctly parses embeddings when with_embedding=True."""
+        raw_results = [
+            2,
+            {
+                b"doc:1": {
+                    b"payload": b'{"id": "1", "content": "test doc 1"}',
+                    b"vector": b"[0.1, 0.2, 0.3]",
+                    b"__vector_score": b"0.95",
+                },
+                b"doc:2": {
+                    b"payload": b'{"id": "2", "content": "test doc 2"}',
+                    b"vector": b"[0.4, 0.5, 0.6]",
+                    b"__vector_score": b"0.85",
+                },
+            },
+        ]
+
+        docs = ValkeyDocumentStore._parse_documents_from_ft(raw_results, with_embedding=True)
+
+        assert len(docs) == 2
+        assert docs[0].id == "1"
+        assert docs[0].content == "test doc 1"
+        assert docs[0].embedding == [0.1, 0.2, 0.3]
+        assert docs[0].score == 0.95
+        assert docs[1].id == "2"
+        assert docs[1].embedding == [0.4, 0.5, 0.6]
+        assert docs[1].score == 0.85
+
+    def test_parse_documents_from_ft_without_embeddings(self):
+        """Test _parse_documents_from_ft excludes embeddings when with_embedding=False."""
+        raw_results = [
+            2,
+            {
+                b"doc:1": {
+                    b"payload": b'{"id": "1", "content": "test doc 1"}',
+                    b"vector": b"[0.1, 0.2, 0.3]",
+                    b"__vector_score": b"0.95",
+                },
+                b"doc:2": {
+                    b"payload": b'{"id": "2", "content": "test doc 2"}',
+                    b"vector": b"[0.4, 0.5, 0.6]",
+                    b"__vector_score": b"0.85",
+                },
+            },
+        ]
+
+        docs = ValkeyDocumentStore._parse_documents_from_ft(raw_results, with_embedding=False)
+
+        assert len(docs) == 2
+        assert docs[0].id == "1"
+        assert docs[0].embedding is None
+        assert docs[0].score == 0.95
+        assert docs[1].id == "2"
+        assert docs[1].embedding is None
+        assert docs[1].score == 0.85
+
+    def test_parse_documents_from_ft_filters_dummy_vectors(self):
+        """Test _parse_documents_from_ft filters out dummy vectors."""
+        raw_results = [
+            1,
+            {
+                b"doc:1": {
+                    b"payload": b'{"id": "1", "content": "test doc without embedding"}',
+                    b"vector": b"[-10.0, -10.0, -10.0]",
+                    b"__vector_score": b"0.5",
+                },
+            },
+        ]
+
+        docs = ValkeyDocumentStore._parse_documents_from_ft(raw_results, with_embedding=True)
+
+        assert len(docs) == 1
+        assert docs[0].id == "1"
+        assert docs[0].embedding is None
+        assert docs[0].score == 0.5
+
+    def test_parse_documents_from_ft_missing_payload(self):
+        """Test _parse_documents_from_ft skips documents without payload."""
+        raw_results = [
+            2,
+            {
+                b"doc:1": {
+                    b"payload": b'{"id": "1", "content": "test doc 1"}',
+                    b"__vector_score": b"0.95",
+                },
+                b"doc:2": {
+                    b"vector": b"[0.4, 0.5, 0.6]",
+                    b"__vector_score": b"0.85",
+                },
+            },
+        ]
+
+        docs = ValkeyDocumentStore._parse_documents_from_ft(raw_results, with_embedding=True)
+
+        assert len(docs) == 1
+        assert docs[0].id == "1"
+
+    def test_parse_documents_from_ft_missing_score(self):
+        """Test _parse_documents_from_ft handles missing similarity score."""
+        raw_results = [
+            1,
+            {
+                b"doc:1": {
+                    b"payload": b'{"id": "1", "content": "test doc 1"}',
+                    b"vector": b"[0.1, 0.2, 0.3]",
+                },
+            },
+        ]
+
+        docs = ValkeyDocumentStore._parse_documents_from_ft(raw_results, with_embedding=True)
+
+        assert len(docs) == 1
+        assert docs[0].id == "1"
+        assert docs[0].score is None
+
     def test_class_constants_accessible(self):
         """Test that class constants are accessible and have correct values."""
         assert ValkeyDocumentStore._DUMMY_VALUE == -10.0

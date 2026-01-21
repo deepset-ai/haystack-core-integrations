@@ -9,6 +9,8 @@ import json
 import struct
 from typing import Any, ClassVar, Literal
 
+from dataclasses import replace
+
 from glide import (
     BackoffStrategy,
     GlideClient,
@@ -156,6 +158,26 @@ class ValkeyDocumentStore(DocumentStore):
         distance_metric: Literal["l2", "cosine", "ip"] = "cosine",
         embedding_dim: int = 768,
     ):
+        """
+        Creates a new ValkeyDocumentStore instance.
+
+        :param nodes_list: List of (host, port) tuples for Valkey nodes. Defaults to [("localhost", 6379)].
+        :param cluster_mode: Whether to connect in cluster mode. Defaults to False.
+        :param use_tls: Whether to use TLS for connections. Defaults to False.
+        :param username: Username for authentication. If not provided, reads from VALKEY_USERNAME environment variable.
+            Defaults to None.
+        :param password: Password for authentication. If not provided, reads from VALKEY_PASSWORD environment variable.
+            Defaults to None.
+        :param request_timeout: Request timeout in milliseconds. Defaults to 500.
+        :param retry_attempts: Number of retry attempts for failed operations. Defaults to 3.
+        :param retry_base_delay_ms: Base delay in milliseconds for exponential backoff. Defaults to 1000.
+        :param retry_exponent_base: Exponent base for exponential backoff calculation. Defaults to 2.
+        :param batch_size: Number of documents to process in a single batch for async operations. Defaults to 100.
+        :param index_name: Name of the search index. Defaults to "haystack_document".
+        :param distance_metric: Distance metric for vector similarity. Options: "l2", "cosine", "ip" (inner product).
+            Defaults to "cosine".
+        :param embedding_dim: Dimension of document embeddings. Defaults to 768.
+        """
         self._index_name = index_name
         self._distance_metric = self._parse_metric(distance_metric)
         self._embedding_dim = embedding_dim
@@ -209,7 +231,6 @@ class ValkeyDocumentStore(DocumentStore):
             return self._client
         except Exception as e:
             msg = "Failed to connect to Valkey"
-            logger.error(msg)
             raise ValkeyDocumentStoreError(msg) from e
 
     async def _get_connection_async(self) -> GlideClient | GlideClusterClient:
@@ -247,7 +268,6 @@ class ValkeyDocumentStore(DocumentStore):
             return self._async_client
         except Exception as e:
             msg = "Failed to connect to Valkey"
-            logger.error(msg)
             raise ValkeyDocumentStoreError(msg) from e
 
     def close(self) -> None:
@@ -255,7 +275,7 @@ class ValkeyDocumentStore(DocumentStore):
             try:
                 self._client.close()
             except Exception as e:
-                logger.error(f"Failed to close Valkey client: {e}")
+                logger.error("Failed to close Valkey client: {error}", error=e)
                 pass
         self._client = None
 
@@ -264,7 +284,7 @@ class ValkeyDocumentStore(DocumentStore):
             try:
                 await self._async_client.close()
             except Exception as e:
-                logger.error(f"Failed to close Valkey client: {e}")
+                logger.error("Failed to close Valkey client: {error}", error=e)
                 pass
         self._async_client = None
 
@@ -275,7 +295,7 @@ class ValkeyDocumentStore(DocumentStore):
             sync_ft.info(client, self._index_name)
             return True
         except Exception as e:
-            logger.info(f"Valkey index check failed for {self._index_name}, {e}")
+            logger.info("Valkey index check failed for {index_name}, {error}", index_name=self._index_name, error=e)
             return False
 
     async def _has_index_async(self) -> bool:
@@ -285,7 +305,7 @@ class ValkeyDocumentStore(DocumentStore):
             await ft.info(client, self._index_name)
             return True
         except Exception as e:
-            logger.info(f"Valkey index check failed for {self._index_name}, {e}")
+            logger.info("Valkey index check failed for {index_name}, {error}", index_name=self._index_name, error=e)
             return False
 
     def _prepare_index_fields(self) -> list[Field]:
@@ -313,7 +333,7 @@ class ValkeyDocumentStore(DocumentStore):
 
         try:
             if self._has_index():
-                logger.info(f"Index {self._index_name} already exists")
+                logger.info("Index {index_name} already exists", index_name=self._index_name)
                 return
 
             fields = self._prepare_index_fields()
@@ -325,7 +345,6 @@ class ValkeyDocumentStore(DocumentStore):
 
         except Exception as e:
             msg = f"Error creating collection {self._index_name}"
-            logger.error(msg)
             raise ValkeyDocumentStoreError(msg) from e
 
     async def _create_index_async(self) -> None:
@@ -333,7 +352,7 @@ class ValkeyDocumentStore(DocumentStore):
             client = await self._get_connection_async()
 
             if await self._has_index_async():
-                logger.info(f"Index {self._index_name} already exists")
+                logger.info("Index {index_name} already exists", index_name=self._index_name)
                 return
 
             fields = self._prepare_index_fields()
@@ -345,7 +364,6 @@ class ValkeyDocumentStore(DocumentStore):
 
         except Exception as e:
             msg = f"Error creating collection {self._index_name}"
-            logger.error(msg)
             raise ValkeyDocumentStoreError(msg) from e
 
     def to_dict(self) -> dict[str, Any]:
@@ -396,7 +414,7 @@ class ValkeyDocumentStore(DocumentStore):
         client = self._get_connection()
 
         if not self._has_index():
-            logger.info(f"Index {self._index_name} does not exist")
+            logger.info("Index {index_name} does not exist", index_name=self._index_name)
             return 0
 
         try:
@@ -404,11 +422,10 @@ class ValkeyDocumentStore(DocumentStore):
             num_docs = info[b"num_docs"]
             if isinstance(num_docs, (str, bytes, int)):
                 return int(num_docs)
-            logger.warning(f"Unexpected type for num_docs: {type(num_docs)}")
+            logger.warning("Unexpected type for num_docs: {type_num_docs}", type_num_docs=type(num_docs))
             return 0
         except Exception as e:
             msg = f"Error counting documents in index '{self._index_name}'"
-            logger.error(msg)
             raise ValkeyDocumentStoreError(msg) from e
 
     async def count_documents_async(self) -> int:
@@ -431,7 +448,7 @@ class ValkeyDocumentStore(DocumentStore):
         client = await self._get_connection_async()
 
         if not await self._has_index_async():
-            logger.info(f"Index {self._index_name} does not exist")
+            logger.info("Index {index_name} does not exist", index_name=self._index_name)
             return 0
 
         try:
@@ -439,11 +456,11 @@ class ValkeyDocumentStore(DocumentStore):
             num_docs = info[b"num_docs"]
             if isinstance(num_docs, (str, bytes, int)):
                 return int(num_docs)
-            logger.warning(f"Unexpected type for num_docs: {type(num_docs)}")
+            logger.warning("Unexpected type for num_docs: {type_num_docs}", type_num_docs=type(num_docs))
             return 0
         except Exception as e:
-            logger.error(f"Error counting documents in index '{self._index_name}': {e}")
-            raise ValkeyDocumentStoreError(e) from e
+            msg = f"Error counting documents in index '{self._index_name}': {e}"
+            raise ValkeyDocumentStoreError(msg) from e
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
@@ -485,14 +502,14 @@ class ValkeyDocumentStore(DocumentStore):
 
             # when simply filtering, we don't want to return any scores
             # furthermore, we are querying with a dummy vector, so the scores are meaningless
+            docs_no_score = []
             for doc in documents:
-                doc.score = None
+                docs_no_score.append(replace(doc, score=None))
 
-            return documents
+            return docs_no_score
 
         except Exception as e:
             msg = f"Error filtering documents in index '{self._index_name}'"
-            logger.error(msg)
             raise ValkeyDocumentStoreError(msg) from e
 
     async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
@@ -535,14 +552,14 @@ class ValkeyDocumentStore(DocumentStore):
 
             # when simply filtering, we don't want to return any scores
             # furthermore, we are querying with a dummy vector, so the scores are meaningless
+            docs_no_score = []
             for doc in documents:
-                doc.score = None
+                docs_no_score.append(replace(doc, score = None))
 
-            return documents
+            return docs_no_score
 
         except Exception as e:
             msg = f"Error filtering documents in index '{self._index_name}'"
-            logger.error(msg)
             raise ValkeyDocumentStoreError(msg) from e
 
     def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
@@ -599,7 +616,6 @@ class ValkeyDocumentStore(DocumentStore):
                 written_count += 1
             except Exception as e:
                 msg = f"Failed to write document {doc.id}: {e}"
-                logger.error(msg)
                 raise ValkeyDocumentStoreError(msg) from e
 
         return written_count
@@ -664,7 +680,6 @@ class ValkeyDocumentStore(DocumentStore):
                 written_count += len(batch)
             except Exception as e:
                 msg = f"Failed to write batch starting at index {i}: {e}"
-                logger.error(msg)
                 raise ValkeyDocumentStoreError(msg) from e
 
         return written_count
@@ -695,9 +710,8 @@ class ValkeyDocumentStore(DocumentStore):
         try:
             result = client.delete(keys)
             if result < len(document_ids):
-                logger.warning(f"Some documents not found. Expected {len(document_ids)}, deleted {result}")
+                logger.warning("Some documents not found. Expected {len_document_ids}, deleted {result}", len_document_ids=len(document_ids), result=result)
         except Exception as e:
-            logger.error(f"Failed to delete documents: {e}")
             msg = f"Failed to delete documents: {e}"
             raise ValkeyDocumentStoreError(msg) from e
 
@@ -728,10 +742,9 @@ class ValkeyDocumentStore(DocumentStore):
         try:
             result = await client.delete(keys)
             if result < len(document_ids):
-                logger.warning(f"Some documents not found. Expected {len(document_ids)}, deleted {result}")
+                logger.warning("Some documents not found. Expected {len_document_ids}, deleted {result}", len_document_ids=len(document_ids), result=result)
         except Exception as e:
             msg = f"Failed to delete documents: {e}"
-            logger.error(msg)
             raise ValkeyDocumentStoreError(msg) from e
 
     def delete_all_documents(self) -> None:
@@ -762,11 +775,10 @@ class ValkeyDocumentStore(DocumentStore):
             if self._has_index():
                 # Drop the existing index
                 sync_ft.dropindex(client, self._index_name)
-                logger.info(f"Dropped index {self._index_name} and all its documents")
+                logger.info("Dropped index {index_name} and all its documents", index_name=self._index_name)
             else:
-                logger.info(f"Index {self._index_name} does not exist, nothing to delete")
+                logger.info("Index {index_name} does not exist, nothing to delete", index_name=self._index_name)
         except Exception as e:
-            logger.error(f"Failed to delete all documents: {e}")
             msg = f"Failed to delete all documents: {e}"
             raise ValkeyDocumentStoreError(msg) from e
 
@@ -798,11 +810,10 @@ class ValkeyDocumentStore(DocumentStore):
             if await self._has_index_async():
                 # Drop the existing index
                 await ft.dropindex(client, self._index_name)
-                logger.info(f"Dropped index {self._index_name} and all its documents")
+                logger.info("Dropped index {index_name} and all its documents", index_name=self._index_name)
             else:
-                logger.info(f"Index {self._index_name} does not exist, nothing to delete")
+                logger.info("Index {index_name} does not exist, nothing to delete", index_name=self._index_name)
         except Exception as e:
-            logger.error(f"Failed to delete all documents: {e}")
             msg = f"Failed to delete all documents: {e}"
             raise ValkeyDocumentStoreError(msg) from e
 
@@ -861,7 +872,7 @@ class ValkeyDocumentStore(DocumentStore):
         client = self._get_connection()
 
         if not self._has_index():
-            logger.warning(f"Index {self._index_name} does not exist, returning empty results")
+            logger.warning("Index {index_name} does not exist, returning empty results", index_name=self._index_name)
             return []
 
         if limit <= 0:
@@ -877,7 +888,6 @@ class ValkeyDocumentStore(DocumentStore):
             return self._parse_documents_from_ft(results, with_embedding=with_embedding)
 
         except Exception as e:
-            logger.error(f"Failed to retrieve documents by embedding: {e}")
             msg = f"Failed to retrieve documents by embedding: {e}"
             raise ValkeyDocumentStoreError(msg) from e
 
@@ -935,11 +945,11 @@ class ValkeyDocumentStore(DocumentStore):
         client = await self._get_connection_async()
 
         if not await self._has_index_async():
-            logger.warning(f"Index {self._index_name} does not exist, returning empty results")
+            logger.warning("Index {index_name} does not exist, returning empty results", index_name=self._index_name)
             return []
 
         if limit == 0:
-            logger.warning(f"Limit cannot be zero: {limit}")
+            logger.warning("Limit cannot be zero: {limit}", limit=limit)
             return []
 
         try:
@@ -952,7 +962,6 @@ class ValkeyDocumentStore(DocumentStore):
 
         except Exception as e:
             msg = f"Failed to retrieve documents by embedding: {e}"
-            logger.error(msg)
             raise ValkeyDocumentStoreError(msg) from e
 
     def _prepare_document_dict(self, doc: Document) -> dict:
@@ -980,15 +989,21 @@ class ValkeyDocumentStore(DocumentStore):
 
     @staticmethod
     def _parse_documents_from_ft(raw: Any, *, with_embedding: bool) -> list[Document]:
+        """
+        Parse raw Valkey FT.SEARCH results into Document objects.
+
+        :param raw: Raw search results from Valkey FT.SEARCH command. Expected format is a list where
+            raw[0] is the total count (int) and raw[1] is a dict mapping document keys to field dictionaries
+            containing b"payload", b"vector", and b"__vector_score" as byte keys.
+        :param with_embedding: Whether to include embeddings in parsed documents.
+        :return: List of Document objects with scores and optional embeddings.
+        """
         documents: list[Document] = []
+        # Handle empty results: raw is None/empty, or raw[0] (result count) is 0
+        # This occurs when no documents match the query filters or the index is empty
         if not raw or raw[0] == 0:
             return documents
-        if raw[1] is None:
-            return documents
-        for _, doc_info in raw[1].items():
-            # doc_key_str = doc_key.decode() if isinstance(doc_key, bytes) else doc_key
-            # doc_id = doc_key_str.split(":")[-1]  # Extract ID from key
-
+        for doc_info in raw[1].values():
             # Get payload from doc_info
             payload_data = doc_info.get(b"payload")
             if payload_data:
@@ -1000,27 +1015,24 @@ class ValkeyDocumentStore(DocumentStore):
             else:
                 continue
 
-            # Get embedding from doc_info if requested
-            embedding = None
+            # Get embedding from doc_info if requested and add to payload
             if with_embedding:
                 vector_data = doc_info.get(b"vector")
                 if vector_data:
                     vector_str = vector_data.decode() if isinstance(vector_data, bytes) else vector_data
                     embedding = json.loads(vector_str)
+                    # Only add embedding if it's not a dummy vector
+                    if not all(x == ValkeyDocumentStore._DUMMY_VALUE for x in embedding):
+                        payload["embedding"] = embedding
 
-            # Get similarity score from search results
+            # Get similarity score from search results and add to payload
             score_data = doc_info.get(b"__vector_score")
-            similarity_score = None
             if score_data:
                 score_str = score_data.decode() if isinstance(score_data, bytes) else score_data
-                similarity_score = float(score_str)
+                payload["score"] = float(score_str)
 
-            # Reconstruct document using from_dict for proper deserialization
+            # Reconstruct document using from_dict with updated payload
             doc = Document.from_dict(payload)
-            if embedding and not all(x == ValkeyDocumentStore._DUMMY_VALUE for x in embedding):
-                doc.embedding = embedding
-            # Set similarity score from vector search
-            doc.score = similarity_score
             documents.append(doc)
 
         return documents
@@ -1068,8 +1080,9 @@ class ValkeyDocumentStore(DocumentStore):
         """Validate duplicate policy."""
         if policy not in [DuplicatePolicy.NONE, DuplicatePolicy.OVERWRITE]:
             logger.warning(
-                f"ValkeyDocumentStore only supports `DuplicatePolicy.OVERWRITE`"
-                f"but got {policy}. Overwriting duplicates is enabled by default."
+                "ValkeyDocumentStore only supports `DuplicatePolicy.OVERWRITE`"
+                "but got {policy}. Overwriting duplicates is enabled by default.",
+                policy=policy
             )
 
     @staticmethod
@@ -1080,7 +1093,6 @@ class ValkeyDocumentStore(DocumentStore):
     def _verify_node_list(node_list: list[tuple[str, int]]) -> None:
         if not node_list:
             msg = "Node list is empty. Cannot create Valkey client"
-            logger.error(msg)
             raise DocumentStoreError(msg) from None
 
     @staticmethod
