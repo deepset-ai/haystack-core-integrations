@@ -83,7 +83,6 @@ class OpenSearchSQLRetriever:
         self,
         query: str,
         document_store: OpenSearchDocumentStore | None = None,
-        cursor: str | None = None,
         fetch_size: int | None = None,
     ) -> dict[str, Any]:
         """
@@ -91,7 +90,6 @@ class OpenSearchSQLRetriever:
 
         :param query: The OpenSearch SQL query to execute.
         :param document_store: Optionally, an instance of OpenSearchDocumentStore to use with the Retriever.
-        :param cursor: Optional cursor for pagination. Use this to fetch the next page of results.
         :param fetch_size: Optional number of results to fetch per page. If not provided, uses the value
             specified during initialization, or the default fetch size set in OpenSearch.
 
@@ -119,7 +117,7 @@ class OpenSearchSQLRetriever:
         fetch_size = fetch_size if fetch_size is not None else self._fetch_size
 
         try:
-            result = doc_store._query_sql(query=query, cursor=cursor, fetch_size=fetch_size)
+            result = doc_store._query_sql(query=query, fetch_size=fetch_size)
         except Exception as e:
             if self._raise_on_failure:
                 raise e
@@ -138,7 +136,6 @@ class OpenSearchSQLRetriever:
         self,
         query: str,
         document_store: OpenSearchDocumentStore | None = None,
-        cursor: str | None = None,
         fetch_size: int | None = None,
     ) -> dict[str, Any]:
         """
@@ -146,7 +143,6 @@ class OpenSearchSQLRetriever:
 
         :param query: The OpenSearch SQL query to execute.
         :param document_store: Optionally, an instance of OpenSearchDocumentStore to use with the Retriever.
-        :param cursor: Optional cursor for pagination. Use this to fetch the next page of results.
         :param fetch_size: Optional number of results to fetch per page. If not provided, uses the value
             specified during initialization, or the default fetch size set in OpenSearch.
 
@@ -174,7 +170,7 @@ class OpenSearchSQLRetriever:
         fetch_size = fetch_size if fetch_size is not None else self._fetch_size
 
         try:
-            result = await doc_store._query_sql_async(query=query, cursor=cursor, fetch_size=fetch_size)
+            result = await doc_store._query_sql_async(query=query, fetch_size=fetch_size)
         except Exception as e:
             if self._raise_on_failure:
                 raise e

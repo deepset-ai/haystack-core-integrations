@@ -690,29 +690,6 @@ class TestDocumentStoreAsync:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_query_sql_async_with_cursor(self, document_store: OpenSearchDocumentStore):
-        """Test async SQL query with cursor parameter for pagination"""
-        # Create multiple documents to test pagination
-        docs = [Document(content=f"Document {i}", meta={"category": "A", "index": i}) for i in range(15)]
-        await document_store.write_documents_async(docs, refresh=True)
-
-        sql_query = (
-            f"SELECT content, category, index FROM {document_store._index} "  # noqa: S608
-            f"WHERE category = 'A' ORDER BY index"
-        )
-
-        # First query without cursor
-        result1 = await document_store._query_sql_async(sql_query, fetch_size=5)
-        assert isinstance(result1, list)
-
-        # Test with invalid cursor - OpenSearch will reject it, but this verifies
-        # the parameter is being passed to the API correctly
-        # Note: In real usage, cursor would come from the previous OpenSearch response
-        with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
-            await document_store._query_sql_async(sql_query, cursor="test_cursor", fetch_size=5)
-
-    @pytest.mark.integration
-    @pytest.mark.asyncio
     async def test_query_sql_async_pagination_flow(self, document_store: OpenSearchDocumentStore):
         """Test async pagination flow with fetch_size"""
         # Create enough documents to require pagination

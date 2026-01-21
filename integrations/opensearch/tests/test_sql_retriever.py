@@ -172,6 +172,31 @@ def test_sql_retriever_error_handling(document_store: OpenSearchDocumentStore):
 
 
 @pytest.mark.integration
+def test_sql_retriever_with_fetch_size(document_store: OpenSearchDocumentStore):
+    """Test SQL retriever with fetch_size parameter"""
+    docs = [Document(content=f"Document {i}", meta={"category": "A", "index": i}) for i in range(15)]
+    document_store.write_documents(docs, refresh=True)
+
+    retriever = OpenSearchSQLRetriever(document_store=document_store, fetch_size=5)
+    sql_query = (
+        f"SELECT content, category, index FROM {document_store._index} "  # noqa: S608
+        f"WHERE category = 'A' ORDER BY index"
+    )
+
+    # Test with fetch_size from initialization
+    result = retriever.run(query=sql_query)
+    assert "result" in result
+    assert isinstance(result["result"], list)
+    assert len(result["result"]) > 0
+
+    # Test with runtime fetch_size override
+    result2 = retriever.run(query=sql_query, fetch_size=10)
+    assert "result" in result2
+    assert isinstance(result2["result"], list)
+    assert len(result2["result"]) > 0
+
+
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_sql_retriever_async_basic_query(document_store: OpenSearchDocumentStore):
     """Test basic async SQL query execution"""
@@ -248,3 +273,29 @@ async def test_sql_retriever_async_error_handling(document_store: OpenSearchDocu
     retriever_no_raise = OpenSearchSQLRetriever(document_store=document_store, raise_on_failure=False)
     result = await retriever_no_raise.run_async(query=invalid_query)
     assert result["result"] is None
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_sql_retriever_async_with_fetch_size(document_store: OpenSearchDocumentStore):
+    """Test async SQL retriever with fetch_size parameter"""
+    docs = [Document(content=f"Document {i}", meta={"category": "A", "index": i}) for i in range(15)]
+    await document_store.write_documents_async(docs, refresh=True)
+
+    retriever = OpenSearchSQLRetriever(document_store=document_store, fetch_size=5)
+    sql_query = (
+        f"SELECT content, category, index FROM {document_store._index} "  # noqa: S608
+        f"WHERE category = 'A' ORDER BY index"
+    )
+
+    # Test with fetch_size from initialization
+    result = await retriever.run_async(query=sql_query)
+    assert "result" in result
+    assert isinstance(result["result"], list)
+    assert len(result["result"]) > 0
+
+    # Test with runtime fetch_size override
+    result2 = await retriever.run_async(query=sql_query, fetch_size=10)
+    assert "result" in result2
+    assert isinstance(result2["result"], list)
+    assert len(result2["result"]) > 0
