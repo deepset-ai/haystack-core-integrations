@@ -1047,6 +1047,183 @@ class OpenSearchDocumentStore:
         OpenSearchDocumentStore._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
         return documents
 
+    @staticmethod
+    def _build_metadata_search_query(
+        query_part: str, fields: list[str], mode: Literal["strict", "fuzzy"]
+    ) -> dict[str, Any]:
+        """
+        Build an OpenSearch query for metadata search.
+
+        :param query_part: The cleaned query part to search for.
+        :param fields: List of metadata field names to search within.
+        :param mode: Search mode. "strict" uses prefix and wildcard matching,
+            "fuzzy" uses fuzzy matching with dis_max queries.
+        :returns: OpenSearch query dictionary.
+        """
+        if mode == "strict":
+            # Strict mode: prefix and wildcard matching with Jaccard similarity
+            should_clauses: list[dict[str, Any]] = []
+            for field in fields:
+                should_clauses.append({"prefix": {field: query_part}})
+                should_clauses.append({"wildcard": {field: {"value": f"*{query_part}*", "case_insensitive": True}}})
+
+            return {
+                "script_score": {
+                    "query": {
+                        "bool": {
+                            "filter": [{"exists": {"field": field}} for field in fields],
+                            "should": should_clauses,
+                            "minimum_should_match": 1,
+                        }
+                    },
+                    "script": {
+                        "lang": "painless",
+                        "source": METADATA_SEARCH_JACCARD_SCRIPT,
+                        "params": {"field": fields[0], "q": query_part, "n": 3},
+                    },
+                }
+            }
+        else:
+            # Fuzzy mode: fuzzy matching with dis_max queries
+            dis_max_queries: list[dict[str, Any]] = []
+            for field in fields:
+                dis_max_queries.append(
+                    {
+                        "match": {
+                            field: {
+                                "query": query_part,
+                                "fuzziness": 2,
+                                "prefix_length": 0,
+                                "max_expansions": 200,
+                            }
+                        }
+                    }
+                )
+                dis_max_queries.append({"wildcard": {f"{field}.keyword": {"value": f"*{query_part}*"}}})
+                dis_max_queries.append(
+                    {
+                        "query_string": {
+                            "fields": [field],
+                            "query": f"*{query_part}~2*",
+                            "analyze_wildcard": True,
+                        }
+                    }
+                )
+
+            return {
+                "script_score": {
+                    "query": {
+                        "dis_max": {
+                            "tie_breaker": 0.7,
+                            "queries": dis_max_queries,
+                        }
+                    },
+                    "script": {
+                        "lang": "painless",
+                        "source": METADATA_SEARCH_JACCARD_SCRIPT,
+                        "params": {"field": fields[0], "q": query_part, "n": 3},
+                    },
+                }
+            }
+
+    @staticmethod
+    def _apply_metadata_search_filters(
+        os_query: dict[str, Any], filters: list[dict[str, Any]], mode: Literal["strict", "fuzzy"]
+    ) -> None:
+        """
+        Apply filters to a metadata search query.
+
+        :param os_query: The OpenSearch query dictionary to modify.
+        :param filters: Normalized filters to apply.
+        :param mode: Search mode to determine how to apply filters.
+        """
+        if mode == "strict":
+            bool_query = os_query["script_score"]["query"]["bool"]
+            assert isinstance(bool_query, dict)
+            filter_list = bool_query.get("filter", [])
+            assert isinstance(filter_list, list)
+            filter_list.extend(filters)
+        else:
+            # For fuzzy mode, wrap the dis_max query in a bool query to add filters
+            original_query = os_query["script_score"]["query"]
+            os_query["script_score"]["query"] = {
+                "bool": {
+                    "must": [original_query],
+                    "filter": filters,
+                }
+            }
+
+    @staticmethod
+    def _boost_exact_matches(
+        hits: list[dict[str, Any]], query_part: str, fields: list[str], exact_match_weight: float
+    ) -> None:
+        """
+        Boost scores for exact matches in hits.
+
+        :param hits: List of search hits to modify.
+        :param query_part: The query part to match against.
+        :param fields: List of metadata fields to check.
+        :param exact_match_weight: Weight to add for exact matches.
+        """
+        for hit in hits:
+            hit_source = hit["_source"]
+            for field in fields:
+                if field in hit_source:
+                    if query_part.lower() in str(hit_source[field]).lower():
+                        hit["_score"] = hit["_score"] + exact_match_weight
+
+    @staticmethod
+    def _apply_multi_field_boosting(
+        hit_list: list[dict[str, Any]], query: str, fields: list[str], exact_match_weight: float
+    ) -> None:
+        """
+        Apply multi-field exact match boosting to hits.
+
+        :param hit_list: List of search hits to modify.
+        :param query: The full query string (may contain comma-separated parts).
+        :param fields: List of metadata fields to check.
+        :param exact_match_weight: Weight to add for multi-field matches.
+        """
+        for hit in hit_list:
+            matched = 0
+            for query_part in query.split(","):
+                query_part_clean = query_part.strip()
+                if not query_part_clean:
+                    continue
+                for field in fields:
+                    if field in hit["_source"]:
+                        if query_part_clean.lower() in str(hit["_source"][field]).lower():
+                            matched += 1
+            if matched > 1:
+                hit["_score"] = hit["_score"] + exact_match_weight * (matched - 1)
+
+    @staticmethod
+    def _process_metadata_search_results(
+        hit_list: list[dict[str, Any]], fields: list[str], top_k: int
+    ) -> list[dict[str, Any]]:
+        """
+        Process and deduplicate metadata search results.
+
+        :param hit_list: List of search hits.
+        :param fields: List of metadata fields to include in results.
+        :param top_k: Maximum number of results to return.
+        :returns: Deduplicated list of metadata dictionaries.
+        """
+        # Sort, deduplicate, and filter fields
+        sorted_hit_list = sorted(hit_list, key=lambda x: x["_score"], reverse=True)
+        top_k_hit_list = sorted_hit_list[:top_k]
+
+        # Extract only specified fields
+        filtered_results = [{k: v for k, v in hit["_source"].items() if k in fields} for hit in top_k_hit_list]
+
+        # Deduplicate
+        deduplicated = []
+        for x in filtered_results:
+            if x not in deduplicated:
+                deduplicated.append(x)
+
+        return deduplicated
+
     def _metadata_search(
         self,
         query: str,
@@ -1060,9 +1237,8 @@ class OpenSearchDocumentStore:
         """
         Search across multiple metadata fields with custom scoring and ranking.
 
-        This method searches specified metadata fields for matches to a given query,
-        ranks the results based on relevance using Jaccard similarity, and returns
-        the top-k results containing only the specified metadata fields.
+        This method searches specified metadata fields for matches to a given query, ranks the results based on
+        relevance using Jaccard similarity, and returns the top-k results containing only the specified metadata fields.
 
         :param query: The search query string, which can contain multiple comma-separated parts.
             Each part will be searched across all specified fields.
@@ -1094,7 +1270,7 @@ class OpenSearchDocumentStore:
         if not fields:
             return []
 
-        hitlist = []
+        hit_list = []
 
         # Split query by commas and search each part
         for query_part in query.split(","):
@@ -1102,91 +1278,13 @@ class OpenSearchDocumentStore:
             if not query_part_clean:
                 continue
 
-            # Build query based on mode
-            if mode == "strict":
-                # Strict mode: prefix and wildcard matching with Jaccard similarity
-                should_clauses = []
-                for field in fields:
-                    should_clauses.append({"prefix": {field: query_part_clean}})
-                    should_clauses.append(
-                        {"wildcard": {field: {"value": f"*{query_part_clean}*", "case_insensitive": True}}}
-                    )
-
-                os_query = {
-                    "script_score": {
-                        "query": {
-                            "bool": {
-                                "filter": [{"exists": {"field": field}} for field in fields],
-                                "should": should_clauses,
-                                "minimum_should_match": 1,
-                            }
-                        },
-                        "script": {
-                            "lang": "painless",
-                            "source": METADATA_SEARCH_JACCARD_SCRIPT,
-                            "params": {"field": fields[0], "q": query_part_clean, "n": 3},
-                        },
-                    }
-                }
-            else:
-                # Fuzzy mode: fuzzy matching with dis_max queries
-                dis_max_queries = []
-                for field in fields:
-                    dis_max_queries.append(
-                        {
-                            "match": {
-                                field: {
-                                    "query": query_part_clean,
-                                    "fuzziness": 2,
-                                    "prefix_length": 0,
-                                    "max_expansions": 200,
-                                }
-                            }
-                        }
-                    )
-                    dis_max_queries.append({"wildcard": {f"{field}.keyword": {"value": f"*{query_part_clean}*"}}})
-                    dis_max_queries.append(
-                        {
-                            "query_string": {
-                                "fields": [field],
-                                "query": f"*{query_part_clean}~2*",
-                                "analyze_wildcard": True,
-                            }
-                        }
-                    )
-
-                os_query = {
-                    "script_score": {
-                        "query": {
-                            "dis_max": {
-                                "tie_breaker": 0.7,
-                                "queries": dis_max_queries,
-                            }
-                        },
-                        "script": {
-                            "lang": "painless",
-                            "source": METADATA_SEARCH_JACCARD_SCRIPT,
-                            "params": {"field": fields[0], "q": query_part_clean, "n": 3},
-                        },
-                    }
-                }
+            # Build query
+            os_query = self._build_metadata_search_query(query_part_clean, fields, mode)
 
             # Add filters if provided
             if filters:
                 normalized_filters = normalize_filters(filters)
-                # In strict mode, filter already exists, extend it
-                # In fuzzy mode, we need to wrap dis_max in a bool query
-                if mode == "strict":
-                    os_query["script_score"]["query"]["bool"]["filter"].extend(normalized_filters)
-                else:
-                    # For fuzzy mode, wrap the dis_max query in a bool query to add filters
-                    original_query = os_query["script_score"]["query"]
-                    os_query["script_score"]["query"] = {
-                        "bool": {
-                            "must": [original_query],
-                            "filter": normalized_filters,
-                        }
-                    }
+                self._apply_metadata_search_filters(os_query, normalized_filters, mode)
 
             body = {"size": 1000, "query": os_query}
 
@@ -1196,46 +1294,18 @@ class OpenSearchDocumentStore:
                 hits = response["hits"]["hits"]
 
                 # Boost exact matches
-                for hit in hits:
-                    hit_source = hit["_source"]
-                    for field in fields:
-                        if field in hit_source:
-                            if query_part_clean.lower() in str(hit_source[field]).lower():
-                                hit["_score"] = hit["_score"] + exact_match_weight
+                self._boost_exact_matches(hits, query_part_clean, fields, exact_match_weight)
 
-                hitlist.extend(hits)
+                hit_list.extend(hits)
             except Exception as e:
                 msg = f"Failed to execute metadata search in OpenSearch: {e!s}"
                 raise DocumentStoreError(msg) from e
 
         # Add multi-field exact match boosting
-        for hit in hitlist:
-            matched = 0
-            for query_part in query.split(","):
-                query_part_clean = query_part.strip()
-                if not query_part_clean:
-                    continue
-                for field in fields:
-                    if field in hit["_source"]:
-                        if query_part_clean.lower() in str(hit["_source"][field]).lower():
-                            matched += 1
-            if matched > 1:
-                hit["_score"] = hit["_score"] + exact_match_weight * (matched - 1)
+        self._apply_multi_field_boosting(hit_list, query, fields, exact_match_weight)
 
-        # Sort, deduplicate, and filter fields
-        sorted_hitlist = sorted(hitlist, key=lambda x: x["_score"], reverse=True)
-        topk_hitlist = sorted_hitlist[:top_k]
-
-        # Extract only specified fields
-        filtered_results = [{k: v for k, v in hit["_source"].items() if k in fields} for hit in topk_hitlist]
-
-        # Deduplicate
-        deduplicated = []
-        for x in filtered_results:
-            if x not in deduplicated:
-                deduplicated.append(x)
-
-        return deduplicated
+        # Process and return results
+        return self._process_metadata_search_results(hit_list, fields, top_k)
 
     async def _metadata_search_async(
         self,
@@ -1284,7 +1354,7 @@ class OpenSearchDocumentStore:
         if not fields:
             return []
 
-        hitlist = []
+        hit_list = []
 
         # Split query by commas and search each part
         for query_part in query.split(","):
@@ -1292,91 +1362,13 @@ class OpenSearchDocumentStore:
             if not query_part_clean:
                 continue
 
-            # Build query based on mode
-            if mode == "strict":
-                # Strict mode: prefix and wildcard matching with Jaccard similarity
-                should_clauses = []
-                for field in fields:
-                    should_clauses.append({"prefix": {field: query_part_clean}})
-                    should_clauses.append(
-                        {"wildcard": {field: {"value": f"*{query_part_clean}*", "case_insensitive": True}}}
-                    )
-
-                os_query = {
-                    "script_score": {
-                        "query": {
-                            "bool": {
-                                "filter": [{"exists": {"field": field}} for field in fields],
-                                "should": should_clauses,
-                                "minimum_should_match": 1,
-                            }
-                        },
-                        "script": {
-                            "lang": "painless",
-                            "source": METADATA_SEARCH_JACCARD_SCRIPT,
-                            "params": {"field": fields[0], "q": query_part_clean, "n": 3},
-                        },
-                    }
-                }
-            else:
-                # Fuzzy mode: fuzzy matching with dis_max queries
-                dis_max_queries = []
-                for field in fields:
-                    dis_max_queries.append(
-                        {
-                            "match": {
-                                field: {
-                                    "query": query_part_clean,
-                                    "fuzziness": 2,
-                                    "prefix_length": 0,
-                                    "max_expansions": 200,
-                                }
-                            }
-                        }
-                    )
-                    dis_max_queries.append({"wildcard": {f"{field}.keyword": {"value": f"*{query_part_clean}*"}}})
-                    dis_max_queries.append(
-                        {
-                            "query_string": {
-                                "fields": [field],
-                                "query": f"*{query_part_clean}~2*",
-                                "analyze_wildcard": True,
-                            }
-                        }
-                    )
-
-                os_query = {
-                    "script_score": {
-                        "query": {
-                            "dis_max": {
-                                "tie_breaker": 0.7,
-                                "queries": dis_max_queries,
-                            }
-                        },
-                        "script": {
-                            "lang": "painless",
-                            "source": METADATA_SEARCH_JACCARD_SCRIPT,
-                            "params": {"field": fields[0], "q": query_part_clean, "n": 3},
-                        },
-                    }
-                }
+            # Build query
+            os_query = self._build_metadata_search_query(query_part_clean, fields, mode)
 
             # Add filters if provided
             if filters:
                 normalized_filters = normalize_filters(filters)
-                # In strict mode, filter already exists, extend it
-                # In fuzzy mode, we need to wrap dis_max in a bool query
-                if mode == "strict":
-                    os_query["script_score"]["query"]["bool"]["filter"].extend(normalized_filters)
-                else:
-                    # For fuzzy mode, wrap the dis_max query in a bool query to add filters
-                    original_query = os_query["script_score"]["query"]
-                    os_query["script_score"]["query"] = {
-                        "bool": {
-                            "must": [original_query],
-                            "filter": normalized_filters,
-                        }
-                    }
+                self._apply_metadata_search_filters(os_query, normalized_filters, mode)
 
             body = {"size": 1000, "query": os_query}
 
@@ -1386,46 +1378,18 @@ class OpenSearchDocumentStore:
                 hits = response["hits"]["hits"]
 
                 # Boost exact matches
-                for hit in hits:
-                    hit_source = hit["_source"]
-                    for field in fields:
-                        if field in hit_source:
-                            if query_part_clean.lower() in str(hit_source[field]).lower():
-                                hit["_score"] = hit["_score"] + exact_match_weight
+                self._boost_exact_matches(hits, query_part_clean, fields, exact_match_weight)
 
-                hitlist.extend(hits)
+                hit_list.extend(hits)
             except Exception as e:
                 msg = f"Failed to execute metadata search in OpenSearch: {e!s}"
                 raise DocumentStoreError(msg) from e
 
         # Add multi-field exact match boosting
-        for hit in hitlist:
-            matched = 0
-            for query_part in query.split(","):
-                query_part_clean = query_part.strip()
-                if not query_part_clean:
-                    continue
-                for field in fields:
-                    if field in hit["_source"]:
-                        if query_part_clean.lower() in str(hit["_source"][field]).lower():
-                            matched += 1
-            if matched > 1:
-                hit["_score"] = hit["_score"] + exact_match_weight * (matched - 1)
+        self._apply_multi_field_boosting(hit_list, query, fields, exact_match_weight)
 
-        # Sort, deduplicate, and filter fields
-        sorted_hitlist = sorted(hitlist, key=lambda x: x["_score"], reverse=True)
-        topk_hitlist = sorted_hitlist[:top_k]
-
-        # Extract only specified fields
-        filtered_results = [{k: v for k, v in hit["_source"].items() if k in fields} for hit in topk_hitlist]
-
-        # Deduplicate
-        deduplicated = []
-        for x in filtered_results:
-            if x not in deduplicated:
-                deduplicated.append(x)
-
-        return deduplicated
+        # Process and return results
+        return self._process_metadata_search_results(hit_list, fields, top_k)
 
     def _prepare_embedding_search_request(
         self,

@@ -165,7 +165,11 @@ class OpenSearchMetadataRetriever:
         except Exception as e:
             if self._raise_on_failure:
                 raise
-            logger.warning("Metadata search failed: %s", e, exc_info=True)
+            logger.warning(
+                "Metadata search failed and will be ignored by returning empty results: {error}",
+                error=str(e),
+                exc_info=True,
+            )
             return {"metadata": []}
 
     @component.output_types(metadata=list[dict[str, Any]])
@@ -235,5 +239,9 @@ class OpenSearchMetadataRetriever:
         except Exception as e:
             if self._raise_on_failure:
                 raise
-            logger.warning("Metadata search failed: %s", e, exc_info=True)
+            logger.warning(
+                "Metadata search failed and will be ignored by returning empty results: {error}",
+                error=str(e),
+                exc_info=True,
+            )
             return {"metadata": []}
