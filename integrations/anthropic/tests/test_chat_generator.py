@@ -251,6 +251,8 @@ class TestAnthropicChatGenerator:
             expected_dict["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = tool.inputs_from_state
         if hasattr(tool, "outputs_to_state"):
             expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = tool.outputs_to_state
+        if hasattr(tool, "outputs_to_result"):
+            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_result"] = tool.outputs_to_result
 
         assert data == expected_dict
 
@@ -1113,6 +1115,10 @@ class TestAnthropicChatGenerator:
         if hasattr(tool, "outputs_to_state"):
             expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = (
                 tool.outputs_to_state
+            )
+        if hasattr(tool, "outputs_to_result"):
+            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["outputs_to_result"] = (
+                tool.outputs_to_result
             )
 
         assert pipeline_dict == expected_dict
