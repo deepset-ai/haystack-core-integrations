@@ -857,14 +857,13 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         ]
         document_store.write_documents(docs, refresh=True)
 
-        # SQL query with JSON format (default)
+        # SQL query returns a list of dictionaries (the _source from each hit)
         sql_query = (
             f"SELECT content, category, status, priority FROM {document_store._index} "  # noqa: S608
             f"WHERE category = 'A' ORDER BY priority"
         )
-        result = document_store._query_sql(sql_query, response_format="json")
+        result = document_store._query_sql(sql_query)
 
-        # format returns a list of dictionaries (the _source from each hit)
         assert len(result) == 2  # Two documents with category A
         assert isinstance(result, list)
         assert all(isinstance(row, dict) for row in result)
@@ -879,24 +878,9 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
             assert "status" in row
             assert "priority" in row
 
-        # SQL query with CSV format
-        result_csv = document_store._query_sql(sql_query, response_format="csv")
-        assert isinstance(result_csv, str)
-        assert "content" in result_csv
-        assert "category" in result_csv
-
-        # SQL query with JDBC format
-        result_jdbc = document_store._query_sql(sql_query, response_format="jdbc")
-        # JDBC format can be dict or str depending on OpenSearch version
-        assert result_jdbc is not None
-
-        # SQL query with RAW format
-        result_raw = document_store._query_sql(sql_query, response_format="raw")
-        assert isinstance(result_raw, str)
-
         # COUNT query
         count_query = f"SELECT COUNT(*) as total FROM {document_store._index}"  # noqa: S608
-        count_result = document_store._query_sql(count_query, response_format="json")
+        count_result = document_store._query_sql(count_query)
         # COUNT query may return different format, check it's a valid response
         assert count_result is not None
 

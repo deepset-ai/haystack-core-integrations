@@ -15,14 +15,12 @@ def test_init_default():
     mock_store = Mock(spec=OpenSearchDocumentStore)
     retriever = OpenSearchSQLRetriever(document_store=mock_store)
     assert retriever._document_store == mock_store
-    assert retriever._response_format == "json"
     assert retriever._raise_on_failure is True
 
 
 def test_init_custom():
     mock_store = Mock(spec=OpenSearchDocumentStore)
-    retriever = OpenSearchSQLRetriever(document_store=mock_store, response_format="csv", raise_on_failure=False)
-    assert retriever._response_format == "csv"
+    retriever = OpenSearchSQLRetriever(document_store=mock_store, raise_on_failure=False)
     assert retriever._raise_on_failure is False
 
 
@@ -34,10 +32,9 @@ def test_init_invalid_document_store():
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_to_dict(_mock_opensearch_client):
     document_store = OpenSearchDocumentStore(hosts="some fake host")
-    retriever = OpenSearchSQLRetriever(document_store=document_store, response_format="csv")
+    retriever = OpenSearchSQLRetriever(document_store=document_store)
     res = retriever.to_dict()
     assert res["type"] == "haystack_integrations.components.retrievers.opensearch.sql_retriever.OpenSearchSQLRetriever"
-    assert res["init_parameters"]["response_format"] == "csv"
     assert res["init_parameters"]["raise_on_failure"] is True
     assert "document_store" in res["init_parameters"]
 
@@ -45,10 +42,9 @@ def test_to_dict(_mock_opensearch_client):
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_from_dict(_mock_opensearch_client):
     document_store = OpenSearchDocumentStore(hosts="some fake host")
-    retriever = OpenSearchSQLRetriever(document_store=document_store, response_format="csv")
+    retriever = OpenSearchSQLRetriever(document_store=document_store)
     data = retriever.to_dict()
     retriever_from_dict = OpenSearchSQLRetriever.from_dict(data)
-    assert retriever_from_dict._response_format == "csv"
     assert retriever_from_dict._raise_on_failure is True
 
 
@@ -59,29 +55,10 @@ def test_run():
     res = retriever.run(query="SELECT content, category FROM my_index WHERE category = 'A'")
     mock_store._query_sql.assert_called_once_with(
         query="SELECT content, category FROM my_index WHERE category = 'A'",
-        response_format="json",
     )
     assert len(res) == 1
     assert "result" in res
     assert res["result"] == [{"content": "Test doc", "category": "A"}]
-
-
-def test_run_with_custom_response_format():
-    mock_store = Mock(spec=OpenSearchDocumentStore)
-    mock_store._query_sql.return_value = "content,category\nTest doc,A"
-    retriever = OpenSearchSQLRetriever(document_store=mock_store, response_format="csv")
-    res = retriever.run(query="SELECT content, category FROM my_index")
-    mock_store._query_sql.assert_called_once_with(query="SELECT content, category FROM my_index", response_format="csv")
-    assert res["result"] == "content,category\nTest doc,A"
-
-
-def test_run_with_runtime_response_format():
-    mock_store = Mock(spec=OpenSearchDocumentStore)
-    mock_store._query_sql.return_value = "raw response"
-    retriever = OpenSearchSQLRetriever(document_store=mock_store, response_format="json")
-    res = retriever.run(query="SELECT * FROM my_index", response_format="raw")
-    mock_store._query_sql.assert_called_once_with(query="SELECT * FROM my_index", response_format="raw")
-    assert res["result"] == "raw response"
 
 
 def test_run_with_runtime_document_store():
@@ -91,7 +68,7 @@ def test_run_with_runtime_document_store():
     retriever = OpenSearchSQLRetriever(document_store=mock_store1)
     res = retriever.run(query="SELECT * FROM my_index", document_store=mock_store2)
     mock_store1._query_sql.assert_not_called()
-    mock_store2._query_sql.assert_called_once_with(query="SELECT * FROM my_index", response_format="json")
+    mock_store2._query_sql.assert_called_once_with(query="SELECT * FROM my_index")
     assert res["result"] == [{"result": "from store 2"}]
 
 
@@ -113,7 +90,7 @@ def test_run_with_error_no_raise():
 
 @pytest.mark.integration
 def test_sql_retriever_basic_query(document_store: OpenSearchDocumentStore):
-    """Test basic SQL query execution with JSON format"""
+    """Test basic SQL query execution"""
     docs = [
         Document(content="Python programming", meta={"category": "A", "status": "active", "priority": 1}),
         Document(content="Java programming", meta={"category": "B", "status": "active", "priority": 2}),
@@ -142,25 +119,6 @@ def test_sql_retriever_basic_query(document_store: OpenSearchDocumentStore):
         assert "category" in row
         assert "status" in row
         assert "priority" in row
-
-
-@pytest.mark.integration
-def test_sql_retriever_csv_format(document_store: OpenSearchDocumentStore):
-    """Test SQL query with CSV response format"""
-    docs = [
-        Document(content="Python programming", meta={"category": "A", "status": "active"}),
-        Document(content="Java programming", meta={"category": "B", "status": "active"}),
-    ]
-    document_store.write_documents(docs, refresh=True)
-
-    retriever = OpenSearchSQLRetriever(document_store=document_store, response_format="csv")
-    sql_query = f"SELECT content, category FROM {document_store._index}"  # noqa: S608
-    result = retriever.run(query=sql_query)
-
-    assert "result" in result
-    assert isinstance(result["result"], str)
-    assert "content" in result["result"]
-    assert "category" in result["result"]
 
 
 @pytest.mark.integration
@@ -203,28 +161,6 @@ def test_sql_retriever_with_filters(document_store: OpenSearchDocumentStore):
     assert len(result["result"]) == 1
     assert result["result"][0]["category"] == "A"
     assert result["result"][0]["status"] == "active"
-
-
-@pytest.mark.integration
-def test_sql_retriever_runtime_response_format(document_store: OpenSearchDocumentStore):
-    """Test overriding response format at runtime"""
-    docs = [
-        Document(content="Python programming", meta={"category": "A"}),
-        Document(content="Java programming", meta={"category": "B"}),
-    ]
-    document_store.write_documents(docs, refresh=True)
-
-    retriever = OpenSearchSQLRetriever(document_store=document_store, response_format="json")
-    sql_query = f"SELECT content, category FROM {document_store._index}"  # noqa: S608
-
-    # Override with CSV format at runtime
-    result = retriever.run(query=sql_query, response_format="csv")
-    assert isinstance(result["result"], str)
-    assert "content" in result["result"]
-
-    # Use default JSON format
-    result_json = retriever.run(query=sql_query)
-    assert isinstance(result_json["result"], list)
 
 
 @pytest.mark.integration
@@ -285,7 +221,6 @@ async def test_run_async():
     res = await retriever.run_async(query="SELECT content, category FROM my_index WHERE category = 'A'")
     mock_store._query_sql_async.assert_called_once_with(
         query="SELECT content, category FROM my_index WHERE category = 'A'",
-        response_format="json",
     )
     assert len(res) == 1
     assert "result" in res
@@ -335,26 +270,6 @@ async def test_sql_retriever_async_basic_query(document_store: OpenSearchDocumen
 
     categories = [row.get("category") for row in result["result"]]
     assert all(cat == "A" for cat in categories)
-
-
-@pytest.mark.integration
-@pytest.mark.asyncio
-async def test_sql_retriever_async_csv_format(document_store: OpenSearchDocumentStore):
-    """Test async SQL query with CSV response format"""
-    docs = [
-        Document(content="Python programming", meta={"category": "A"}),
-        Document(content="Java programming", meta={"category": "B"}),
-    ]
-    await document_store.write_documents_async(docs, refresh=True)
-
-    retriever = OpenSearchSQLRetriever(document_store=document_store, response_format="csv")
-    sql_query = f"SELECT content, category FROM {document_store._index}"  # noqa: S608
-    result = await retriever.run_async(query=sql_query)
-
-    assert "result" in result
-    assert isinstance(result["result"], str)
-    assert "content" in result["result"]
-    assert "category" in result["result"]
 
 
 @pytest.mark.integration

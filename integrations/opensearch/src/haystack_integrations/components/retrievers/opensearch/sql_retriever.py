@@ -7,7 +7,6 @@ from typing import Any
 from haystack import component, default_from_dict, default_to_dict, logging
 
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
-from haystack_integrations.document_stores.opensearch.document_store import ResponseFormat
 
 logger = logging.getLogger(__name__)
 
@@ -19,24 +18,20 @@ class OpenSearchSQLRetriever:
 
     This component allows you to execute SQL queries directly against the OpenSearch index,
     which is useful for fetching metadata, aggregations, and other structured data at runtime.
+
+    Returns query results as a list of dictionaries (the _source from each hit).
     """
 
     def __init__(
         self,
         *,
         document_store: OpenSearchDocumentStore,
-        response_format: ResponseFormat = "json",
         raise_on_failure: bool = True,
     ):
         """
         Creates the OpenSearchSQLRetriever component.
 
         :param document_store: An instance of OpenSearchDocumentStore to use with the Retriever.
-        :param response_format: The format of the response. See https://docs.opensearch.org/latest/search-plugins/sql/response-formats/
-            - `json`: Returns a list of dictionaries (the _source from each hit). Default.
-            - `csv`: Returns the response as CSV text.
-            - `jdbc`: Returns the response in JDBC format.
-            - `raw`: Returns the raw response as text.
         :param raise_on_failure:
             Whether to raise an exception if the API call fails. Otherwise, log a warning and return None.
 
@@ -47,7 +42,6 @@ class OpenSearchSQLRetriever:
             raise ValueError(msg)
 
         self._document_store = document_store
-        self._response_format = response_format
         self._raise_on_failure = raise_on_failure
 
     def to_dict(self) -> dict[str, Any]:
@@ -60,7 +54,6 @@ class OpenSearchSQLRetriever:
         return default_to_dict(
             self,
             document_store=self._document_store.to_dict(),
-            response_format=self._response_format,
             raise_on_failure=self._raise_on_failure,
         )
 
@@ -84,21 +77,17 @@ class OpenSearchSQLRetriever:
     def run(
         self,
         query: str,
-        response_format: ResponseFormat | None = None,
         document_store: OpenSearchDocumentStore | None = None,
     ) -> dict[str, Any]:
         """
         Execute a raw OpenSearch SQL query against the index.
 
         :param query: The OpenSearch SQL query to execute.
-        :param response_format: The format of the response. If not provided, uses the format
-            specified during initialization. See https://docs.opensearch.org/latest/search-plugins/sql/response-formats/
         :param document_store: Optionally, an instance of OpenSearchDocumentStore to use with the Retriever.
 
         :returns:
             A dictionary containing the query results with the following structure:
-            - result: The query results in the specified format. For JSON format, returns a list of dictionaries
-              (the _source from each hit). For other formats (csv, jdbc, raw), returns the response as text.
+            - result: The query results as a list of dictionaries (the _source from each hit).
 
         Example:
             ```python
@@ -117,10 +106,8 @@ class OpenSearchSQLRetriever:
         else:
             doc_store = self._document_store
 
-        response_format = response_format or self._response_format
-
         try:
-            result = doc_store._query_sql(query=query, response_format=response_format)
+            result = doc_store._query_sql(query=query)
         except Exception as e:
             if self._raise_on_failure:
                 raise e
@@ -138,21 +125,17 @@ class OpenSearchSQLRetriever:
     async def run_async(
         self,
         query: str,
-        response_format: ResponseFormat | None = None,
         document_store: OpenSearchDocumentStore | None = None,
     ) -> dict[str, Any]:
         """
         Asynchronously execute a raw OpenSearch SQL query against the index.
 
         :param query: The OpenSearch SQL query to execute.
-        :param response_format: The format of the response. If not provided, uses the format
-            specified during initialization. See https://docs.opensearch.org/latest/search-plugins/sql/response-formats/
         :param document_store: Optionally, an instance of OpenSearchDocumentStore to use with the Retriever.
 
         :returns:
             A dictionary containing the query results with the following structure:
-            - result: The query results in the specified format. For JSON format, returns a list of dictionaries
-              (the _source from each hit). For other formats (csv, jdbc, raw), returns the response as text.
+            - result: The query results as a list of dictionaries (the _source from each hit).
 
         Example:
             ```python
@@ -171,10 +154,8 @@ class OpenSearchSQLRetriever:
         else:
             doc_store = self._document_store
 
-        response_format = response_format or self._response_format
-
         try:
-            result = await doc_store._query_sql_async(query=query, response_format=response_format)
+            result = await doc_store._query_sql_async(query=query)
         except Exception as e:
             if self._raise_on_failure:
                 raise e
