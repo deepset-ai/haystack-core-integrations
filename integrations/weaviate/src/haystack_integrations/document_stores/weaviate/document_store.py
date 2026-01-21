@@ -66,7 +66,9 @@ class WeaviateDocumentStore:
     ```python
     import os
     from haystack_integrations.document_stores.weaviate.auth import AuthApiKey
-    from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore
+    from haystack_integrations.document_stores.weaviate.document_store import (
+        WeaviateDocumentStore,
+    )
 
     os.environ["WEAVIATE_API_KEY"] = "MY_API_KEY"
 
@@ -78,7 +80,9 @@ class WeaviateDocumentStore:
 
     Usage example with self-hosted Weaviate:
     ```python
-    from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore
+    from haystack_integrations.document_stores.weaviate.document_store import (
+        WeaviateDocumentStore,
+    )
 
     document_store = WeaviateDocumentStore(url="http://localhost:8080")
     ```
@@ -494,9 +498,7 @@ class WeaviateDocumentStore:
             "max": getattr(field_metrics, "maximum", None) if field_metrics else None,
         }
 
-    def count_unique_metadata_by_filter(
-        self, filters: dict[str, Any], metadata_fields: list[str]
-    ) -> dict[str, int]:
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
         Returns the count of unique values for each specified metadata field.
 
