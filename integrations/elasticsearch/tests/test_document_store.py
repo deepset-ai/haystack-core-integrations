@@ -137,7 +137,7 @@ def test_from_dict_with_api_keys_env_vars(_mock_elasticsearch_client):
 
     # old behavior: secrets remain as dicts after from_dict
     # new behavior: secrets are automatically deserialized to EnvVarSecret objects
-    # after haystack release remove old behavior - dict check
+    # ToDo: after new haystack release remove old behavior - dict check
     if isinstance(document_store._api_key, dict):
         # check dict structure
         assert document_store._api_key == {"type": "env_var", "env_vars": ["ELASTIC_API_KEY"], "strict": False}
