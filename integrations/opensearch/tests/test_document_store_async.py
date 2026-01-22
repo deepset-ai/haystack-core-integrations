@@ -715,3 +715,95 @@ class TestDocumentStoreAsync:
 
         assert isinstance(result, list)
         assert len(result) <= 5
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_metadata_search_async_comma_separated_query(self, document_store: OpenSearchDocumentStore):
+        """Test async metadata search with comma-separated query parts."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "Python", "status": "active", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "Java", "status": "active", "priority": 2}),
+            Document(content="Doc 3", meta={"category": "Python", "status": "inactive", "priority": 3}),
+        ]
+        document_store.write_documents(docs, refresh=True)
+
+        # Search for "Python, active" - should match documents with both
+        result = await document_store._metadata_search_async(
+            query="Python, active",
+            fields=["category", "status"],
+            mode="fuzzy",
+            top_k=10,
+        )
+
+        assert isinstance(result, list)
+        assert len(result) > 0
+        assert all(isinstance(row, dict) for row in result)
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_metadata_search_async_with_filters(self, document_store: OpenSearchDocumentStore):
+        """Test async metadata search with additional filters."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "Python", "status": "active", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "Python", "status": "inactive", "priority": 2}),
+            Document(content="Doc 3", meta={"category": "Java", "status": "active", "priority": 1}),
+        ]
+        document_store.write_documents(docs, refresh=True)
+
+        # Search with filter for priority == 1
+        filters = {"field": "priority", "operator": "==", "value": 1}
+        result = await document_store._metadata_search_async(
+            query="Python",
+            fields=["category"],
+            mode="fuzzy",
+            top_k=10,
+            filters=filters,
+        )
+
+        assert isinstance(result, list)
+        # Should only return documents with priority == 1
+        assert len(result) >= 1
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_metadata_search_async_empty_fields(self, document_store: OpenSearchDocumentStore):
+        """Test async metadata search with empty fields list returns empty result."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "Python"}),
+        ]
+        document_store.write_documents(docs, refresh=True)
+
+        result = await document_store._metadata_search_async(
+            query="Python",
+            fields=[],
+            mode="fuzzy",
+            top_k=10,
+        )
+
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_metadata_search_async_deduplication(self, document_store: OpenSearchDocumentStore):
+        """Test that async metadata search deduplicates results."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "Python", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "Python", "status": "active"}),
+        ]
+        document_store.write_documents(docs, refresh=True)
+
+        result = await document_store._metadata_search_async(
+            query="Python",
+            fields=["category", "status"],
+            mode="fuzzy",
+            top_k=10,
+        )
+
+        assert isinstance(result, list)
+        # Check for deduplication - same metadata should appear only once
+        seen = []
+        for row in result:
+            row_tuple = tuple(sorted(row.items()))
+            assert row_tuple not in seen, "Duplicate metadata found"
+            seen.append(row_tuple)
