@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from haystack.dataclasses import Document
@@ -99,7 +99,7 @@ def test_run_with_runtime_document_store():
 async def test_run_async_with_runtime_document_store():
     mock_store1 = Mock(spec=OpenSearchDocumentStore)
     mock_store2 = Mock(spec=OpenSearchDocumentStore)
-    mock_store2._metadata_search_async = Mock(return_value=[{"category": "Java"}])
+    mock_store2._metadata_search_async = AsyncMock(return_value=[{"category": "Java"}])
     retriever = OpenSearchMetadataRetriever(document_store=mock_store1, fields=["category"])
 
     result = await retriever.run_async(query="Java", document_store=mock_store2)
@@ -148,7 +148,7 @@ def test_run_with_failure_no_raise():
 @pytest.mark.asyncio
 async def test_run_async_with_failure_raises():
     mock_store = Mock(spec=OpenSearchDocumentStore)
-    mock_store._metadata_search_async = Mock(side_effect=Exception("Search failed"))
+    mock_store._metadata_search_async = AsyncMock(side_effect=Exception("Search failed"))
     retriever = OpenSearchMetadataRetriever(document_store=mock_store, fields=["category"], raise_on_failure=True)
 
     with pytest.raises(Exception, match="Search failed"):
@@ -158,7 +158,7 @@ async def test_run_async_with_failure_raises():
 @pytest.mark.asyncio
 async def test_run_async_with_failure_no_raise():
     mock_store = Mock(spec=OpenSearchDocumentStore)
-    mock_store._metadata_search_async = Mock(side_effect=Exception("Search failed"))
+    mock_store._metadata_search_async = AsyncMock(side_effect=Exception("Search failed"))
     retriever = OpenSearchMetadataRetriever(document_store=mock_store, fields=["category"], raise_on_failure=False)
 
     result = await retriever.run_async(query="test")
