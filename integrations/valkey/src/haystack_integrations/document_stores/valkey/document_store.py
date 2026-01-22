@@ -304,7 +304,7 @@ class ValkeyDocumentStore(DocumentStore):
             sync_ft.info(client, self._index_name)
             return True
         except Exception as e:
-            logger.info("Valkey index check failed for {index_name}, {error}", index_name=self._index_name, error=e)
+            logger.debug("Valkey index check failed for {index_name}, {error}", index_name=self._index_name, error=e)
             return False
 
     async def _has_index_async(self) -> bool:
@@ -314,7 +314,7 @@ class ValkeyDocumentStore(DocumentStore):
             await ft.info(client, self._index_name)
             return True
         except Exception as e:
-            logger.info("Valkey index check failed for {index_name}, {error}", index_name=self._index_name, error=e)
+            logger.debug("Valkey index check failed for {index_name}, {error}", index_name=self._index_name, error=e)
             return False
 
     def _prepare_index_fields(self) -> list[Field]:
