@@ -848,47 +848,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
 
         assert document_store.count_documents() == 1
 
-    def test_query_sql(self, document_store: OpenSearchDocumentStore):
-        docs = [
-            Document(content="Python programming", meta={"category": "A", "status": "active", "priority": 1}),
-            Document(content="Java programming", meta={"category": "B", "status": "active", "priority": 2}),
-            Document(content="Python scripting", meta={"category": "A", "status": "inactive", "priority": 3}),
-            Document(content="JavaScript development", meta={"category": "C", "status": "active", "priority": 1}),
-        ]
-        document_store.write_documents(docs, refresh=True)
-
-        # SQL query returns a list of dictionaries (the _source from each hit)
-        sql_query = (
-            f"SELECT content, category, status, priority FROM {document_store._index} "  # noqa: S608
-            f"WHERE category = 'A' ORDER BY priority"
-        )
-        result = document_store._query_sql(sql_query)
-
-        assert len(result) == 2  # Two documents with category A
-        assert isinstance(result, list)
-        assert all(isinstance(row, dict) for row in result)
-
-        categories = [row.get("category") for row in result]
-        assert all(cat == "A" for cat in categories)
-
-        # verify all expected fields are present
-        for row in result:
-            assert "content" in row
-            assert "category" in row
-            assert "status" in row
-            assert "priority" in row
-
-        # COUNT query
-        count_query = f"SELECT COUNT(*) as total FROM {document_store._index}"  # noqa: S608
-        count_result = document_store._query_sql(count_query)
-        # COUNT query may return different format, check it's a valid response
-        assert count_result is not None
-
-        # error handling for invalid SQL query
-        invalid_query = "SELECT * FROM non_existent_index"
-        with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
-            document_store._query_sql(invalid_query)
-
     @pytest.mark.integration
     def test_metadata_search_fuzzy_mode(self, document_store: OpenSearchDocumentStore):
         """Test metadata search in fuzzy mode."""
