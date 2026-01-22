@@ -14,7 +14,12 @@ from haystack_integrations.document_stores.valkey import ValkeyDocumentStore
 class TestValkeyDocumentStoreAsync:
     @pytest_asyncio.fixture
     async def document_store(self):
-        store = ValkeyDocumentStore(index_name="test_async_haystack_document", embedding_dim=3, batch_size=5)
+        store = ValkeyDocumentStore(
+            index_name="test_async_haystack_document",
+            embedding_dim=3,
+            batch_size=5,
+            metadata_fields={"category": str, "priority": int, "status": str, "score": int, "quality": str},
+        )
         yield store
         await store.close_async()
 

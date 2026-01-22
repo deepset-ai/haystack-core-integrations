@@ -17,6 +17,7 @@ def document_store():
         index_name="test_retriever",
         embedding_dim=3,
         distance_metric="cosine",
+        metadata_fields={"category": str, "priority": int},
     )
     yield store
     store.delete_all_documents()

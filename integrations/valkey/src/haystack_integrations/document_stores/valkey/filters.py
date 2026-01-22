@@ -41,7 +41,7 @@ from typing import Any
 from haystack.errors import FilterError
 
 
-def _normalize_filters(filters: dict[str, Any]) -> str:
+def _normalize_filters(filters: dict[str, Any], supported_fields: dict[str, str]) -> str:
     """
     Converts Haystack filters to Valkey Search query syntax.
 
@@ -53,14 +53,8 @@ def _normalize_filters(filters: dict[str, Any]) -> str:
     - NumericField: all comparisons (==, !=, >, >=, <, <=, in, not in)
     - Logical operators: AND, OR
 
-    Supported filterable fields:
-    - meta_category (TagField): exact string matches
-    - meta_status (TagField): status filtering
-    - meta_priority (NumericField): numeric comparisons
-    - meta_score (NumericField): score filtering
-    - meta_timestamp (NumericField): date/time filtering
-
     :param filters: Haystack filter dictionary.
+    :param supported_fields: Dictionary mapping field names (with meta_ prefix) to field types ("tag" or "numeric").
     :return: Valkey Search query string.
     :raises FilterError: If filter format is invalid or unsupported.
     """
@@ -69,11 +63,11 @@ def _normalize_filters(filters: dict[str, Any]) -> str:
         raise FilterError(msg)
 
     if "field" in filters:
-        return _parse_comparison_condition(filters)
-    return _parse_logical_condition(filters)
+        return _parse_comparison_condition(filters, supported_fields)
+    return _parse_logical_condition(filters, supported_fields)
 
 
-def _parse_logical_condition(condition: dict[str, Any]) -> str:
+def _parse_logical_condition(condition: dict[str, Any], supported_fields: dict[str, str]) -> str:
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
         raise FilterError(msg)
@@ -82,20 +76,25 @@ def _parse_logical_condition(condition: dict[str, Any]) -> str:
         raise FilterError(msg)
 
     operator = condition["operator"]
-    conditions = [_parse_comparison_condition(c) for c in condition["conditions"]]
+    conditions = [_parse_comparison_condition(c, supported_fields) for c in condition["conditions"]]
 
     if operator == "AND":
         return f"({' '.join(conditions)})"
     elif operator == "OR":
         return f"({' | '.join(conditions)})"
+    elif operator == "NOT":
+        # NOT operator: NOT(A AND B AND C) = NOT A OR NOT B OR NOT C
+        # First combine conditions with AND, then negate the whole thing
+        combined = ' '.join(conditions)
+        return f"-({combined})"
     else:
-        msg = f"Unknown logical operator '{operator}'. Supported: AND, OR"
+        msg = f"Unknown logical operator '{operator}'. Supported: AND, OR, NOT"
         raise FilterError(msg)
 
 
-def _parse_comparison_condition(condition: dict[str, Any]) -> str:
+def _parse_comparison_condition(condition: dict[str, Any], supported_fields: dict[str, str]) -> str:
     if "field" not in condition:
-        return _parse_logical_condition(condition)
+        return _parse_logical_condition(condition, supported_fields)
 
     field: str = condition["field"]
     if "operator" not in condition:
@@ -113,11 +112,11 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> str:
         field = f"meta_{field[5:]}"
 
     # Validate field is supported
-    if field not in SUPPORTED_FIELDS:
-        msg = f"Field '{field}' is not supported for filtering. Supported fields: {list(SUPPORTED_FIELDS.keys())}"
+    if field not in supported_fields:
+        msg = f"Field '{field}' is not supported for filtering. Supported fields: {list(supported_fields.keys())}"
         raise FilterError(msg)
 
-    field_type = SUPPORTED_FIELDS[field]
+    field_type = supported_fields[field]
 
     # Validate operator for field type
     if operator not in FIELD_TYPE_OPERATORS[field_type]:
@@ -129,6 +128,8 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> str:
 
 
 def _equal(field: str, value: Any, field_type: str) -> str:
+    if value is None:
+        return f"-@{field}:[-inf +inf]"
     if field_type == "tag":
         if not isinstance(value, str):
             msg = f"TagField '{field}' requires string value, got {type(value)}"
@@ -142,6 +143,8 @@ def _equal(field: str, value: Any, field_type: str) -> str:
 
 
 def _not_equal(field: str, value: Any, field_type: str) -> str:
+    if value is None:
+        return f"@{field}:[-inf +inf]"
     if field_type == "tag":
         if not isinstance(value, str):
             msg = f"TagField '{field}' requires string value, got {type(value)}"
@@ -158,6 +161,9 @@ def _greater_than(field: str, value: Any, field_type: str) -> str:
     if field_type == "tag":
         msg = f"Operator '>' not supported for TagField '{field}'"
         raise FilterError(msg)
+    if value is None:
+        msg = f"Comparison operator '>' with None value is not supported for field '{field}'"
+        raise FilterError(msg)
     if not isinstance(value, (int, float)):
         msg = f"NumericField '{field}' requires numeric value, got {type(value)}"
         raise FilterError(msg)
@@ -167,6 +173,9 @@ def _greater_than(field: str, value: Any, field_type: str) -> str:
 def _greater_than_equal(field: str, value: Any, field_type: str) -> str:
     if field_type == "tag":
         msg = f"Operator '>=' not supported for TagField '{field}'"
+        raise FilterError(msg)
+    if value is None:
+        msg = f"Comparison operator '>=' with None value is not supported for field '{field}'"
         raise FilterError(msg)
     if not isinstance(value, (int, float)):
         msg = f"NumericField '{field}' requires numeric value, got {type(value)}"
@@ -178,6 +187,9 @@ def _less_than(field: str, value: Any, field_type: str) -> str:
     if field_type == "tag":
         msg = f"Operator '<' not supported for TagField '{field}'"
         raise FilterError(msg)
+    if value is None:
+        msg = f"Comparison operator '<' with None value is not supported for field '{field}'"
+        raise FilterError(msg)
     if not isinstance(value, (int, float)):
         msg = f"NumericField '{field}' requires numeric value, got {type(value)}"
         raise FilterError(msg)
@@ -187,6 +199,9 @@ def _less_than(field: str, value: Any, field_type: str) -> str:
 def _less_than_equal(field: str, value: Any, field_type: str) -> str:
     if field_type == "tag":
         msg = f"Operator '<=' not supported for TagField '{field}'"
+        raise FilterError(msg)
+    if value is None:
+        msg = f"Comparison operator '<=' with None value is not supported for field '{field}'"
         raise FilterError(msg)
     if not isinstance(value, (int, float)):
         msg = f"NumericField '{field}' requires numeric value, got {type(value)}"
@@ -275,15 +290,6 @@ def _escape_value(value: str) -> str:
         value = value.replace(char, f"\\{char}")
     return value
 
-
-# Supported filterable fields and their types
-SUPPORTED_FIELDS = {
-    "meta_category": "tag",
-    "meta_status": "tag",
-    "meta_priority": "numeric",
-    "meta_score": "numeric",
-    "meta_timestamp": "numeric",
-}
 
 # Operators supported by field type
 FIELD_TYPE_OPERATORS = {

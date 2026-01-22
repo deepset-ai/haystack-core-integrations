@@ -17,7 +17,11 @@ from haystack_integrations.document_stores.valkey import ValkeyDocumentStore
 class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
     @pytest.fixture
     def document_store(self):
-        store = ValkeyDocumentStore(index_name="test_haystack_document", embedding_dim=3)
+        store = ValkeyDocumentStore(
+            index_name="test_haystack_document",
+            embedding_dim=3,
+            metadata_fields={"category": str, "priority": int, "status": str, "score": int, "timestamp": int, "quality": str},
+        )
         yield store
         try:
             store._client.flushdb()
@@ -681,9 +685,10 @@ class TestValkeyDocumentStoreStaticMethods:
         filters = None
         limit = 10
         with_embedding = True
+        supported_fields = {"meta_category": "tag", "meta_priority": "numeric"}
 
         query, options = ValkeyDocumentStore._build_search_query_and_options(
-            embedding, filters, limit, with_embedding=with_embedding
+            embedding, filters, limit, with_embedding=with_embedding, supported_fields=supported_fields
         )
 
         assert isinstance(query, str)
@@ -698,9 +703,10 @@ class TestValkeyDocumentStoreStaticMethods:
         filters = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "news"}]}
         limit = 5
         with_embedding = False
+        supported_fields = {"meta_category": "tag", "meta_priority": "numeric"}
 
         query, options = ValkeyDocumentStore._build_search_query_and_options(
-            embedding, filters, limit, with_embedding=with_embedding
+            embedding, filters, limit, with_embedding=with_embedding, supported_fields=supported_fields
         )
 
         assert "meta_category:{news}" in query
@@ -716,8 +722,11 @@ class TestValkeyDocumentStoreStaticMethods:
         embedding = [0.1, 0.2, 0.3]
         filters = None
         limit = 10
+        supported_fields = {"meta_category": "tag", "meta_priority": "numeric"}
 
-        _, options = ValkeyDocumentStore._build_search_query_and_options(embedding, filters, limit, with_embedding=True)
+        _, options = ValkeyDocumentStore._build_search_query_and_options(
+            embedding, filters, limit, with_embedding=True, supported_fields=supported_fields
+        )
 
         # Should have vector field when with_embedding=True
         vector_fields = [
@@ -727,7 +736,7 @@ class TestValkeyDocumentStoreStaticMethods:
 
         # Should have more return fields when with_embedding=True vs False
         _, options_no_embed = ValkeyDocumentStore._build_search_query_and_options(
-            embedding, filters, limit, with_embedding=False
+            embedding, filters, limit, with_embedding=False, supported_fields=supported_fields
         )
 
         vector_fields = [
@@ -915,6 +924,18 @@ class TestValkeyDocumentStoreConverters:
         assert result["init_parameters"]["distance_metric"] == "cosine"
         assert result["init_parameters"]["embedding_dim"] == 512
 
+    def test_to_dict_with_metadata_fields(self):
+        document_store = ValkeyDocumentStore(
+            nodes_list=[{"host": "localhost", "port": 6379}],
+            index_name="test_index",
+            embedding_dim=512,
+            metadata_fields={"category": str, "priority": int},
+        )
+
+        result = document_store.to_dict()
+
+        assert result["init_parameters"]["metadata_fields"] == {"category": str, "priority": int}
+
     def test_from_dict(self):
         data = {
             "type": "haystack_integrations.document_stores.valkey.document_store.ValkeyDocumentStore",
@@ -938,3 +959,32 @@ class TestValkeyDocumentStoreConverters:
         assert document_store._index_name == "custom_index"
         assert document_store._distance_metric.name.lower() == "l2"
         assert document_store._embedding_dim == 768
+
+    def test_from_dict_with_metadata_fields(self):
+        data = {
+            "type": "haystack_integrations.document_stores.valkey.document_store.ValkeyDocumentStore",
+            "init_parameters": {
+                "nodes_list": [{"host": "localhost", "port": 6379}],
+                "index_name": "custom_index",
+                "embedding_dim": 768,
+                "metadata_fields": {"status": str, "count": int},
+            },
+        }
+
+        document_store = ValkeyDocumentStore.from_dict(data)
+
+        assert document_store._metadata_fields == {"meta_status": "tag", "meta_count": "numeric"}
+
+    def test_to_dict_from_dict_roundtrip_with_metadata_fields(self):
+        original = ValkeyDocumentStore(
+            nodes_list=[{"host": "localhost", "port": 6379}],
+            index_name="test_index",
+            embedding_dim=256,
+            metadata_fields={"category": str, "priority": int, "score": int},
+        )
+
+        serialized = original.to_dict()
+        restored = ValkeyDocumentStore.from_dict(serialized)
+
+        assert restored._metadata_fields == original._metadata_fields
+        assert restored._metadata_fields == {"meta_category": "tag", "meta_priority": "numeric", "meta_score": "numeric"}
