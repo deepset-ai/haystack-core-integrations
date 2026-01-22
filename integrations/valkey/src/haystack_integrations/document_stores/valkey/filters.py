@@ -85,7 +85,7 @@ def _parse_logical_condition(condition: dict[str, Any], supported_fields: dict[s
     elif operator == "NOT":
         # NOT operator: NOT(A AND B AND C) = NOT A OR NOT B OR NOT C
         # First combine conditions with AND, then negate the whole thing
-        combined = ' '.join(conditions)
+        combined = " ".join(conditions)
         return f"-({combined})"
     else:
         msg = f"Unknown logical operator '{operator}'. Supported: AND, OR, NOT"

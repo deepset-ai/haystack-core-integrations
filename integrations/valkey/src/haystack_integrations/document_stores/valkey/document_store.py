@@ -7,9 +7,8 @@ from __future__ import annotations
 import asyncio
 import json
 import struct
-from typing import Any, ClassVar, Literal
-
 from dataclasses import replace
+from typing import Any, ClassVar, Literal
 
 from glide import (
     BackoffStrategy,
@@ -37,8 +36,8 @@ from glide_shared.commands.server_modules.ft_options.ft_create_options import (
     VectorType,
 )
 from glide_shared.commands.server_modules.ft_options.ft_search_options import (
-    FtSearchOptions,
     FtSearchLimit,
+    FtSearchOptions,
     ReturnField,
 )
 from glide_sync import (
@@ -189,7 +188,7 @@ class ValkeyDocumentStore(DocumentStore):
         self._distance_metric = self._parse_metric(distance_metric)
         self._embedding_dim = embedding_dim
         self._dummy_vector = [ValkeyDocumentStore._DUMMY_VALUE] * self._embedding_dim
-        
+
         # Validate and normalize metadata fields
         self._metadata_fields = self._validate_and_normalize_metadata_fields(metadata_fields or {})
 
@@ -332,16 +331,16 @@ class ValkeyDocumentStore(DocumentStore):
                 ),
             ),
         ]
-        
+
         # _metadata_fields keys already have meta_ prefix
         for field_name, field_type in self._metadata_fields.items():
             field_path = f"$.{field_name}"
-            
+
             if field_type == "tag":
                 fields.append(TagField(field_path, alias=field_name))
             elif field_type == "numeric":
                 fields.append(NumericField(field_path, alias=field_name))
-        
+
         return fields
 
     def _create_index(self) -> None:
@@ -391,7 +390,7 @@ class ValkeyDocumentStore(DocumentStore):
             # Remove meta_ prefix: meta_category -> category
             clean_name = field_name[5:] if field_name.startswith("meta_") else field_name
             metadata_fields_for_ser[clean_name] = str if field_type == "tag" else int
-        
+
         return default_to_dict(
             self,
             nodes_list=self._nodes_list,
@@ -579,7 +578,7 @@ class ValkeyDocumentStore(DocumentStore):
             # furthermore, we are querying with a dummy vector, so the scores are meaningless
             docs_no_score = []
             for doc in documents:
-                docs_no_score.append(replace(doc, score = None))
+                docs_no_score.append(replace(doc, score=None))
 
             return docs_no_score
 
@@ -737,7 +736,11 @@ class ValkeyDocumentStore(DocumentStore):
         try:
             result = client.delete(keys)
             if result < len(document_ids):
-                logger.warning("Some documents not found. Expected {len_document_ids}, deleted {result}", len_document_ids=len(document_ids), result=result)
+                logger.warning(
+                    "Some documents not found. Expected {len_document_ids}, deleted {result}",
+                    len_document_ids=len(document_ids),
+                    result=result,
+                )
         except Exception as e:
             msg = f"Failed to delete documents: {e}"
             raise ValkeyDocumentStoreError(msg) from e
@@ -769,7 +772,11 @@ class ValkeyDocumentStore(DocumentStore):
         try:
             result = await client.delete(keys)
             if result < len(document_ids):
-                logger.warning("Some documents not found. Expected {len_document_ids}, deleted {result}", len_document_ids=len(document_ids), result=result)
+                logger.warning(
+                    "Some documents not found. Expected {len_document_ids}, deleted {result}",
+                    len_document_ids=len(document_ids),
+                    result=result,
+                )
         except Exception as e:
             msg = f"Failed to delete documents: {e}"
             raise ValkeyDocumentStoreError(msg) from e
@@ -995,19 +1002,30 @@ class ValkeyDocumentStore(DocumentStore):
             msg = f"Failed to retrieve documents by embedding: {e}"
             raise ValkeyDocumentStoreError(msg) from e
 
-    def _prepare_document_dict(self, doc: Document) -> dict:
+    def _prepare_document_dict(self, doc: Document) -> dict[str, Any]:
         """Prepare document dictionary for storage."""
         payload = doc.to_dict(flatten=False)
         payload.pop("embedding", None)
 
         meta = doc.meta or {}
-        doc_dict = {"id": doc.id, "payload": payload}
-        
+        doc_dict: dict[str, Any] = {"id": doc.id, "payload": payload}
+
         # _metadata_fields keys already have meta_ prefix
         for field_name_with_prefix, field_type in self._metadata_fields.items():
             # Extract original field name: meta_category -> category
             field_name = field_name_with_prefix[5:]  # Remove "meta_"
-            doc_dict[field_name_with_prefix] = meta.get(field_name, None)
+            value = meta.get(field_name)
+
+            # Validate value type matches field type
+            if value is not None:
+                if field_type == "tag" and not isinstance(value, str):
+                    msg = f"Field '{field_name}' expects string value but got {type(value).__name__}"
+                    raise ValueError(msg)
+                elif field_type == "numeric" and not isinstance(value, (int, float)):
+                    msg = f"Field '{field_name}' expects numeric value but got {type(value).__name__}"
+                    raise ValueError(msg)
+
+            doc_dict[field_name_with_prefix] = value
 
         doc_dict["vector"] = doc.embedding if doc.embedding else [self._DUMMY_VALUE] * self._embedding_dim
         return doc_dict
@@ -1028,7 +1046,7 @@ class ValkeyDocumentStore(DocumentStore):
         # This occurs when no documents match the query filters or the index is empty
         if not raw or raw[0] == 0:
             return documents
-        
+
         for doc_info in raw[1].values():
             # Get payload from doc_info
             payload_data = doc_info.get(b"payload")
@@ -1065,8 +1083,12 @@ class ValkeyDocumentStore(DocumentStore):
 
     @staticmethod
     def _build_search_query_and_options(
-        embedding: list[float], filters: dict[str, Any] | None, limit: int, *, with_embedding: bool,
-        supported_fields: dict[str, str]
+        embedding: list[float],
+        filters: dict[str, Any] | None,
+        limit: int,
+        *,
+        with_embedding: bool,
+        supported_fields: dict[str, str],
     ) -> tuple[str, FtSearchOptions]:
         if filters:
             _validate_filters(filters)
@@ -1084,9 +1106,9 @@ class ValkeyDocumentStore(DocumentStore):
 
         query = f"{filter_query}=>[KNN {limit} @vector $query_vector]"
         query_options = FtSearchOptions(
-            params={"query_vector": ValkeyDocumentStore._to_float32_bytes(embedding)}, 
+            params={"query_vector": ValkeyDocumentStore._to_float32_bytes(embedding)},
             return_fields=return_fields,
-            limit=FtSearchLimit(offset=0, count=limit)
+            limit=FtSearchLimit(offset=0, count=limit),
         )
         return query, query_options
 
@@ -1105,7 +1127,7 @@ class ValkeyDocumentStore(DocumentStore):
             logger.warning(
                 "ValkeyDocumentStore only supports `DuplicatePolicy.OVERWRITE`"
                 "but got {policy}. Overwriting duplicates is enabled by default.",
-                policy=policy
+                policy=policy,
             )
 
     @staticmethod
@@ -1140,7 +1162,7 @@ class ValkeyDocumentStore(DocumentStore):
     def _validate_and_normalize_metadata_fields(metadata_fields: dict[str, type[str] | type[int]]) -> dict[str, str]:
         """
         Validate and normalize metadata field definitions.
-        
+
         :param metadata_fields: User-provided metadata field definitions mapping field names to Python types.
         :return: Normalized metadata fields with meta_ prefix mapping to Valkey field types ("tag" or "numeric").
         :raises ValueError: If field definitions are invalid.
@@ -1148,19 +1170,20 @@ class ValkeyDocumentStore(DocumentStore):
         if not isinstance(metadata_fields, dict):
             msg = "metadata_fields must be a dictionary"
             raise ValueError(msg)
-        
-        TYPE_MAPPING = {str: "tag", int: "numeric"}
-        
+
+        type_mapping = {str: "tag", int: "numeric"}
+
         normalized = {}
         for field_name, field_type in metadata_fields.items():
             if not isinstance(field_name, str) or not field_name:
                 msg = f"Field name must be a non-empty string, got {field_name!r}"
                 raise ValueError(msg)
-            
-            if field_type not in TYPE_MAPPING:
-                msg = f"Unsupported field type {field_type!r} for field '{field_name}'. Supported: {list(TYPE_MAPPING.keys())}"
+
+            if field_type not in type_mapping:
+                supported_types = list(type_mapping.keys())
+                msg = f"Unsupported field type {field_type!r} for field '{field_name}'. Supported: {supported_types}"
                 raise ValueError(msg)
-            
-            normalized[f"meta_{field_name}"] = TYPE_MAPPING[field_type]
-        
+
+            normalized[f"meta_{field_name}"] = type_mapping[field_type]
+
         return normalized

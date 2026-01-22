@@ -22,7 +22,7 @@ class TestFilters(FilterDocumentsTest):
         try:
             store._client.flushdb()
             store.close()
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     def assert_documents_are_equal(self, received: list, expected: list):
@@ -43,8 +43,6 @@ class TestFilters(FilterDocumentsTest):
 
     def test_comparison_less_than_equal_with_none(self, document_store, filterable_docs):
         pytest.skip("Valkey does not support comparison operators with None values")
-
-
 
     # Valkey only supports numeric comparisons on numeric fields, not on strings/dates/lists
     def test_comparison_greater_than_with_string(self, document_store, filterable_docs):
@@ -82,8 +80,6 @@ class TestFilters(FilterDocumentsTest):
 
     def test_comparison_less_than_equal_with_list(self, document_store, filterable_docs):
         pytest.skip("Valkey only supports numeric comparisons on numeric fields")
-
-
 
 
 # Default supported fields for testing
@@ -205,15 +201,24 @@ def test_normalize_filters_malformed():
 
     # Missing comparison field
     with pytest.raises(FilterError, match="'conditions' key missing"):
-        _normalize_filters({"operator": "AND", "conditions": [{"operator": "==", "value": "news"}]}, DEFAULT_SUPPORTED_FIELDS)
+        _normalize_filters(
+            {"operator": "AND", "conditions": [{"operator": "==", "value": "news"}]},
+            DEFAULT_SUPPORTED_FIELDS,
+        )
 
     # Missing comparison operator
     with pytest.raises(FilterError, match="'operator' key missing"):
-        _normalize_filters({"operator": "AND", "conditions": [{"field": "meta.category", "value": "news"}]}, DEFAULT_SUPPORTED_FIELDS)
+        _normalize_filters(
+            {"operator": "AND", "conditions": [{"field": "meta.category", "value": "news"}]},
+            DEFAULT_SUPPORTED_FIELDS,
+        )
 
     # Missing comparison value
     with pytest.raises(FilterError, match="'value' key missing"):
-        _normalize_filters({"operator": "AND", "conditions": [{"field": "meta.category", "operator": "=="}]}, DEFAULT_SUPPORTED_FIELDS)
+        _normalize_filters(
+            {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "=="}]},
+            DEFAULT_SUPPORTED_FIELDS,
+        )
 
 
 def test_unsupported_field():

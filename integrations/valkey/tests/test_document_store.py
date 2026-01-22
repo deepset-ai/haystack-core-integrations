@@ -20,7 +20,14 @@ class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         store = ValkeyDocumentStore(
             index_name="test_haystack_document",
             embedding_dim=3,
-            metadata_fields={"category": str, "priority": int, "status": str, "score": int, "timestamp": int, "quality": str},
+            metadata_fields={
+                "category": str,
+                "priority": int,
+                "status": str,
+                "score": int,
+                "timestamp": int,
+                "quality": str,
+            },
         )
         yield store
         try:
@@ -987,4 +994,34 @@ class TestValkeyDocumentStoreConverters:
         restored = ValkeyDocumentStore.from_dict(serialized)
 
         assert restored._metadata_fields == original._metadata_fields
-        assert restored._metadata_fields == {"meta_category": "tag", "meta_priority": "numeric", "meta_score": "numeric"}
+        assert restored._metadata_fields == {
+            "meta_category": "tag",
+            "meta_priority": "numeric",
+            "meta_score": "numeric",
+        }
+
+
+def test_prepare_document_dict_validates_tag_field_type():
+    """Test that tag fields reject non-string values."""
+    store = ValkeyDocumentStore(
+        index_name="test_validation",
+        embedding_dim=3,
+        metadata_fields={"category": str},
+    )
+    doc = Document(content="test", embedding=[0.1, 0.2, 0.3], meta={"category": 123})
+
+    with pytest.raises(ValueError, match="Field 'category' expects string value but got int"):
+        store._prepare_document_dict(doc)
+
+
+def test_prepare_document_dict_validates_numeric_field_type():
+    """Test that numeric fields reject non-numeric values."""
+    store = ValkeyDocumentStore(
+        index_name="test_validation",
+        embedding_dim=3,
+        metadata_fields={"priority": int},
+    )
+    doc = Document(content="test", embedding=[0.1, 0.2, 0.3], meta={"priority": "high"})
+
+    with pytest.raises(ValueError, match="Field 'priority' expects numeric value but got str"):
+        store._prepare_document_dict(doc)
