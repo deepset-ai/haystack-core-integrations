@@ -784,9 +784,7 @@ class PineconeDocumentStore:
 
         return count
 
-    def count_unique_metadata_by_filter(
-        self, filters: dict[str, Any], metadata_fields: list[str]
-    ) -> dict[str, int]:
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
         Counts unique values for each specified metadata field in documents matching the filters.
 
@@ -1099,10 +1097,7 @@ class PineconeDocumentStore:
         paginated_values = unique_values_list[from_ : from_ + size]
 
         if len(documents) == TOP_K_LIMIT:
-            logger.warning(
-                f"Unique values extraction limited to {TOP_K_LIMIT} documents. "
-                f"Results may be incomplete."
-            )
+            logger.warning(f"Unique values extraction limited to {TOP_K_LIMIT} documents. Results may be incomplete.")
 
         return paginated_values, total_count
 
@@ -1139,9 +1134,6 @@ class PineconeDocumentStore:
         paginated_values = unique_values_list[from_ : from_ + size]
 
         if len(documents) == TOP_K_LIMIT:
-            logger.warning(
-                f"Unique values extraction limited to {TOP_K_LIMIT} documents. "
-                f"Results may be incomplete."
-            )
+            logger.warning(f"Unique values extraction limited to {TOP_K_LIMIT} documents. Results may be incomplete.")
 
         return paginated_values, total_count
