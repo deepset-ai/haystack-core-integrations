@@ -840,16 +840,21 @@ class PineconeDocumentStore:
 
     @staticmethod
     def _get_metadata_field_min_max_impl(documents: list[Document], metadata_field: str) -> dict[str, Any]:
-        """Helper method to get min/max values for a numeric metadata field."""
+        """Helper method to get min/max values for a metadata field (supports numeric, boolean, and string types)."""
         values = []
         for doc in documents:
             if doc.meta and metadata_field in doc.meta:
                 value = doc.meta[metadata_field]
-                if isinstance(value, (int, float)):
+                # Note: bool check must come before numeric because bool is subclass of int
+                if isinstance(value, bool):
+                    values.append(value)
+                elif isinstance(value, (int, float)):
+                    values.append(value)
+                elif isinstance(value, str):
                     values.append(value)
 
         if not values:
-            msg = f"No numeric values found for metadata field '{metadata_field}'"
+            msg = f"No values found for metadata field '{metadata_field}'"
             raise ValueError(msg)
 
         result = {"min": min(values), "max": max(values)}
@@ -942,6 +947,9 @@ class PineconeDocumentStore:
         """
         Asynchronously counts unique values for each specified metadata field in documents matching the filters.
 
+        Note: Due to Pinecone's limitations, this method fetches documents and aggregates in Python.
+        Subject to Pinecone's TOP_K_LIMIT of 1000 documents.
+
         :param filters: The filters to apply to select documents.
         :param metadata_fields: List of metadata field names to count unique values for.
         :returns: Dictionary mapping field names to counts of unique values.
@@ -972,32 +980,55 @@ class PineconeDocumentStore:
         """
         Asynchronously returns information about metadata fields and their types by sampling documents.
 
+        Note: Pinecone doesn't provide a schema introspection API, so this method infers field types
+        by examining the metadata of documents stored in the index (up to 1000 documents).
+
+        Type mappings:
+        - 'text': Document content field
+        - 'keyword': String metadata values
+        - 'long': Numeric metadata values (int or float)
+        - 'boolean': Boolean metadata values
+
         :returns: Dictionary mapping field names to type information.
+            Example: {'content': {'type': 'text'}, 'category': {'type': 'keyword'}, 'priority': {'type': 'long'}}
         """
         documents = await self.filter_documents_async(filters=None)
         return self._get_metadata_fields_info_impl(documents)
 
     def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
         """
-        Returns the minimum and maximum values for a numeric metadata field.
+        Returns the minimum and maximum values for a metadata field.
+
+        Supports numeric (int, float), boolean, and string (keyword) types:
+        - Numeric: Returns min/max based on numeric value
+        - Boolean: Returns False as min, True as max
+        - String: Returns min/max based on alphabetical ordering
 
         Note: This method fetches all documents and computes min/max in Python.
         Subject to Pinecone's TOP_K_LIMIT of 1000 documents.
 
         :param metadata_field: The metadata field name to analyze.
         :returns: Dictionary with 'min' and 'max' keys.
-        :raises ValueError: If the field is not numeric or doesn't exist.
+        :raises ValueError: If the field doesn't exist or has no values.
         """
         documents = self.filter_documents(filters=None)
         return self._get_metadata_field_min_max_impl(documents, metadata_field)
 
     async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
         """
-        Asynchronously returns the minimum and maximum values for a numeric metadata field.
+        Asynchronously returns the minimum and maximum values for a metadata field.
+
+        Supports numeric (int, float), boolean, and string (keyword) types:
+        - Numeric: Returns min/max based on numeric value
+        - Boolean: Returns False as min, True as max
+        - String: Returns min/max based on alphabetical ordering
+
+        Note: This method fetches all documents and computes min/max in Python.
+        Subject to Pinecone's TOP_K_LIMIT of 1000 documents.
 
         :param metadata_field: The metadata field name to analyze.
         :returns: Dictionary with 'min' and 'max' keys.
-        :raises ValueError: If the field is not numeric or doesn't exist.
+        :raises ValueError: If the field doesn't exist or has no values.
         """
         documents = await self.filter_documents_async(filters=None)
         return self._get_metadata_field_min_max_impl(documents, metadata_field)
@@ -1026,10 +1057,13 @@ class PineconeDocumentStore:
         """
         Asynchronously retrieves unique values for a metadata field with optional search and pagination.
 
+        Note: This method fetches documents and extracts unique values in Python.
+        Subject to Pinecone's TOP_K_LIMIT of 1000 documents.
+
         :param metadata_field: The metadata field name to get unique values for.
-        :param search_term: Optional search term to filter values.
-        :param from_: Starting offset for pagination.
-        :param size: Number of values to return.
+        :param search_term: Optional search term to filter values (case-insensitive substring match).
+        :param from_: Starting offset for pagination (default: 0).
+        :param size: Number of values to return (default: 10).
         :returns: Tuple of (list of unique values, total count of matching values).
         """
         documents = await self.filter_documents_async(filters=None)

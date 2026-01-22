@@ -301,21 +301,31 @@ class TestDocumentStoreAsync:
 
     async def test_get_metadata_field_min_max_async(self, document_store_async: PineconeDocumentStore):
         docs = [
-            Document(content="Doc 1", meta={"priority": 1, "score": 85.5}),
-            Document(content="Doc 2", meta={"priority": 5, "score": 92.3}),
-            Document(content="Doc 3", meta={"priority": 3, "score": 78.9}),
+            Document(content="Doc 1", meta={"priority": 1, "score": 85.5, "active": True, "category": "Zebra"}),
+            Document(content="Doc 2", meta={"priority": 5, "score": 92.3, "active": False, "category": "Alpha"}),
+            Document(content="Doc 3", meta={"priority": 3, "score": 78.9, "active": True, "category": "Beta"}),
         ]
         await document_store_async.write_documents_async(docs)
 
-        # Get min/max for priority
+        # Get min/max for numeric field (int)
         min_max = await document_store_async.get_metadata_field_min_max_async("priority")
         assert min_max["min"] == 1
         assert min_max["max"] == 5
 
-        # Get min/max for score
+        # Get min/max for numeric field (float)
         min_max = await document_store_async.get_metadata_field_min_max_async("score")
         assert min_max["min"] == 78.9
         assert min_max["max"] == 92.3
+
+        # Get min/max for boolean field
+        min_max = await document_store_async.get_metadata_field_min_max_async("active")
+        assert min_max["min"] is False
+        assert min_max["max"] is True
+
+        # Get min/max for string field (alphabetical ordering)
+        min_max = await document_store_async.get_metadata_field_min_max_async("category")
+        assert min_max["min"] == "Alpha"
+        assert min_max["max"] == "Zebra"
 
     async def test_get_metadata_field_unique_values_async(self, document_store_async: PineconeDocumentStore):
         docs = [

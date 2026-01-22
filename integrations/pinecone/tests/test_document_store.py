@@ -561,36 +561,46 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
 
     def test_get_metadata_field_min_max(self, document_store: PineconeDocumentStore):
         docs = [
-            Document(content="Doc 1", meta={"priority": 1, "score": 85.5}),
-            Document(content="Doc 2", meta={"priority": 5, "score": 92.3}),
-            Document(content="Doc 3", meta={"priority": 3, "score": 78.9}),
-            Document(content="Doc 4", meta={"priority": 7, "score": 95.1}),
+            Document(content="Doc 1", meta={"priority": 1, "score": 85.5, "active": True, "category": "Zebra"}),
+            Document(content="Doc 2", meta={"priority": 5, "score": 92.3, "active": False, "category": "Alpha"}),
+            Document(content="Doc 3", meta={"priority": 3, "score": 78.9, "active": True, "category": "Beta"}),
+            Document(content="Doc 4", meta={"priority": 7, "score": 95.1, "active": False, "category": "Gamma"}),
         ]
         document_store.write_documents(docs)
 
-        # Get min/max for priority
+        # Get min/max for numeric field (int)
         min_max = document_store.get_metadata_field_min_max("priority")
         assert min_max["min"] == 1
         assert min_max["max"] == 7
 
-        # Get min/max for score
+        # Get min/max for numeric field (float)
         min_max = document_store.get_metadata_field_min_max("score")
         assert min_max["min"] == 78.9
         assert min_max["max"] == 95.1
 
+        # Get min/max for boolean field
+        min_max = document_store.get_metadata_field_min_max("active")
+        assert min_max["min"] is False
+        assert min_max["max"] is True
+
+        # Get min/max for string field (alphabetical ordering)
+        min_max = document_store.get_metadata_field_min_max("category")
+        assert min_max["min"] == "Alpha"
+        assert min_max["max"] == "Zebra"
+
     def test_get_metadata_field_min_max_no_values(self, document_store: PineconeDocumentStore):
         docs = [
-            Document(content="Doc 1", meta={"category": "A"}),
-            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 1", meta={"tags": ["tag1", "tag2"]}),
+            Document(content="Doc 2", meta={"tags": ["tag3", "tag4"]}),
         ]
         document_store.write_documents(docs)
 
-        # Try to get min/max for non-numeric field
-        with pytest.raises(ValueError, match="No numeric values found"):
-            document_store.get_metadata_field_min_max("category")
+        # Try to get min/max for unsupported field type (list)
+        with pytest.raises(ValueError, match="No values found"):
+            document_store.get_metadata_field_min_max("tags")
 
         # Try to get min/max for non-existent field
-        with pytest.raises(ValueError, match="No numeric values found"):
+        with pytest.raises(ValueError, match="No values found"):
             document_store.get_metadata_field_min_max("nonexistent")
 
     def test_get_metadata_field_unique_values(self, document_store: PineconeDocumentStore):
