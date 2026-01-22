@@ -443,3 +443,201 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         )
         assert updated_count == 0
         assert document_store.count_documents() == 2
+
+    def test_count_documents_by_filter(self, document_store: PineconeDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "published"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "published"}),
+            Document(content="Doc 4", meta={"category": "A", "status": "draft"}),
+        ]
+        document_store.write_documents(docs)
+
+        # Count documents with category="A"
+        count = document_store.count_documents_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert count == 3
+
+        # Count documents with status="published"
+        count = document_store.count_documents_by_filter(
+            filters={"field": "meta.status", "operator": "==", "value": "published"}
+        )
+        assert count == 2
+
+        # Count with complex filter
+        count = document_store.count_documents_by_filter(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.category", "operator": "==", "value": "A"},
+                    {"field": "meta.status", "operator": "==", "value": "draft"},
+                ],
+            }
+        )
+        assert count == 2
+
+    def test_count_unique_metadata_by_filter(self, document_store: PineconeDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "author": "Alice", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "B", "author": "Bob", "priority": 2}),
+            Document(content="Doc 3", meta={"category": "A", "author": "Alice", "priority": 1}),
+            Document(content="Doc 4", meta={"category": "C", "author": "Charlie", "priority": 3}),
+            Document(content="Doc 5", meta={"category": "A", "author": "Bob", "priority": 2}),
+        ]
+        document_store.write_documents(docs)
+
+        # Count unique values without filter
+        counts = document_store.count_unique_metadata_by_filter(
+            filters={}, metadata_fields=["category", "author", "priority"]
+        )
+        assert counts["category"] == 3  # A, B, C
+        assert counts["author"] == 3  # Alice, Bob, Charlie
+        assert counts["priority"] == 3  # 1, 2, 3
+
+        # Count unique values with filter
+        counts = document_store.count_unique_metadata_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "A"},
+            metadata_fields=["author", "priority"],
+        )
+        assert counts["author"] == 2  # Alice, Bob
+        assert counts["priority"] == 2  # 1, 2
+
+    def test_get_metadata_fields_info(self, document_store: PineconeDocumentStore):
+        docs = [
+            Document(
+                content="Doc 1",
+                meta={
+                    "category": "A",
+                    "author": "Alice",
+                    "priority": 1,
+                    "is_published": True,
+                    "tags": ["tag1", "tag2"],
+                },
+            ),
+            Document(content="Doc 2", meta={"category": "B", "author": "Bob", "priority": 2, "is_published": False}),
+        ]
+        document_store.write_documents(docs)
+
+        field_info = document_store.get_metadata_fields_info()
+
+        # Check content field
+        assert "content" in field_info
+        assert field_info["content"]["type"] == "text"
+
+        # Check metadata fields
+        assert "category" in field_info
+        assert field_info["category"]["type"] == "keyword"
+
+        assert "author" in field_info
+        assert field_info["author"]["type"] == "keyword"
+
+        assert "priority" in field_info
+        assert field_info["priority"]["type"] == "long"
+
+        assert "is_published" in field_info
+        assert field_info["is_published"]["type"] == "boolean"
+
+        assert "tags" in field_info
+        assert field_info["tags"]["type"] == "keyword"
+
+    def test_get_metadata_fields_info_empty(self, document_store: PineconeDocumentStore):
+        # Test with no documents
+        field_info = document_store.get_metadata_fields_info()
+        assert field_info == {}
+
+    def test_get_metadata_fields_info_consistent_types(self, document_store: PineconeDocumentStore):
+        # Test that all documents are checked for type consistency
+        docs = [
+            Document(content="Doc 1", meta={"score": 85}),
+            Document(content="Doc 2", meta={"score": 90}),
+            Document(content="Doc 3", meta={"score": 78}),
+        ]
+        document_store.write_documents(docs)
+
+        field_info = document_store.get_metadata_fields_info()
+        assert "score" in field_info
+        assert field_info["score"]["type"] == "long"
+
+    def test_get_metadata_field_min_max(self, document_store: PineconeDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"priority": 1, "score": 85.5}),
+            Document(content="Doc 2", meta={"priority": 5, "score": 92.3}),
+            Document(content="Doc 3", meta={"priority": 3, "score": 78.9}),
+            Document(content="Doc 4", meta={"priority": 7, "score": 95.1}),
+        ]
+        document_store.write_documents(docs)
+
+        # Get min/max for priority
+        min_max = document_store.get_metadata_field_min_max("priority")
+        assert min_max["min"] == 1
+        assert min_max["max"] == 7
+
+        # Get min/max for score
+        min_max = document_store.get_metadata_field_min_max("score")
+        assert min_max["min"] == 78.9
+        assert min_max["max"] == 95.1
+
+    def test_get_metadata_field_min_max_no_values(self, document_store: PineconeDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        document_store.write_documents(docs)
+
+        # Try to get min/max for non-numeric field
+        with pytest.raises(ValueError, match="No numeric values found"):
+            document_store.get_metadata_field_min_max("category")
+
+        # Try to get min/max for non-existent field
+        with pytest.raises(ValueError, match="No numeric values found"):
+            document_store.get_metadata_field_min_max("nonexistent")
+
+    def test_get_metadata_field_unique_values(self, document_store: PineconeDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "Alpha"}),
+            Document(content="Doc 2", meta={"category": "Beta"}),
+            Document(content="Doc 3", meta={"category": "Gamma"}),
+            Document(content="Doc 4", meta={"category": "Alpha"}),
+            Document(content="Doc 5", meta={"category": "Delta"}),
+            Document(content="Doc 6", meta={"category": "Beta"}),
+        ]
+        document_store.write_documents(docs)
+
+        # Get all unique values
+        values, total = document_store.get_metadata_field_unique_values("category", from_=0, size=10)
+        assert total == 4  # Alpha, Beta, Delta, Gamma
+        assert len(values) == 4
+        assert set(values) == {"Alpha", "Beta", "Delta", "Gamma"}
+
+        # Test pagination
+        values, total = document_store.get_metadata_field_unique_values("category", from_=0, size=2)
+        assert total == 4
+        assert len(values) == 2  # First 2 values (alphabetically sorted)
+
+        values, total = document_store.get_metadata_field_unique_values("category", from_=2, size=2)
+        assert total == 4
+        assert len(values) == 2  # Next 2 values
+
+        # Test search term
+        values, total = document_store.get_metadata_field_unique_values("category", search_term="ta", size=10)
+        assert total == 2  # Beta and Delta contain "ta"
+        assert set(values) == {"Beta", "Delta"}
+
+        # Test case-insensitive search
+        values, total = document_store.get_metadata_field_unique_values("category", search_term="ALPHA", size=10)
+        assert total == 1
+        assert values == ["Alpha"]
+
+    def test_get_metadata_field_unique_values_with_lists(self, document_store: PineconeDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"tags": ["python", "java"]}),
+            Document(content="Doc 2", meta={"tags": ["python", "rust"]}),
+            Document(content="Doc 3", meta={"tags": ["java", "go"]}),
+        ]
+        document_store.write_documents(docs)
+
+        # Get unique tag values
+        values, total = document_store.get_metadata_field_unique_values("tags", size=10)
+        assert total == 4  # python, java, rust, go
+        assert set(values) == {"go", "java", "python", "rust"}

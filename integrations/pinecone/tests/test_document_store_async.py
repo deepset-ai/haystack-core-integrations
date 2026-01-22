@@ -239,3 +239,108 @@ class TestDocumentStoreAsync:
         )
         assert updated_count == 0
         assert await document_store_async.count_documents_async() == 2
+
+    async def test_count_documents_by_filter_async(self, document_store_async: PineconeDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "published"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "published"}),
+            Document(content="Doc 4", meta={"category": "A", "status": "draft"}),
+        ]
+        await document_store_async.write_documents_async(docs)
+
+        # Count documents with category="A"
+        count = await document_store_async.count_documents_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert count == 3
+
+        # Count documents with status="published"
+        count = await document_store_async.count_documents_by_filter_async(
+            filters={"field": "meta.status", "operator": "==", "value": "published"}
+        )
+        assert count == 2
+
+    async def test_count_unique_metadata_by_filter_async(self, document_store_async: PineconeDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "author": "Alice", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "B", "author": "Bob", "priority": 2}),
+            Document(content="Doc 3", meta={"category": "A", "author": "Alice", "priority": 1}),
+            Document(content="Doc 4", meta={"category": "C", "author": "Charlie", "priority": 3}),
+        ]
+        await document_store_async.write_documents_async(docs)
+
+        # Count unique values without filter
+        counts = await document_store_async.count_unique_metadata_by_filter_async(
+            filters={}, metadata_fields=["category", "author"]
+        )
+        assert counts["category"] == 3  # A, B, C
+        assert counts["author"] == 3  # Alice, Bob, Charlie
+
+    async def test_get_metadata_fields_info_async(self, document_store_async: PineconeDocumentStore):
+        docs = [
+            Document(
+                content="Doc 1",
+                meta={"category": "A", "priority": 1, "is_published": True, "tags": ["tag1", "tag2"]},
+            ),
+            Document(content="Doc 2", meta={"category": "B", "priority": 2, "is_published": False}),
+        ]
+        await document_store_async.write_documents_async(docs)
+
+        field_info = await document_store_async.get_metadata_fields_info_async()
+
+        # Check content field
+        assert "content" in field_info
+        assert field_info["content"]["type"] == "text"
+
+        # Check metadata fields
+        assert field_info["category"]["type"] == "keyword"
+        assert field_info["priority"]["type"] == "long"
+        assert field_info["is_published"]["type"] == "boolean"
+        assert field_info["tags"]["type"] == "keyword"
+
+    async def test_get_metadata_field_min_max_async(self, document_store_async: PineconeDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"priority": 1, "score": 85.5}),
+            Document(content="Doc 2", meta={"priority": 5, "score": 92.3}),
+            Document(content="Doc 3", meta={"priority": 3, "score": 78.9}),
+        ]
+        await document_store_async.write_documents_async(docs)
+
+        # Get min/max for priority
+        min_max = await document_store_async.get_metadata_field_min_max_async("priority")
+        assert min_max["min"] == 1
+        assert min_max["max"] == 5
+
+        # Get min/max for score
+        min_max = await document_store_async.get_metadata_field_min_max_async("score")
+        assert min_max["min"] == 78.9
+        assert min_max["max"] == 92.3
+
+    async def test_get_metadata_field_unique_values_async(self, document_store_async: PineconeDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "Alpha"}),
+            Document(content="Doc 2", meta={"category": "Beta"}),
+            Document(content="Doc 3", meta={"category": "Gamma"}),
+            Document(content="Doc 4", meta={"category": "Alpha"}),
+            Document(content="Doc 5", meta={"category": "Delta"}),
+        ]
+        await document_store_async.write_documents_async(docs)
+
+        # Get all unique values
+        values, total = await document_store_async.get_metadata_field_unique_values_async("category", size=10)
+        assert total == 4  # Alpha, Beta, Delta, Gamma
+        assert len(values) == 4
+        assert set(values) == {"Alpha", "Beta", "Delta", "Gamma"}
+
+        # Test pagination
+        values, total = await document_store_async.get_metadata_field_unique_values_async("category", from_=0, size=2)
+        assert total == 4
+        assert len(values) == 2  # First 2 values
+
+        # Test search term
+        values, total = await document_store_async.get_metadata_field_unique_values_async(
+            "category", search_term="ta", size=10
+        )
+        assert total == 2  # Beta and Delta contain "ta"
+        assert set(values) == {"Beta", "Delta"}
