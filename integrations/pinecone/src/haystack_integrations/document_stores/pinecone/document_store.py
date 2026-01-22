@@ -1073,7 +1073,7 @@ class PineconeDocumentStore:
         """
         documents = self.filter_documents(filters=None)
 
-        unique_values = set()
+        unique_values: set[str] = set()
         for doc in documents:
             if doc.meta and metadata_field in doc.meta:
                 value = doc.meta[metadata_field]
@@ -1115,7 +1115,7 @@ class PineconeDocumentStore:
         """
         documents = await self.filter_documents_async(filters=None)
 
-        unique_values = set()
+        unique_values: set[str] = set()
         for doc in documents:
             if doc.meta and metadata_field in doc.meta:
                 value = doc.meta[metadata_field]
