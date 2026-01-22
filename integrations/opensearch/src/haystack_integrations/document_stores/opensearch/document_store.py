@@ -37,7 +37,9 @@ BM25_SCALING_FACTOR = 8
 DEFAULT_SETTINGS = {"index.knn": True}
 DEFAULT_MAX_CHUNK_BYTES = 100 * 1024 * 1024
 
-# Jaccard similarity script for metadata search (n-gram based similarity)
+# OpenSearch/Elasticsearch's scripting language to computes Jaccard similarity for metadata search.
+# (n-gram based similarity, n=3 by default)
+# Between: a metadata field value (doc[params.field]) a query string (params.q)
 METADATA_SEARCH_JACCARD_SCRIPT = """
 String a = doc[params.field].size() != 0 ? doc[params.field].value : null;
 String b = params.q;
