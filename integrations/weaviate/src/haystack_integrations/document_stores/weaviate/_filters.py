@@ -228,6 +228,13 @@ def _not_in(field: str, value: Any) -> FilterReturn:
     return Filter.all_of(operands)
 
 
+def _contains(field: str, value: Any) -> FilterReturn:
+    if not isinstance(value, str):
+        msg = "Filter value must be a string when using 'contains' comparator"
+        raise FilterError(msg)
+    return weaviate.classes.query.Filter.by_property(field).like(f"*{value}*")
+
+
 COMPARISON_OPERATORS = {
     "==": _equal,
     "!=": _not_equal,
@@ -237,6 +244,7 @@ COMPARISON_OPERATORS = {
     "<=": _less_than_equal,
     "in": _in,
     "not in": _not_in,
+    "contains": _contains,
 }
 
 

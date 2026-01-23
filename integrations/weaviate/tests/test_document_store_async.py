@@ -389,3 +389,78 @@ class TestWeaviateDocumentStoreAsync:
                 filters={"field": "meta.category", "operator": "==", "value": "TypeA"},
                 metadata_fields=["nonexistent_field"],
             )
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_async(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "TypeA"}),
+            Document(content="Doc 2", meta={"category": "TypeB"}),
+            Document(content="Doc 3", meta={"category": "TypeA"}),
+            Document(content="Doc 4", meta={"category": "TypeC"}),
+            Document(content="Doc 5", meta={"category": "TypeB"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = await document_store.get_metadata_field_unique_values_async("category")
+        assert total_count == 3
+        assert set(values) == {"TypeA", "TypeB", "TypeC"}
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_async_with_meta_prefix(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "TypeA"}),
+            Document(content="Doc 2", meta={"category": "TypeB"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = await document_store.get_metadata_field_unique_values_async("meta.category")
+        assert total_count == 2
+        assert set(values) == {"TypeA", "TypeB"}
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_async_with_search_term(self, document_store):
+        docs = [
+            Document(content="Python programming language", meta={"category": "TypeA"}),
+            Document(content="Java programming language", meta={"category": "TypeB"}),
+            Document(content="Python is great", meta={"category": "TypeC"}),
+            Document(content="JavaScript tutorial", meta={"category": "TypeD"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = await document_store.get_metadata_field_unique_values_async(
+            "category", search_term="Python"
+        )
+        assert total_count == 2
+        assert set(values) == {"TypeA", "TypeC"}
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_async_with_pagination(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "TypeA"}),
+            Document(content="Doc 2", meta={"category": "TypeB"}),
+            Document(content="Doc 3", meta={"category": "TypeC"}),
+            Document(content="Doc 4", meta={"category": "TypeD"}),
+            Document(content="Doc 5", meta={"category": "TypeE"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = await document_store.get_metadata_field_unique_values_async("category", from_=0, size=2)
+        assert total_count == 5
+        assert len(values) == 2
+
+        values2, total_count2 = await document_store.get_metadata_field_unique_values_async("category", from_=2, size=2)
+        assert total_count2 == 5
+        assert len(values2) == 2
+
+        assert set(values).isdisjoint(set(values2))
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_async_field_not_found(self, document_store):
+        with pytest.raises(ValueError, match="not found in collection schema"):
+            await document_store.get_metadata_field_unique_values_async("nonexistent_field")
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_async_empty_result(self, document_store):
+        values, total_count = await document_store.get_metadata_field_unique_values_async("category")
+        assert total_count == 0
+        assert values == []
