@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict
@@ -204,11 +205,12 @@ class WatsonxDocumentEmbedder:
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
         embeddings = self.embedder.embed_documents(texts_to_embed)
 
+        new_documents = []
         for doc, emb in zip(documents, embeddings, strict=True):
-            doc.embedding = emb
+            new_documents.append(replace(doc, embedding=emb))
 
         return {
-            "documents": documents,
+            "documents": new_documents,
             "meta": {
                 "model": self.model,
                 "truncate_input_tokens": self.truncate_input_tokens,
