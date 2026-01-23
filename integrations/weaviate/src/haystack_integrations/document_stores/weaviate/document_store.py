@@ -15,7 +15,13 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types.policy import DuplicatePolicy
 
 import weaviate
-from weaviate.collections.classes.aggregate import GroupByAggregate, Metrics
+from weaviate.collections.classes.aggregate import (
+    GroupByAggregate,
+    Metrics,
+    _MetricsDate,
+    _MetricsInteger,
+    _MetricsNumber,
+)
 from weaviate.collections.classes.data import DataObject
 from weaviate.config import AdditionalConfig
 from weaviate.embedded import EmbeddedOptions
@@ -434,7 +440,10 @@ class WeaviateDocumentStore:
 
         data_type_str = str(field_type.value) if hasattr(field_type, "value") else str(field_type)
 
-        # Build metrics based on type
+        # Build metrics based on type.
+        # Explicit type annotation needed for mypy compatibility with Python 3.10,
+        # which infers the type from the first assignment and fails on reassignment.
+        metrics: _MetricsInteger | _MetricsNumber | _MetricsDate
         if data_type_str.lower() == "int":
             metrics = Metrics(field_name).integer(minimum=True, maximum=True)
         elif data_type_str.lower() == "number":
@@ -479,7 +488,10 @@ class WeaviateDocumentStore:
 
         data_type_str = str(field_type.value) if hasattr(field_type, "value") else str(field_type)
 
-        # Build metrics based on type
+        # Build metrics based on type.
+        # Explicit type annotation needed for mypy compatibility with Python 3.10,
+        # which infers the type from the first assignment and fails on reassignment.
+        metrics: _MetricsInteger | _MetricsNumber | _MetricsDate
         if data_type_str.lower() == "int":
             metrics = Metrics(field_name).integer(minimum=True, maximum=True)
         elif data_type_str.lower() == "number":
