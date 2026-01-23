@@ -275,14 +275,12 @@ class TestWeaviateDocumentStoreAsync:
     async def test_get_metadata_fields_info_async(self, document_store):
         fields_info = await document_store.get_metadata_fields_info_async()
 
-        # Verify special fields are excluded
         assert "_original_id" not in fields_info
         assert "content" not in fields_info
         assert "blob_data" not in fields_info
         assert "blob_mime_type" not in fields_info
         assert "score" not in fields_info
 
-        # Verify metadata fields are present with type info
         assert "category" in fields_info
         assert fields_info["category"]["type"] == "text"
         assert "status" in fields_info
@@ -335,13 +333,11 @@ class TestWeaviateDocumentStoreAsync:
         ]
         document_store.write_documents(docs)
 
-        # Filter for TypeA category only
         result = await document_store.count_unique_metadata_by_filter_async(
             filters={"field": "meta.category", "operator": "==", "value": "TypeA"}, metadata_fields=["status"]
         )
-        assert result["status"] == 2  # draft (2 docs) and archived (1 doc)
+        assert result["status"] == 2
 
-        # Filter for multiple categories
         result = await document_store.count_unique_metadata_by_filter_async(
             filters={
                 "operator": "OR",
@@ -352,8 +348,8 @@ class TestWeaviateDocumentStoreAsync:
             },
             metadata_fields=["category", "status"],
         )
-        assert result["category"] == 2  # TypeA, TypeB
-        assert result["status"] == 3  # draft, published, archived
+        assert result["category"] == 2
+        assert result["status"] == 3
 
     @pytest.mark.asyncio
     async def test_count_unique_metadata_by_filter_async_with_meta_prefix(self, document_store):

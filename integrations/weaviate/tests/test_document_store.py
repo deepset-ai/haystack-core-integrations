@@ -990,13 +990,11 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         ]
         document_store.write_documents(docs)
 
-        # Filter for TypeA category only
         result = document_store.count_unique_metadata_by_filter(
             filters={"field": "meta.category", "operator": "==", "value": "TypeA"}, metadata_fields=["status"]
         )
-        assert result["status"] == 2  # draft (2 docs) and archived (1 doc)
+        assert result["status"] == 2
 
-        # Filter for multiple categories
         result = document_store.count_unique_metadata_by_filter(
             filters={
                 "operator": "OR",
@@ -1007,8 +1005,8 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
             },
             metadata_fields=["category", "status"],
         )
-        assert result["category"] == 2  # TypeA, TypeB
-        assert result["status"] == 3  # draft, published, archived
+        assert result["category"] == 2
+        assert result["status"] == 3
 
     def test_count_unique_metadata_by_filter_with_meta_prefix(self, document_store):
         docs = [
