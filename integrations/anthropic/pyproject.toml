@@ -22,6 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
+# TODO: pin haystack-ai>=2.23.0 once it's released
 dependencies = ["haystack-ai==2.23.0rc1", "anthropic>=0.47.0"]
 
 [project.urls]
