@@ -18,6 +18,7 @@ from haystack_integrations.tracing.langfuse.tracer import (
     LangfuseTracer,
     SpanContext,
     _sanitize_usage_data,
+    tracing_context_var,
 )
 
 
@@ -222,6 +223,44 @@ class TestSanitizeUsageData:
 
 
 class TestDefaultSpanHandler:
+    def test_create_span_root_trace(self):
+        """Test creating a root span (no parent)."""
+        mock_client = Mock()
+        mock_client.start_as_current_span = Mock(return_value=MockContextManager())
+        mock_client.start_as_current_observation = Mock(return_value=MockContextManager())
+
+        handler = DefaultSpanHandler()
+        handler.init_tracer(mock_client)
+
+        context = MagicMock(spec=SpanContext)
+        context.parent_span = None
+        context.trace_name = "test_trace"
+        context.operation_name = "haystack.pipeline.run"
+        context.public = False
+
+        # Set up tracing context
+        token = tracing_context_var.set(
+            {"user_id": "test_user", "session_id": "test_session", "trace_id": "test_trace_id"}
+        )
+        try:
+            result = handler.create_span(context)
+
+            # Assert tracer was called with correct parameters
+            handler.tracer.start_as_current_observation.assert_called_once_with(
+                trace_context={"trace_id": "test_trace_id"},
+                name="test_trace",
+                version=None,
+                as_type="span",
+            )
+            call_kwargs = handler.tracer.start_as_current_observation.call_args[1]
+            assert "test_trace" == call_kwargs["name"]
+            assert "span" == call_kwargs["as_type"]
+
+            # Assert result is a LangfuseSpan
+            assert isinstance(result, LangfuseSpan)
+        finally:
+            tracing_context_var.reset(token)
+
     def test_handle_generator(self):
         mock_span = Mock()
         mock_span.raw_span.return_value = mock_span
