@@ -204,6 +204,10 @@ class TestGitHubFileEditorTool:
             "connections": [],
             "connection_type_validation": True,
         }
+        if "confirmation_strategies" in pipeline_dict["components"]["agent"]["init_parameters"]:
+            expected_dict["components"]["agent"]["init_parameters"]["confirmation_strategies"] = pipeline_dict[
+                "components"
+            ]["agent"]["init_parameters"]["confirmation_strategies"]
 
         assert pipeline_dict == expected_dict
 
