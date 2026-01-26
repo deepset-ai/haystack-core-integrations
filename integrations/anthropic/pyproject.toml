@@ -22,15 +22,13 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@support-imgs-tool-results", "anthropic>=0.47.0"]
+dependencies = ["haystack-ai==2.23.0rc1", "anthropic>=0.47.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/anthropic#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/anthropic"
 
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]

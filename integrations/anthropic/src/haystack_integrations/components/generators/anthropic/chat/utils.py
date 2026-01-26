@@ -43,6 +43,28 @@ FINISH_REASON_MAPPING: dict[str, FinishReason] = {
 }
 
 
+def _convert_image_content_to_anthropic_format(image_content: ImageContent) -> ImageBlockParam:
+    """
+    Convert an ImageContent to the format expected by Anthropic Chat API.
+    """
+    if image_content.mime_type not in IMAGE_SUPPORTED_FORMATS:
+        supported_formats = ", ".join(IMAGE_SUPPORTED_FORMATS)
+        msg = (
+            f"Unsupported image format: {image_content.mime_type}. "
+            f"Anthropic supports the following formats: {supported_formats}"
+        )
+        raise ValueError(msg)
+
+    return ImageBlockParam(
+        type="image",
+        source={
+            "type": "base64",
+            "media_type": cast(ImageFormat, image_content.mime_type),
+            "data": image_content.base64_image,
+        },
+    )
+
+
 def _update_anthropic_message_with_tool_call_results(
     tool_call_results: list[ToolCallResult],
     content: list[
@@ -73,16 +95,7 @@ def _update_anthropic_message_with_tool_call_results(
                 if isinstance(item, TextContent):
                     tool_result_block_content.append(TextBlockParam(type="text", text=item.text))
                 elif isinstance(item, ImageContent):
-                    tool_result_block_content.append(
-                        ImageBlockParam(
-                            type="image",
-                            source={
-                                "type": "base64",
-                                "media_type": cast(ImageFormat, item.mime_type),
-                                "data": item.base64_image,
-                            },
-                        )
-                    )
+                    tool_result_block_content.append(_convert_image_content_to_anthropic_format(item))
                 else:
                     msg = "Unsupported content type in tool call result"
                     raise ValueError(msg)
@@ -183,26 +196,11 @@ def _convert_messages_to_anthropic_format(
                             content.append(reasoning_block)
 
             elif isinstance(part, ImageContent):
-                if not message.is_from(ChatRole.USER):
-                    msg = "Image content is only supported for user messages"
+                if not message.is_from(ChatRole.USER) and not message.is_from(ChatRole.TOOL):
+                    msg = "Image content is only supported for user and tool messages"
                     raise ValueError(msg)
 
-                if part.mime_type not in IMAGE_SUPPORTED_FORMATS:
-                    supported_formats = ", ".join(IMAGE_SUPPORTED_FORMATS)
-                    msg = (
-                        f"Unsupported image format: {part.mime_type}. "
-                        f"Anthropic supports the following formats: {supported_formats}"
-                    )
-                    raise ValueError(msg)
-
-                image_block = ImageBlockParam(
-                    type="image",
-                    source={
-                        "type": "base64",
-                        "media_type": cast(ImageFormat, part.mime_type),
-                        "data": part.base64_image,
-                    },
-                )
+                image_block = _convert_image_content_to_anthropic_format(part)
                 if cache_control:
                     image_block["cache_control"] = cache_control
                 content.append(image_block)
