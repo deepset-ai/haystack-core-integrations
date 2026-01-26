@@ -134,6 +134,53 @@ def test_sql_retriever_hits_format(document_store: OpenSearchDocumentStore):
 
 
 @pytest.mark.integration
+def test_sql_retriever_metadata_extraction(document_store: OpenSearchDocumentStore):
+    """Test extracting metadata fields using SQL query"""
+    docs = [
+        Document(
+            content="Python tutorial",
+            meta={"author": "John Doe", "year": 2023, "tags": ["programming", "python"], "rating": 4.5},
+        ),
+        Document(
+            content="Java guide",
+            meta={"author": "Jane Smith", "year": 2024, "tags": ["programming", "java"], "rating": 4.8},
+        ),
+        Document(
+            content="SQL handbook",
+            meta={"author": "Bob Johnson", "year": 2022, "tags": ["database", "sql"], "rating": 4.2},
+        ),
+    ]
+    document_store.write_documents(docs, refresh=True)
+
+    retriever = OpenSearchSQLRetriever(document_store=document_store)
+
+    # extract only metadata fields
+    sql_query = (
+        f"SELECT author, year, rating FROM {document_store._index} "  # noqa: S608
+        f"WHERE year >= 2023 ORDER BY rating DESC"
+    )
+    result = retriever.run(query=sql_query)
+
+    assert "result" in result
+    assert len(result["result"]) == 2
+    assert isinstance(result["result"], list)
+    assert all(isinstance(row, dict) for row in result["result"])
+
+    authors = [row.get("author") for row in result["result"]]
+    assert "Jane Smith" in authors
+    assert "John Doe" in authors
+
+    for row in result["result"]:
+        assert "author" in row
+        assert "year" in row
+        assert "rating" in row
+        assert "content" not in row
+        assert row["year"] >= 2023
+
+    assert result["result"][0]["rating"] >= result["result"][1]["rating"]
+
+
+@pytest.mark.integration
 def test_sql_retriever_with_filters(document_store: OpenSearchDocumentStore):
     docs = [
         Document(content="Python programming", meta={"category": "A", "status": "active", "priority": 1}),
