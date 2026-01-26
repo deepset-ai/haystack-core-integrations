@@ -84,7 +84,7 @@ class OpenSearchSQLRetriever:
         query: str,
         document_store: OpenSearchDocumentStore | None = None,
         fetch_size: int | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, list[dict[str, Any]]]:
         """
         Execute a raw OpenSearch SQL query against the index.
 
@@ -127,7 +127,7 @@ class OpenSearchSQLRetriever:
                     error=str(e),
                     exc_info=True,
                 )
-                result = None
+                result = []
 
         return {"result": result}
 
@@ -137,7 +137,7 @@ class OpenSearchSQLRetriever:
         query: str,
         document_store: OpenSearchDocumentStore | None = None,
         fetch_size: int | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, list[dict[str, Any]]]:
         """
         Asynchronously execute a raw OpenSearch SQL query against the index.
 
@@ -180,6 +180,6 @@ class OpenSearchSQLRetriever:
                     error=str(e),
                     exc_info=True,
                 )
-                result = None
+                result = []
 
         return {"result": result}
