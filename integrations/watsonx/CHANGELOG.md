@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/watsonx-v1.2.0] - 2026-01-21
+
+### 🐛 Bug Fixes
+
+- *(watsonx)* Use dataclass replace to avoid modifying input documents (#2766)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+
+
 ## [integrations/watsonx-v1.1.0] - 2025-11-26
 
 ### 🧹 Chores
