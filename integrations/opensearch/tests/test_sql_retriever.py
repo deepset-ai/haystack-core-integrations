@@ -84,6 +84,7 @@ def test_sql_retriever_basic_query(document_store: OpenSearchDocumentStore):
 
 @pytest.mark.integration
 def test_sql_retriever_count_query(document_store: OpenSearchDocumentStore):
+    """Test aggregate query (COUNT) - exercises the aggregations path in _process_sql_response"""
     docs = [
         Document(content="Doc 1", meta={"category": "A"}),
         Document(content="Doc 2", meta={"category": "B"}),
@@ -96,7 +97,40 @@ def test_sql_retriever_count_query(document_store: OpenSearchDocumentStore):
     result = retriever.run(query=count_query)
 
     assert "result" in result
-    assert result["result"] is not None
+    # COUNT(*) should return a single row with the count
+    assert len(result["result"]) == 1
+    assert result["result"][0]["total"] == 3
+
+
+@pytest.mark.integration
+def test_sql_retriever_hits_format(document_store: OpenSearchDocumentStore):
+    """Test regular SELECT query - exercises the hits path in _process_sql_response"""
+    docs = [
+        Document(content="Python guide", meta={"topic": "programming", "level": "beginner"}),
+        Document(content="Java tutorial", meta={"topic": "programming", "level": "intermediate"}),
+        Document(content="SQL reference", meta={"topic": "database", "level": "advanced"}),
+    ]
+    document_store.write_documents(docs, refresh=True)
+
+    retriever = OpenSearchSQLRetriever(document_store=document_store)
+    # Regular SELECT query returns results in hits format
+    sql_query = (
+        f"SELECT content, topic, level FROM {document_store._index} "  # noqa: S608
+        f"WHERE topic = 'programming'"
+    )
+    result = retriever.run(query=sql_query)
+
+    assert "result" in result
+    assert len(result["result"]) == 2
+    assert isinstance(result["result"], list)
+    assert all(isinstance(row, dict) for row in result["result"])
+
+    # Verify the structure matches hits format (each row is a dict with selected columns)
+    for row in result["result"]:
+        assert "content" in row
+        assert "topic" in row
+        assert "level" in row
+        assert row["topic"] == "programming"
 
 
 @pytest.mark.integration
@@ -168,7 +202,7 @@ def test_sql_retriever_error_handling(document_store: OpenSearchDocumentStore):
     # Test with raise_on_failure=False
     retriever_no_raise = OpenSearchSQLRetriever(document_store=document_store, raise_on_failure=False)
     result = retriever_no_raise.run(query=invalid_query)
-    assert result["result"] is None
+    assert result["result"] == []
 
 
 @pytest.mark.integration
@@ -272,7 +306,7 @@ async def test_sql_retriever_async_error_handling(document_store: OpenSearchDocu
     # Test with raise_on_failure=False
     retriever_no_raise = OpenSearchSQLRetriever(document_store=document_store, raise_on_failure=False)
     result = await retriever_no_raise.run_async(query=invalid_query)
-    assert result["result"] is None
+    assert result["result"] == []
 
 
 @pytest.mark.integration

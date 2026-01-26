@@ -1588,11 +1588,28 @@ class OpenSearchDocumentStore:
         Processes the SQL query response data.
 
         Extracts the _source from each hit and returns a list of dictionaries.
+        Handles both OpenSearch DSL format with results in "hits" and aggregate queries (COUNT, SUM, etc.) which return
+        results in "aggregations".
         """
-        if isinstance(response_data, dict) and "hits" in response_data:
-            hits = response_data.get("hits", {}).get("hits", [])
-            # extract _source from each hit, which contains the actual document data
-            return [hit.get("_source", {}) for hit in hits]
+        if isinstance(response_data, dict):
+            # Handle aggregate queries (COUNT, SUM, AVG, etc.) - results are in aggregations
+            if "aggregations" in response_data:
+                aggregations = response_data.get("aggregations", {})
+                # Convert aggregations to list of dicts (one row per aggregation)
+                result = []
+                for agg_name, agg_data in aggregations.items():
+                    if isinstance(agg_data, dict) and "value" in agg_data:
+                        result.append({agg_name: agg_data["value"]})
+                    else:
+                        result.append({agg_name: agg_data})
+                return result if result else []
+
+            # OpenSearch DSL format (format=json) - regular queries with hits
+            elif "hits" in response_data:
+                hits = response_data.get("hits", {}).get("hits", [])
+                # extract _source from each hit, which contains the actual document data
+                return [hit.get("_source", {}) for hit in hits]
+
         return response_data if isinstance(response_data, list) else []
 
     def _query_sql(self, query: str, fetch_size: int | None = None) -> list[dict[str, Any]]:
