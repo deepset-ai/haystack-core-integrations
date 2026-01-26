@@ -38,6 +38,7 @@ from haystack_integrations.components.generators.anthropic.chat.utils import (
     FINISH_REASON_MAPPING,
     _convert_anthropic_chunk_to_streaming_chunk,
     _convert_chat_completion_to_chat_message,
+    _convert_image_content_to_anthropic_format,
     _convert_messages_to_anthropic_format,
 )
 
@@ -675,6 +676,28 @@ class TestUtils:
         assert message._meta["finish_reason"] == "tool_calls"
         assert message._meta["usage"] == {"output_tokens": 40}
 
+    def test_convert_image_content_to_anthropic_format_with_unsupported_mime_type(self):
+        """Test that an ImageContent with unsupported mime type raises ValueError."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/bmp")  # Unsupported format
+
+        with pytest.raises(ValueError, match="Unsupported image format: image/bmp"):
+            _convert_image_content_to_anthropic_format(image_content)
+
+    def test_convert_image_content_to_anthropic_format_with_none_mime_type(self):
+        """Test that an ImageContent with None mime type raises ValueError."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
+        # Manually set mime_type to None to test the validation
+        image_content.mime_type = None
+
+        with pytest.raises(ValueError, match="Unsupported image format: None"):
+            _convert_image_content_to_anthropic_format(image_content)
+
     def test_convert_message_to_anthropic_format_from_system(self):
         messages = [ChatMessage.from_system("You are good assistant")]
         assert _convert_messages_to_anthropic_format(messages) == (
@@ -889,30 +912,6 @@ class TestUtils:
         assert anthropic_message["content"][1]["source"]["type"] == "base64"
         assert anthropic_message["content"][1]["source"]["media_type"] == "image/png"
         assert anthropic_message["content"][1]["source"]["data"] == base64_image
-
-    def test_convert_message_to_anthropic_format_with_unsupported_mime_type(self):
-        """Test that a ChatMessage with unsupported mime type raises ValueError."""
-        base64_image = (
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
-        )
-        image_content = ImageContent(base64_image=base64_image, mime_type="image/bmp")  # Unsupported format
-        message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
-
-        with pytest.raises(ValueError, match="Unsupported image format: image/bmp"):
-            _convert_messages_to_anthropic_format([message])
-
-    def test_convert_message_to_anthropic_format_with_none_mime_type(self):
-        """Test that a ChatMessage with None mime type raises ValueError."""
-        base64_image = (
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
-        )
-        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
-        # Manually set mime_type to None to test the validation
-        image_content.mime_type = None
-        message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
-
-        with pytest.raises(ValueError, match="Unsupported image format: None"):
-            _convert_messages_to_anthropic_format([message])
 
     def test_convert_message_to_anthropic_invalid(self):
         """
