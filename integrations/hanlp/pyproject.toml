@@ -26,7 +26,7 @@ dependencies = [
   "haystack-ai>=2.22.0",
   "hanlp>=2.1.1",
   # the following pin can be removed once HanLP supports transformers 5
-  "transformers<5",
+  "transformers>=4.1.1>,<5",
 ]
 
 [project.urls]
