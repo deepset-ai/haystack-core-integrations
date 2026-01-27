@@ -86,8 +86,9 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> ChatCompletionR
         if tool_call_results[0].origin.id is None:
             msg = "`ToolCall` must have a non-null `id` attribute to be used with llama.cpp."
             raise ValueError(msg)
+        # handle list of multimodal tool call results
         if not isinstance(tool_call_results[0].result, str):
-            msg = "Llama.cpp only supports strings in ToolCallResult.result."
+            msg = "ToolCallResult.result must be a string to be used with llama.cpp."
             raise ValueError(msg)
         return {
             "role": "function",
