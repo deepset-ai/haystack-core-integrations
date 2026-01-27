@@ -26,6 +26,25 @@ def divide_by_zero(a: int) -> float:
 
 
 ################################################
+# State IO Calculator MCP Server (returns dicts for state propagation)
+################################################
+
+state_calculator_mcp = FastMCP("StateCalculator")
+
+
+@state_calculator_mcp.tool()
+def state_add(a: int, b: int) -> dict:
+    """Add two integers."""
+    return {"result": a + b}
+
+
+@state_calculator_mcp.tool()
+def state_subtract(a: int, b: int) -> dict:
+    """Subtract integer b from integer a."""
+    return {"result": a - b}
+
+
+################################################
 # Echo MCP Server
 ################################################
 

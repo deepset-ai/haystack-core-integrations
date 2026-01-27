@@ -1,3 +1,4 @@
+from dataclasses import replace
 from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -162,6 +163,5 @@ class CohereRanker:
         sorted_docs = []
         for idx, score in zip(indices, scores, strict=True):
             doc = documents[idx]
-            doc.score = score
-            sorted_docs.append(documents[idx])
+            sorted_docs.append(replace(doc, score=score))
         return {"documents": sorted_docs}

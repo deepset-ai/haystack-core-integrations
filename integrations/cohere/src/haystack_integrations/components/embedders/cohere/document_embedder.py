@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+from dataclasses import replace
 from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict
@@ -195,10 +196,11 @@ class CohereDocumentEmbedder:
             self.embedding_type,
         )
 
+        new_documents = []
         for doc, embeddings in zip(documents, all_embeddings, strict=True):
-            doc.embedding = embeddings
+            new_documents.append(replace(doc, embedding=embeddings))
 
-        return {"documents": documents, "meta": metadata}
+        return {"documents": new_documents, "meta": metadata}
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
     async def run_async(self, documents: list[Document]) -> dict[str, list[Document] | dict[str, Any]]:
@@ -228,7 +230,8 @@ class CohereDocumentEmbedder:
             embedding_type=self.embedding_type,
         )
 
+        new_documents = []
         for doc, embeddings in zip(documents, all_embeddings, strict=True):
-            doc.embedding = embeddings
+            new_documents.append(replace(doc, embedding=embeddings))
 
-        return {"documents": documents, "meta": metadata}
+        return {"documents": new_documents, "meta": metadata}

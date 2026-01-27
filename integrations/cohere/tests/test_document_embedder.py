@@ -195,6 +195,51 @@ class TestCohereDocumentEmbedder:
             assert doc_with_embedding.meta == doc.meta
             assert doc_with_embedding.embedding == embedding
 
+    @patch("haystack_integrations.components.embedders.cohere.document_embedder.get_response")
+    def test_run_does_not_modify_original_documents(self, mock_get_response):
+        embedder = CohereDocumentEmbedder(api_key=Secret.from_token("test-api-key"))
+
+        embeddings = [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
+        mock_get_response.return_value = (embeddings, {"api_version": "1.0"})
+
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        result = embedder.run(docs)
+
+        # Check that the original documents are not modified
+        for doc in docs:
+            assert doc.embedding is None
+
+        # Check that the returned documents have embeddings
+        for doc_with_embedding, embedding in zip(result["documents"], embeddings, strict=True):
+            assert doc_with_embedding.embedding == embedding
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.embedders.cohere.document_embedder.get_async_response")
+    async def test_run_async_does_not_modify_original_documents(self, mock_get_response):
+        embedder = CohereDocumentEmbedder(api_key=Secret.from_token("test-api-key"))
+
+        embeddings = [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
+        mock_get_response.return_value = (embeddings, {"api_version": "1.0"})
+
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        result = await embedder.run_async(docs)
+
+        # Check that the original documents are not modified
+        for doc in docs:
+            assert doc.embedding is None
+
+        # Check that the returned documents have embeddings
+        for doc_with_embedding, embedding in zip(result["documents"], embeddings, strict=True):
+            assert doc_with_embedding.embedding == embedding
+
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
         reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",

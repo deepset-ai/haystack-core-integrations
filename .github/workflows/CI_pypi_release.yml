@@ -78,7 +78,6 @@ jobs:
           message: "Update the changelog"
           add: ${{ steps.pathfinder.outputs.project_path }}
           # to avoid that the pushed branch tip is behind its remote counterpart, we need to pull first
-          # see https://github.com/EndBug/add-and-commit/issues/498
-          pull: " "
+          pull: "origin main --rebase --autostash"
           push: origin HEAD:main
 

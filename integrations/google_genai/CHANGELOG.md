@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v3.2.0] - 2026-01-19
+
+### 🐛 Bug Fixes
+
+- *(google_genai)* Use dataclass replace to avoid modifying input documents (#2762)
+
+
 ## [integrations/google_genai-v3.1.0] - 2026-01-13
 
 ### 🚀 Features

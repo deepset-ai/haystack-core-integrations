@@ -909,28 +909,30 @@ class TestGoogleGenAIChatGenerator:
         """
         Integration test that the GoogleGenAIChatGenerator component can run with parallel tools.
         """
-        initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
-        component = GoogleGenAIChatGenerator(tools=tools)
+        initial_messages = [
+            ChatMessage.from_user(
+                "What's the weather like in Paris and Berlin? Produce a separate tool call for each city."
+            )
+        ]
+        component = GoogleGenAIChatGenerator(model="gemini-3-flash-preview", tools=tools)
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) == 1
         message = results["replies"][0]
+        assert message.meta["finish_reason"] == "stop"
 
         # Google GenAI should make tool calls for both cities
         assert len(message.tool_calls) == 2
-        tool_call_paris = (
-            message.tool_calls[0] if message.tool_calls[0].arguments["city"] == "Paris" else message.tool_calls[1]
-        )
+        paris_index = 0 if message.tool_calls[0].arguments["city"].lower() == "paris" else 1
+        tool_call_paris = message.tool_calls[paris_index]
         assert isinstance(tool_call_paris, ToolCall)
         assert tool_call_paris.tool_name == "weather"
-        assert tool_call_paris.arguments["city"] == "Paris"
-        assert message.meta["finish_reason"] == "stop"
+        assert tool_call_paris.arguments["city"].lower() == "paris"
 
-        tool_call_berlin = message.tool_calls[1]
+        tool_call_berlin = message.tool_calls[1 - paris_index]
         assert isinstance(tool_call_berlin, ToolCall)
         assert tool_call_berlin.tool_name == "weather"
-        assert tool_call_berlin.arguments["city"] == "Berlin"
-        assert message.meta["finish_reason"] == "stop"
+        assert tool_call_berlin.arguments["city"].lower() == "berlin"
 
         # Google GenAI expects results from both tools in separate messages
         new_messages = [
@@ -942,13 +944,13 @@ class TestGoogleGenAIChatGenerator:
 
         # Response from the model contains results from both tools
         results = component.run(new_messages)
-        message = results["replies"][0]
+        final_message = results["replies"][0]
 
-        assert not message.tool_calls, "Message has tool calls and it should not have any"
-        assert len(message.text) > 0, "Message has no text"
-        assert message.text and ("paris" in message.text.lower() or "berlin" in message.text.lower())
+        assert not final_message.tool_calls, "Message has tool calls and it should not have any"
+        assert len(final_message.text) > 0, "Message has no text"
+        assert final_message.text and "paris" in final_message.text.lower() and "berlin" in final_message.text.lower()
         # Check that the response mentions both temperature readings
-        assert "22" in message.text or "15" in message.text
+        assert "22" in final_message.text and "15" in final_message.text
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),

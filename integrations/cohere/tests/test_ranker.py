@@ -295,6 +295,27 @@ class TestCohereRanker:
             Document(id="efgh", content="doc2", score=0.95),
         ]
 
+    def test_run_does_not_modify_original_documents(self, monkeypatch, mock_ranker_response):  # noqa: ARG002
+        monkeypatch.setenv("CO_API_KEY", "test-api-key")
+        ranker = CohereRanker(top_k=2)
+        query = "test"
+        documents = [
+            Document(id="abcd", content="doc1"),
+            Document(id="efgh", content="doc2"),
+            Document(id="ijkl", content="doc3"),
+        ]
+
+        ranker_results = ranker.run(query, documents)
+
+        # Check that the original documents are not modified
+        for doc in documents:
+            assert doc.score is None
+
+        # Check that the returned documents have scores
+        reranked_docs = ranker_results["documents"]
+        for doc in reranked_docs:
+            assert doc.score is not None
+
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
         reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",

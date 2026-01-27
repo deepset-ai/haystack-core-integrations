@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
@@ -90,6 +94,8 @@ class WeaveConnector:
 
     @component.output_types(pipeline_name=str)
     def run(self) -> dict[str, str]:
+        if self.tracer is None:
+            self.warm_up()
         # NOTE: this is a no-op component - it simply triggers the Tracer to sends traces to Weights & Biases
         return {"pipeline_name": self.pipeline_name}
 

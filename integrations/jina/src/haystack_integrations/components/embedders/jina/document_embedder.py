@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+from dataclasses import replace
 from typing import Any
 
 import requests
@@ -219,7 +220,8 @@ class JinaDocumentEmbedder:
             texts_to_embed=texts_to_embed, batch_size=self.batch_size, parameters=parameters
         )
 
+        new_documents: list[Document] = []
         for doc, emb in zip(documents, embeddings, strict=True):
-            doc.embedding = emb
+            new_documents.append(replace(doc, embedding=emb))
 
-        return {"documents": documents, "meta": metadata}
+        return {"documents": new_documents, "meta": metadata}
