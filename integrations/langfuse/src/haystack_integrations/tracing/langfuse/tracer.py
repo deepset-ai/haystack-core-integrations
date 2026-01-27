@@ -287,10 +287,9 @@ class DefaultSpanHandler(SpanHandler):
             root_span_type: Literal["agent", "span"] = (
                 "agent" if context.operation_name == "haystack.agent.run" else "span"
             )
-            trace_context: TraceContext | None = None
-            trace_id = tracing_ctx.get("trace_id")
-            if isinstance(trace_id, str):
-                trace_context = {"trace_id": trace_id}
+            trace_context: TraceContext | None = cast(
+                TraceContext, {"trace_id": tracing_ctx.get("trace_id")} if tracing_ctx.get("trace_id") else None
+            )
             # Create a new trace when there's no parent span
             span_context_manager = self.tracer.start_as_current_observation(
                 trace_context=trace_context,
