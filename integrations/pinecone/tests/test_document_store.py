@@ -217,7 +217,7 @@ def test_convert_meta_to_int():
 
 @pytest.mark.integration
 @pytest.mark.skipif(not os.environ.get("PINECONE_API_KEY"), reason="PINECONE_API_KEY not set")
-def test_serverless_index_creation_from_scratch(sleep_time):
+def test_serverless_index_creation_from_scratch(delete_sleep_time):
     # we use a fixed index name to avoid hitting the limit of Pinecone's free tier (max 5 indexes)
     # the index name is defined in the test matrix of the GitHub Actions workflow
     # the default value is provided for local testing
@@ -229,7 +229,7 @@ def test_serverless_index_creation_from_scratch(sleep_time):
     except Exception:  # noqa S110
         pass
 
-    time.sleep(sleep_time)
+    time.sleep(delete_sleep_time)
 
     ds = PineconeDocumentStore(
         index=index_name,
