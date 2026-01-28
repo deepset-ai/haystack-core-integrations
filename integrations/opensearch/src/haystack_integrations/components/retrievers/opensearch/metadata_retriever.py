@@ -102,6 +102,7 @@ class OpenSearchMetadataRetriever:
     def run(
         self,
         query: str,
+        *,
         document_store: OpenSearchDocumentStore | None = None,
         fields: list[str] | None = None,
         top_k: int | None = None,
