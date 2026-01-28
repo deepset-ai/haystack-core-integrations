@@ -374,7 +374,15 @@ class WeaviateDocumentStore:
         as they are not user metadata fields.
 
         :returns: A dictionary where keys are field names and values are dictionaries
-            containing type information, e.g., {"category": {"type": "text"}}.
+            containing type information, e.g.:
+            ```python
+            {
+                'number': {'type': 'int'},
+                'date': {'type': 'date'},
+                'category': {'type': 'text'},
+                'status': {'type': 'text'}
+            }
+            ```
         """
         config = self.collection.config.get()
         special_fields = {prop["name"] for prop in DOCUMENT_COLLECTION_PROPERTIES}
@@ -393,7 +401,15 @@ class WeaviateDocumentStore:
         as they are not user metadata fields.
 
         :returns: A dictionary where keys are field names and values are dictionaries
-            containing type information, e.g., {"category": {"type": "text"}}.
+            containing type information, e.g.:
+            ```python
+            {
+                'number': {'type': 'int'},
+                'date': {'type': 'date'},
+                'category': {'type': 'text'},
+                'status': {'type': 'text'}
+            }
+            ```
         """
         collection = await self.async_collection
         config = await collection.config.get()
