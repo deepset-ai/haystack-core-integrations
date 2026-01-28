@@ -84,7 +84,7 @@ class OpenSearchSQLRetriever:
         query: str,
         document_store: OpenSearchDocumentStore | None = None,
         fetch_size: int | None = None,
-    ) -> dict[str, dict[str, Any] | None]:
+    ) -> dict[str, dict[str, Any]]:
         """
         Execute a raw OpenSearch SQL query against the index.
 
@@ -129,17 +129,17 @@ class OpenSearchSQLRetriever:
                     error=str(e),
                     exc_info=True,
                 )
-                result = None
+                result = {}
 
         return {"result": result}
 
-    @component.output_types(result=Any)
+    @component.output_types(result=dict[str, Any])
     async def run_async(
         self,
         query: str,
         document_store: OpenSearchDocumentStore | None = None,
         fetch_size: int | None = None,
-    ) -> dict[str, dict[str, Any] | None]:
+    ) -> dict[str, dict[str, Any]]:
         """
         Asynchronously execute a raw OpenSearch SQL query against the index.
 
@@ -184,6 +184,6 @@ class OpenSearchSQLRetriever:
                     error=str(e),
                     exc_info=True,
                 )
-                result = None
+                result = {}
 
         return {"result": result}

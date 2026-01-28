@@ -235,7 +235,7 @@ def test_sql_retriever_error_handling(document_store: OpenSearchDocumentStore):
     # Test with raise_on_failure=False
     retriever_no_raise = OpenSearchSQLRetriever(document_store=document_store, raise_on_failure=False)
     result = retriever_no_raise.run(query=invalid_query)
-    assert result["result"] is None
+    assert result["result"] == {}
 
 
 @pytest.mark.integration
@@ -345,7 +345,7 @@ async def test_sql_retriever_async_error_handling(document_store: OpenSearchDocu
     # Test with raise_on_failure=False
     retriever_no_raise = OpenSearchSQLRetriever(document_store=document_store, raise_on_failure=False)
     result = await retriever_no_raise.run_async(query=invalid_query)
-    assert result["result"] is None
+    assert result["result"] == {}
 
 
 @pytest.mark.integration
