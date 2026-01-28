@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/anthropic-v5.2.0] - 2026-01-27
+
+### 🚀 Features
+
+- Anthropic - support images in tool results (#2769)
+
+
 ## [integrations/anthropic-v5.1.1] - 2026-01-15
 
 ### 🐛 Bug Fixes
